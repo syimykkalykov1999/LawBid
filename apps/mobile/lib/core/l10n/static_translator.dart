@@ -782,6 +782,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.submit.supplement': 'Отправить ответ',
         'verification.submit.success':
             'Заявка отправлена на проверку. Мы сообщим о решении.',
+        'verification.submit.confirm': 'Подтвердить',
+        'verification.submit.confirmed': 'Лицензия подтверждена.',
         'verification.submit.blocked.uploading':
             'Дождитесь окончания загрузки и проверки всех файлов.',
         'verification.submit.blocked.failed':
@@ -933,6 +935,10 @@ class StaticTranslatorRu extends _MapTranslator {
         'practices.remove': 'Убрать {name}',
         'practices.save': 'Сохранить',
         'practices.saved': 'Практики сохранены.',
+        'practices.unsaved.title': 'Выйти без сохранения?',
+        'practices.unsaved.body': 'Выбранные изменения не сохранятся.',
+        'practices.unsaved.stay': 'Остаться',
+        'practices.unsaved.leave': 'Выйти',
         'practices.noResults': 'По запросу ничего не найдено.',
         'practices.emptyTree':
             'Справочник практик сейчас пуст. Попробуйте позже.',
@@ -2131,6 +2137,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.submit.supplement': 'Send the answer',
         'verification.submit.success':
             "Sent for review. We'll notify you about the decision.",
+        'verification.submit.confirm': 'Confirm',
+        'verification.submit.confirmed': 'License confirmed.',
         'verification.submit.blocked.uploading':
             'Wait until all files finish uploading and checking.',
         'verification.submit.blocked.failed':
@@ -2282,6 +2290,10 @@ class StaticTranslatorEn extends _MapTranslator {
         'practices.remove': 'Remove {name}',
         'practices.save': 'Save',
         'practices.saved': 'Practices saved.',
+        'practices.unsaved.title': 'Leave without saving?',
+        'practices.unsaved.body': "Your changes won't be saved.",
+        'practices.unsaved.stay': 'Stay',
+        'practices.unsaved.leave': 'Leave',
         'practices.noResults': 'No practice areas match your search.',
         'practices.emptyTree':
             'The practice directory is empty right now. Please try again later.',

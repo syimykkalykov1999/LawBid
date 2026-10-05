@@ -333,7 +333,9 @@ void main() {
       _location(router),
       OnboardingRoutes.forStep(OnboardingStepId.verification),
     );
-    expect(stage('subscription'), findsOneWidget);
+    // Owner 2026-10-05 (audit): "Later" is remembered — no offer again.
+    expect(stage('done'), findsOneWidget);
+    expect(stage('subscription'), findsNothing);
     expect(stage('practices'), findsNothing);
     expect(stage('license'), findsNothing);
 

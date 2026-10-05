@@ -17,3 +17,4 @@ DELETE /team/{id} the response property `data/members/items/phone` became nullab
 DELETE /team/{id} the response property `data/members/items/phone` became optional for the status `200`
 PATCH /team/{id} the response property `data/members/items/phone` became nullable for the status `200`
 PATCH /team/{id} the response property `data/members/items/phone` became optional for the status `200`
+PUT /attorneys/me/practice-areas the `practiceAreaIds` request property's minItems was set to `1`

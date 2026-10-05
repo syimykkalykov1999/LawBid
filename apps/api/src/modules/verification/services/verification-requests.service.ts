@@ -242,6 +242,28 @@ export class VerificationRequestsService {
           },
         });
         if (holder && holder.attorney_id !== userId) throw alreadyRegistered();
+        // Owner 2026-10-05 (audit): re-adding a state that is already
+        // verified would send it back to review; only an explicit renewal
+        // may do that.
+        if (!dto.renewal) {
+          const active = await tx.attorneyLicense.findFirst({
+            where: {
+              attorney_id: userId,
+              state_code: dto.stateCode,
+              license_status: 'verified',
+              OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+            },
+            select: { id: true },
+          });
+          if (active) {
+            throw httpError(
+              HttpStatus.CONFLICT,
+              ErrorCode.LICENSE_ALREADY_ADDED,
+              'This state is already verified.',
+              { licenseId: active.id, reason: 'already_verified' },
+            );
+          }
+        }
         const sameState = await tx.attorneyLicense.findFirst({
           where: {
             attorney_id: userId,

@@ -153,6 +153,7 @@ export 'models/admin_session_row_dto.dart';
 export 'models/admin_session_row_list_envelope.dart';
 export 'models/admin_user_list_item_dto.dart';
 export 'models/admin_user_list_item_list_envelope.dart';
+export 'models/admin_user_license_dto.dart';
 export 'models/admin_user_subscription_dto.dart';
 export 'models/admin_attorney_card_dto.dart';
 export 'models/admin_client_card_dto.dart';

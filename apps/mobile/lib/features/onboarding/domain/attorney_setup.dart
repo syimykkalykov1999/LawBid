@@ -35,6 +35,7 @@ AttorneySetupStage attorneySetupStage({
   required VerificationView verification,
   bool? hasPractices,
   bool? subscriptionActive,
+  bool offerSkipped = false,
 }) {
   switch (verification) {
     case VerificationView.start:
@@ -49,6 +50,10 @@ AttorneySetupStage attorneySetupStage({
       break;
   }
   if (hasPractices != true) return AttorneySetupStage.practices;
-  if (subscriptionActive != true) return AttorneySetupStage.subscription;
+  // Owner 2026-10-05 (audit): "Later" is remembered — Back from the tour
+  // doesn't show the offer again.
+  if (subscriptionActive != true && !offerSkipped) {
+    return AttorneySetupStage.subscription;
+  }
   return AttorneySetupStage.done;
 }

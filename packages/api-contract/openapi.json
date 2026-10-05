@@ -49364,6 +49364,31 @@
           "data"
         ]
       },
+      "AdminUserLicenseDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string"
+          },
+          "barNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "stateCode",
+          "barNumber",
+          "status",
+          "expiresAt"
+        ]
+      },
       "AdminUserSubscriptionDto": {
         "type": "object",
         "properties": {
@@ -49434,6 +49459,19 @@
               "type": "string"
             }
           },
+          "licenseItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminUserLicenseDto"
+            }
+          },
+          "practices": {
+            "description": "English names of the chosen practice areas.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "subscription": {
             "nullable": true,
             "type": "object",
@@ -49454,6 +49492,8 @@
           "followersCount",
           "postsCount",
           "licenses",
+          "licenseItems",
+          "practices",
           "subscription"
         ]
       },
@@ -50215,6 +50255,10 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
             "example": "2027-06-30",
             "description": "License expiry (YYYY-MM-DD), if the license has one."
+          },
+          "renewal": {
+            "type": "boolean",
+            "description": "True to renew a license that is still verified (a new expiry date). Without it a state that is already verified is refused."
           }
         },
         "required": [
@@ -59646,6 +59690,7 @@
         "properties": {
           "practiceAreaIds": {
             "uniqueItems": true,
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",

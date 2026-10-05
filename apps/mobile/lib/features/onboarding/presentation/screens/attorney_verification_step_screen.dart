@@ -122,6 +122,7 @@ class _AttorneyVerificationStepScreenState
       verification: view,
       hasPractices: hasPractices,
       subscriptionActive: subscription?.value?.isActive,
+      offerSkipped: ref.watch(subscriptionOfferSkippedProvider),
     );
     final progress = _progress(stage);
 
@@ -251,6 +252,19 @@ class _AttorneyVerificationStepScreenState
   }
 }
 
+/// "Later" on the onboarding offer, kept for the session.
+final subscriptionOfferSkippedProvider =
+    NotifierProvider<SubscriptionOfferSkipped, bool>(
+  SubscriptionOfferSkipped.new,
+);
+
+class SubscriptionOfferSkipped extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void skip() => state = true;
+}
+
 /// "7 days free, a card at the start" — the same offer the bid button
 /// opens later (subscription_offer.dart). "Start 7 days free" pays on
 /// Stripe's page and moves on once active; "Later" moves on without it.
@@ -300,7 +314,10 @@ class _SubscriptionStage extends ConsumerWidget {
         isLoading: action.busy,
         onPressed: waiting
             ? () => ref.read(subscribeControllerProvider.notifier).stopWaiting()
-            : onDone,
+            : () {
+                ref.read(subscriptionOfferSkippedProvider.notifier).skip();
+                onDone();
+              },
       ),
       children: const [SubscriptionOfferBenefits()],
     );
