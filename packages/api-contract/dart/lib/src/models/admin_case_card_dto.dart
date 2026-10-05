@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'admin_case_bid_dto.dart';
 import 'admin_case_card_dto_budget_mode.dart';
 import 'admin_case_card_dto_status.dart';
+import 'admin_case_invite_dto.dart';
 import 'admin_case_state_dto.dart';
 import 'admin_journal_entry_dto.dart';
 import 'admin_party_dto.dart';
@@ -40,6 +41,7 @@ class AdminCaseCardDto {
     required this.photosCount,
     required this.acceptedBidId,
     required this.bids,
+    required this.invites,
     required this.journal,
     required this.disputeIds,
     required this.contactIssueIds,
@@ -79,6 +81,9 @@ class AdminCaseCardDto {
 
   /// Newest first (≤100).
   final List<AdminCaseBidDto> bids;
+
+  /// Owner 2026-10-05: invites the client sent, newest first.
+  final List<AdminCaseInviteDto> invites;
 
   /// case_journal, newest first (last 50).
   final List<AdminJournalEntryDto> journal;

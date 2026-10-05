@@ -1,3 +1,4 @@
+import { statusOf } from '../cases/case-invites/case-invites.service';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
@@ -178,7 +179,7 @@ export class AdminCaseManagementService {
       },
     });
     if (!kase) throw caseNotFound();
-    const [bids, journal, disputes, issues, reports, promoted] =
+    const [bids, invites, journal, disputes, issues, reports, promoted] =
       await Promise.all([
         this.prisma.bid.findMany({
           where: { case_id: id },
@@ -191,6 +192,22 @@ export class AdminCaseManagementService {
             fee_type: true,
             amount_cents: true,
             round_count: true,
+            created_at: true,
+            attorney: { select: { first_name: true, last_name: true } },
+          },
+        }),
+        this.prisma.caseInvite.findMany({
+          where: { case_id: id },
+          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+          take: BIDS_MAX,
+          select: {
+            id: true,
+            attorney_id: true,
+            status: true,
+            expires_at: true,
+            budget_cents: true,
+            decline_reason: true,
+            bid_id: true,
             created_at: true,
             attorney: { select: { first_name: true, last_name: true } },
           },
@@ -251,6 +268,17 @@ export class AdminCaseManagementService {
         amountCents: b.amount_cents,
         rounds: b.round_count,
         createdAt: b.created_at.toISOString(),
+      })),
+      invites: invites.map((v) => ({
+        id: v.id,
+        attorneyId: v.attorney_id,
+        attorneyName: nameOf(v.attorney),
+        status: statusOf(v, kase.status, new Date()),
+        budgetCents: v.budget_cents,
+        declineReason: v.decline_reason,
+        bidId: v.bid_id,
+        expiresAt: v.expires_at.toISOString(),
+        createdAt: v.created_at.toISOString(),
       })),
       journal: journal.map((j) => ({
         id: j.id,

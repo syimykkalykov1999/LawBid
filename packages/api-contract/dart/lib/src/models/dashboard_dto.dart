@@ -18,6 +18,7 @@ class DashboardDto {
     required this.subscriptions,
     required this.openCases,
     required this.bids24h,
+    required this.invites24h,
     required this.openReports,
     required this.openDisputes,
     required this.openContactIssues,
@@ -32,6 +33,9 @@ class DashboardDto {
   final DashboardSubscriptionsDto subscriptions;
   final int openCases;
   final int bids24h;
+
+  /// Owner 2026-10-05: client → attorney case invites sent.
+  final int invites24h;
   final int openReports;
   final int openDisputes;
   final int openContactIssues;

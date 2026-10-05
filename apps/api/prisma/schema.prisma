@@ -455,6 +455,10 @@ enum NotificationType {
   promotion_ended
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
+  // Owner 2026-10-05: a client offered their case to the attorney / the
+  // attorney declined it.
+  case_invite_received
+  case_invite_declined
 
   @@map("notification_type")
 }
@@ -702,6 +706,8 @@ model User {
   assistant_memberships       AssistantMembership[]          @relation("AssistantUser")
   attorney_tasks              AttorneyTask[]                 @relation("AttorneyTasks")
   bid_drafts                  BidDraft[]                     @relation("BidDrafts")
+  case_invites_sent           CaseInvite[]                   @relation("CaseInvitesSent")
+  case_invites_received       CaseInvite[]                   @relation("CaseInvitesReceived")
   liability_acceptances       AssistantLiabilityAcceptance[] @relation("AssistantLiability")
   client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
   review_helpful_votes        ReviewHelpfulVote[]            @relation("ReviewHelpfulVoter")
@@ -1296,6 +1302,7 @@ model Case {
   photos              CasePhoto[]
   attorney_tasks      AttorneyTask[]
   bid_drafts          BidDraft[]
+  invites             CaseInvite[]
   bids                Bid[]                @relation("CaseBids")
   journal             CaseJournal[]
   contact_disclosures ContactDisclosure[]
@@ -2563,19 +2570,49 @@ model BidDraft {
   @@map("bid_drafts")
 }
 
+/// Owner 2026-10-05: a client offers one of their open cases to a chosen
+/// attorney. One row per (case, attorney): a re-invite after a decline,
+/// cancel or expiry reuses it. status: pending / accepted (the attorney
+/// answered with a bid, `bid_id`) / declined / cancelled / expired.
+model CaseInvite {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                 String    @db.Uuid
+  case                    Case      @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  client_id               String    @db.Uuid
+  client                  User      @relation("CaseInvitesSent", fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attorney_id             String    @db.Uuid
+  attorney                User      @relation("CaseInvitesReceived", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  status                  String    @default("pending") @db.String(20)
+  message                 String?   @db.String(1000)
+  budget_cents            Int?
+  decline_reason          String?   @db.String(500)
+  outside_practice        Boolean   @default(false)
+  outside_licensed_states Boolean   @default(false)
+  bid_id                  String?   @db.Uuid
+  expires_at              DateTime  @db.Timestamptz
+  decided_at              DateTime? @db.Timestamptz
+  created_at              DateTime  @default(now()) @db.Timestamptz
+  updated_at              DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([case_id, attorney_id], map: "case_invites_case_attorney_key")
+  @@index([attorney_id, status], map: "case_invites_attorney_status_idx")
+  @@index([client_id, created_at], map: "case_invites_client_created_idx")
+  @@map("case_invites")
+}
+
 /// Owner 2026-09-30: a push + in-app message an admin sent to an audience.
 model AdminBroadcast {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  admin_id   String   @db.Uuid
-  title      String   @db.String(120)
-  body       String   @db.String(1000)
-  audience   String   @db.String(20)
-  state_code String?  @db.String(2)
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id    String   @db.Uuid
+  title       String   @db.String(120)
+  body        String   @db.String(1000)
+  audience    String   @db.String(20)
+  state_code  String?  @db.String(2)
   /// Owner 2026-10-04: any set of states (empty = every state);
   /// `state_code` keeps the first one for older readers.
   state_codes String[] @default([])
-  recipients BigInt   @default(0)
-  created_at DateTime @default(now()) @db.Timestamptz
+  recipients  BigInt   @default(0)
+  created_at  DateTime @default(now()) @db.Timestamptz
 
   @@map("admin_broadcasts")
 }

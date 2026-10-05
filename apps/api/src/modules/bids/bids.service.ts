@@ -135,6 +135,11 @@ export class BidsService {
             last_activity_at: now,
           },
         });
+        // Owner 2026-10-05: a bid answers the client's pending invite.
+        await tx.caseInvite.updateMany({
+          where: { case_id: caseId, attorney_id: user.sub, status: 'pending' },
+          data: { status: 'accepted', bid_id: created.id, decided_at: now },
+        });
         await this.journal.append(tx, {
           caseId,
           clientId: kase.client_id,

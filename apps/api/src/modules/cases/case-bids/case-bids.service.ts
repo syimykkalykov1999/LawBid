@@ -12,6 +12,7 @@ import { caseNotFound } from '../domain/case-state-machine';
 import { CaseAccessPolicy } from '../policies/case-access.policy';
 import {
   CASE_BIDS_PAGE_DEFAULT,
+  type BidAttorneySummaryDto,
   type CaseBidItemDto,
   type CaseBidPage,
   type CaseBidsQueryDto,
@@ -163,7 +164,6 @@ export class CaseBidsService {
   /** A bid with the attorney's public summary (§5.2 card). */
   async toItem(bid: BidListRow): Promise<CaseBidItemDto> {
     const a = bid.attorney;
-    const p = a.attorney_profile;
     const avatar = await this.files.avatarUrls(a.avatar_file_id);
     return {
       id: bid.id,
@@ -184,26 +184,34 @@ export class CaseBidsService {
       outsideLicensedStates: bid.outside_licensed_states,
       decidedAt: bid.decided_at?.toISOString() ?? null,
       createdAt: bid.created_at.toISOString(),
-      attorney: {
-        id: bid.attorney_id,
-        username: p?.username ?? '',
-        firstName: a.first_name,
-        lastName: a.last_name,
-        avatarUrl256: avatar.url256,
-        verifiedBadge:
-          p?.verification_status === 'verified' &&
-          !p.name_mismatch &&
-          (p.licenses.length ?? 0) > 0,
-        licensedStates: [
-          ...new Set((p?.licenses ?? []).map((l) => l.state_code)),
-        ],
-        rating: {
-          avg: p ? Number(p.rating_avg) : 0,
-          count: p?.rating_count ?? 0,
-        },
-      },
+      attorney: toAttorneySummary(bid.attorney_id, a, avatar.url256),
     };
   }
+}
+
+/** The attorney's public summary on a bid / invite card (§5.2). */
+export function toAttorneySummary(
+  attorneyId: string,
+  a: BidListRow['attorney'],
+  avatarUrl256: string | null,
+): BidAttorneySummaryDto {
+  const p = a.attorney_profile;
+  return {
+    id: attorneyId,
+    username: p?.username ?? '',
+    firstName: a.first_name,
+    lastName: a.last_name,
+    avatarUrl256,
+    verifiedBadge:
+      p?.verification_status === 'verified' &&
+      !p.name_mismatch &&
+      (p.licenses.length ?? 0) > 0,
+    licensedStates: [...new Set((p?.licenses ?? []).map((l) => l.state_code))],
+    rating: {
+      avg: p ? Number(p.rating_avg) : 0,
+      count: p?.rating_count ?? 0,
+    },
+  };
 }
 
 function orderOf(sort: CaseBidsSort): Prisma.BidOrderByWithRelationInput[] {

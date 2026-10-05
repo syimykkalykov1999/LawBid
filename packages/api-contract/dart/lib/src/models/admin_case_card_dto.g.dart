@@ -38,6 +38,9 @@ AdminCaseCardDto _$AdminCaseCardDtoFromJson(Map<String, dynamic> json) =>
       bids: (json['bids'] as List<dynamic>)
           .map((e) => AdminCaseBidDto.fromJson(e as Map<String, dynamic>))
           .toList(),
+      invites: (json['invites'] as List<dynamic>)
+          .map((e) => AdminCaseInviteDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       journal: (json['journal'] as List<dynamic>)
           .map((e) => AdminJournalEntryDto.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -84,6 +87,7 @@ Map<String, dynamic> _$AdminCaseCardDtoToJson(AdminCaseCardDto instance) =>
       'photosCount': instance.photosCount,
       'acceptedBidId': ?instance.acceptedBidId,
       'bids': instance.bids.map((e) => e.toJson()).toList(),
+      'invites': instance.invites.map((e) => e.toJson()).toList(),
       'journal': instance.journal.map((e) => e.toJson()).toList(),
       'disputeIds': instance.disputeIds,
       'contactIssueIds': instance.contactIssueIds,

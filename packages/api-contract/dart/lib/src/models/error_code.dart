@@ -216,6 +216,16 @@ enum ErrorCode {
   subscriptionRequired('SUBSCRIPTION_REQUIRED'),
   @JsonValue('BID_ALREADY_EXISTS')
   bidAlreadyExists('BID_ALREADY_EXISTS'),
+  @JsonValue('INVITE_NOT_FOUND')
+  inviteNotFound('INVITE_NOT_FOUND'),
+  @JsonValue('INVITE_INVALID_STATE')
+  inviteInvalidState('INVITE_INVALID_STATE'),
+  @JsonValue('INVITE_ALREADY_PENDING')
+  inviteAlreadyPending('INVITE_ALREADY_PENDING'),
+  @JsonValue('INVITE_ATTORNEY_UNAVAILABLE')
+  inviteAttorneyUnavailable('INVITE_ATTORNEY_UNAVAILABLE'),
+  @JsonValue('INVITE_LIMIT_REACHED')
+  inviteLimitReached('INVITE_LIMIT_REACHED'),
   @JsonValue('CASE_CONTAINS_CONTACT_INFO')
   caseContainsContactInfo('CASE_CONTAINS_CONTACT_INFO'),
   @JsonValue('CLIENT_CONTACT_SHARING_CONSENT_REQUIRED')
