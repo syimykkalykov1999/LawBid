@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-105 tables.
+106 tables.
 
 ```mermaid
 erDiagram
@@ -1216,6 +1216,23 @@ erDiagram
     String created_by "nullable"
     DateTime created_at
   }
+  document_templates {
+    String id PK
+    String file_id FK,UK
+    String file_name
+    String title
+    String description
+    String practice_area_id FK "nullable"
+    String state "nullable"
+    String language
+    enum_DocumentTemplateAudience audience
+    Boolean is_published
+    Int download_count
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime deleted_at "nullable"
+  }
   users }o--o| files : "avatar_file_id"
   files }o--|| users : "owner_user_id"
   user_identifiers }o--|| users : "user_id"
@@ -1374,4 +1391,6 @@ erDiagram
   user_recent_stickers }o--|| users : "user_id"
   user_recent_stickers }o--|| stickers : "sticker_id"
   client_verifications |o--|| users : "user_id"
+  document_templates |o--|| files : "file_id"
+  document_templates }o--o| practice_areas : "practice_area_id"
 ```
