@@ -57102,13 +57102,18 @@
           },
           "maxSeats": {
             "type": "integer"
+          },
+          "trialDays": {
+            "type": "integer",
+            "description": "Free trial days for a new subscription (admin setting; 0 = no trial)."
           }
         },
         "required": [
           "monthlyCents",
           "seatCents",
           "yearlyCents",
-          "maxSeats"
+          "maxSeats",
+          "trialDays"
         ]
       },
       "SubscriptionMeDto": {

@@ -1,39 +1,67 @@
-'use client';
+"use client";
 
-import { ArrowRight, PencilSimple, Tag, UsersThree } from '@phosphor-icons/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
-import { useState } from 'react';
-import { dollarsToCents, fadeUp, useBillingRole, UserCell } from '@/components/billing/shared';
-import { ErrorNote, PageHeader } from '@/components/page-header';
-import { Button } from '@/components/ui/button';
-import { Badge, Card } from '@/components/ui/card';
-import { Dialog } from '@/components/ui/dialog';
-import { EmptyState, Skeleton } from '@/components/ui/empty';
-import { Field, Input, Textarea } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
-import { useToast } from '@/components/ui/toast';
-import { api, errorText } from '@/lib/api/client';
-import type { components } from '@/lib/api/schema';
-import { usd } from '@/lib/labels';
-import { formatDateTime } from '@/lib/utils';
+import {
+  ArrowRight,
+  Gift,
+  PencilSimple,
+  Tag,
+  UsersThree,
+  type Icon,
+} from "@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "motion/react";
+import { useState } from "react";
+import {
+  dollarsToCents,
+  fadeUp,
+  useBillingRole,
+  UserCell,
+} from "@/components/billing/shared";
+import { ErrorNote, PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge, Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { EmptyState, Skeleton } from "@/components/ui/empty";
+import { Field, Input, Textarea } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
+import { api, errorText } from "@/lib/api/client";
+import type { components } from "@/lib/api/schema";
+import { usd } from "@/lib/labels";
+import { formatDateTime } from "@/lib/utils";
 
-type Prices = components['schemas']['AdminPlanPricesDto'];
-type Item = components['schemas']['AdminPlanPriceItemDto'];
-type Kind = Item['kind'];
+type Prices = components["schemas"]["AdminPlanPricesDto"];
+type Item = components["schemas"]["AdminPlanPriceItemDto"];
+type Kind = Item["kind"];
 
 const KIND: Record<Kind, { title: string; who: string; per: string }> = {
-  monthly: { title: 'Адвокат · месяц', who: 'Месячная подписка адвоката', per: '/мес' },
-  seat: { title: 'Место помощника', who: 'За каждого помощника на месячном тарифе', per: '/мес' },
-  yearly: { title: 'Prime · год', who: 'Годовой тариф со всеми местами помощников', per: '/год' },
-  client_badge: { title: 'Галочка клиента', who: 'Золотая галочка подтверждённого клиента', per: '/мес' },
+  monthly: {
+    title: "Адвокат · месяц",
+    who: "Месячная подписка адвоката",
+    per: "/мес",
+  },
+  seat: {
+    title: "Место помощника",
+    who: "За каждого помощника на месячном тарифе",
+    per: "/мес",
+  },
+  yearly: {
+    title: "Prime · год",
+    who: "Годовой тариф со всеми местами помощников",
+    per: "/год",
+  },
+  client_badge: {
+    title: "Галочка клиента",
+    who: "Золотая галочка подтверждённого клиента",
+    per: "/мес",
+  },
 };
 
 const MODE: Record<string, string> = {
-  live: 'Stripe: боевой режим',
-  test: 'Stripe: тестовый режим (Sandbox)',
-  fake: 'Stripe не подключён (тестовые платежи)',
+  live: "Stripe: боевой режим",
+  test: "Stripe: тестовый режим (Sandbox)",
+  fake: "Stripe не подключён (тестовые платежи)",
 };
 
 const money = (cents: number) => usd(cents, cents % 100 ? 2 : 0);
@@ -43,8 +71,8 @@ export default function PricesPage() {
   const { canWrite } = useBillingRole();
   const [editing, setEditing] = useState<Item | null>(null);
   const q = useQuery({
-    queryKey: ['plan-prices'],
-    queryFn: async () => (await api.GET('/admin/billing/prices')).data!.data,
+    queryKey: ["plan-prices"],
+    queryFn: async () => (await api.GET("/admin/billing/prices")).data!.data,
   });
   const data = q.data;
 
@@ -56,7 +84,7 @@ export default function PricesPage() {
         subtitle="Новая цена сразу видна в приложении и на сайте, и Stripe списывает её со всех новых оплат. Текущие подписчики платят прежнюю цену, пока вы не переведёте их на новую — тогда она начнёт действовать с их следующего продления."
         actions={
           data ? (
-            <Badge tone={data.mode === 'live' ? 'success' : 'warning'} dot>
+            <Badge tone={data.mode === "live" ? "success" : "warning"} dot>
               {MODE[data.mode] ?? data.mode}
             </Badge>
           ) : null
@@ -75,20 +103,59 @@ export default function PricesPage() {
         <>
           <div className="grid gap-4 md:grid-cols-2">
             {data.items.map((it, i) => (
-              <PriceCard key={it.kind} it={it} i={i} canWrite={canWrite} onEdit={() => setEditing(it)} />
+              <PriceCard
+                key={it.kind}
+                it={it}
+                i={i}
+                canWrite={canWrite}
+                onEdit={() => setEditing(it)}
+              />
             ))}
           </div>
-          <SeatLimitCard canWrite={canWrite} />
+          <NumberSettingCard
+            canWrite={canWrite}
+            settingKey={TRIAL_KEY}
+            icon={Gift}
+            title="Бесплатный пробный период для адвокатов"
+            text="Сколько дней бесплатно при первой подписке; 0 — без пробного периода. Действует для новых подписок, у кого пробный период уже идёт, дата окончания не меняется. Продлить одному адвокату можно в его карточке подписки. Приложение и сайт показывают это число сами."
+            label="Дней"
+            min={0}
+            saved={(n) =>
+              n === 0 ? "Пробный период выключен" : `Пробный период: ${n} дн.`
+            }
+          />
+          <NumberSettingCard
+            canWrite={canWrite}
+            settingKey={SEAT_KEY}
+            icon={UsersThree}
+            title="Сколько помощников может добавить адвокат"
+            text="На месячном тарифе это предел мест, которые можно докупить; годовой Prime включает все места. Уже добавленные помощники остаются."
+            label="Мест"
+            min={1}
+            saved={(n) => `Лимит помощников: ${n}`}
+          />
           <SeatRequests canWrite={canWrite} />
           <History data={data} />
         </>
       )}
-      {editing ? <EditDialog it={editing} onClose={() => setEditing(null)} /> : null}
+      {editing ? (
+        <EditDialog it={editing} onClose={() => setEditing(null)} />
+      ) : null}
     </>
   );
 }
 
-function PriceCard({ it, i, canWrite, onEdit }: { it: Item; i: number; canWrite: boolean; onEdit: () => void }) {
+function PriceCard({
+  it,
+  i,
+  canWrite,
+  onEdit,
+}: {
+  it: Item;
+  i: number;
+  canWrite: boolean;
+  onEdit: () => void;
+}) {
   const k = KIND[it.kind];
   return (
     <motion.div {...fadeUp(i)}>
@@ -105,17 +172,34 @@ function PriceCard({ it, i, canWrite, onEdit }: { it: Item; i: number; canWrite:
           ) : null}
         </div>
         <div className="mt-4 flex items-baseline gap-1">
-          <span className="text-[34px] leading-none font-semibold tracking-tight text-gold-gradient">{money(it.amountCents)}</span>
+          <span className="text-[34px] leading-none font-semibold tracking-tight text-gold-gradient">
+            {money(it.amountCents)}
+          </span>
           <span className="text-sm text-muted">{k.per}</span>
         </div>
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs">
-          {it.isCustom ? <Badge tone="gold">задана вами</Badge> : <Badge>по умолчанию</Badge>}
-          {it.isCustom && it.amountCents !== it.defaultCents ? <span className="text-faint">по умолчанию {money(it.defaultCents)}</span> : null}
-          <span className="ml-auto inline-flex items-center gap-1 text-muted" title="Платящих подписчиков на этом тарифе">
+          {it.isCustom ? (
+            <Badge tone="gold">задана вами</Badge>
+          ) : (
+            <Badge>по умолчанию</Badge>
+          )}
+          {it.isCustom && it.amountCents !== it.defaultCents ? (
+            <span className="text-faint">
+              по умолчанию {money(it.defaultCents)}
+            </span>
+          ) : null}
+          <span
+            className="ml-auto inline-flex items-center gap-1 text-muted"
+            title="Платящих подписчиков на этом тарифе"
+          >
             <UsersThree size={14} /> {it.subscribers}
           </span>
         </div>
-        {it.stripePriceId ? <div className="mt-2 truncate font-mono text-[11px] text-faint">{it.stripePriceId}</div> : null}
+        {it.stripePriceId ? (
+          <div className="mt-2 truncate font-mono text-[11px] text-faint">
+            {it.stripePriceId}
+          </div>
+        ) : null}
       </Card>
     </motion.div>
   );
@@ -126,7 +210,7 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
   const toast = useToast();
   const k = KIND[it.kind];
   const [amount, setAmount] = useState(String(it.amountCents / 100));
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState("");
   const [move, setMove] = useState(false);
   const cents = dollarsToCents(amount);
   const amountOk = cents != null && cents >= 100 && cents <= 10_000_000;
@@ -138,7 +222,7 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
     mutationFn: async () => {
       const res = changed
         ? (
-            await api.PUT('/admin/billing/prices/{kind}', {
+            await api.PUT("/admin/billing/prices/{kind}", {
               params: { path: { kind: it.kind } },
               body: { amountCents: cents!, note: note.trim() || undefined },
             })
@@ -146,7 +230,7 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
         : null;
       const moved = move
         ? (
-            await api.POST('/admin/billing/prices/{kind}/move-subscribers', {
+            await api.POST("/admin/billing/prices/{kind}/move-subscribers", {
               params: { path: { kind: it.kind } },
               body: { reason: note.trim() },
             })
@@ -156,16 +240,28 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
     },
     onSuccess: ({ res, moved }) => {
       if (res) toast.success(`${k.title}: теперь ${money(cents!)}`);
-      if (res?.stripeError) toast.error(`Stripe пока не принял цену: ${res.stripeError}. Она создастся при первой оплате.`);
-      if (moved) toast.success(`Переведено подписчиков: ${moved.moved}${moved.failed ? `, ошибок: ${moved.failed}` : ''}`);
-      void qc.invalidateQueries({ queryKey: ['plan-prices'] });
+      if (res?.stripeError)
+        toast.error(
+          `Stripe пока не принял цену: ${res.stripeError}. Она создастся при первой оплате.`,
+        );
+      if (moved)
+        toast.success(
+          `Переведено подписчиков: ${moved.moved}${moved.failed ? `, ошибок: ${moved.failed}` : ""}`,
+        );
+      void qc.invalidateQueries({ queryKey: ["plan-prices"] });
       onClose();
     },
     onError: (e) => toast.error(e),
   });
 
   return (
-    <Dialog open onClose={onClose} eyebrow="Цена" title={k.title} description={k.who}>
+    <Dialog
+      open
+      onClose={onClose}
+      eyebrow="Цена"
+      title={k.title}
+      description={k.who}
+    >
       <form
         className="space-y-5"
         onSubmit={(e) => {
@@ -173,12 +269,25 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
           if (ok) save.mutate();
         }}
       >
-        <Field label={`Новая цена, $ ${k.per}`} htmlFor="price-amount" hint={!amountOk ? 'от $1 до $100 000' : 'в долларах, можно с центами'}>
-          <Input id="price-amount" autoFocus inputMode="decimal" className="w-40 text-lg" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Field
+          label={`Новая цена, $ ${k.per}`}
+          htmlFor="price-amount"
+          hint={!amountOk ? "от $1 до $100 000" : "в долларах, можно с центами"}
+        >
+          <Input
+            id="price-amount"
+            autoFocus
+            inputMode="decimal"
+            className="w-40 text-lg"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
         </Field>
         {amountOk && changed ? (
           <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-line bg-surface-2 px-4 py-3 text-sm">
-            <span className="text-muted line-through">{money(it.amountCents)}</span>
+            <span className="text-muted line-through">
+              {money(it.amountCents)}
+            </span>
             <ArrowRight size={14} className="text-faint" />
             <span className="font-semibold text-heading">{money(cents!)}</span>
             <span className="text-muted">{k.per} для всех новых оплат</span>
@@ -186,21 +295,49 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
         ) : null}
         <div className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-line px-4 py-3">
           <div className="text-sm">
-            <div className="font-medium text-heading">Перевести текущих подписчиков ({it.subscribers})</div>
+            <div className="font-medium text-heading">
+              Перевести текущих подписчиков ({it.subscribers})
+            </div>
             <div className="mt-0.5 text-xs text-muted">
-              Новая цена начнёт списываться с их следующего продления, без доплат сейчас. Без этого они продолжают платить прежнюю цену.
+              Новая цена начнёт списываться с их следующего продления, без
+              доплат сейчас. Без этого они продолжают платить прежнюю цену.
             </div>
           </div>
-          <Switch checked={move} onChange={setMove} disabled={it.subscribers === 0} label="Перевести подписчиков" />
+          <Switch
+            checked={move}
+            onChange={setMove}
+            disabled={it.subscribers === 0}
+            label="Перевести подписчиков"
+          />
         </div>
-        <Field label={move ? 'Причина (обязательно)' : 'Заметка'} htmlFor="price-note" hint={move && !noteOk ? 'не меньше 10 символов' : 'попадёт в журнал аудита'}>
-          <Textarea id="price-note" rows={2} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Например: стартовая цена на запуск" />
+        <Field
+          label={move ? "Причина (обязательно)" : "Заметка"}
+          htmlFor="price-note"
+          hint={
+            move && !noteOk
+              ? "не меньше 10 символов"
+              : "попадёт в журнал аудита"
+          }
+        >
+          <Textarea
+            id="price-note"
+            rows={2}
+            maxLength={300}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Например: стартовая цена на запуск"
+          />
         </Field>
         <div className="flex justify-end gap-2 border-t border-line pt-4">
           <Button type="button" variant="ghost" onClick={onClose}>
             Отмена
           </Button>
-          <Button type="submit" variant="gold" loading={save.isPending} disabled={!ok || save.isPending}>
+          <Button
+            type="submit"
+            variant="gold"
+            loading={save.isPending}
+            disabled={!ok || save.isPending}
+          >
             Сохранить
           </Button>
         </div>
@@ -209,42 +346,75 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
   );
 }
 
-const SEAT_KEY = 'billing.max_assistant_seats';
+const SEAT_KEY = "billing.max_assistant_seats";
+const TRIAL_KEY = "billing.trial_days";
 
-/** Owner 2026-10-05: how many assistants an attorney may add. */
-function SeatLimitCard({ canWrite }: { canWrite: boolean }) {
+/** Owner 2026-10-05: one whole-number setting edited right on Цены (seat
+ * limit, free trial days); the API validates the range and audits it. */
+function NumberSettingCard({
+  canWrite,
+  settingKey,
+  icon: IconCmp,
+  title,
+  text,
+  label,
+  min,
+  saved,
+}: {
+  canWrite: boolean;
+  settingKey: string;
+  icon: Icon;
+  title: string;
+  text: string;
+  label: string;
+  min: number;
+  saved: (n: number) => string;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   const q = useQuery({
-    queryKey: ['config'],
-    queryFn: async () => (await api.GET('/admin/config')).data!.data,
+    queryKey: ["config"],
+    queryFn: async () => (await api.GET("/admin/config")).data!.data,
   });
-  const entry = q.data?.find((e) => e.key === SEAT_KEY);
-  const current = typeof entry?.value === 'number' ? entry.value : null;
+  const entry = q.data?.find((e) => e.key === settingKey);
+  const current =
+    typeof entry?.value === "number"
+      ? entry.value
+      : typeof entry?.defaultValue === "number"
+        ? entry.defaultValue
+        : null;
   const max = entry?.max ?? 50;
   const [draft, setDraft] = useState<string | null>(null);
-  const value = draft ?? (current != null ? String(current) : '');
+  const value = draft ?? (current != null ? String(current) : "");
   const n = Number(value);
-  const ok = Number.isInteger(n) && n >= 1 && n <= max && n !== current;
+  const ok =
+    value.trim() !== "" &&
+    Number.isInteger(n) &&
+    n >= min &&
+    n <= max &&
+    n !== current;
   const save = useMutation({
-    mutationFn: () => api.PUT('/admin/config/{key}', { params: { path: { key: SEAT_KEY } }, body: { value: n } as never }),
+    mutationFn: () =>
+      api.PUT("/admin/config/{key}", {
+        params: { path: { key: settingKey } },
+        body: { value: n } as never,
+      }),
     onSuccess: () => {
-      toast.success(`Лимит помощников: ${n}`);
+      toast.success(saved(n));
       setDraft(null);
-      void qc.invalidateQueries({ queryKey: ['config'] });
+      void qc.invalidateQueries({ queryKey: ["config"] });
     },
     onError: (e) => toast.error(e),
   });
   if (!entry) return null;
+  const id = `setting-${settingKey.replace(/\W/g, "-")}`;
   return (
     <Card className="mt-4 flex flex-wrap items-end justify-between gap-4 p-5">
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm font-medium text-heading">
-          <UsersThree size={16} /> Сколько помощников может добавить адвокат
+          <IconCmp size={16} /> {title}
         </div>
-        <div className="mt-0.5 text-xs text-muted">
-          На месячном тарифе это предел мест, которые можно докупить; годовой Prime включает все места. Уже добавленные помощники остаются.
-        </div>
+        <div className="mt-0.5 max-w-2xl text-xs text-muted">{text}</div>
       </div>
       <form
         className="flex items-end gap-2"
@@ -253,11 +423,23 @@ function SeatLimitCard({ canWrite }: { canWrite: boolean }) {
           if (ok) save.mutate();
         }}
       >
-        <Field label="Мест" htmlFor="seat-limit" hint={`от 1 до ${max}`}>
-          <Input id="seat-limit" inputMode="numeric" className="w-24 text-lg" value={value} disabled={!canWrite} onChange={(e) => setDraft(e.target.value)} />
+        <Field label={label} htmlFor={id} hint={`от ${min} до ${max}`}>
+          <Input
+            id={id}
+            inputMode="numeric"
+            className="w-24 text-lg"
+            value={value}
+            disabled={!canWrite}
+            onChange={(e) => setDraft(e.target.value)}
+          />
         </Field>
         {canWrite ? (
-          <Button type="submit" variant="gold" loading={save.isPending} disabled={!ok || save.isPending}>
+          <Button
+            type="submit"
+            variant="gold"
+            loading={save.isPending}
+            disabled={!ok || save.isPending}
+          >
             Сохранить
           </Button>
         ) : null}
@@ -266,26 +448,38 @@ function SeatLimitCard({ canWrite }: { canWrite: boolean }) {
   );
 }
 
-type SeatRequest = components['schemas']['AdminSeatLimitRequestDto'];
+type SeatRequest = components["schemas"]["AdminSeatLimitRequestDto"];
 
-const REQUEST_STATUS: Record<SeatRequest['status'], { label: string; tone: 'warning' | 'success' | 'neutral' }> = {
-  pending: { label: 'ждёт решения', tone: 'warning' },
-  approved: { label: 'одобрено', tone: 'success' },
-  rejected: { label: 'отклонено', tone: 'neutral' },
+const REQUEST_STATUS: Record<
+  SeatRequest["status"],
+  { label: string; tone: "warning" | "success" | "neutral" }
+> = {
+  pending: { label: "ждёт решения", tone: "warning" },
+  approved: { label: "одобрено", tone: "success" },
+  rejected: { label: "отклонено", tone: "neutral" },
 };
 
 /** Owner 2026-10-05: attorneys asking for more assistants than the limit. */
 function SeatRequests({ canWrite }: { canWrite: boolean }) {
   const [deciding, setDeciding] = useState<SeatRequest | null>(null);
   const q = useQuery({
-    queryKey: ['seat-limit-requests'],
-    queryFn: async () => (await api.GET('/admin/billing/seat-limit-requests', { params: { query: {} } })).data!.data,
+    queryKey: ["seat-limit-requests"],
+    queryFn: async () =>
+      (
+        await api.GET("/admin/billing/seat-limit-requests", {
+          params: { query: {} },
+        })
+      ).data!.data,
   });
   const rows = q.data ?? [];
   return (
     <div className="mt-8">
-      <h2 className="mb-1 text-sm font-medium text-heading">Заявки на увеличение лимита помощников</h2>
-      <p className="mb-3 text-xs text-muted">Одобрите — и у адвоката будет свой лимит вместо общего.</p>
+      <h2 className="mb-1 text-sm font-medium text-heading">
+        Заявки на увеличение лимита помощников
+      </h2>
+      <p className="mb-3 text-xs text-muted">
+        Одобрите — и у адвоката будет свой лимит вместо общего.
+      </p>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
@@ -301,27 +495,41 @@ function SeatRequests({ canWrite }: { canWrite: boolean }) {
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <TableEmpty colSpan={7}>{q.isPending ? 'Загрузка…' : 'Заявок нет'}</TableEmpty>
+            <TableEmpty colSpan={7}>
+              {q.isPending ? "Загрузка…" : "Заявок нет"}
+            </TableEmpty>
           ) : (
             rows.map((r) => (
               <tr key={r.id}>
-                <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
+                <Td className="whitespace-nowrap text-muted">
+                  {formatDateTime(r.createdAt)}
+                </Td>
                 <Td>
                   <UserCell user={r.user} userId={r.attorneyId} link />
                 </Td>
                 <Td className="text-right tabular-nums">
                   {r.assistantsUsed} из {r.currentLimit}
                 </Td>
-                <Td className="text-right tabular-nums">{r.grantedSeats ?? r.requestedSeats}</Td>
+                <Td className="text-right tabular-nums">
+                  {r.grantedSeats ?? r.requestedSeats}
+                </Td>
                 <Td className="max-w-[280px] text-muted">
-                  <div className="line-clamp-2">{r.note ?? r.decisionNote ?? '—'}</div>
+                  <div className="line-clamp-2">
+                    {r.note ?? r.decisionNote ?? "—"}
+                  </div>
                 </Td>
                 <Td>
-                  <Badge tone={REQUEST_STATUS[r.status].tone}>{REQUEST_STATUS[r.status].label}</Badge>
+                  <Badge tone={REQUEST_STATUS[r.status].tone}>
+                    {REQUEST_STATUS[r.status].label}
+                  </Badge>
                 </Td>
                 <Td className="text-right">
-                  {canWrite && r.status === 'pending' ? (
-                    <Button size="sm" variant="outline" onClick={() => setDeciding(r)}>
+                  {canWrite && r.status === "pending" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setDeciding(r)}
+                    >
                       Решить
                     </Button>
                   ) : null}
@@ -331,7 +539,9 @@ function SeatRequests({ canWrite }: { canWrite: boolean }) {
           )}
         </tbody>
       </Table>
-      {deciding ? <DecideDialog r={deciding} onClose={() => setDeciding(null)} /> : null}
+      {deciding ? (
+        <DecideDialog r={deciding} onClose={() => setDeciding(null)} />
+      ) : null}
     </div>
   );
 }
@@ -340,17 +550,17 @@ function DecideDialog({ r, onClose }: { r: SeatRequest; onClose: () => void }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [seats, setSeats] = useState(String(r.requestedSeats));
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState("");
   const n = Number(seats);
   const ok = Number.isInteger(n) && n >= 1 && n <= 50;
   const done = (text: string) => {
     toast.success(text);
-    void qc.invalidateQueries({ queryKey: ['seat-limit-requests'] });
+    void qc.invalidateQueries({ queryKey: ["seat-limit-requests"] });
     onClose();
   };
   const approve = useMutation({
     mutationFn: () =>
-      api.POST('/admin/billing/seat-limit-requests/{id}/approve', {
+      api.POST("/admin/billing/seat-limit-requests/{id}/approve", {
         params: { path: { id: r.id } },
         body: { seats: n, note: note.trim() || undefined },
       }),
@@ -359,31 +569,65 @@ function DecideDialog({ r, onClose }: { r: SeatRequest; onClose: () => void }) {
   });
   const reject = useMutation({
     mutationFn: () =>
-      api.POST('/admin/billing/seat-limit-requests/{id}/reject', {
+      api.POST("/admin/billing/seat-limit-requests/{id}/reject", {
         params: { path: { id: r.id } },
         body: { note: note.trim() || undefined },
       }),
-    onSuccess: () => done('Заявка отклонена'),
+    onSuccess: () => done("Заявка отклонена"),
     onError: (e) => toast.error(e),
   });
   const busy = approve.isPending || reject.isPending;
   return (
-    <Dialog open onClose={onClose} eyebrow="Помощники" title="Заявка на увеличение лимита" description={r.note ?? undefined}>
+    <Dialog
+      open
+      onClose={onClose}
+      eyebrow="Помощники"
+      title="Заявка на увеличение лимита"
+      description={r.note ?? undefined}
+    >
       <div className="space-y-5">
         <div className="text-sm text-muted">
-          Сейчас: {r.assistantsUsed} из {r.currentLimit}. Просит: {r.requestedSeats}.
+          Сейчас: {r.assistantsUsed} из {r.currentLimit}. Просит:{" "}
+          {r.requestedSeats}.
         </div>
         <Field label="Новый лимит" htmlFor="seat-grant" hint="от 1 до 50">
-          <Input id="seat-grant" inputMode="numeric" className="w-24 text-lg" value={seats} onChange={(e) => setSeats(e.target.value)} />
+          <Input
+            id="seat-grant"
+            inputMode="numeric"
+            className="w-24 text-lg"
+            value={seats}
+            onChange={(e) => setSeats(e.target.value)}
+          />
         </Field>
-        <Field label="Комментарий адвокату" htmlFor="seat-note" hint="необязательно">
-          <Textarea id="seat-note" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
+        <Field
+          label="Комментарий адвокату"
+          htmlFor="seat-note"
+          hint="необязательно"
+        >
+          <Textarea
+            id="seat-note"
+            rows={2}
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
         </Field>
         <div className="flex justify-end gap-2 border-t border-line pt-4">
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => reject.mutate()}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => reject.mutate()}
+          >
             Отклонить
           </Button>
-          <Button type="button" variant="gold" loading={approve.isPending} disabled={!ok || busy} onClick={() => approve.mutate()}>
+          <Button
+            type="button"
+            variant="gold"
+            loading={approve.isPending}
+            disabled={!ok || busy}
+            onClick={() => approve.mutate()}
+          >
             Одобрить
           </Button>
         </div>
@@ -395,7 +639,9 @@ function DecideDialog({ r, onClose }: { r: SeatRequest; onClose: () => void }) {
 function History({ data }: { data: Prices }) {
   return (
     <div className="mt-8">
-      <h2 className="mb-3 text-sm font-medium text-heading">История изменений</h2>
+      <h2 className="mb-3 text-sm font-medium text-heading">
+        История изменений
+      </h2>
       <Table>
         <thead>
           <tr>
@@ -407,16 +653,23 @@ function History({ data }: { data: Prices }) {
         </thead>
         <tbody>
           {data.history.length === 0 ? (
-            <TableEmpty colSpan={4}>Цены ещё не меняли — действуют значения по умолчанию</TableEmpty>
+            <TableEmpty colSpan={4}>
+              Цены ещё не меняли — действуют значения по умолчанию
+            </TableEmpty>
           ) : (
             data.history.map((h) => (
               <tr key={h.id}>
-                <Td className="whitespace-nowrap text-muted">{formatDateTime(h.createdAt)}</Td>
-                <Td>
-                  {KIND[h.kind].title} {h.active ? <Badge tone="success">сейчас</Badge> : null}
+                <Td className="whitespace-nowrap text-muted">
+                  {formatDateTime(h.createdAt)}
                 </Td>
-                <Td className="text-right tabular-nums">{money(h.amountCents)}</Td>
-                <Td className="text-muted">{h.note ?? '—'}</Td>
+                <Td>
+                  {KIND[h.kind].title}{" "}
+                  {h.active ? <Badge tone="success">сейчас</Badge> : null}
+                </Td>
+                <Td className="text-right tabular-nums">
+                  {money(h.amountCents)}
+                </Td>
+                <Td className="text-muted">{h.note ?? "—"}</Td>
               </tr>
             ))
           )}

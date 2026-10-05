@@ -126,6 +126,13 @@ export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
 } as const;
 
+// Owner 2026-10-05: the free trial length, set in Деньги → Цены (0 = no
+// trial). Applies to new trials; running ones keep their end date (an
+// admin extends one attorney's trial from their subscription card).
+export const OWNER_TRIAL_SETTINGS = {
+  'billing.trial_days': 7,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -138,6 +145,7 @@ export const APP_SETTINGS = {
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
+  ...OWNER_TRIAL_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

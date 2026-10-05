@@ -25,7 +25,6 @@ import {
   PAYMENT_PROVIDER,
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_JOBS_QUEUE,
-  TRIAL_DAYS,
   TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
   SEATS_HARD_CAP,
@@ -108,7 +107,7 @@ export class SubscriptionsService {
       customerId,
       trialEligible: await this.attorneyTrialEligible(user.sub),
       priceCents: await this.pricing.amount('monthly'),
-      trialDays: TRIAL_DAYS,
+      trialDays: await this.pricing.trialDays(),
     };
   }
 
@@ -183,7 +182,8 @@ export class SubscriptionsService {
       : await this.referralCoupon(user.sub);
     const promoDays =
       promo?.discount_type === 'free_days' ? (promo.free_days ?? 0) : 0;
-    const trialDays = (eligible ? TRIAL_DAYS : 0) + promoDays;
+    const setDays = await this.pricing.trialDays();
+    const trialDays = (eligible ? setDays : 0) + promoDays;
     const base = this.checkoutReturnBase;
     const session = await this.provider.createCheckoutSession({
       customerId,
@@ -216,7 +216,7 @@ export class SubscriptionsService {
       sessionId: session.id,
       trialEligible: eligible,
       priceCents,
-      trialDays: TRIAL_DAYS,
+      trialDays: setDays,
       ...(promo
         ? {
             promo: {
@@ -574,7 +574,7 @@ export class SubscriptionsService {
       customerId,
       priceId,
       paymentMethodId: si.paymentMethodId,
-      trialDays: eligible ? TRIAL_DAYS : null,
+      trialDays: eligible ? await this.pricing.trialDays() : null,
       metadata: { userId: user.sub },
     });
     const now = new Date();
@@ -644,6 +644,7 @@ export class SubscriptionsService {
         seatCents: amounts.seat,
         yearlyCents: amounts.yearly,
         maxSeats: await this.pricing.maxSeats(user.sub),
+        trialDays: await this.pricing.trialDays(),
       },
     };
   }
@@ -774,6 +775,8 @@ export class SubscriptionsService {
 
   /** §1.1: "только один раз на адвоката". */
   private async attorneyTrialEligible(userId: string): Promise<boolean> {
+    // Owner 2026-10-05: 0 days in Деньги → Цены turns the trial off.
+    if ((await this.pricing.trialDays()) === 0) return false;
     const used = await this.prisma.subscription.findFirst({
       where: { user_id: userId, trial_started_at: { not: null } },
       select: { id: true },

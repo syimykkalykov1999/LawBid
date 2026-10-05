@@ -199,7 +199,9 @@ class _PlanPickerState extends State<PlanPicker> {
         const SizedBox(height: AppSpacing.lg),
         AppButton(
           key: const ValueKey('subscribe-cta'),
-          label: '${t.t(trial ? 'plans.pay.trial' : 'plans.pay')} · '
+          label: '${trial ? t.t('plans.pay.trial', {
+                  'days': t.plural('subscription.trial.days', _p.trialDays),
+                }) : t.t('plans.pay')} · '
               '${t.t(yearly ? 'plans.total.year' : 'plans.total.month', {
                 'price': _price(total),
               })}',

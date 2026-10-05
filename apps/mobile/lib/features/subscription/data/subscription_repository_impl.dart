@@ -47,6 +47,7 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
           seatCents: d.prices.seatCents,
           yearlyCents: d.prices.yearlyCents,
           maxSeats: d.prices.maxSeats,
+          trialDays: d.prices.trialDays,
         ),
       );
 

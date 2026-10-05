@@ -1,6 +1,6 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import type { ConfigValueType } from './admin-config.dto';
-import { SEATS_HARD_CAP } from '../billing/billing.constants';
+import { SEATS_HARD_CAP, TRIAL_DAYS_MAX } from '../billing/billing.constants';
 
 export interface ConfigKeySchema {
   type: ConfigValueType;
@@ -43,6 +43,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'How many assistants an attorney may add; the yearly plan covers this many.',
     min: 1,
     max: SEATS_HARD_CAP,
+  };
+  out['billing.trial_days'] = {
+    ...out['billing.trial_days'],
+    description:
+      'Free trial for new attorney subscriptions, days (0 = no trial). Running trials keep their end date.',
+    min: 0,
+    max: TRIAL_DAYS_MAX,
   };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',

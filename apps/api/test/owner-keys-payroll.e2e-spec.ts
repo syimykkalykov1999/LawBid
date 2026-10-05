@@ -503,4 +503,34 @@ describe('Key sets + payroll (e2e)', () => {
       .expect(200);
     expect(list.body.data).toHaveLength(2);
   });
+
+  it('free trial length is an admin setting the app reads', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    const set = (value: number) =>
+      api()
+        .put('/api/v1/admin/config/billing.trial_days')
+        .set(admin.auth)
+        .send({ value });
+    await set(400).expect(400);
+    await set(-1).expect(400);
+    try {
+      await set(14).expect(200);
+      const pricing = await api().get('/api/v1/pricing').expect(200);
+      expect(pricing.body.data.trialDays).toBe(14);
+      await set(0).expect(200);
+      const off = await api().get('/api/v1/pricing').expect(200);
+      expect(off.body.data.trialDays).toBe(0);
+      const audit = await prisma.auditLog.findMany({
+        where: { admin_id: admin.userId, target_type: 'app_config' },
+      });
+      expect(
+        audit.some(
+          (r) =>
+            (r.after as { key?: string } | null)?.key === 'billing.trial_days',
+        ),
+      ).toBe(true);
+    } finally {
+      await set(7).expect(200);
+    }
+  });
 });

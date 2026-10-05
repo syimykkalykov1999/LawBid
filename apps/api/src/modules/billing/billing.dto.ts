@@ -199,6 +199,12 @@ export class PlanPricesDto {
   @ApiProperty({ type: 'integer' }) seatCents!: number;
   @ApiProperty({ type: 'integer' }) yearlyCents!: number;
   @ApiProperty({ type: 'integer' }) maxSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Free trial days for a new subscription (admin setting; 0 = no trial).',
+  })
+  trialDays!: number;
 }
 
 /** Owner 2026-10-02: "Free under contract until …". */

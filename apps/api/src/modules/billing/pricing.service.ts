@@ -17,6 +17,8 @@ import {
   PAYMENT_PROVIDER,
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_PRICE_CENTS,
+  TRIAL_DAYS,
+  TRIAL_DAYS_MAX,
   YEARLY_PRICE_CENTS,
 } from './billing.constants';
 import { refreshProvider } from './dynamic-payment.provider';
@@ -129,6 +131,17 @@ export class PricingService {
     return attorneyId
       ? getAssistantLimit(this.prisma, attorneyId, this.settings)
       : maxAssistantSeats(this.settings);
+  }
+
+  /** Owner 2026-10-05: free trial days for new subscriptions, the admin
+   * setting `billing.trial_days` (0 = no trial). */
+  async trialDays(): Promise<number> {
+    const raw = this.settings
+      ? await this.settings.number('billing.trial_days')
+      : TRIAL_DAYS;
+    return Number.isFinite(raw)
+      ? Math.min(TRIAL_DAYS_MAX, Math.max(0, Math.floor(raw)))
+      : TRIAL_DAYS;
   }
 
   /** The amounts used while the admin has set none. */
