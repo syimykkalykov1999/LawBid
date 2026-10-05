@@ -18,6 +18,10 @@ class PayrollPayoutDto {
     required this.batchId,
     required this.period,
     required this.amountCents,
+    required this.baseCents,
+    required this.commissionCents,
+    required this.feeCents,
+    required this.netCents,
     required this.currency,
     required this.method,
     required this.status,
@@ -36,7 +40,17 @@ class PayrollPayoutDto {
   final String employeeName;
   final String batchId;
   final String period;
+
+  /// Gross: salary + commissions.
   final int amountCents;
+  final int baseCents;
+  final int commissionCents;
+
+  /// Stripe's cost, taken from the person's payout.
+  final int feeCents;
+
+  /// What the person receives.
+  final int netCents;
   final String currency;
   final PayrollPayoutDtoMethod method;
   final PayrollPayoutDtoStatus status;

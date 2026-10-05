@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'payroll_fee_settings_dto.dart';
+
 part 'payroll_summary_dto.g.dart';
 
 @JsonSerializable()
@@ -15,6 +17,8 @@ class PayrollSummaryDto {
     required this.paid,
     required this.unpaidEmployees,
     required this.stripeAvailable,
+    required this.pending,
+    required this.stripeFees,
   });
 
   factory PayrollSummaryDto.fromJson(Map<String, Object?> json) =>
@@ -32,6 +36,10 @@ class PayrollSummaryDto {
 
   /// Stripe payouts can be used (flag payroll_stripe_payouts on and Stripe keys saved).
   final bool stripeAvailable;
+
+  /// currency → commissions and bonuses waiting for a payout.
+  final Map<String, int> pending;
+  final PayrollFeeSettingsDto stripeFees;
 
   Map<String, Object?> toJson() => _$PayrollSummaryDtoToJson(this);
 }

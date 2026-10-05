@@ -33701,7 +33701,7 @@
             "admin": []
           }
         ],
-        "summary": "Record the salary of many people for a period (paid once per period)",
+        "summary": "Pay many people for a period: fixed salary (once per period) plus pending commissions; via Stripe its fee is taken from each payout",
         "tags": [
           "admin-payroll"
         ]
@@ -33819,6 +33819,340 @@
           }
         ],
         "summary": "Cancel a payment recorded by mistake",
+        "tags": [
+          "admin-payroll"
+        ]
+      }
+    },
+    "/admin/payroll/accruals": {
+      "get": {
+        "operationId": "listPayrollAccruals",
+        "parameters": [
+          {
+            "name": "employeeId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "paid",
+                "canceled"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollAccrualListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Commissions, bonuses and adjustments (newest first)",
+        "tags": [
+          "admin-payroll"
+        ]
+      }
+    },
+    "/admin/payroll/employees/{id}/accruals": {
+      "post": {
+        "operationId": "addPayrollAccrual",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePayrollAccrualDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollAccrualEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add a bonus or adjustment, paid with the next payout",
+        "tags": [
+          "admin-payroll"
+        ]
+      }
+    },
+    "/admin/payroll/accruals/{id}/cancel": {
+      "post": {
+        "operationId": "cancelPayrollAccrual",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayrollCancelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollAccrualEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Take back a pending accrual",
         "tags": [
           "admin-payroll"
         ]
@@ -66706,6 +67040,16 @@
             "type": "string",
             "nullable": true
           },
+          "userId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "LawBid account paid through payroll (partner, blogger)."
+          },
+          "pendingCents": {
+            "type": "integer",
+            "description": "Commissions and bonuses waiting for the next payout, cents (their currency)."
+          },
           "createdAt": {
             "type": "string"
           }
@@ -66720,6 +67064,7 @@
           "stripeLinked",
           "stripePayoutsEnabled",
           "active",
+          "pendingCents",
           "createdAt"
         ]
       },
@@ -66760,9 +67105,9 @@
           },
           "amountCents": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 100000000,
-            "description": "Fixed monthly amount, cents."
+            "description": "Fixed monthly amount, cents (0: paid only by commissions)."
           },
           "currency": {
             "type": "string",
@@ -66814,7 +67159,7 @@
           },
           "amountCents": {
             "type": "integer",
-            "minimum": 1,
+            "minimum": 0,
             "maximum": 100000000
           },
           "currency": {
@@ -66867,6 +67212,27 @@
           "data"
         ]
       },
+      "PayrollFeeSettingsDto": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "description": "Percent of each payout."
+          },
+          "fixedCents": {
+            "type": "integer"
+          },
+          "monthlyCents": {
+            "type": "integer",
+            "description": "Once a period per person paid through Stripe."
+          }
+        },
+        "required": [
+          "percent",
+          "fixedCents",
+          "monthlyCents"
+        ]
+      },
       "PayrollSummaryDto": {
         "type": "object",
         "properties": {
@@ -66896,6 +67262,16 @@
           "stripeAvailable": {
             "type": "boolean",
             "description": "Stripe payouts can be used (flag payroll_stripe_payouts on and Stripe keys saved)."
+          },
+          "pending": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "currency → commissions and bonuses waiting for a payout."
+          },
+          "stripeFees": {
+            "$ref": "#/components/schemas/PayrollFeeSettingsDto"
           }
         },
         "required": [
@@ -66904,7 +67280,9 @@
           "monthly",
           "paid",
           "unpaidEmployees",
-          "stripeAvailable"
+          "stripeAvailable",
+          "pending",
+          "stripeFees"
         ]
       },
       "PayrollSummaryEnvelope": {
@@ -66943,7 +67321,22 @@
             "type": "string"
           },
           "amountCents": {
+            "type": "integer",
+            "description": "Gross: salary + commissions."
+          },
+          "baseCents": {
             "type": "integer"
+          },
+          "commissionCents": {
+            "type": "integer"
+          },
+          "feeCents": {
+            "type": "integer",
+            "description": "Stripe's cost, taken from the person's payout."
+          },
+          "netCents": {
+            "type": "integer",
+            "description": "What the person receives."
           },
           "currency": {
             "type": "string"
@@ -66995,6 +67388,10 @@
           "batchId",
           "period",
           "amountCents",
+          "baseCents",
+          "commissionCents",
+          "feeCents",
+          "netCents",
           "currency",
           "method",
           "status",
@@ -67033,10 +67430,38 @@
             "additionalProperties": {
               "type": "integer"
             },
-            "description": "currency → total cents of this run."
+            "description": "currency → gross cents of this run."
+          },
+          "fees": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "currency → Stripe's cost, taken from the payouts."
+          },
+          "net": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "currency → what people receive."
+          },
+          "commissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "currency → commissions and bonuses included."
           },
           "alreadyPaid": {
             "description": "Employees already paid for this period (skipped).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nothingOwed": {
+            "description": "Nothing owed (no salary and no pending commissions).",
             "type": "array",
             "items": {
               "type": "string"
@@ -67054,7 +67479,11 @@
           "batchId",
           "count",
           "totals",
+          "fees",
+          "net",
+          "commissions",
           "alreadyPaid",
+          "nothingOwed",
           "failed"
         ]
       },
@@ -67094,7 +67523,7 @@
             "additionalProperties": {
               "type": "integer"
             },
-            "description": "employeeId → amount in cents for this run (bonus, part of a month); the others get their fixed amount."
+            "description": "employeeId → salary in cents for this run (part of a month; 0 pays only commissions); the others get their fixed amount. Pending commissions and bonuses are always added."
           },
           "note": {
             "type": "string",
@@ -67138,6 +67567,139 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PayrollPayoutDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PayrollAccrualDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "employeeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string",
+            "example": "partner"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "commission",
+              "bonus",
+              "adjustment"
+            ]
+          },
+          "eventRef": {
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "paid",
+              "canceled"
+            ]
+          },
+          "payoutId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "employeeId",
+          "source",
+          "kind",
+          "eventRef",
+          "amountCents",
+          "currency",
+          "period",
+          "status",
+          "createdAt"
+        ]
+      },
+      "PayrollAccrualListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayrollAccrualDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreatePayrollAccrualDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "bonus",
+              "adjustment"
+            ],
+            "type": "string"
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Cents; negative takes money back."
+          },
+          "period": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40,
+            "example": "2026-10"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "kind",
+          "amountCents",
+          "period",
+          "note"
+        ]
+      },
+      "PayrollAccrualEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PayrollAccrualDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

@@ -5,7 +5,10 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/create_payroll_accrual_dto.dart';
 import '../models/create_payroll_employee_dto.dart';
+import '../models/payroll_accrual_envelope.dart';
+import '../models/payroll_accrual_list_envelope.dart';
 import '../models/payroll_bulk_pay_dto.dart';
 import '../models/payroll_bulk_result_envelope.dart';
 import '../models/payroll_cancel_dto.dart';
@@ -15,6 +18,7 @@ import '../models/payroll_payout_envelope.dart';
 import '../models/payroll_payout_list_envelope.dart';
 import '../models/payroll_stripe_link_envelope.dart';
 import '../models/payroll_summary_envelope.dart';
+import '../models/status8.dart';
 import '../models/update_payroll_employee_dto.dart';
 
 part 'admin_payroll_client.g.dart';
@@ -69,7 +73,7 @@ abstract class AdminPayrollClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Record the salary of many people for a period (paid once per period)
+  /// Pay many people for a period: fixed salary (once per period) plus pending commissions; via Stripe its fee is taken from each payout
   @POST('/admin/payroll/payouts/bulk')
   Future<PayrollBulkResultEnvelope> payPayrollBulk({
     @Body() required PayrollBulkPayDto body,
@@ -79,6 +83,30 @@ abstract class AdminPayrollClient {
   /// Cancel a payment recorded by mistake
   @POST('/admin/payroll/payouts/{id}/cancel')
   Future<PayrollPayoutEnvelope> cancelPayrollPayout({
+    @Path('id') required String id,
+    @Body() required PayrollCancelDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Commissions, bonuses and adjustments (newest first)
+  @GET('/admin/payroll/accruals')
+  Future<PayrollAccrualListEnvelope> listPayrollAccruals({
+    @Query('employeeId') String? employeeId,
+    @Query('status') Status8? status,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add a bonus or adjustment, paid with the next payout
+  @POST('/admin/payroll/employees/{id}/accruals')
+  Future<PayrollAccrualEnvelope> addPayrollAccrual({
+    @Path('id') required String id,
+    @Body() required CreatePayrollAccrualDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Take back a pending accrual
+  @POST('/admin/payroll/accruals/{id}/cancel')
+  Future<PayrollAccrualEnvelope> cancelPayrollAccrual({
     @Path('id') required String id,
     @Body() required PayrollCancelDto body,
     @Extras() Map<String, dynamic>? extras,

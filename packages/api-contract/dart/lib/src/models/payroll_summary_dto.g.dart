@@ -14,6 +14,10 @@ PayrollSummaryDto _$PayrollSummaryDtoFromJson(Map<String, dynamic> json) =>
       paid: Map<String, int>.from(json['paid'] as Map),
       unpaidEmployees: (json['unpaidEmployees'] as num).toInt(),
       stripeAvailable: json['stripeAvailable'] as bool,
+      pending: Map<String, int>.from(json['pending'] as Map),
+      stripeFees: PayrollFeeSettingsDto.fromJson(
+        json['stripeFees'] as Map<String, dynamic>,
+      ),
     );
 
 Map<String, dynamic> _$PayrollSummaryDtoToJson(PayrollSummaryDto instance) =>
@@ -24,4 +28,6 @@ Map<String, dynamic> _$PayrollSummaryDtoToJson(PayrollSummaryDto instance) =>
       'paid': instance.paid,
       'unpaidEmployees': instance.unpaidEmployees,
       'stripeAvailable': instance.stripeAvailable,
+      'pending': instance.pending,
+      'stripeFees': instance.stripeFees.toJson(),
     };

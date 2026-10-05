@@ -17,10 +17,12 @@ PayrollEmployeeDto _$PayrollEmployeeDtoFromJson(Map<String, dynamic> json) =>
       stripeLinked: json['stripeLinked'] as bool,
       stripePayoutsEnabled: json['stripePayoutsEnabled'] as bool,
       active: json['active'] as bool,
+      pendingCents: (json['pendingCents'] as num).toInt(),
       createdAt: json['createdAt'] as String,
       adminUserId: json['adminUserId'] as String?,
       email: json['email'] as String?,
       lastPaidPeriod: json['lastPaidPeriod'] as String?,
+      userId: json['userId'] as String?,
     );
 
 Map<String, dynamic> _$PayrollEmployeeDtoToJson(PayrollEmployeeDto instance) =>
@@ -37,5 +39,7 @@ Map<String, dynamic> _$PayrollEmployeeDtoToJson(PayrollEmployeeDto instance) =>
       'stripePayoutsEnabled': instance.stripePayoutsEnabled,
       'active': instance.active,
       'lastPaidPeriod': ?instance.lastPaidPeriod,
+      'userId': ?instance.userId,
+      'pendingCents': instance.pendingCents,
       'createdAt': instance.createdAt,
     };

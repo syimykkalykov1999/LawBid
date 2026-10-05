@@ -12,7 +12,11 @@ class PayrollBulkResultDto {
     required this.batchId,
     required this.count,
     required this.totals,
+    required this.fees,
+    required this.net,
+    required this.commissions,
     required this.alreadyPaid,
+    required this.nothingOwed,
     required this.failed,
   });
 
@@ -22,11 +26,23 @@ class PayrollBulkResultDto {
   final String batchId;
   final int count;
 
-  /// currency → total cents of this run.
+  /// currency → gross cents of this run.
   final Map<String, int> totals;
+
+  /// currency → Stripe's cost, taken from the payouts.
+  final Map<String, int> fees;
+
+  /// currency → what people receive.
+  final Map<String, int> net;
+
+  /// currency → commissions and bonuses included.
+  final Map<String, int> commissions;
 
   /// Employees already paid for this period (skipped).
   final List<String> alreadyPaid;
+
+  /// Nothing owed (no salary and no pending commissions).
+  final List<String> nothingOwed;
 
   /// Stripe transfers that failed (not paid; retry later).
   final List<String> failed;

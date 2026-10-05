@@ -27,7 +27,7 @@ class CreatePayrollEmployeeDto {
   /// The admin account of this person, if any.
   final String? adminUserId;
 
-  /// Fixed monthly amount, cents.
+  /// Fixed monthly amount, cents (0: paid only by commissions).
   final int amountCents;
   final String currency;
 

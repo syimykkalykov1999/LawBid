@@ -27,7 +27,7 @@ class PayrollBulkPayDto {
   final String period;
   final PayrollBulkPayDtoMethod method;
 
-  /// employeeId → amount in cents for this run (bonus, part of a month); the others get their fixed amount.
+  /// employeeId → salary in cents for this run (part of a month; 0 pays only commissions); the others get their fixed amount. Pending commissions and bonuses are always added.
   final Map<String, int>? amounts;
   final String? note;
 

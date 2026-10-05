@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { SecretsService } from '../src/common/secrets/secrets.service';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
+import { PayrollAccrualsService } from '../src/modules/admin-payroll/payroll-accruals.service';
 import { adminSession, type AdminSession } from './support/admin-login';
 
 /**
@@ -372,7 +373,16 @@ describe('Key sets + payroll (e2e)', () => {
       where: { period: sPeriod },
     });
     const okRow = rows.find((x) => x.employee_id === ok)!;
-    expect(okRow).toMatchObject({ status: 'paid', method: 'stripe' });
+    // Stripe's cost comes out of the person's payout, not the platform:
+    // 0.25% + 25¢ + the $2 monthly account fee on the first payout.
+    expect(okRow).toMatchObject({
+      status: 'paid',
+      method: 'stripe',
+      amount_cents: 100_000,
+      base_cents: 100_000,
+      fee_cents: 475,
+      net_cents: 99_525,
+    });
     expect(okRow.transfer_id).toMatch(/^tr_/);
     expect(rows.find((x) => x.employee_id === bad)?.status).toBe('failed');
 
@@ -383,5 +393,114 @@ describe('Key sets + payroll (e2e)', () => {
       .send({ reason: 'Wrong person selected' })
       .expect(200);
     await setStripeFlag(false);
+  });
+
+  it('flexible pay: commissions + bonus paid with the salary, once', async () => {
+    const finance = await adminSession(base, prisma, 'finance');
+    const partner = await adminSession(base, prisma, 'support');
+    const accruals = app.get(PayrollAccrualsService);
+    const cPeriod = `${period}-c`;
+    const settled: string[] = [];
+    accruals.onSettled((items, state) => {
+      for (const i of items) settled.push(`${state}:${i.ref}`);
+    });
+
+    // The partner program accrues; a repeat of the same event is a no-op.
+    const ref1 = `partner:e2e:${randomUUID()}`;
+    const ref2 = `partner:e2e:${randomUUID()}`;
+    const first = await accruals.accrue({
+      userId: partner.userId,
+      name: `Blogger ${period}`,
+      source: 'partner',
+      eventRef: ref1,
+      amountCents: 5_000,
+      period: cPeriod,
+    });
+    expect(first).toMatchObject({ created: true, status: 'pending' });
+    const repeat = await accruals.accrue({
+      userId: partner.userId,
+      name: `Blogger ${period}`,
+      source: 'partner',
+      eventRef: ref1,
+      amountCents: 5_000,
+      period: cPeriod,
+    });
+    expect(repeat).toMatchObject({
+      created: false,
+      accrualId: first.accrualId,
+      employeeId: first.employeeId,
+    });
+    await accruals.accrue({
+      userId: partner.userId,
+      name: `Blogger ${period}`,
+      source: 'partner',
+      eventRef: ref2,
+      amountCents: 1_000,
+      period: cPeriod,
+    });
+    expect(await accruals.cancel(ref2, 'refund in hold')).toBe('canceled');
+    const id = first.employeeId;
+
+    // A bonus by hand; the person has no fixed salary (0).
+    await api()
+      .post(`/api/v1/admin/payroll/employees/${id}/accruals`)
+      .set(finance.auth)
+      .send({
+        kind: 'bonus',
+        amountCents: 2_500,
+        period: cPeriod,
+        note: 'Top month',
+      })
+      .expect(201);
+    const people = await api()
+      .get('/api/v1/admin/payroll/employees')
+      .set(finance.auth)
+      .expect(200);
+    const me = (
+      people.body.data as {
+        id: string;
+        pendingCents: number;
+        amountCents: number;
+      }[]
+    ).find((p) => p.id === id)!;
+    expect(me).toMatchObject({ amountCents: 0, pendingCents: 7_500 });
+
+    const paid = await api()
+      .post('/api/v1/admin/payroll/payouts/bulk')
+      .set(finance.auth)
+      .send({ employeeIds: [id], period: cPeriod, method: 'zelle' })
+      .expect(200);
+    expect(paid.body.data).toMatchObject({
+      count: 1,
+      totals: { usd: 7_500 },
+      commissions: { usd: 7_500 },
+      fees: { usd: 0 },
+      net: { usd: 7_500 },
+    });
+    expect(settled).toContain(`paid:${ref1}`);
+    // Nothing left to pay.
+    await api()
+      .post('/api/v1/admin/payroll/payouts/bulk')
+      .set(finance.auth)
+      .send({ employeeIds: [id], period: cPeriod })
+      .expect(409);
+
+    // Canceling the payout puts its commissions back to pending.
+    const [row] = await prisma.payrollPayout.findMany({
+      where: { employee_id: id, period: cPeriod },
+    });
+    expect(row).toMatchObject({ commission_cents: 7_500, base_cents: 0 });
+    await api()
+      .post(`/api/v1/admin/payroll/payouts/${row.id}/cancel`)
+      .set(finance.auth)
+      .send({ reason: 'Recorded by mistake' })
+      .expect(200);
+    expect(settled).toContain(`unpaid:${ref1}`);
+    const list = await api()
+      .get('/api/v1/admin/payroll/accruals')
+      .query({ employeeId: id, status: 'pending' })
+      .set(finance.auth)
+      .expect(200);
+    expect(list.body.data).toHaveLength(2);
   });
 });

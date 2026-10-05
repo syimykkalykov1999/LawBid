@@ -23,7 +23,10 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminIdParamDto } from '../admin-cases/admin-cases.dto';
 import {
+  CreatePayrollAccrualDto,
   CreatePayrollEmployeeDto,
+  PayrollAccrualDto,
+  PayrollAccrualsQueryDto,
   PayrollBulkPayDto,
   PayrollBulkResultDto,
   PayrollCancelDto,
@@ -121,7 +124,7 @@ export class AdminPayrollController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Record the salary of many people for a period (paid once per period)',
+      'Pay many people for a period: fixed salary (once per period) plus pending commissions; via Stripe its fee is taken from each payout',
   })
   @ApiEnvelopeResponse(PayrollBulkResultDto)
   @ApiErrors({
@@ -147,5 +150,43 @@ export class AdminPayrollController {
     @Body() dto: PayrollCancelDto,
   ): Promise<PayrollPayoutDto> {
     return this.payroll.cancel(admin, p.id, dto.reason);
+  }
+
+  @Get('accruals')
+  @ApiOperation({
+    summary: 'Commissions, bonuses and adjustments (newest first)',
+  })
+  @ApiEnvelopeResponse(PayrollAccrualDto, { isArray: true })
+  listPayrollAccruals(
+    @Query() q: PayrollAccrualsQueryDto,
+  ): Promise<PayrollAccrualDto[]> {
+    return this.payroll.accrualList(q);
+  }
+
+  @Post('employees/:id/accruals')
+  @ApiOperation({
+    summary: 'Add a bonus or adjustment, paid with the next payout',
+  })
+  @ApiEnvelopeResponse(PayrollAccrualDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  addPayrollAccrual(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminIdParamDto,
+    @Body() dto: CreatePayrollAccrualDto,
+  ): Promise<PayrollAccrualDto> {
+    return this.payroll.addAccrual(admin, p.id, dto);
+  }
+
+  @Post('accruals/:id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Take back a pending accrual' })
+  @ApiEnvelopeResponse(PayrollAccrualDto)
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.VALIDATION_ERROR] })
+  cancelPayrollAccrual(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminIdParamDto,
+    @Body() dto: PayrollCancelDto,
+  ): Promise<PayrollAccrualDto> {
+    return this.payroll.cancelAccrual(admin, p.id, dto.reason);
   }
 }

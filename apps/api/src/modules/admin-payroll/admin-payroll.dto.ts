@@ -72,10 +72,13 @@ export class CreatePayrollEmployeeDto {
   @IsUUID('all')
   adminUserId?: string;
 
-  @ApiProperty({ type: 'integer', description: 'Fixed monthly amount, cents.' })
+  @ApiProperty({
+    type: 'integer',
+    description: 'Fixed monthly amount, cents (0: paid only by commissions).',
+  })
   @Type(() => Number)
   @IsInt()
-  @Min(1)
+  @Min(0)
   @Max(PAYROLL_MAX_CENTS)
   amountCents!: number;
 
@@ -127,7 +130,7 @@ export class UpdatePayrollEmployeeDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(1)
+  @Min(0)
   @Max(PAYROLL_MAX_CENTS)
   amountCents?: number;
 
@@ -182,6 +185,19 @@ export class PayrollEmployeeDto {
   @ApiProperty() active!: boolean;
   @ApiPropertyOptional({ type: String, nullable: true })
   lastPaidPeriod!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'LawBid account paid through payroll (partner, blogger).',
+  })
+  userId!: string | null;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Commissions and bonuses waiting for the next payout, cents (their currency).',
+  })
+  pendingCents!: number;
   @ApiProperty() createdAt!: string;
 }
 
@@ -212,7 +228,7 @@ export class PayrollBulkPayDto {
     type: 'object',
     additionalProperties: { type: 'integer' },
     description:
-      'employeeId → amount in cents for this run (bonus, part of a month); the others get their fixed amount.',
+      'employeeId → salary in cents for this run (part of a month; 0 pays only commissions); the others get their fixed amount. Pending commissions and bonuses are always added.',
   })
   @IsOptional()
   @IsObject()
@@ -254,7 +270,20 @@ export class PayrollPayoutDto {
   @ApiProperty() employeeName!: string;
   @ApiProperty({ format: 'uuid' }) batchId!: string;
   @ApiProperty() period!: string;
-  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Gross: salary + commissions.',
+  })
+  amountCents!: number;
+  @ApiProperty({ type: 'integer' }) baseCents!: number;
+  @ApiProperty({ type: 'integer' }) commissionCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: "Stripe's cost, taken from the person's payout.",
+  })
+  feeCents!: number;
+  @ApiProperty({ type: 'integer', description: 'What the person receives.' })
+  netCents!: number;
   @ApiProperty() currency!: string;
   @ApiProperty({ enum: PAYOUT_METHODS }) method!: string;
   @ApiProperty({ enum: PAYOUT_STATUSES }) status!: string;
@@ -274,14 +303,37 @@ export class PayrollBulkResultDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: { type: 'integer' },
-    description: 'currency → total cents of this run.',
+    description: 'currency → gross cents of this run.',
   })
   totals!: Record<string, number>;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'integer' },
+    description: "currency → Stripe's cost, taken from the payouts.",
+  })
+  fees!: Record<string, number>;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'integer' },
+    description: 'currency → what people receive.',
+  })
+  net!: Record<string, number>;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'integer' },
+    description: 'currency → commissions and bonuses included.',
+  })
+  commissions!: Record<string, number>;
   @ApiProperty({
     type: [String],
     description: 'Employees already paid for this period (skipped).',
   })
   alreadyPaid!: string[];
+  @ApiProperty({
+    type: [String],
+    description: 'Nothing owed (no salary and no pending commissions).',
+  })
+  nothingOwed!: string[];
   @ApiProperty({
     type: [String],
     description: 'Stripe transfers that failed (not paid; retry later).',
@@ -306,6 +358,16 @@ export class PayrollSummaryQueryDto {
   period!: string;
 }
 
+export class PayrollFeeSettingsDto {
+  @ApiProperty({ description: 'Percent of each payout.' }) percent!: number;
+  @ApiProperty({ type: 'integer' }) fixedCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Once a period per person paid through Stripe.',
+  })
+  monthlyCents!: number;
+}
+
 export class PayrollSummaryDto {
   @ApiProperty() period!: string;
   @ApiProperty({ type: 'integer' }) activeEmployees!: number;
@@ -327,4 +389,74 @@ export class PayrollSummaryDto {
       'Stripe payouts can be used (flag payroll_stripe_payouts on and Stripe keys saved).',
   })
   stripeAvailable!: boolean;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'integer' },
+    description: 'currency → commissions and bonuses waiting for a payout.',
+  })
+  pending!: Record<string, number>;
+  @ApiProperty({ type: PayrollFeeSettingsDto })
+  stripeFees!: PayrollFeeSettingsDto;
+}
+
+export const ACCRUAL_KINDS = ['commission', 'bonus', 'adjustment'] as const;
+export const ACCRUAL_STATUSES = ['pending', 'paid', 'canceled'] as const;
+
+export class PayrollAccrualDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) employeeId!: string;
+  @ApiProperty({ example: 'partner' }) source!: string;
+  @ApiProperty({ enum: ACCRUAL_KINDS }) kind!: string;
+  @ApiProperty() eventRef!: string;
+  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty() period!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) note!: string | null;
+  @ApiProperty({ enum: ACCRUAL_STATUSES }) status!: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  payoutId!: string | null;
+  @ApiProperty() createdAt!: string;
+}
+
+export class PayrollAccrualsQueryDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  employeeId?: string;
+
+  @ApiPropertyOptional({ enum: ACCRUAL_STATUSES })
+  @IsOptional()
+  @IsIn(ACCRUAL_STATUSES)
+  status?: (typeof ACCRUAL_STATUSES)[number];
+}
+
+/** A bonus or a correction added by hand; paid with the next payout. */
+export class CreatePayrollAccrualDto {
+  @ApiProperty({ enum: ['bonus', 'adjustment'] })
+  @IsIn(['bonus', 'adjustment'])
+  kind!: 'bonus' | 'adjustment';
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Cents; negative takes money back.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(-PAYROLL_MAX_CENTS)
+  @Max(PAYROLL_MAX_CENTS)
+  amountCents!: number;
+
+  @ApiProperty({ example: '2026-10' })
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(40)
+  period!: string;
+
+  @ApiProperty({ minLength: 3, maxLength: 300 })
+  @Transform(trim)
+  @IsString()
+  @MinLength(3)
+  @MaxLength(300)
+  note!: string;
 }
