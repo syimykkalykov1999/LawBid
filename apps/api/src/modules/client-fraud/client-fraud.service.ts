@@ -27,7 +27,6 @@ import {
   MATCH_ACTIONS,
   SIGNALS,
   STRONG_KINDS,
-  WEAK_KINDS,
   WEIGHTS,
   type FpKind,
   type FraudEventKind,
@@ -606,9 +605,12 @@ export class ClientFraudService {
         } else if (DEVICE_KINDS.includes(kind)) {
           if (isBlocked) deviceBlocked.add(s.user_id);
           else deviceOthers.add(s.user_id);
-        } else if (WEAK_KINDS.includes(kind)) {
+        } else if (kind === FP_KIND.text) {
+          // The same scam text: a real link. A shared network address is
+          // not (carrier NAT, offices, Wi-Fi): it is shown to staff in the
+          // linked accounts, never scored.
           if (isBlocked) weakBlocked.add(s.user_id);
-          if (kind === FP_KIND.text && !isBlocked) textOthers.add(s.user_id);
+          else textOthers.add(s.user_id);
         }
       }
       const matchOn = cfg.matchAction !== 'off';

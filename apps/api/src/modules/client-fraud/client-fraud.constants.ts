@@ -21,7 +21,7 @@ export const FP_KIND = {
   device: 'device',
   /** Stripe card fingerprint (platform account: attorney subscriptions). */
   card: 'card',
-  /** Network address: weak, only raises the score. */
+  /** Network address: shown to staff in linked accounts, never scored. */
   ip: 'ip',
   /** Normalised case text: the same scam posted from several accounts. */
   text: 'text',
@@ -39,7 +39,8 @@ export const STRONG_KINDS: readonly FpKind[] = [
 ];
 /** A phone can be sold or shared in a family: its own setting. */
 export const DEVICE_KINDS: readonly FpKind[] = ['device'];
-/** Only add to the score. */
+/** Shown to staff; only the case text adds to the score (an IP is shared
+ * by strangers behind a carrier or office network). */
 export const WEAK_KINDS: readonly FpKind[] = ['ip', 'text'];
 
 /** `client_fraud_profiles.status`. */
