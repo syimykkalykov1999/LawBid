@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -102,7 +103,7 @@ export class CockroachSearchProvider implements SearchProvider {
         UNION ALL
         SELECT u.id, 'client' AS role, c.username_lower AS uname,
                u.full_name_lower AS fname, FALSE AS verified,
-               0::DECIMAL AS rating
+               0::DECIMAL AS rating, FALSE AS priority
         FROM (
           (SELECT user_id FROM client_profiles
             WHERE username_lower IS NOT NULL
@@ -149,7 +150,9 @@ export class CockroachSearchProvider implements SearchProvider {
         SELECT u.id, 'attorney' AS role, a.username_lower AS uname,
                u.full_name_lower AS fname,
                (a.verification_status = 'verified') AS verified,
-               a.rating_avg AS rating
+               a.rating_avg AS rating,
+               -- Owner 2026-10-05 (plan builder): "higher in search".
+               ${attorneysWithEntitlementSql('priority_search', Prisma.sql`u.id`)} AS priority
         FROM cand
         JOIN users u ON u.id = cand.id AND u.role = 'attorney'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -166,6 +169,7 @@ export class CockroachSearchProvider implements SearchProvider {
         GREATEST(similarity(uname, ${q}),
                  similarity(COALESCE(fname, ''), ${q})) DESC,
         (role = 'attorney') DESC,
+        priority DESC,
         verified DESC,
         rating DESC,
         id

@@ -212,6 +212,7 @@ class AssistantSeatsControl extends StatelessWidget {
     required this.total,
     required this.onChanged,
     this.min = 0,
+    this.eachText,
     super.key,
   });
 
@@ -222,6 +223,10 @@ class AssistantSeatsControl extends StatelessWidget {
 
   /// "$100".
   final String seatPrice;
+
+  /// Owner 2026-10-05: the line under the count ("+$100 a month each");
+  /// null = the legacy text with "up to 6".
+  final String? eachText;
 
   /// "$599 per month".
   final String total;
@@ -300,7 +305,8 @@ class AssistantSeatsControl extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    t.t('plans.assistants.each', {'price': seatPrice}),
+                    eachText ??
+                        t.t('plans.assistants.each', {'price': seatPrice}),
                     style: typography.caption
                         .copyWith(color: colors.textSecondary),
                   ),

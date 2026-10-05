@@ -30,6 +30,7 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   shareCount: (json['shareCount'] as num).toInt(),
   isSaved: json['isSaved'] as bool,
   promoted: json['promoted'] as bool,
+  priorityClient: json['priorityClient'] as bool,
   dossier: CaseDossierDto.fromJson(json['dossier'] as Map<String, dynamic>),
   description: json['description'] as String,
   photos: (json['photos'] as List<dynamic>)
@@ -75,6 +76,7 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'shareCount': instance.shareCount,
   'isSaved': instance.isSaved,
   'promoted': instance.promoted,
+  'priorityClient': instance.priorityClient,
   'dossier': instance.dossier.toJson(),
   'description': instance.description,
   'ownBidId': ?instance.ownBidId,

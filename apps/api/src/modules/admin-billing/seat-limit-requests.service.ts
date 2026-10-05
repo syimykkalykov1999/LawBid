@@ -16,6 +16,7 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { getAssistantLimit } from '../billing/seat-limit';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import {
   ADMIN_BILLING_PAGE,
   afterCursor,
@@ -45,6 +46,7 @@ export class SeatLimitRequestsService {
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationsService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   async create(
@@ -57,7 +59,12 @@ export class SeatLimitRequestsService {
         message: 'Only the attorney asks for more assistant seats.',
       });
     }
-    const limit = await getAssistantLimit(this.prisma, user.sub, this.settings);
+    const limit = await getAssistantLimit(
+      this.prisma,
+      user.sub,
+      this.settings,
+      this.entitlements,
+    );
     if (dto.seats <= limit) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -96,7 +103,12 @@ export class SeatLimitRequestsService {
         where: { user_id: attorneyId },
         select: { assistant_seat_limit: true },
       }),
-      getAssistantLimit(this.prisma, attorneyId, this.settings),
+      getAssistantLimit(
+        this.prisma,
+        attorneyId,
+        this.settings,
+        this.entitlements,
+      ),
     ]);
     return {
       limit,
@@ -130,7 +142,12 @@ export class SeatLimitRequestsService {
           async (id) =>
             [
               id,
-              await getAssistantLimit(this.prisma, id, this.settings),
+              await getAssistantLimit(
+                this.prisma,
+                id,
+                this.settings,
+                this.entitlements,
+              ),
             ] as const,
         ),
       ),
@@ -179,6 +196,7 @@ export class SeatLimitRequestsService {
         data: { assistant_seat_limit: seats },
       }),
     ]);
+    await this.entitlements?.invalidateUser(row.attorney_id);
     await this.audit.record({
       adminId: admin.id,
       action: 'billing.seat_limit.approve',

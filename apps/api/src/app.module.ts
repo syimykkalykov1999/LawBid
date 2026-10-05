@@ -44,6 +44,7 @@ import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { PlansCoreModule } from './modules/plans/plans.module';
 import { AppSettingsModule } from './common/app-settings/app-settings.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
@@ -139,6 +140,8 @@ const isDev =
     LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
     PrismaModule,
     RedisModule,
+    // Owner 2026-10-05: plans + the entitlements gate (global).
+    PlansCoreModule,
     ThrottlerModule,
     HealthModule,
     // Registered after ThrottlerModule and before AuthModule so global
