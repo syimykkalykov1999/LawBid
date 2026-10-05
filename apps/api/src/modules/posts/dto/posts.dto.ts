@@ -2,6 +2,10 @@ import { MentionDto } from '../../mentions/mention.dto';
 import { PostVideoDto } from '../../videos/videos.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ContentStatus } from '@prisma/client';
+import {
+  POST_CONTENT_CLASSES,
+  type PostContentClass,
+} from '../content-filter.service';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -110,6 +114,16 @@ export class CreatePostDto {
   @IsIn(POST_KINDS)
   kind?: PostKindValue;
 
+  /** Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or
+   * News is always legal; without one the author picks (default general). */
+  @ApiPropertyOptional({
+    enum: POST_CONTENT_CLASSES,
+    enumName: 'PostContentClass',
+  })
+  @IsOptional()
+  @IsIn(POST_CONTENT_CLASSES)
+  contentClass?: PostContentClass;
+
   @ApiProperty({ minLength: 1, maxLength: POST_BODY_MAX })
   @Transform(trim)
   @IsString()
@@ -178,6 +192,16 @@ export class UpdatePostDto {
   @MinLength(2)
   @MaxLength(120)
   practiceCode?: string;
+
+  /** Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or
+   * News is always legal; without one the author picks (default general). */
+  @ApiPropertyOptional({
+    enum: POST_CONTENT_CLASSES,
+    enumName: 'PostContentClass',
+  })
+  @IsOptional()
+  @IsIn(POST_CONTENT_CLASSES)
+  contentClass?: PostContentClass;
 
   @ApiProperty({ minLength: 1, maxLength: POST_BODY_MAX })
   @Transform(trim)
@@ -332,6 +356,10 @@ export class PostDto {
 
   @ApiPropertyOptional({ type: PostPracticeDto, nullable: true })
   practice!: PostPracticeDto | null;
+
+  /** Owner 2026-10-05: legal or general (personal) post. */
+  @ApiProperty({ enum: POST_CONTENT_CLASSES, enumName: 'PostContentClass' })
+  contentClass!: PostContentClass;
 
   @ApiProperty({ type: PostAuthorDto })
   author!: PostAuthorDto;

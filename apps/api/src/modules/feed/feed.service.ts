@@ -1,11 +1,16 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import type { Post } from '@prisma/client';
+import type { Post, Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import type { PostPage } from '../posts/dto/posts.dto';
+import {
+  ContentFilterService,
+  contentModeWhere,
+  type FeedContentMode,
+} from '../posts/content-filter.service';
 import {
   PostPresenter,
   VISIBLE_POST_WHERE,
@@ -22,8 +27,8 @@ import type { FeedProvider } from './feed.provider';
 export const RECO_CURRENT_KEY = 'feed:reco:current';
 export const recoKey = (version: string) => `feed:reco:${version}`;
 const seenKey = (uid: string) => `feed:seen:${uid}`;
-const firstPageKey = (uid: string, limit: number) =>
-  `feed:first:${uid}:${limit}`;
+const firstPageKey = (uid: string, limit: number, mode: FeedContentMode) =>
+  `feed:first:${uid}:${limit}:${mode}`;
 /** §2.2.4: last 500 shown recommendations, kept 3 days. */
 const SEEN_MAX = 500;
 const SEEN_TTL_SEC = 3 * 24 * 3600;
@@ -56,6 +61,7 @@ export class FeedService implements FeedProvider {
     private readonly prisma: PrismaService,
     private readonly presenter: PostPresenter,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly contentFilter: ContentFilterService,
   ) {}
 
   async page(
@@ -70,12 +76,18 @@ export class FeedService implements FeedProvider {
       if (!decoded) throw badCursor();
       cursor = decoded;
     }
+    // Owner 2026-10-05: "Legal only" hides general (personal) posts.
+    const mode = await this.contentFilter.modeOf(viewer.sub);
+    const only = contentModeWhere(mode);
     if (first) {
-      const cached = await this.redis.get(firstPageKey(viewer.sub, limit));
+      const cached = await this.redis.get(
+        firstPageKey(viewer.sub, limit, mode),
+      );
       if (cached) {
         return this.fromIds(
           viewer,
           JSON.parse(cached) as { ids: string[]; next: string | null },
+          only,
         );
       }
     }
@@ -103,6 +115,7 @@ export class FeedService implements FeedProvider {
         cursor.l,
         [],
         limit,
+        only,
       );
       const last = tail[tail.length - 1];
       return {
@@ -127,6 +140,7 @@ export class FeedService implements FeedProvider {
       ? await this.prisma.post.findMany({
           where: {
             ...VISIBLE_POST_WHERE,
+            ...only,
             author_id: { in: authorIds },
             ...(after
               ? {
@@ -152,13 +166,21 @@ export class FeedService implements FeedProvider {
       first ? 0 : cursor.r,
       first ? null : cursor.v,
       recoNeed,
+      only,
     );
     // Owner 2026-10-02: a viewer who has already been shown every
     // recommendation (a small catalog, or someone who follows nobody) must
     // not open on "Your feed is empty" — start the rotation over.
     if (first && following.length === 0 && reco.posts.length === 0) {
       await this.redis.del(seenKey(viewer.sub));
-      reco = await this.recommendations(viewer, authorIds, 0, null, recoNeed);
+      reco = await this.recommendations(
+        viewer,
+        authorIds,
+        0,
+        null,
+        recoNeed,
+        only,
+      );
     }
 
     const page = mixPage(
@@ -184,6 +206,7 @@ export class FeedService implements FeedProvider {
             null,
             page.map((p) => p.id),
             limit - page.length,
+            only,
           )
         : [];
     page.push(...tail);
@@ -207,7 +230,7 @@ export class FeedService implements FeedProvider {
     );
     if (first) {
       await this.redis.set(
-        firstPageKey(viewer.sub, limit),
+        firstPageKey(viewer.sub, limit, mode),
         JSON.stringify({ ids: page.map((p) => p.id), next: nextCursor }),
         'EX',
         FIRST_PAGE_TTL_SEC,
@@ -228,6 +251,7 @@ export class FeedService implements FeedProvider {
     offset: number,
     pinned: string | null,
     need: number,
+    only: Prisma.PostWhereInput = {},
   ): Promise<{
     posts: Post[];
     next: (used: number) => number;
@@ -256,6 +280,7 @@ export class FeedService implements FeedProvider {
     const rows = await this.prisma.post.findMany({
       where: {
         ...VISIBLE_POST_WHERE,
+        ...only,
         id: { in: ids.filter((id) => !seen.has(id)) },
       },
     });
@@ -290,6 +315,7 @@ export class FeedService implements FeedProvider {
     after: { t: string; id: string } | null,
     excludeIds: string[],
     take: number,
+    only: Prisma.PostWhereInput = {},
   ): Promise<Post[]> {
     if (take <= 0) return [];
     const authors = new Set(excludeAuthors);
@@ -303,6 +329,7 @@ export class FeedService implements FeedProvider {
       where: {
         AND: [
           VISIBLE_POST_WHERE,
+          only,
           ...(authors.size > 0 ? [{ author_id: { notIn: [...authors] } }] : []),
           ...(ids.size > 0 ? [{ id: { notIn: [...ids] } }] : []),
           ...(after
@@ -346,9 +373,10 @@ export class FeedService implements FeedProvider {
   private async fromIds(
     viewer: RequestUser,
     cached: { ids: string[]; next: string | null },
+    only: Prisma.PostWhereInput,
   ): Promise<PostPage> {
     const rows = await this.prisma.post.findMany({
-      where: { ...VISIBLE_POST_WHERE, id: { in: cached.ids } },
+      where: { ...VISIBLE_POST_WHERE, ...only, id: { in: cached.ids } },
     });
     const byId = new Map(rows.map((p) => [p.id, p]));
     const ordered = cached.ids.flatMap((id) =>

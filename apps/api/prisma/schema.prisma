@@ -671,6 +671,10 @@ model User {
   recent_stickers         UserRecentSticker[]
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
   show_activity_status    Boolean                 @default(true)
+  /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
+  /// posts hidden from feed, search and recommendations); null = the admin
+  /// default `feed.default_content_mode`.
+  feed_content_mode       String?                 @db.String(16)
   deletion_requested_at   DateTime?               @db.Timestamptz
   deleted_at              DateTime?               @db.Timestamptz
   anonymized_at           DateTime?               @db.Timestamptz
@@ -1689,6 +1693,11 @@ model Post {
   location_lng     Float?
   /// Owner 2026-10-02: the author can turn comments off.
   comments_enabled Boolean                  @default(true)
+  /// Owner 2026-10-05: 'legal' (a law topic, news, or marked by the author)
+  /// or 'general' (personal, no law topic). Viewers can hide general posts.
+  content_class    String                   @default("general") @db.String(16)
+  /// Set by moderation: the author's edits no longer change content_class.
+  content_class_locked Boolean              @default(false)
   status           ContentStatus            @default(published)
   like_count       Int                      @default(0)
   comment_count    Int                      @default(0)
@@ -1719,6 +1728,7 @@ model Post {
   @@index([search_tsv], map: "posts_search_tsv_idx", type: Gin)
   @@index([practice_area_id, created_at(sort: Desc)])
   @@index([kind, created_at(sort: Desc)])
+  @@index([content_class, created_at(sort: Desc)])
   @@map("posts")
 }
 

@@ -14,7 +14,9 @@ import {
   ModerationService,
 } from '../moderation/moderation.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { classifyPost } from '../posts/content-filter.service';
 import type {
+  AdminBulkResultDto,
   AdminBidRowDto,
   AdminCommentRowDto,
   AdminOverviewDto,
@@ -56,6 +58,8 @@ function keyset(cursor?: string) {
 /** Owner 2026-10-04 (bulk moderation): author + time window of a list. */
 export interface ContentFilter {
   authorId?: string;
+  /** Owner 2026-10-05: legal or general posts only. */
+  contentClass?: 'legal' | 'general';
   from?: string;
   to?: string;
 }
@@ -153,6 +157,7 @@ export class AdminContentService {
       where: {
         ...(kind ? { kind } : {}),
         ...(onlyVideo ? { video_asset_id: { not: null } } : {}),
+        ...(filter.contentClass ? { content_class: filter.contentClass } : {}),
         ...(filter.authorId ? { author_id: filter.authorId } : {}),
         ...createdWindow(filter),
         // Search and paging both need an OR: AND keeps them from
@@ -186,6 +191,8 @@ export class AdminContentService {
       authorName: nameOf(p.author),
       practice: p.practice_area?.name_en ?? null,
       status: p.status,
+      contentClass: p.content_class === 'legal' ? 'legal' : 'general',
+      contentClassLocked: p.content_class_locked,
       likes: p.like_count,
       comments: p.comment_count,
       deleted: p.deleted_at !== null,
@@ -194,6 +201,44 @@ export class AdminContentService {
       photos: p._count.media,
       createdAt: p.created_at.toISOString(),
     }));
+  }
+
+  /** Owner 2026-10-05: moderation reclassifies posts as legal / general
+   * (kept through the author's edits) or back to the topic rule (auto). */
+  async classifyPosts(
+    ids: string[],
+    action: 'legal' | 'general' | 'auto',
+  ): Promise<AdminBulkResultDto> {
+    const rows = await this.prisma.post.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, practice_area_id: true, kind: true },
+    });
+    const found = new Set(rows.map((r) => r.id));
+    if (action === 'auto') {
+      for (const r of rows) {
+        await this.prisma.post.update({
+          where: { id: r.id },
+          data: {
+            content_class_locked: false,
+            content_class: classifyPost({
+              hasPractice: r.practice_area_id !== null,
+              kind: r.kind,
+            }),
+          },
+        });
+      }
+    } else if (rows.length > 0) {
+      await this.prisma.post.updateMany({
+        where: { id: { in: [...found] } },
+        data: { content_class: action, content_class_locked: true },
+      });
+    }
+    return {
+      done: ids.filter((id) => found.has(id)),
+      skipped: ids
+        .filter((id) => !found.has(id))
+        .map((id) => ({ id, reason: 'not_found' })),
+    };
   }
 
   async removePost(id: string, reason: string): Promise<void> {

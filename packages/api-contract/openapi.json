@@ -27252,6 +27252,15 @@
                 "video"
               ]
             }
+          },
+          {
+            "name": "contentClass",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: legal or general (personal) posts only.",
+            "schema": {
+              "$ref": "#/components/schemas/PostContentClass"
+            }
           }
         ],
         "responses": {
@@ -27422,6 +27431,103 @@
           }
         ],
         "summary": "Remove a post (reason goes to the audit log)",
+        "tags": [
+          "admin-content"
+        ]
+      }
+    },
+    "/admin/content/posts/classify": {
+      "post": {
+        "operationId": "classifyAdminPosts",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminClassifyPostsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Mark posts legal or general (kept through author edits), or back to automatic",
         "tags": [
           "admin-content"
         ]
@@ -43536,6 +43642,158 @@
         ]
       }
     },
+    "/feed/preferences": {
+      "get": {
+        "operationId": "getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPreferencesEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My feed content: every post or legal posts only",
+        "tags": [
+          "feed"
+        ]
+      },
+      "put": {
+        "operationId": "setPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedPreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPreferencesEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Show every post or legal posts only",
+        "tags": [
+          "feed"
+        ]
+      }
+    },
     "/cases/{id}/client-review": {
       "put": {
         "operationId": "upsertClientReview",
@@ -46443,6 +46701,15 @@
             "description": "popular = likes + comments, then newest (offset cursor).",
             "schema": {
               "$ref": "#/components/schemas/LatestPostsSort"
+            }
+          },
+          {
+            "name": "contentClass",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only legal or only general (personal) posts — the\n\"Posts\" topic lists general ones. Absent = the viewer's feed setting.",
+            "schema": {
+              "$ref": "#/components/schemas/PostContentClass"
             }
           }
         ],
@@ -78101,6 +78368,14 @@
           "i18nKey"
         ]
       },
+      "PostContentClass": {
+        "type": "string",
+        "enum": [
+          "legal",
+          "general"
+        ],
+        "description": "Owner 2026-10-05: legal or general (personal) post."
+      },
       "PostAuthorDto": {
         "type": "object",
         "properties": {
@@ -78360,6 +78635,14 @@
               }
             ]
           },
+          "contentClass": {
+            "description": "Owner 2026-10-05: legal or general (personal) post.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
+              }
+            ]
+          },
           "author": {
             "$ref": "#/components/schemas/PostAuthorDto"
           },
@@ -78445,6 +78728,7 @@
           "id",
           "commentsEnabled",
           "kind",
+          "contentClass",
           "author",
           "body",
           "media",
@@ -78504,6 +78788,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/PostKind"
+              }
+            ]
+          },
+          "contentClass": {
+            "description": "Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or\nNews is always legal; without one the author picks (default general).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
               }
             ]
           },
@@ -78575,6 +78867,14 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 120
+          },
+          "contentClass": {
+            "description": "Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or\nNews is always legal; without one the author picks (default general).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
+              }
+            ]
           },
           "body": {
             "type": "string",
@@ -83617,6 +83917,17 @@
               "removed"
             ]
           },
+          "contentClass": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
+              }
+            ]
+          },
+          "contentClassLocked": {
+            "type": "boolean",
+            "description": "Set by moderation (author edits keep it)."
+          },
           "likes": {
             "type": "integer"
           },
@@ -83648,6 +83959,8 @@
           "authorId",
           "authorName",
           "status",
+          "contentClass",
+          "contentClassLocked",
           "likes",
           "comments",
           "deleted",
@@ -83690,6 +84003,40 @@
             "maxLength": 500
           }
         }
+      },
+      "AdminPostClassAction": {
+        "type": "string",
+        "enum": [
+          "legal",
+          "general",
+          "auto"
+        ]
+      },
+      "AdminClassifyPostsDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "contentClass": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminPostClassAction"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ids",
+          "contentClass"
+        ]
       },
       "AdminCommentRowDto": {
         "type": "object",
@@ -91641,6 +91988,42 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/StickerDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "FeedContentMode": {
+        "type": "string",
+        "enum": [
+          "all",
+          "legal_only"
+        ]
+      },
+      "FeedPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "contentMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeedContentMode"
+              }
+            ]
+          }
+        },
+        "required": [
+          "contentMode"
+        ]
+      },
+      "FeedPreferencesEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FeedPreferencesDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

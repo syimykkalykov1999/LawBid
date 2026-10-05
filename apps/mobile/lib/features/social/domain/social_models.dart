@@ -188,7 +188,11 @@ class Post {
     this.locationName,
     this.commentsEnabled = true,
     this.attachments = const [],
+    this.isGeneral = false,
   });
+
+  /// Owner 2026-10-05: a general (personal) post rather than a legal one.
+  final bool isGeneral;
 
   /// Owner 2026-10-05: up to 9 documents readers download.
   final List<PostAttachment> attachments;
@@ -272,6 +276,7 @@ class Post {
         locationName: locationName,
         commentsEnabled: commentsEnabled,
         attachments: attachments,
+        isGeneral: isGeneral,
       );
 }
 

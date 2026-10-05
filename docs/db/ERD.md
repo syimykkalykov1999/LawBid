@@ -26,6 +26,7 @@ erDiagram
     String suspended_reason "nullable"
     DateTime last_active_at "nullable"
     Boolean show_activity_status
+    String feed_content_mode "nullable"
     DateTime deletion_requested_at "nullable"
     DateTime deleted_at "nullable"
     DateTime anonymized_at "nullable"
@@ -458,6 +459,8 @@ erDiagram
     Float location_lat "nullable"
     Float location_lng "nullable"
     Boolean comments_enabled
+    String content_class
+    Boolean content_class_locked
     enum_ContentStatus status
     Int like_count
     Int comment_count

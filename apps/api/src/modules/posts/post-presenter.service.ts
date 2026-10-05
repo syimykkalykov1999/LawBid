@@ -209,6 +209,7 @@ export class PostPresenter {
         },
         title: p.title ?? null,
         kind: p.kind,
+        contentClass: p.content_class === 'legal' ? 'legal' : 'general',
         practice: area
           ? {
               code: area.code,

@@ -328,6 +328,7 @@ class _SearchClient implements SearchClient {
     PostKind? kind,
     bool? withPhotos,
     LatestPostsSort? sort,
+    PostContentClass? contentClass,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -341,6 +342,7 @@ class _SearchClient implements SearchClient {
       r'kind': kind?.toJson(),
       r'withPhotos': withPhotos,
       r'sort': sort?.toJson(),
+      r'contentClass': contentClass?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

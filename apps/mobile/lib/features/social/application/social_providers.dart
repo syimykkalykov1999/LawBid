@@ -238,7 +238,13 @@ final latestPostsProvider = AsyncNotifierProvider.autoDispose
 /// Owner 2026-09-30: the feed of one qualification (a category with its
 /// subcategories, or a subcategory) and/or only News, optionally of
 /// attorneys licensed in a state.
-typedef FilteredPostsKey = ({String? state, String? practice, bool news});
+typedef FilteredPostsKey = ({
+  String? state,
+  String? practice,
+  bool news,
+  // Owner 2026-10-05: the "Posts" topic — general (personal) posts.
+  bool general,
+});
 
 class FilteredPostsNotifier extends PagedNotifier<Post> {
   FilteredPostsNotifier(this.key);
@@ -257,6 +263,7 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
               ? topicTagFor(practice)
               : null,
           newsOnly: key.news,
+          generalOnly: key.general,
         );
   }
 
@@ -542,6 +549,7 @@ class SocialActions {
     required String body,
     String? title,
     String? practiceCode,
+    bool? markedLegal,
   }) =>
       _guard('edit:${post.id}', () async {
         final updated = await _repo.updatePost(
@@ -549,6 +557,7 @@ class SocialActions {
           body: body,
           title: title,
           practiceCode: practiceCode,
+          markedLegal: markedLegal,
         );
         _ref.read(postOverridesProvider.notifier).put(
               updated.copyWith(

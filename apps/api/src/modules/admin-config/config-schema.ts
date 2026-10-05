@@ -121,6 +121,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Sections where admins (not the super admin) must write a reason for an action.',
     pattern: REASON_AREA_PATTERN,
   };
+  out['feed.default_content_mode'] = {
+    ...out['feed.default_content_mode'],
+    description:
+      'Feed content for people who never chose: all = every post, legal_only = only legal posts (general posts hidden).',
+    pattern: /^(all|legal_only)$/,
+  };
   out['translate.scope'] = {
     ...out['translate.scope'],
     description:

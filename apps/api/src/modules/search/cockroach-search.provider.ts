@@ -240,7 +240,8 @@ export class CockroachSearchProvider implements SearchProvider {
       }
       ${f.state ? Prisma.sql`AND EXISTS (SELECT 1 FROM attorney_licenses l WHERE l.attorney_id = p.author_id AND l.state_code = ${f.state} AND l.license_status = 'verified')` : Prisma.empty}
       ${f.since ? Prisma.sql`AND p.created_at >= ${f.since}` : Prisma.empty}
-      ${f.withPhotos ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)` : Prisma.empty}`;
+      ${f.withPhotos ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)` : Prisma.empty}
+      ${f.contentClass ? Prisma.sql`AND p.content_class = ${f.contentClass}` : Prisma.empty}`;
     const order =
       f.sort === 'newest'
         ? Prisma.sql`m.created_at DESC, m.id DESC`
