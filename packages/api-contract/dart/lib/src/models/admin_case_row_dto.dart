@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_case_row_dto_dossier_missing.dart';
 import 'admin_case_row_dto_status.dart';
 
 part 'admin_case_row_dto.g.dart';
@@ -24,6 +25,10 @@ class AdminCaseRowDto {
     required this.viewCount,
     required this.openReports,
     required this.promoted,
+    required this.imagesCount,
+    required this.documentsCount,
+    required this.dossierScore,
+    required this.dossierMissing,
     required this.lastActivityAt,
     required this.createdAt,
   });
@@ -46,6 +51,16 @@ class AdminCaseRowDto {
 
   /// A paid / granted promotion is running.
   final bool promoted;
+
+  /// Owner 2026-10-05: the case dossier ("4 of 6").
+  final int imagesCount;
+  final int documentsCount;
+
+  /// Filled-in items, 0–6.
+  final int dossierScore;
+
+  /// Dossier items the client has not filled in.
+  final List<AdminCaseRowDtoDossierMissing> dossierMissing;
   final DateTime lastActivityAt;
   final DateTime createdAt;
 

@@ -1,3 +1,4 @@
+import { DOSSIER_ITEMS } from '../cases/domain/case-dossier';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -255,6 +256,17 @@ export class AdminCaseRowDto {
   @ApiProperty({ type: 'integer' }) openReports!: number;
   @ApiProperty({ description: 'A paid / granted promotion is running.' })
   promoted!: boolean;
+  /** Owner 2026-10-05: the case dossier ("4 of 6"). */
+  @ApiProperty({ type: 'integer' }) imagesCount!: number;
+  @ApiProperty({ type: 'integer' }) documentsCount!: number;
+  @ApiProperty({ type: 'integer', description: 'Filled-in items, 0–6.' })
+  dossierScore!: number;
+  @ApiProperty({
+    type: [String],
+    enum: DOSSIER_ITEMS,
+    description: 'Dossier items the client has not filled in.',
+  })
+  dossierMissing!: string[];
   @ApiProperty({ format: 'date-time' }) lastActivityAt!: string;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }

@@ -260,6 +260,22 @@ export class UpdateCaseDto {
   @IsOptional()
   @IsIn(CASE_URGENCIES)
   urgency?: CaseUrgency | null;
+
+  /** Owner 2026-10-05: the full desired set of the case's photos and
+   * documents (0–9, display order) — so a client can complete the dossier
+   * after publishing. Absent = unchanged. */
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: MAX_CASE_PHOTOS,
+    description:
+      'Full set of clean case_photo / case_attachment file ids (0-9), display order.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_CASE_PHOTOS)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  photoFileIds?: string[];
 }
 
 // Owner 2026-09-30: `open` and `in_progress` split the old `active`

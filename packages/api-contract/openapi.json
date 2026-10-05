@@ -51876,6 +51876,32 @@
             "type": "boolean",
             "description": "A paid / granted promotion is running."
           },
+          "imagesCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the case dossier (\"4 of 6\")."
+          },
+          "documentsCount": {
+            "type": "integer"
+          },
+          "dossierScore": {
+            "type": "integer",
+            "description": "Filled-in items, 0–6."
+          },
+          "dossierMissing": {
+            "type": "array",
+            "description": "Dossier items the client has not filled in.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "description",
+                "city",
+                "urgency",
+                "budget",
+                "documents",
+                "photos"
+              ]
+            }
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -51899,6 +51925,10 @@
           "viewCount",
           "openReports",
           "promoted",
+          "imagesCount",
+          "documentsCount",
+          "dossierScore",
+          "dossierMissing",
           "lastActivityAt",
           "createdAt"
         ]
@@ -52042,6 +52072,32 @@
             "type": "boolean",
             "description": "A paid / granted promotion is running."
           },
+          "imagesCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the case dossier (\"4 of 6\")."
+          },
+          "documentsCount": {
+            "type": "integer"
+          },
+          "dossierScore": {
+            "type": "integer",
+            "description": "Filled-in items, 0–6."
+          },
+          "dossierMissing": {
+            "type": "array",
+            "description": "Dossier items the client has not filled in.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "description",
+                "city",
+                "urgency",
+                "budget",
+                "documents",
+                "photos"
+              ]
+            }
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -52143,6 +52199,10 @@
           "viewCount",
           "openReports",
           "promoted",
+          "imagesCount",
+          "documentsCount",
+          "dossierScore",
+          "dossierMissing",
           "lastActivityAt",
           "createdAt",
           "description",
@@ -56149,6 +56209,16 @@
                 "$ref": "#/components/schemas/CaseUrgency"
               }
             ]
+          },
+          "photoFileIds": {
+            "description": "Full set of clean case_photo / case_attachment file ids (0-9), display order.",
+            "uniqueItems": true,
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         }
       },
@@ -56345,6 +56415,28 @@
           "mode"
         ]
       },
+      "CaseDossierDto": {
+        "type": "object",
+        "properties": {
+          "imagesCount": {
+            "type": "integer",
+            "description": "Attached photos (image/*)."
+          },
+          "documentsCount": {
+            "type": "integer",
+            "description": "Attached documents (PDF, Word…)."
+          },
+          "descriptionLength": {
+            "type": "integer",
+            "description": "Length of the full description, in characters."
+          }
+        },
+        "required": [
+          "imagesCount",
+          "documentsCount",
+          "descriptionLength"
+        ]
+      },
       "CaseFeedItemDto": {
         "type": "object",
         "properties": {
@@ -56437,6 +56529,14 @@
           "promoted": {
             "type": "boolean",
             "description": "Promoted by its client right now."
+          },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
           }
         },
         "required": [
@@ -56456,7 +56556,8 @@
           "commentCount",
           "shareCount",
           "isSaved",
-          "promoted"
+          "promoted",
+          "dossier"
         ]
       },
       "CaseFeedItemListEnvelope": {
@@ -56599,6 +56700,14 @@
             "type": "boolean",
             "description": "Promoted by its client right now."
           },
+          "dossier": {
+            "description": "Owner 2026-10-05: how complete the case is (counts only).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDossierDto"
+              }
+            ]
+          },
           "description": {
             "type": "string"
           },
@@ -56654,6 +56763,7 @@
           "shareCount",
           "isSaved",
           "promoted",
+          "dossier",
           "description",
           "photos",
           "photosCount",

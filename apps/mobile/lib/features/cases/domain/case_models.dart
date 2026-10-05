@@ -314,6 +314,24 @@ class CaseBid {
   bool isTurnOf(PartyRole role) => isActive && turn == role;
 }
 
+/// Owner 2026-10-05: what the client has put into the case — counts only
+/// (the files open to the accepted attorney alone, OQ-031). Lets an
+/// attorney judge a case before bidding.
+@immutable
+class CaseDossier {
+  const CaseDossier({
+    this.imagesCount = 0,
+    this.documentsCount = 0,
+    this.descriptionLength = 0,
+  });
+
+  static const empty = CaseDossier();
+
+  final int imagesCount;
+  final int documentsCount;
+  final int descriptionLength;
+}
+
 /// Attorney feed card and detail (docs/04 §4.2, §4.3). No client field
 /// ever exists here.
 @immutable
@@ -346,7 +364,11 @@ class FeedCase {
     this.completionRequestedBy,
     this.coverKey,
     this.urgency,
+    this.dossier = CaseDossier.empty,
   });
+
+  /// Owner 2026-10-05: files and filled-in details (counts only).
+  final CaseDossier dossier;
 
   /// Owner 2026-10-04: the client's cover choice (`art:N` / `icon:name`);
   /// null = a variant picked from the id. Never the client's photo.
@@ -431,6 +453,7 @@ class FeedCase {
         coverKey: coverKey,
         urgency: urgency,
         bidAllowed: bidAllowed,
+        dossier: dossier,
       );
 }
 

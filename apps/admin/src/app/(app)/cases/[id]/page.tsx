@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { DossierChecklist } from '@/components/cases/dossier';
 import { fadeUp } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
@@ -173,7 +174,7 @@ export default function CaseDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-relaxed whitespace-pre-wrap text-ink">{c.description}</p>
-              {c.photosCount > 0 ? <p className="mt-3 text-xs text-faint">Фото: {c.photosCount}</p> : null}
+              <DossierChecklist c={c} />
             </CardContent>
           </Card>
         </motion.div>
