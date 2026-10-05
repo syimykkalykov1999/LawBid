@@ -7,6 +7,7 @@ import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { StateRegistries } from '@/components/registries/state-registries';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -163,6 +164,8 @@ export default function IntegrationsPage() {
           ))}
         </div>
       )}
+      {/* Owner 2026-10-05: per-state lawyer registries (keys per state). */}
+      <StateRegistries />
       <StepUpDialog
         open={stepUp}
         onCancel={() => setStepUp(false)}

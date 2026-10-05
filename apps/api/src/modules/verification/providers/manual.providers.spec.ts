@@ -4,8 +4,9 @@ import type { CostGuardService } from '../../../common/cost-guard/cost-guard.ser
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { AutoBarLookupProvider } from './bar-lookup/auto-bar-lookup.provider';
-import type { StateBarAdapter } from './bar-lookup/state-bar-adapter';
-import { StubStateBarAdapter } from './bar-lookup/stub-state-bar.adapter';
+import type { ResolvedRegistry } from './bar-lookup/state-bar-adapter';
+import type { StateRegistryService } from '../services/state-registry.service';
+import type { CheckOutcome } from './verification-providers';
 import {
   PersonaIdVerificationProvider,
   StripeIdentityProvider,
@@ -40,23 +41,35 @@ describe('manual verification providers (docs/03 §2.4)', () => {
   });
 });
 
-describe('AutoBarLookupProvider (state adapters)', () => {
-  it('routes by state to the adapter serving it', async () => {
-    const provider = new AutoBarLookupProvider(
-      [new StubStateBarAdapter(['CA', 'NY'])],
+describe('AutoBarLookupProvider (per-state registries, owner 2026-10-05)', () => {
+  const registry: ResolvedRegistry = {
+    stateCode: 'NY',
+    adapter: 'generic_rest',
+    config: {},
+    secret: null,
+  };
+  const build = (
+    resolved: ResolvedRegistry | null,
+    lookup: () => Promise<CheckOutcome> = () =>
+      Promise.resolve({ result: 'pass', details: { provider: 'x' } }),
+  ) =>
+    new AutoBarLookupProvider(
+      {
+        resolve: jest.fn(() => Promise.resolve(resolved)),
+        lookup: jest.fn(lookup),
+      } as unknown as StateRegistryService,
       logger,
     );
-    const out = await provider.lookup(INPUT);
-    expect(out.result).toBe('manual_review');
-    expect(out.details).toMatchObject({
-      provider: 'stub_state_bar',
-      stateCode: 'NY',
-      reason: 'adapter_not_implemented',
-    });
+
+  it("routes to the state's enabled registry", async () => {
+    const provider = build(registry);
+    expect(await provider.supports('NY')).toBe(true);
+    expect((await provider.lookup(INPUT)).result).toBe('pass');
   });
 
-  it('a state without an adapter goes to manual review', async () => {
-    const provider = new AutoBarLookupProvider([], logger);
+  it('a state without a registry goes to manual review', async () => {
+    const provider = build(null);
+    expect(await provider.supports('NY')).toBe(false);
     const out = await provider.lookup(INPUT);
     expect(out).toEqual({
       result: 'manual_review',
@@ -68,15 +81,16 @@ describe('AutoBarLookupProvider (state adapters)', () => {
     });
   });
 
-  it('an adapter error never blocks — manual review', async () => {
-    const broken: StateBarAdapter = {
-      name: 'ny_bar',
-      states: ['NY'],
-      lookup: () => Promise.reject(new Error('timeout')),
-    };
-    const out = await new AutoBarLookupProvider([broken], logger).lookup(INPUT);
+  it('a registry error never blocks — manual review', async () => {
+    const out = await build(registry, () =>
+      Promise.reject(new Error('timeout')),
+    ).lookup(INPUT);
     expect(out.result).toBe('manual_review');
-    expect(out.details.reason).toBe('provider_error');
+    expect(out.details).toMatchObject({
+      provider: 'generic_rest',
+      reason: 'provider_error',
+      error: 'timeout',
+    });
   });
 });
 
@@ -120,24 +134,22 @@ describe('VerificationProviderSelector (feature flags)', () => {
     const cost = { consume: jest.fn() } as unknown as CostGuardService;
     return new VerificationProviderSelector(
       ff,
-      new ManualBarLookupProvider(),
-      new AutoBarLookupProvider([], logger),
+      new AutoBarLookupProvider(
+        {
+          resolve: () => Promise.resolve(null),
+        } as unknown as StateRegistryService,
+        logger,
+      ),
       new ManualIdVerificationProvider(),
       new StripeIdentityProvider(cost),
       new PersonaIdVerificationProvider(cost),
     );
   };
 
-  it('all flags off → manual everywhere', async () => {
+  it('all flags off → manual ID checks; bar lookups route per state', async () => {
     const s = build({});
-    expect((await s.barLookup()).name).toBe('manual');
+    expect((await s.barLookup()).name).toBe('auto');
     expect((await s.idVerification()).provider).toBe('manual');
-  });
-
-  it('auto_bar_check → state adapters', async () => {
-    expect((await build({ auto_bar_check: true }).barLookup()).name).toBe(
-      'auto',
-    );
   });
 
   it('stripe_identity wins over persona; persona alone → persona', async () => {

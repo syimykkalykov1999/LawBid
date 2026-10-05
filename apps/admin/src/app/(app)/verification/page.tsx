@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { MoreButton } from '@/components/legacy/more-button';
+import { RegistryFlags } from '@/components/registries/registry-flags';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,7 @@ import { api, errorText } from '@/lib/api/client';
 import { REQUEST_STATUS, StatusPill } from '@/lib/labels';
 import { formatDateTime, formatDuration } from '@/lib/utils';
 
-type QueueStatus = '' | 'submitted' | 'needs_more_info' | 'in_review';
+type QueueStatus = '' | 'submitted' | 'needs_more_info' | 'in_review' | 'registry';
 
 /** docs/06 §2.3 item 2 — the verifier queue over the file-03 API. */
 export default function VerificationQueuePage() {
@@ -23,9 +24,11 @@ export default function VerificationQueuePage() {
   const [status, setStatus] = useState<QueueStatus>('');
   const [stateText, setStateText] = useState('');
   const stateCode = useDebounced(stateText.trim().toUpperCase(), 300);
-  const filters = { status, stateCode };
+  const registry = status === 'registry';
+  const filters = { status: registry ? '' : status, stateCode };
   const q = useInfiniteQuery({
     queryKey: ['verification-queue', filters],
+    enabled: !registry,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       (
@@ -57,65 +60,83 @@ export default function VerificationQueuePage() {
             { value: 'submitted', label: REQUEST_STATUS.submitted },
             { value: 'in_review', label: REQUEST_STATUS.in_review },
             { value: 'needs_more_info', label: REQUEST_STATUS.needs_more_info },
+            // Owner 2026-10-05: self-attested licenses the state registry did not confirm.
+            { value: 'registry', label: 'Сверка с реестром' },
           ]}
         />
-        <Input
-          aria-label="Штат"
-          className="w-28 uppercase"
-          maxLength={2}
-          placeholder="Штат: NY"
-          value={stateText}
-          onChange={(e) => setStateText(e.target.value)}
-        />
+        {registry ? null : (
+          <Input
+            aria-label="Штат"
+            className="w-28 uppercase"
+            maxLength={2}
+            placeholder="Штат: NY"
+            value={stateText}
+            onChange={(e) => setStateText(e.target.value)}
+          />
+        )}
       </div>
-      <ErrorNote text={q.error ? errorText(q.error) : null} />
-      <Table>
-        <thead>
-          <tr>
-            <Th>Адвокат</Th>
-            <Th>Штаты</Th>
-            <Th>Статус</Th>
-            <Th>Подана</Th>
-            <Th>Ожидает</Th>
-            <Th>Проверяющий</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {q.isPending ? (
-            <TableEmpty colSpan={6} loading />
-          ) : rows.length === 0 ? (
-            <TableEmpty colSpan={6}>Очередь пуста — новых заявок нет.</TableEmpty>
-          ) : (
-            rows.map((r, i) => (
-              <MotionRow key={r.id} i={i} className="cursor-pointer" onClick={() => router.push(`/verification/${r.id}`)}>
-                <Td>
-                  <Link
-                    href={`/verification/${r.id}`}
-                    className="font-medium text-heading hover:underline"
-                    onClick={(e) => e.stopPropagation()}
+      {registry ? (
+        <RegistryFlags />
+      ) : (
+        <>
+          <ErrorNote text={q.error ? errorText(q.error) : null} />
+          <Table>
+            <thead>
+              <tr>
+                <Th>Адвокат</Th>
+                <Th>Штаты</Th>
+                <Th>Статус</Th>
+                <Th>Подана</Th>
+                <Th>Ожидает</Th>
+                <Th>Проверяющий</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {q.isPending ? (
+                <TableEmpty colSpan={6} loading />
+              ) : rows.length === 0 ? (
+                <TableEmpty colSpan={6}>Очередь пуста — новых заявок нет.</TableEmpty>
+              ) : (
+                rows.map((r, i) => (
+                  <MotionRow
+                    key={r.id}
+                    i={i}
+                    className="cursor-pointer"
+                    onClick={() => router.push(`/verification/${r.id}`)}
                   >
-                    {[r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') || `@${r.attorney.username}`}
-                  </Link>
-                  <div className="text-xs text-faint">
-                    @{r.attorney.username}
-                    {r.adminNote ? ` · ${r.adminNote}` : ''}
-                  </div>
-                </Td>
-                <Td>{r.stateCodes.join(', ')}</Td>
-                <Td>
-                  <StatusPill map={REQUEST_STATUS} value={r.status} />
-                </Td>
-                <Td className="whitespace-nowrap text-muted">{formatDateTime(r.submittedAt)}</Td>
-                <Td className="whitespace-nowrap tabular-nums">
-                  {r.submittedAt ? formatDuration(Math.floor((now - new Date(r.submittedAt).getTime()) / 1000)) : '—'}
-                </Td>
-                <Td className="font-mono text-xs text-muted">{r.reviewerId ? r.reviewerId.slice(0, 8) : '—'}</Td>
-              </MotionRow>
-            ))
-          )}
-        </tbody>
-      </Table>
-      <MoreButton show={q.hasNextPage} loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} />
+                    <Td>
+                      <Link
+                        href={`/verification/${r.id}`}
+                        className="font-medium text-heading hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {[r.attorney.firstName, r.attorney.lastName].filter(Boolean).join(' ') ||
+                          `@${r.attorney.username}`}
+                      </Link>
+                      <div className="text-xs text-faint">
+                        @{r.attorney.username}
+                        {r.adminNote ? ` · ${r.adminNote}` : ''}
+                      </div>
+                    </Td>
+                    <Td>{r.stateCodes.join(', ')}</Td>
+                    <Td>
+                      <StatusPill map={REQUEST_STATUS} value={r.status} />
+                    </Td>
+                    <Td className="whitespace-nowrap text-muted">{formatDateTime(r.submittedAt)}</Td>
+                    <Td className="whitespace-nowrap tabular-nums">
+                      {r.submittedAt
+                        ? formatDuration(Math.floor((now - new Date(r.submittedAt).getTime()) / 1000))
+                        : '—'}
+                    </Td>
+                    <Td className="font-mono text-xs text-muted">{r.reviewerId ? r.reviewerId.slice(0, 8) : '—'}</Td>
+                  </MotionRow>
+                ))
+              )}
+            </tbody>
+          </Table>
+          <MoreButton show={q.hasNextPage} loading={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()} />
+        </>
+      )}
     </>
   );
 }
