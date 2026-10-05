@@ -282,10 +282,11 @@ async function seedFeatureFlags(): Promise<void> {
     },
     {
       key: 'auto_bar_check',
-      // Owner 2026-10-04: self-attestation, no external lookups. The NY
-      // registry adapter stays available behind this flag.
+      // Retired 2026-10-05: bar lookups are switched on per state in Admin →
+      // Ключи и сервисы → "Реестры адвокатов по штатам"; not read any more.
       enabled: false,
-      description: 'Automatic bar-number lookup against state databases',
+      description:
+        'Retired: bar lookups are enabled per state in Admin → Integrations → state registries',
     },
     { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
     { key: 'email_login', enabled: true, description: 'Email OTP login' },

@@ -1,58 +1,67 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { StateRegistryService } from '../../services/state-registry.service';
 import type {
   BarLookupInput,
   BarLookupProvider,
   CheckOutcome,
 } from '../verification-providers';
-import { STATE_BAR_ADAPTERS, type StateBarAdapter } from './state-bar-adapter';
 
 /**
- * `auto_bar_check` on: routes the lookup to the state's adapter. A state
- * without an adapter, or an adapter error, never blocks the attorney —
- * the result is `manual_review` and a verifier checks by hand (§2.4).
+ * Routes a lookup to the state's registry as configured in the admin
+ * (owner 2026-10-05: per state, StateRegistryService). A state without an
+ * enabled registry, or a registry error, never blocks the attorney — the
+ * result is `manual_review` and a verifier checks by hand (§2.4).
  */
 @Injectable()
 export class AutoBarLookupProvider implements BarLookupProvider {
   readonly name = 'auto';
 
   constructor(
-    @Inject(STATE_BAR_ADAPTERS)
-    private readonly adapters: readonly StateBarAdapter[],
+    private readonly registries: StateRegistryService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(AutoBarLookupProvider.name);
   }
 
-  adapterFor(stateCode: string): StateBarAdapter | undefined {
-    return this.adapters.find((a) => a.states.includes(stateCode));
+  /** The state has an enabled automatic registry. */
+  async supports(stateCode: string): Promise<boolean> {
+    return (
+      (await this.registries.resolve(stateCode).catch(() => null)) !== null
+    );
   }
 
   async lookup(input: BarLookupInput): Promise<CheckOutcome> {
-    const adapter = this.adapterFor(input.stateCode);
-    if (!adapter) {
-      return {
-        result: 'manual_review',
-        details: {
-          provider: 'none',
-          stateCode: input.stateCode,
-          reason: 'no_adapter_for_state',
-        },
-      };
-    }
+    let adapter = 'none';
     try {
-      return await adapter.lookup(input);
+      const registry = await this.registries.resolve(input.stateCode);
+      if (!registry) {
+        return {
+          result: 'manual_review',
+          details: {
+            provider: 'none',
+            stateCode: input.stateCode,
+            reason: 'no_adapter_for_state',
+          },
+        };
+      }
+      adapter = registry.adapter;
+      return await this.registries.lookup(input, registry);
     } catch (err) {
       this.logger.warn(
-        { err, adapter: adapter.name, stateCode: input.stateCode },
+        { err, adapter, stateCode: input.stateCode },
         'State bar lookup failed — falling back to manual review',
       );
       return {
         result: 'manual_review',
         details: {
-          provider: adapter.name,
+          provider: adapter,
           stateCode: input.stateCode,
           reason: 'provider_error',
+          error: (err instanceof Error ? err.message : String(err)).slice(
+            0,
+            200,
+          ),
         },
       };
     }

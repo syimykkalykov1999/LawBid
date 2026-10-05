@@ -75,6 +75,26 @@ export class CasePhotosService {
     return out;
   }
 
+  /** Owner 2026-10-05: photos and documents per case, counted for every
+   * viewer (the files themselves stay behind [forViewer]). */
+  async counts(
+    caseIds: string[],
+  ): Promise<Map<string, { images: number; documents: number }>> {
+    const out = new Map<string, { images: number; documents: number }>();
+    if (caseIds.length === 0) return out;
+    const rows = await this.prisma.casePhoto.findMany({
+      where: { case_id: { in: caseIds } },
+      select: { case_id: true, file: { select: { mime: true } } },
+    });
+    for (const r of rows) {
+      const c = out.get(r.case_id) ?? { images: 0, documents: 0 };
+      if (r.file.mime.startsWith('image/')) c.images += 1;
+      else c.documents += 1;
+      out.set(r.case_id, c);
+    }
+    return out;
+  }
+
   /** Photos for the owner or the accepted attorney; empty for anyone
    * else. `count` is always the real number (so a bidder knows photos
    * exist and will be shared after acceptance). */

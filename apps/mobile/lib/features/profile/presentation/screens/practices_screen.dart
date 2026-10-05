@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -120,10 +121,23 @@ class PracticesScreen extends ConsumerWidget {
 }
 
 class PracticesEditor extends ConsumerStatefulWidget {
-  const PracticesEditor({required this.tree, required this.initial, super.key});
+  const PracticesEditor({
+    required this.tree,
+    required this.initial,
+    super.key,
+    this.saveLabel,
+    this.onSaved,
+  });
 
   final List<PracticeCategory> tree;
   final List<SelectedPractice> initial;
+
+  /// Owner 2026-10-04 (attorney onboarding): "Save and continue" — the
+  /// button is enabled with any non-empty selection (even unchanged) and
+  /// [onSaved] moves the onboarding forward; no snack bar, no staying on
+  /// the same screen.
+  final String? saveLabel;
+  final VoidCallback? onSaved;
 
   @override
   ConsumerState<PracticesEditor> createState() => _PracticesEditorState();
@@ -145,8 +159,14 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
   bool get _dirty =>
       _selected.length != _saved.length || !_selected.containsAll(_saved);
 
+  bool get _onboarding => widget.onSaved != null;
+
+  /// Owner 2026-10-05 (audit): never save an empty set — an attorney
+  /// without practices gets no cases.
+  bool get _canSave => _selected.isNotEmpty && (_onboarding || _dirty);
+
   Future<void> _save(Translator t) async {
-    if (_saving || !_dirty) return;
+    if (_saving || !_canSave) return;
     setState(() => _saving = true);
     try {
       final saved = await ref
@@ -165,12 +185,49 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
       if (username != null) {
         ref.invalidate(publicAttorneyProfileProvider(username));
       }
+      // The Cases tab and the verification screen read the chosen set.
+      ref.invalidate(myPracticesProvider);
+      if (_onboarding) {
+        // Stays busy until the onboarding moves to the next stage, so a
+        // second tap can't save again while it refreshes.
+        widget.onSaved!();
+        return;
+      }
       showAppSnackBar(context, t.t('practices.saved'));
+      // Owner 2026-10-05 (audit): saved = done, back to where it came from.
+      final nav = Navigator.of(context);
+      if (nav.canPop()) nav.pop();
+      setState(() => _saving = false);
     } catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+        showAppSnackBar(context, errorText(t, e));
+      }
     }
+  }
+
+  /// Back with unsaved changes asks first (settings only).
+  Future<void> _confirmLeave(Translator t) async {
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(t.t('practices.unsaved.title')),
+        content: Text(t.t('practices.unsaved.body')),
+        actions: [
+          TextButton(
+            key: const ValueKey('practices-unsaved-stay'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(t.t('practices.unsaved.stay')),
+          ),
+          TextButton(
+            key: const ValueKey('practices-unsaved-leave'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(t.t('practices.unsaved.leave')),
+          ),
+        ],
+      ),
+    );
+    if ((leave ?? false) && mounted) Navigator.of(context).pop();
   }
 
   void _toggle(String id) => setState(() {
@@ -342,35 +399,41 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
       ],
     );
 
-    return Column(
-      children: [
-        Expanded(child: list),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(top: BorderSide(color: colors.border)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.md,
-                AppSpacing.screenSide,
-                AppSpacing.md,
-              ),
-              child: AppButton(
-                key: const ValueKey('practices-save'),
-                label: t.t('practices.save'),
-                isLoading: _saving,
-                isEnabled: _dirty,
-                dimWhenDisabled: true,
-                onPressed: () => _save(t),
+    return PopScope(
+      canPop: _onboarding || !_dirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmLeave(t);
+      },
+      child: Column(
+        children: [
+          Expanded(child: list),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(top: BorderSide(color: colors.border)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                ),
+                child: AppButton(
+                  key: const ValueKey('practices-save'),
+                  label: widget.saveLabel ?? t.t('practices.save'),
+                  isLoading: _saving,
+                  isEnabled: _canSave,
+                  dimWhenDisabled: true,
+                  onPressed: () => _save(t),
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -16,6 +16,7 @@ import {
   ArrayMaxSize,
   Matches,
 } from 'class-validator';
+import { SEATS_HARD_CAP } from './billing.constants';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -69,12 +70,17 @@ export class CheckoutRequestDto {
   @IsIn(['monthly', 'yearly'])
   plan?: 'monthly' | 'yearly';
 
-  @ApiPropertyOptional({ type: 'integer', minimum: 0, maximum: 6, default: 0 })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: SEATS_HARD_CAP,
+    default: 0,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(6)
+  @Max(SEATS_HARD_CAP)
   assistantSeats?: number;
 
   @ApiPropertyOptional({
@@ -102,11 +108,11 @@ export class CheckoutRequestDto {
 }
 
 export class SetSeatsDto {
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 6 })
+  @ApiProperty({ type: 'integer', minimum: 0, maximum: SEATS_HARD_CAP })
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(6)
+  @Max(SEATS_HARD_CAP)
   seats!: number;
 }
 

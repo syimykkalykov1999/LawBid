@@ -21,6 +21,9 @@ export const NOTIFICATION_CATEGORY: Record<
   bid_accepted: 'bids',
   bid_rejected: 'bids',
   negotiation_failed: 'bids',
+  // Owner 2026-10-05.
+  case_invite_received: 'bids',
+  case_invite_declined: 'bids',
   case_updated: 'cases',
   case_stale_prompt: 'cases',
   case_archived: 'cases',

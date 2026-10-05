@@ -189,8 +189,16 @@ export class AdminUsersService {
             followers_count: true,
             posts_count: true,
             licenses: {
-              select: { state_code: true, license_status: true },
+              select: {
+                state_code: true,
+                license_status: true,
+                bar_number: true,
+                expires_at: true,
+              },
               orderBy: { state_code: 'asc' },
+            },
+            practice_areas: {
+              select: { practice_area: { select: { name_en: true } } },
             },
           },
         },
@@ -291,6 +299,15 @@ export class AdminUsersService {
             licenses: u.attorney_profile.licenses.map(
               (l) => `${l.state_code}:${l.license_status}`,
             ),
+            licenseItems: u.attorney_profile.licenses.map((l) => ({
+              stateCode: l.state_code,
+              barNumber: l.bar_number,
+              status: l.license_status,
+              expiresAt: l.expires_at?.toISOString() ?? null,
+            })),
+            practices: u.attorney_profile.practice_areas
+              .map((p) => p.practice_area.name_en)
+              .sort((a, b) => a.localeCompare(b)),
             subscription: u.subscription
               ? {
                   status: u.subscription.status,

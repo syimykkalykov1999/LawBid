@@ -90,6 +90,7 @@ FeedCase _case({
   CaseUrgency? urgency,
   String? coverKey,
   bool isNew = false,
+  CaseDossier dossier = CaseDossier.empty,
 }) =>
     FeedCase(
       id: id,
@@ -119,6 +120,7 @@ FeedCase _case({
       hasOwnBid: false,
       urgency: urgency,
       coverKey: coverKey,
+      dossier: dossier,
     );
 
 final _cases = [
@@ -137,6 +139,11 @@ final _cases = [
     urgency: CaseUrgency.urgent,
     coverKey: 'art:2',
     isNew: true,
+    dossier: const CaseDossier(
+      imagesCount: 2,
+      documentsCount: 3,
+      descriptionLength: 640,
+    ),
   ),
   _case(
     id: 'c-2',
@@ -151,6 +158,7 @@ final _cases = [
     budgetCents: 250000,
     urgency: CaseUrgency.soon,
     coverKey: 'art:3',
+    dossier: const CaseDossier(documentsCount: 1, descriptionLength: 310),
   ),
   _case(
     id: 'c-3',
@@ -163,6 +171,7 @@ final _cases = [
     state: 'FL',
     urgency: CaseUrgency.flexible,
     coverKey: 'icon:car',
+    dossier: const CaseDossier(imagesCount: 4, descriptionLength: 120),
   ),
   _case(
     id: 'c-4',
@@ -176,6 +185,7 @@ final _cases = [
     city: 'Austin',
     budgetCents: 150000,
     coverKey: 'art:1',
+    dossier: const CaseDossier(descriptionLength: 70),
   ),
 ];
 

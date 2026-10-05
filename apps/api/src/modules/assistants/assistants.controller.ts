@@ -33,14 +33,13 @@ import {
   AddAssistantDto,
   AssistantIdParamDto,
   AssistantMeDto,
-  AssistantPhoneDto,
+  JoinCodeDto,
   AssistantRequestDto,
   BulkTasksDto,
   BulkTasksResultDto,
   CreateAssistantRequestDto,
   CreateTaskDto,
   DecideRequestDto,
-  JoinVerifyDto,
   RequestsQueryDto,
   TaskDto,
   TaskPeopleQueryDto,
@@ -96,34 +95,19 @@ export class AssistantsController {
   }
 
   @AssistantSelf()
-  @Post('assistants/join/request-code')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Send a join code to the attorney's phone" })
-  @ApiErrors({
-    404: [E.NOT_FOUND],
-    409: [E.ASSISTANT_NO_FREE_SEAT],
-    429: [E.RATE_LIMITED],
-  })
-  requestAssistantCode(
-    @CurrentUser() user: RequestUser,
-    @Body() dto: AssistantPhoneDto,
-  ): Promise<void> {
-    return this.assistants.requestCode(user, dto.phone);
-  }
-
-  @AssistantSelf()
-  @Post('assistants/join/verify')
-  @ApiOperation({ summary: 'Join with the code the attorney received' })
+  @Post('assistants/join/code')
+  @ApiOperation({ summary: "Join with the attorney's one-time code" })
   @ApiEnvelopeResponse(AssistantMeDto)
   @ApiErrors({
-    400: [E.AUTH_OTP_INVALID, E.AUTH_OTP_EXPIRED, E.AUTH_OTP_LOCKED],
-    409: [E.ASSISTANT_NO_FREE_SEAT],
+    401: [E.ASSISTANT_CODE_INVALID],
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    409: [E.ASSISTANT_PHONE_TAKEN],
   })
-  verifyAssistantCode(
+  joinWithCode(
     @CurrentUser() user: RequestUser,
-    @Body() dto: JoinVerifyDto,
+    @Body() dto: JoinCodeDto,
   ): Promise<AssistantMeDto> {
-    return this.assistants.verifyCode(user, dto.attorneyPhone, dto.code);
+    return this.assistants.joinWithCode(user, dto.code);
   }
 
   // --- the attorney's team ------------------------------------------------
@@ -138,7 +122,9 @@ export class AssistantsController {
 
   @AttorneyOnly()
   @Post('team')
-  @ApiOperation({ summary: 'Add an assistant by phone (joins without a code)' })
+  @ApiOperation({
+    summary: 'Add an assistant: takes a seat and gives it a one-time code',
+  })
   @ApiEnvelopeResponse(TeamDto)
   @ApiErrors({
     400: [E.ASSISTANT_LIABILITY_REQUIRED],
@@ -150,6 +136,21 @@ export class AssistantsController {
     @Req() req: Request,
   ): Promise<TeamDto> {
     return this.assistants.add(user, dto, metaOf(req));
+  }
+
+  @AttorneyOnly()
+  @Post('team/:id/code')
+  @ApiOperation({
+    summary:
+      'A new one-time code for this seat (the old one stops working; for a joined assistant it signs them in on a new phone)',
+  })
+  @ApiEnvelopeResponse(TeamDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  regenerateAssistantCode(
+    @CurrentUser() user: RequestUser,
+    @Param() p: AssistantIdParamDto,
+  ): Promise<TeamDto> {
+    return this.assistants.regenerateCode(user, p.id);
   }
 
   @AttorneyOnly()

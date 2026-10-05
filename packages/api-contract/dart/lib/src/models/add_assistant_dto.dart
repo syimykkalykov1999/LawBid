@@ -11,7 +11,7 @@ part 'add_assistant_dto.g.dart';
 @JsonSerializable()
 class AddAssistantDto {
   const AddAssistantDto({
-    required this.phone,
+    this.phone,
     this.name,
     this.duties,
     this.acceptLiability,
@@ -20,7 +20,8 @@ class AddAssistantDto {
   factory AddAssistantDto.fromJson(Map<String, Object?> json) =>
       _$AddAssistantDtoFromJson(json);
 
-  final String phone;
+  /// Optional (older apps). The assistant joins with the one-time code the seat gets.
+  final String? phone;
   final String? name;
   final List<AddAssistantDtoDuties>? duties;
 

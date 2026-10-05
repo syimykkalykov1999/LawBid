@@ -139,6 +139,13 @@ export default function VerificationCardPage() {
     onSuccess: (x) => x && done('Решение по лицензии сохранено'),
     onError,
   });
+  // Owner 2026-10-05: a lookup now, no status change (sets/clears the registry mark).
+  const registryCheck = useMutation({
+    mutationFn: (licenseId: string) =>
+      api.POST('/admin/verification/licenses/{licenseId}/registry-check', { params: { path: { licenseId } } }),
+    onSuccess: () => done('Проверено по реестру штата'),
+    onError,
+  });
   const recheck = useMutation({
     mutationFn: (licenseId: string) =>
       api.POST('/admin/verification/licenses/{licenseId}/recheck', { params: { path: { licenseId } } }),
@@ -350,6 +357,9 @@ export default function VerificationCardPage() {
                   {l.autoCheckResult ? (
                     <>
                       <div className="font-medium">{autoCheckLabel(l.autoCheckResult)}</div>
+                      {l.registryFlag ? (
+                        <div className="mt-1 font-medium text-warning">Отмечено для проверки: реестр не подтвердил</div>
+                      ) : null}
                       <details className="mt-1">
                         <summary className="cursor-pointer text-muted">Подробно</summary>
                         <pre className="max-h-24 overflow-auto rounded-lg bg-surface-2 p-1.5">{JSON.stringify(l.autoCheckResult, null, 1)}</pre>
@@ -360,6 +370,9 @@ export default function VerificationCardPage() {
                 <Td className="whitespace-nowrap">{l.expiresAt ? formatDateTime(l.expiresAt) : '—'}</Td>
                 <Td>
                   <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" disabled={registryCheck.isPending} onClick={() => registryCheck.mutate(l.id)}>
+                      По реестру
+                    </Button>
                     <Button size="sm" variant="ghost" disabled={recheck.isPending} onClick={() => recheck.mutate(l.id)}>
                       Перепроверить
                     </Button>

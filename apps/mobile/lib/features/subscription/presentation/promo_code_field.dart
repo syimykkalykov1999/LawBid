@@ -130,7 +130,7 @@ class _PromoCodeFieldState extends State<PromoCodeField> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     if (!_open) {
       return Align(
-        alignment: Alignment.centerLeft,
+        alignment: AlignmentDirectional.centerStart,
         child: TextButton.icon(
           onPressed: () => setState(() => _open = true),
           icon: AppIcon(

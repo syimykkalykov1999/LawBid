@@ -217,7 +217,12 @@ class BidAttorney {
     required this.verifiedBadge,
     required this.ratingAvg,
     required this.ratingCount,
+    this.licensedStates = const [],
   });
+
+  /// Owner 2026-10-04: 2-letter codes of the attorney's verified licences
+  /// (shown to the client when the case's state is not among them).
+  final List<String> licensedStates;
 
   final String id;
   final String username;
@@ -280,11 +285,16 @@ class CaseBid {
     this.attorney,
     this.offers = const [],
     this.outsidePractice = false,
+    this.outsideLicensedStates = false,
   });
 
   /// Owner 2026-09-30: the case's practice is outside the attorney's own —
   /// the client is told to discuss it before accepting.
   final bool outsidePractice;
+
+  /// Owner 2026-10-04: the attorney has no verified licence in the case's
+  /// states — allowed, the client is told before accepting.
+  final bool outsideLicensedStates;
 
   final String id;
   final String caseId;
@@ -314,6 +324,24 @@ class CaseBid {
   bool isTurnOf(PartyRole role) => isActive && turn == role;
 }
 
+/// Owner 2026-10-05: what the client has put into the case — counts only
+/// (the files open to the accepted attorney alone, OQ-031). Lets an
+/// attorney judge a case before bidding.
+@immutable
+class CaseDossier {
+  const CaseDossier({
+    this.imagesCount = 0,
+    this.documentsCount = 0,
+    this.descriptionLength = 0,
+  });
+
+  static const empty = CaseDossier();
+
+  final int imagesCount;
+  final int documentsCount;
+  final int descriptionLength;
+}
+
 /// Attorney feed card and detail (docs/04 §4.2, §4.3). No client field
 /// ever exists here.
 @immutable
@@ -341,12 +369,17 @@ class FeedCase {
     this.commentCount = 0,
     this.shareCount = 0,
     this.inMyPractice = true,
+    this.inMyLicensedStates = true,
     this.bidAllowed = true,
     this.promoted = false,
     this.completionRequestedBy,
     this.coverKey,
     this.urgency,
+    this.dossier = CaseDossier.empty,
   });
+
+  /// Owner 2026-10-05: files and filled-in details (counts only).
+  final CaseDossier dossier;
 
   /// Owner 2026-10-04: the client's cover choice (`art:N` / `icon:name`);
   /// null = a variant picked from the id. Never the client's photo.
@@ -365,8 +398,12 @@ class FeedCase {
   /// (detail only; a bid from outside them warns the client).
   final bool inMyPractice;
 
-  /// Owner 2026-10-04: false = view only (no verified licence in the case's
-  /// states), no offer button.
+  /// Owner 2026-10-04: the attorney holds a verified licence in one of the
+  /// case's states (detail only; otherwise "Bid" notes the client sees it).
+  final bool inMyLicensedStates;
+
+  /// Owner 2026-10-04: an attorney may bid on any open case; the server
+  /// keeps this for older apps (always true).
   final bool bidAllowed;
 
   /// OQ-034: comments under the case.
@@ -431,6 +468,7 @@ class FeedCase {
         coverKey: coverKey,
         urgency: urgency,
         bidAllowed: bidAllowed,
+        dossier: dossier,
       );
 }
 

@@ -41,7 +41,10 @@ CurrentUser meFixture({
       if (!consents) MissingRequirement.consents,
       if (role == null) MissingRequirement.role,
       if (!hasName) MissingRequirement.name,
-      if (role != null && !phoneVerified) MissingRequirement.phoneVerified,
+      // Owner 2026-10-04: assistants sign in with a code, no phone.
+      if ((role == UserRole.client || role == UserRole.attorney) &&
+          !phoneVerified)
+        MissingRequirement.phoneVerified,
       if (role == UserRole.client && !emailVerified)
         MissingRequirement.emailVerified,
     },

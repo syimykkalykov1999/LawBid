@@ -95,6 +95,22 @@ class RealAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<OtpVerifyResult> signInWithAssistantCode(String code) async {
+    try {
+      final tokens = await _client.assistantCodeLogin(
+        code: code,
+        deviceInfo: _deviceInfo,
+      );
+      await _session.applyTokens(tokens);
+      return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
+    } on ApiException catch (e) {
+      return e.code == ApiErrorCodes.assistantCodeInvalid
+          ? const OtpVerifyResult.invalid()
+          : _otpFailure(e);
+    }
+  }
+
+  @override
   Future<OtpVerifyResult> verifyEmailLink({
     required String token,
     required String verifier,

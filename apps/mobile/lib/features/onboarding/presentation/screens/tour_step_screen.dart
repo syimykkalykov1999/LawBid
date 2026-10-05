@@ -94,22 +94,27 @@ class _TourStepScreenState extends ConsumerState<TourStepScreen> {
                   ),
                   const Spacer(),
                   if (!last)
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(
-                          AppSizes.touchTarget,
-                          AppSizes.touchTarget,
+                    Flexible(
+                      flex: 3,
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(
+                            AppSizes.touchTarget,
+                            AppSizes.touchTarget,
+                          ),
+                          foregroundColor: colors.textSecondary,
                         ),
-                        foregroundColor: colors.textSecondary,
-                      ),
-                      onPressed: action.busy
-                          ? null
-                          : () => ref
-                              .read(onboardingActionsProvider.notifier)
-                              .complete(),
-                      child: Text(
-                        t.t('onboarding.tour.skip'),
-                        style: typography.button,
+                        onPressed: action.busy
+                            ? null
+                            : () => ref
+                                .read(onboardingActionsProvider.notifier)
+                                .complete(),
+                        child: Text(
+                          t.t('onboarding.tour.skip'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: typography.button,
+                        ),
                       ),
                     ),
                 ],

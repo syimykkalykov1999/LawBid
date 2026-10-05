@@ -31,27 +31,68 @@ enum AssistantDuty {
       {...raw.map(parse).whereType<AssistantDuty>()};
 }
 
+/// Owner 2026-10-05: ready sets of accesses the attorney gives in one tap;
+/// each access can still be switched on or off after.
+enum AssistantRole {
+  /// Calls, chats, files and tasks.
+  secretary({
+    AssistantDuty.calls,
+    AssistantDuty.chats,
+    AssistantDuty.files,
+    AssistantDuty.tasks,
+  }),
+
+  /// The secretary's work plus cases, bid drafts and posts for approval.
+  paralegal({
+    AssistantDuty.calls,
+    AssistantDuty.chats,
+    AssistantDuty.files,
+    AssistantDuty.tasks,
+    AssistantDuty.cases,
+    AssistantDuty.bidDrafts,
+    AssistantDuty.posts,
+  }),
+
+  /// Everything, bids and publishing in the attorney's name included.
+  full({...AssistantDuty.values});
+
+  const AssistantRole(this.duties);
+
+  final Set<AssistantDuty> duties;
+
+  String get labelKey => 'team.role.$name';
+}
+
 enum MemberStatus { invited, active, removed }
 
 @immutable
 class TeamMember {
   const TeamMember({
     required this.id,
-    required this.phone,
     required this.status,
     required this.approval,
     required this.duties,
     required this.createdAt,
+    this.phone,
     this.name,
     this.joinedAt,
     this.liabilityAcceptedAt,
+    this.joinCode,
+    this.joinCodeExpiresAt,
   });
+
+  /// Owner 2026-10-04: the seat's one-time code (XXXX-XXXX-XXXX) while it
+  /// can be used — to join, or to sign in on a new phone. Null once used.
+  final String? joinCode;
+  final DateTime? joinCodeExpiresAt;
 
   /// OQ-049: when the attorney last accepted responsibility.
   final DateTime? liabilityAcceptedAt;
 
   final String id;
-  final String phone;
+
+  /// Only for assistants added by phone (older apps).
+  final String? phone;
   final String? name;
   final MemberStatus status;
 
@@ -61,7 +102,10 @@ class TeamMember {
   final DateTime? joinedAt;
   final DateTime createdAt;
 
-  String get label => (name?.trim().isNotEmpty ?? false) ? name! : phone;
+  /// The name, else the phone; empty when neither is known yet (the UI
+  /// shows "Assistant" then).
+  String get label =>
+      (name?.trim().isNotEmpty ?? false) ? name! : (phone ?? '');
 }
 
 @immutable

@@ -43,29 +43,23 @@ export function normalizeContactPhone({ value }: { value: unknown }): unknown {
   return raw;
 }
 
-export class AssistantPhoneDto {
-  @ApiProperty({ example: '+13125550111' })
-  @Matches(PHONE)
-  phone!: string;
-}
-
-export class JoinVerifyDto {
-  @ApiProperty({
-    example: '+13125550101',
-    description: "The attorney's phone.",
-  })
-  @Matches(PHONE)
-  attorneyPhone!: string;
-
-  @ApiProperty({ example: '000000' })
-  @Matches(/^[0-9]{6}$/)
+/** Owner 2026-10-04: the attorney's one-time code (dashes optional). */
+export class JoinCodeDto {
+  @ApiProperty({ example: 'K7QM-4XRT-92HD' })
+  @IsString()
+  @Length(8, 32)
   code!: string;
 }
 
 export class AddAssistantDto {
-  @ApiProperty({ example: '+13125550111' })
+  @ApiPropertyOptional({
+    example: '+13125550111',
+    description:
+      'Optional (older apps). The assistant joins with the one-time code the seat gets.',
+  })
+  @IsOptional()
   @Matches(PHONE)
-  phone!: string;
+  phone?: string;
 
   @ApiPropertyOptional({ maxLength: 80 })
   @IsOptional()
@@ -120,7 +114,7 @@ export class AssistantIdParamDto {
 
 export class AssistantMemberDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
-  @ApiProperty() phone!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) phone!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) name!: string | null;
   @ApiProperty({ enum: ['invited', 'active', 'removed'] })
   status!: 'invited' | 'active' | 'removed';
@@ -137,6 +131,16 @@ export class AssistantMemberDto {
       'OQ-049: when the attorney last accepted responsibility for this assistant ("bids" / "publish").',
   })
   liabilityAcceptedAt!: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'K7QM-4XRT-92HD',
+    description:
+      'Owner 2026-10-04: the one-time code for this seat while it can be used (join, or sign in on a new phone); null once used or expired.',
+  })
+  joinCode!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  joinCodeExpiresAt!: string | null;
 }
 
 export class TeamDto {

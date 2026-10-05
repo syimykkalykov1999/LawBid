@@ -12,6 +12,7 @@ class AddLicenseDto {
     required this.stateCode,
     required this.barNumber,
     this.expiresAt,
+    this.renewal,
   });
 
   factory AddLicenseDto.fromJson(Map<String, Object?> json) =>
@@ -23,6 +24,9 @@ class AddLicenseDto {
 
   /// License expiry (YYYY-MM-DD), if the license has one.
   final String? expiresAt;
+
+  /// True to renew a license that is still verified (a new expiry date). Without it a state that is already verified is refused.
+  final bool? renewal;
 
   Map<String, Object?> toJson() => _$AddLicenseDtoToJson(this);
 }

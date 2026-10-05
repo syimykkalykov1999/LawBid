@@ -19,7 +19,7 @@ export type AdminPayment = components['schemas']['AdminPaymentDto'];
 export type Refund = components['schemas']['RefundDto'];
 
 /** Prices (billing.constants on the server). */
-export const PRICES = { monthlyCents: 39_900, seatCents: 10_000, yearlyCents: 959_000, maxSeats: 6 } as const;
+export const PRICES = { monthlyCents: 39_900, seatCents: 10_000, yearlyCents: 959_000, maxSeats: 10 } as const;
 
 /** Money pages open to the super admin only; others get 403 from the API. */
 export function useBillingRole() {
