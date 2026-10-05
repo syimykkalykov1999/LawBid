@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-107 tables.
+109 tables.
 
 ```mermaid
 erDiagram
@@ -215,6 +215,8 @@ erDiagram
     DateTime updated_at
     Boolean new_case_alerts_custom
     Int assistant_seat_limit "nullable"
+    Int trust_level
+    Boolean trust_badge
   }
   attorney_licenses {
     String id PK
@@ -984,6 +986,53 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  attorney_trust {
+    String attorney_id PK,FK
+    Int level
+    DateTime license_confirmed_at "nullable"
+    String license_confirmed_by "nullable"
+    String license_confirmed_note "nullable"
+    DateTime documents_verified_at "nullable"
+    String documents_verified_by "nullable"
+    DateTime stripe_kyc_at "nullable"
+    Boolean stripe_charges_enabled
+    String stripe_legal_name "nullable"
+    String stripe_business_type "nullable"
+    String stripe_company_name "nullable"
+    String stripe_company_domain "nullable"
+    String stripe_representative "nullable"
+    String name_check
+    DateTime name_checked_at "nullable"
+    String firm_link_status
+    String firm_link_source "nullable"
+    DateTime firm_link_at "nullable"
+    String firm_link_note "nullable"
+    String firm_email_domain "nullable"
+    DateTime firm_email_verified_at "nullable"
+    String payments_hold "nullable"
+    DateTime payments_hold_at "nullable"
+    String bids_hold "nullable"
+    DateTime bids_hold_at "nullable"
+    String hold_note "nullable"
+    Int complaints_total
+    Int duplicate_claims
+    Int payout_delay_days "nullable"
+    DateTime payout_delay_synced_at "nullable"
+    DateTime computed_at
+    DateTime created_at
+    DateTime updated_at
+  }
+  attorney_trust_events {
+    String id PK
+    String attorney_id FK
+    String kind
+    Int from_level "nullable"
+    Int to_level "nullable"
+    String actor_type
+    String actor_id "nullable"
+    Json details
+    DateTime created_at
+  }
   video_assets {
     String id PK
     String owner_user_id FK
@@ -1404,6 +1453,8 @@ erDiagram
   assistant_liability_acceptances }o--|| assistant_memberships : "membership_id"
   integration_credentials }o--o| users : "created_by"
   state_bar_registries |o--|| states : "state_code"
+  attorney_trust |o--|| attorney_profiles : "attorney_id"
+  attorney_trust_events }o--|| attorney_profiles : "attorney_id"
   video_assets }o--|| users : "owner_user_id"
   partner_commissions }o--|| partners : "partner_id"
   sticker_packs }o--o| users : "owner_user_id"
