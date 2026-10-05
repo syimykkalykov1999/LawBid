@@ -151,12 +151,11 @@ export class AdminOutreachService {
 
   // ---- leads ----------------------------------------------------------------
 
-  async list(
-    admin: AdminActor,
+  /** The same filters for the list and the CSV export. */
+  private leadFilters(
+    scope: OutreachScope,
     q: OutreachLeadsQueryDto,
-  ): Promise<Page<OutreachLeadRowDto>> {
-    const scope = await this.core.scopeFor(admin);
-    const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
+  ): Prisma.OutreachLeadWhereInput[] {
     const filters: Prisma.OutreachLeadWhereInput[] = [
       this.core.scopeWhere(scope),
     ];
@@ -184,6 +183,16 @@ export class AdminOutreachService {
         ],
       });
     }
+    return filters;
+  }
+
+  async list(
+    admin: AdminActor,
+    q: OutreachLeadsQueryDto,
+  ): Promise<Page<OutreachLeadRowDto>> {
+    const scope = await this.core.scopeFor(admin);
+    const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
+    const filters = this.leadFilters(scope, q);
     if (cursor) {
       filters.push({
         OR: [
@@ -922,13 +931,7 @@ export class AdminOutreachService {
     const scope = await this.core.scopeFor(admin);
     managerOnly(scope);
     const rows: LeadWithPartner[] = await this.prisma.outreachLead.findMany({
-      where: {
-        AND: [
-          q.status ? { status: q.status } : {},
-          q.partnerId ? { partner_id: q.partnerId } : {},
-          q.state ? { state_code: q.state.toUpperCase() } : {},
-        ],
-      },
+      where: { AND: this.leadFilters(scope, q) },
       include: { partner: true },
       orderBy: { created_at: 'desc' },
       take: 50_000,

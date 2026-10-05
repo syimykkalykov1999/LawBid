@@ -446,7 +446,7 @@ describe('Outreach (e2e)', () => {
     await api()
       .patch(`/api/v1/admin/outreach/leads/${anna.id}`)
       .set(owner.auth)
-      .send({ status: 'new' }) // system statuses cannot be set by hand
+      .send({ status: 'registered' }) // system statuses cannot be set by hand
       .expect(409);
     const exported = await api()
       .get(`/api/v1/admin/outreach/leads/export.csv?q=${tag}`)
