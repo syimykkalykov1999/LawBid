@@ -72,6 +72,10 @@ export const PAID_FLAGS: Record<
     integration: 'google_translate',
     keys: ['GOOGLE_TRANSLATE_API_KEY'],
   },
+  payroll_stripe_payouts: {
+    integration: 'stripe',
+    keys: ['STRIPE_SECRET_KEY'],
+  },
 };
 
 /**

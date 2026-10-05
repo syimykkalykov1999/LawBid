@@ -6,11 +6,16 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/activate_integration_dto.dart';
+import '../models/create_custom_integration_dto.dart';
 import '../models/create_integration_version_dto.dart';
+import '../models/custom_integration_created_envelope.dart';
 import '../models/integration_version_envelope.dart';
 import '../models/integration_version_list_envelope.dart';
 import '../models/integrations_overview_envelope.dart';
 import '../models/remove_integration_dto.dart';
+import '../models/reorder_integration_slots_dto.dart';
+import '../models/slot_body_dto.dart';
+import '../models/update_integration_slot_dto.dart';
 
 part 'admin_integrations_client.g.dart';
 
@@ -61,12 +66,45 @@ abstract class AdminIntegrationsClient {
   @POST('/admin/integrations/{provider}/rollback')
   Future<IntegrationVersionEnvelope> rollbackIntegration({
     @Path('provider') required String provider,
+    @Body() required SlotBodyDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Stop using the keys saved here (back to the server env)
   @DELETE('/admin/integrations/{provider}')
   Future<void> removeIntegration({
+    @Path('provider') required String provider,
+    @Body() required RemoveIntegrationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-05: rename or switch a key set on/off (needs step-up)
+  @PATCH('/admin/integrations/{provider}/slots/{slot}')
+  Future<void> updateIntegrationSlot({
+    @Path('provider') required String provider,
+    @Path('slot') required String slot,
+    @Body() required UpdateIntegrationSlotDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-05: the order the API tries the key sets in (needs step-up)
+  @PUT('/admin/integrations/{provider}/order')
+  Future<void> reorderIntegrationSlots({
+    @Path('provider') required String provider,
+    @Body() required ReorderIntegrationSlotsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-05: add a service with its own key fields, no code change (needs step-up)
+  @POST('/admin/integrations/custom')
+  Future<CustomIntegrationCreatedEnvelope> createCustomIntegration({
+    @Body() required CreateCustomIntegrationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-05: delete a service added from the admin
+  @DELETE('/admin/integrations/custom/{provider}')
+  Future<void> deleteCustomIntegration({
     @Path('provider') required String provider,
     @Body() required RemoveIntegrationDto body,
     @Extras() Map<String, dynamic>? extras,

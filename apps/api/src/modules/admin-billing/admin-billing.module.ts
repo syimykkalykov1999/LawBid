@@ -15,6 +15,8 @@ import {
   SeatLimitRequestsController,
 } from './seat-limit-requests.controller';
 import { SeatLimitRequestsService } from './seat-limit-requests.service';
+import { SubscriptionAdminController } from './subscription-admin.controller';
+import { SubscriptionAdminService } from './subscription-admin.service';
 
 /**
  * Owner 2026-10-02: admin billing tools (contract grants, promo codes,
@@ -29,6 +31,7 @@ import { SeatLimitRequestsService } from './seat-limit-requests.service';
     AdminPricingController,
     SeatLimitRequestsController,
     AdminSeatLimitRequestsController,
+    SubscriptionAdminController,
   ],
   providers: [
     ContractGrantsService,
@@ -37,6 +40,7 @@ import { SeatLimitRequestsService } from './seat-limit-requests.service';
     BillingOverviewService,
     AdminPricingService,
     SeatLimitRequestsService,
+    SubscriptionAdminService,
   ],
 })
 export class AdminBillingModule {}

@@ -703,3 +703,51 @@ export class BillingOverviewDto {
   @ApiProperty({ type: 'integer' }) promoRedemptions30d!: number;
   @ApiProperty({ format: 'date-time' }) generatedAt!: string;
 }
+
+// ---- support cancels a subscription (owner 2026-10-04) -------------------------
+
+export const SUBSCRIPTION_CANCEL_WHEN = ['period_end', 'now'] as const;
+export const SUBSCRIPTION_CANCEL_REFUND = ['none', 'prorated', 'full'] as const;
+
+export class AdminCancelSubscriptionDto extends AdminBillingReasonDto {
+  @ApiProperty({
+    enum: SUBSCRIPTION_CANCEL_WHEN,
+    enumName: 'AdminSubscriptionCancelWhen',
+    description:
+      'period_end: access stays until the paid period ends (default for support requests); now: access ends immediately.',
+  })
+  @IsIn(SUBSCRIPTION_CANCEL_WHEN)
+  when!: (typeof SUBSCRIPTION_CANCEL_WHEN)[number];
+
+  @ApiPropertyOptional({
+    enum: SUBSCRIPTION_CANCEL_REFUND,
+    enumName: 'AdminSubscriptionCancelRefund',
+    default: 'none',
+    description:
+      'Only with when=now: refund the unused part of the period (prorated) or the whole last payment (full).',
+  })
+  @IsOptional()
+  @IsIn(SUBSCRIPTION_CANCEL_REFUND)
+  refund?: (typeof SUBSCRIPTION_CANCEL_REFUND)[number];
+}
+
+export class AdminSubscriptionRefundOutcomeDto {
+  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty({ enum: ['pending', 'succeeded', 'failed', 'skipped'] })
+  status!: string;
+  @ApiProperty({ type: String, nullable: true }) message!: string | null;
+}
+
+export class AdminSubscriptionActionResultDto {
+  @ApiProperty() status!: string;
+  @ApiProperty() cancelAtPeriodEnd!: boolean;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'When access ends (null: it renews).',
+  })
+  accessEndsAt!: string | null;
+  @ApiProperty({ type: AdminSubscriptionRefundOutcomeDto, nullable: true })
+  refund!: AdminSubscriptionRefundOutcomeDto | null;
+}

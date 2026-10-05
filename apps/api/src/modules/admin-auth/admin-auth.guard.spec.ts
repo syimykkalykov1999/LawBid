@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
   UnauthorizedException,
   type ExecutionContext,
 } from '@nestjs/common';
@@ -171,10 +172,6 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     ],
     ['no admin_profiles row', { allowed: ['verifier'], row: admin(null) }],
     [
-      'role without permission',
-      { allowed: ['verifier', 'super_admin'], row: admin('moderator') },
-    ],
-    [
       'disabled admin',
       {
         allowed: ['verifier'],
@@ -192,6 +189,16 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     const { guard, ctx } = setup(opts);
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
       ForbiddenException,
+    );
+  });
+
+  it('404 (not 403) for a section without the right — it looks absent', async () => {
+    const { guard, ctx } = setup({
+      allowed: ['verifier', 'super_admin'],
+      row: admin('moderator'),
+    });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+      NotFoundException,
     );
   });
 
@@ -221,7 +228,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       },
     });
     await expect(write.guard.canActivate(write.ctx)).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
     );
   });
 
@@ -243,7 +250,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
         },
       });
       await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
-        ForbiddenException,
+        NotFoundException,
       );
     }
   });
@@ -273,7 +280,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     ]) {
       const t = manager(url);
       await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
-        ForbiddenException,
+        NotFoundException,
       );
     }
   });
@@ -292,7 +299,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       },
     });
     await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
     );
   });
 
@@ -304,7 +311,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       row: admin('support'),
     });
     await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
     );
   });
 

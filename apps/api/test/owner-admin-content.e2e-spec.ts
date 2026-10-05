@@ -159,13 +159,13 @@ describe('Admin content (e2e)', () => {
     await api()
       .get('/api/v1/admin/content/posts')
       .set(verifier.auth)
-      .expect(403);
+      .expect(404);
     await api()
       .post('/api/v1/admin/broadcasts')
       .set(verifier.auth)
       .send({ title: 'x', body: 'y', audience: 'all' })
-      .expect(403);
+      .expect(404);
     // The overview belongs to the content area, which a verifier lacks.
-    await api().get('/api/v1/admin/overview').set(verifier.auth).expect(403);
+    await api().get('/api/v1/admin/overview').set(verifier.auth).expect(404);
   });
 });

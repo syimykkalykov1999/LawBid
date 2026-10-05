@@ -228,7 +228,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     await api()
       .get('/api/v1/admin/users?q=zelda')
       .set(verifier.auth)
-      .expect(403);
+      .expect(404);
     await api().get('/api/v1/admin/users?q=zelda').set(c.auth).expect(401);
   });
 
@@ -316,7 +316,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     await api()
       .post(`/api/v1/admin/users/${c.id}/sessions/revoke`)
       .set(support.auth)
-      .expect(403);
+      .expect(404);
     const r = await api()
       .post(`/api/v1/admin/users/${c.id}/sessions/revoke`)
       .set(moderator.auth)
@@ -329,7 +329,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .post(`/api/v1/admin/users/${c.id}/warn`)
       .set(support.auth)
       .send({ reason: 'Spam in bids' })
-      .expect(403);
+      .expect(404);
     await api()
       .post(`/api/v1/admin/users/${c.id}/warn`)
       .set(moderator.auth)
@@ -374,7 +374,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .post(`/api/v1/admin/users/${c.id}/phone`)
       .set(moderator.auth)
       .send({ phone: fresh, reason: 'Lost phone, ID checked' })
-      .expect(403);
+      .expect(404);
     await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
       .set(boss.auth)

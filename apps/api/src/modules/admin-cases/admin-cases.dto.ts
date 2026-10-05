@@ -2,6 +2,9 @@ import { DOSSIER_ITEMS } from '../cases/domain/case-dossier';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -239,6 +242,27 @@ export class AdminCaseActionDto {
   @MinLength(10)
   @MaxLength(500)
   reason!: string;
+}
+
+export const CASES_BULK_ACTIONS = [
+  'hide',
+  'close',
+  'archive',
+  'restore',
+] as const;
+
+/** Owner 2026-10-04: one case action for up to 500 cases, one reason. */
+export class AdminCasesBulkDto extends AdminCaseActionDto {
+  @ApiProperty({ enum: CASES_BULK_ACTIONS, enumName: 'AdminCasesBulkAction' })
+  @IsIn(CASES_BULK_ACTIONS)
+  action!: (typeof CASES_BULK_ACTIONS)[number];
+
+  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 500 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @IsUUID('all', { each: true })
+  ids!: string[];
 }
 
 export class AdminCaseRowDto {

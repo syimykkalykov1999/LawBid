@@ -62,6 +62,7 @@ import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AdminContentModule } from './modules/admin-content/admin-content.module';
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
+import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { SupportModule } from './modules/support/support.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
@@ -109,6 +110,16 @@ export const pinoHttpOptions: PinoHttpOptions = {
       // Device attestation blobs (DeviceAttestationGuard) — opaque,
       // large, and replayable within their validity window.
       'req.headers["x-device-attestation"]',
+      // Owner 2026-10-05: keys, passwords and tokens never reach the logs.
+      'req.body.values',
+      'req.body.password',
+      'req.body.currentPassword',
+      'req.body.newPassword',
+      'req.body.totp',
+      'req.body.token',
+      'req.body.secret',
+      'req.body.apiKey',
+      'req.headers["stripe-signature"]',
     ],
     censor: '[REDACTED]',
   },
@@ -165,6 +176,7 @@ const isDev =
     // Audit 2026-10-02: reels + stickers in the admin panel.
     AdminMediaModule,
     AdminBillingModule,
+    AdminPayrollModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,
     AdminEmailTemplatesModule,

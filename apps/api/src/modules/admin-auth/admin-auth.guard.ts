@@ -4,6 +4,8 @@ import {
   type ExecutionContext,
   ForbiddenException,
   Injectable,
+  NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -11,6 +13,7 @@ import type { AdminRole } from '@prisma/client';
 import type { Request } from 'express';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   TokenService,
   TokenVerifyExpiredError,
@@ -23,8 +26,11 @@ import {
 } from './admin-auth.decorators';
 import {
   canAccess,
+  levelForMethod,
   parsePermissions,
   readManageAdmins,
+  routeArea,
+  VIEW_AUDITED_AREAS,
 } from './admin-permissions';
 import { AdminSessionService } from './admin-session.service';
 
@@ -50,6 +56,7 @@ export class AdminAuthGuard implements CanActivate {
     private readonly tokens: TokenService,
     private readonly sessions: AdminSessionService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly audit?: AuditLogService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -118,6 +125,7 @@ export class AdminAuthGuard implements CanActivate {
     if (adminRole === 'super_admin') {
       if (!allowed.includes(adminRole)) throw forbidden();
     } else {
+      const path = req.originalUrl || req.url;
       // Owner 2026-10-02: everyone but the super admin works by the area
       // toggles; money and keys are closed for them in the API itself (not
       // only hidden in the panel). Admin management needs the right the
@@ -125,15 +133,21 @@ export class AdminAuthGuard implements CanActivate {
       const superOnly = allowed.length === 1 && allowed[0] === 'super_admin';
       if (
         superOnly ||
-        !canAccess(
-          adminRole,
-          permissions,
-          req.originalUrl || req.url,
-          req.method,
-          manageAdmins,
-        )
+        !canAccess(adminRole, permissions, path, req.method, manageAdmins)
       ) {
-        throw forbidden();
+        // Owner 2026-10-05: a section the admin has no right to answers
+        // like it doesn't exist (404, not 403), and the attempt is audited.
+        this.note('admin.access_denied', claims.sub, req.method, path, req.ip);
+        throw hidden();
+      }
+      // Owner 2026-10-05: who looked at money is visible in the audit log.
+      const area = routeArea(path);
+      if (
+        area &&
+        VIEW_AUDITED_AREAS.has(area) &&
+        levelForMethod(req.method) === 'view'
+      ) {
+        this.note('admin.view', claims.sub, req.method, path, req.ip);
       }
     }
 
@@ -160,6 +174,35 @@ export class AdminAuthGuard implements CanActivate {
       `${req.method} ${(req.originalUrl || req.url).split('?')[0]}`,
     );
     return true;
+  }
+
+  /** One audit row per action + admin + route per minute (a page
+   * refetching in a loop must not flood the log). Fire and forget. */
+  private readonly recent = new Map<string, number>();
+  private note(
+    action: 'admin.access_denied' | 'admin.view',
+    adminId: string,
+    method: string,
+    url: string,
+    ip: string | undefined,
+  ): void {
+    if (!this.audit) return;
+    const path = url.split('?')[0];
+    const key = `${action} ${adminId} ${method} ${path}`;
+    const now = Date.now();
+    if ((this.recent.get(key) ?? 0) > now - 60_000) return;
+    if (this.recent.size > 5_000) this.recent.clear();
+    this.recent.set(key, now);
+    void this.audit
+      .record({
+        adminId,
+        action,
+        targetType: 'route',
+        targetId: null,
+        after: { method, path },
+        ip: ip ?? null,
+      })
+      .catch(() => undefined);
   }
 }
 
@@ -193,6 +236,12 @@ export function readJustification(raw: string | undefined): string {
 
 const unauthorized = (message: string) =>
   new UnauthorizedException({ code: ErrorCode.UNAUTHORIZED, message });
+
+const hidden = () =>
+  new NotFoundException({
+    code: ErrorCode.NOT_FOUND,
+    message: 'Not found.',
+  });
 
 const forbidden = () =>
   new ForbiddenException({

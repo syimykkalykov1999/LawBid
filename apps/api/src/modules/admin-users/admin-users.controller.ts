@@ -27,6 +27,7 @@ import {
   AdminUserContactsDto,
   AdminUserIdParamDto,
   AdminUserListItemDto,
+  AdminUsersBulkDto,
   AdminUsersQueryDto,
   SanctionResultDto,
   SuspendUserDto,
@@ -35,6 +36,7 @@ import {
   PhoneChangedDto,
   type AdminUsersPage,
 } from './admin-users.dto';
+import { AdminBulkResultDto } from '../admin-content/admin-content.dto';
 import { AdminUsersService } from './admin-users.service';
 
 const E = ErrorCode;
@@ -90,6 +92,23 @@ export class AdminUsersController {
     @Param() params: AdminUserIdParamDto,
   ): Promise<AdminUserContactsDto> {
     return this.users.contacts(params.id);
+  }
+
+  @Post('bulk')
+  @HttpCode(HttpStatus.OK)
+  @Roles('super_admin', 'moderator')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-04: suspend, restore or end sessions of up to 500 users; one reason, audited per user',
+  })
+  @ApiEnvelopeResponse(AdminBulkResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  bulk(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminUsersBulkDto,
+  ): Promise<AdminBulkResultDto> {
+    return this.users.bulk(admin, dto);
   }
 
   @Post(':id/sessions/revoke')

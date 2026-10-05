@@ -28,7 +28,10 @@ import {
   AdminCasesQueryDto,
   AdminIdParamDto,
   type Page,
+  AdminCasesBulkDto,
 } from './admin-cases.dto';
+import { AdminBulkResultDto } from '../admin-content/admin-content.dto';
+import { eachId } from '../admin-content/bulk.util';
 import { AdminCaseManagementService } from './admin-case-management.service';
 
 const E = ErrorCode;
@@ -64,6 +67,25 @@ export class AdminCaseManagementController {
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.CASE_NOT_FOUND] })
   getAdminCase(@Param() p: AdminIdParamDto): Promise<AdminCaseCardDto> {
     return this.cases.card(p.id);
+  }
+
+  @Post('bulk')
+  @Roles('super_admin', 'support')
+  @SkipAutoAudit()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-04: hide / close / archive / restore up to 500 cases; one reason, audited and told per case',
+  })
+  @ApiEnvelopeResponse(AdminBulkResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  bulkAdminCases(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminCasesBulkDto,
+  ): Promise<AdminBulkResultDto> {
+    return eachId(dto.ids, (id) =>
+      this.cases.act(admin, id, dto.action, dto.reason),
+    );
   }
 
   @Post(':id/hide')

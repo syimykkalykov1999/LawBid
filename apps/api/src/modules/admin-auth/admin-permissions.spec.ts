@@ -91,16 +91,37 @@ describe('admin permissions', () => {
     expect(canAccess('support', {}, '/api/v1/admin/admins', 'GET', true)).toBe(
       true,
     );
-    // The right opens nothing else: money, keys, audit, sessions, unknown.
-    for (const other of [
+    // Owner 2026-10-05: the trusted deputy reads every section (money,
+    // sessions…) but never the keys or an unknown route, and writes only
+    // where a toggle says so.
+    for (const read of [
       '/api/v1/admin/billing/payments',
-      '/api/v1/admin/integrations',
-      '/api/v1/admin/audit-log',
       '/api/v1/admin/sessions',
+      '/api/v1/admin/cases',
+    ]) {
+      expect(canAccess('support', {}, read, 'GET', true)).toBe(true);
+      expect(canAccess('support', {}, read, 'POST', true)).toBe(false);
+    }
+    for (const closed of [
+      '/api/v1/admin/integrations',
       '/api/v1/admin/brand-new-thing',
     ]) {
-      expect(canAccess('support', {}, other, 'GET', true)).toBe(false);
+      expect(canAccess('support', {}, closed, 'GET', true)).toBe(false);
     }
+    // Owner 2026-10-05: the deputy reads the audit log and runs payroll.
+    const audit = '/api/v1/admin/audit-log';
+    expect(canAccess('support', {}, audit, 'GET', true)).toBe(true);
+    expect(canAccess('support', {}, audit, 'POST', true)).toBe(false);
+    expect(canAccess('support', {}, audit, 'GET')).toBe(false);
+    const payroll = '/api/v1/admin/payroll/payouts/bulk';
+    expect(canAccess('support', {}, payroll, 'POST', true)).toBe(true);
+    expect(canAccess('support', {}, payroll, 'POST')).toBe(false);
+    expect(canAccess('finance', { payroll: 'manage' }, payroll, 'POST')).toBe(
+      true,
+    );
+    expect(canAccess('finance', { payroll: 'view' }, payroll, 'POST')).toBe(
+      false,
+    );
   });
 
   it('keeps the manager right next to the areas and only reads a real true', () => {

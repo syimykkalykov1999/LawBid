@@ -4,6 +4,7 @@ import { ArrowSquareOut, CalendarPlus, Handshake } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { GrantDialog, invalidateBilling } from '@/components/billing/grant-dialog';
+import { SubscriptionActions } from '@/components/billing/subscription-actions';
 import { daysLeft, elapsed, formatDate, ProgressBar, useBillingRole } from '@/components/billing/shared';
 import { ErrorNote } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
@@ -143,6 +144,7 @@ export function SubscriptionCard({ userId }: { userId: string }) {
                 </Button>
               </form>
             ) : null}
+            {canExtend ? <SubscriptionActions userId={userId} status={s.status} cancelAtPeriodEnd={s.cancelAtPeriodEnd} periodEnd={s.currentPeriodEnd} /> : null}
           </>
         )}
 

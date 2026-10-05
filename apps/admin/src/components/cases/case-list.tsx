@@ -1,13 +1,16 @@
 'use client';
 
-import { Briefcase, Flag, MagnifyingGlass, RocketLaunch } from '@phosphor-icons/react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { Archive, ArrowCounterClockwise, Briefcase, EyeSlash, Flag, LockSimple, MagnifyingGlass, RocketLaunch } from '@phosphor-icons/react';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { LoadMore } from '@/components/billing/shared';
 import { DossierBadge } from '@/components/cases/dossier';
+import { BulkBar, bulkData, PageSelectBox, RowSelectBox, useBulkRun, useSelection } from '@/components/bulk/bulk-controls';
+import { CsvButton } from '@/components/csv-button';
 import { ErrorNote } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
@@ -16,13 +19,26 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { collectIds, type Noun } from '@/lib/bulk';
+import { useMe } from '@/lib/hooks';
 import { CASE_STATUS, StatusPill } from '@/lib/labels';
+import { can } from '@/lib/rbac';
 import { formatDateTime } from '@/lib/utils';
 
 type CaseStatus = components['schemas']['AdminCaseStatus'];
 type Tab = 'all' | CaseStatus;
 
 const STATUSES: CaseStatus[] = ['open', 'in_progress', 'pending_completion', 'disputed', 'closed', 'archived'];
+type BulkAction = components['schemas']['AdminCasesBulkAction'];
+const CASES: Noun = ['кейс', 'кейса', 'кейсов'];
+
+/** Owner 2026-10-04: the case card's actions for many cases at once. */
+const ACTION_TEXT: Record<BulkAction, { verb: string; done: string; describe: string; icon: typeof Archive; danger?: boolean }> = {
+  hide: { verb: 'Скрыть', done: 'Скрыто', icon: EyeSlash, danger: true, describe: 'Открытые кейсы уйдут из ленты, ставки отклонятся, клиенты получат причину. Остальные пропустим.' },
+  close: { verb: 'Закрыть', done: 'Закрыто', icon: LockSimple, danger: true, describe: 'Открытые кейсы закроются, активные ставки отклонятся. Остальные пропустим.' },
+  archive: { verb: 'В архив', done: 'В архиве', icon: Archive, describe: 'Открытые кейсы уйдут в архив, активные ставки отклонятся. Остальные пропустим.' },
+  restore: { verb: 'Вернуть', done: 'Возвращено', icon: ArrowCounterClockwise, describe: 'Кейсы из архива снова станут открытыми. Остальные пропустим.' },
+};
 
 /** All cases: status tabs, title search (Enter), "has reports" toggle, state filter. */
 export function CaseList() {
@@ -34,23 +50,46 @@ export function CaseList() {
   const [stateDraft, setStateDraft] = useState('');
   const [stateCode, setStateCode] = useState('');
 
+  const qc = useQueryClient();
+  const { data: me } = useMe();
+  const canWrite = can(me, 'cases', 'manage');
+  const sel = useSelection(`${tab}|${q}|${hasReports}|${stateCode}`);
+  const bulk = useBulkRun();
+  const fetchPage = async (cursor?: string) =>
+    (
+      await api.GET('/admin/cases', {
+        params: {
+          query: {
+            cursor,
+            status: tab === 'all' ? undefined : tab,
+            q: q || undefined,
+            hasReports: hasReports || undefined,
+            stateCode: stateCode || undefined,
+          },
+        },
+      })
+    ).data!;
+  const onBulk = (action: BulkAction) => {
+    const t = ACTION_TEXT[action];
+    bulk.run({
+      ids: [...sel.selected],
+      verb: t.verb,
+      doneVerb: t.done,
+      noun: CASES,
+      danger: t.danger,
+      description: t.describe,
+      send: async (ids, reason) => bulkData(await api.POST('/admin/cases/bulk', { body: { action, ids, reason } })),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['admin-cases'] });
+      },
+    });
+  };
+
   const list = useInfiniteQuery({
     queryKey: ['admin-cases', tab, q, hasReports, stateCode],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (
-        await api.GET('/admin/cases', {
-          params: {
-            query: {
-              cursor: pageParam,
-              status: tab === 'all' ? undefined : tab,
-              q: q || undefined,
-              hasReports: hasReports || undefined,
-              stateCode: stateCode || undefined,
-            },
-          },
-        })
-      ).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
@@ -95,8 +134,34 @@ export function CaseList() {
             <Switch checked={hasReports} onChange={setHasReports} label="Только с жалобами" />
             Только с жалобами
           </label>
+          <CsvButton entity="cases" />
         </div>
       </div>
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={CASES}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            const r = await collectIds(async (c) => {
+              const p = await fetchPage(c);
+              return { data: p.data, nextCursor: p.meta?.nextCursor };
+            });
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          {(Object.keys(ACTION_TEXT) as BulkAction[]).map((a) => {
+            const t = ACTION_TEXT[a];
+            return (
+              <Button key={a} size="sm" variant="outline" className={t.danger ? 'text-danger' : undefined} disabled={bulk.pending} onClick={() => onBulk(a)}>
+                <t.icon size={14} /> {t.verb}
+              </Button>
+            );
+          })}
+        </BulkBar>
+      ) : null}
 
       <ErrorNote text={list.error ? errorText(list.error) : null} />
       {!list.isPending && !list.error && rows.length === 0 ? (
@@ -105,6 +170,11 @@ export function CaseList() {
         <Table>
           <thead>
             <tr>
+              {canWrite ? (
+                <Th className="w-8">
+                  <PageSelectBox selected={sel.selected} ids={rows.map((c) => c.id)} onToggle={sel.togglePage} />
+                </Th>
+              ) : null}
               <Th>Кейс</Th>
               <Th>Клиент</Th>
               <Th>Статус</Th>
@@ -115,10 +185,15 @@ export function CaseList() {
           </thead>
           <tbody>
             {list.isPending ? (
-              <TableEmpty colSpan={6} loading />
+              <TableEmpty colSpan={canWrite ? 7 : 6} loading />
             ) : (
               rows.map((c) => (
                 <tr key={c.id} className="cursor-pointer" onClick={() => router.push(`/cases/${c.id}`)}>
+                  {canWrite ? (
+                    <Td>
+                      <RowSelectBox selected={sel.selected} id={c.id} onToggle={sel.toggle} />
+                    </Td>
+                  ) : null}
                   <Td className="max-w-[340px]">
                     <Link href={`/cases/${c.id}`} onClick={(e) => e.stopPropagation()} className="font-medium text-ink underline-offset-2 hover:text-gold-600 hover:underline">
                       {c.title}

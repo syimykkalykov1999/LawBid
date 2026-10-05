@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Redis } from 'ioredis';
@@ -13,10 +14,13 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { AppConfigService } from '../feature-flags/services/app-config.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 
 export const CHAT_TRANSLATE_FLAG = 'chat_translate';
+/** Owner 2026-10-05: per-zone switch (Настройки → translate.chat). */
+export const CHAT_TRANSLATE_ZONE = 'translate.chat';
 /** Translations are kept a week, so re-opening a chat costs nothing. */
 const CACHE_TTL_S = 7 * 24 * 3600;
 /** Per person per day: a guard against a script running up the bill. */
@@ -45,11 +49,14 @@ export class ChatTranslationService {
     private readonly flags: FeatureFlagsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    @Optional() private readonly appConfig?: AppConfigService,
   ) {}
 
   /** The Google key when the feature is on and configured, else null. */
   async apiKey(): Promise<string | null> {
     if (!(await this.flags.isEnabled(CHAT_TRANSLATE_FLAG, false))) return null;
+    const config = (await this.appConfig?.getConfig()) ?? {};
+    if (config[CHAT_TRANSLATE_ZONE] === false) return null;
     const key = (await this.secrets.get('google_translate'))?.fields.apiKey;
     return key || null;
   }

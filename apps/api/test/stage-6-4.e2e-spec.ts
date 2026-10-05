@@ -364,7 +364,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
     await api()
       .get('/api/v1/admin/moderation/queue')
       .set(support.auth)
-      .expect(403);
+      .expect(404);
 
     const card = await api()
       .get(`/api/v1/admin/moderation/targets/post/${postId}`)

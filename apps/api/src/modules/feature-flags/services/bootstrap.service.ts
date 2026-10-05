@@ -80,6 +80,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'files.',
   'video.max_',
   'stickers.',
+  'translate.',
 ] as const;
 
 @Injectable()
@@ -114,11 +115,16 @@ export class BootstrapService {
   }
 
   /** Owner 2026-10-04: the chat "Translate" button shows only while
-   * `chat_translate` is on AND the Google key is saved. */
+   * `chat_translate` is on AND the Google key is saved — and (2026-10-05)
+   * the chat zone isn't switched off (app_config `translate.chat`). */
   private async withTranslateGate(
     flags: Record<string, boolean>,
+    appConfig: Record<string, unknown>,
   ): Promise<Record<string, boolean>> {
     if (!flags.chat_translate) return flags;
+    if (appConfig['translate.chat'] === false) {
+      return { ...flags, chat_translate: false };
+    }
     const f = (await this.secrets?.get('google_translate'))?.fields ?? {};
     return { ...flags, chat_translate: !!f.apiKey };
   }
@@ -136,7 +142,10 @@ export class BootstrapService {
     );
 
     return {
-      flags: await this.withTranslateGate(await this.withVideoGate(flags)),
+      flags: await this.withTranslateGate(
+        await this.withVideoGate(flags),
+        appConfig,
+      ),
       // Audit 2026-10-02: only what the app needs — never the moderation
       // term lists, budgets or reserved names (this endpoint is public).
       app_config: Object.fromEntries(

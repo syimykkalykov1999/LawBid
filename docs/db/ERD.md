@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-104 tables.
+107 tables.
 
 ```mermaid
 erDiagram
@@ -960,6 +960,10 @@ erDiagram
     DateTime last_test_at "nullable"
     Boolean last_test_ok "nullable"
     String last_test_error "nullable"
+    String slot
+    String label "nullable"
+    Int priority
+    Boolean enabled
   }
   state_bar_registries {
     String state_code PK,FK
@@ -972,6 +976,15 @@ erDiagram
     DateTime last_test_at "nullable"
     Json last_test_result "nullable"
     String updated_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  integration_custom_providers {
+    String id PK
+    String label
+    String description
+    Json fields
+    String created_by "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1204,6 +1217,39 @@ erDiagram
     String created_by "nullable"
     DateTime created_at
   }
+  payroll_employees {
+    String id PK
+    String admin_user_id "nullable"
+    String name
+    String role_title
+    Int amount_cents
+    String currency
+    String method_note
+    String email "nullable"
+    String stripe_account_id "nullable"
+    Boolean stripe_payouts_enabled
+    Boolean active
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  payroll_payouts {
+    String id PK
+    String employee_id FK
+    String batch_id
+    String period
+    Int amount_cents
+    String currency
+    String method
+    String status
+    String transfer_id "nullable"
+    String failure "nullable"
+    String note "nullable"
+    String cancel_reason "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime canceled_at "nullable"
+  }
   users }o--o| files : "avatar_file_id"
   files }o--|| users : "owner_user_id"
   user_identifiers }o--|| users : "user_id"
@@ -1360,4 +1406,5 @@ erDiagram
   user_recent_stickers }o--|| users : "user_id"
   user_recent_stickers }o--|| stickers : "sticker_id"
   client_verifications |o--|| users : "user_id"
+  payroll_payouts }o--|| payroll_employees : "employee_id"
 ```
