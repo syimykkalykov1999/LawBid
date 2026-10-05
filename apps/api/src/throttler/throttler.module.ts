@@ -14,7 +14,15 @@ class RedisThrottlerStorageModule {}
       imports: [RedisThrottlerStorageModule],
       inject: [RedisThrottlerStorageService],
       useFactory: (storage: RedisThrottlerStorageService) => ({
-        throttlers: [{ name: 'default', ttl: 60_000, limit: 100 }],
+        // THROTTLE_LIMIT raises the per-minute limit on a dev machine, where
+        // the admin panel, the emulator and tests share one account's bucket.
+        throttlers: [
+          {
+            name: 'default',
+            ttl: 60_000,
+            limit: Number(process.env.THROTTLE_LIMIT) || 100,
+          },
+        ],
         storage,
       }),
     }),
