@@ -22,6 +22,7 @@ class PlanEntitlementsDto {
     this.postsPerDay,
     this.videosPerDay,
     this.casePromotion,
+    this.platformPayments,
     this.trialDays,
     this.verifiedBadge,
     this.priorityFeed,
@@ -56,6 +57,8 @@ class PlanEntitlementsDto {
   final int? videosPerDay;
   @JsonKey(name: 'case_promotion')
   final bool? casePromotion;
+  @JsonKey(name: 'platform_payments')
+  final bool? platformPayments;
   @JsonKey(name: 'trial_days')
   final int? trialDays;
   @JsonKey(name: 'verified_badge')

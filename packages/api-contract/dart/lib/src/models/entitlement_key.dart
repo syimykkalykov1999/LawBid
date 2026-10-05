@@ -32,6 +32,8 @@ enum EntitlementKey {
   videosPerDay('videos_per_day'),
   @JsonValue('case_promotion')
   casePromotion('case_promotion'),
+  @JsonValue('platform_payments')
+  platformPayments('platform_payments'),
   @JsonValue('trial_days')
   trialDays('trial_days'),
   @JsonValue('verified_badge')

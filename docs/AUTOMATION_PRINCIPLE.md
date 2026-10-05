@@ -36,7 +36,7 @@ tickets, content takedowns, disputes. Each already has a queue in the admin.
 
 ## Plan terms (entitlement catalog)
 
-Attorneys: included/max assistant seats, extra seat price, bids in any state,
+Attorneys: included/max assistant seats, extra seat price, bids in any state, payments through LawBid (gate lives in the payments module, branch claude/in-app-payments-connect),
 max active bids, priority in search, trial days. Clients: verification badge,
 priority in the case feed, max active cases, case promotion. Both: in-app calls,
 chat translation (+ translations per day), video posts (+ videos per day),

@@ -59,6 +59,8 @@ export class PlanEntitlementsDto {
   videos_per_day?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
   case_promotion?: number | boolean | null;
+  @ApiPropertyOptional({ type: Boolean, nullable: true })
+  platform_payments?: number | boolean | null;
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   trial_days?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })

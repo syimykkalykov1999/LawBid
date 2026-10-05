@@ -53357,6 +53357,10 @@
             "type": "boolean",
             "nullable": true
           },
+          "platform_payments": {
+            "type": "boolean",
+            "nullable": true
+          },
           "trial_days": {
             "type": "integer",
             "nullable": true
@@ -53910,6 +53914,7 @@
           "posts_per_day",
           "videos_per_day",
           "case_promotion",
+          "platform_payments",
           "trial_days",
           "verified_badge",
           "priority_feed",

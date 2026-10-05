@@ -43,6 +43,7 @@ export const ENTITLEMENT_KEYS = [
   'posts_per_day',
   'videos_per_day',
   'case_promotion',
+  'platform_payments',
   'trial_days',
   'verified_badge',
   'priority_feed',
@@ -216,6 +217,17 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     },
   },
   {
+    key: 'platform_payments',
+    type: 'boolean',
+    audiences: ['attorney'],
+    group: 'billing',
+    label: { en: 'Payments through LawBid', ru: 'Приём оплат через LawBid' },
+    description: {
+      en: 'Clients can pay this attorney inside the app (Stripe Connect; the payments module checks this term).',
+      ru: 'Клиенты могут оплачивать услуги адвоката в приложении (Stripe Connect; проверяется модулем платежей).',
+    },
+  },
+  {
     key: 'trial_days',
     type: 'number',
     audiences: ['attorney', 'client'],
@@ -294,6 +306,7 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     video_posts: true,
     posts_per_day: null,
     videos_per_day: null,
+    platform_payments: false,
     trial_days: 0,
   },
   client: {
