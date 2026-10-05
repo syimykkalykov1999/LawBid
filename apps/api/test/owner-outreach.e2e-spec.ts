@@ -145,7 +145,7 @@ describe('Outreach (e2e)', () => {
         footerAddress: '1106 N Plum Grove Rd, Schaumburg IL 60173',
         apiPublicUrl: 'https://api.lawbid.test',
       })
-      .expect(403);
+      .expect(404); // a section outside the admin's rights looks absent
     await api()
       .put('/api/v1/admin/outreach/settings')
       .set(owner.auth)
@@ -458,11 +458,12 @@ describe('Outreach (e2e)', () => {
 
   it('an admin without the outreach toggle is refused', async () => {
     const mod = await adminSession(base, prisma, 'moderator');
-    await api().get('/api/v1/admin/outreach/leads').set(mod.auth).expect(403);
+    // Owner 2026-10-05: a section the admin has no right to answers 404.
+    await api().get('/api/v1/admin/outreach/leads').set(mod.auth).expect(404);
     await api()
       .post('/api/v1/admin/outreach/leads')
       .set(mod.auth)
       .send({ kind: 'attorney', email: email(9) })
-      .expect(403);
+      .expect(404);
   });
 });
