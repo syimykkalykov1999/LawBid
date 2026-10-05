@@ -219,6 +219,7 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', hint: 'флаги, скрытые функции' },
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'settings', hint: 'лимиты, версии приложения' },
+      { href: '/storage', label: 'Хранилище', icon: 'hard-drives', area: 'settings', hint: 'место, очистка, лимиты' },
       { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },
       { href: '/i18n', label: 'Локализация', icon: 'translate', area: 'localization' },
       { href: '/countries', label: 'Страны', icon: 'globe', area: 'localization', hint: 'где работает приложение' },
