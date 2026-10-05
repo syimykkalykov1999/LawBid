@@ -110,12 +110,12 @@ export class OutreachLeadIdParamDto {
 }
 
 export class OutreachLeadsQueryDto {
-  @ApiPropertyOptional({ enum: LEAD_STATUSES })
+  @ApiPropertyOptional({ enum: LEAD_STATUSES, enumName: 'OutreachLeadStatus' })
   @IsOptional()
   @IsIn(LEAD_STATUSES)
   status?: LeadStatus;
 
-  @ApiPropertyOptional({ enum: LEAD_KINDS })
+  @ApiPropertyOptional({ enum: LEAD_KINDS, enumName: 'OutreachLeadKind' })
   @IsOptional()
   @IsIn(LEAD_KINDS)
   kind?: LeadKind;
@@ -125,7 +125,11 @@ export class OutreachLeadsQueryDto {
   @IsUUID()
   partnerId?: string;
 
-  @ApiPropertyOptional({ description: '"none" = unassigned leads only.' })
+  @ApiPropertyOptional({
+    enum: ['none'],
+    enumName: 'OutreachAssignedFilter',
+    description: '"none" = unassigned leads only.',
+  })
   @IsOptional()
   @IsIn(['none'])
   assigned?: 'none';
@@ -144,7 +148,11 @@ export class OutreachLeadsQueryDto {
   @MaxLength(120)
   q?: string;
 
-  @ApiPropertyOptional({ description: 'Leads due for a follow-up by now.' })
+  @ApiPropertyOptional({
+    enum: ['true'],
+    enumName: 'OutreachDueFilter',
+    description: 'Leads due for a follow-up by now.',
+  })
   @IsOptional()
   @IsIn(['true'])
   due?: 'true';
@@ -153,7 +161,7 @@ export class OutreachLeadsQueryDto {
 }
 
 export class OutreachLeadInputDto {
-  @ApiPropertyOptional({ enum: LEAD_KINDS })
+  @ApiPropertyOptional({ enum: LEAD_KINDS, enumName: 'OutreachLeadKind' })
   @IsOptional()
   @IsIn(LEAD_KINDS)
   kind?: LeadKind;
@@ -248,6 +256,7 @@ export class OutreachLeadInputDto {
 
   @ApiPropertyOptional({
     enum: LEAD_STATUSES,
+    enumName: 'OutreachLeadStatus',
     description: 'Manual status; registered/paid are set by the system.',
   })
   @IsOptional()
@@ -275,7 +284,10 @@ export class OutreachAssignResultDto {
 }
 
 export class OutreachActivityInputDto {
-  @ApiProperty({ enum: ['call', 'note'] })
+  @ApiProperty({
+    enum: ['call', 'note'],
+    enumName: 'OutreachActivityInputKind',
+  })
   @IsIn(['call', 'note'])
   kind!: 'call' | 'note';
 
@@ -310,12 +322,20 @@ export class OutreachSendEmailResultDto {
 }
 
 export class OutreachImportQueryDto {
-  @ApiPropertyOptional({ enum: ['dry-run', 'apply'], default: 'dry-run' })
+  @ApiPropertyOptional({
+    enum: ['dry-run', 'apply'],
+    enumName: 'OutreachImportMode',
+    default: 'dry-run',
+  })
   @IsOptional()
   @IsIn(['dry-run', 'apply'])
   mode?: 'dry-run' | 'apply';
 
-  @ApiPropertyOptional({ enum: LEAD_KINDS, default: 'attorney' })
+  @ApiPropertyOptional({
+    enum: LEAD_KINDS,
+    enumName: 'OutreachLeadKind',
+    default: 'attorney',
+  })
   @IsOptional()
   @IsIn(LEAD_KINDS)
   kind?: LeadKind;
@@ -348,6 +368,7 @@ export class OutreachImportReportDto {
 export class OutreachRegistryImportDto {
   @ApiProperty({
     enum: ['NY'],
+    enumName: 'OutreachRegistryState',
     description: 'Only New York publishes a free registry so far.',
   })
   @IsIn(['NY'])
@@ -404,7 +425,11 @@ export class OutreachRegistryImportDto {
   @Max(1_000_000)
   offset?: number;
 
-  @ApiPropertyOptional({ enum: ['dry-run', 'apply'], default: 'dry-run' })
+  @ApiPropertyOptional({
+    enum: ['dry-run', 'apply'],
+    enumName: 'OutreachImportMode',
+    default: 'dry-run',
+  })
   @IsOptional()
   @IsIn(['dry-run', 'apply'])
   mode?: 'dry-run' | 'apply';
@@ -435,7 +460,11 @@ export class OutreachTemplateInputDto {
   @MaxLength(80)
   name!: string;
 
-  @ApiPropertyOptional({ enum: TEMPLATE_KINDS, default: 'any' })
+  @ApiPropertyOptional({
+    enum: TEMPLATE_KINDS,
+    enumName: 'OutreachTemplateKind',
+    default: 'any',
+  })
   @IsOptional()
   @IsIn(TEMPLATE_KINDS)
   kind?: TemplateKind;

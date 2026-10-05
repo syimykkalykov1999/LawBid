@@ -87,7 +87,9 @@ export class AdminOutreachController {
     summary: 'Who I am in outreach: scope, partners to assign, settings',
   })
   @ApiEnvelopeResponse(OutreachContextDto)
-  context(@CurrentAdmin() admin: AdminActor): Promise<OutreachContextDto> {
+  outreachContext(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<OutreachContextDto> {
     return this.outreach.context(admin);
   }
 
@@ -98,7 +100,7 @@ export class AdminOutreachController {
   })
   @ApiEnvelopeResponse(OutreachSettingsDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  updateSettings(
+  outreachUpdateSettings(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: OutreachSettingsDto,
   ): Promise<OutreachSettings> {
@@ -112,7 +114,7 @@ export class AdminOutreachController {
   })
   @ApiEnvelopeResponse(OutreachStatsDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  stats(
+  outreachStats(
     @CurrentAdmin() admin: AdminActor,
     @Query() q: OutreachStatsQueryDto,
   ): Promise<OutreachStatsDto> {
@@ -123,7 +125,7 @@ export class AdminOutreachController {
   @ApiOperation({ summary: 'Leads, newest first (an employee sees their own)' })
   @ApiEnvelopeResponse(OutreachLeadRowDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  listLeads(
+  outreachListLeads(
     @CurrentAdmin() admin: AdminActor,
     @Query() q: OutreachLeadsQueryDto,
   ): Promise<Page<OutreachLeadRowDto>> {
@@ -152,7 +154,7 @@ export class AdminOutreachController {
   @ApiOperation({ summary: 'Add one lead by hand' })
   @ApiEnvelopeResponse(OutreachLeadDetailDto, { status: HttpStatus.CREATED })
   @ApiErrors(LEAD_ERRORS)
-  createLead(
+  outreachCreateLead(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: OutreachLeadInputDto,
   ): Promise<OutreachLeadDetailDto> {
@@ -187,7 +189,7 @@ export class AdminOutreachController {
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: MAX_IMPORT_FILE_BYTES } }),
   )
-  importCsv(
+  outreachImportCsv(
     @CurrentAdmin() admin: AdminActor,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Query() q: OutreachImportQueryDto,
@@ -210,7 +212,7 @@ export class AdminOutreachController {
     400: [E.VALIDATION_ERROR, E.OUTREACH_IMPORT_INVALID],
     403: [E.FORBIDDEN],
   })
-  importRegistry(
+  outreachImportRegistry(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: OutreachRegistryImportDto,
   ): Promise<OutreachImportReportDto> {
@@ -226,7 +228,7 @@ export class AdminOutreachController {
     403: [E.FORBIDDEN],
     404: [E.NOT_FOUND],
   })
-  assign(
+  outreachAssign(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: OutreachAssignDto,
   ): Promise<OutreachAssignResultDto> {
@@ -237,7 +239,7 @@ export class AdminOutreachController {
   @ApiOperation({ summary: 'One lead with its activity log' })
   @ApiEnvelopeResponse(OutreachLeadDetailDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  lead(
+  outreachLead(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: OutreachLeadIdParamDto,
   ): Promise<OutreachLeadDetailDto> {
@@ -248,7 +250,7 @@ export class AdminOutreachController {
   @ApiOperation({ summary: 'Edit a lead (fields, status, assignee)' })
   @ApiEnvelopeResponse(OutreachLeadDetailDto)
   @ApiErrors(LEAD_ERRORS)
-  updateLead(
+  outreachUpdateLead(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: OutreachLeadIdParamDto,
     @Body() dto: OutreachLeadInputDto,
@@ -260,7 +262,7 @@ export class AdminOutreachController {
   @ApiOperation({ summary: 'Log a call (with outcome) or a note' })
   @ApiEnvelopeResponse(OutreachLeadDetailDto, { status: HttpStatus.CREATED })
   @ApiErrors(LEAD_ERRORS)
-  addActivity(
+  outreachAddActivity(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: OutreachLeadIdParamDto,
     @Body() dto: OutreachActivityInputDto,
@@ -275,7 +277,7 @@ export class AdminOutreachController {
   })
   @ApiEnvelopeResponse(OutreachSendEmailResultDto)
   @ApiErrors({ ...LEAD_ERRORS, 429: [E.OUTREACH_EMAIL_LIMIT] })
-  sendEmail(
+  outreachSendEmail(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: OutreachLeadIdParamDto,
     @Body() dto: OutreachSendEmailDto,
@@ -286,7 +288,7 @@ export class AdminOutreachController {
   @Get('templates')
   @ApiOperation({ summary: 'Cold-email templates' })
   @ApiEnvelopeResponse(OutreachTemplateDto, { isArray: true })
-  templates(): Promise<OutreachTemplateDto[]> {
+  outreachTemplates(): Promise<OutreachTemplateDto[]> {
     return this.outreach.templates();
   }
 
@@ -294,7 +296,7 @@ export class AdminOutreachController {
   @ApiOperation({ summary: 'Create a template (managers)' })
   @ApiEnvelopeResponse(OutreachTemplateDto, { status: HttpStatus.CREATED })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
-  createTemplate(
+  outreachCreateTemplate(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: OutreachTemplateInputDto,
   ): Promise<OutreachTemplateDto> {
@@ -309,7 +311,7 @@ export class AdminOutreachController {
     403: [E.FORBIDDEN],
     404: [E.NOT_FOUND],
   })
-  updateTemplate(
+  outreachUpdateTemplate(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: OutreachTemplateIdParamDto,
     @Body() dto: OutreachTemplateInputDto,

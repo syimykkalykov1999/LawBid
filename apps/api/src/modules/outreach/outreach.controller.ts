@@ -21,7 +21,7 @@ export class OutreachController {
   @SkipVersionCheck()
   @Get('unsubscribe/:token')
   @ApiExcludeEndpoint()
-  async unsubscribe(
+  async outreachUnsubscribe(
     @Param('token') token: string,
     @Res() res: Response,
   ): Promise<void> {
