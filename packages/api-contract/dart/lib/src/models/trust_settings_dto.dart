@@ -9,31 +9,46 @@ part 'trust_settings_dto.g.dart';
 @JsonSerializable()
 class TrustSettingsDto {
   const TrustSettingsDto({
-    required this.minLevelBids,
-    required this.minLevelPayments,
-    required this.minLevelBadge,
+    required this.requireRegistry,
+    required this.requireIdentity,
+    required this.requireDocuments,
+    required this.bidsRequireCleared,
     required this.payoutDelayDays,
-    required this.payoutDelayUntilLevel,
     required this.autoHoldOnComplaint,
     required this.complaintsToSuspend,
     required this.complaintWindowDays,
     required this.autoHoldOnNameMismatch,
     required this.flagDuplicateClaims,
+    required this.firmLinkAutoRegistry,
+    required this.firmLinkAutoEmail,
   });
 
   factory TrustSettingsDto.fromJson(Map<String, Object?> json) =>
       _$TrustSettingsDtoFromJson(json);
 
-  final int minLevelBids;
-  final int minLevelPayments;
-  final int minLevelBadge;
+  /// Require the bar number to match the state registry (or staff).
+  final bool requireRegistry;
+
+  /// Require Stripe KYC with the attorney as the verified person (or a firm link).
+  final bool requireIdentity;
+
+  /// Require staff-checked ID + selfie + bar card.
+  final bool requireDocuments;
+
+  /// Bids too wait until the attorney is cleared.
+  final bool bidsRequireCleared;
   final int payoutDelayDays;
-  final int payoutDelayUntilLevel;
   final bool autoHoldOnComplaint;
   final int complaintsToSuspend;
   final int complaintWindowDays;
   final bool autoHoldOnNameMismatch;
   final bool flagDuplicateClaims;
+
+  /// Firm link counts when the registry firm equals the Stripe company.
+  final bool firmLinkAutoRegistry;
+
+  /// Firm link counts after a code to an e-mail on the firm domain.
+  final bool firmLinkAutoEmail;
 
   Map<String, Object?> toJson() => _$TrustSettingsDtoToJson(this);
 }

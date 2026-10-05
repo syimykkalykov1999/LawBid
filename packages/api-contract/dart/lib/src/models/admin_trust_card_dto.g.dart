@@ -21,6 +21,29 @@ AdminTrustCardDto _$AdminTrustCardDtoFromJson(Map<String, dynamic> json) =>
       paymentsGate: TrustGateDto.fromJson(
         json['paymentsGate'] as Map<String, dynamic>,
       ),
+      cleared: json['cleared'] as bool,
+      clearedBy: json['clearedBy'] == null
+          ? null
+          : AdminTrustCardDtoClearedBy.fromJson(json['clearedBy'] as String),
+      staffClearedAt: json['staffClearedAt'] == null
+          ? null
+          : DateTime.parse(json['staffClearedAt'] as String),
+      staffStatus: AdminTrustCardDtoStaffStatus.fromJson(
+        json['staffStatus'] as String,
+      ),
+      queueReasons: (json['queueReasons'] as List<dynamic>)
+          .map((e) => AdminTrustCardDtoQueueReasons.fromJson(e as String))
+          .toList(),
+      missing: (json['missing'] as List<dynamic>)
+          .map((e) => AdminTrustCardDtoMissing.fromJson(e as String))
+          .toList(),
+      requirements: TrustRequirementsDto.fromJson(
+        json['requirements'] as Map<String, dynamic>,
+      ),
+      documentsRequestedAt: json['documentsRequestedAt'] == null
+          ? null
+          : DateTime.parse(json['documentsRequestedAt'] as String),
+      documentsRequestedTemplate: json['documentsRequestedTemplate'] as String?,
       stripeLegalName: json['stripeLegalName'] as String?,
       stripeBusinessType: json['stripeBusinessType'] as String?,
       stripeCompanyName: json['stripeCompanyName'] as String?,
@@ -49,6 +72,15 @@ Map<String, dynamic> _$AdminTrustCardDtoToJson(AdminTrustCardDto instance) =>
       'holds': instance.holds.toJson(),
       'bidsGate': instance.bidsGate.toJson(),
       'paymentsGate': instance.paymentsGate.toJson(),
+      'cleared': instance.cleared,
+      'clearedBy': ?instance.clearedBy?.toJson(),
+      'staffClearedAt': ?instance.staffClearedAt?.toIso8601String(),
+      'staffStatus': instance.staffStatus.toJson(),
+      'queueReasons': instance.queueReasons.map((e) => e.toJson()).toList(),
+      'missing': instance.missing.map((e) => e.toJson()).toList(),
+      'requirements': instance.requirements.toJson(),
+      'documentsRequestedAt': ?instance.documentsRequestedAt?.toIso8601String(),
+      'documentsRequestedTemplate': ?instance.documentsRequestedTemplate,
       'stripeLegalName': ?instance.stripeLegalName,
       'stripeBusinessType': ?instance.stripeBusinessType,
       'stripeCompanyName': ?instance.stripeCompanyName,

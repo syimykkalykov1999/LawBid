@@ -15,6 +15,8 @@ TrustStatsDto _$TrustStatsDtoFromJson(Map<String, dynamic> json) =>
       withBadge: (json['withBadge'] as num).toInt(),
       verified: (json['verified'] as num).toInt(),
       complaints30d: (json['complaints30d'] as num).toInt(),
+      cleared: (json['cleared'] as num).toInt(),
+      inQueue: (json['inQueue'] as num).toInt(),
     );
 
 Map<String, dynamic> _$TrustStatsDtoToJson(TrustStatsDto instance) =>
@@ -24,4 +26,6 @@ Map<String, dynamic> _$TrustStatsDtoToJson(TrustStatsDto instance) =>
       'withBadge': instance.withBadge,
       'verified': instance.verified,
       'complaints30d': instance.complaints30d,
+      'cleared': instance.cleared,
+      'inQueue': instance.inQueue,
     };

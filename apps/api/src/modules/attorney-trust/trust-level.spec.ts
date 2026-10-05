@@ -4,6 +4,8 @@ import {
   domainOf,
   domainsMatch,
   firmNamesMatch,
+  isCleared,
+  missingRequirements,
   payoutDelayFor,
   registryConfirms,
   registryNameOf,
@@ -195,9 +197,57 @@ describe('firm link helpers', () => {
 });
 
 describe('payoutDelayFor', () => {
-  it('applies below the level, never when 0 days', () => {
-    expect(payoutDelayFor(0, 7, 3)).toBe(7);
-    expect(payoutDelayFor(3, 7, 3)).toBeNull();
-    expect(payoutDelayFor(0, 0, 3)).toBeNull();
+  it('delays payouts until the attorney is cleared', () => {
+    expect(payoutDelayFor(false, 7)).toBe(7);
+    expect(payoutDelayFor(true, 7)).toBeNull();
+    expect(payoutDelayFor(false, 0)).toBeNull();
+  });
+});
+
+describe('requirements (owner switches)', () => {
+  const r = { registry: true, identity: true, documents: false };
+  const s0 = {
+    selfAttested: true,
+    licenseConfirmed: false,
+    licenseConfirmedBy: null,
+    documentsVerified: false,
+    stripeKyc: false,
+    nameCheck: 'unknown' as const,
+    firmLinkConfirmed: false,
+  };
+  it('lists what is missing in a fixed order', () => {
+    expect(missingRequirements(s0, r)).toEqual(['registry', 'identity']);
+    expect(
+      missingRequirements(
+        { ...s0, licenseConfirmed: true, licenseConfirmedBy: 'registry' },
+        r,
+      ),
+    ).toEqual(['identity']);
+    expect(missingRequirements(s0, { ...r, documents: true })).toEqual([
+      'registry',
+      'identity',
+      'documents',
+    ]);
+    expect(
+      missingRequirements(s0, {
+        registry: false,
+        identity: false,
+        documents: false,
+      }),
+    ).toEqual([]);
+  });
+  it('cleared = self-attested and (staff said so or nothing is missing)', () => {
+    expect(isCleared(s0, r, false)).toBe(false);
+    expect(isCleared(s0, r, true)).toBe(true);
+    expect(isCleared({ ...s0, selfAttested: false }, r, true)).toBe(false);
+    const full = {
+      ...s0,
+      licenseConfirmed: true,
+      licenseConfirmedBy: 'registry' as const,
+      stripeKyc: true,
+      nameCheck: 'match' as const,
+    };
+    expect(isCleared(full, r, false)).toBe(true);
+    expect(isCleared(full, { ...r, documents: true }, false)).toBe(false);
   });
 });

@@ -16,6 +16,8 @@ class TrustStatsDto {
     required this.withBadge,
     required this.verified,
     required this.complaints30d,
+    required this.cleared,
+    required this.inQueue,
   });
 
   factory TrustStatsDto.fromJson(Map<String, Object?> json) =>
@@ -32,6 +34,12 @@ class TrustStatsDto {
 
   /// Complaints in the last 30 days.
   final int complaints30d;
+
+  /// Attorneys cleared (badge and payments open).
+  final int cleared;
+
+  /// Waiting for a person in the staff queue.
+  final int inQueue;
 
   Map<String, Object?> toJson() => _$TrustStatsDtoToJson(this);
 }

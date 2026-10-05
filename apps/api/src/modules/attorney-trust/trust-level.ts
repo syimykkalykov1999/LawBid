@@ -180,13 +180,45 @@ export function registryNameOf(
 }
 
 /** Payout delay LawBid asks Stripe for at [level]; null = Stripe default. */
-export function payoutDelayFor(
-  level: number,
-  days: number,
-  untilLevel: number,
-): number | null {
-  if (days <= 0) return null;
-  return level < untilLevel ? days : null;
+/** Owner 2026-10-05: the admin's "what to require" switches. */
+export interface TrustRequirements {
+  registry: boolean;
+  identity: boolean;
+  documents: boolean;
+}
+
+export type Requirement = keyof TrustRequirements;
+
+/** Which enabled requirements the facts do not satisfy yet. */
+export function missingRequirements(
+  s: TrustSignals,
+  r: TrustRequirements,
+): Requirement[] {
+  const out: Requirement[] = [];
+  if (r.registry && !s.licenseConfirmed) out.push('registry');
+  if (r.identity && !stripeIdentity(s)) out.push('identity');
+  if (r.documents && !s.documentsVerified) out.push('documents');
+  return out;
+}
+
+/**
+ * Cleared = the badge and in-app payments may open: a self-attested
+ * attorney whom staff confirmed, or whose facts satisfy every enabled
+ * requirement. Staff clearance is final (no automatic re-check undoes it).
+ */
+export function isCleared(
+  s: TrustSignals,
+  r: TrustRequirements,
+  staffCleared: boolean,
+): boolean {
+  if (!s.selfAttested) return false;
+  return staffCleared || missingRequirements(s, r).length === 0;
+}
+
+/** Stripe payout delay while the attorney is not cleared; 0 = default. */
+export function payoutDelayFor(cleared: boolean, days: number): number | null {
+  if (days <= 0 || cleared) return null;
+  return days;
 }
 
 function lastWord(s: string): string {

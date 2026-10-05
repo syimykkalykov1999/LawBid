@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'trust_gate_dto_missing.dart';
 import 'trust_gate_dto_reason.dart';
 
 part 'trust_gate_dto.g.dart';
@@ -13,7 +14,7 @@ class TrustGateDto {
   const TrustGateDto({
     required this.ok,
     required this.reason,
-    required this.requiredValue,
+    required this.missing,
     required this.current,
     required this.hold,
   });
@@ -24,10 +25,8 @@ class TrustGateDto {
   final bool ok;
   final TrustGateDtoReason? reason;
 
-  /// Level the gate needs.
-  /// The name has been replaced because it contains a keyword. Original name: `required`.
-  @JsonKey(name: 'required')
-  final int requiredValue;
+  /// Enabled requirements the attorney has not met yet.
+  final List<TrustGateDtoMissing> missing;
   final int current;
 
   /// Hold code when paused.

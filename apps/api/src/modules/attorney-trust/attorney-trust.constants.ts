@@ -79,7 +79,38 @@ export const TRUST_EVENT = {
   payoutDelay: 'payout_delay',
   firmLink: 'firm_link',
   firmEmail: 'firm_email',
+  staffCleared: 'staff_cleared',
+  staffUncleared: 'staff_uncleared',
+  documentsRequested: 'documents_requested',
 } as const;
+
+/** «Запросить ещё» templates (texts live in the app's strings). */
+export const DOCUMENT_REQUEST_TEMPLATES = [
+  'id_selfie',
+  'bar_card',
+  'firm_letter',
+  'custom',
+] as const;
+export type DocumentRequestTemplate =
+  (typeof DOCUMENT_REQUEST_TEMPLATES)[number];
+
+/** Why an attorney sits in the staff queue. */
+export const QUEUE_REASONS = [
+  'documents',
+  'firm_link',
+  'name_mismatch',
+  'duplicate_claim',
+  'registry_flag',
+  'complaint',
+] as const;
+
+export const BULK_TRUST_ACTIONS = [
+  'clear',
+  'request_documents',
+  'reject',
+  'release',
+] as const;
+export type BulkTrustAction = (typeof BULK_TRUST_ACTIONS)[number];
 
 export const TRUST_ACTOR = {
   system: 'system',
@@ -101,6 +132,7 @@ export const TRUST_NOTIFICATION_KIND = {
   autoSuspended: 'trust_auto_suspended',
   firmLinkRequired: 'trust_firm_link_required',
   firmLinkConfirmed: 'trust_firm_link_confirmed',
+  cleared: 'trust_cleared',
 } as const;
 
 /** audit_log actions of the admin trust API. */
@@ -113,6 +145,11 @@ export const TRUST_AUDIT_ACTION = {
   release: 'trust.release',
   recompute: 'trust.recompute',
   settings: 'trust.settings',
+  clear: 'trust.clear',
+  unclear: 'trust.unclear',
+  requestDocuments: 'trust.request_documents',
+  reject: 'trust.reject',
+  bulk: 'trust.bulk',
 } as const;
 
 /** Report reasons of a client that count as a trust complaint. */

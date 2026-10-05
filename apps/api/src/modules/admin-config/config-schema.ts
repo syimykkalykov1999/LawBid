@@ -44,19 +44,10 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
-  // Owner 2026-10-05: attorney trust levels are 0..3.
-  for (const key of [
-    'trust.min_level_bids',
-    'trust.min_level_payments',
-    'trust.min_level_badge',
-    'trust.payout_delay_until_level',
-  ]) {
-    out[key] = { ...out[key], min: 0, max: 3 };
-  }
   out['trust.payout_delay_days'] = {
     ...out['trust.payout_delay_days'],
     description:
-      'Stripe payout delay (days) for attorneys below the level; 0 = Stripe default (2).',
+      'Stripe payout delay (days) for attorneys not yet cleared; 0 = Stripe default (2).',
     min: 0,
     max: 30,
   };

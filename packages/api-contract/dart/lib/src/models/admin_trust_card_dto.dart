@@ -5,11 +5,16 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_trust_attorney_dto.dart';
+import 'admin_trust_card_dto_cleared_by.dart';
+import 'admin_trust_card_dto_missing.dart';
+import 'admin_trust_card_dto_queue_reasons.dart';
+import 'admin_trust_card_dto_staff_status.dart';
 import 'firm_link_dto.dart';
 import 'registry_link_dto.dart';
 import 'trust_event_dto.dart';
 import 'trust_gate_dto.dart';
 import 'trust_holds_dto.dart';
+import 'trust_requirements_dto.dart';
 import 'trust_signals_dto.dart';
 
 part 'admin_trust_card_dto.g.dart';
@@ -24,6 +29,15 @@ class AdminTrustCardDto {
     required this.holds,
     required this.bidsGate,
     required this.paymentsGate,
+    required this.cleared,
+    required this.clearedBy,
+    required this.staffClearedAt,
+    required this.staffStatus,
+    required this.queueReasons,
+    required this.missing,
+    required this.requirements,
+    required this.documentsRequestedAt,
+    required this.documentsRequestedTemplate,
     required this.stripeLegalName,
     required this.stripeBusinessType,
     required this.stripeCompanyName,
@@ -49,6 +63,15 @@ class AdminTrustCardDto {
   final TrustHoldsDto holds;
   final TrustGateDto bidsGate;
   final TrustGateDto paymentsGate;
+  final bool cleared;
+  final AdminTrustCardDtoClearedBy? clearedBy;
+  final DateTime? staffClearedAt;
+  final AdminTrustCardDtoStaffStatus staffStatus;
+  final List<AdminTrustCardDtoQueueReasons> queueReasons;
+  final List<AdminTrustCardDtoMissing> missing;
+  final TrustRequirementsDto requirements;
+  final DateTime? documentsRequestedAt;
+  final String? documentsRequestedTemplate;
   final String? stripeLegalName;
 
   /// individual | company | …

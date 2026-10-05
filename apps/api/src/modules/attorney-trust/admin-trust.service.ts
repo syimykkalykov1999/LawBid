@@ -11,9 +11,14 @@ import {
   TRUST_AUDIT_ACTION,
   TRUST_LEVELS,
 } from './attorney-trust.constants';
+import type { TrustSnapshot } from './attorney-trust.service';
 import type {
   AdminTrustCardDto,
+  BulkTrustDto,
+  BulkTrustResultDto,
+  DocumentRequestDto,
   RecomputeAllResultDto,
+  TrustQueueItemDto,
   TrustHoldDto,
   TrustHoldListItemDto,
   TrustSettingsDto,
@@ -32,16 +37,18 @@ import {
 
 /** app_config key ↔ settings DTO field. */
 const SETTING_KEYS = {
-  minLevelBids: 'trust.min_level_bids',
-  minLevelPayments: 'trust.min_level_payments',
-  minLevelBadge: 'trust.min_level_badge',
+  requireRegistry: 'trust.require_registry',
+  requireIdentity: 'trust.require_identity',
+  requireDocuments: 'trust.require_documents',
+  bidsRequireCleared: 'trust.bids_require_cleared',
   payoutDelayDays: 'trust.payout_delay_days',
-  payoutDelayUntilLevel: 'trust.payout_delay_until_level',
   autoHoldOnComplaint: 'trust.auto_hold_on_complaint',
   complaintsToSuspend: 'trust.complaints_to_suspend',
   complaintWindowDays: 'trust.complaint_window_days',
   autoHoldOnNameMismatch: 'trust.auto_hold_on_name_mismatch',
   flagDuplicateClaims: 'trust.flag_duplicate_claims',
+  firmLinkAutoRegistry: 'trust.firm_link_auto_registry',
+  firmLinkAutoEmail: 'trust.firm_link_auto_email',
 } as const;
 
 /** Admin → Верификация → «Уровни доверия». */
@@ -58,11 +65,11 @@ export class AdminTrustService {
   async settingsDto(): Promise<TrustSettingsDto> {
     const s = this.settings;
     return {
-      minLevelBids: await s.number(SETTING_KEYS.minLevelBids),
-      minLevelPayments: await s.number(SETTING_KEYS.minLevelPayments),
-      minLevelBadge: await s.number(SETTING_KEYS.minLevelBadge),
+      requireRegistry: await s.boolean(SETTING_KEYS.requireRegistry),
+      requireIdentity: await s.boolean(SETTING_KEYS.requireIdentity),
+      requireDocuments: await s.boolean(SETTING_KEYS.requireDocuments),
+      bidsRequireCleared: await s.boolean(SETTING_KEYS.bidsRequireCleared),
       payoutDelayDays: await s.number(SETTING_KEYS.payoutDelayDays),
-      payoutDelayUntilLevel: await s.number(SETTING_KEYS.payoutDelayUntilLevel),
       autoHoldOnComplaint: await s.boolean(SETTING_KEYS.autoHoldOnComplaint),
       complaintsToSuspend: await s.number(SETTING_KEYS.complaintsToSuspend),
       complaintWindowDays: await s.number(SETTING_KEYS.complaintWindowDays),
@@ -70,6 +77,8 @@ export class AdminTrustService {
         SETTING_KEYS.autoHoldOnNameMismatch,
       ),
       flagDuplicateClaims: await s.boolean(SETTING_KEYS.flagDuplicateClaims),
+      firmLinkAutoRegistry: await s.boolean(SETTING_KEYS.firmLinkAutoRegistry),
+      firmLinkAutoEmail: await s.boolean(SETTING_KEYS.firmLinkAutoEmail),
     };
   }
 
@@ -88,7 +97,10 @@ export class AdminTrustService {
         await this.config.updateConfig(admin, key, dto[field]);
       }
     }
-    if (dto.minLevelBadge !== before.minLevelBadge) {
+    const gatesChanged = (
+      ['requireRegistry', 'requireIdentity', 'requireDocuments'] as const
+    ).some((f) => dto[f] !== before[f]);
+    if (gatesChanged) {
       void this.trust.recomputeAll();
     }
     return this.settingsDto();
@@ -96,7 +108,7 @@ export class AdminTrustService {
 
   async stats(): Promise<TrustStatsDto> {
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const [byLevel, held, withBadge, verified, complaints30d] =
+    const [byLevel, held, withBadge, verified, complaints30d, inQueue] =
       await Promise.all([
         this.prisma.attorneyProfile.groupBy({
           by: ['trust_level'],
@@ -122,6 +134,7 @@ export class AdminTrustService {
             created_at: { gte: since },
           },
         }),
+        this.trust.queue({ limit: 1000 }).then((q) => q.length),
       ]);
     const counts = new Map(byLevel.map((r) => [r.trust_level, r._count._all]));
     return {
@@ -133,7 +146,244 @@ export class AdminTrustService {
       withBadge,
       verified,
       complaints30d,
+      // The badge follows clearance, so this is the cleared count.
+      cleared: withBadge,
+      inQueue,
     };
+  }
+
+  /** The staff queue («Борьба с мошенниками»): who waits and why. */
+  async queue(opts: {
+    reason?: string | null;
+    q?: string | null;
+  }): Promise<TrustQueueItemDto[]> {
+    const snaps = await this.trust.queue(opts);
+    if (snaps.length === 0) return [];
+    const rows = await this.prisma.attorneyProfile.findMany({
+      where: { user_id: { in: snaps.map((s) => s.attorneyId) } },
+      select: {
+        user_id: true,
+        username: true,
+        verification_status: true,
+        user: { select: { first_name: true, last_name: true } },
+        licenses: {
+          select: {
+            state_code: true,
+            bar_number: true,
+            license_status: true,
+            state: { select: { name: true } },
+          },
+          orderBy: { state_code: 'asc' },
+        },
+        verification_requests: {
+          orderBy: { created_at: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            created_at: true,
+            _count: { select: { documents: true } },
+          },
+        },
+      },
+    });
+    const byId = new Map(rows.map((r) => [r.user_id, r]));
+    const items: TrustQueueItemDto[] = [];
+    for (const snap of snaps) {
+      const row = byId.get(snap.attorneyId);
+      if (!row) continue;
+      const request = row.verification_requests[0];
+      const since = [
+        snap.holds.paymentsAt,
+        snap.holds.bidsAt,
+        snap.firmLink.at,
+        snap.documentsRequestedAt,
+        request?.created_at,
+      ].filter((d): d is Date => d instanceof Date);
+      items.push({
+        attorney: {
+          id: row.user_id,
+          firstName: row.user.first_name,
+          lastName: row.user.last_name,
+          username: row.username,
+          verificationStatus: row.verification_status,
+        },
+        level: snap.level,
+        reasons: snap.queueReasons,
+        missing: snap.missing,
+        signals: snap.signals,
+        holds: toHolds(snap),
+        stripeBusinessType: snap.stripe.businessType,
+        stripeRepresentative: snap.stripe.representative,
+        stripeCompanyName: snap.stripe.companyName,
+        registryLinks: registryLinks(row.licenses),
+        requestId: request?.id ?? null,
+        documentsCount: request?._count.documents ?? 0,
+        documentsRequestedAt: snap.documentsRequestedAt?.toISOString() ?? null,
+        waitingSince: since.length
+          ? new Date(Math.min(...since.map((d) => d.getTime()))).toISOString()
+          : null,
+      });
+    }
+    return items.sort((a, b) =>
+      (a.waitingSince ?? '9').localeCompare(b.waitingSince ?? '9'),
+    );
+  }
+
+  /** «Подтвердить»: staff vouch for the attorney; badge and payments open. */
+  async clear(
+    admin: AdminActor,
+    attorneyId: string,
+    note: string | null,
+  ): Promise<AdminTrustCardDto> {
+    await this.exists(attorneyId);
+    const before = await this.trust.snapshot(attorneyId);
+    const after = await this.trust.clearByStaff(
+      attorneyId,
+      actorOf(admin),
+      note,
+    );
+    await this.record(
+      admin,
+      TRUST_AUDIT_ACTION.clear,
+      attorneyId,
+      before?.level,
+      after?.level,
+      note,
+    );
+    return this.card(attorneyId);
+  }
+
+  async unclear(
+    admin: AdminActor,
+    attorneyId: string,
+    note: string | null,
+  ): Promise<AdminTrustCardDto> {
+    await this.exists(attorneyId);
+    const before = await this.trust.snapshot(attorneyId);
+    const after = await this.trust.unclearByStaff(
+      attorneyId,
+      actorOf(admin),
+      note,
+    );
+    await this.record(
+      admin,
+      TRUST_AUDIT_ACTION.unclear,
+      attorneyId,
+      before?.level,
+      after?.level,
+      note,
+    );
+    return this.card(attorneyId);
+  }
+
+  /** «Запросить ещё»: a templated request for documents. */
+  async requestDocuments(
+    admin: AdminActor,
+    attorneyId: string,
+    dto: DocumentRequestDto,
+  ): Promise<AdminTrustCardDto> {
+    await this.exists(attorneyId);
+    const before = await this.trust.snapshot(attorneyId);
+    const after = await this.trust.requestDocuments(
+      attorneyId,
+      actorOf(admin),
+      dto.template,
+      dto.note ?? null,
+    );
+    await this.record(
+      admin,
+      TRUST_AUDIT_ACTION.requestDocuments,
+      attorneyId,
+      before?.level,
+      after?.level,
+      `${dto.template}${dto.note ? `: ${dto.note}` : ''}`,
+    );
+    return this.card(attorneyId);
+  }
+
+  /** «Отклонить»: the account is suspended, bids withdrawn. */
+  async reject(
+    admin: AdminActor,
+    attorneyId: string,
+    note: string | null,
+  ): Promise<AdminTrustCardDto> {
+    await this.exists(attorneyId);
+    const before = await this.trust.snapshot(attorneyId);
+    const after = await this.trust.rejectByStaff(
+      attorneyId,
+      actorOf(admin),
+      note,
+    );
+    await this.record(
+      admin,
+      TRUST_AUDIT_ACTION.reject,
+      attorneyId,
+      before?.level,
+      after?.level,
+      note,
+    );
+    return this.card(attorneyId);
+  }
+
+  /** The same four actions on many attorneys at once (the queue's bulk bar). */
+  async bulk(
+    admin: AdminActor,
+    dto: BulkTrustDto,
+  ): Promise<BulkTrustResultDto> {
+    const failed: string[] = [];
+    let done = 0;
+    const note = dto.note ?? null;
+    for (const id of new Set(dto.attorneyIds)) {
+      try {
+        let snap: TrustSnapshot | null;
+        switch (dto.action) {
+          case 'clear':
+            snap = await this.trust.clearByStaff(id, actorOf(admin), note);
+            break;
+          case 'request_documents':
+            snap = await this.trust.requestDocuments(
+              id,
+              actorOf(admin),
+              dto.template ?? 'custom',
+              note,
+            );
+            break;
+          case 'reject':
+            snap = await this.trust.rejectByStaff(id, actorOf(admin), note);
+            break;
+          case 'release':
+            snap = await this.trust.release(
+              id,
+              { payments: true, bids: true, note },
+              actorOf(admin),
+            );
+            break;
+        }
+        if (!snap) {
+          failed.push(id);
+          continue;
+        }
+        done += 1;
+      } catch {
+        failed.push(id);
+      }
+    }
+    await this.audit.record({
+      adminId: admin.id,
+      action: TRUST_AUDIT_ACTION.bulk,
+      targetType: 'attorney_profile',
+      targetId: null,
+      before: { attorneyIds: dto.attorneyIds },
+      after: {
+        action: dto.action,
+        template: dto.template ?? null,
+        done,
+        failed,
+        note,
+      },
+      ip: admin.ip,
+    });
+    return { done, failed };
   }
 
   /** Attorneys with a hold, oldest hold first. */
@@ -226,6 +476,15 @@ export class AdminTrustService {
       holds: toHolds(snap),
       bidsGate: snap.gates.bids,
       paymentsGate: snap.gates.payments,
+      cleared: snap.cleared,
+      clearedBy: snap.clearedBy,
+      staffClearedAt: snap.staffClearedAt?.toISOString() ?? null,
+      staffStatus: snap.staffStatus,
+      queueReasons: snap.queueReasons,
+      missing: snap.missing,
+      requirements: snap.requirements,
+      documentsRequestedAt: snap.documentsRequestedAt?.toISOString() ?? null,
+      documentsRequestedTemplate: snap.documentsRequestedTemplate,
       stripeLegalName: snap.stripeLegalName,
       stripeBusinessType: snap.stripe.businessType,
       stripeCompanyName: snap.stripe.companyName,

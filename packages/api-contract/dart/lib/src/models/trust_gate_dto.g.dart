@@ -11,7 +11,9 @@ TrustGateDto _$TrustGateDtoFromJson(Map<String, dynamic> json) => TrustGateDto(
   reason: json['reason'] == null
       ? null
       : TrustGateDtoReason.fromJson(json['reason'] as String),
-  requiredValue: (json['required'] as num).toInt(),
+  missing: (json['missing'] as List<dynamic>)
+      .map((e) => TrustGateDtoMissing.fromJson(e as String))
+      .toList(),
   current: (json['current'] as num).toInt(),
   hold: json['hold'] as String?,
 );
@@ -20,7 +22,7 @@ Map<String, dynamic> _$TrustGateDtoToJson(TrustGateDto instance) =>
     <String, dynamic>{
       'ok': instance.ok,
       'reason': ?instance.reason?.toJson(),
-      'required': instance.requiredValue,
+      'missing': instance.missing.map((e) => e.toJson()).toList(),
       'current': instance.current,
       'hold': ?instance.hold,
     };

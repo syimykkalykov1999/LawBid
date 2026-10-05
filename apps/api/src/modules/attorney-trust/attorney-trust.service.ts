@@ -33,7 +33,11 @@ import {
   domainsMatch,
   firmNamesMatch,
   identityConfirmed,
+  isCleared,
+  missingRequirements,
   payoutDelayFor,
+  type Requirement,
+  type TrustRequirements,
   registryConfirms,
   registryFirmOf,
   registryNameOf,
@@ -50,12 +54,18 @@ export interface TrustActor {
 
 export interface TrustGate {
   ok: boolean;
-  /** Why not: `level` (too low) or `hold`. */
-  reason: 'level' | 'hold' | 'suspended' | null;
-  required: number;
+  /** Why not: `requirements` (not cleared yet), `hold` or `suspended`. */
+  reason: 'requirements' | 'hold' | 'suspended' | null;
+  /** The enabled requirements still missing (owner's switches). */
+  missing: Requirement[];
   current: number;
   hold: string | null;
 }
+
+/** Where the attorney stands for staff: self-declared (nothing for staff),
+ * needs_staff (something waits in the queue), cleared, suspended. */
+export type StaffStatus =
+  'self_declared' | 'needs_staff' | 'cleared' | 'suspended';
 
 /** Everything the API exposes about one attorney's trust. */
 export interface TrustSnapshot {
@@ -74,7 +84,18 @@ export interface TrustSnapshot {
     bidsAt: Date | null;
     note: string | null;
   };
-  gates: { bids: TrustGate; payments: TrustGate; badgeLevel: number };
+  gates: { bids: TrustGate; payments: TrustGate };
+  /** Owner's switches and what they leave open. */
+  requirements: TrustRequirements;
+  missing: Requirement[];
+  cleared: boolean;
+  clearedBy: 'auto' | 'staff' | null;
+  staffClearedAt: Date | null;
+  staffStatus: StaffStatus;
+  /** Why the attorney sits in the staff queue (empty when not). */
+  queueReasons: string[];
+  documentsRequestedAt: Date | null;
+  documentsRequestedTemplate: string | null;
   payoutDelayDays: number | null;
   stripeLegalName: string | null;
   stripe: {
@@ -139,6 +160,11 @@ const PROFILE_SELECT = {
     },
   },
   trust: true,
+  verification_requests: {
+    where: { status: { in: ['submitted', 'in_review'] } },
+    select: { id: true, documents: { select: { doc_type: true } } },
+    take: 1,
+  },
 } satisfies Prisma.AttorneyProfileSelect;
 
 type ProfileRow = Prisma.AttorneyProfileGetPayload<{
@@ -180,14 +206,14 @@ export class AttorneyTrustService {
   /** May this attorney place bids / accept invites right now? */
   async bidGate(attorneyId: string): Promise<TrustGate> {
     const snap = await this.snapshot(attorneyId);
-    return snap?.gates.bids ?? closed('suspended', 0, 0);
+    return snap?.gates.bids ?? closed('suspended', [], 0);
   }
 
   /** May this attorney receive client money / send invoices? Payments
    * (PR #48) call this next to the plan entitlement. */
   async paymentsGate(attorneyId: string): Promise<TrustGate> {
     const snap = await this.snapshot(attorneyId);
-    return snap?.gates.payments ?? closed('suspended', 0, 0);
+    return snap?.gates.payments ?? closed('suspended', [], 0);
   }
 
   async assertCanBid(attorneyId: string): Promise<void> {
@@ -243,11 +269,11 @@ export class AttorneyTrustService {
       const trust = row.trust ?? (await this.ensureRow(db, attorneyId));
       const signals = this.signalsOf({ ...row, trust });
       const level = computeLevel(signals);
-      const badgeMin = await this.settings.number('trust.min_level_badge');
+      const requirements = await this.requirements();
       const badge =
         row.verification_status === 'verified' &&
         !row.name_mismatch &&
-        level >= badgeMin;
+        isCleared(signals, requirements, trust.staff_cleared_at !== null);
       const now = new Date();
       if (
         level !== row.trust_level ||
@@ -905,6 +931,216 @@ export class AttorneyTrustService {
     });
   }
 
+  // --- staff («Борьба с мошенниками») -----------------------------------
+
+  /** The owner's switches: what an attorney must pass. */
+  async requirements(): Promise<TrustRequirements> {
+    const [registry, identity, documents] = await Promise.all([
+      this.settings.boolean('trust.require_registry'),
+      this.settings.boolean('trust.require_identity'),
+      this.settings.boolean('trust.require_documents'),
+    ]);
+    return { registry, identity, documents };
+  }
+
+  /**
+   * «Подтвердить»: a verifier looked at everything the rules ask for and
+   * vouches for the attorney. Opens the badge and payments for good; lifts
+   * review holds (not a complaint hold, which has its own release) and
+   * marks the documents checked when the request carried an ID.
+   */
+  async clearByStaff(
+    attorneyId: string,
+    actor: TrustActor,
+    note: string | null,
+  ): Promise<TrustSnapshot | null> {
+    return withTxRetry(this.prisma, async (tx) => {
+      const trust = await this.ensureRow(tx, attorneyId);
+      const now = new Date();
+      await tx.attorneyTrust.update({
+        where: { attorney_id: attorneyId },
+        data: {
+          staff_cleared_at: now,
+          staff_cleared_by: actor.id ?? null,
+          staff_cleared_note: note,
+          documents_verified_at: trust.documents_verified_at ?? now,
+          documents_verified_by:
+            trust.documents_verified_by ?? actor.id ?? null,
+          ...(trust.firm_link_status === FIRM_LINK.pending
+            ? {
+                firm_link_status: FIRM_LINK.confirmed,
+                firm_link_source: FIRM_LINK_SOURCE.staff,
+                firm_link_at: now,
+                firm_link_note: note,
+              }
+            : {}),
+        },
+      });
+      await this.event(tx, attorneyId, TRUST_EVENT.staffCleared, actor, {
+        note,
+      });
+      await this.releaseIfHeldFor(tx, attorneyId, HOLD.nameMismatch, actor);
+      await this.releaseIfHeldFor(tx, attorneyId, HOLD.duplicateClaim, actor);
+      // A registry difference staff looked at no longer blocks.
+      await tx.attorneyLicense.updateMany({
+        where: { attorney_id: attorneyId, registry_flag: { not: null } },
+        data: { registry_flag: null, registry_flagged_at: null },
+      });
+      await this.notify(tx, attorneyId, TRUST_NOTIFICATION_KIND.cleared, {});
+      return this.recompute(attorneyId, actor, tx);
+    });
+  }
+
+  /** Withdraw a staff clearance (it was a mistake). */
+  async unclearByStaff(
+    attorneyId: string,
+    actor: TrustActor,
+    note: string | null,
+  ): Promise<TrustSnapshot | null> {
+    return withTxRetry(this.prisma, async (tx) => {
+      await this.ensureRow(tx, attorneyId);
+      await tx.attorneyTrust.update({
+        where: { attorney_id: attorneyId },
+        data: {
+          staff_cleared_at: null,
+          staff_cleared_by: null,
+          staff_cleared_note: note,
+        },
+      });
+      await this.event(tx, attorneyId, TRUST_EVENT.staffUncleared, actor, {
+        note,
+      });
+      return this.recompute(attorneyId, actor, tx);
+    });
+  }
+
+  /** «Запросить ещё»: ask the attorney for documents from a template. */
+  async requestDocuments(
+    attorneyId: string,
+    actor: TrustActor,
+    template: string,
+    note: string | null,
+  ): Promise<TrustSnapshot | null> {
+    return withTxRetry(this.prisma, async (tx) => {
+      await this.ensureRow(tx, attorneyId);
+      await tx.attorneyTrust.update({
+        where: { attorney_id: attorneyId },
+        data: {
+          documents_requested_at: new Date(),
+          documents_requested_template: template,
+        },
+      });
+      await this.event(tx, attorneyId, TRUST_EVENT.documentsRequested, actor, {
+        template,
+        note,
+      });
+      await this.notify(
+        tx,
+        attorneyId,
+        TRUST_NOTIFICATION_KIND.documentsRequested,
+        { template, ...(note ? { note } : {}) },
+      );
+      return this.recompute(attorneyId, actor, tx);
+    });
+  }
+
+  /** «Отклонить»: staff decided the account is not the attorney it claims
+   * to be — suspended, bids withdrawn, the clearance (if any) withdrawn. */
+  async rejectByStaff(
+    attorneyId: string,
+    actor: TrustActor,
+    note: string | null,
+  ): Promise<TrustSnapshot | null> {
+    return withTxRetry(this.prisma, async (tx) => {
+      await this.ensureRow(tx, attorneyId);
+      await tx.attorneyTrust.update({
+        where: { attorney_id: attorneyId },
+        data: { staff_cleared_at: null, staff_cleared_by: null },
+      });
+      await this.autoSuspend(tx, attorneyId, actor, {
+        note,
+        reason: 'staff_reject',
+      });
+      return this.recompute(attorneyId, actor, tx);
+    });
+  }
+
+  /**
+   * The staff queue: attorneys not cleared and not suspended with something
+   * only a person can settle. Oldest first.
+   */
+  async queue(opts: {
+    reason?: string | null;
+    q?: string | null;
+    limit?: number;
+  }): Promise<TrustSnapshot[]> {
+    const limit = opts.limit ?? 100;
+    const rows = await this.prisma.attorneyProfile.findMany({
+      where: {
+        verification_status: { in: ['verified', 'pending'] },
+        OR: [{ trust: null }, { trust: { staff_cleared_at: null } }],
+        ...(opts.q
+          ? {
+              OR: [
+                { username_lower: { contains: opts.q.toLowerCase() } },
+                {
+                  user: {
+                    OR: [
+                      { first_name: { contains: opts.q, mode: 'insensitive' } },
+                      { last_name: { contains: opts.q, mode: 'insensitive' } },
+                    ],
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
+      select: PROFILE_SELECT,
+      orderBy: { user_id: 'asc' },
+      take: 2000,
+    });
+    const out: TrustSnapshot[] = [];
+    for (const row of rows) {
+      const snap = await this.snapshotOf(row);
+      if (snap.staffStatus !== 'needs_staff') continue;
+      if (opts.reason && !snap.queueReasons.includes(opts.reason)) continue;
+      out.push(snap);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /**
+   * What only a person can settle: a firm link waiting, a name mismatch,
+   * a registry difference / duplicate claim, a complaint hold, documents
+   * the attorney uploaded (a submitted request with an ID / bar card), or
+   * documents the rules require that were asked for and arrived.
+   */
+  private queueReasonsOf(
+    row: ProfileRow,
+    trust: NonNullable<ProfileRow['trust']>,
+    missing: Requirement[],
+    cleared: boolean,
+  ): string[] {
+    if (cleared || row.verification_status === 'suspended') return [];
+    const reasons: string[] = [];
+    if (trust.firm_link_status === FIRM_LINK.pending) reasons.push('firm_link');
+    if (trust.name_check === NAME_CHECK.mismatch) reasons.push('name_mismatch');
+    if (row.licenses.some((l) => l.registry_flag === DUPLICATE_CLAIM_FLAG))
+      reasons.push('duplicate_claim');
+    else if (row.licenses.some((l) => l.registry_flag))
+      reasons.push('registry_flag');
+    if (
+      trust.payments_hold === HOLD.complaint ||
+      trust.bids_hold === HOLD.complaint
+    )
+      reasons.push('complaint');
+    const pending = row.verification_requests[0];
+    if (pending && pending.documents.length > 0 && missing.length > 0)
+      reasons.push('documents');
+    return reasons;
+  }
+
   // --- internals ---------------------------------------------------------
 
   private signalsOf(
@@ -939,28 +1175,37 @@ export class AttorneyTrustService {
   ): Promise<TrustSnapshot> {
     const trust = row.trust ?? emptyTrust(row.user_id);
     const s = signals ?? this.signalsOf({ ...row, trust });
-    const [minBids, minPayments, minBadge, delayDays, delayUntil] =
-      await Promise.all([
-        this.settings.number('trust.min_level_bids'),
-        this.settings.number('trust.min_level_payments'),
-        this.settings.number('trust.min_level_badge'),
-        this.settings.number('trust.payout_delay_days'),
-        this.settings.number('trust.payout_delay_until_level'),
-      ]);
+    const [requirements, bidsRequireCleared, delayDays] = await Promise.all([
+      this.requirements(),
+      this.settings.boolean('trust.bids_require_cleared'),
+      this.settings.number('trust.payout_delay_days'),
+    ]);
     const level = row.trust_level as TrustLevel;
     const suspended = row.verification_status === 'suspended';
-    const gate = (min: number, hold: string | null): TrustGate => {
-      if (suspended) return closed('suspended', min, level);
-      if (hold) return { ...closed('hold', min, level), hold };
-      if (level < min) return closed('level', min, level);
+    const staffCleared = trust.staff_cleared_at !== null;
+    const missing = missingRequirements(s, requirements);
+    const cleared = isCleared(s, requirements, staffCleared);
+    const gate = (needsCleared: boolean, hold: string | null): TrustGate => {
+      if (suspended) return closed('suspended', missing, level);
+      if (hold) return { ...closed('hold', missing, level), hold };
+      if (needsCleared && !cleared)
+        return closed('requirements', missing, level);
       return {
         ok: true,
         reason: null,
-        required: min,
+        missing: [],
         current: level,
         hold: null,
       };
     };
+    const queueReasons = this.queueReasonsOf(row, trust, missing, cleared);
+    const staffStatus: StaffStatus = suspended
+      ? 'suspended'
+      : cleared
+        ? 'cleared'
+        : queueReasons.length > 0
+          ? 'needs_staff'
+          : 'self_declared';
     return {
       attorneyId: row.user_id,
       level,
@@ -979,11 +1224,19 @@ export class AttorneyTrustService {
         note: trust.hold_note,
       },
       gates: {
-        bids: gate(minBids, trust.bids_hold),
-        payments: gate(minPayments, trust.payments_hold),
-        badgeLevel: minBadge,
+        bids: gate(bidsRequireCleared, trust.bids_hold),
+        payments: gate(true, trust.payments_hold),
       },
-      payoutDelayDays: payoutDelayFor(level, delayDays, delayUntil),
+      requirements,
+      missing,
+      cleared,
+      clearedBy: !cleared ? null : staffCleared ? 'staff' : 'auto',
+      staffClearedAt: trust.staff_cleared_at,
+      staffStatus,
+      queueReasons,
+      documentsRequestedAt: trust.documents_requested_at,
+      documentsRequestedTemplate: trust.documents_requested_template,
+      payoutDelayDays: payoutDelayFor(cleared, delayDays),
       stripeLegalName: trust.stripe_legal_name,
       stripe: {
         businessType: trust.stripe_business_type,
@@ -1134,7 +1387,10 @@ export class AttorneyTrustService {
         recipientId: attorneyId,
         payload: {
           kind: VERIFICATION_NOTIFICATION_KIND.suspended,
-          reason: 'trust_complaints',
+          reason:
+            typeof details.reason === 'string'
+              ? details.reason
+              : 'trust_complaints',
         },
       },
       tx,
@@ -1202,10 +1458,10 @@ export class AttorneyTrustService {
 
 function closed(
   reason: NonNullable<TrustGate['reason']>,
-  required: number,
+  missing: Requirement[],
   current: number,
 ): TrustGate {
-  return { ok: false, reason, required, current, hold: null };
+  return { ok: false, reason, missing, current, hold: null };
 }
 
 function throwIfClosed(gate: TrustGate, which: 'bids' | 'payments'): void {
@@ -1231,8 +1487,8 @@ function throwIfClosed(gate: TrustGate, which: 'bids' | 'payments'): void {
     message:
       which === 'payments'
         ? 'Confirm your identity to receive payments through LawBid.'
-        : 'A higher verification level is required.',
-    details: { gate: which, required: gate.required, current: gate.current },
+        : 'Confirm your identity to place bids on LawBid.',
+    details: { gate: which, missing: gate.missing, current: gate.current },
   });
 }
 
@@ -1278,6 +1534,11 @@ function emptyTrust(attorneyId: string) {
     complaints_total: 0,
     duplicate_claims: 0,
     payout_delay_days: null,
+    staff_cleared_at: null,
+    staff_cleared_by: null,
+    staff_cleared_note: null,
+    documents_requested_at: null,
+    documents_requested_template: null,
     payout_delay_synced_at: null,
     computed_at: now,
     created_at: now,

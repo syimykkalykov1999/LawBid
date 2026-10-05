@@ -5,8 +5,12 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'firm_link_dto.dart';
+import 'own_trust_dto_documents_requested.dart';
+import 'own_trust_dto_missing.dart';
+import 'own_trust_dto_staff_status.dart';
 import 'registry_link_dto.dart';
 import 'trust_gate_dto.dart';
+import 'trust_requirements_dto.dart';
 import 'trust_signals_dto.dart';
 
 part 'own_trust_dto.g.dart';
@@ -17,13 +21,17 @@ class OwnTrustDto {
     required this.attorneyId,
     required this.level,
     required this.badge,
+    required this.cleared,
     required this.signals,
     required this.acceptsPayments,
     required this.canBid,
     required this.registryLinks,
     required this.bidsGate,
     required this.paymentsGate,
-    required this.badgeLevel,
+    required this.requirements,
+    required this.missing,
+    required this.staffStatus,
+    required this.documentsRequested,
     required this.payoutDelayDays,
     required this.nextSteps,
     required this.firmLink,
@@ -38,6 +46,9 @@ class OwnTrustDto {
 
   /// The blue check is shown.
   final bool badge;
+
+  /// Every requirement the owner switched on is met (or staff confirmed): the badge and payments are open.
+  final bool cleared;
   final TrustSignalsDto signals;
 
   /// Client money can be sent through LawBid to this attorney.
@@ -50,9 +61,14 @@ class OwnTrustDto {
   final List<RegistryLinkDto> registryLinks;
   final TrustGateDto bidsGate;
   final TrustGateDto paymentsGate;
+  final TrustRequirementsDto requirements;
 
-  /// Level needed for the blue check.
-  final int badgeLevel;
+  /// Requirements still missing for the badge and payments.
+  final List<OwnTrustDtoMissing> missing;
+  final OwnTrustDtoStaffStatus staffStatus;
+
+  /// Staff asked for more documents (template).
+  final OwnTrustDtoDocumentsRequested? documentsRequested;
 
   /// Stripe payout delay LawBid applies at this level, days.
   final int? payoutDelayDays;

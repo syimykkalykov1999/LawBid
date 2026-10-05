@@ -186,11 +186,19 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     expect(me.body.data).toMatchObject({
       level: 0,
       badge: false,
+      cleared: false,
+      staffStatus: 'self_declared',
       canBid: true,
       acceptsPayments: false,
       signals: { selfAttested: true, licenseConfirmed: false },
+      missing: ['registry', 'identity'],
+      requirements: { registry: true, identity: true, documents: false },
     });
     expect(me.body.data.nextSteps).toContain('registry_check');
+    expect(me.body.data.paymentsGate).toMatchObject({
+      ok: false,
+      reason: 'requirements',
+    });
     // Mirrored on the profile for every list and card.
     const profile = await api()
       .get('/api/v1/attorneys/me/profile')
@@ -214,6 +222,8 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     const me = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
     expect(me.body.data).toMatchObject({
       level: 1,
+      cleared: false,
+      missing: ['identity'],
       signals: { licenseConfirmed: true, licenseConfirmedBy: 'registry' },
     });
 
@@ -224,12 +234,13 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       .send({ note: REASON })
       .expect(200);
     // Documents alone do not prove the person at the keyboard is the
-    // attorney paid through Stripe: identity (level 2) is still missing.
+    // attorney paid through Stripe: identity is still required.
     const card1 = await api()
       .get(`/api/v1/admin/trust/attorneys/${a.id}`)
       .set(admin.auth)
       .expect(200);
     expect(card1.body.data.level).toBe(1);
+    expect(card1.body.data.cleared).toBe(false);
     expect(card1.body.data.signals.documentsVerified).toBe(true);
 
     // Stripe KYC with a matching legal name → identity → level 3.
@@ -247,8 +258,13 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     expect(card2.body.data).toMatchObject({
       level: 3,
       badge: true,
+      cleared: true,
+      clearedBy: 'auto',
+      staffStatus: 'cleared',
+      missing: [],
       signals: { stripeKyc: true, nameCheck: 'match' },
     });
+    expect(card2.body.data.paymentsGate.ok).toBe(true);
     const kinds = (card2.body.data.events as { kind: string }[]).map(
       (e) => e.kind,
     );
@@ -278,10 +294,42 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     const me = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
     expect(me.body.data).toMatchObject({
       level: 1,
+      cleared: false,
+      staffStatus: 'needs_staff',
       signals: { nameCheck: 'mismatch' },
-      paymentsGate: { allowed: false, reason: 'hold' },
+      paymentsGate: { ok: false, reason: 'hold' },
     });
     expect(me.body.data.nextSteps).toContain('hold_review');
+    // The mismatch is in the staff queue; «Подтвердить» settles it for good.
+    const admin = await adminSession(base, prisma, 'verifier');
+    const queue = await api()
+      .get('/api/v1/admin/trust/queue?reason=name_mismatch')
+      .set(admin.auth)
+      .expect(200);
+    const mine = (
+      queue.body.data as { attorney: { id: string }; reasons: string[] }[]
+    ).find((i) => i.attorney.id === a.id);
+    expect(mine?.reasons).toContain('name_mismatch');
+    const cleared = await api()
+      .post(`/api/v1/admin/trust/attorneys/${a.id}/clear`)
+      .set(admin.auth)
+      .send({ note: 'Called the attorney, the Stripe account is hers' })
+      .expect(200);
+    expect(cleared.body.data).toMatchObject({
+      cleared: true,
+      clearedBy: 'staff',
+      badge: true,
+      staffStatus: 'cleared',
+    });
+    expect(cleared.body.data.paymentsGate.ok).toBe(true);
+    expect(cleared.body.data.holds.payments).toBeNull();
+    // No re-check undoes it: a later registry flag leaves the badge on.
+    await prisma.attorneyLicense.updateMany({
+      where: { attorney_id: a.id },
+      data: { registry_flag: 'not_found', registry_flagged_at: new Date() },
+    });
+    const still = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
+    expect(still.body.data).toMatchObject({ cleared: true, badge: true });
 
     // Off: the mismatch is only recorded.
     await setSetting('trust.auto_hold_on_name_mismatch', false);
@@ -295,7 +343,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     });
     const meB = await api().get('/api/v1/trust/me').set(b.auth).expect(200);
     expect(meB.body.data.signals.nameCheck).toBe('mismatch');
-    expect(meB.body.data.paymentsGate.reason).not.toBe('hold');
+    expect(meB.body.data.paymentsGate.reason).toBe('requirements');
     await resetSettings();
   });
 
@@ -316,6 +364,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     const me = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
     expect(me.body.data).toMatchObject({
       level: 2,
+      cleared: true,
       signals: { nameCheck: 'match' },
       stripeBusinessType: 'company',
     });
@@ -332,6 +381,8 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     });
     const meB = await api().get('/api/v1/trust/me').set(b.auth).expect(200);
     expect(meB.body.data.level).toBe(1);
+    expect(meB.body.data.cleared).toBe(false);
+    expect(meB.body.data.staffStatus).toBe('needs_staff');
     expect(meB.body.data.firmLink.status).toBe('pending');
     expect(meB.body.data.nextSteps).toContain('firm_link');
 
@@ -363,27 +414,29 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     const after = await api().get('/api/v1/trust/me').set(b.auth).expect(200);
     expect(after.body.data).toMatchObject({
       level: 2,
+      cleared: true,
       firmLink: { status: 'confirmed', source: 'email' },
     });
   });
 
-  it('the bid gate: raising the minimum level blocks level-0 attorneys with a clear code', async () => {
+  it('the bid switch: bids too can wait for the requirements, with a clear code', async () => {
     const c = await client();
     const a = await attorney();
     const caseId = await kase(c.id);
     expect((await bid(a.auth, caseId)).status).toBe(201);
 
-    await setSetting('trust.min_level_bids', 1);
+    await setSetting('trust.bids_require_cleared', true);
     const caseId2 = await kase(c.id);
     const refused = await bid(a.auth, caseId2);
     expect(refused.status).toBe(403);
     expect(refused.body.error.code).toBe('TRUST_LEVEL_REQUIRED');
     expect(refused.body.error.details).toMatchObject({
       gate: 'bids',
-      required: 1,
+      missing: ['registry', 'identity'],
       current: 0,
     });
-    // Level 1 passes the same gate.
+    // Fewer requirements → the same attorney passes.
+    await setSetting('trust.require_identity', false);
     const ok = await attorney({ registry: 'pass' });
     expect((await bid(ok.auth, caseId2)).status).toBe(201);
     await resetSettings();
@@ -416,8 +469,9 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     const held = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
     expect(held.body.data).toMatchObject({
       canBid: false,
-      bidsGate: { allowed: false, reason: 'hold' },
-      paymentsGate: { allowed: false, reason: 'hold' },
+      staffStatus: 'needs_staff',
+      bidsGate: { ok: false, reason: 'hold' },
+      paymentsGate: { ok: false, reason: 'hold' },
     });
     const caseId2 = await kase(c1.id);
     const refused = await bid(a.auth, caseId2);
@@ -522,23 +576,79 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     });
   });
 
-  it('settings: read, change, bounds, stats; a support admin is refused', async () => {
+  it('«Запросить ещё», «Отклонить» and the bulk bar', async () => {
+    const admin = await adminSession(base, prisma, 'verifier');
+    const a = await attorney();
+    const asked = await api()
+      .post(`/api/v1/admin/trust/attorneys/${a.id}/request-documents`)
+      .set(admin.auth)
+      .send({ template: 'id_selfie', note: 'Please add a selfie with your ID' })
+      .expect(200);
+    expect(asked.body.data.documentsRequestedTemplate).toBe('id_selfie');
+    const me = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
+    expect(me.body.data.documentsRequested).toBe('id_selfie');
+    expect(me.body.data.nextSteps).toContain('documents');
+    expect(
+      await prisma.notification.count({
+        where: {
+          user_id: a.id,
+          type: 'verification_update',
+          payload: { path: ['kind'], equals: 'trust_documents_requested' },
+        },
+      }),
+    ).toBe(1);
+
+    const b = await attorney();
+    const c = await attorney({ registry: 'pass' });
+    const bulk = await api()
+      .post('/api/v1/admin/trust/bulk')
+      .set(admin.auth)
+      .send({
+        attorneyIds: [b.id, c.id, randomUUID()],
+        action: 'clear',
+        note: 'Checked both by phone',
+      })
+      .expect(200);
+    expect(bulk.body.data.done).toBe(2);
+    expect(bulk.body.data.failed).toHaveLength(1);
+    const cardB = await api()
+      .get(`/api/v1/admin/trust/attorneys/${b.id}`)
+      .set(admin.auth)
+      .expect(200);
+    expect(cardB.body.data).toMatchObject({
+      cleared: true,
+      clearedBy: 'staff',
+    });
+
+    const rejected = await api()
+      .post(`/api/v1/admin/trust/attorneys/${a.id}/reject`)
+      .set(admin.auth)
+      .send({ note: 'The ID belongs to somebody else' })
+      .expect(200);
+    expect(rejected.body.data.staffStatus).toBe('suspended');
+    expect(rejected.body.data.attorney.verificationStatus).toBe('suspended');
+  });
+
+  it("settings: the owner's switches, stats; a support admin is refused", async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
     const before = await api()
       .get('/api/v1/admin/trust/settings')
       .set(admin.auth)
       .expect(200);
     expect(before.body.data).toMatchObject({
-      minLevelBids: 0,
-      minLevelPayments: 2,
-      minLevelBadge: 2,
+      requireRegistry: true,
+      requireIdentity: true,
+      requireDocuments: false,
+      bidsRequireCleared: false,
       payoutDelayDays: 7,
       autoHoldOnComplaint: true,
       complaintsToSuspend: 2,
+      firmLinkAutoEmail: true,
     });
+    // Only the registry → a registry match alone clears and wears the badge.
     const next = {
       ...(before.body.data as Record<string, unknown>),
-      minLevelBadge: 1,
+      requireIdentity: false,
       payoutDelayDays: 14,
     };
     const saved = await api()
@@ -547,20 +657,24 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       .send(next)
       .expect(200);
     expect(saved.body.data).toMatchObject({
-      minLevelBadge: 1,
+      requireIdentity: false,
       payoutDelayDays: 14,
     });
-    // A level-1 attorney now wears the badge.
     const a = await attorney({ registry: 'pass' });
     const pub = await api()
       .get(`/api/v1/trust/attorneys/${a.id}`)
       .set((await client()).auth)
       .expect(200);
-    expect(pub.body.data).toMatchObject({ level: 1, badge: true });
+    expect(pub.body.data).toMatchObject({
+      level: 1,
+      cleared: true,
+      badge: true,
+      acceptsPayments: true,
+    });
     await api()
       .put('/api/v1/admin/trust/settings')
       .set(admin.auth)
-      .send({ ...next, minLevelBids: 7 })
+      .send({ ...next, payoutDelayDays: 99 })
       .expect(400);
     const stats = await api()
       .get('/api/v1/admin/trust/stats')
@@ -569,6 +683,8 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     expect(stats.body.data.byLevel).toEqual(
       expect.arrayContaining([expect.objectContaining({ level: 1 })]),
     );
+    expect(stats.body.data.cleared).toBeGreaterThanOrEqual(1);
+    expect(typeof stats.body.data.inQueue).toBe('number');
     const support = await adminSession(base, prisma, 'support');
     await api()
       .get('/api/v1/admin/trust/settings')

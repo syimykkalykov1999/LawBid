@@ -145,16 +145,23 @@ export const OWNER_SEAT_SETTINGS = {
 // happens automatically. A hold (complaint, name mismatch) closes the
 // payment / bid gates whatever the level.
 export const OWNER_TRUST_SETTINGS = {
-  /** Minimum level to place bids and chat (0 = everyone verified). */
-  'trust.min_level_bids': 0,
-  /** Minimum level to receive client money and send invoices. */
-  'trust.min_level_payments': 2,
-  /** Minimum level for the blue check in the app. */
-  'trust.min_level_badge': 2,
-  /** Stripe payout delay (days) asked for attorneys below
-   * `trust.payout_delay_until_level`; 0 = Stripe's default. */
+  /** Owner 2026-10-05 («Борьба с мошенниками»): what an attorney must pass
+   * before the badge and in-app payments open. Each is a switch; whatever
+   * can be checked automatically is, the rest lands in the staff queue, and
+   * a staff "Подтвердить" clears everything at once (no re-checks after). */
+  /** The bar number matched the state registry (or staff confirmed it). */
+  'trust.require_registry': true,
+  /** Stripe KYC passed and the legal name (or the company's representative /
+   * owner) is the attorney, or the firm link is confirmed. */
+  'trust.require_identity': true,
+  /** Staff checked a government ID + selfie + bar card. */
+  'trust.require_documents': false,
+  /** Bids too wait for the requirements (default: bids are open to every
+   * self-attested attorney, only money and the badge wait). */
+  'trust.bids_require_cleared': false,
+  /** Stripe payout delay (days) asked for attorneys not yet cleared; 0 =
+   * Stripe's default. */
   'trust.payout_delay_days': 7,
-  'trust.payout_delay_until_level': 3,
   /** A client's fraud / impersonation report → payments and new bids are
    * paused until a verifier looks. */
   'trust.auto_hold_on_complaint': true,

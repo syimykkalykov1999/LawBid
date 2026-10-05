@@ -15,6 +15,7 @@ class PublicTrustDto {
     required this.attorneyId,
     required this.level,
     required this.badge,
+    required this.cleared,
     required this.signals,
     required this.acceptsPayments,
     required this.canBid,
@@ -29,6 +30,9 @@ class PublicTrustDto {
 
   /// The blue check is shown.
   final bool badge;
+
+  /// Every requirement the owner switched on is met (or staff confirmed): the badge and payments are open.
+  final bool cleared;
   final TrustSignalsDto signals;
 
   /// Client money can be sent through LawBid to this attorney.

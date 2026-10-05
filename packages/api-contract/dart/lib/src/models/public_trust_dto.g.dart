@@ -11,6 +11,7 @@ PublicTrustDto _$PublicTrustDtoFromJson(Map<String, dynamic> json) =>
       attorneyId: json['attorneyId'] as String,
       level: (json['level'] as num).toInt(),
       badge: json['badge'] as bool,
+      cleared: json['cleared'] as bool,
       signals: TrustSignalsDto.fromJson(
         json['signals'] as Map<String, dynamic>,
       ),
@@ -26,6 +27,7 @@ Map<String, dynamic> _$PublicTrustDtoToJson(PublicTrustDto instance) =>
       'attorneyId': instance.attorneyId,
       'level': instance.level,
       'badge': instance.badge,
+      'cleared': instance.cleared,
       'signals': instance.signals.toJson(),
       'acceptsPayments': instance.acceptsPayments,
       'canBid': instance.canBid,

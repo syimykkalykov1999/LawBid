@@ -6,8 +6,8 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum TrustGateDtoReason {
-  @JsonValue('level')
-  level('level'),
+  @JsonValue('requirements')
+  requirements('requirements'),
   @JsonValue('hold')
   hold('hold'),
   @JsonValue('suspended')

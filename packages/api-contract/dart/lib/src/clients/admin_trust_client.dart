@@ -6,10 +6,15 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_trust_card_envelope.dart';
+import '../models/bulk_trust_dto.dart';
+import '../models/bulk_trust_result_envelope.dart';
+import '../models/document_request_dto.dart';
+import '../models/reason.dart';
 import '../models/recompute_all_result_envelope.dart';
 import '../models/trust_hold_dto.dart';
 import '../models/trust_hold_list_item_list_envelope.dart';
 import '../models/trust_note_dto.dart';
+import '../models/trust_queue_item_list_envelope.dart';
 import '../models/trust_settings_dto.dart';
 import '../models/trust_settings_envelope.dart';
 import '../models/trust_stats_envelope.dart';
@@ -20,13 +25,13 @@ part 'admin_trust_client.g.dart';
 abstract class AdminTrustClient {
   factory AdminTrustClient(Dio dio, {String? baseUrl}) = _AdminTrustClient;
 
-  /// Gate levels and automatic actions
+  /// What to require and the automatic actions
   @GET('/admin/trust/settings')
   Future<TrustSettingsEnvelope> getTrustSettings({
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Change gate levels and automatic actions
+  /// Change what to require and the automatic actions
   @PUT('/admin/trust/settings')
   Future<TrustSettingsEnvelope> updateTrustSettings({
     @Body() required TrustSettingsDto body,
@@ -81,6 +86,53 @@ abstract class AdminTrustClient {
   Future<AdminTrustCardEnvelope> confirmTrustFirmLink({
     @Path('attorneyId') required String attorneyId,
     @Body() required TrustNoteDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Staff queue: attorneys waiting for a person, oldest first
+  @GET('/admin/trust/queue')
+  Future<TrustQueueItemListEnvelope> trustQueue({
+    @Query('reason') Reason? reason,
+    @Query('q') String? q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Подтвердить: staff vouch; badge and payments open for good
+  @POST('/admin/trust/attorneys/{attorneyId}/clear')
+  Future<AdminTrustCardEnvelope> clearTrust({
+    @Path('attorneyId') required String attorneyId,
+    @Body() required TrustNoteDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Withdraw the staff clearance
+  @POST('/admin/trust/attorneys/{attorneyId}/unclear')
+  Future<AdminTrustCardEnvelope> unclearTrust({
+    @Path('attorneyId') required String attorneyId,
+    @Body() required TrustNoteDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Запросить ещё: ask for documents from a template
+  @POST('/admin/trust/attorneys/{attorneyId}/request-documents')
+  Future<AdminTrustCardEnvelope> requestTrustDocuments({
+    @Path('attorneyId') required String attorneyId,
+    @Body() required DocumentRequestDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Отклонить: suspend the account, withdraw bids
+  @POST('/admin/trust/attorneys/{attorneyId}/reject')
+  Future<AdminTrustCardEnvelope> rejectTrust({
+    @Path('attorneyId') required String attorneyId,
+    @Body() required TrustNoteDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Clear / request documents / reject / release many
+  @POST('/admin/trust/bulk')
+  Future<BulkTrustResultEnvelope> bulkTrust({
+    @Body() required BulkTrustDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

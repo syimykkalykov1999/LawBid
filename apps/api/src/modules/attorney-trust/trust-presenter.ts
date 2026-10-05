@@ -42,6 +42,7 @@ export function toPublicTrust(
     attorneyId: snap.attorneyId,
     level: snap.level,
     badge: snap.badge,
+    cleared: snap.cleared,
     signals: snap.signals,
     acceptsPayments: snap.gates.payments.ok,
     canBid: snap.gates.bids.ok,
@@ -49,24 +50,30 @@ export function toPublicTrust(
   };
 }
 
-/** What the attorney does to climb: in the order it makes sense. */
+/** What the attorney does next, in the order it makes sense: only what
+ * the owner's switches ask for, plus a hold under review. */
 export function nextSteps(snap: TrustSnapshot): string[] {
   const steps: string[] = [];
   const s = snap.signals;
   if (snap.holds.payments || snap.holds.bids) steps.push('hold_review');
-  if (!s.licenseConfirmed) steps.push('registry_check');
-  if (!s.stripeKyc) steps.push('stripe_kyc');
-  else if (!s.stripeIdentity) {
-    steps.push(
-      snap.firmLink.status === FIRM_LINK.pending ||
-        (snap.stripe.businessType && snap.stripe.businessType !== 'individual')
-        ? 'firm_link'
-        : s.nameCheck === NAME_CHECK.mismatch
-          ? 'fix_name'
-          : 'stripe_kyc',
-    );
+  if (snap.cleared) return steps;
+  if (snap.missing.includes('registry')) steps.push('registry_check');
+  if (snap.missing.includes('identity')) {
+    if (!s.stripeKyc) steps.push('stripe_kyc');
+    else {
+      steps.push(
+        snap.firmLink.status === FIRM_LINK.pending ||
+          (snap.stripe.businessType &&
+            snap.stripe.businessType !== 'individual')
+          ? 'firm_link'
+          : s.nameCheck === NAME_CHECK.mismatch
+            ? 'fix_name'
+            : 'stripe_kyc',
+      );
+    }
   }
-  if (!s.documentsVerified) steps.push('documents');
+  if (snap.missing.includes('documents') || snap.documentsRequestedAt)
+    steps.push('documents');
   return steps;
 }
 
@@ -87,7 +94,10 @@ export function toOwnTrust(
     ...toPublicTrust(snap, links),
     bidsGate: snap.gates.bids,
     paymentsGate: snap.gates.payments,
-    badgeLevel: snap.gates.badgeLevel,
+    requirements: snap.requirements,
+    missing: snap.missing,
+    staffStatus: snap.staffStatus,
+    documentsRequested: snap.documentsRequestedTemplate,
     payoutDelayDays: snap.payoutDelayDays,
     nextSteps: nextSteps(snap),
     firmLink: toFirmLink(snap),

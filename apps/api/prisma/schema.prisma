@@ -2784,6 +2784,16 @@ model AttorneyTrust {
   // The firm e-mail domain the attorney confirmed with a code.
   firm_email_domain      String?         @db.String(200)
   firm_email_verified_at DateTime?       @db.Timestamptz
+  // Staff clearance (owner 2026-10-05, «Борьба с мошенниками»): a verifier
+  // pressed «Подтвердить» after checking what the rules require; from then
+  // on the badge and payments stay open with no re-checks (only complaints
+  // and an explicit withdrawal close them).
+  staff_cleared_at       DateTime?       @db.Timestamptz
+  staff_cleared_by       String?         @db.Uuid
+  staff_cleared_note     String?         @db.String(500)
+  // «Запросить ещё»: the last request for more documents and its template.
+  documents_requested_at DateTime?       @db.Timestamptz
+  documents_requested_template String?   @db.String(32)
   // Holds -------------------------------------------------------------
   // A code (complaint | name_mismatch | duplicate_claim | admin | ...) or
   // null. While set, the gate is closed whatever the level.

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -13,7 +13,12 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import {
   AdminTrustCardDto,
+  BulkTrustDto,
+  BulkTrustResultDto,
+  DocumentRequestDto,
   RecomputeAllResultDto,
+  TrustQueueItemDto,
+  TrustQueueQueryDto,
   TrustAttorneyIdParamDto,
   TrustHoldDto,
   TrustHoldListItemDto,
@@ -43,7 +48,7 @@ export class AdminTrustController {
   constructor(private readonly admin: AdminTrustService) {}
 
   @Get('settings')
-  @ApiOperation({ summary: 'Gate levels and automatic actions' })
+  @ApiOperation({ summary: 'What to require and the automatic actions' })
   @ApiEnvelopeResponse(TrustSettingsDto)
   @ApiErrors({ 403: [E.FORBIDDEN] })
   getTrustSettings(): Promise<TrustSettingsDto> {
@@ -51,7 +56,7 @@ export class AdminTrustController {
   }
 
   @Put('settings')
-  @ApiOperation({ summary: 'Change gate levels and automatic actions' })
+  @ApiOperation({ summary: 'Change what to require and the automatic actions' })
   @ApiEnvelopeResponse(TrustSettingsDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
   updateTrustSettings(
@@ -138,6 +143,79 @@ export class AdminTrustController {
     @Body() dto: TrustNoteDto,
   ): Promise<AdminTrustCardDto> {
     return this.admin.confirmFirmLink(admin, p.attorneyId, dto.note ?? null);
+  }
+
+  @Get('queue')
+  @ApiOperation({
+    summary: 'Staff queue: attorneys waiting for a person, oldest first',
+  })
+  @ApiEnvelopeResponse(TrustQueueItemDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  trustQueue(@Query() q: TrustQueueQueryDto): Promise<TrustQueueItemDto[]> {
+    return this.admin.queue({ reason: q.reason ?? null, q: q.q ?? null });
+  }
+
+  @Post('attorneys/:attorneyId/clear')
+  @ApiOperation({
+    summary: 'Подтвердить: staff vouch; badge and payments open for good',
+  })
+  @ApiEnvelopeResponse(AdminTrustCardDto)
+  @ApiErrors(ERRORS)
+  clearTrust(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: TrustAttorneyIdParamDto,
+    @Body() dto: TrustNoteDto,
+  ): Promise<AdminTrustCardDto> {
+    return this.admin.clear(admin, p.attorneyId, dto.note ?? null);
+  }
+
+  @Post('attorneys/:attorneyId/unclear')
+  @ApiOperation({ summary: 'Withdraw the staff clearance' })
+  @ApiEnvelopeResponse(AdminTrustCardDto)
+  @ApiErrors(ERRORS)
+  unclearTrust(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: TrustAttorneyIdParamDto,
+    @Body() dto: TrustNoteDto,
+  ): Promise<AdminTrustCardDto> {
+    return this.admin.unclear(admin, p.attorneyId, dto.note ?? null);
+  }
+
+  @Post('attorneys/:attorneyId/request-documents')
+  @ApiOperation({ summary: 'Запросить ещё: ask for documents from a template' })
+  @ApiEnvelopeResponse(AdminTrustCardDto)
+  @ApiErrors(ERRORS)
+  requestTrustDocuments(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: TrustAttorneyIdParamDto,
+    @Body() dto: DocumentRequestDto,
+  ): Promise<AdminTrustCardDto> {
+    return this.admin.requestDocuments(admin, p.attorneyId, dto);
+  }
+
+  @Post('attorneys/:attorneyId/reject')
+  @ApiOperation({ summary: 'Отклонить: suspend the account, withdraw bids' })
+  @ApiEnvelopeResponse(AdminTrustCardDto)
+  @ApiErrors(ERRORS)
+  rejectTrust(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: TrustAttorneyIdParamDto,
+    @Body() dto: TrustNoteDto,
+  ): Promise<AdminTrustCardDto> {
+    return this.admin.reject(admin, p.attorneyId, dto.note ?? null);
+  }
+
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Clear / request documents / reject / release many',
+  })
+  @ApiEnvelopeResponse(BulkTrustResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  bulkTrust(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: BulkTrustDto,
+  ): Promise<BulkTrustResultDto> {
+    return this.admin.bulk(admin, dto);
   }
 
   @Post('attorneys/:attorneyId/hold')

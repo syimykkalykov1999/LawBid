@@ -1,8 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEmail,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -12,7 +16,17 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { TRUST_NOTE_MAX } from './attorney-trust.constants';
+import {
+  BULK_TRUST_ACTIONS,
+  DOCUMENT_REQUEST_TEMPLATES,
+  QUEUE_REASONS,
+  TRUST_NOTE_MAX,
+  type BulkTrustAction,
+  type DocumentRequestTemplate,
+} from './attorney-trust.constants';
+
+const REQUIREMENTS = ['registry', 'identity', 'documents'] as const;
+export type RequirementName = (typeof REQUIREMENTS)[number];
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -106,12 +120,16 @@ export class TrustGateDto {
   @ApiProperty({
     type: String,
     nullable: true,
-    enum: ['level', 'hold', 'suspended'],
+    enum: ['requirements', 'hold', 'suspended'],
   })
-  reason!: 'level' | 'hold' | 'suspended' | null;
+  reason!: 'requirements' | 'hold' | 'suspended' | null;
 
-  @ApiProperty({ type: 'integer', description: 'Level the gate needs.' })
-  required!: number;
+  @ApiProperty({
+    type: [String],
+    enum: REQUIREMENTS,
+    description: 'Enabled requirements the attorney has not met yet.',
+  })
+  missing!: RequirementName[];
 
   @ApiProperty({ type: 'integer' })
   current!: number;
@@ -154,6 +172,12 @@ export class PublicTrustDto {
   @ApiProperty({ description: 'The blue check is shown.' })
   badge!: boolean;
 
+  @ApiProperty({
+    description:
+      'Every requirement the owner switched on is met (or staff confirmed): the badge and payments are open.',
+  })
+  cleared!: boolean;
+
   @ApiProperty({ type: TrustSignalsDto })
   signals!: TrustSignalsDto;
 
@@ -172,6 +196,23 @@ export class PublicTrustDto {
   registryLinks!: RegistryLinkDto[];
 }
 
+export class TrustRequirementsDto {
+  @ApiProperty({ description: 'Bar number matched the state registry.' })
+  @IsBoolean()
+  registry!: boolean;
+
+  @ApiProperty({
+    description:
+      'Stripe KYC with the attorney as the verified person, or firm link.',
+  })
+  @IsBoolean()
+  identity!: boolean;
+
+  @ApiProperty({ description: 'Staff checked ID + selfie + bar card.' })
+  @IsBoolean()
+  documents!: boolean;
+}
+
 /** The attorney's own view: the public part plus what to do next. */
 export class OwnTrustDto extends PublicTrustDto {
   @ApiProperty({ type: TrustGateDto })
@@ -180,11 +221,29 @@ export class OwnTrustDto extends PublicTrustDto {
   @ApiProperty({ type: TrustGateDto })
   paymentsGate!: TrustGateDto;
 
+  @ApiProperty({ type: TrustRequirementsDto })
+  requirements!: TrustRequirementsDto;
+
   @ApiProperty({
-    type: 'integer',
-    description: 'Level needed for the blue check.',
+    type: [String],
+    enum: REQUIREMENTS,
+    description: 'Requirements still missing for the badge and payments.',
   })
-  badgeLevel!: number;
+  missing!: RequirementName[];
+
+  @ApiProperty({
+    type: String,
+    enum: ['self_declared', 'needs_staff', 'cleared', 'suspended'],
+  })
+  staffStatus!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: DOCUMENT_REQUEST_TEMPLATES,
+    description: 'Staff asked for more documents (template).',
+  })
+  documentsRequested!: string | null;
 
   @ApiProperty({
     type: 'integer',
@@ -295,6 +354,36 @@ export class AdminTrustCardDto {
   @ApiProperty({ type: TrustGateDto })
   paymentsGate!: TrustGateDto;
 
+  @ApiProperty()
+  cleared!: boolean;
+
+  @ApiProperty({ type: String, nullable: true, enum: ['auto', 'staff'] })
+  clearedBy!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  staffClearedAt!: string | null;
+
+  @ApiProperty({
+    type: String,
+    enum: ['self_declared', 'needs_staff', 'cleared', 'suspended'],
+  })
+  staffStatus!: string;
+
+  @ApiProperty({ type: [String], enum: QUEUE_REASONS })
+  queueReasons!: string[];
+
+  @ApiProperty({ type: [String], enum: REQUIREMENTS })
+  missing!: RequirementName[];
+
+  @ApiProperty({ type: TrustRequirementsDto })
+  requirements!: TrustRequirementsDto;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  documentsRequestedAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  documentsRequestedTemplate!: string | null;
+
   @ApiProperty({ type: String, nullable: true })
   stripeLegalName!: string | null;
 
@@ -395,38 +484,158 @@ export class TrustStatsDto {
     description: 'Complaints in the last 30 days.',
   })
   complaints30d!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Attorneys cleared (badge and payments open).',
+  })
+  cleared!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Waiting for a person in the staff queue.',
+  })
+  inQueue!: number;
+}
+
+/** One row of the staff queue («Борьба с мошенниками»). */
+export class TrustQueueItemDto {
+  @ApiProperty({ type: AdminTrustAttorneyDto })
+  attorney!: AdminTrustAttorneyDto;
+
+  @ApiProperty({ type: 'integer' })
+  level!: number;
+
+  @ApiProperty({ type: [String], enum: QUEUE_REASONS })
+  reasons!: string[];
+
+  @ApiProperty({ type: [String], enum: REQUIREMENTS })
+  missing!: RequirementName[];
+
+  @ApiProperty({ type: TrustSignalsDto })
+  signals!: TrustSignalsDto;
+
+  @ApiProperty({ type: TrustHoldsDto })
+  holds!: TrustHoldsDto;
+
+  @ApiProperty({ type: String, nullable: true })
+  stripeBusinessType!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  stripeRepresentative!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  stripeCompanyName!: string | null;
+
+  @ApiProperty({ type: [RegistryLinkDto] })
+  registryLinks!: RegistryLinkDto[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description: 'Open the documents on this verification request.',
+  })
+  requestId!: string | null;
+
+  @ApiProperty({ type: 'integer', description: 'Documents on that request.' })
+  documentsCount!: number;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  documentsRequestedAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  waitingSince!: string | null;
+}
+
+export class TrustQueueQueryDto {
+  @ApiPropertyOptional({ enum: QUEUE_REASONS })
+  @IsOptional()
+  @IsIn([...QUEUE_REASONS])
+  reason?: string;
+
+  @ApiPropertyOptional({ maxLength: 80 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+}
+
+export class DocumentRequestDto {
+  @ApiProperty({ enum: DOCUMENT_REQUEST_TEMPLATES })
+  @IsIn([...DOCUMENT_REQUEST_TEMPLATES])
+  template!: DocumentRequestTemplate;
+
+  @ApiPropertyOptional({ maxLength: TRUST_NOTE_MAX })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(TRUST_NOTE_MAX)
+  note?: string;
+}
+
+export class BulkTrustDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 100 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  attorneyIds!: string[];
+
+  @ApiProperty({ enum: BULK_TRUST_ACTIONS })
+  @IsIn([...BULK_TRUST_ACTIONS])
+  action!: BulkTrustAction;
+
+  @ApiPropertyOptional({ enum: DOCUMENT_REQUEST_TEMPLATES })
+  @IsOptional()
+  @IsIn([...DOCUMENT_REQUEST_TEMPLATES])
+  template?: DocumentRequestTemplate;
+
+  @ApiPropertyOptional({ maxLength: TRUST_NOTE_MAX })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(TRUST_NOTE_MAX)
+  note?: string;
+}
+
+export class BulkTrustResultDto {
+  @ApiProperty({ type: 'integer' })
+  done!: number;
+
+  @ApiProperty({ type: [String], format: 'uuid' })
+  failed!: string[];
 }
 
 export class TrustSettingsDto {
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 3 })
-  @IsInt()
-  @Min(0)
-  @Max(3)
-  minLevelBids!: number;
+  @ApiProperty({
+    description:
+      'Require the bar number to match the state registry (or staff).',
+  })
+  @IsBoolean()
+  requireRegistry!: boolean;
 
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 3 })
-  @IsInt()
-  @Min(0)
-  @Max(3)
-  minLevelPayments!: number;
+  @ApiProperty({
+    description:
+      'Require Stripe KYC with the attorney as the verified person (or a firm link).',
+  })
+  @IsBoolean()
+  requireIdentity!: boolean;
 
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 3 })
-  @IsInt()
-  @Min(0)
-  @Max(3)
-  minLevelBadge!: number;
+  @ApiProperty({ description: 'Require staff-checked ID + selfie + bar card.' })
+  @IsBoolean()
+  requireDocuments!: boolean;
+
+  @ApiProperty({ description: 'Bids too wait until the attorney is cleared.' })
+  @IsBoolean()
+  bidsRequireCleared!: boolean;
 
   @ApiProperty({ type: 'integer', minimum: 0, maximum: 30 })
   @IsInt()
   @Min(0)
   @Max(30)
   payoutDelayDays!: number;
-
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 3 })
-  @IsInt()
-  @Min(0)
-  @Max(3)
-  payoutDelayUntilLevel!: number;
 
   @ApiProperty()
   @IsBoolean()
@@ -451,6 +660,20 @@ export class TrustSettingsDto {
   @ApiProperty()
   @IsBoolean()
   flagDuplicateClaims!: boolean;
+
+  @ApiProperty({
+    description:
+      'Firm link counts when the registry firm equals the Stripe company.',
+  })
+  @IsBoolean()
+  firmLinkAutoRegistry!: boolean;
+
+  @ApiProperty({
+    description:
+      'Firm link counts after a code to an e-mail on the firm domain.',
+  })
+  @IsBoolean()
+  firmLinkAutoEmail!: boolean;
 }
 
 export class TrustNoteDto {
