@@ -61,6 +61,9 @@ export const CRON_JOBS = {
   taskReminders: 'tasks.reminders',
   /** Owner 2026-10-05: archived tasks past the retention → removed. */
   taskArchivePurge: 'tasks.archive-purge',
+  /** Owner 2026-10-05: partner commissions past their hold → approved,
+   * monthly base accrued. */
+  partnersSweep: 'partners.sweep',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -110,6 +113,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.taskReminders, pattern: '* * * * *' },
   // 16:20 UTC: notices arrive in the US daytime.
   { name: CRON_JOBS.taskArchivePurge, pattern: '20 16 * * *' },
+  { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

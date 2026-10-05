@@ -76,6 +76,7 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   subscriptions: 'money',
   promotions: 'money',
   referrals: 'money',
+  partners: 'money',
   integrations: 'keys',
   admins: 'admins',
   'audit-log': 'audit',

@@ -55,6 +55,9 @@ export const NOTIFICATION_CATEGORY: Record<
   task_purge_soon: 'system',
   admin_broadcast: 'system',
   referral_reward: 'system',
+  // Owner 2026-10-05: partner program.
+  partner_commission: 'system',
+  partner_payout: 'system',
   promotion_started: 'cases',
   promotion_ended: 'cases',
   new_case: 'new_cases',

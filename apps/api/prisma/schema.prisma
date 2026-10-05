@@ -460,6 +460,9 @@ enum NotificationType {
   referral_reward
   promotion_started
   promotion_ended
+  // Owner 2026-10-05: partner program — a commission accrued / paid out.
+  partner_commission
+  partner_payout
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
   // Owner 2026-10-05: a client offered their case to the attorney / the
@@ -3003,6 +3006,76 @@ model Referral {
   @@index([referrer_id, created_at(sort: Desc)])
   @@index([status, created_at])
   @@map("referrals")
+}
+
+// Owner 2026-10-05: partner (affiliate) program. A partner is a user the
+// admin pays per referred attorney who buys a subscription and per
+// referred client who hires (plus an optional monthly base). Attribution
+// reuses referral_codes / referrals; this is the pay side.
+model Partner {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @unique @db.Uuid
+  // active | paused | ended
+  status              String    @default("active") @db.String(16)
+  // How the admin calls them ("blogger Ivan"); admin only.
+  label               String?   @db.String(120)
+  note                String?   @db.String(1000)
+  // null = program default (app_config partners.program).
+  attorney_rate_cents Int?
+  client_rate_cents   Int?
+  monthly_base_cents  Int       @default(0)
+  // null = program default; case_published | bid_accepted
+  client_rule         String?   @db.String(24)
+  hold_days           Int?      @db.Int2
+  created_by          String?   @db.Uuid
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+  ended_at            DateTime? @db.Timestamptz
+
+  commissions PartnerCommission[]
+
+  @@index([status, created_at])
+  @@map("partners")
+}
+
+// One accrual (or payout adjustment) of a partner. `event_ref` makes an
+// accrual idempotent per qualifying event. held → approved (after the
+// anti-fraud hold or by an admin) → paid; reversed on refund / rejection.
+model PartnerCommission {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partner_id       String    @db.Uuid
+  partner          Partner   @relation(fields: [partner_id], references: [id], onDelete: Cascade)
+  partner_user_id  String    @db.Uuid
+  referral_id      String?   @db.Uuid
+  referred_user_id String?   @db.Uuid
+  // attorney_subscription | client_qualified | monthly_base | adjustment
+  kind             String    @db.String(32)
+  // Negative for a reversal of an already paid commission.
+  amount_cents     Int
+  // held | approved | paid | reversed
+  status           String    @default("held") @db.String(16)
+  // "referral:<id>:attorney_subscription", "base:<partnerId>:2026-10", ...
+  event_ref        String    @unique @db.String(120)
+  // Payroll period YYYY-MM the accrual belongs to.
+  period           String    @db.String(7)
+  // null while held = manual hold (released only by an admin).
+  hold_until       DateTime? @db.Timestamptz
+  approved_at      DateTime? @db.Timestamptz
+  approved_by      String?   @db.Uuid
+  paid_at          DateTime? @db.Timestamptz
+  paid_by          String?   @db.Uuid
+  payout_ref       String?   @db.String(120)
+  reversed_at      DateTime? @db.Timestamptz
+  reversed_reason  String?   @db.String(300)
+  note             String?   @db.String(300)
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@index([partner_id, created_at(sort: Desc)])
+  @@index([status, hold_until])
+  @@index([referred_user_id])
+  @@index([period, status])
+  @@map("partner_commissions")
 }
 
 // Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.

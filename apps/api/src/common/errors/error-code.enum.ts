@@ -334,6 +334,9 @@ export enum ErrorCode {
   REFERRAL_NOT_ALLOWED = 'REFERRAL_NOT_ALLOWED',
   // 409: admin action not valid for the referral's current status.
   REFERRAL_INVALID_STATE = 'REFERRAL_INVALID_STATE',
+  // Owner 2026-10-05 partner program — 409: already a partner, nothing to
+  // pay, commission not in a state the action allows.
+  PARTNER_INVALID_STATE = 'PARTNER_INVALID_STATE',
   // Owner 2026-10-02 case promotion — 409: the case already has one.
   PROMOTION_ALREADY_ACTIVE = 'PROMOTION_ALREADY_ACTIVE',
   // 409: promotion action not valid for its current status.
