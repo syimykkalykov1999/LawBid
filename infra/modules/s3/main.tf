@@ -108,6 +108,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
     noncurrent_version_expiration { noncurrent_days = 90 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
+  # Owner 2026-10-05 (storage like Telegram): case files, chat documents
+  # and voice notes are read in the first weeks and rarely after. Same as
+  # media: Intelligent-Tiering moves each one to a cheaper tier after 30 /
+  # 90 days without reads and back on the next read (no retrieval fee, no
+  # minimum duration). Files under 128 KB stay in Standard.
+  rule {
+    id     = "intelligent-tiering"
+    status = "Enabled"
+    filter { object_size_greater_than = 131072 }
+    transition {
+      days          = 0
+      storage_class = "INTELLIGENT_TIERING"
+    }
+  }
 }
 
 data "aws_iam_policy_document" "replication_assume" {

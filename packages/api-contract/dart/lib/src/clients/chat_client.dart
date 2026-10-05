@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/chat_folder_counts_envelope.dart';
+import '../models/chat_storage_envelope.dart';
 import '../models/conversation_envelope.dart';
 import '../models/conversation_folder.dart';
 import '../models/conversation_list_envelope.dart';
@@ -104,6 +105,13 @@ abstract class ChatClient {
   Future<MessageEnvelope> sendMessage({
     @Path('id') required String id,
     @Body() required SendMessageDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Files in this chat: how many of each kind, bytes, the cap
+  @GET('/conversations/{id}/storage')
+  Future<ChatStorageEnvelope> getConversationStorage({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

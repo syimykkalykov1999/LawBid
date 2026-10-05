@@ -48,7 +48,12 @@ export class FilesController {
   })
   @ApiEnvelopeResponse(PresignedFileDto, { status: HttpStatus.CREATED })
   @ApiErrors({
-    400: [E.VALIDATION_ERROR, E.FILE_TYPE_NOT_ALLOWED, E.FILE_TOO_LARGE],
+    400: [
+      E.VALIDATION_ERROR,
+      E.FILE_TYPE_NOT_ALLOWED,
+      E.FILE_TOO_LARGE,
+      E.STORAGE_QUOTA_EXCEEDED,
+    ],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
     429: [E.RATE_LIMITED],
     503: [E.PROVIDER_BUDGET_EXCEEDED, E.FILE_STORAGE_UNAVAILABLE],

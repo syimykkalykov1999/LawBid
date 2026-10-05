@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { S3StorageService } from '../../modules/files/storage/s3-storage.service';
+import { FileReleaseService } from '../../modules/files/storage/file-release.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -95,7 +95,7 @@ export class TaskArchivePurgeJob {
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
     private readonly notifications: NotificationsService,
-    private readonly storage: S3StorageService,
+    private readonly release: FileReleaseService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(TaskArchivePurgeJob.name);
@@ -200,26 +200,9 @@ export class TaskArchivePurgeJob {
     const kept = new Set(still.flatMap((r) => r.file_ids));
     const gone = unique.filter((id) => !kept.has(id));
     if (gone.length === 0) return 0;
-    const files = await this.prisma.file.findMany({
-      where: { id: { in: gone }, deleted_at: null },
-      select: { id: true, s3_bucket: true, s3_key: true },
-    });
-    if (this.storage.configured) {
-      const byBucket = new Map<string, string[]>();
-      for (const f of files) {
-        byBucket.set(f.s3_bucket, [
-          ...(byBucket.get(f.s3_bucket) ?? []),
-          f.s3_key,
-        ]);
-      }
-      for (const [bucket, keys] of byBucket) {
-        await this.storage.remove(bucket, keys);
-      }
-    }
-    await this.prisma.file.updateMany({
-      where: { id: { in: files.map((f) => f.id) } },
-      data: { deleted_at: now },
-    });
-    return files.length;
+    // Owner 2026-10-05: through the release service — a file shared with
+    // another upload (deduplicated) stays for it, previews go too.
+    const { released } = await this.release.release(gone, 'task_purged', now);
+    return released;
   }
 }

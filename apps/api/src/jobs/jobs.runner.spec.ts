@@ -219,7 +219,9 @@ describe('JobsRunner', () => {
     // hourly ops.cost-check and ops.backup-check.
     // Owner 2026-10-05: + hourly demo.sweep (demo accounts past their TTL).
     // + nightly fraud.sweep (repeat accounts).
-    expect(upserts).toHaveLength(40);
+    // + hourly storage.gc, nightly storage.retention and storage.snapshot
+    // (storage like Telegram).
+    expect(upserts).toHaveLength(43);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

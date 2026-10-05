@@ -87,6 +87,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   countries: 'localization',
   'feature-flags': 'settings',
   config: 'settings',
+  // Owner 2026-10-05: Система → Хранилище.
+  storage: 'settings',
   'legal-documents': 'legal',
   'data-requests': 'data_requests',
   teams: 'teams',
