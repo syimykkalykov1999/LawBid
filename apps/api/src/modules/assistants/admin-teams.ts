@@ -5,6 +5,7 @@ import {
   Get,
   Injectable,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   Post,
@@ -33,6 +34,8 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { maxAssistantSeats } from '../billing/seat-limit';
 import {
   AdminEndpoint,
   CurrentAdmin,
@@ -122,6 +125,7 @@ export class AdminTeamsService {
     private readonly prisma: PrismaService,
     private readonly context: AssistantContextService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async list(q?: string): Promise<AdminTeamRowDto[]> {
@@ -317,7 +321,10 @@ export class AdminTeamsService {
       username: u.attorney_profile?.username ?? null,
       plan: sub?.plan ?? 'none',
       // Owner 2026-10-02: max(paid seats, contract grant seats).
-      seats: effectiveSeats(paidSeats(sub), grant?.assistant_seats ?? null),
+      seats: effectiveSeats(
+        paidSeats(sub, await maxAssistantSeats(this.settings)),
+        grant?.assistant_seats ?? null,
+      ),
       active: count('active'),
       invited: count('invited'),
       pendingRequests: pending,

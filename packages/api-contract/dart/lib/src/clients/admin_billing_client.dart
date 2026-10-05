@@ -56,7 +56,7 @@ abstract class AdminBillingClient {
   ///
   /// [trialEndsWithinDays] - Trial ends within N days (trialing only).
   ///
-  /// [seats] - Paid assistant seats: none (0), some (1-5), full (6).
+  /// [seats] - Paid assistant seats: none (0), some, full (the admin seat limit or the yearly plan).
   ///
   /// [cancelAtPeriodEnd] - Only (not) set to cancel at period end.
   ///

@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { maxAssistantSeats } from '../billing/seat-limit';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -53,7 +55,10 @@ export function computeMrrCents(
 /** Owner 2026-10-02: the admin's billing dashboard and subscriptions list. */
 @Injectable()
 export class BillingOverviewService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly settings?: AppSettingsService,
+  ) {}
 
   async overview(): Promise<BillingOverviewDto> {
     const now = new Date();
@@ -126,6 +131,7 @@ export class BillingOverviewService {
     q: AdminBillingSubscriptionsQueryDto,
   ): Promise<Page<AdminBillingSubscriptionRowDto>> {
     const now = new Date();
+    const maxSeats = await maxAssistantSeats(this.settings);
     const activeGrantWhere: Prisma.ContractGrantWhereInput = {
       revoked_at: null,
       starts_at: { lte: now },
@@ -168,8 +174,20 @@ export class BillingOverviewService {
               }
             : {},
           q.seats === 'none' ? { assistant_seats: 0 } : {},
-          q.seats === 'some' ? { assistant_seats: { gte: 1, lte: 5 } } : {},
-          q.seats === 'full' ? { assistant_seats: { gte: 6 } } : {},
+          q.seats === 'some'
+            ? {
+                plan: 'monthly',
+                assistant_seats: { gte: 1, lt: maxSeats },
+              }
+            : {},
+          q.seats === 'full'
+            ? {
+                OR: [
+                  { plan: 'yearly' },
+                  { assistant_seats: { gte: maxSeats } },
+                ],
+              }
+            : {},
           q.cancelAtPeriodEnd !== undefined
             ? { cancel_at_period_end: q.cancelAtPeriodEnd }
             : {},
@@ -246,7 +264,7 @@ export class BillingOverviewService {
         plan: s.plan,
         assistantSeats: s.assistant_seats,
         effectiveSeats: effectiveSeats(
-          paidSeats(s),
+          paidSeats(s, maxSeats),
           grant?.assistantSeats ?? null,
         ),
         priceCents: s.price_cents,

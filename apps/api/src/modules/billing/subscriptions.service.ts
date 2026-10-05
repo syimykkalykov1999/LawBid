@@ -28,7 +28,7 @@ import {
   TRIAL_DAYS,
   TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
-  MAX_ASSISTANT_SEATS,
+  SEATS_HARD_CAP,
 } from './billing.constants';
 import { type PlanAmounts, PricingService } from './pricing.service';
 import { DEFAULT_DUTIES } from '../assistants/assistant-duties';
@@ -125,8 +125,9 @@ export class SubscriptionsService {
     const attorney = await this.verifiedAttorney(user);
     const priceId = await this.assertConfigured();
     const plan = req.plan ?? 'monthly';
-    const seats =
-      plan === 'yearly' ? MAX_ASSISTANT_SEATS : (req.assistantSeats ?? 0);
+    const maxSeats = await this.pricing.maxSeats();
+    const seats = plan === 'yearly' ? maxSeats : (req.assistantSeats ?? 0);
+    assertSeatsWithin(seats, maxSeats);
     const phones = [...new Set(req.assistantPhones ?? [])];
     if (phones.length > seats) {
       throw new BadRequestException({
@@ -307,7 +308,7 @@ export class SubscriptionsService {
     const trialing = remote.status === 'trialing';
     const plan = session.metadata.plan === 'yearly' ? 'yearly' : 'monthly';
     const seats = Math.min(
-      MAX_ASSISTANT_SEATS,
+      SEATS_HARD_CAP,
       Math.max(0, Number(session.metadata.seats ?? 0) || 0),
     );
     const quoted = Number(session.metadata.priceCents);
@@ -463,7 +464,7 @@ export class SubscriptionsService {
       where: { id: row.id },
       data: {
         plan: 'yearly',
-        assistant_seats: MAX_ASSISTANT_SEATS,
+        assistant_seats: await this.pricing.maxSeats(),
         price_cents: await this.pricing.amount('yearly'),
       },
     });
@@ -489,9 +490,10 @@ export class SubscriptionsService {
     if (row.plan === 'yearly') {
       throw new ConflictException({
         code: ErrorCode.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
-        message: 'The yearly plan already includes 6 assistants.',
+        message: 'The yearly plan already includes every assistant seat.',
       });
     }
+    assertSeatsWithin(seats, await this.pricing.maxSeats());
     const live = await this.prisma.assistantMembership.count({
       where: { attorney_id: user.sub, status: { not: 'removed' } },
     });
@@ -641,7 +643,7 @@ export class SubscriptionsService {
         monthlyCents: amounts.monthly,
         seatCents: amounts.seat,
         yearlyCents: amounts.yearly,
-        maxSeats: MAX_ASSISTANT_SEATS,
+        maxSeats: await this.pricing.maxSeats(),
       },
     };
   }
@@ -888,4 +890,15 @@ export function presentPayment(p: Payment): PaymentDto {
     failureCode: p.failure_code,
     createdAt: p.created_at.toISOString(),
   };
+}
+
+/** Owner 2026-10-05: at most the admin's seat limit. */
+function assertSeatsWithin(seats: number, maxSeats: number): void {
+  if (seats > maxSeats) {
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `At most ${maxSeats} assistant seats.`,
+      details: { field: 'assistantSeats', max: maxSeats },
+    });
+  }
 }

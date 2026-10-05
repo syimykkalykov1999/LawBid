@@ -29078,7 +29078,7 @@
             "name": "seats",
             "required": false,
             "in": "query",
-            "description": "Paid assistant seats: none (0), some (1-5), full (6).",
+            "description": "Paid assistant seats: none (0), some, full (the admin seat limit or the yearly plan).",
             "schema": {
               "type": "string",
               "enum": [
@@ -52779,7 +52779,7 @@
           "assistantSeats": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 6,
+            "maximum": 50,
             "default": 0
           },
           "assistantPhones": {
@@ -53003,7 +53003,7 @@
           "seats": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 6
+            "maximum": 50
           }
         },
         "required": [
@@ -61398,7 +61398,7 @@
           "assistantSeats": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 6,
+            "maximum": 50,
             "default": 0
           },
           "startsAt": {

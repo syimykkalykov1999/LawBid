@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { AssistantMembership, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -12,6 +13,8 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { maxAssistantSeats } from '../billing/seat-limit';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { AssistantCodeService } from '../auth/assistant/assistant-code.service';
@@ -64,7 +67,8 @@ type MemberNames = {
 
 /**
  * Owner 2026-09-30 (OQ-048): attorney assistants.
- * - Seats come from the subscription (monthly: bought seats; yearly: 6).
+ * - Seats come from the subscription (monthly: bought seats; yearly: the
+ *   admin's seat limit `billing.max_assistant_seats`).
  * - Joining (owner 2026-10-04, no SMS): every seat the attorney adds gets
  *   a one-time code (join-code.ts) shown in Team / Subscription; the
  *   assistant signs in with it (POST /auth/assistant/code). "New code"
@@ -87,6 +91,7 @@ export class AssistantsService {
     private readonly caseComments: CaseCommentsService,
     private readonly profiles: AttorneyProfilesService,
     private readonly files: FilesService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   // --- the assistant themself ------------------------------------------
@@ -222,7 +227,7 @@ export class AssistantsService {
     // Owner 2026-10-02: a contract grant may carry its own seats.
     const grant = await findActiveGrant(this.prisma, attorneyId);
     const seats = effectiveSeats(
-      paidSeats(sub),
+      paidSeats(sub, await maxAssistantSeats(this.settings)),
       grant?.assistant_seats ?? null,
     );
     return { seats, used, plan: sub?.plan ?? null };

@@ -178,7 +178,7 @@ void main() {
       expect(find.byKey(const ValueKey('code-send-m1')), findsWidgets);
     });
 
-    testWidgets('yearly: all six seats, the year total', (tester) async {
+    testWidgets('yearly: every seat, the year total', (tester) async {
       repo.onComplete = () => makeOverview(
             subscription: makeInfo(
               status: SubscriptionStatus.active,
@@ -191,7 +191,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('plan-yearly')));
       await tester.pump();
-      expect(find.text('All 6 seats included'), findsOneWidget);
+      expect(find.text('All seats included'), findsOneWidget);
       expect(find.textContaining(r'$9,590'), findsWidgets);
       await tester.ensureVisible(find.byKey(const ValueKey('subscribe-cta')));
       await tester.pump();
@@ -199,7 +199,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       await tester.pump();
-      expect(repo.calls, contains('checkout:yearly:6:'));
+      expect(repo.calls, contains('checkout:yearly:10:'));
       expect(find.text('Subscription active'), findsOneWidget);
       // "Active" sits on the Prime card, with the team inside it.
       expect(find.text('Active'), findsWidgets);

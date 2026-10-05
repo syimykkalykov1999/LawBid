@@ -26,7 +26,7 @@ type Kind = Item['kind'];
 const KIND: Record<Kind, { title: string; who: string; per: string }> = {
   monthly: { title: 'Адвокат · месяц', who: 'Месячная подписка адвоката', per: '/мес' },
   seat: { title: 'Место помощника', who: 'За каждого помощника на месячном тарифе', per: '/мес' },
-  yearly: { title: 'Prime · год', who: 'Годовой тариф с 6 помощниками', per: '/год' },
+  yearly: { title: 'Prime · год', who: 'Годовой тариф со всеми местами помощников', per: '/год' },
   client_badge: { title: 'Галочка клиента', who: 'Золотая галочка подтверждённого клиента', per: '/мес' },
 };
 
@@ -78,6 +78,7 @@ export default function PricesPage() {
               <PriceCard key={it.kind} it={it} i={i} canWrite={canWrite} onEdit={() => setEditing(it)} />
             ))}
           </div>
+          <SeatLimitCard canWrite={canWrite} />
           <History data={data} />
         </>
       )}
@@ -204,6 +205,63 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
         </div>
       </form>
     </Dialog>
+  );
+}
+
+const SEAT_KEY = 'billing.max_assistant_seats';
+
+/** Owner 2026-10-05: how many assistants an attorney may add. */
+function SeatLimitCard({ canWrite }: { canWrite: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const q = useQuery({
+    queryKey: ['config'],
+    queryFn: async () => (await api.GET('/admin/config')).data!.data,
+  });
+  const entry = q.data?.find((e) => e.key === SEAT_KEY);
+  const current = typeof entry?.value === 'number' ? entry.value : null;
+  const max = entry?.max ?? 50;
+  const [draft, setDraft] = useState<string | null>(null);
+  const value = draft ?? (current != null ? String(current) : '');
+  const n = Number(value);
+  const ok = Number.isInteger(n) && n >= 1 && n <= max && n !== current;
+  const save = useMutation({
+    mutationFn: () => api.PUT('/admin/config/{key}', { params: { path: { key: SEAT_KEY } }, body: { value: n } as never }),
+    onSuccess: () => {
+      toast.success(`Лимит помощников: ${n}`);
+      setDraft(null);
+      void qc.invalidateQueries({ queryKey: ['config'] });
+    },
+    onError: (e) => toast.error(e),
+  });
+  if (!entry) return null;
+  return (
+    <Card className="mt-4 flex flex-wrap items-end justify-between gap-4 p-5">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-sm font-medium text-heading">
+          <UsersThree size={16} /> Сколько помощников может добавить адвокат
+        </div>
+        <div className="mt-0.5 text-xs text-muted">
+          На месячном тарифе это предел мест, которые можно докупить; годовой Prime включает все места. Уже добавленные помощники остаются.
+        </div>
+      </div>
+      <form
+        className="flex items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (ok) save.mutate();
+        }}
+      >
+        <Field label="Мест" htmlFor="seat-limit" hint={`от 1 до ${max}`}>
+          <Input id="seat-limit" inputMode="numeric" className="w-24 text-lg" value={value} disabled={!canWrite} onChange={(e) => setDraft(e.target.value)} />
+        </Field>
+        {canWrite ? (
+          <Button type="submit" variant="gold" loading={save.isPending} disabled={!ok || save.isPending}>
+            Сохранить
+          </Button>
+        ) : null}
+      </form>
+    </Card>
   );
 }
 

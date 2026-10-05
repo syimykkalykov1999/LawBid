@@ -120,6 +120,12 @@ export const OWNER_INVITE_SETTINGS = {
   'invites.max_per_day': 30,
 } as const;
 
+// Owner 2026-10-05: how many assistants an attorney may add, set in the
+// admin (was a fixed 6). The yearly plan covers this many seats.
+export const OWNER_SEAT_SETTINGS = {
+  'billing.max_assistant_seats': 10,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -131,6 +137,7 @@ export const APP_SETTINGS = {
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
+  ...OWNER_SEAT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

@@ -7,7 +7,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { Public } from '../auth/decorators/public.decorator';
 import { SkipVersionCheck } from '../feature-flags/decorators/skip-version-check.decorator';
-import { MAX_ASSISTANT_SEATS, TRIAL_DAYS } from './billing.constants';
+import { TRIAL_DAYS } from './billing.constants';
 import { PricingService } from './pricing.service';
 
 /** Owner 2026-10-03: today's prices, as set in the admin. */
@@ -46,7 +46,7 @@ export class PricingController {
       monthlyCents: a.monthly,
       seatCents: a.seat,
       yearlyCents: a.yearly,
-      maxSeats: MAX_ASSISTANT_SEATS,
+      maxSeats: await this.pricing.maxSeats(),
       trialDays: TRIAL_DAYS,
       clientBadgeCents: a.client_badge,
     };
