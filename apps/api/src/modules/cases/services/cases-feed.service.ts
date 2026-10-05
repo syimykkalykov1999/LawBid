@@ -29,9 +29,17 @@ import {
   buildVisibleCasesSql,
 } from '../queries/cases-visible.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
+import { clientsWithEntitlementSql } from '../../plans/entitlements.service';
 
 /** Owner 2026-10-02: promoted cases on top of the first feed page. */
 const PROMOTED_FEED_SLOTS = 3;
+/** Owner 2026-10-05 (plan builder): cases of clients whose plan includes
+ * "cases shown first" come right after the promoted ones on page one. */
+const PRIORITY_FEED_SLOTS = 5;
+const PRIORITY_CLIENT_SQL = clientsWithEntitlementSql(
+  'priority_feed',
+  Prisma.sql`c.client_id`,
+);
 
 type CaseWithPracticeArea = Case & {
   practice_area: PracticeArea & { parent: PracticeArea | null };
@@ -148,9 +156,22 @@ export class CasesFeedService {
           )
         ).map((r) => r.id)
       : [];
+    // Owner 2026-10-05: then the newest cases of clients on a plan with
+    // "cases shown first" — same filters, same keyset exclusion.
+    const priority = cursor
+      ? []
+      : (
+          await run(
+            Prisma.sql`${extra} AND ${PRIORITY_CLIENT_SQL}
+              ${slot.length ? Prisma.sql`AND c.id <> ALL(${slot}::UUID[])` : Prisma.empty}`,
+            undefined,
+            PRIORITY_FEED_SLOTS,
+          )
+        ).map((r) => r.id);
+    const onTop = [...slot, ...priority];
     const rows = await run(
-      slot.length
-        ? Prisma.sql`${extra} AND c.id <> ALL(${slot}::UUID[])`
+      onTop.length
+        ? Prisma.sql`${extra} AND c.id <> ALL(${onTop}::UUID[])`
         : extra,
       cursor,
       limit + 1,
@@ -158,7 +179,7 @@ export class CasesFeedService {
     const page = rows.slice(0, limit);
     const shownPromoted = cursor ? [] : slot;
     const items = await this.hydrate(
-      [...shownPromoted, ...page.map((r) => r.id)],
+      [...shownPromoted, ...priority, ...page.map((r) => r.id)],
       viewer.userId,
     );
     if (shownPromoted.length) this.countImpressions(shownPromoted);
@@ -227,6 +248,7 @@ export class CasesFeedService {
       ...media,
       inMyPractice: access.inPractice,
       bidAllowed: access.kind !== 'attorney_browser',
+      priorityClient: item.priorityClient,
     };
   }
 
@@ -323,6 +345,9 @@ export class CasesFeedService {
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
     const promoted = new Set(await this.activePromotedCaseIds(ids));
+    const priorityClients = await this.priorityClientIds(
+      rows.map((r) => r.client_id),
+    );
     const byId = new Map(rows.map((r) => [r.id, r]));
     const now = Date.now();
     const items: CaseFeedItemDto[] = [];
@@ -371,9 +396,26 @@ export class CasesFeedService {
         isSaved: savedIds.has(c.id),
         shareCount: Math.max(0, c.share_count + (pendingShares.get(c.id) ?? 0)),
         promoted: promoted.has(c.id),
+        priorityClient: priorityClients.has(c.client_id),
       });
     }
     return items;
+  }
+
+  /** Owner 2026-10-05: which of these clients are on a plan with "cases
+   * shown first". Best effort: an empty set on any error. */
+  private async priorityClientIds(clientIds: string[]): Promise<Set<string>> {
+    const ids = [...new Set(clientIds)];
+    if (ids.length === 0) return new Set();
+    try {
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT u.id FROM users u
+        WHERE u.id = ANY(${ids}::UUID[])
+          AND ${clientsWithEntitlementSql('priority_feed', Prisma.sql`u.id`)}`;
+      return new Set(rows.map((r) => r.id));
+    } catch {
+      return new Set();
+    }
   }
 
   /** Cases with a running paid/granted promotion (owner 2026-10-02),

@@ -33,6 +33,7 @@ class CaseDetailForAttorneyDto {
     required this.shareCount,
     required this.isSaved,
     required this.promoted,
+    required this.priorityClient,
     required this.description,
     required this.photos,
     required this.photosCount,
@@ -86,6 +87,9 @@ class CaseDetailForAttorneyDto {
 
   /// Promoted by its client right now.
   final bool promoted;
+
+  /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
+  final bool priorityClient;
   final String description;
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").

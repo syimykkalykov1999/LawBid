@@ -34,6 +34,7 @@ import {
 } from '../chat/chat-system.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import {
   MY_CASES_PAGE_DEFAULT,
   type CreateCaseDto,
@@ -210,6 +211,8 @@ export class CasesService {
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     // Owner 2026-10-02: a published case qualifies a client referral.
     @Optional() private readonly referrals?: ReferralsService,
+    // Owner 2026-10-05 (plan builder): the client's open-cases limit.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -219,6 +222,7 @@ export class CasesService {
     meta: RequestMeta,
   ): Promise<CaseDto> {
     await this.assertClientReady(user.sub);
+    await this.assertUnderCaseLimit(user.sub);
 
     assertNoContactInfo({
       title: dto.title,
@@ -634,6 +638,22 @@ export class CasesService {
   /** §2 matrix: verified contacts + completed onboarding before a client
    * can post a case. Account status (active vs suspended/deleted) is
    * already gated at the session layer for every authenticated route. */
+  /** Owner 2026-10-05: the plan may cap open cases (0 = unlimited). */
+  private async assertUnderCaseLimit(userId: string): Promise<void> {
+    const limit = await this.entitlements?.limit(userId, 'max_active_cases');
+    if (!limit || limit <= 0) return;
+    const open = await this.prisma.case.count({
+      where: { client_id: userId, status: 'open' },
+    });
+    if (open >= limit) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_LIMIT_REACHED,
+        message: 'Your plan allows no more open cases at once.',
+        details: { limit, open },
+      });
+    }
+  }
+
   private async assertClientReady(userId: string): Promise<void> {
     const me = await this.onboarding.getMe(userId);
     if (me.role !== 'client') throw forbidden('Only clients can post cases.');

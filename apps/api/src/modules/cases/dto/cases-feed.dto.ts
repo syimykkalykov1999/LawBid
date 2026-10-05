@@ -272,6 +272,12 @@ export class CaseFeedItemDto {
   /** Owner 2026-10-02: a running paid case promotion ("Promoted" badge). */
   @ApiProperty({ description: 'Promoted by its client right now.' })
   promoted!: boolean;
+
+  @ApiProperty({
+    description:
+      "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).",
+  })
+  priorityClient!: boolean;
 }
 
 /** GET /cases/:id for an attorney (docs/04 §4.3): the feed item plus the

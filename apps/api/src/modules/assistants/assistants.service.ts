@@ -26,6 +26,7 @@ import type { CreatePostDto } from '../posts/dto/posts.dto';
 import { PostsService } from '../posts/posts.service';
 import { AttorneyProfilesService } from '../profiles/services/attorney-profiles.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import {
   DEFAULT_DUTIES,
   LIABILITY_DUTIES,
@@ -41,11 +42,7 @@ import type {
   TeamDto,
   UpdateAssistantDto,
 } from './assistants.dto';
-import {
-  effectiveSeats,
-  findActiveGrant,
-  paidSeats,
-} from '../subscriptions/contract-grant.util';
+import {} from '../subscriptions/contract-grant.util';
 
 const PAGE = 30;
 
@@ -75,6 +72,7 @@ export class AssistantsService {
     private readonly otp: OtpService,
     private readonly context: AssistantContextService,
     private readonly access: SubscriptionAccessService,
+    private readonly entitlements: EntitlementsService,
     private readonly notifications: NotificationsService,
     private readonly posts: PostsService,
     private readonly comments: CommentsService,
@@ -318,17 +316,15 @@ export class AssistantsService {
   private async seatsOf(attorneyId: string) {
     const sub = await this.prisma.subscription.findUnique({
       where: { user_id: attorneyId },
-      select: { plan: true, assistant_seats: true },
+      select: { plan: true },
     });
     const used = await this.prisma.assistantMembership.count({
       where: { attorney_id: attorneyId, status: { not: 'removed' } },
     });
-    // Owner 2026-10-02: a contract grant may carry its own seats.
-    const grant = await findActiveGrant(this.prisma, attorneyId);
-    const seats = effectiveSeats(
-      paidSeats(sub),
-      grant?.assistant_seats ?? null,
-    );
+    // Owner 2026-10-05 (plan builder): the plan's included seats + the
+    // extra ones bought, or the contract grant's — EntitlementsService is
+    // the single source.
+    const seats = (await this.entitlements.seats(attorneyId)).total;
     return { seats, used, plan: sub?.plan ?? null };
   }
 

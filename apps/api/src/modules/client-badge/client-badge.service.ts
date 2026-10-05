@@ -15,6 +15,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
 import { PricingService } from '../billing/pricing.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import type {
   PaymentProvider,
   ProviderCheckoutSession,
@@ -53,6 +54,8 @@ export class ClientBadgeService {
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
     @Optional() private readonly pricing?: PricingService,
+    // Owner 2026-10-05 (plan builder): a plan may include the badge.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   // ---- the client's own state ------------------------------------------------
@@ -75,7 +78,7 @@ export class ClientBadgeService {
         where: { user_id: userId },
       });
     }
-    return this.toState(row);
+    return this.toState(row, userId);
   }
 
   async submit(
@@ -121,7 +124,7 @@ export class ClientBadgeService {
       create: { user_id: userId, ...data },
       update: data,
     });
-    return this.toState(row);
+    return this.toState(row, userId);
   }
 
   /** Approved and not paid → Stripe checkout for the $10/month. */
@@ -141,6 +144,13 @@ export class ClientBadgeService {
       throw new ConflictException({
         code: ErrorCode.CONTENT_INVALID_STATE,
         message: 'The badge is already active.',
+      });
+    }
+    if (await this.includedInPlan(userId)) {
+      throw new ConflictException({
+        code: ErrorCode.CONTENT_INVALID_STATE,
+        message: 'Your plan already includes the badge.',
+        details: { includedInPlan: true },
       });
     }
     const provider = this.provider;
@@ -308,19 +318,30 @@ export class ClientBadgeService {
     return this.settings.number('verification.client_badge_cents');
   }
 
+  /** Owner 2026-10-05: the client's live plan carries `verified_badge`. */
+  private async includedInPlan(userId: string): Promise<boolean> {
+    if (!this.entitlements) return false;
+    const r = await this.entitlements.forUser(userId);
+    return r.source === 'plan' && r.values.verified_badge === true;
+  }
+
   private async toState(
     row: ClientVerification | null,
+    userId?: string,
   ): Promise<ClientBadgeStateDto> {
     const status = (row?.status ?? 'none') as ClientBadgeStatus;
-    const active = clientBadgeActive(row);
+    const included = userId ? await this.includedInPlan(userId) : false;
+    const active =
+      clientBadgeActive(row) || (included && row?.status === 'approved');
     return {
       status,
       badgeActive: active,
+      includedInPlan: included,
       priceCents: await this.priceCents(),
       currency: CURRENCY,
       canSubmit:
         status === 'none' || status === 'rejected' || status === 'revoked',
-      canSubscribe: status === 'approved' && !active,
+      canSubscribe: status === 'approved' && !active && !included,
       subscription:
         row && row.sub_status !== 'none'
           ? {

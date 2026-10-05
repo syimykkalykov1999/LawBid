@@ -312,6 +312,18 @@ enum ErrorCode {
   contentInvalidState('CONTENT_INVALID_STATE'),
   @JsonValue('STICKER_PACK_NAME_TAKEN')
   stickerPackNameTaken('STICKER_PACK_NAME_TAKEN'),
+  @JsonValue('BID_LIMIT_REACHED')
+  bidLimitReached('BID_LIMIT_REACHED'),
+  @JsonValue('CASE_LIMIT_REACHED')
+  caseLimitReached('CASE_LIMIT_REACHED'),
+  @JsonValue('PLAN_NOT_AVAILABLE')
+  planNotAvailable('PLAN_NOT_AVAILABLE'),
+  @JsonValue('PLAN_CODE_EXISTS')
+  planCodeExists('PLAN_CODE_EXISTS'),
+  @JsonValue('PLAN_IN_USE')
+  planInUse('PLAN_IN_USE'),
+  @JsonValue('ENTITLEMENT_REQUIRED')
+  entitlementRequired('ENTITLEMENT_REQUIRED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
