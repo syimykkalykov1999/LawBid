@@ -32,6 +32,8 @@ enum FilePurpose {
   reviewPhoto('review_photo'),
   @JsonValue('sticker')
   sticker('sticker'),
+  @JsonValue('post_attachment')
+  postAttachment('post_attachment'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

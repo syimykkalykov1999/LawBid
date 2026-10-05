@@ -13,6 +13,8 @@ PostVideoDto _$PostVideoDtoFromJson(Map<String, dynamic> json) => PostVideoDto(
   durationSec: (json['durationSec'] as num?)?.toInt(),
   width: (json['width'] as num?)?.toInt(),
   height: (json['height'] as num?)?.toInt(),
+  trimStartMs: (json['trimStartMs'] as num?)?.toInt(),
+  trimEndMs: (json['trimEndMs'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$PostVideoDtoToJson(PostVideoDto instance) =>
@@ -23,4 +25,6 @@ Map<String, dynamic> _$PostVideoDtoToJson(PostVideoDto instance) =>
       'durationSec': ?instance.durationSec,
       'width': ?instance.width,
       'height': ?instance.height,
+      'trimStartMs': ?instance.trimStartMs,
+      'trimEndMs': ?instance.trimEndMs,
     };

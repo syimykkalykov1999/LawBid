@@ -31,6 +31,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/legal_document_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
+import 'package:lawbid/features/partners/presentation/partner_screen.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
@@ -324,6 +325,12 @@ GoRouter appRouter(Ref ref) {
           state,
           ReferralScreen(initialCode: state.uri.queryParameters['code']),
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.partner,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const PartnerScreen()),
       ),
       GoRoute(
         path: AppRoutes.about,

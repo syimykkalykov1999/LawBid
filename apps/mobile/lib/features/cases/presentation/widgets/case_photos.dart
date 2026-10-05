@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -30,10 +32,11 @@ class CasePhotosPicker extends ConsumerWidget {
     Future<void> pick() async {
       final left = kCaseMaxPhotos - photos.length;
       if (left <= 0) return;
+      final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
       final picked = await ImagePicker().pickMultiImage(
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 90,
+        maxWidth: limits.maxPx,
+        maxHeight: limits.maxPx,
+        imageQuality: limits.quality,
         limit: left > 1 ? left : null,
       );
       final bytes = <Uint8List>[

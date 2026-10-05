@@ -12,6 +12,9 @@ class CreateVideoUploadDto {
     required this.sizeBytes,
     required this.durationSec,
     this.title,
+    this.trimStartMs,
+    this.trimEndMs,
+    this.coverTimeMs,
   });
 
   factory CreateVideoUploadDto.fromJson(Map<String, Object?> json) =>
@@ -23,6 +26,13 @@ class CreateVideoUploadDto {
   /// Seconds.
   final int durationSec;
   final String? title;
+
+  /// Owner 2026-10-05: the part of the video the reel plays (trim).
+  final int? trimStartMs;
+  final int? trimEndMs;
+
+  /// Owner 2026-10-05: the cover = the frame at this moment.
+  final int? coverTimeMs;
 
   Map<String, Object?> toJson() => _$CreateVideoUploadDtoToJson(this);
 }

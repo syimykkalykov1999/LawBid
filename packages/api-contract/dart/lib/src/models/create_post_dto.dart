@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'post_attachment_input_dto.dart';
 import 'post_kind.dart';
 import 'post_location_dto.dart';
 
@@ -18,6 +19,7 @@ class CreatePostDto {
     this.commentsEnabled = true,
     this.practiceCode,
     this.mediaFileIds,
+    this.attachments,
     this.videoAssetId,
     this.location,
   });
@@ -39,8 +41,12 @@ class CreatePostDto {
   /// Clean post_image file ids, in display order.
   final List<String>? mediaFileIds;
 
+  /// Owner 2026-10-05: up to 9 documents (PDF, Word, text).
+  final List<PostAttachmentInputDto>? attachments;
+
   /// Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).
-  /// Instead of photos; the post appears once the video is encoded.
+  /// The post appears once the video is encoded. Owner 2026-10-05: a.
+  /// reel's photos and documents form its inner page ("Смотреть").
   final String? videoAssetId;
   final PostLocationDto? location;
 

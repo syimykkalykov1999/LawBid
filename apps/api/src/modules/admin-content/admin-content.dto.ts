@@ -147,6 +147,9 @@ export class AdminPostRowDto {
   @ApiProperty({ type: 'integer' }) comments!: number;
   @ApiProperty() deleted!: boolean;
   @ApiProperty({ description: 'The post carries a video' }) hasVideo!: boolean;
+  @ApiProperty({ type: 'integer', description: 'Documents (PDF, Word…)' })
+  attachments!: number;
+  @ApiProperty({ type: 'integer' }) photos!: number;
   @ApiProperty() createdAt!: string;
 }
 

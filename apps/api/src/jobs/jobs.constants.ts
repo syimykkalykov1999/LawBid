@@ -61,6 +61,9 @@ export const CRON_JOBS = {
   casePaymentsExpire: 'case-payments.expire',
   /** Owner 2026-10-05: payment-request reminders (due soon / overdue). */
   casePaymentsRemind: 'case-payments.remind',
+  /** Owner 2026-10-05: partner commissions past their hold → approved,
+   * monthly base accrued. */
+  partnersSweep: 'partners.sweep',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -110,6 +113,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.casePaymentsExpire, pattern: '7-57/10 * * * *' },
   // 15:00 UTC ≈ 08:00 Pacific / 11:00 Eastern: a morning reminder.
   { name: CRON_JOBS.casePaymentsRemind, pattern: '0 15 * * *' },
+  { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

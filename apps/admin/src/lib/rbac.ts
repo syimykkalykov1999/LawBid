@@ -146,6 +146,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'super', hint: 'клиент платит адвокату через Stripe Connect' },
       { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'super' },
       { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'super', hint: 'скидки за приглашения' },
+      { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'super', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
     ],
   },
   {

@@ -8,6 +8,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/invites_providers.dart';
 import 'package:lawbid/features/cases/domain/case_invite.dart';
+import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
@@ -174,6 +176,21 @@ class _InviteCardState extends ConsumerState<InviteCard> {
               style: type.body.copyWith(color: colors.text),
             ),
           ],
+          // Owner 2026-10-05: the case file before answering, with the rule
+          // that the files open once the client accepts.
+          const SizedBox(height: AppSpacing.sm),
+          CaseDossierPanel(
+            key: ValueKey('invite-dossier-${i.id}'),
+            score: CaseDossierScore.fromFields(
+              dossier: i.caseDossier,
+              city: i.caseCity,
+              urgency: i.caseUrgency,
+              budget: i.caseBudget,
+            ),
+            status: CaseStatus.open,
+            t: t,
+            rule: CaseDossierRule.offer,
+          ),
           if (i.outsideLicensedStates || i.outsidePractice) ...[
             const SizedBox(height: AppSpacing.sm),
             Text(

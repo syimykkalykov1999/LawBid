@@ -1,6 +1,7 @@
 import { PostsModule } from '../modules/posts/posts.module';
 import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
+import { PartnersCoreModule } from '../modules/partners/partners.module';
 import { DynamicModule, Module } from '@nestjs/common';
 import { DISPOSABLE_DOMAINS_FETCHER, JOBS_OPTIONS } from './jobs.constants';
 import { JobsRunner, type JobsModuleOptions } from './jobs.runner';
@@ -60,6 +61,8 @@ export class JobsModule {
         PromotionsCoreModule,
         // Owner 2026-10-05: `case-payments.expire`.
         CasePaymentsCoreModule,
+        // Owner 2026-10-05: `partners.sweep`.
+        PartnersCoreModule,
         // Owner 2026-10-04: `licenses.registry-recheck`.
         VerificationModule,
       ],

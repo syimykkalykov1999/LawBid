@@ -41741,6 +41741,1803 @@
         ]
       }
     },
+    "/partners/me": {
+      "get": {
+        "operationId": "getMyPartnerDashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerMeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My partner dashboard: link, rates, who joined, accrued and paid earnings (isPartner=false for everyone else)",
+        "tags": [
+          "partners"
+        ]
+      }
+    },
+    "/admin/partners": {
+      "get": {
+        "operationId": "listAdminPartners",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PartnerStatus"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Name, email, label or code.",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerRowListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Partners, newest first",
+        "tags": [
+          "admin-partners"
+        ]
+      },
+      "post": {
+        "operationId": "createAdminPartner",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePartnerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Make a user a partner (own rates optional)",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/stats": {
+      "get": {
+        "operationId": "getAdminPartnerStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerStatsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Partner program totals",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/settings": {
+      "get": {
+        "operationId": "getPartnerSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Partner program defaults",
+        "tags": [
+          "admin-partners"
+        ]
+      },
+      "put": {
+        "operationId": "updatePartnerSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change the partner program defaults (super admin)",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/commissions": {
+      "get": {
+        "operationId": "listAdminPartnerCommissions",
+        "parameters": [
+          {
+            "name": "partnerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PartnerCommissionStatus"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PartnerCommissionKind"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerCommissionRowListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Commissions (accruals) across partners, newest first",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/commissions/export.csv": {
+      "get": {
+        "operationId": "exportAdminPartnerCommissions",
+        "parameters": [
+          {
+            "name": "partnerId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PartnerCommissionStatus"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PartnerCommissionKind"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-10",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Commissions as CSV (up to 50 000 rows; audited)",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/commissions/{id}/approve": {
+      "post": {
+        "operationId": "approveAdminPartnerCommission",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPartnerReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerCommissionRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Release a held commission for payout",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/commissions/{id}/hold": {
+      "post": {
+        "operationId": "holdAdminPartnerCommission",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPartnerReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerCommissionRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Put a commission on manual hold",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/commissions/{id}/reverse": {
+      "post": {
+        "operationId": "reverseAdminPartnerCommission",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPartnerReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerCommissionRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Reverse a commission (fraud, refund); a paid one becomes a deduction",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/commissions/{id}/pay": {
+      "post": {
+        "operationId": "payAdminPartnerCommission",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPartnerPayDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerCommissionRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Mark one approved commission paid",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/{id}": {
+      "get": {
+        "operationId": "getAdminPartner",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerDetailEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One partner: rates, who joined, commissions",
+        "tags": [
+          "admin-partners"
+        ]
+      },
+      "patch": {
+        "operationId": "updateAdminPartner",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePartnerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change rates, rule, hold, label, status",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/{id}/adjustments": {
+      "post": {
+        "operationId": "adjustAdminPartner",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPartnerAdjustmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerCommissionRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One-off bonus (+) or deduction (−), approved at once",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
+    "/admin/partners/{id}/pay": {
+      "post": {
+        "operationId": "payAdminPartner",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPartnerPayDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPartnerPayResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Pay everything approved for the partner (one payout)",
+        "tags": [
+          "admin-partners"
+        ]
+      }
+    },
     "/promotions/quote": {
       "get": {
         "operationId": "getPromotionQuote",
@@ -48268,6 +50065,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartCallDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "Success envelope (docs/01 §7).",
@@ -48290,7 +50097,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: SUBSCRIPTION_REQUIRED, USER_BLOCKED",
+            "description": "Forbidden: SUBSCRIPTION_REQUIRED, USER_BLOCKED, FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -48355,7 +50162,74 @@
             "bearer": []
           }
         ],
-        "summary": "Call the other chat member (audio only)",
+        "summary": "Call the other chat member (audio or video)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/video": {
+      "get": {
+        "operationId": "callVideoConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoCallConfigEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether video calls are available now",
         "tags": [
           "calls"
         ]
@@ -51078,6 +52952,7 @@
           "REFERRAL_CODE_INVALID",
           "REFERRAL_NOT_ALLOWED",
           "REFERRAL_INVALID_STATE",
+          "PARTNER_INVALID_STATE",
           "PROMOTION_ALREADY_ACTIVE",
           "PROMOTION_INVALID_STATE",
           "PAYOUT_ACCOUNT_NOT_READY",
@@ -55109,7 +56984,8 @@
           "chat_attachment",
           "task_attachment",
           "review_photo",
-          "sticker"
+          "sticker",
+          "post_attachment"
         ]
       },
       "PresignFileDto": {
@@ -59539,6 +61415,40 @@
           "mediumUrl"
         ]
       },
+      "PostAttachmentDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string",
+            "example": "application/pdf"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string",
+            "description": "Signed download link (1 hour)."
+          }
+        },
+        "required": [
+          "fileId",
+          "position",
+          "fileName",
+          "mime",
+          "sizeBytes",
+          "url"
+        ]
+      },
       "VideoAssetStatus": {
         "type": "string",
         "enum": [
@@ -59579,6 +61489,16 @@
           "height": {
             "type": "integer",
             "nullable": true
+          },
+          "trimStartMs": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-05: play only from here…"
+          },
+          "trimEndMs": {
+            "type": "integer",
+            "nullable": true,
+            "description": "…to here (null = to the end)."
           }
         },
         "required": [
@@ -59679,6 +61599,13 @@
               "$ref": "#/components/schemas/PostMediaDto"
             }
           },
+          "attachments": {
+            "description": "Owner 2026-10-05: documents (reels: on the inner page).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostAttachmentDto"
+            }
+          },
           "video": {
             "nullable": true,
             "description": "Owner 2026-10-01: a reel's video (null for photo/text posts).",
@@ -59748,6 +61675,7 @@
           "author",
           "body",
           "media",
+          "attachments",
           "tags",
           "mentions",
           "status",
@@ -59759,6 +61687,26 @@
           "savedByMe",
           "isMine",
           "createdAt"
+        ]
+      },
+      "PostAttachmentInputDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A clean post_attachment file."
+          },
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "The name readers see and download (e.g. \"Lease.pdf\")."
+          }
+        },
+        "required": [
+          "fileId",
+          "fileName"
         ]
       },
       "CreatePostDto": {
@@ -59801,9 +61749,17 @@
               "format": "uuid"
             }
           },
+          "attachments": {
+            "description": "Owner 2026-10-05: up to 9 documents (PDF, Word, text).",
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostAttachmentInputDto"
+            }
+          },
           "videoAssetId": {
             "type": "string",
-            "description": "Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).\nInstead of photos; the post appears once the video is encoded.",
+            "description": "Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).\nThe post appears once the video is encoded. Owner 2026-10-05: a\nreel's photos and documents form its inner page (\"Смотреть\").",
             "format": "uuid"
           },
           "location": {
@@ -60001,6 +61957,23 @@
           "title": {
             "type": "string",
             "maxLength": 100
+          },
+          "trimStartMs": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the part of the video the reel plays (trim).",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "trimEndMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600000
+          },
+          "coverTimeMs": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the cover = the frame at this moment.",
+            "minimum": 0,
+            "maximum": 3600000
           }
         },
         "required": [
@@ -61563,6 +63536,25 @@
               "type": "string"
             }
           },
+          "caseCity": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the dossier (\"Case file 4 of 6\") on the invite, so\nthe attorney sees what the client filled in before answering. Counts\nonly — the files open once the client accepts the attorney's bid."
+          },
+          "caseUrgency": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "caseBudget": {
+            "$ref": "#/components/schemas/CaseBudgetDto"
+          },
+          "caseDossier": {
+            "$ref": "#/components/schemas/CaseDossierDto"
+          },
           "attorney": {
             "nullable": true,
             "description": "The invited attorney (client view only).",
@@ -61592,6 +63584,8 @@
           "caseStatus",
           "casePracticeKey",
           "caseStateCodes",
+          "caseBudget",
+          "caseDossier",
           "attorney"
         ]
       },
@@ -64669,6 +66663,13 @@
             "type": "boolean",
             "description": "The post carries a video"
           },
+          "attachments": {
+            "type": "integer",
+            "description": "Documents (PDF, Word…)"
+          },
+          "photos": {
+            "type": "integer"
+          },
           "createdAt": {
             "type": "string"
           }
@@ -64684,6 +66685,8 @@
           "comments",
           "deleted",
           "hasVideo",
+          "attachments",
+          "photos",
           "createdAt"
         ]
       },
@@ -71609,6 +73612,1053 @@
           "data"
         ]
       },
+      "PartnerStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "paused",
+          "ended"
+        ]
+      },
+      "PartnerClientRule": {
+        "type": "string",
+        "enum": [
+          "case_published",
+          "bid_accepted"
+        ]
+      },
+      "PartnerRatesDto": {
+        "type": "object",
+        "properties": {
+          "attorneyRateCents": {
+            "type": "integer",
+            "description": "Per paying attorney, cents."
+          },
+          "clientRateCents": {
+            "type": "integer",
+            "description": "Per qualified client, cents."
+          },
+          "monthlyBaseCents": {
+            "type": "integer",
+            "description": "Fixed monthly base, cents."
+          },
+          "clientRule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerClientRule"
+              }
+            ]
+          },
+          "holdDays": {
+            "type": "integer",
+            "description": "Anti-fraud hold, days."
+          }
+        },
+        "required": [
+          "attorneyRateCents",
+          "clientRateCents",
+          "monthlyBaseCents",
+          "clientRule",
+          "holdDays"
+        ]
+      },
+      "PartnerTotalsDto": {
+        "type": "object",
+        "properties": {
+          "heldCents": {
+            "type": "integer",
+            "description": "Held (in the check), cents."
+          },
+          "approvedCents": {
+            "type": "integer",
+            "description": "Approved, awaiting payout."
+          },
+          "paidCents": {
+            "type": "integer"
+          },
+          "thisMonthCents": {
+            "type": "integer",
+            "description": "Accrued this month (any status but reversed)."
+          },
+          "referredCount": {
+            "type": "integer",
+            "description": "People who joined by the link."
+          },
+          "qualifiedCount": {
+            "type": "integer",
+            "description": "Of them, earned a commission."
+          }
+        },
+        "required": [
+          "heldCents",
+          "approvedCents",
+          "paidCents",
+          "thisMonthCents",
+          "referredCount",
+          "qualifiedCount"
+        ]
+      },
+      "PartnerReferredStatus": {
+        "type": "string",
+        "enum": [
+          "joined",
+          "qualified",
+          "paid",
+          "reversed"
+        ]
+      },
+      "PartnerReferredUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "attorney",
+              "client"
+            ]
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerReferredStatus"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Commission for this person, cents (0 until qualified)."
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "qualifiedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "status",
+          "amountCents",
+          "joinedAt"
+        ]
+      },
+      "PartnerCommissionKind": {
+        "type": "string",
+        "enum": [
+          "attorney_subscription",
+          "client_qualified",
+          "monthly_base",
+          "adjustment"
+        ]
+      },
+      "PartnerCommissionStatus": {
+        "type": "string",
+        "enum": [
+          "held",
+          "approved",
+          "paid",
+          "reversed"
+        ]
+      },
+      "PartnerCommissionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerCommissionKind"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Cents; negative = deduction."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerCommissionStatus"
+              }
+            ]
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "Payroll period."
+          },
+          "referredUserId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "holdUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "approvedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "paidAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "payoutRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "reversedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "reversedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "amountCents",
+          "status",
+          "period",
+          "createdAt"
+        ]
+      },
+      "PartnerTextsDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 600
+          }
+        },
+        "required": [
+          "title",
+          "summary"
+        ]
+      },
+      "PartnerMeDto": {
+        "type": "object",
+        "properties": {
+          "isPartner": {
+            "type": "boolean",
+            "description": "False for everyone who is not a partner."
+          },
+          "status": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerStatus"
+              }
+            ]
+          },
+          "code": {
+            "type": "string",
+            "description": "Referral code (same as the referral screen)."
+          },
+          "shareUrl": {
+            "type": "string"
+          },
+          "rates": {
+            "$ref": "#/components/schemas/PartnerRatesDto"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PartnerTotalsDto"
+          },
+          "referred": {
+            "description": "Newest first, up to 200.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartnerReferredUserDto"
+            }
+          },
+          "commissions": {
+            "description": "Newest first, up to 200.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartnerCommissionDto"
+            }
+          },
+          "texts": {
+            "description": "Owner's words in the user's language.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerTextsDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "isPartner",
+          "code",
+          "shareUrl",
+          "rates",
+          "totals",
+          "referred",
+          "commissions",
+          "texts"
+        ]
+      },
+      "PartnerMeEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PartnerMeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPartnerUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "AdminPartnerRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AdminPartnerUserDto"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerStatus"
+              }
+            ]
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "code": {
+            "type": "string"
+          },
+          "shareUrl": {
+            "type": "string"
+          },
+          "rates": {
+            "description": "Effective (own or default).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerRatesDto"
+              }
+            ]
+          },
+          "attorneyRateCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Own override; null = default."
+          },
+          "clientRateCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "clientRule": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerClientRule"
+              }
+            ]
+          },
+          "holdDays": {
+            "type": "integer",
+            "nullable": true
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PartnerTotalsDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "user",
+          "status",
+          "code",
+          "shareUrl",
+          "rates",
+          "totals",
+          "createdAt"
+        ]
+      },
+      "AdminPartnerRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPartnerRowDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPartnerStatsDto": {
+        "type": "object",
+        "properties": {
+          "partners": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "integer"
+          },
+          "referredCount": {
+            "type": "integer"
+          },
+          "heldCents": {
+            "type": "integer"
+          },
+          "approvedCents": {
+            "type": "integer"
+          },
+          "paidCents": {
+            "type": "integer"
+          },
+          "thisMonthCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partners",
+          "active",
+          "referredCount",
+          "heldCents",
+          "approvedCents",
+          "paidCents",
+          "thisMonthCents"
+        ]
+      },
+      "AdminPartnerStatsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPartnerStatsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PartnerTextsByLangDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "$ref": "#/components/schemas/PartnerTextsDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/PartnerTextsDto"
+          }
+        },
+        "required": [
+          "en",
+          "ru"
+        ]
+      },
+      "PartnerSettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "attorneyRateCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "clientRateCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "clientRule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerClientRule"
+              }
+            ]
+          },
+          "holdDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 180
+          },
+          "texts": {
+            "$ref": "#/components/schemas/PartnerTextsByLangDto"
+          }
+        },
+        "required": [
+          "enabled",
+          "attorneyRateCents",
+          "clientRateCents",
+          "clientRule",
+          "holdDays",
+          "texts"
+        ]
+      },
+      "PartnerSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PartnerSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPartnerCommissionRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerCommissionKind"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Cents; negative = deduction."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerCommissionStatus"
+              }
+            ]
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10",
+            "description": "Payroll period."
+          },
+          "referredUserId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "holdUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "approvedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "paidAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "payoutRef": {
+            "type": "string",
+            "nullable": true
+          },
+          "reversedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "reversedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "partnerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "partner": {
+            "$ref": "#/components/schemas/AdminPartnerUserDto"
+          },
+          "referredUser": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminPartnerUserDto"
+              }
+            ]
+          },
+          "eventRef": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "amountCents",
+          "status",
+          "period",
+          "createdAt",
+          "partnerId",
+          "partner",
+          "eventRef"
+        ]
+      },
+      "AdminPartnerCommissionRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPartnerCommissionRowDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPartnerReasonDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "AdminPartnerCommissionRowEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPartnerCommissionRowDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPartnerPayDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 300
+          },
+          "payoutRef": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Transfer / payroll reference."
+          },
+          "period": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "example": "2026-10",
+            "description": "Only this period; default = everything approved."
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "CreatePartnerDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          },
+          "attorneyRateCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "null = program default."
+          },
+          "clientRateCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "monthlyBaseCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "clientRule": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerClientRule"
+              }
+            ]
+          },
+          "holdDays": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 180
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Any existing user account."
+          },
+          "code": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 24,
+            "description": "Own word as the referral code (4–24 letters/digits); default = keep/generate."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "userId",
+          "reason"
+        ]
+      },
+      "AdminPartnerRowEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPartnerRowDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPartnerReferredUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "attorney",
+              "client"
+            ]
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerReferredStatus"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "description": "Commission for this person, cents (0 until qualified)."
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "qualifiedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "referralId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referralStatus": {
+            "type": "string",
+            "description": "Referral row status (pending/qualified/rewarded/rejected)."
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "status",
+          "amountCents",
+          "joinedAt",
+          "referralId",
+          "referralStatus"
+        ]
+      },
+      "AdminPartnerDetailDto": {
+        "type": "object",
+        "properties": {
+          "partner": {
+            "$ref": "#/components/schemas/AdminPartnerRowDto"
+          },
+          "referred": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPartnerReferredUserDto"
+            }
+          },
+          "commissions": {
+            "description": "Newest first, up to 500.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPartnerCommissionRowDto"
+            }
+          }
+        },
+        "required": [
+          "partner",
+          "referred",
+          "commissions"
+        ]
+      },
+      "AdminPartnerDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPartnerDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdatePartnerDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          },
+          "attorneyRateCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "null = program default."
+          },
+          "clientRateCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "monthlyBaseCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "clientRule": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerClientRule"
+              }
+            ]
+          },
+          "holdDays": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 180
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerStatus"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "AdminPartnerAdjustmentDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "description": "Cents; negative deducts (bonus, penalty, correction)."
+          },
+          "note": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300,
+            "description": "Shown to the partner."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "amountCents",
+          "note",
+          "reason"
+        ]
+      },
+      "AdminPartnerPayResultDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "totalCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "totalCents"
+        ]
+      },
+      "AdminPartnerPayResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminPartnerPayResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "PromotionQuoteDto": {
         "type": "object",
         "properties": {
@@ -75281,6 +78331,11 @@
             "type": "boolean",
             "description": "The viewer placed the call."
           },
+          "video": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05: cameras on (false = audio only).",
+            "default": false
+          },
           "peer": {
             "$ref": "#/components/schemas/CallPeerDto"
           },
@@ -75310,15 +78365,75 @@
           "calleeId",
           "status",
           "outgoing",
+          "video",
           "peer",
           "createdAt"
         ]
+      },
+      "StartCallDto": {
+        "type": "object",
+        "properties": {
+          "video": {
+            "type": "boolean",
+            "default": false,
+            "description": "A video call (needs the `video_calls` flag)."
+          }
+        }
       },
       "CallEnvelope": {
         "type": "object",
         "properties": {
           "data": {
             "$ref": "#/components/schemas/CallDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "VideoCallUnavailableReason": {
+        "type": "string",
+        "enum": [
+          "flag_off",
+          "provider_not_configured"
+        ],
+        "description": "Why not (null when available)."
+      },
+      "VideoCallConfigDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "webrtc"
+            ]
+          },
+          "reason": {
+            "nullable": true,
+            "description": "Why not (null when available).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VideoCallUnavailableReason"
+              }
+            ]
+          }
+        },
+        "required": [
+          "available",
+          "provider"
+        ]
+      },
+      "VideoCallConfigEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VideoCallConfigDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
