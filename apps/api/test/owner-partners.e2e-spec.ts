@@ -312,6 +312,147 @@ describe('Partner program (e2e)', () => {
       .expect(403); // program off and the partner ended
   });
 
+  it('attorneys and clients join by themselves; the master switch hides the program and stops attribution', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    const self = await user('attorney', 'Selfmade');
+
+    // Not a partner yet, but may join; the program rates are shown.
+    const before = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(self.id, 'attorney'))
+      .expect(200);
+    expect(before.body.data).toMatchObject({
+      enabled: true,
+      isPartner: false,
+      canJoin: true,
+    });
+    expect(before.body.data.rates.attorneyRateCents).toBe(5_000);
+
+    const joined = await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(self.id, 'attorney'))
+      .expect(200);
+    expect(joined.body.data.isPartner).toBe(true);
+    expect(joined.body.data.canJoin).toBe(false);
+    const selfCode = joined.body.data.code as string;
+    expect(selfCode).toMatch(/^[A-Z0-9]{4,24}$/);
+    expect(joined.body.data.shareUrl).toContain(selfCode);
+    // Twice is refused; the admin sees the new partner.
+    await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(self.id, 'attorney'))
+      .expect(409);
+    const list = await api()
+      .get('/api/v1/admin/partners?q=Selfmade')
+      .set(admin.auth)
+      .expect(200);
+    expect(list.body.data).toHaveLength(1);
+
+    // Approval mode: a request waits; the code attributes nobody until the
+    // admin approves, then the person is told and the link works.
+    const settings = (
+      await api().get('/api/v1/admin/partners/settings').set(admin.auth)
+    ).body.data;
+    await api()
+      .put('/api/v1/admin/partners/settings')
+      .set(admin.auth)
+      .send({ ...settings, joinMode: 'approval' })
+      .expect(200);
+    const applicant = await user('client', 'Applicant');
+    const asked = await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(applicant.id, 'client'))
+      .expect(200);
+    expect(asked.body.data).toMatchObject({
+      isPartner: true,
+      status: 'pending',
+      joinMode: 'approval',
+    });
+    const applicantCode = asked.body.data.code as string;
+    const friend = await user('attorney', 'Friend');
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(friend.id, 'attorney'))
+      .send({ code: applicantCode })
+      .expect(403); // pending: not a partner yet, friends' program off
+    const pendingStats = await api()
+      .get('/api/v1/admin/partners/stats')
+      .set(admin.auth)
+      .expect(200);
+    expect(pendingStats.body.data.pending).toBeGreaterThanOrEqual(1);
+    const pendingRows = await api()
+      .get('/api/v1/admin/partners?status=pending&q=Applicant')
+      .set(admin.auth)
+      .expect(200);
+    expect(pendingRows.body.data).toHaveLength(1);
+    await api()
+      .patch(`/api/v1/admin/partners/${pendingRows.body.data[0].id}`)
+      .set(admin.auth)
+      .send({ status: 'active', reason: REASON })
+      .expect(200);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: applicant.id, type: 'partner_approved' },
+      }),
+    ).toBe(1);
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(friend.id, 'attorney'))
+      .send({ code: applicantCode })
+      .expect(200);
+
+    // Closed: the next person cannot join; partners keep working.
+    await api()
+      .put('/api/v1/admin/partners/settings')
+      .set(admin.auth)
+      .send({ ...settings, joinMode: 'closed' })
+      .expect(200);
+    const other = await user('client', 'Latecomer');
+    const otherMe = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(other.id, 'client'))
+      .expect(200);
+    expect(otherMe.body.data.canJoin).toBe(false);
+    await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(other.id, 'client'))
+      .expect(403);
+
+    // Master switch off: the section disappears for everyone and the code
+    // attributes nobody (the friends' program is off too → 403).
+    await api()
+      .put('/api/v1/admin/partners/settings')
+      .set(admin.auth)
+      .send({ ...settings, enabled: false })
+      .expect(200);
+    const hidden = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(self.id, 'attorney'))
+      .expect(200);
+    expect(hidden.body.data.enabled).toBe(false);
+    expect(hidden.body.data.isPartner).toBe(true); // data kept, UI hidden
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(other.id, 'client'))
+      .send({ code: selfCode })
+      .expect(403);
+    await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(other.id, 'client'))
+      .expect(403);
+
+    // Back on: joining works again.
+    await api()
+      .put('/api/v1/admin/partners/settings')
+      .set(admin.auth)
+      .send({ ...settings, enabled: true, joinMode: 'open' })
+      .expect(200);
+    await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(other.id, 'client'))
+      .expect(200);
+  });
+
   it('partners are a money area: only the super admin reaches them', async () => {
     // Same rule as referrals and billing (admin-permissions SUPER_ONLY_AREAS):
     // support and finance are refused whatever their toggles say — and the

@@ -460,6 +460,9 @@ enum NotificationType {
   // Owner 2026-10-05: partner program — a commission accrued / paid out.
   partner_commission
   partner_payout
+  // Owner 2026-10-05: a self-enrolment request answered by the admin.
+  partner_approved
+  partner_declined
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
   // Owner 2026-10-05: client → attorney payments through the platform.
@@ -2997,6 +3000,7 @@ model Partner {
   ended_at            DateTime? @db.Timestamptz
 
   commissions PartnerCommission[]
+  leads       OutreachLead[]
 
   @@index([status, created_at])
   @@map("partners")
@@ -3040,6 +3044,88 @@ model PartnerCommission {
   @@index([referred_user_id])
   @@index([period, status])
   @@map("partner_commissions")
+}
+
+/// Owner 2026-10-05: outreach (Привлечение). A lead is a lawyer or a
+/// prospective client the team cold-calls or emails; assigned to a
+/// partner (employee) whose referral link the lead is invited with.
+/// status: new | working | contacted | replied | registered | paid | lost.
+/// source: csv | manual | ny_registry. kind: attorney | client.
+model OutreachLead {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind              String    @default("attorney") @db.String(10)
+  first_name        String?   @db.String(80)
+  last_name         String?   @db.String(80)
+  company           String?   @db.String(160)
+  state_code        String?   @db.String(2)
+  city              String?   @db.String(80)
+  practice          String?   @db.String(80)
+  // Digits only (E.164 without "+"); unique when present.
+  phone             String?   @unique @db.String(20)
+  // Lower-cased; unique when present.
+  email             String?   @unique @db.String(254)
+  source            String    @default("manual") @db.String(20)
+  source_ref        String?   @db.String(64)
+  status            String    @default("new") @db.String(16)
+  partner_id        String?   @db.Uuid
+  partner           Partner?  @relation(fields: [partner_id], references: [id], onDelete: SetNull)
+  converted_user_id String?   @db.Uuid
+  unsubscribe_token String    @unique @db.String(48)
+  unsubscribed_at   DateTime? @db.Timestamptz
+  last_activity_at  DateTime? @db.Timestamptz
+  next_action_at    DateTime? @db.Timestamptz
+  note              String?   @db.String(2000)
+  created_by        String    @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+
+  activities OutreachActivity[]
+
+  @@index([partner_id, status, created_at])
+  @@index([status, created_at])
+  @@index([state_code, kind])
+  @@index([converted_user_id])
+  @@index([next_action_at])
+  @@map("outreach_leads")
+}
+
+/// One touch on a lead: call | email | note | status | assign | system.
+/// outcome (calls): no_answer | voicemail | talked | interested |
+/// not_interested | callback | wrong_number; (emails): sent | failed.
+model OutreachActivity {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id        String       @db.Uuid
+  lead           OutreachLead @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  partner_id     String?      @db.Uuid
+  actor_admin_id String?      @db.Uuid
+  kind           String       @db.String(12)
+  outcome        String?      @db.String(24)
+  body           String?      @db.String(4000)
+  meta           Json?
+  created_at     DateTime     @default(now()) @db.Timestamptz
+
+  @@index([lead_id, created_at])
+  @@index([partner_id, kind, created_at])
+  @@index([created_at])
+  @@map("outreach_activities")
+}
+
+/// Cold-email templates: {{first_name}} {{last_name}} {{company}}
+/// {{sender_name}} {{link}} (the partner's referral link). kind:
+/// attorney | client | any.
+model OutreachTemplate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.String(80)
+  kind       String   @default("any") @db.String(10)
+  subject    String   @db.String(200)
+  body       String   @db.String(8000)
+  active     Boolean  @default(true)
+  created_by String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@index([active, kind])
+  @@map("outreach_templates")
 }
 
 // Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.

@@ -44,6 +44,7 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'data_requests', label: 'Запросы госорганов', hint: 'обращения и ответы' },
   { key: 'exports', label: 'Выгрузки CSV', hint: 'кроме платежей' },
   { key: 'sanctions', label: 'Санкции', hint: 'блокировки и баны по телефону, e-mail, устройству' },
+  { key: 'outreach', label: 'Привлечение', hint: 'база контактов, холодные звонки и письма; сотрудник видит только своих' },
   { key: 'payroll', label: 'Зарплаты', hint: 'сотрудники, выплаты за период' },
 ];
 
@@ -196,6 +197,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/support', label: 'Поддержка', icon: 'lifebuoy', area: 'support', count: 'support', hint: 'обращения пользователей' },
       { href: '/broadcasts', label: 'Рассылки', icon: 'megaphone', area: 'broadcasts', hint: 'пуш всем или сегменту' },
       { href: '/email-templates', label: 'Шаблоны писем', icon: 'envelope-simple', area: 'email_templates' },
+      { href: '/outreach', label: 'Привлечение', icon: 'address-book', area: 'outreach', hint: 'база контактов, звонки, письма, кто сколько сделал' },
     ],
   },
   {

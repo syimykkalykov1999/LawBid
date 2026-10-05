@@ -43,8 +43,7 @@ String? notificationRoute({
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);
     // Audit 2026-10-04: the hired attorney lands on the work card, not on
     // the bid / public case card (which loop into each other).
-    case 'offer_accepted' || 'bid_accepted'
-        when attorney && caseId != null:
+    case 'offer_accepted' || 'bid_accepted' when attorney && caseId != null:
       return AppRoutes.workCase(caseId);
     case 'bid_received' ||
           'offer_countered' ||
@@ -116,7 +115,10 @@ String? notificationRoute({
       return ticketId == null ? null : AppRoutes.supportTicket(ticketId);
     case 'referral_reward':
       return AppRoutes.referral;
-    case 'partner_commission' || 'partner_payout':
+    case 'partner_commission' ||
+          'partner_payout' ||
+          'partner_approved' ||
+          'partner_declined':
       return AppRoutes.partner;
     case 'promotion_started' || 'promotion_ended':
       if (caseId == null) return null;
@@ -244,7 +246,11 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'assistant_request' => AppIcons.factCheckRounded,
       'admin_broadcast' => AppIcons.campaignRounded,
       'referral_reward' => AppIcons.starRounded,
-      'partner_commission' || 'partner_payout' => AppIcons.handshakeOutlined,
+      'partner_commission' ||
+      'partner_payout' ||
+      'partner_approved' ||
+      'partner_declined' =>
+        AppIcons.handshakeOutlined,
       'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
       'case_payment_received' ||
       'case_payment_sent' ||

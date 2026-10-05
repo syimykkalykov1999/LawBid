@@ -27,7 +27,10 @@ final referralOffOverride = referralMeProvider.overrideWith(
 /// partner" so no request (and no retry timer) is left behind.
 final partnerOffOverride = partnerMeProvider.overrideWith(
   (ref) async => const PartnerMe(
+    enabled: false,
     isPartner: false,
+    canJoin: false,
+    joinMode: 'open',
     status: null,
     code: '',
     shareUrl: '',

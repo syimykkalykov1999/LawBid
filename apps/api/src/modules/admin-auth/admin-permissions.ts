@@ -24,6 +24,7 @@ export const ADMIN_AREAS = [
   'teams',
   'exports',
   'sanctions',
+  'outreach',
   // Owner 2026-10-05: staff salaries (finance admin); the super admin and
   // the deputy who manages admins always have it.
   'payroll',
@@ -95,6 +96,7 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   'audit-log': 'audit',
   sessions: 'sessions',
   sanctions: 'sanctions',
+  outreach: 'outreach',
   payroll: 'payroll',
   rewards: 'rewards',
   // Owner 2026-10-05: every admin's own workspace (it lists only what the
