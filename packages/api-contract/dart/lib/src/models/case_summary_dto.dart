@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'budget_mode.dart';
 import 'case_status.dart';
+import 'case_urgency.dart';
 import 'practice_area_ref_dto.dart';
 
 part 'case_summary_dto.g.dart';
@@ -26,6 +27,8 @@ class CaseSummaryDto {
     this.coverUrl,
     this.city,
     this.budgetCents,
+    this.coverKey,
+    this.urgency,
   });
 
   factory CaseSummaryDto.fromJson(Map<String, Object?> json) =>
@@ -45,6 +48,12 @@ class CaseSummaryDto {
   final CaseStatus status;
   final BudgetMode budgetMode;
   final int? budgetCents;
+
+  /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: flexible | soon | urgent; null on older cases.
+  final CaseUrgency? urgency;
   final int bidsCount;
   final String createdAt;
   final String lastActivityAt;

@@ -324,4 +324,7 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
       budgetIsAmount: !c.budget.isClarifyLater,
       budgetDollars:
           c.budget.amountCents == null ? null : c.budget.amountCents! ~/ 100,
+      practiceCode: c.practice.code,
+      coverKey: c.coverKey,
+      urgency: c.urgency?.json,
     );

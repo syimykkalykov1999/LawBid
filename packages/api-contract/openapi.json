@@ -56455,6 +56455,15 @@
           "clarify_later"
         ]
       },
+      "CaseUrgency": {
+        "type": "string",
+        "enum": [
+          "flexible",
+          "soon",
+          "urgent"
+        ],
+        "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases."
+      },
       "CaseStatus": {
         "type": "string",
         "enum": [
@@ -56506,6 +56515,21 @@
           "budgetCents": {
             "type": "integer",
             "nullable": true
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           },
           "status": {
             "allOf": [
@@ -56629,6 +56653,22 @@
           "clientContactSharingConsent": {
             "type": "boolean",
             "description": "Must be true unless the client already granted client_contact_sharing on an earlier case."
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "`art:0`-`art:3` (practice cover variant) or `icon:<name>`.",
+            "pattern": "^(art:[0-3]|icon:[a-z_]{2,32})$",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: how soon the client needs an attorney.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           }
         },
         "required": [
@@ -56700,6 +56740,22 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000000
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "`art:0`-`art:3` (practice cover variant) or `icon:<name>`.",
+            "pattern": "^(art:[0-3]|icon:[a-z_]{2,32})$",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: how soon the client needs an attorney.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           }
         }
       },
@@ -56776,6 +56832,21 @@
           "budgetCents": {
             "type": "integer",
             "nullable": true
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           },
           "bidsCount": {
             "type": "integer"
@@ -56925,6 +56996,21 @@
           "budget": {
             "$ref": "#/components/schemas/CaseBudgetDto"
           },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
           "viewCount": {
             "type": "integer"
           },
@@ -57070,6 +57156,21 @@
           },
           "budget": {
             "$ref": "#/components/schemas/CaseBudgetDto"
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           },
           "viewCount": {
             "type": "integer"
@@ -57704,6 +57805,21 @@
           "budgetCents": {
             "type": "integer",
             "nullable": true
+          },
+          "coverKey": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.",
+            "example": "art:2"
+          },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
           },
           "status": {
             "allOf": [

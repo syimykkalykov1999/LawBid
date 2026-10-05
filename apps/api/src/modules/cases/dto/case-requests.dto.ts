@@ -1,4 +1,9 @@
 import { MineFilterFields } from '../mine/mine-filters';
+import {
+  CASE_COVER_RE,
+  CASE_URGENCIES,
+  type CaseUrgency,
+} from '../domain/case-cover';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -140,6 +145,28 @@ export class CreateCaseDto {
   @IsOptional()
   @IsBoolean()
   clientContactSharingConsent?: boolean;
+  /** Owner 2026-10-04: an app cover variant or icon avatar for the card
+   * (never a personal photo). Null/absent = picked from the case id. */
+  @ApiPropertyOptional({
+    nullable: true,
+    pattern: '^(art:[0-3]|icon:[a-z_]{2,32})$',
+    example: 'art:2',
+    description: '`art:0`-`art:3` (practice cover variant) or `icon:<name>`.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(CASE_COVER_RE)
+  coverKey?: string | null;
+
+  /** Owner 2026-10-04: how soon the client needs an attorney. */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsIn(CASE_URGENCIES)
+  urgency?: CaseUrgency | null;
 }
 
 /** PATCH /cases/:id (docs/04 §3.5). Every field is optional; at least one
@@ -211,6 +238,28 @@ export class UpdateCaseDto {
   @Min(BUDGET_MIN_DOLLARS)
   @Max(BUDGET_MAX_DOLLARS)
   budgetAmountDollars?: number;
+  /** Owner 2026-10-04: an app cover variant or icon avatar for the card
+   * (never a personal photo). Null/absent = picked from the case id. */
+  @ApiPropertyOptional({
+    nullable: true,
+    pattern: '^(art:[0-3]|icon:[a-z_]{2,32})$',
+    example: 'art:2',
+    description: '`art:0`-`art:3` (practice cover variant) or `icon:<name>`.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(CASE_COVER_RE)
+  coverKey?: string | null;
+
+  /** Owner 2026-10-04: how soon the client needs an attorney. */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsIn(CASE_URGENCIES)
+  urgency?: CaseUrgency | null;
 }
 
 // Owner 2026-09-30: `open` and `in_progress` split the old `active`

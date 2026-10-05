@@ -53,3 +53,11 @@ required — credited here as a courtesy).
 
 All app icons — Phosphor Icons (https://phosphoricons.com, package
 `phosphor_flutter`), MIT License © Phosphor Icons.
+
+## Extra covers (`<code>_2.jpg`, `<code>_3.jpg`) — 2026-10-04
+
+Each practice has two more covers for variety in the feed. They are derived
+from the same Unsplash photo as `<code>.jpg` (a different crop, mirrored or
+not, and a navy or warm tint) and so carry the same credit as that photo's
+row above. Real replacement photos (Wikimedia Commons, with author and
+licence in this file) can be dropped in under the same file names later.

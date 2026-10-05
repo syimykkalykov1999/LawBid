@@ -1,3 +1,4 @@
+import { CASE_URGENCIES, type CaseUrgency } from '../domain/case-cover';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode, CaseStatus } from '@prisma/client';
 
@@ -74,6 +75,18 @@ export class CaseDto {
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   budgetCents!: number | null;
 
+  /** Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id. */
+  @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })
+  coverKey?: string | null;
+
+  /** Owner 2026-10-04: flexible | soon | urgent; null on older cases. */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  urgency?: CaseUrgency | null;
+
   @ApiProperty({ enum: CaseStatus, enumName: 'CaseStatus' })
   status!: CaseStatus;
 
@@ -140,6 +153,18 @@ export class CaseSummaryDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   budgetCents!: number | null;
+
+  /** Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id. */
+  @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })
+  coverKey?: string | null;
+
+  /** Owner 2026-10-04: flexible | soon | urgent; null on older cases. */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  urgency?: CaseUrgency | null;
 
   @ApiProperty({ type: 'integer' })
   bidsCount!: number;

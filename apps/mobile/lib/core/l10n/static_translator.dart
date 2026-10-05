@@ -1,6 +1,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
+import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
@@ -1073,6 +1074,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...file07Ru,
         ...reelsRu,
         ...partnerRu,
+        ...caseCoverRu,
       };
 }
 
@@ -2419,5 +2421,6 @@ class StaticTranslatorEn extends _MapTranslator {
         ...file07En,
         ...reelsEn,
         ...partnerEn,
+        ...caseCoverEn,
       };
 }

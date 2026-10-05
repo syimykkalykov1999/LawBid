@@ -175,7 +175,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                     url: a.avatarUrl,
                     initials: a.displayName.isEmpty
                         ? '?'
-                        : a.displayName.substring(0, 1).toUpperCase(),
+                        : avatarInitials(a.displayName),
                     size: avatarSize,
                     ring: a.verified,
                   ),

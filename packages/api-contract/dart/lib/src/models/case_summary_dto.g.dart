@@ -23,6 +23,10 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       coverUrl: json['coverUrl'] as String?,
       city: json['city'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
     );
 
 Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
@@ -37,6 +41,8 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
       'status': instance.status.toJson(),
       'budgetMode': instance.budgetMode.toJson(),
       'budgetCents': ?instance.budgetCents,
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
       'bidsCount': instance.bidsCount,
       'createdAt': instance.createdAt,
       'lastActivityAt': instance.lastActivityAt,

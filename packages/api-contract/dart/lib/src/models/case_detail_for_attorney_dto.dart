@@ -9,6 +9,7 @@ import 'case_detail_for_attorney_dto_completion_requested_by.dart';
 import 'case_photo_dto.dart';
 import 'case_practice_area_dto.dart';
 import 'case_status.dart';
+import 'case_urgency.dart';
 
 part 'case_detail_for_attorney_dto.g.dart';
 
@@ -38,6 +39,8 @@ class CaseDetailForAttorneyDto {
     required this.inMyPractice,
     required this.bidAllowed,
     this.city,
+    this.coverKey,
+    this.urgency,
     this.ownBidId,
     this.completionRequestedBy,
   });
@@ -56,6 +59,12 @@ class CaseDetailForAttorneyDto {
   final String? city;
   final CaseStatus status;
   final CaseBudgetDto budget;
+
+  /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: flexible | soon | urgent; null on older cases.
+  final CaseUrgency? urgency;
   final int viewCount;
   final int bidsCount;
   final DateTime createdAt;
