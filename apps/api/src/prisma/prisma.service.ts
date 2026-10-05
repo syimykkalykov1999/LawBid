@@ -138,9 +138,18 @@ export class PrismaService
         }
         const client = pick() as unknown as Record<PropertyKey, unknown>;
         const value = client[prop];
-        return typeof value === 'function'
-          ? (value as (...args: unknown[]) => unknown).bind(client)
-          : value;
+        // Jest spies must stay as they are: binding would hide .mockXxx().
+        if (
+          typeof value === 'function' &&
+          !(value as { _isMockFunction?: boolean })._isMockFunction
+        ) {
+          return (value as (...args: unknown[]) => unknown).bind(client);
+        }
+        return value;
+      },
+      set(_target, prop, value) {
+        (real as unknown as Record<PropertyKey, unknown>)[prop] = value;
+        return true;
       },
       has(_target, prop) {
         return prop === ROUTING || prop in (real as object);
