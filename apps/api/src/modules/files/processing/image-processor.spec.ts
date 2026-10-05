@@ -63,6 +63,35 @@ describe('ImageProcessor', () => {
     expect(out.variants.get(1080)?.height).toBe(1080);
   });
 
+  it('storage.image_format webp: photo, variants and avatar come out as WebP', async () => {
+    const src = await jpegWithExif(3000, 2000);
+    const photo = await processor.process({
+      data: src,
+      mime: 'image/jpeg',
+      avatar: false,
+      postImage: true,
+      format: 'webp',
+    });
+    expect(photo.main?.mime).toBe('image/webp');
+    expect(detectMime(photo.main!.data)).toContain('image/webp');
+    expect((await sharp(photo.main!.data).metadata()).exif).toBeUndefined();
+    expect(photo.variants.get(320)?.mime).toBe('image/webp');
+    const jpeg = await processor.process({
+      data: src,
+      mime: 'image/jpeg',
+      avatar: false,
+      postImage: true,
+    });
+    expect(photo.main!.data.length).toBeLessThan(jpeg.main!.data.length);
+    const avatar = await processor.process({
+      data: src,
+      mime: 'image/jpeg',
+      avatar: true,
+      format: 'webp',
+    });
+    expect(avatar.main?.mime).toBe('image/webp');
+  });
+
   it('avatar: square crop, 1024 max + 256 variant, EXIF stripped', async () => {
     const src = await jpegWithExif(2000, 1200);
     expect((await sharp(src).metadata()).exif).toBeDefined();

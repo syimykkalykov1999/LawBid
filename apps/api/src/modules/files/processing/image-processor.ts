@@ -19,6 +19,11 @@ export interface ProcessedImage {
   height: number;
 }
 
+/** Owner 2026-10-05: what resized photos are written as
+ * (`storage.image_format`). WebP is ≈30% smaller than JPEG at the same
+ * look; every phone and browser LawBid supports shows it. */
+export type ImageFormat = 'jpeg' | 'webp';
+
 export interface ProcessedFile {
   /** Replaces the stored object (null = keep the upload as is). */
   main: ProcessedImage | null;
@@ -67,7 +72,9 @@ export class ImageProcessor {
     mime: FileMime;
     avatar: boolean;
     postImage?: boolean;
+    format?: ImageFormat;
   }): Promise<ProcessedFile> {
+    const format = input.format ?? 'jpeg';
     // Documents and audio are stored as uploaded (OQ-034/040/047).
     if (!IMAGE_MIMES.has(input.mime)) {
       return { main: null, variants: new Map(), width: null, height: null };
@@ -86,10 +93,10 @@ export class ImageProcessor {
         .rotate()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      const main = await this.square(oriented, AVATAR_MAIN_PX);
+      const main = await this.square(oriented, AVATAR_MAIN_PX, format);
       const variants = new Map<number, ProcessedImage>();
       for (const px of AVATAR_VARIANT_PX) {
-        variants.set(px, await this.square(oriented, px));
+        variants.set(px, await this.square(oriented, px, format));
       }
       return { main, variants, width: main.width, height: main.height };
     }
@@ -99,10 +106,10 @@ export class ImageProcessor {
         .rotate()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      const main = await this.fitted(oriented, POST_IMAGE_MAIN_PX);
+      const main = await this.fitted(oriented, POST_IMAGE_MAIN_PX, format);
       const variants = new Map<number, ProcessedImage>();
       for (const px of POST_IMAGE_VARIANT_PX) {
-        variants.set(px, await this.fitted(oriented, px));
+        variants.set(px, await this.fitted(oriented, px, format));
       }
       return { main, variants, width: main.width, height: main.height };
     }
@@ -159,45 +166,56 @@ export class ImageProcessor {
     }
   }
 
-  /** Long side ≤ [px], aspect kept, never upscaled, JPEG, no metadata. */
+  /** Long side ≤ [px], aspect kept, never upscaled, JPEG or WebP, no
+   * metadata. */
   private async fitted(
     raw: { data: Buffer; info: sharp.OutputInfo },
     px: number,
+    format: ImageFormat,
   ): Promise<ProcessedImage> {
     const { width, height, channels } = raw.info;
-    const out = await sharp(raw.data, {
+    const out = sharp(raw.data, {
       raw: { width, height, channels },
       limitInputPixels: MAX_INPUT_PIXELS,
     })
       .resize(px, px, { fit: 'inside', withoutEnlargement: true })
-      .flatten({ background: '#ffffff' })
-      .jpeg({ quality: 85, mozjpeg: true })
-      .toBuffer({ resolveWithObject: true });
-    return {
-      data: out.data,
-      mime: FILE_MIME.jpeg,
-      width: out.info.width,
-      height: out.info.height,
-    };
+      .flatten({ background: '#ffffff' });
+    return this.encode(out, format);
   }
 
   private async square(
     raw: { data: Buffer; info: sharp.OutputInfo },
     px: number,
+    format: ImageFormat,
   ): Promise<ProcessedImage> {
     const { width, height, channels } = raw.info;
     const side = Math.min(px, width, height);
-    const out = await sharp(raw.data, {
+    const out = sharp(raw.data, {
       raw: { width, height, channels },
       limitInputPixels: MAX_INPUT_PIXELS,
     })
       .resize(side, side, { fit: 'cover', position: 'centre' })
-      .flatten({ background: '#ffffff' })
-      .jpeg({ quality: 85, mozjpeg: true })
-      .toBuffer({ resolveWithObject: true });
+      .flatten({ background: '#ffffff' });
+    return this.encode(out, format);
+  }
+
+  /** Quality 85 JPEG (mozjpeg) or quality 80 WebP — the same look; sharp
+   * writes no metadata (EXIF/GPS) unless asked to. */
+  private async encode(
+    img: sharp.Sharp,
+    format: ImageFormat,
+  ): Promise<ProcessedImage> {
+    const out =
+      format === 'webp'
+        ? await img
+            .webp({ quality: 80, effort: 4 })
+            .toBuffer({ resolveWithObject: true })
+        : await img
+            .jpeg({ quality: 85, mozjpeg: true })
+            .toBuffer({ resolveWithObject: true });
     return {
       data: out.data,
-      mime: FILE_MIME.jpeg,
+      mime: format === 'webp' ? FILE_MIME.webp : FILE_MIME.jpeg,
       width: out.info.width,
       height: out.info.height,
     };

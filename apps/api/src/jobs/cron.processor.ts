@@ -41,6 +41,9 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
+import { DataRetentionService } from '../modules/storage/data-retention.service';
+import { StorageStatsService } from '../modules/storage/storage-stats.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -81,6 +84,9 @@ export class CronProcessor {
     private readonly fraud: ClientFraudService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
+    @Optional() private readonly storageCleanup?: StorageCleanupService,
+    @Optional() private readonly dataRetention?: DataRetentionService,
+    @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly opsState?: OpsStateService,
   ) {}
@@ -165,6 +171,12 @@ export class CronProcessor {
         return this.fraud.sweep();
       case CRON_JOBS.supportSweep:
         return this.supportDesk?.sweep();
+      case CRON_JOBS.storageCleanup:
+        return this.storageCleanup?.run() ?? null;
+      case CRON_JOBS.storageRetention:
+        return this.dataRetention?.run() ?? null;
+      case CRON_JOBS.storageSnapshot:
+        return this.storageStats?.snapshot() ?? null;
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
       case CRON_JOBS.opsGuard:

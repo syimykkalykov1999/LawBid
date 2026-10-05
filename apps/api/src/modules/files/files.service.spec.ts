@@ -14,7 +14,12 @@ import type { FileScanRunner } from './jobs/file-scan.runner';
 const SHA = 'a'.repeat(64);
 
 function make(
-  overrides: { allowed?: boolean; file?: Partial<File> | null } = {},
+  overrides: {
+    allowed?: boolean;
+    file?: Partial<File> | null;
+    usedBytes?: bigint;
+    quotaMb?: number | null;
+  } = {},
 ) {
   const file =
     overrides.file === null
@@ -30,8 +35,23 @@ function make(
           ...overrides.file,
         } as File);
   const deps = {
-    prisma: { file: { findUnique: jest.fn().mockResolvedValue(file) } },
-    redis: { set: jest.fn().mockResolvedValue('OK') },
+    prisma: {
+      file: {
+        findUnique: jest.fn().mockResolvedValue(file),
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { size_bytes: overrides.usedBytes ?? 0n },
+        }),
+      },
+      user: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ storage_quota_mb: overrides.quotaMb ?? null }),
+      },
+    },
+    redis: {
+      set: jest.fn().mockResolvedValue('OK'),
+      zadd: jest.fn().mockResolvedValue(1),
+    },
     storage: {
       bucket: jest.fn((k: string) => `lawbid-${k}`),
       presignPost: jest
@@ -119,6 +139,65 @@ describe('FilesService', () => {
         size: 1234,
       });
       expect(ttl).toBe(3600);
+      // Tracked so the storage cleanup can remove it if never confirmed.
+      expect(deps.redis.zadd).toHaveBeenCalledWith(
+        'files:pending',
+        expect.any(Number),
+        `${res.fileId}|lawbid-documents|verification_document/u1/${res.fileId}`,
+      );
+    });
+
+    it('refuses an upload past the storage cap (personal over default), never for avatars', async () => {
+      const full = make({ usedBytes: BigInt(10 * 1024 * 1024) });
+      expect(
+        await code(
+          full.service.presign('u1', {
+            purpose: 'post_image',
+            mime: 'image/png',
+            sizeBytes: 10,
+            sha256: SHA,
+          }),
+        ),
+      ).toBe('STORAGE_QUOTA_EXCEEDED');
+      expect(full.deps.costGuard.consume).not.toHaveBeenCalled();
+      expect(
+        await code(
+          full.service.presign('u1', {
+            purpose: 'avatar',
+            mime: 'image/png',
+            sizeBytes: 10,
+            sha256: SHA,
+          }),
+        ),
+      ).toBe('resolved');
+      const raised = make({
+        usedBytes: BigInt(10 * 1024 * 1024),
+        quotaMb: 20,
+      });
+      expect(
+        await code(
+          raised.service.presign('u1', {
+            purpose: 'post_image',
+            mime: 'image/png',
+            sizeBytes: 10,
+            sha256: SHA,
+          }),
+        ),
+      ).toBe('resolved');
+      const unlimited = make({
+        usedBytes: BigInt(10 * 1024 * 1024),
+        quotaMb: 0,
+      });
+      expect(
+        await code(
+          unlimited.service.presign('u1', {
+            purpose: 'post_image',
+            mime: 'image/png',
+            sizeBytes: 10,
+            sha256: SHA,
+          }),
+        ),
+      ).toBe('resolved');
     });
 
     it('refuses types outside the purpose allow-list before spending budget', async () => {

@@ -360,11 +360,24 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
   bool _loading = true;
   bool _done = false;
   Object? _error;
+  ChatStorageSummary? _storage;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadStorage();
+  }
+
+  /// The summary is a nicety: the list works without it.
+  Future<void> _loadStorage() async {
+    try {
+      final s =
+          await ref.read(chatRepositoryProvider).storage(widget.conversationId);
+      if (mounted) setState(() => _storage = s);
+    } on Object {
+      // Older API or offline: no summary line.
+    }
   }
 
   Future<void> _load() async {
@@ -455,6 +468,10 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                   },
                   child: CustomScrollView(
                     slivers: [
+                      if (_storage != null)
+                        SliverToBoxAdapter(
+                          child: _StorageSummary(storage: _storage!),
+                        ),
                       if (photos.isNotEmpty) ...[
                         header(t.t('chat.files.photos')),
                         SliverPadding(
@@ -551,6 +568,65 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+}
+
+/// "Photos: 12 · Documents: 3 · Voice: 5" and how much the chat's files
+/// take (with a bar when the chat has a cap). Wraps in every language.
+class _StorageSummary extends ConsumerWidget {
+  const _StorageSummary({required this.storage});
+
+  final ChatStorageSummary storage;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final quota = storage.quotaBytes;
+    final used = fileSizeLabel(storage.usedBytes);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        0,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            t.t('chat.files.summary.counts', {
+              'photos': '${storage.photos}',
+              'documents': '${storage.documents}',
+              'voice': '${storage.voice}',
+            }),
+            style: type.bodySmall.copyWith(color: colors.text),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            quota == null
+                ? t.t('chat.files.summary.used', {'used': used})
+                : t.t('chat.files.summary.usedOf', {
+                    'used': used,
+                    'quota': fileSizeLabel(quota),
+                  }),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+          if (quota != null && quota > 0) ...[
+            const SizedBox(height: AppSpacing.xs),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: (storage.usedBytes / quota).clamp(0, 1).toDouble(),
+                minHeight: 4,
+                backgroundColor: colors.skeletonBase,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
