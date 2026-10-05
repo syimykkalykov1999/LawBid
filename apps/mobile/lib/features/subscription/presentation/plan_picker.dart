@@ -285,7 +285,9 @@ class _PlanPickerState extends State<PlanPicker> {
             ? t.t('plan.pay.trialDays', {
                 'n': widget.formats.number(offer.trialDays),
               })
-            : t.t('plans.pay.trial');
+            : t.t('plans.pay.trial', {
+                'days': t.plural('subscription.trial.days', _p.trialDays),
+              });
     final dur = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

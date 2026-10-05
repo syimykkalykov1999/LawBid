@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Label, Select, Textarea } from '@/components/ui/input';
+import { useMe } from '@/lib/hooks';
+import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
 export interface ReasonOptions {
   title: string;
@@ -18,6 +20,12 @@ export interface ReasonOptions {
   choiceLabel?: string;
   /** Text may be empty (the choice carries the decision). */
   optionalText?: boolean;
+  /** Text is needed even though it is labelled «Причина»: a message to
+   * a person, or the X-Justification for viewing personal data. */
+  required?: boolean;
+  /** Section of the action when it differs from the page's (e.g. a money
+   * action on a user's card): decides whether staff must give a reason. */
+  area?: string;
 }
 
 export type ReasonResult = { text: string; choice?: string } | null;
@@ -59,13 +67,23 @@ function ReasonDialog({
   opts: ReasonOptions;
   onClose: (r: ReasonResult) => void;
 }) {
-  const min = opts.min ?? 10;
+  const isReason = !opts.label || opts.label.startsWith('Причина');
+  // Owner 2026-10-05: the owner never has to give a reason; staff do in the
+  // sections the owner switched on (Администраторы → «Обязательная причина»).
+  const policy = useReasonRequired(opts.area);
+  const min = opts.required ? (opts.min ?? 10) : isReason ? REASON_MIN : (opts.min ?? 10);
   const max = opts.max ?? 500;
   const [text, setText] = useState('');
   const [choice, setChoice] = useState(opts.choices?.[0]?.value ?? '');
   const trimmed = text.trim();
-  const ok =
-    (opts.optionalText || trimmed.length >= min) && trimmed.length <= max;
+  // Owner 2026-10-05: an admin never has to write a reason for an action;
+  // it is optional and stored empty when left blank.
+  // The X-Justification for personal data too: optional for the owner
+  // (the access is still logged).
+  const { data: me } = useMe();
+  const owner = me?.role === 'super_admin';
+  const optional = opts.optionalText || (opts.required ? owner && isReason : isReason && !policy);
+  const ok = (optional || trimmed.length >= min) && trimmed.length <= max;
 
   return (
     <Dialog
@@ -100,10 +118,12 @@ function ReasonDialog({
         ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="reason-text">
-            {opts.label ?? 'Комментарий'}
-            {!opts.optionalText ? (
+            {opts.label ?? 'Причина'}
+            {optional ? (
+              opts.optionalText ? null : <span className="ml-1 text-xs font-normal text-muted">(необязательно)</span>
+            ) : (
               <span className="ml-1 text-xs font-normal text-muted">(не короче {min} символов)</span>
-            ) : null}
+            )}
           </Label>
           <Textarea
             id="reason-text"
@@ -114,7 +134,7 @@ function ReasonDialog({
             onChange={(e) => setText(e.target.value)}
           />
           <div className="flex justify-between text-xs text-faint">
-            <span>{!opts.optionalText && trimmed.length < min ? `ещё ${min - trimmed.length}` : ''}</span>
+            <span>{!optional && trimmed.length < min ? `ещё ${min - trimmed.length}` : ''}</span>
             <span>
               {trimmed.length}/{max}
             </span>

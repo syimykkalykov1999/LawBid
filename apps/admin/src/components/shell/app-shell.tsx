@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useMe } from '@/lib/hooks';
+import { canOpen, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 import { CommandPalette } from './command-palette';
 import { Sidebar } from './sidebar';
@@ -26,6 +27,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
   useEffect(() => setDrawer(false), [pathname]);
+  // Owner 2026-10-05: a section without the right doesn't exist for this
+  // admin — not in the menu, and a typed URL shows "not found".
+  const hidden = !!me && !!sectionFor(pathname) && !canOpen(me, pathname);
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -80,7 +84,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           >
-            {children}
+            {hidden ? (
+              <div className="py-24 text-center">
+                <div className="text-5xl font-semibold text-faint">404</div>
+                <p className="mt-3 text-sm text-muted">Такой страницы нет.</p>
+              </div>
+            ) : (
+              children
+            )}
           </motion.div>
         </main>
       </div>

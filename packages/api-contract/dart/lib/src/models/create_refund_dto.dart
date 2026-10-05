@@ -9,9 +9,9 @@ part 'create_refund_dto.g.dart';
 @JsonSerializable()
 class CreateRefundDto {
   const CreateRefundDto({
-    required this.reason,
     required this.paymentId,
     required this.amountCents,
+    this.reason = '',
   });
 
   factory CreateRefundDto.fromJson(Map<String, Object?> json) =>

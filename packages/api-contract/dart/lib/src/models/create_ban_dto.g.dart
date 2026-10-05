@@ -9,8 +9,8 @@ part of 'create_ban_dto.dart';
 CreateBanDto _$CreateBanDtoFromJson(Map<String, dynamic> json) => CreateBanDto(
   kind: CreateBanDtoKind.fromJson(json['kind'] as String),
   value: json['value'] as String,
-  reason: json['reason'] as String,
   days: json['days'] as num?,
+  reason: json['reason'] as String? ?? '',
 );
 
 Map<String, dynamic> _$CreateBanDtoToJson(CreateBanDto instance) =>

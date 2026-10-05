@@ -8,7 +8,7 @@ part 'admin_billing_reason_dto.g.dart';
 
 @JsonSerializable()
 class AdminBillingReasonDto {
-  const AdminBillingReasonDto({required this.reason});
+  const AdminBillingReasonDto({this.reason = ''});
 
   factory AdminBillingReasonDto.fromJson(Map<String, Object?> json) =>
       _$AdminBillingReasonDtoFromJson(json);

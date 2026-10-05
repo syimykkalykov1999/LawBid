@@ -8,7 +8,7 @@ part 'admin_case_action_dto.g.dart';
 
 @JsonSerializable()
 class AdminCaseActionDto {
-  const AdminCaseActionDto({required this.reason});
+  const AdminCaseActionDto({this.reason = ''});
 
   factory AdminCaseActionDto.fromJson(Map<String, Object?> json) =>
       _$AdminCaseActionDtoFromJson(json);

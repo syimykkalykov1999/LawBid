@@ -12,7 +12,7 @@ part 'update_partner_dto.g.dart';
 @JsonSerializable()
 class UpdatePartnerDto {
   const UpdatePartnerDto({
-    required this.reason,
+    this.reason = '',
     this.label,
     this.note,
     this.attorneyRateCents,

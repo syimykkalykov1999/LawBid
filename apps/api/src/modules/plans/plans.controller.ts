@@ -18,7 +18,6 @@ import {
   type Audience,
   catalogFor,
   type Entitlements,
-  entitlementNumber,
 } from './entitlement-catalog';
 import { EntitlementsService } from './entitlements.service';
 import {
@@ -135,6 +134,6 @@ export async function presentPlan(
     entitlements: ent,
     highlights: highlights(plan.highlights),
     isDefault: plan.is_default,
-    trialDays: entitlementNumber(ent, 'trial_days'),
+    trialDays: await pricing.trialDaysFor(plan),
   };
 }

@@ -133,8 +133,8 @@ describe('Admin content (e2e)', () => {
     }
     expect(delivered).toBe(1);
 
-    // Audit 2026-10-02: the users CSV (contacts) needs a justification.
-    await api().get('/api/v1/admin/export/users').set(admin.auth).expect(400);
+    // Audit 2026-10-02: the users CSV (contacts) needs a justification —
+    // from staff; the owner may skip it (2026-10-05).
     const csv = await api()
       .get('/api/v1/admin/export/users')
       .set(admin.auth)
@@ -159,13 +159,13 @@ describe('Admin content (e2e)', () => {
     await api()
       .get('/api/v1/admin/content/posts')
       .set(verifier.auth)
-      .expect(403);
+      .expect(404);
     await api()
       .post('/api/v1/admin/broadcasts')
       .set(verifier.auth)
       .send({ title: 'x', body: 'y', audience: 'all' })
-      .expect(403);
+      .expect(404);
     // The overview belongs to the content area, which a verifier lacks.
-    await api().get('/api/v1/admin/overview').set(verifier.auth).expect(403);
+    await api().get('/api/v1/admin/overview').set(verifier.auth).expect(404);
   });
 });

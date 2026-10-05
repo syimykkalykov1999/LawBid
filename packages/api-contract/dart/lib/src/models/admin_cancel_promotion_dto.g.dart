@@ -8,7 +8,7 @@ part of 'admin_cancel_promotion_dto.dart';
 
 AdminCancelPromotionDto _$AdminCancelPromotionDtoFromJson(
   Map<String, dynamic> json,
-) => AdminCancelPromotionDto(reason: json['reason'] as String);
+) => AdminCancelPromotionDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$AdminCancelPromotionDtoToJson(
   AdminCancelPromotionDto instance,

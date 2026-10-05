@@ -8,7 +8,7 @@ part of 'admin_partner_reason_dto.dart';
 
 AdminPartnerReasonDto _$AdminPartnerReasonDtoFromJson(
   Map<String, dynamic> json,
-) => AdminPartnerReasonDto(reason: json['reason'] as String);
+) => AdminPartnerReasonDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$AdminPartnerReasonDtoToJson(
   AdminPartnerReasonDto instance,

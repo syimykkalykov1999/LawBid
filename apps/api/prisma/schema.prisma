@@ -2818,6 +2818,13 @@ model IntegrationCredential {
   last_test_at    DateTime?                   @db.Timestamptz
   last_test_ok    Boolean?
   last_test_error String?
+  /// Owner 2026-10-05: several key sets per service ("main", "backup", …).
+  /// One active version per (provider, slot); the API uses the enabled
+  /// sets in [priority] order and falls back to the next on a failure.
+  slot            String                      @default("main")
+  label           String?
+  priority        Int                         @default(0)
+  enabled         Boolean                     @default(true)
 
   @@unique([provider, version])
   @@map("integration_credentials")
@@ -2845,6 +2852,22 @@ model StateBarRegistry {
   updated_at       DateTime  @updatedAt @db.Timestamptz
 
   @@map("state_bar_registries")
+}
+
+/// Owner 2026-10-05: a service the owner adds in the admin without a code
+/// change (name + its own key fields); code reads it with
+/// SecretsService.get(id) like a built-in one.
+model IntegrationCustomProvider {
+  id          String   @id
+  label       String
+  description String   @default("")
+  /// [{ name, label, secret, required }]
+  fields      Json     @default("[]")
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @default(now()) @db.Timestamptz
+
+  @@map("integration_custom_providers")
 }
 
 /// Owner 2026-10-01: Bunny Stream video of a post.
@@ -3313,6 +3336,106 @@ model PlanPrice {
 
   @@index([kind, active, created_at(sort: Desc)], map: "plan_prices_kind_idx")
   @@map("plan_prices")
+}
+
+/// Owner 2026-10-05: staff on payroll ("Зарплаты"): an admin of the panel
+/// or anyone else, with a fixed monthly amount. Super admin, the deputy
+/// and admins with the payroll area manage it; every change is audited.
+model PayrollEmployee {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The admin account this person uses, when they have one.
+  admin_user_id          String?          @db.Uuid
+  /// Owner 2026-10-05: any LawBid account paid through payroll (a partner
+  /// blogger, …); commissions from other modules land on this person.
+  user_id                String?          @unique @db.Uuid
+  name                   String           @db.String(120)
+  role_title             String           @default("") @db.String(120)
+  amount_cents           Int
+  currency               String           @default("usd") @db.String(3)
+  /// How the money goes: bank transfer details, Zelle, cash… (free text).
+  method_note            String           @default("") @db.String(300)
+  /// For the Stripe Connect invite (optional).
+  email                  String?          @db.String(254)
+  /// Stripe Connect Express account (payroll_stripe_payouts).
+  stripe_account_id      String?          @db.String(64)
+  /// Stripe says the bank account / card is linked and payouts work.
+  stripe_payouts_enabled Boolean          @default(false)
+  active                 Boolean          @default(true)
+  created_by             String?          @db.Uuid
+  created_at             DateTime         @default(now()) @db.Timestamptz
+  updated_at             DateTime         @default(now()) @db.Timestamptz
+  payouts                PayrollPayout[]
+  accruals               PayrollAccrual[]
+
+  @@index([active, name])
+  @@map("payroll_employees")
+}
+
+/// One payment to a person: fixed salary plus accrued commissions. Recorded
+/// by hand (bank, Zelle, cash) or sent through Stripe Connect;
+/// `batch_id` groups one "Выплатить" run.
+model PayrollPayout {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id      String          @db.Uuid
+  employee         PayrollEmployee @relation(fields: [employee_id], references: [id], onDelete: Restrict)
+  batch_id         String          @db.Uuid
+  /// "2026-10" (month) or any label the owner gives the period.
+  period           String          @db.String(40)
+  amount_cents     Int
+  currency         String          @default("usd") @db.String(3)
+  /// manual · bank · zelle · cash · other · stripe
+  method           String          @default("manual") @db.String(20)
+  /// paid · canceled · processing (Stripe transfer in flight) · failed
+  status           String          @default("paid") @db.String(16)
+  /// Gross = base + commissions; net = gross - fee (what the person gets).
+  base_cents       Int             @default(0)
+  commission_cents Int             @default(0)
+  /// Stripe's cost, taken from the person's payout (owner 2026-10-05).
+  fee_cents        Int             @default(0)
+  net_cents        Int             @default(0)
+  /// Stripe transfer id (method = stripe).
+  transfer_id      String?         @db.String(64)
+  /// Why the Stripe transfer failed.
+  failure          String?         @db.String(300)
+  note             String?         @db.String(300)
+  cancel_reason    String?         @db.String(500)
+  created_by       String?         @db.Uuid
+  created_at       DateTime        @default(now()) @db.Timestamptz
+  canceled_at      DateTime?       @db.Timestamptz
+
+  @@index([employee_id, created_at(sort: Desc)])
+  @@index([period, created_at(sort: Desc)])
+  @@index([batch_id])
+  @@map("payroll_payouts")
+}
+
+/// Owner 2026-10-05: money owed to a person besides the fixed salary — a
+/// commission from the partner program, a bonus, an adjustment. Paid with
+/// the next «Выплатить»; `event_ref` makes each accrual idempotent.
+model PayrollAccrual {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id  String          @db.Uuid
+  employee     PayrollEmployee @relation(fields: [employee_id], references: [id], onDelete: Restrict)
+  /// partner · admin · …
+  source       String          @db.String(24)
+  /// commission · bonus · adjustment
+  kind         String          @default("commission") @db.String(24)
+  event_ref    String          @unique @db.String(120)
+  /// Negative for a reversal.
+  amount_cents Int
+  currency     String          @default("usd") @db.String(3)
+  period       String          @db.String(40)
+  note         String?         @db.String(300)
+  /// pending · paid · canceled
+  status       String          @default("pending") @db.String(16)
+  payout_id    String?         @db.Uuid
+  created_at   DateTime        @default(now()) @db.Timestamptz
+  paid_at      DateTime?       @db.Timestamptz
+  canceled_at  DateTime?       @db.Timestamptz
+
+  @@index([employee_id, status])
+  @@index([payout_id])
+  @@map("payroll_accruals")
 }
 
 // Owner 2026-10-05: client → attorney payments through the platform.

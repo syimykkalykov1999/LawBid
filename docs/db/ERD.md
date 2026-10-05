@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-117 tables.
+121 tables.
 
 ```mermaid
 erDiagram
@@ -998,6 +998,10 @@ erDiagram
     DateTime last_test_at "nullable"
     Boolean last_test_ok "nullable"
     String last_test_error "nullable"
+    String slot
+    String label "nullable"
+    Int priority
+    Boolean enabled
   }
   state_bar_registries {
     String state_code PK,FK
@@ -1010,6 +1014,15 @@ erDiagram
     DateTime last_test_at "nullable"
     Json last_test_result "nullable"
     String updated_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  integration_custom_providers {
+    String id PK
+    String label
+    String description
+    Json fields
+    String created_by "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1283,6 +1296,60 @@ erDiagram
     String note "nullable"
     String created_by "nullable"
     DateTime created_at
+  }
+  payroll_employees {
+    String id PK
+    String admin_user_id "nullable"
+    String user_id UK "nullable"
+    String name
+    String role_title
+    Int amount_cents
+    String currency
+    String method_note
+    String email "nullable"
+    String stripe_account_id "nullable"
+    Boolean stripe_payouts_enabled
+    Boolean active
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  payroll_payouts {
+    String id PK
+    String employee_id FK
+    String batch_id
+    String period
+    Int amount_cents
+    String currency
+    String method
+    String status
+    Int base_cents
+    Int commission_cents
+    Int fee_cents
+    Int net_cents
+    String transfer_id "nullable"
+    String failure "nullable"
+    String note "nullable"
+    String cancel_reason "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime canceled_at "nullable"
+  }
+  payroll_accruals {
+    String id PK
+    String employee_id FK
+    String source
+    String kind
+    String event_ref UK
+    Int amount_cents
+    String currency
+    String period
+    String note "nullable"
+    String status
+    String payout_id "nullable"
+    DateTime created_at
+    DateTime paid_at "nullable"
+    DateTime canceled_at "nullable"
   }
   payout_accounts {
     String user_id PK
@@ -1593,6 +1660,8 @@ erDiagram
   user_recent_stickers }o--|| users : "user_id"
   user_recent_stickers }o--|| stickers : "sticker_id"
   client_verifications |o--|| users : "user_id"
+  payroll_payouts }o--|| payroll_employees : "employee_id"
+  payroll_accruals }o--|| payroll_employees : "employee_id"
   document_templates |o--|| files : "file_id"
   document_templates }o--o| practice_areas : "practice_area_id"
   client_subscriptions |o--|| users : "user_id"

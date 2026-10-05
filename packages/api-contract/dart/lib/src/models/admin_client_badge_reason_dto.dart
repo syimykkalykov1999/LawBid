@@ -8,7 +8,7 @@ part 'admin_client_badge_reason_dto.g.dart';
 
 @JsonSerializable()
 class AdminClientBadgeReasonDto {
-  const AdminClientBadgeReasonDto({required this.reason});
+  const AdminClientBadgeReasonDto({this.reason = ''});
 
   factory AdminClientBadgeReasonDto.fromJson(Map<String, Object?> json) =>
       _$AdminClientBadgeReasonDtoFromJson(json);

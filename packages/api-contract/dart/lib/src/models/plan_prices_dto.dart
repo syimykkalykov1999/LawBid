@@ -13,6 +13,7 @@ class PlanPricesDto {
     required this.seatCents,
     required this.yearlyCents,
     required this.maxSeats,
+    required this.trialDays,
   });
 
   factory PlanPricesDto.fromJson(Map<String, Object?> json) =>
@@ -22,6 +23,9 @@ class PlanPricesDto {
   final int seatCents;
   final int yearlyCents;
   final int maxSeats;
+
+  /// Free trial days for a new subscription (admin setting; 0 = no trial).
+  final int trialDays;
 
   Map<String, Object?> toJson() => _$PlanPricesDtoToJson(this);
 }

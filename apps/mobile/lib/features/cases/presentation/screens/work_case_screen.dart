@@ -25,6 +25,8 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// docs/04 §8 + §11.2 "В работе": the case, the client's contacts (locked
@@ -264,12 +266,18 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                 ClientReviewAction(caseId: c.id),
               DetailSection(
                 title: t.t('cases.detail.description'),
-                child: Text(
-                  c.description ?? '',
-                  style: Theme.of(context)
-                      .extension<AppTypographyTokens>()!
-                      .body
-                      .copyWith(color: colors.text),
+                // Owner 2026-10-05: «Перевести» (cases zone).
+                child: TranslatableText(
+                  kind: TranslatableKind.caseDescription,
+                  id: c.id,
+                  text: c.description ?? '',
+                  builder: (context, text) => Text(
+                    text,
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .body
+                        .copyWith(color: colors.text),
+                  ),
                 ),
               ),
               // OQ-031: the accepted attorney sees the case photos.

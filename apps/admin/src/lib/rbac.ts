@@ -3,7 +3,9 @@
  * the server (AdminAuthGuard, deny by default); the panel just hides what an
  * admin can't open. The super admin reaches everything; any other admin
  * reaches the areas the super admin toggled on for them. Money and API keys
- * are never grantable (the API answers 403 whatever the toggles say).
+ * are never grantable (the API answers 404 whatever the toggles say).
+ * Owner 2026-10-05: the trusted deputy (the admin the super admin let
+ * manage admins) reads every section except the keys and runs payroll.
  */
 export type AdminRole =
   | 'super_admin'
@@ -42,14 +44,15 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'data_requests', label: 'Запросы госорганов', hint: 'обращения и ответы' },
   { key: 'exports', label: 'Выгрузки CSV', hint: 'кроме платежей' },
   { key: 'sanctions', label: 'Санкции', hint: 'блокировки и баны по телефону, e-mail, устройству' },
+  { key: 'payroll', label: 'Зарплаты', hint: 'сотрудники, выплаты за период' },
 ];
 
 /** Never grantable — shown locked so nobody wonders where they are. */
 export const LOCKED_AREAS: readonly { label: string; hint: string }[] = [
-  { label: 'Деньги', hint: 'подписки, платежи, возвраты, промокоды, рефералы, договоры' },
-  { label: 'Ключи и сервисы', hint: 'Stripe, Firebase, Bunny, SES, Sentry…' },
-  { label: 'Журнал аудита и сессии админов', hint: 'кто что сделал и кто сейчас в админке' },
-  { label: 'Право назначать «управляющих админами»', hint: 'его выдаёт только супер-админ' },
+  { label: 'Деньги', hint: 'подписки, платежи, возвраты, промокоды, рефералы, договоры; доверенный заместитель только смотрит' },
+  { label: 'Ключи и сервисы', hint: 'Stripe, Firebase, Bunny, SES, Sentry… только супер-админ' },
+  { label: 'Журнал аудита и сессии админов', hint: 'кто что сделал и кто сейчас в админке; заместитель только смотрит' },
+  { label: 'Право «Доверенный заместитель»', hint: 'его выдаёт только супер-админ' },
 ];
 
 interface AccessSubject {
@@ -67,6 +70,8 @@ export function can(
 ): boolean {
   if (!me) return false;
   if (me.role === 'super_admin') return true;
+  // The trusted deputy: reads everything but the keys, runs payroll.
+  if (me.canManageAdmins && area !== 'keys' && (level === 'view' || area === 'payroll')) return true;
   const have = me.permissions?.[area];
   return have === 'manage' || (have === 'view' && level === 'view');
 }
@@ -84,8 +89,9 @@ export function covers(outer: Permissions, inner: Permissions): boolean {
 /** Sidebar badge sources (see shell/use-nav-counts). */
 export type CountKey = 'verification' | 'reports' | 'support' | 'appeals';
 
-/** An area key, `super` for sections only the super admin opens, or
- * `admins` for admin management (super admin or a granted manager). */
+/** An area key, `super` for sections only the super admin opens,
+ * `money` for money/audit sections the deputy may read, or `admins` for
+ * admin management (super admin or a granted manager). */
 export type SectionArea = string;
 
 export interface Section {
@@ -134,21 +140,22 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/cases', label: 'Кейсы', icon: 'briefcase', area: 'cases', hint: 'кейсы, споры, «не могу связаться»' },
       { href: '/bids', label: 'Ставки', icon: 'gavel', area: 'cases' },
-      { href: '/promotions', label: 'Продвижение кейсов', icon: 'rocket-launch', area: 'super', hint: 'платный буст ~$10/день' },
+      { href: '/promotions', label: 'Продвижение кейсов', icon: 'rocket-launch', area: 'money', hint: 'платный буст ~$10/день' },
     ],
   },
   {
     label: 'Деньги',
     items: [
-      { href: '/prices', label: 'Цены', icon: 'tag', area: 'super', hint: 'стоимость тарифов и галочки' },
-      { href: '/plans', label: 'Планы', icon: 'stack', area: 'super', hint: 'планы подписок и их возможности' },
-      { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'super', hint: 'тарифы адвокатов' },
-      { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'super', hint: 'бесплатно блогерам 3–12 мес.' },
-      { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'super' },
-      { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'super', hint: 'клиент платит адвокату через Stripe Connect' },
-      { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'super' },
-      { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'super', hint: 'скидки за приглашения' },
-      { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'super', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
+      { href: '/prices', label: 'Цены', icon: 'tag', area: 'money', hint: 'стоимость тарифов и галочки' },
+      { href: '/plans', label: 'Планы', icon: 'stack', area: 'money', hint: 'планы подписок и их возможности' },
+      { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'money', hint: 'тарифы адвокатов' },
+      { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },
+      { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'money' },
+      { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'money', hint: 'клиент платит адвокату через Stripe Connect' },
+      { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'money' },
+      { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'money', hint: 'скидки за приглашения' },
+      { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
+      { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
     ],
   },
   {
@@ -170,8 +177,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/legal', label: 'Юр. документы', icon: 'file-text', area: 'legal' },
       { href: '/data-requests', label: 'Запросы госорганов', icon: 'bank', area: 'data_requests' },
       { href: '/exports', label: 'Выгрузки CSV', icon: 'download-simple', area: 'exports' },
-      { href: '/audit-log', label: 'Журнал аудита', icon: 'clock-counter-clockwise', area: 'super', hint: 'кто что сделал' },
-      { href: '/sessions', label: 'Сессии админов', icon: 'devices', area: 'super', hint: 'кто сейчас в админке' },
+      { href: '/audit-log', label: 'Журнал аудита', icon: 'clock-counter-clockwise', area: 'money', hint: 'кто что сделал' },
+      { href: '/sessions', label: 'Сессии админов', icon: 'devices', area: 'money', hint: 'кто сейчас в админке' },
       { href: '/admins', label: 'Администраторы', icon: 'shield-check', area: 'admins', hint: 'сотрудники, права, пароли' },
     ],
   },
@@ -181,6 +188,7 @@ export const SECTIONS: readonly Section[] = GROUPS.flatMap((g) => g.items);
 
 function opens(me: AccessSubject, s: Section): boolean {
   if (s.area === 'super') return me.role === 'super_admin';
+  if (s.area === 'money') return me.role === 'super_admin' || me.canManageAdmins === true;
   // Admin management: the super admin, or an admin given that right.
   if (s.area === 'admins') return me.role === 'super_admin' || me.canManageAdmins === true;
   return can(me, s.area);

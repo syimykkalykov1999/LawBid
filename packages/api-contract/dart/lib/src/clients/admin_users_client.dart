@@ -5,9 +5,11 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_user_card_envelope.dart';
 import '../models/admin_user_contacts_envelope.dart';
 import '../models/admin_user_list_item_list_envelope.dart';
+import '../models/admin_users_bulk_dto.dart';
 import '../models/change_user_phone_dto.dart';
 import '../models/phone_changed_envelope.dart';
 import '../models/role.dart';
@@ -26,6 +28,12 @@ abstract class AdminUsersClient {
   ///
   /// [q] - Name (substring), email, phone (any format), @username or user id. Empty = newest users.
   ///
+  /// [stateCode] - Owner 2026-10-04: clients of this state and attorneys licensed in it.
+  ///
+  /// [from] - Registered at or after (inclusive).
+  ///
+  /// [to] - Registered before (exclusive).
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/admin/users')
   Future<AdminUserListItemListEnvelope> searchUsers({
@@ -33,6 +41,9 @@ abstract class AdminUsersClient {
     @Query('q') String? q,
     @Query('role') Role? role,
     @Query('status') Status? status,
+    @Query('stateCode') String? stateCode,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -51,6 +62,13 @@ abstract class AdminUsersClient {
   Future<AdminUserContactsEnvelope> getUserContacts({
     @Path('id') required String id,
     @Header('X-Justification') required String xJustification,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-04: suspend, restore or end sessions of up to 500 users; one reason, audited per user
+  @POST('/admin/users/bulk')
+  Future<AdminBulkResultEnvelope> bulk({
+    @Body() required AdminUsersBulkDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

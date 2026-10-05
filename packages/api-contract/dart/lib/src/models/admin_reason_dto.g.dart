@@ -7,7 +7,7 @@ part of 'admin_reason_dto.dart';
 // **************************************************************************
 
 AdminReasonDto _$AdminReasonDtoFromJson(Map<String, dynamic> json) =>
-    AdminReasonDto(reason: json['reason'] as String);
+    AdminReasonDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$AdminReasonDtoToJson(AdminReasonDto instance) =>
     <String, dynamic>{'reason': instance.reason};

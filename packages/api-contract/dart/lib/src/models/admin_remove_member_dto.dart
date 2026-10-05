@@ -8,12 +8,12 @@ part 'admin_remove_member_dto.g.dart';
 
 @JsonSerializable()
 class AdminRemoveMemberDto {
-  const AdminRemoveMemberDto({required this.reason});
+  const AdminRemoveMemberDto({this.reason});
 
   factory AdminRemoveMemberDto.fromJson(Map<String, Object?> json) =>
       _$AdminRemoveMemberDtoFromJson(json);
 
-  final String reason;
+  final String? reason;
 
   Map<String, Object?> toJson() => _$AdminRemoveMemberDtoToJson(this);
 }

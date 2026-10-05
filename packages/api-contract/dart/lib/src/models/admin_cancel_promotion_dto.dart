@@ -8,7 +8,7 @@ part 'admin_cancel_promotion_dto.g.dart';
 
 @JsonSerializable()
 class AdminCancelPromotionDto {
-  const AdminCancelPromotionDto({required this.reason});
+  const AdminCancelPromotionDto({this.reason = ''});
 
   factory AdminCancelPromotionDto.fromJson(Map<String, Object?> json) =>
       _$AdminCancelPromotionDtoFromJson(json);

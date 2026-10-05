@@ -213,7 +213,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
     await api()
       .get('/api/v1/admin/case-disputes')
       .set(verifier.auth)
-      .expect(403);
+      .expect(404);
     const queue = await api()
       .get('/api/v1/admin/case-disputes')
       .set(support.auth)
@@ -399,7 +399,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
     await api()
       .get('/api/v1/admin/data-requests')
       .set(support.auth)
-      .expect(403);
+      .expect(404);
     const created = await api()
       .post('/api/v1/admin/data-requests')
       .set(sup.auth)

@@ -90,8 +90,9 @@ describe('admin rights matrix (every profile x every section)', () => {
   it.each(PROFILES)('$name', ({ perms, manager }) => {
     for (const [area, read, write] of PROBES) {
       const have = (perms as Record<string, string>)[area];
+      // Owner 2026-10-05: the trusted deputy reads every section.
       expect(canAccess('moderator', perms, read, 'GET', !!manager)).toBe(
-        !!have,
+        !!have || !!manager,
       );
       if (write) {
         expect(canAccess('moderator', perms, write, 'POST', !!manager)).toBe(
@@ -100,7 +101,12 @@ describe('admin rights matrix (every profile x every section)', () => {
       }
     }
     for (const p of SUPER_ONLY) {
-      expect(canAccess('moderator', perms, p, 'GET', !!manager)).toBe(false);
+      // Owner 2026-10-05: the deputy reads money, audit and sessions —
+      // never the keys.
+      const deputyReads = !!manager && p !== '/api/v1/admin/integrations';
+      expect(canAccess('moderator', perms, p, 'GET', !!manager)).toBe(
+        deputyReads,
+      );
     }
     expect(
       canAccess('moderator', perms, '/api/v1/admin/admins', 'GET', !!manager),

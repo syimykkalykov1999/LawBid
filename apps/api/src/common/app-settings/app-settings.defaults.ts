@@ -175,7 +175,37 @@ export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
 } as const;
 
+// Owner 2026-10-05: the free trial length, set in Деньги → Цены (0 = no
+// trial). Applies to new trials; running ones keep their end date (an
+// admin extends one attorney's trial from their subscription card).
+export const OWNER_TRIAL_SETTINGS = {
+  'billing.trial_days': 7,
+} as const;
+
+// Owner 2026-10-05: sections where admins other than the super admin must
+// write a reason for an action (the owner never has to). Set in
+// Администраторы → «Обязательная причина».
+export const OWNER_REASON_SETTINGS = {
+  'admin.reason_required_areas': [
+    'money',
+    'payroll',
+    'moderation',
+    'sanctions',
+  ],
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
+/** Owner 2026-10-05: where the paid translator works (Ключи и сервисы →
+ * Google Translate): 'all' zones, or only the switched-on 'zones'. */
+export const OWNER_TRANSLATE_SETTINGS = {
+  'translate.scope': 'all',
+  'translate.chat': true,
+  'translate.posts': true,
+  'translate.cases': true,
+  'translate.reviews': true,
+  'translate.profiles': true,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -190,6 +220,9 @@ export const APP_SETTINGS = {
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
+  ...OWNER_TRIAL_SETTINGS,
+  ...OWNER_REASON_SETTINGS,
+  ...OWNER_TRANSLATE_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
