@@ -218,7 +218,11 @@ class BidAttorney {
     required this.ratingAvg,
     required this.ratingCount,
     this.licensedStates = const [],
+    this.trustLevel = 0,
   });
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
 
   /// Owner 2026-10-04: 2-letter codes of the attorney's verified licences
   /// (shown to the client when the case's state is not among them).

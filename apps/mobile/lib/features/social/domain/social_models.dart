@@ -361,6 +361,7 @@ class AttorneyRow {
     required this.states,
     required this.practiceKeys,
     required this.isFollowing,
+    this.trustLevel = 0,
     this.firstName,
     this.lastName,
     this.avatarUrl,
@@ -372,6 +373,9 @@ class AttorneyRow {
   final String? lastName;
   final String? avatarUrl;
   final bool verified;
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
   final double ratingAvg;
   final int ratingCount;
   final List<String> states;
@@ -428,6 +432,9 @@ enum ReportReason {
   impersonation,
   inappropriate,
   other,
+
+  /// Owner 2026-10-05: a fake attorney — counts as a trust complaint.
+  fraud,
 }
 
 enum ReportTarget { post, comment, message, user, stickerPack }

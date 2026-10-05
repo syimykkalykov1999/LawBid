@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
 import { ErrorNote } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { TRUST_NOTE_MAX, useDocumentRequest } from '@/components/trust/document-request-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
@@ -14,35 +15,54 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
-import { can } from '@/lib/rbac';
+import { DOC_TYPE } from '@/lib/labels';
+import { can, ROLE_LABEL, type AdminRole } from '@/lib/rbac';
 import {
   BUSINESS_TYPE_RU,
+  CLEARED_BY_RU,
+  DOC_TEMPLATE_RU,
+  documentsSeenText,
   eventDetails,
   FIRM_LINK_SOURCE_RU,
   FIRM_LINK_STATUS_RU,
   GATE_REASON_RU,
   HOLD_RU,
   LICENSE_CONFIRMED_BY_RU,
+  missingText,
   NAME_CHECK_RU,
+  QUEUE_REASON_RU,
+  REQUIREMENT_RU,
+  REQUIREMENTS,
+  STAFF_STATUS_RU,
+  staffName,
   TRUST_ACTOR_RU,
   TRUST_EVENT_RU,
-  TRUST_LEVEL_RU,
   TrustLevelChip,
+  type DocTemplate,
 } from '@/lib/trust-labels';
 import { formatDateTime } from '@/lib/utils';
 
 type Gate = components['schemas']['TrustGateDto'];
 
-export const TRUST_NOTE_MAX = 500;
+export { TRUST_NOTE_MAX };
 
 /** Query key of one attorney's trust card (invalidated after every action). */
 export const trustCardKey = (attorneyId: string) => ['trust-card', attorneyId] as const;
 
+/** Every list the trust actions change. */
+export function invalidateTrust(qc: ReturnType<typeof useQueryClient>, attorneyId?: string) {
+  if (attorneyId) void qc.invalidateQueries({ queryKey: trustCardKey(attorneyId) });
+  else void qc.invalidateQueries({ queryKey: ['trust-card'] });
+  void qc.invalidateQueries({ queryKey: ['trust-queue'] });
+  void qc.invalidateQueries({ queryKey: ['trust-holds'] });
+  void qc.invalidateQueries({ queryKey: ['trust-stats'] });
+}
+
 /**
- * Owner 2026-10-05 — the trust block of an attorney's card (docs/ATTORNEY_TRUST.md):
- * level and the facts behind it, holds, Stripe identity, history, and the
- * verifier's actions over GET/POST /admin/trust/attorneys/:id/*. Writes need
- * `verification: manage`; the API answers 403 otherwise.
+ * Owner 2026-10-05 — «Борьба с мошенниками» block of an attorney's card:
+ * status, requirements, why they wait in the queue, the facts behind it,
+ * holds, Stripe identity, history and the verifier's actions over
+ * /admin/trust/attorneys/:id/*. Writes need `verification: manage`.
  */
 export function TrustPanel({ attorneyId }: { attorneyId: string }) {
   const qc = useQueryClient();
@@ -51,6 +71,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
   const canManage = me ? can(me, 'verification', 'manage') : false;
   const { ask, dialog } = useReason();
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const { askDocuments, dialog: docDialog } = useDocumentRequest();
   const [holdOpen, setHoldOpen] = useState(false);
 
   const q = useQuery({
@@ -63,13 +84,74 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
   const onError = (e: unknown) => toast.error(e);
   const done = (text: string) => {
     toast.success(text);
-    void qc.invalidateQueries({ queryKey: trustCardKey(attorneyId) });
-    void qc.invalidateQueries({ queryKey: ['trust-holds'] });
-    void qc.invalidateQueries({ queryKey: ['trust-stats'] });
+    invalidateTrust(qc, attorneyId);
     void qc.invalidateQueries({ queryKey: ['verification', c?.latestRequestId] });
+    void qc.invalidateQueries({ queryKey: ['verification-queue'] });
   };
   const noteBody = (text: string) => (text ? { note: text } : {});
 
+  const clear = useMutation({
+    mutationFn: async () => {
+      const a = await ask({
+        title: 'Подтвердить адвоката',
+        description: 'Вы ручаетесь: галочка и приём денег открываются насовсем, автоматические перепроверки больше не ставят его в очередь.',
+        label: 'Что проверили (необязательно)',
+        optionalText: true,
+        max: TRUST_NOTE_MAX,
+        confirm: 'Подтвердить',
+      });
+      if (!a) return null;
+      return api.POST('/admin/trust/attorneys/{attorneyId}/clear', { ...p, body: noteBody(a.text) });
+    },
+    onSuccess: (x) => x && done('Адвокат подтверждён'),
+    onError,
+  });
+  const unclear = useMutation({
+    mutationFn: async () => {
+      const a = await ask({
+        title: 'Снять подтверждение',
+        description: 'Адвокат снова проходит требования как все; если что-то не пройдено — попадёт в очередь.',
+        label: 'Причина',
+        min: 3,
+        max: TRUST_NOTE_MAX,
+        confirm: 'Снять',
+        danger: true,
+      });
+      if (!a) return null;
+      return api.POST('/admin/trust/attorneys/{attorneyId}/unclear', { ...p, body: noteBody(a.text) });
+    },
+    onSuccess: (x) => x && done('Подтверждение снято'),
+    onError,
+  });
+  const requestDocuments = useMutation({
+    mutationFn: async () => {
+      const r = await askDocuments();
+      if (!r) return null;
+      return api.POST('/admin/trust/attorneys/{attorneyId}/request-documents', {
+        ...p,
+        body: { template: r.template as DocTemplate, ...noteBody(r.note) },
+      });
+    },
+    onSuccess: (x) => x && done('Запрос документов отправлен адвокату'),
+    onError,
+  });
+  const reject = useMutation({
+    mutationFn: async () => {
+      const a = await ask({
+        title: 'Отклонить адвоката',
+        description: 'Аккаунт приостанавливается, активные ставки отзываются. Адвокат получит уведомление с вашей заметкой.',
+        label: 'Причина',
+        min: 3,
+        max: TRUST_NOTE_MAX,
+        confirm: 'Отклонить',
+        danger: true,
+      });
+      if (!a) return null;
+      return api.POST('/admin/trust/attorneys/{attorneyId}/reject', { ...p, body: noteBody(a.text) });
+    },
+    onSuccess: (x) => x && done('Адвокат отклонён'),
+    onError,
+  });
   const confirmLicense = useMutation({
     mutationFn: async () => {
       const a = await ask({
@@ -90,7 +172,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
     mutationFn: async () => {
       const a = await ask({
         title: 'Снять подтверждение лицензии',
-        description: 'Уровень пересчитается; если реестр штата номер не подтверждал, адвокат вернётся на уровень 0.',
+        description: 'Требование «Реестр» снова считается не пройденным, если реестр штата номер не подтверждал.',
         label: 'Причина',
         min: 3,
         max: TRUST_NOTE_MAX,
@@ -101,22 +183,6 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
       return api.POST('/admin/trust/attorneys/{attorneyId}/unconfirm-license', { ...p, body: noteBody(a.text) });
     },
     onSuccess: (x) => x && done('Подтверждение лицензии снято'),
-    onError,
-  });
-  const confirmDocuments = useMutation({
-    mutationFn: async () => {
-      const a = await ask({
-        title: 'Подтвердить документы',
-        description: 'Вы сверили карточку адвоката, удостоверение личности и селфи с профилем.',
-        label: 'Заметка (необязательно)',
-        optionalText: true,
-        max: TRUST_NOTE_MAX,
-        confirm: 'Подтвердить',
-      });
-      if (!a) return null;
-      return api.POST('/admin/trust/attorneys/{attorneyId}/confirm-documents', { ...p, body: noteBody(a.text) });
-    },
-    onSuccess: (x) => x && done('Документы подтверждены'),
     onError,
   });
   const confirmFirmLink = useMutation({
@@ -137,10 +203,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
   });
   const hold = useMutation({
     mutationFn: (v: { payments: boolean; bids: boolean; note: string }) =>
-      api.POST('/admin/trust/attorneys/{attorneyId}/hold', {
-        ...p,
-        body: { payments: v.payments, bids: v.bids, ...noteBody(v.note) },
-      }),
+      api.POST('/admin/trust/attorneys/{attorneyId}/hold', { ...p, body: { payments: v.payments, bids: v.bids, ...noteBody(v.note) } }),
     onSuccess: () => {
       setHoldOpen(false);
       done('Холд поставлен');
@@ -170,58 +233,144 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
   const recompute = useMutation({
     mutationFn: async () => {
       const ok = await confirm({
-        title: 'Пересчитать уровень?',
-        description: 'Уровень будет вычислен заново из фактов: реестр, Stripe, документы, холды.',
+        title: 'Пересчитать?',
+        description: 'Статус будет вычислен заново из фактов: реестр, Stripe, документы, холды.',
         confirm: 'Пересчитать',
       });
       if (!ok) return null;
       return api.POST('/admin/trust/attorneys/{attorneyId}/recompute', p);
     },
-    onSuccess: (x) => x && done('Уровень пересчитан'),
+    onSuccess: (x) => x && done('Пересчитано'),
     onError,
   });
 
   if (q.isPending) return <Skeleton className="h-56 rounded-[var(--radius-lg)]" />;
-  if (!c) return <ErrorNote text={q.error ? errorText(q.error) : 'Не удалось загрузить уровень доверия'} />;
+  if (!c) return <ErrorNote text={q.error ? errorText(q.error) : 'Не удалось загрузить проверку адвоката'} />;
 
   const s = c.signals;
   const held = Boolean(c.holds.payments || c.holds.bids);
   const busy =
+    clear.isPending ||
+    unclear.isPending ||
+    requestDocuments.isPending ||
+    reject.isPending ||
     confirmLicense.isPending ||
     unconfirmLicense.isPending ||
-    confirmDocuments.isPending ||
     confirmFirmLink.isPending ||
     release.isPending ||
     recompute.isPending;
   const staffLicense = s.licenseConfirmed && s.licenseConfirmedBy === 'staff';
+  const staffCleared = c.cleared && c.clearedBy === 'staff';
+  const status = STAFF_STATUS_RU[c.staffStatus] ?? { text: c.staffStatus, tone: 'neutral' as const };
 
   return (
     <>
       {dialog}
       {confirmDialog}
-      <HoldDialog
-        open={holdOpen}
-        onClose={() => setHoldOpen(false)}
-        pending={hold.isPending}
-        current={c.holds}
-        onSubmit={(v) => hold.mutate(v)}
-      />
+      {docDialog}
+      <HoldDialog open={holdOpen} onClose={() => setHoldOpen(false)} pending={hold.isPending} current={c.holds} onSubmit={(v) => hold.mutate(v)} />
       <Card>
         <CardHeader className="flex-wrap">
-          <CardTitle>Уровень доверия</CardTitle>
-          <div className="flex items-center gap-2">
-            <TrustLevelChip level={c.level} long />
+          <CardTitle>Борьба с мошенниками</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={status.tone} dot>
+              {status.text}
+            </Badge>
+            <TrustLevelChip level={c.level} />
             <Badge tone={c.badge ? 'info' : 'neutral'}>{c.badge ? 'Галочка показана' : 'Без галочки'}</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-5 text-sm">
-          <p className="text-xs text-muted">{TRUST_LEVEL_RU[c.level]?.hint}</p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Статус</h4>
+              <ul className="space-y-1.5">
+                <Row k="Статус" v={<Badge tone={status.tone} dot>{status.text}</Badge>} />
+                {c.cleared ? (
+                  <Row
+                    k="Подтверждён"
+                    v={`${CLEARED_BY_RU[c.clearedBy ?? ''] ?? c.clearedBy ?? '—'}${c.staffClearedAt ? ` · ${formatDateTime(c.staffClearedAt)}` : ''}`}
+                  />
+                ) : null}
+                {c.staffClearedBy && c.staffStatus !== 'suspended' ? (
+                  <Row
+                    k="Одобрил"
+                    v={`${staffName(c.staffClearedBy)}${c.staffClearedBy.role ? ` (${ROLE_LABEL[c.staffClearedBy.role as AdminRole] ?? c.staffClearedBy.role})` : ''}${c.staffClearedAt ? `, ${formatDateTime(c.staffClearedAt)}` : ''}`}
+                  />
+                ) : null}
+                {c.staffClearedBy && c.staffStatus === 'suspended' ? (
+                  <li className="rounded-lg bg-warning-soft px-2.5 py-1.5 text-xs font-medium text-warning">
+                    Был одобрен: {staffName(c.staffClearedBy)}
+                    {c.staffClearedBy.role ? ` (${ROLE_LABEL[c.staffClearedBy.role as AdminRole] ?? c.staffClearedBy.role})` : ''}
+                    {c.staffClearedAt ? `, ${formatDateTime(c.staffClearedAt)}` : ''}
+                    {c.staffClearedBy.email ? ` · ${c.staffClearedBy.email}` : ''}
+                  </li>
+                ) : null}
+                {c.queueReasons.length ? (
+                  <li className="flex items-start justify-between gap-3">
+                    <span className="text-muted">В очереди, потому что</span>
+                    <span className="flex flex-wrap justify-end gap-1">
+                      {c.queueReasons.map((r) => (
+                        <Badge key={r} tone={QUEUE_REASON_RU[r]?.tone ?? 'neutral'}>
+                          {QUEUE_REASON_RU[r]?.text ?? r}
+                        </Badge>
+                      ))}
+                    </span>
+                  </li>
+                ) : null}
+                {c.documentsRequestedAt ? (
+                  <Row
+                    k="Запрошены документы"
+                    v={`${formatDateTime(c.documentsRequestedAt)}${c.documentsRequestedTemplate ? ` · ${DOC_TEMPLATE_RU[c.documentsRequestedTemplate as DocTemplate] ?? c.documentsRequestedTemplate}` : ''}`}
+                  />
+                ) : null}
+              </ul>
+            </div>
+            <div>
+              <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Требования</h4>
+              <ul className="space-y-1.5">
+                {REQUIREMENTS.map((r) => {
+                  const passed = c.requirements[r];
+                  const required = c.missing.includes(r) || passed;
+                  return (
+                    <li key={r} className="flex items-center justify-between gap-3">
+                      <span className="text-muted" title={REQUIREMENT_RU[r].hint}>
+                        {REQUIREMENT_RU[r].text}
+                      </span>
+                      <Badge tone={passed ? 'success' : c.missing.includes(r) ? 'warning' : 'neutral'}>
+                        {passed ? '✓ пройдено' : c.missing.includes(r) ? 'не пройдено' : required ? '—' : 'не требуется'}
+                      </Badge>
+                    </li>
+                  );
+                })}
+                {c.missing.length ? <li className="text-xs text-muted">Не хватает: {missingText(c.missing)}</li> : null}
+              </ul>
+            </div>
+          </div>
 
           {canManage ? (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {staffCleared ? (
+                <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={() => unclear.mutate()}>
+                  Снять подтверждение
+                </Button>
+              ) : (
+                <Button size="sm" variant="gold" className="w-full" disabled={busy || c.cleared} onClick={() => clear.mutate()}>
+                  Подтвердить
+                </Button>
+              )}
+              <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={() => requestDocuments.mutate()}>
+                Запросить ещё
+              </Button>
+              <Button size="sm" variant="danger" className="w-full" disabled={busy || c.staffStatus === 'suspended'} onClick={() => reject.mutate()}>
+                Отклонить
+              </Button>
+              <Button size="sm" variant="ghost" className="w-full" disabled={busy} onClick={() => recompute.mutate()}>
+                Пересчитать
+              </Button>
               {staffLicense ? (
                 <Button size="sm" variant="outline" className="w-full" disabled={busy} onClick={() => unconfirmLicense.mutate()}>
-                  Снять подтверждение
+                  Снять подтверждение лицензии
                 </Button>
               ) : (
                 <Button
@@ -235,16 +384,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
                   Подтвердить лицензию
                 </Button>
               )}
-              <Button size="sm" variant="outline" className="w-full" disabled={busy || s.documentsVerified} onClick={() => confirmDocuments.mutate()}>
-                Подтвердить документы
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                disabled={busy || c.firmLink.status === 'confirmed'}
-                onClick={() => confirmFirmLink.mutate()}
-              >
+              <Button size="sm" variant="outline" className="w-full" disabled={busy || c.firmLink.status === 'confirmed'} onClick={() => confirmFirmLink.mutate()}>
                 Подтвердить связь с фирмой
               </Button>
               <Button size="sm" variant="danger-soft" className="w-full" disabled={busy} onClick={() => setHoldOpen(true)}>
@@ -252,9 +392,6 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
               </Button>
               <Button size="sm" variant="soft" className="w-full" disabled={busy || !held} onClick={() => release.mutate()}>
                 Снять холд
-              </Button>
-              <Button size="sm" variant="ghost" className="w-full" disabled={busy} onClick={() => recompute.mutate()}>
-                Пересчитать
               </Button>
             </div>
           ) : null}
@@ -267,7 +404,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
                 <Signal
                   ok={s.licenseConfirmed}
                   text="Лицензия подтверждена"
-                  extra={s.licenseConfirmedBy ? LICENSE_CONFIRMED_BY_RU[s.licenseConfirmedBy] ?? s.licenseConfirmedBy : undefined}
+                  extra={s.licenseConfirmedBy ? (LICENSE_CONFIRMED_BY_RU[s.licenseConfirmedBy] ?? s.licenseConfirmedBy) : undefined}
                 />
                 <Signal ok={s.documentsVerified} text="Документы проверены сотрудником" />
                 <Signal ok={s.stripeKyc} text="Stripe KYC завершён" />
@@ -298,7 +435,7 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
             <section>
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-faint">Stripe</h4>
               <ul className="space-y-1.5">
-                <Row k="Тип аккаунта" v={c.stripeBusinessType ? BUSINESS_TYPE_RU[c.stripeBusinessType] ?? c.stripeBusinessType : '—'} />
+                <Row k="Тип аккаунта" v={c.stripeBusinessType ? (BUSINESS_TYPE_RU[c.stripeBusinessType] ?? c.stripeBusinessType) : '—'} />
                 <Row k="Юридическое имя" v={c.stripeLegalName ?? '—'} />
                 <Row k="Компания" v={c.stripeCompanyName ?? '—'} />
                 <Row k="Домен компании" v={c.stripeCompanyDomain ?? '—'} />
@@ -317,7 +454,10 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
                 <HoldRow what="Платежи" code={c.holds.payments} at={c.holds.paymentsAt} gate={c.paymentsGate} />
                 <HoldRow what="Ставки" code={c.holds.bids} at={c.holds.bidsAt} gate={c.bidsGate} />
                 {c.holds.note ? <li className="text-xs text-muted">Заметка: {c.holds.note}</li> : null}
-                <Row k="Жалоб (мошенничество / самозванец)" v={<span className={c.complaintsTotal > 0 ? 'font-medium text-warning' : ''}>{c.complaintsTotal}</span>} />
+                <Row
+                  k="Жалоб (мошенничество / самозванец)"
+                  v={<span className={c.complaintsTotal > 0 ? 'font-medium text-warning' : ''}>{c.complaintsTotal}</span>}
+                />
                 <Row k="Чужих заявок на этот номер" v={<span className={c.duplicateClaims > 0 ? 'font-medium text-warning' : ''}>{c.duplicateClaims}</span>} />
               </ul>
               {c.registryLinks.length ? (
@@ -359,6 +499,12 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
                       {e.actorId ? ` ${e.actorId.slice(0, 8)}…` : ''}
                       {eventDetails(e.details) ? ` · ${eventDetails(e.details)}` : ''}
                     </div>
+                    {typeof e.details.ip === 'string' || documentsSeenText(e.details, DOC_TYPE) ? (
+                      <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-[11px] text-faint">
+                        {typeof e.details.ip === 'string' ? <span>IP {e.details.ip}</span> : null}
+                        {documentsSeenText(e.details, DOC_TYPE) ? <span className="font-sans">видел: {documentsSeenText(e.details, DOC_TYPE)}</span> : null}
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -409,8 +555,8 @@ function HoldRow({ what, code, at, gate }: { what: string; code: string | null; 
           <>
             <Badge tone="warning">закрыты</Badge>
             <div className="mt-0.5 text-xs text-muted">
-              {gate.reason ? GATE_REASON_RU[gate.reason] ?? gate.reason : ''}
-              {gate.reason === 'level' ? ` (нужен ${gate.required}, есть ${gate.current})` : ''}
+              {gate.reason ? (GATE_REASON_RU[gate.reason] ?? gate.reason) : ''}
+              {gate.reason === 'requirements' && gate.missing.length ? `: ${missingText(gate.missing)}` : ''}
             </div>
           </>
         )}

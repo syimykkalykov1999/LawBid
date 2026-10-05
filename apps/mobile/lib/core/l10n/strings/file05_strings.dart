@@ -89,6 +89,8 @@ const file05Ru = <String, String>{
   'report.reason.impersonation': 'Выдаёт себя за другого',
   'report.reason.inappropriate': 'Неприемлемый контент',
   'report.reason.other': 'Другое',
+  // Owner 2026-10-05: attorney trust — counts as a trust complaint.
+  'report.reason.fraud': 'Мошенничество / выдаёт себя за адвоката',
   'report.sent': 'Спасибо. Мы проверим жалобу.',
 
   // --- follows ---
@@ -328,6 +330,7 @@ const file05En = <String, String>{
   'report.reason.impersonation': 'Impersonation',
   'report.reason.inappropriate': 'Inappropriate content',
   'report.reason.other': 'Something else',
+  'report.reason.fraud': 'Fraud / impersonating an attorney',
   'report.sent': 'Thanks. We’ll review your report.',
 
   // --- follows ---

@@ -1,33 +1,23 @@
 import { Badge, type Tone } from '@/components/ui/card';
 
 /**
- * Owner 2026-10-05 — Russian texts of attorney trust levels
- * (apps/api/src/modules/attorney-trust, docs/ATTORNEY_TRUST.md). The level
- * only grows with checks LawBid did not take the attorney's word for.
+ * Owner 2026-10-05 — Russian texts of «Борьба с мошенниками»
+ * (apps/api/src/modules/attorney-trust, docs/ATTORNEY_TRUST.md). The owner
+ * picks what to require of an attorney; what can be checked automatically is,
+ * the rest waits for a person in the staff queue; «Подтвердить» ends the
+ * checks for good.
  */
 export const TRUST_LEVELS = [0, 1, 2, 3] as const;
 
 export const TRUST_LEVEL_RU: Record<number, { short: string; long: string; hint: string }> = {
-  0: {
-    short: 'Заявлен',
-    long: '0 — Заявлен',
-    hint: 'Только присяга адвоката: штат и номер лицензии со слов.',
-  },
-  1: {
-    short: 'Реестр',
-    long: '1 — Реестр',
-    hint: 'Номер лицензии совпал с реестром штата или подтверждён сотрудником.',
-  },
+  0: { short: 'Заявлен', long: '0 — Заявлен', hint: 'Только присяга адвоката: штат и номер лицензии со слов.' },
+  1: { short: 'Реестр', long: '1 — Реестр', hint: 'Номер лицензии совпал с реестром штата или подтверждён сотрудником.' },
   2: {
     short: 'Личность',
     long: '2 — Личность',
     hint: 'Stripe KYC: юридическое имя совпало с профилем / реестром, либо подтверждена связь с фирмой.',
   },
-  3: {
-    short: 'Документы',
-    long: '3 — Документы',
-    hint: 'Сотрудник проверил карточку адвоката и удостоверение, плюс личность по Stripe.',
-  },
+  3: { short: 'Документы', long: '3 — Документы', hint: 'Сотрудник проверил карточку адвоката и удостоверение, плюс личность по Stripe.' },
 };
 
 export function trustLevelLabel(level: number | null | undefined): string {
@@ -58,6 +48,50 @@ export function TrustLevelChip({ level, long }: { level: number | null | undefin
     </Badge>
   );
 }
+
+/** `AdminTrustCardDto.staffStatus`. */
+export const STAFF_STATUS_RU: Record<string, { text: string; tone: Tone }> = {
+  self_declared: { text: 'Заявлен', tone: 'neutral' },
+  needs_staff: { text: 'На проверке', tone: 'warning' },
+  cleared: { text: 'Подтверждён', tone: 'success' },
+  suspended: { text: 'Приостановлен', tone: 'danger' },
+};
+
+export const CLEARED_BY_RU: Record<string, string> = {
+  auto: 'автоматически',
+  staff: 'сотрудником',
+};
+
+/** Why an attorney waits in the staff queue (`reasons` / `queueReasons`). */
+export const QUEUE_REASONS = ['documents', 'firm_link', 'name_mismatch', 'duplicate_claim', 'registry_flag', 'complaint'] as const;
+export type QueueReason = (typeof QUEUE_REASONS)[number];
+export const QUEUE_REASON_RU: Record<QueueReason, { text: string; tone: Tone }> = {
+  documents: { text: 'Документы загружены', tone: 'info' },
+  firm_link: { text: 'Связь с фирмой', tone: 'warning' },
+  name_mismatch: { text: 'Имя в Stripe не совпало', tone: 'danger' },
+  duplicate_claim: { text: 'Номер заявлен дважды', tone: 'danger' },
+  registry_flag: { text: 'Расхождение с реестром', tone: 'warning' },
+  complaint: { text: 'Жалоба', tone: 'danger' },
+};
+
+/** Requirements the owner can switch on (`missing`, `requirements`). */
+export const REQUIREMENTS = ['registry', 'identity', 'documents'] as const;
+export type Requirement = (typeof REQUIREMENTS)[number];
+export const REQUIREMENT_RU: Record<Requirement, { text: string; hint: string }> = {
+  registry: { text: 'Реестр', hint: 'номер лицензии совпал с реестром штата или подтверждён сотрудником' },
+  identity: { text: 'Личность', hint: 'Stripe KYC на самого адвоката (имя совпало) или подтверждённая связь с фирмой' },
+  documents: { text: 'Документы', hint: 'сотрудник сверил удостоверение, селфи и карточку адвоката' },
+};
+
+/** `DocumentRequestDto.template`. */
+export const DOC_TEMPLATES = ['id_selfie', 'bar_card', 'firm_letter', 'custom'] as const;
+export type DocTemplate = (typeof DOC_TEMPLATES)[number];
+export const DOC_TEMPLATE_RU: Record<DocTemplate, string> = {
+  id_selfie: 'ID + селфи',
+  bar_card: 'Bar card',
+  firm_letter: 'Письмо на бланке фирмы',
+  custom: 'Свой текст',
+};
 
 /** `payments_hold` / `bids_hold` codes. */
 export const HOLD_RU: Record<string, string> = {
@@ -102,6 +136,10 @@ export const TRUST_EVENT_RU: Record<string, string> = {
   license_confirmed: 'Лицензия подтверждена',
   license_unconfirmed: 'Подтверждение лицензии снято',
   documents_verified: 'Документы проверены',
+  documents_requested: 'Запрошены документы',
+  cleared: 'Подтверждён сотрудником',
+  uncleared: 'Подтверждение снято',
+  rejected: 'Отклонён',
   stripe_kyc: 'Stripe KYC',
   name_check: 'Сверка имени',
   hold: 'Холд',
@@ -124,7 +162,7 @@ export const TRUST_ACTOR_RU: Record<string, string> = {
 };
 
 export const GATE_REASON_RU: Record<string, string> = {
-  level: 'не хватает уровня',
+  requirements: 'не пройдены требования',
   hold: 'холд',
   suspended: 'профиль приостановлен',
 };
@@ -133,11 +171,38 @@ export function attorneyName(a: { firstName: string | null; lastName: string | n
   return [a.firstName, a.lastName].filter(Boolean).join(' ') || `@${a.username}`;
 }
 
+export function staffName(a: { name: string | null; email: string | null; id: string }): string {
+  return a.name || a.email || `${a.id.slice(0, 8)}…`;
+}
+
+/** «12 с» / «3 мин» / «2 ч 05 мин» for the staff decision pace. */
+export function formatSeconds(sec: number | null | undefined): string {
+  if (sec == null) return '—';
+  const s = Math.round(sec);
+  if (s < 60) return `${s} с`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  return `${h} ч ${String(m % 60).padStart(2, '0')} мин`;
+}
+
+/** `details.documentsSeen` of staff events, in Russian. */
+export function documentsSeenText(d: Record<string, unknown>, docType: Record<string, string>): string | null {
+  const v = d.documentsSeen;
+  if (!Array.isArray(v) || v.length === 0) return null;
+  return v.map((x) => (typeof x === 'string' ? (docType[x] ?? x) : String(x))).join(', ');
+}
+
+/** «Реестр, Документы» from a `missing` list. */
+export function missingText(missing: readonly string[]): string {
+  return missing.map((m) => REQUIREMENT_RU[m as Requirement]?.text ?? m).join(', ');
+}
+
 /** Compact one-line text of an event's `details`. */
 export function eventDetails(d: Record<string, unknown>): string {
   const parts: string[] = [];
   for (const [k, v] of Object.entries(d)) {
-    if (v == null || v === '' || typeof v === 'object') continue;
+    if (v == null || v === '' || typeof v === 'object' || k === 'ip' || k === 'documentsSeen') continue;
     const key = DETAIL_KEY_RU[k] ?? k;
     const val = typeof v === 'string' ? (DETAIL_VALUE_RU[v] ?? v) : String(v);
     parts.push(`${key}: ${val}`);
@@ -151,6 +216,7 @@ const DETAIL_KEY_RU: Record<string, string> = {
   code: 'код',
   by: 'кем',
   source: 'источник',
+  template: 'шаблон',
   payments: 'платежи',
   bids: 'ставки',
   result: 'результат',
@@ -164,11 +230,14 @@ const DETAIL_KEY_RU: Record<string, string> = {
   barNumber: 'номер',
   businessType: 'тип аккаунта',
   companyName: 'компания',
+  clearedBy: 'кем подтверждён',
+  adminName: 'сотрудник',
 };
 
 const DETAIL_VALUE_RU: Record<string, string> = {
   ...HOLD_RU,
   ...FIRM_LINK_SOURCE_RU,
+  ...DOC_TEMPLATE_RU,
   true: 'да',
   false: 'нет',
   match: 'совпало',
@@ -177,4 +246,5 @@ const DETAIL_VALUE_RU: Record<string, string> = {
   registry: 'реестр',
   staff: 'сотрудник',
   email: 'e-mail',
+  auto: 'автоматически',
 };

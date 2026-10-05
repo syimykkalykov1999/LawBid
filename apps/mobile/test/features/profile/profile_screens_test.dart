@@ -134,6 +134,7 @@ void main() {
             'avatarUrl256': small,
             'languages': ['en'],
             'verifiedBadge': true,
+            'trustLevel': 1,
             'licensedStates': <Object?>[],
             'practiceAreas': <Object?>[],
             'rating': {'avg': 0, 'count': 0},

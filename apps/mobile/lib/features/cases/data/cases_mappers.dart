@@ -90,6 +90,7 @@ abstract final class CasesMappers {
         ratingAvg: a.rating.avg.toDouble(),
         ratingCount: a.rating.count.toInt(),
         licensedStates: a.licensedStates,
+        trustLevel: a.trustLevel,
       );
 
   static BidOffer offer(api.BidOfferDto o) => BidOffer(

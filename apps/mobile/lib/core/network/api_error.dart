@@ -184,6 +184,10 @@ abstract final class ApiErrorCodes {
   static const videoNotReady = 'VIDEO_NOT_READY';
   static const commentsDisabled = 'COMMENTS_DISABLED';
   static const licenseStateRequired = 'LICENSE_STATE_REQUIRED';
+  // Owner 2026-10-05: attorney trust levels — an attorney bids while the
+  // level is too low / a hold is active (details {gate, required, current}).
+  static const trustLevelRequired = 'TRUST_LEVEL_REQUIRED';
+  static const attorneyOnHold = 'ATTORNEY_ON_HOLD';
   static const stickerLimitReached = 'STICKER_LIMIT_REACHED';
   // Audit 2026-10-02: support, referrals, promotions, promo codes.
   static const supportTicketClosed = 'SUPPORT_TICKET_CLOSED';
@@ -351,6 +355,8 @@ abstract final class ApiErrorCodes {
     videoNotReady,
     commentsDisabled,
     licenseStateRequired,
+    trustLevelRequired,
+    attorneyOnHold,
     stickerLimitReached,
     supportTicketClosed,
     adminCredentialsInvalid,

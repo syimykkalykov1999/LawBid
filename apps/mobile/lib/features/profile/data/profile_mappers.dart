@@ -58,6 +58,7 @@ abstract final class ProfileMappers {
         firms: d.firms,
         languages: d.languages,
         verifiedBadge: d.verifiedBadge,
+        trustLevel: d.trustLevel,
         licensedStates: d.licensedStates.map(state).toList(growable: false),
         practices: d.practiceAreas.map(selected).toList(growable: false),
         rating: rating(d.rating),
@@ -91,6 +92,7 @@ abstract final class ProfileMappers {
         languages: d.languages,
         verification: AttorneyVerification.parse(d.verificationStatus.json),
         verifiedBadge: d.verifiedBadge,
+        trustLevel: d.trustLevel,
         nameMismatch: d.nameMismatch,
         usernameNextChangeAt: d.usernameNextChangeAt,
         licenses: [

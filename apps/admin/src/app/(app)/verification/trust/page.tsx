@@ -1,21 +1,26 @@
 'use client';
 
-import { HandPalm, SealCheck, ShieldCheck, Warning } from '@phosphor-icons/react';
+import { HandPalm, Hourglass, SealCheck, Warning } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
+import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
-import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
+import { useDebounced } from '@/components/legacy/use-debounced';
+import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
-import { TRUST_NOTE_MAX } from '@/components/trust/trust-panel';
+import { TRUST_NOTE_MAX, useDocumentRequest } from '@/components/trust/document-request-dialog';
+import { StaffDecisions } from '@/components/trust/staff-decisions';
+import { invalidateTrust } from '@/components/trust/trust-panel';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
+import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
@@ -23,47 +28,46 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import {
   attorneyName,
+  BUSINESS_TYPE_RU,
   HOLD_RU,
+  missingText,
+  QUEUE_REASON_RU,
+  QUEUE_REASONS,
   TRUST_LEVEL_RU,
-  TRUST_LEVELS,
-  trustLevelLabel,
   TrustLevelChip,
+  type DocTemplate,
+  type QueueReason,
 } from '@/lib/trust-labels';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, formatDuration } from '@/lib/utils';
 
 type Settings = components['schemas']['TrustSettingsDto'];
+type QueueItem = components['schemas']['TrustQueueItemDto'];
+type Tab = 'queue' | 'rules' | 'holds' | 'staff';
 
-/** app_config keys of the firm-link automation (not part of TrustSettingsDto). */
-const FIRM_LINK_KEYS = {
-  registry: 'trust.firm_link_auto_registry',
-  email: 'trust.firm_link_auto_email',
-} as const;
+const ATTORNEYS = ['адвокат', 'адвоката', 'адвокатов'] as const;
 
 /**
- * Owner 2026-10-05 — Верификация → «Уровни доверия» (docs/ATTORNEY_TRUST.md):
- * how many attorneys sit on each level, what each level may do, the
- * automatic protections (each switchable), and the attorneys on hold.
+ * Owner 2026-10-05 — Верификация → «Борьба с мошенниками»
+ * (docs/ATTORNEY_TRUST.md): the staff queue of attorneys waiting for a
+ * person, the rules (what to require, what is automatic) and the holds.
  */
-export default function TrustLevelsPage() {
+export default function AntiFraudPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: me } = useMe();
   const canManage = me ? can(me, 'verification', 'manage') : false;
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const [tab, setTab] = useState<Tab>('queue');
 
   const stats = useQuery({
     queryKey: ['trust-stats'],
     queryFn: async () => (await api.GET('/admin/trust/stats')).data!.data,
   });
-  const settings = useQuery({
-    queryKey: ['trust-settings'],
-    queryFn: async () => (await api.GET('/admin/trust/settings')).data!.data,
-  });
   const recomputeAll = useMutation({
     mutationFn: async () => {
       const ok = await confirm({
         title: 'Пересчитать всех адвокатов?',
-        description: 'Уровни всех адвокатов будут вычислены заново по текущим настройкам. Это нужно после изменения настроек.',
+        description: 'Статусы всех адвокатов будут вычислены заново по текущим правилам. Подтверждённые сотрудником остаются подтверждёнными.',
         confirm: 'Пересчитать',
       });
       if (!ok) return null;
@@ -71,23 +75,21 @@ export default function TrustLevelsPage() {
     },
     onSuccess: (r) => {
       if (!r) return;
-      toast.success(`Пересчитано: ${r.attorneys}, изменился уровень у ${r.changed}`);
-      void qc.invalidateQueries({ queryKey: ['trust-stats'] });
-      void qc.invalidateQueries({ queryKey: ['trust-holds'] });
-      void qc.invalidateQueries({ queryKey: ['trust-card'] });
+      toast.success(`Пересчитано: ${r.attorneys}, изменилось у ${r.changed}`);
+      invalidateTrust(qc);
     },
     onError: (e) => toast.error(e),
   });
 
-  const byLevel = new Map((stats.data?.byLevel ?? []).map((x) => [x.level, x.attorneys]));
+  const byLevel = (stats.data?.byLevel ?? []).map((x) => `${TRUST_LEVEL_RU[x.level]?.short ?? x.level}: ${x.attorneys}`).join(' · ');
 
   return (
     <>
       {confirmDialog}
       <PageHeader
         eyebrow="Люди · Верификация"
-        title="Уровни доверия"
-        subtitle="Простая регистрация остаётся: адвокат называет штат и номер под присягой. Но что LawBid показывает клиенту и что разрешает адвокату — зависит от уровня, который растёт только с проверками, не зависящими от слов адвоката."
+        title="Борьба с мошенниками"
+        subtitle="Регистрация остаётся простой: адвокат называет штат и номер под присягой. Вы выбираете, что от него требовать; что проверяется автоматически — проверяется само, остальное ждёт человека в очереди. «Подтвердить» — и перепроверок больше нет."
         actions={
           canManage ? (
             <Button size="sm" variant="outline" className="w-44" loading={recomputeAll.isPending} onClick={() => recomputeAll.mutate()}>
@@ -101,56 +103,328 @@ export default function TrustLevelsPage() {
         {stats.isPending ? (
           <KpiSkeletons n={4} />
         ) : stats.data ? (
-          TRUST_LEVELS.map((lvl) => (
-            <Kpi
-              key={lvl}
-              i={lvl}
-              icon={lvl === 3 ? ShieldCheck : SealCheck}
-              title={trustLevelLabel(lvl)}
-              value={byLevel.get(lvl) ?? 0}
-              hint={TRUST_LEVEL_RU[lvl].hint}
-              gold={lvl === 3}
-            />
-          ))
-        ) : null}
-      </div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
-        {stats.isPending ? (
-          <KpiSkeletons n={3} />
-        ) : stats.data ? (
           <>
-            <Kpi i={4} icon={HandPalm} title="На холде" value={stats.data.held} hint="платежи или ставки приостановлены" warn />
-            <Kpi i={5} icon={SealCheck} title="С галочкой" value={stats.data.withBadge} hint={`верифицированных всего: ${stats.data.verified}`} />
-            <Kpi i={6} icon={Warning} title="Жалоб за 30 дней" value={stats.data.complaints30d} hint="мошенничество, самозванец" warn />
+            <Kpi i={0} icon={SealCheck} title="Подтверждено" value={stats.data.cleared} hint={`с галочкой: ${stats.data.withBadge} · верифицировано: ${stats.data.verified}`} gold />
+            <Kpi i={1} icon={Hourglass} title="В очереди" value={stats.data.inQueue} hint="ждут проверки человеком" warn />
+            <Kpi i={2} icon={HandPalm} title="На холде" value={stats.data.held} hint="платежи или ставки приостановлены" warn />
+            <Kpi i={3} icon={Warning} title="Жалоб за 30 дней" value={stats.data.complaints30d} hint={byLevel ? `по уровням — ${byLevel}` : 'мошенничество, самозванец'} warn />
           </>
         ) : null}
       </div>
       <ErrorNote text={stats.error ? errorText(stats.error) : null} />
 
-      <SectionTitle>Настройки</SectionTitle>
-      {settings.isPending ? (
-        <Skeleton className="h-96 rounded-[var(--radius-lg)]" />
-      ) : settings.data ? (
-        <SettingsForm key={JSON.stringify(settings.data)} initial={settings.data} canEdit={canManage} />
-      ) : (
-        <ErrorNote text={settings.error ? errorText(settings.error) : 'Не удалось загрузить настройки'} />
-      )}
+      <div className="mt-8 mb-4">
+        <Tabs<Tab>
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: 'queue', label: 'Очередь', count: stats.data?.inQueue },
+            { value: 'rules', label: 'Правила' },
+            { value: 'holds', label: 'Холды', count: stats.data?.held },
+            { value: 'staff', label: 'Решения сотрудников' },
+          ]}
+        />
+      </div>
 
-      <FirmLinkAutomation />
-
-      <SectionTitle>На холде</SectionTitle>
-      <Holds canManage={canManage} />
+      {tab === 'queue' ? <Queue canManage={canManage} /> : null}
+      {tab === 'rules' ? <Rules canManage={canManage} /> : null}
+      {tab === 'holds' ? <Holds canManage={canManage} /> : null}
+      {tab === 'staff' ? <StaffDecisions /> : null}
     </>
   );
 }
 
-const LEVEL_OPTIONS = TRUST_LEVELS.map((l) => (
-  <option key={l} value={l}>
-    {trustLevelLabel(l)}
-  </option>
-));
+// --- Очередь ---------------------------------------------------------------
 
-function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
+function Queue({ canManage }: { canManage: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { ask, dialog } = useReason();
+  const { askDocuments, dialog: docDialog } = useDocumentRequest();
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const [reason, setReason] = useState<'' | QueueReason>('');
+  const [text, setText] = useState('');
+  const search = useDebounced(text.trim(), 300);
+  const filterKey = `${reason}|${search}`;
+  const sel = useSelection(filterKey);
+
+  const q = useQuery({
+    queryKey: ['trust-queue', reason, search],
+    queryFn: async () =>
+      (await api.GET('/admin/trust/queue', { params: { query: { reason: reason || undefined, q: search || undefined } } })).data!.data,
+  });
+  const rows = q.data ?? [];
+  const ids = rows.map((r) => r.attorney.id);
+  const now = Date.now();
+  const onError = (e: unknown) => toast.error(e);
+  const done = (t: string) => {
+    toast.success(t);
+    invalidateTrust(qc);
+    void qc.invalidateQueries({ queryKey: ['verification-queue'] });
+  };
+  const noteBody = (t: string) => (t ? { note: t } : {});
+  const path = (attorneyId: string) => ({ params: { path: { attorneyId } } });
+
+  const clear = useMutation({
+    mutationFn: async (r: QueueItem) => {
+      const a = await ask({
+        title: `Подтвердить — ${attorneyName(r.attorney)}`,
+        description: 'Вы ручаетесь: галочка и приём денег открываются насовсем, перепроверок больше не будет.',
+        label: 'Что проверили (необязательно)',
+        optionalText: true,
+        max: TRUST_NOTE_MAX,
+        confirm: 'Подтвердить',
+      });
+      if (!a) return null;
+      return api.POST('/admin/trust/attorneys/{attorneyId}/clear', { ...path(r.attorney.id), body: noteBody(a.text) });
+    },
+    onSuccess: (x) => x && done('Адвокат подтверждён'),
+    onError,
+  });
+  const requestDocuments = useMutation({
+    mutationFn: async (r: QueueItem) => {
+      const d = await askDocuments(`Запросить ещё — ${attorneyName(r.attorney)}`);
+      if (!d) return null;
+      return api.POST('/admin/trust/attorneys/{attorneyId}/request-documents', {
+        ...path(r.attorney.id),
+        body: { template: d.template as DocTemplate, ...noteBody(d.note) },
+      });
+    },
+    onSuccess: (x) => x && done('Запрос документов отправлен'),
+    onError,
+  });
+  const reject = useMutation({
+    mutationFn: async (r: QueueItem) => {
+      const a = await ask({
+        title: `Отклонить — ${attorneyName(r.attorney)}`,
+        description: 'Аккаунт приостанавливается, активные ставки отзываются. Адвокат получит уведомление с вашей заметкой.',
+        label: 'Причина',
+        min: 3,
+        max: TRUST_NOTE_MAX,
+        confirm: 'Отклонить',
+        danger: true,
+      });
+      if (!a) return null;
+      return api.POST('/admin/trust/attorneys/{attorneyId}/reject', { ...path(r.attorney.id), body: noteBody(a.text) });
+    },
+    onSuccess: (x) => x && done('Адвокат отклонён'),
+    onError,
+  });
+
+  const bulk = useMutation({
+    mutationFn: async (action: 'clear' | 'request_documents' | 'reject' | 'release') => {
+      const attorneyIds = [...sel.selected];
+      const n = attorneyIds.length;
+      let body: components['schemas']['BulkTrustDto'] = { attorneyIds, action };
+      if (action === 'request_documents') {
+        const d = await askDocuments(`Запросить ещё у ${n} адвокатов`);
+        if (!d) return null;
+        body = { ...body, template: d.template as DocTemplate, ...noteBody(d.note) };
+      } else if (action === 'reject') {
+        const a = await ask({ title: `Отклонить ${n} адвокатов`, description: 'Аккаунты приостанавливаются, ставки отзываются.', label: 'Причина', min: 3, max: TRUST_NOTE_MAX, confirm: 'Отклонить', danger: true });
+        if (!a) return null;
+        body = { ...body, ...noteBody(a.text) };
+      } else {
+        const ok = await confirm({
+          title: action === 'clear' ? `Подтвердить ${n} адвокатов?` : `Снять холды у ${n} адвокатов?`,
+          description: action === 'clear' ? 'Галочка и приём денег откроются насовсем у каждого выбранного.' : 'Платежи и ставки возобновятся у каждого выбранного.',
+          confirm: action === 'clear' ? 'Подтвердить' : 'Снять холды',
+        });
+        if (!ok) return null;
+      }
+      return (await api.POST('/admin/trust/bulk', { body })).data!.data;
+    },
+    onSuccess: (r) => {
+      if (!r) return;
+      sel.clear();
+      done(r.failed.length ? `Готово: ${r.done}, не удалось: ${r.failed.length}` : `Готово: ${r.done}`);
+    },
+    onError,
+  });
+
+  const rowBusy = (id: string) =>
+    (clear.isPending && clear.variables?.attorney.id === id) ||
+    (requestDocuments.isPending && requestDocuments.variables?.attorney.id === id) ||
+    (reject.isPending && reject.variables?.attorney.id === id);
+  const cols = canManage ? 8 : 6;
+
+  return (
+    <>
+      {dialog}
+      {docDialog}
+      {confirmDialog}
+      <p className="mb-3 max-w-3xl text-sm text-muted">
+        Адвокаты, которых надо посмотреть человеку: загрузили документы, нужна связь с фирмой, имя в Stripe не совпало, номер заявлен дважды, реестр не
+        подтвердил, пришла жалоба. Старые сверху.
+      </p>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Select aria-label="Причина" className="w-60" value={reason} onChange={(e) => setReason(e.target.value as '' | QueueReason)}>
+          <option value="">Все причины</option>
+          {QUEUE_REASONS.map((r) => (
+            <option key={r} value={r}>
+              {QUEUE_REASON_RU[r].text}
+            </option>
+          ))}
+        </Select>
+        <Input aria-label="Поиск" className="w-64" placeholder="Имя или @username" value={text} onChange={(e) => setText(e.target.value)} />
+      </div>
+      {canManage ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={ATTORNEYS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            sel.replace(ids);
+            return false;
+          }}
+        >
+          <Button size="sm" variant="gold" className="w-32" disabled={bulk.isPending} onClick={() => bulk.mutate('clear')}>
+            Подтвердить
+          </Button>
+          <Button size="sm" variant="outline" className="w-32" disabled={bulk.isPending} onClick={() => bulk.mutate('request_documents')}>
+            Запросить ещё
+          </Button>
+          <Button size="sm" variant="danger" className="w-32" disabled={bulk.isPending} onClick={() => bulk.mutate('reject')}>
+            Отклонить
+          </Button>
+          <Button size="sm" variant="soft" className="w-32" disabled={bulk.isPending} onClick={() => bulk.mutate('release')}>
+            Снять холды
+          </Button>
+        </BulkBar>
+      ) : null}
+      <ErrorNote text={q.error ? errorText(q.error) : null} />
+      <Table>
+        <thead>
+          <tr>
+            {canManage ? (
+              <Th className="w-10">
+                <PageSelectBox selected={sel.selected} ids={ids} onToggle={sel.togglePage} />
+              </Th>
+            ) : null}
+            <Th>Адвокат</Th>
+            <Th>Ждёт</Th>
+            <Th>Почему</Th>
+            <Th>Не хватает</Th>
+            <Th>Stripe</Th>
+            <Th>Документы</Th>
+            {canManage ? <Th /> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {q.isPending ? (
+            <TableEmpty colSpan={cols} loading />
+          ) : rows.length === 0 ? (
+            <TableEmpty colSpan={cols}>Очередь пуста — никого проверять не нужно.</TableEmpty>
+          ) : (
+            rows.map((r, i) => (
+              <MotionRow key={r.attorney.id} i={i}>
+                {canManage ? (
+                  <Td>
+                    <RowSelectBox selected={sel.selected} id={r.attorney.id} onToggle={sel.toggle} />
+                  </Td>
+                ) : null}
+                <Td>
+                  <Link href={`/verification/trust/${r.attorney.id}`} className="font-medium text-heading hover:underline">
+                    {attorneyName(r.attorney)}
+                  </Link>
+                  <div className="text-xs text-faint">@{r.attorney.username}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <TrustLevelChip level={r.level} />
+                    {r.holds.payments ? <Badge tone="danger">платежи: {HOLD_RU[r.holds.payments] ?? r.holds.payments}</Badge> : null}
+                    {r.holds.bids ? <Badge tone="danger">ставки: {HOLD_RU[r.holds.bids] ?? r.holds.bids}</Badge> : null}
+                  </div>
+                  {r.registryLinks.length ? (
+                    <div className="mt-1 flex flex-wrap gap-x-2 text-xs">
+                      {r.registryLinks.map((l) =>
+                        l.url ? (
+                          <a key={l.stateCode} href={l.url} target="_blank" rel="noreferrer" className="text-primary underline">
+                            Реестр {l.stateCode}
+                          </a>
+                        ) : (
+                          <span key={l.stateCode} className="text-muted">
+                            {l.stateCode}: без ссылки
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  ) : null}
+                </Td>
+                <Td className="whitespace-nowrap">
+                  <div className="tabular-nums">{r.waitingSince ? formatDuration(Math.floor((now - new Date(r.waitingSince).getTime()) / 1000)) : '—'}</div>
+                  <div className="text-xs text-muted">{formatDateTime(r.waitingSince)}</div>
+                </Td>
+                <Td>
+                  <div className="flex max-w-56 flex-wrap gap-1">
+                    {r.reasons.map((x) => (
+                      <Badge key={x} tone={QUEUE_REASON_RU[x]?.tone ?? 'neutral'} dot>
+                        {QUEUE_REASON_RU[x]?.text ?? x}
+                      </Badge>
+                    ))}
+                  </div>
+                </Td>
+                <Td className="text-xs">{r.missing.length ? missingText(r.missing) : <span className="text-muted">всё пройдено</span>}</Td>
+                <Td className="text-xs">
+                  {r.stripeBusinessType ? (
+                    <>
+                      <div>{BUSINESS_TYPE_RU[r.stripeBusinessType] ?? r.stripeBusinessType}</div>
+                      {r.stripeCompanyName ? <div className="text-muted">{r.stripeCompanyName}</div> : null}
+                      {r.stripeRepresentative ? <div className="text-muted">предст.: {r.stripeRepresentative}</div> : null}
+                    </>
+                  ) : (
+                    <span className="text-muted">нет KYC</span>
+                  )}
+                </Td>
+                <Td className="text-xs">
+                  {r.requestId ? (
+                    <Link href={`/verification/${r.requestId}`} className="text-gold-600 hover:underline">
+                      {r.documentsCount} шт. → заявка
+                    </Link>
+                  ) : (
+                    <span className="text-muted">{r.documentsCount}</span>
+                  )}
+                  {r.documentsRequestedAt ? <div className="text-muted">запрошены {formatDateTime(r.documentsRequestedAt)}</div> : null}
+                </Td>
+                {canManage ? (
+                  <Td>
+                    <div className="flex flex-col items-stretch gap-1.5">
+                      <Button size="sm" variant="gold" className="w-32" loading={clear.isPending && clear.variables?.attorney.id === r.attorney.id} disabled={rowBusy(r.attorney.id)} onClick={() => clear.mutate(r)}>
+                        Подтвердить
+                      </Button>
+                      <Button size="sm" variant="outline" className="w-32" loading={requestDocuments.isPending && requestDocuments.variables?.attorney.id === r.attorney.id} disabled={rowBusy(r.attorney.id)} onClick={() => requestDocuments.mutate(r)}>
+                        Запросить ещё
+                      </Button>
+                      <Button size="sm" variant="danger-soft" className="w-32" loading={reject.isPending && reject.variables?.attorney.id === r.attorney.id} disabled={rowBusy(r.attorney.id)} onClick={() => reject.mutate(r)}>
+                        Отклонить
+                      </Button>
+                    </div>
+                  </Td>
+                ) : null}
+              </MotionRow>
+            ))
+          )}
+        </tbody>
+      </Table>
+    </>
+  );
+}
+
+// --- Правила ---------------------------------------------------------------
+
+function Rules({ canManage }: { canManage: boolean }) {
+  const settings = useQuery({
+    queryKey: ['trust-settings'],
+    queryFn: async () => (await api.GET('/admin/trust/settings')).data!.data,
+  });
+  if (settings.isPending) return <Skeleton className="h-96 rounded-[var(--radius-lg)]" />;
+  if (!settings.data) return <ErrorNote text={settings.error ? errorText(settings.error) : 'Не удалось загрузить правила'} />;
+  return <RulesForm key={JSON.stringify(settings.data)} initial={settings.data} canEdit={canManage} />;
+}
+
+type BoolKey = {
+  [K in keyof Settings]: Settings[K] extends boolean ? K : never;
+}[keyof Settings];
+
+function RulesForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [s, setS] = useState<Settings>(initial);
@@ -166,8 +440,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const complaintsToSuspend = int(toSuspend, 1, 20);
   const complaintWindowDays = int(windowDays, 1, 3650);
   const valid = payoutDays !== null && complaintsToSuspend !== null && complaintWindowDays !== null;
-  const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS((x) => ({ ...x, [k]: v }));
-  const num = (v: string) => Number(v) as number;
+  const set = (k: BoolKey, v: boolean) => setS((x) => ({ ...x, [k]: v }));
 
   const save = useMutation({
     mutationFn: async () =>
@@ -182,14 +455,14 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         })
       ).data!.data,
     onSuccess: () => {
-      toast.success('Настройки сохранены. Нажмите «Пересчитать всех», чтобы применить к текущим адвокатам.');
+      toast.success('Правила сохранены. «Пересчитать всех» применит их к текущим адвокатам.');
       void qc.invalidateQueries({ queryKey: ['trust-settings'] });
     },
     onError: (e) => toast.error(e),
   });
 
-  const toggle = (k: 'autoHoldOnComplaint' | 'autoHoldOnNameMismatch' | 'flagDuplicateClaims', title: string, on: string, off: string) => (
-    <div className="flex items-start justify-between gap-4 rounded-xl bg-surface-2 px-3.5 py-3">
+  const toggle = (k: BoolKey, title: string, on: string, off: string) => (
+    <div key={k} className="flex items-start justify-between gap-4 rounded-xl bg-surface-2 px-3.5 py-3">
       <div className="min-w-0">
         <div className="text-sm font-medium text-ink">{title}</div>
         <p className="mt-0.5 text-xs text-muted">{s[k] ? on : off}</p>
@@ -200,67 +473,71 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
 
   return (
     <Card className="p-5">
-      <h3 className="font-medium text-heading">Что можно на каждом уровне</h3>
+      <h3 className="font-medium text-heading">Что требовать от адвоката для галочки и приёма денег</h3>
       <p className="mt-1 text-sm text-muted">
-        Уровни: 0 «Заявлен» — только присяга; 1 «Реестр» — номер подтверждён реестром штата или сотрудником; 2 «Личность» — Stripe KYC с совпавшим именем или
-        подтверждённая связь с фирмой; 3 «Документы» — сотрудник проверил карточку и удостоверение плюс личность по Stripe.
+        Что можно проверить автоматически — проверяется само (реестр штата, Stripe KYC, e-mail фирмы). Что нельзя — попадает в очередь к сотруднику. После
+        «Подтвердить» адвокат больше не перепроверяется.
       </p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
-        <Field label="Ставки и чат с клиентом" htmlFor="ts-bids" hint="минимальный уровень, чтобы откликаться на кейсы">
-          <Select id="ts-bids" value={s.minLevelBids} disabled={!canEdit} onChange={(e) => set('minLevelBids', num(e.target.value))}>
-            {LEVEL_OPTIONS}
-          </Select>
-        </Field>
-        <Field label="Оплата через LawBid" htmlFor="ts-pay" hint="минимальный уровень, чтобы получать деньги клиентов и выставлять счета">
-          <Select id="ts-pay" value={s.minLevelPayments} disabled={!canEdit} onChange={(e) => set('minLevelPayments', num(e.target.value))}>
-            {LEVEL_OPTIONS}
-          </Select>
-        </Field>
-        <Field label="Синяя галочка" htmlFor="ts-badge" hint="минимальный уровень, с которого в приложении показывается галочка">
-          <Select id="ts-badge" value={s.minLevelBadge} disabled={!canEdit} onChange={(e) => set('minLevelBadge', num(e.target.value))}>
-            {LEVEL_OPTIONS}
-          </Select>
-        </Field>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {toggle(
+          'requireRegistry',
+          'Реестр штата',
+          'Включено: номер лицензии должен совпасть с реестром штата; где нет API — сотрудник проверяет по ссылке коллегии (очередь).',
+          'Выключено: достаточно присяги — номер со слов адвоката.',
+        )}
+        {toggle(
+          'requireIdentity',
+          'Личность',
+          'Включено: нужен Stripe KYC на самого адвоката (имя совпало) или подтверждённая связь с фирмой, если аккаунт на компанию.',
+          'Выключено: кто стоит за аккаунтом Stripe, не проверяется.',
+        )}
+        {toggle(
+          'requireDocuments',
+          'Документы',
+          'Включено: адвокат загружает удостоверение, селфи и карточку адвоката, сотрудник сверяет их в очереди.',
+          'Выключено: документы не требуются (можно запросить вручную у подозрительных).',
+        )}
       </div>
 
-      <h4 className="mt-6 text-sm font-medium text-heading">Задержка выплат Stripe</h4>
-      <div className="mt-3 grid gap-4 sm:grid-cols-2">
-        <Field label="Задержка, дней" htmlFor="ts-payout" hint="0–30; 0 — стандартный график Stripe. Деньги клиента ждут на балансе, пока адвокат не дорос до уровня справа.">
-          <Input id="ts-payout" inputMode="numeric" value={payout} disabled={!canEdit} onChange={(e) => setPayout(e.target.value.replace(/\D/g, ''))} />
-        </Field>
-        <Field label="До уровня" htmlFor="ts-payout-lvl" hint="адвокаты ниже этого уровня получают выплаты с задержкой">
-          <Select id="ts-payout-lvl" value={s.payoutDelayUntilLevel} disabled={!canEdit} onChange={(e) => set('payoutDelayUntilLevel', num(e.target.value))}>
-            {LEVEL_OPTIONS}
-          </Select>
-        </Field>
+      <h4 className="mt-6 text-sm font-medium text-heading">Что открыто до подтверждения</h4>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {toggle(
+          'bidsRequireCleared',
+          'Ставки только после подтверждения',
+          'Включено: пока требования не пройдены, адвокат не может откликаться на кейсы и писать клиентам.',
+          'Выключено: ставки и чат открыты сразу, закрыты только галочка и приём денег.',
+        )}
+        <div className="rounded-xl bg-surface-2 px-3.5 py-3">
+          <Field label="Задержка выплат Stripe, дней" htmlFor="ts-payout" hint="0–30; 0 — стандартный график Stripe. Деньги клиента ждут на балансе, пока адвокат не подтверждён.">
+            <Input id="ts-payout" inputMode="numeric" className="w-28" value={payout} disabled={!canEdit} onChange={(e) => setPayout(e.target.value.replace(/\D/g, ''))} />
+          </Field>
+        </div>
       </div>
 
       <h4 className="mt-6 text-sm font-medium text-heading">Автоматические защиты</h4>
-      <p className="mt-1 text-xs text-muted">Каждую можно выключить отдельно; выключенная защита ничего не делает сама — решает верификатор вручную.</p>
+      <p className="mt-1 text-xs text-muted">Каждую можно выключить отдельно; выключенная ничего не делает сама — решает сотрудник.</p>
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         {toggle(
           'autoHoldOnComplaint',
           'Холд при жалобе на мошенничество',
-          'Включено: жалоба клиента «мошенничество» или «самозванец» сразу ставит холд на платежи и новые ставки до проверки верификатором.',
-          'Выключено: жалоба попадает в очередь модерации, адвокат продолжает работать, пока админ не поставит холд вручную.',
+          'Включено: жалоба клиента «мошенничество» или «самозванец» сразу ставит холд на платежи и ставки и отправляет адвоката в очередь.',
+          'Выключено: жалоба уходит в модерацию, адвокат работает, пока сотрудник не поставит холд вручную.',
         )}
         {toggle(
           'autoHoldOnNameMismatch',
           'Холд при несовпадении имени в Stripe',
-          'Включено: если юридическое имя из Stripe KYC не совпало с профилем и реестром — платежи ставятся на холд и у адвоката запрашиваются документы.',
+          'Включено: имя из Stripe KYC не совпало с профилем и реестром — платежи на холд, адвокат в очереди.',
           'Выключено: несовпадение только отмечается в карточке; платежи продолжаются.',
         )}
         {toggle(
           'flagDuplicateClaims',
           'Отмечать повторные заявки номера',
-          'Включено: когда кто-то регистрируется с уже занятым номером лицензии, лицензия владельца помечается для сверки с реестром («Сверка с реестром»).',
-          'Выключено: повторная заявка просто отклоняется, без отметки у владельца номера.',
+          'Включено: кто-то регистрируется с занятым номером — владелец номера попадает в очередь на сверку с реестром.',
+          'Выключено: повторная заявка отклоняется без отметки у владельца.',
         )}
         <div className="rounded-xl bg-surface-2 px-3.5 py-3">
           <div className="text-sm font-medium text-ink">Автоприостановка по жалобам</div>
-          <p className="mt-0.5 text-xs text-muted">
-            Столько разных клиентов пожаловались за окно — профиль приостанавливается до разбора.
-          </p>
+          <p className="mt-0.5 text-xs text-muted">Столько разных клиентов пожаловались за окно — профиль приостанавливается до разбора.</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <Field label="Жалоб" htmlFor="ts-cts" hint="1–20">
               <Input id="ts-cts" inputMode="numeric" value={toSuspend} disabled={!canEdit} onChange={(e) => setToSuspend(e.target.value.replace(/\D/g, ''))} />
@@ -272,6 +549,26 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         </div>
       </div>
 
+      <h4 className="mt-6 text-sm font-medium text-heading">Связь с фирмой (Stripe-аккаунт компании)</h4>
+      <p className="mt-1 text-xs text-muted">
+        Если аккаунт Stripe оформлен на компанию, где адвокат не владелец и не представитель, личность засчитывается после подтверждения связи с фирмой:
+        автоматически одним из способов ниже или сотрудником по письму на бланке.
+      </p>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {toggle(
+          'firmLinkAutoRegistry',
+          'Связь по реестру штата',
+          'Включено: фирма в реестре штата совпала с названием компании в Stripe — связь подтверждается сама.',
+          'Выключено: совпадение с реестром не засчитывается — нужен e-mail фирмы или сотрудник.',
+        )}
+        {toggle(
+          'firmLinkAutoEmail',
+          'Связь по e-mail фирмы',
+          'Включено: адвокат подтверждает кодом адрес на домене сайта компании из Stripe — связь засчитывается сама.',
+          'Выключено: e-mail не засчитывается — только реестр или сотрудник.',
+        )}
+      </div>
+
       {canEdit ? (
         <div className="mt-5 flex items-center justify-end gap-3">
           {!valid ? <span className="text-xs text-danger">Проверьте числа: они вне допустимых границ.</span> : null}
@@ -280,92 +577,13 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           </Button>
         </div>
       ) : (
-        <p className="mt-5 text-xs text-faint">Менять настройки может верификатор с правом «управление» или супер-админ.</p>
+        <p className="mt-5 text-xs text-faint">Менять правила может верификатор с правом «управление» или супер-админ.</p>
       )}
     </Card>
   );
 }
 
-/**
- * The two firm-link automations live in app_config (area «settings»), not in
- * TrustSettingsDto: shown as switches when the admin may open /config, as a
- * pointer otherwise.
- */
-function FirmLinkAutomation() {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const { data: me } = useMe();
-  const canSee = me ? can(me, 'settings') : false;
-  const canEdit = me ? can(me, 'settings', 'manage') : false;
-  const q = useQuery({
-    queryKey: ['config'],
-    enabled: canSee,
-    queryFn: async () => (await api.GET('/admin/config')).data!.data as { key: string; value: unknown }[],
-  });
-  const put = useMutation({
-    mutationFn: (v: { key: string; value: boolean }) =>
-      api.PUT('/admin/config/{key}', { params: { path: { key: v.key } }, body: { value: v.value } as never }),
-    onSuccess: () => {
-      toast.success('Сохранено');
-      void qc.invalidateQueries({ queryKey: ['config'] });
-    },
-    onError: (e) => toast.error(e),
-  });
-  const value = (key: string) => q.data?.find((e) => e.key === key)?.value === true;
-
-  const row = (key: string, title: string, on: string, off: string) => {
-    const v = value(key);
-    return (
-      <div key={key} className="flex items-start justify-between gap-4 rounded-xl bg-surface-2 px-3.5 py-3">
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-ink">{title}</div>
-          <p className="mt-0.5 text-xs text-muted">{canSee && q.data ? (v ? on : off) : `${on} Ключ ${key} на странице «Настройки».`}</p>
-        </div>
-        {canSee && q.data ? (
-          <Switch checked={v} disabled={!canEdit || put.isPending} onChange={(x) => put.mutate({ key, value: x })} label={title} className="mt-0.5" />
-        ) : (
-          <Badge tone="neutral" className="mt-0.5">
-            настройки
-          </Badge>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <Card className="mt-4 p-5">
-      <h4 className="text-sm font-medium text-heading">Связь с фирмой (аккаунт Stripe компании)</h4>
-      <p className="mt-1 text-xs text-muted">
-        Если Stripe-аккаунт оформлен на компанию, где адвокат не владелец и не представитель, его личность засчитывается только после подтверждения связи с
-        этой фирмой: автоматически одним из способов ниже или верификатором по письму на бланке фирмы.
-        {!canSee ? (
-          <>
-            {' '}
-            Переключатели доступны тем, кто открывает{' '}
-            <Link href="/config" className="text-gold-600 hover:underline">
-              Система → Настройки
-            </Link>
-            .
-          </>
-        ) : null}
-      </p>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        {row(
-          FIRM_LINK_KEYS.registry,
-          'Связь по реестру штата',
-          'Включено: если фирма в реестре штата совпадает с названием компании в Stripe, связь подтверждается сама.',
-          'Выключено: совпадение с реестром не засчитывается — нужен e-mail фирмы или подтверждение верификатора.',
-        )}
-        {row(
-          FIRM_LINK_KEYS.email,
-          'Связь по e-mail фирмы',
-          'Включено: адвокат подтверждает адрес на домене сайта компании из Stripe кодом из письма — связь засчитывается сама.',
-          'Выключено: e-mail не засчитывается — только реестр или верификатор.',
-        )}
-      </div>
-    </Card>
-  );
-}
+// --- Холды -----------------------------------------------------------------
 
 function Holds({ canManage }: { canManage: boolean }) {
   const qc = useQueryClient();
@@ -394,9 +612,7 @@ function Holds({ canManage }: { canManage: boolean }) {
     onSuccess: (x) => {
       if (!x) return;
       toast.success('Холд снят');
-      void qc.invalidateQueries({ queryKey: ['trust-holds'] });
-      void qc.invalidateQueries({ queryKey: ['trust-stats'] });
-      void qc.invalidateQueries({ queryKey: ['trust-card'] });
+      invalidateTrust(qc);
     },
     onError: (e) => toast.error(e),
   });
@@ -407,7 +623,7 @@ function Holds({ canManage }: { canManage: boolean }) {
     <>
       {dialog}
       <p className="mb-3 max-w-3xl text-sm text-muted">
-        Адвокаты, у которых приостановлены платежи или новые ставки — автоматически (жалоба, несовпадение имени, чужая заявка на номер) или администратором.
+        Адвокаты, у которых приостановлены платежи или новые ставки — автоматически (жалоба, несовпадение имени, чужая заявка на номер) или сотрудником.
         Разберитесь по карточке и снимите холд.
       </p>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
@@ -430,8 +646,7 @@ function Holds({ canManage }: { canManage: boolean }) {
             <TableEmpty colSpan={cols}>Холдов нет.</TableEmpty>
           ) : (
             rows.map((r, i) => {
-              const codes = [r.holds.payments, r.holds.bids].filter((x): x is string => Boolean(x));
-              const reasons = [...new Set(codes)];
+              const reasons = [...new Set([r.holds.payments, r.holds.bids].filter((x): x is string => Boolean(x)))];
               return (
                 <MotionRow key={r.attorney.id} i={i}>
                   <Td>

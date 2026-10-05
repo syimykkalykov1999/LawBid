@@ -12,6 +12,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 
 /// A practice name by its i18n key; a readable fallback while the key is
 /// not in the local bundle yet.
@@ -74,6 +75,14 @@ class AttorneyTile extends ConsumerWidget {
                         const SizedBox(width: AppSpacing.xs),
                         VerifiedCheck(label: t.t('post.verified'), size: 15),
                       ],
+                      // Owner 2026-10-05: trust level (docs/ATTORNEY_TRUST.md).
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: TrustLevelChip(
+                          level: row.trustLevel,
+                          attorneyId: row.id,
+                        ),
+                      ),
                     ],
                   ),
                   Text(

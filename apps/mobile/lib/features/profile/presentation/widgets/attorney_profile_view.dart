@@ -30,6 +30,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
@@ -608,6 +609,15 @@ class _HeaderCard extends ConsumerWidget {
               const SizedBox(width: AppSpacing.xs),
               VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
             ],
+            // Owner 2026-10-05: trust level next to the badge; opens the
+            // sheet with what was checked and the registry links.
+            const SizedBox(width: AppSpacing.sm),
+            Flexible(
+              child: TrustLevelChip(
+                level: profile.trustLevel,
+                attorneyId: profile.id,
+              ),
+            ),
           ],
         ),
       ],
