@@ -1,0 +1,326 @@
+import type { AddressInfo, Server } from 'node:net';
+import { randomUUID } from 'node:crypto';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
+import { TokenService } from '../src/modules/auth/services/token.service';
+import { ReferralsService } from '../src/modules/referrals/referrals.service';
+import { PartnersService } from '../src/modules/partners/partners.service';
+import { adminSession } from './support/admin-login';
+
+/**
+ * Owner 2026-10-05: partner (affiliate) program. A partner's code binds the
+ * people who enter it; the owner pays per attorney who bought a
+ * subscription and per client who hired, after an anti-fraud hold; the
+ * partner sees who joined and what was earned; the admin approves, pays,
+ * reverses and exports.
+ */
+jest.setTimeout(120_000);
+
+describe('Partner program (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let tokens: TokenService;
+  let referrals: ReferralsService;
+  let partners: PartnersService;
+  let base = '';
+  const REASON = 'Blogger deal signed in October';
+  const tag = randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase();
+
+  beforeAll(async () => {
+    process.env.NODE_ENV = 'test';
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+    app.setGlobalPrefix('api/v1');
+    await app.listen(0, '127.0.0.1');
+    const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
+    base = `http://127.0.0.1:${port}`;
+    prisma = app.get(PrismaService);
+    tokens = app.get(TokenService);
+    referrals = app.get(ReferralsService);
+    partners = app.get(PartnersService);
+    // The friends' referral program stays OFF: a partner code must work
+    // regardless.
+    await prisma.appConfig.deleteMany({
+      where: { key: { in: ['referrals.program', 'partners.program'] } },
+    });
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const api = () => request(base);
+
+  function auth(id: string, role: 'client' | 'attorney') {
+    const t = tokens.signAccessToken({
+      sub: id,
+      role,
+      sid: randomUUID(),
+      verified: role === 'attorney',
+      subscriptionStatus: 'none',
+    });
+    return { Authorization: `Bearer ${t}` };
+  }
+
+  const user = (role: 'attorney' | 'client', first: string) =>
+    prisma.user.create({
+      data: { role, first_name: first, last_name: 'Partner', status: 'active' },
+    });
+
+  it('nobody is a partner by default', async () => {
+    const u = await user('client', 'Nobody');
+    const res = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(u.id, 'client'))
+      .expect(200);
+    expect(res.body.data.isPartner).toBe(false);
+    expect(res.body.data.referred).toEqual([]);
+  });
+
+  it('admin makes a blogger a partner with own rates; attorney pays → held → approved → paid; client hires → accrual; reject → reversal; CSV', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    const blogger = await user('client', 'Blogger');
+    const code = `BLOG${tag}`;
+
+    // Create with own rates and a vanity code.
+    const created = await api()
+      .post('/api/v1/admin/partners')
+      .set(admin.auth)
+      .send({
+        userId: blogger.id,
+        label: 'Blogger Ivan',
+        code,
+        attorneyRateCents: 7_000,
+        clientRateCents: 1_500,
+        monthlyBaseCents: 0,
+        holdDays: 0,
+        reason: REASON,
+      })
+      .expect(201);
+    const partnerId = created.body.data.id as string;
+    expect(created.body.data.code).toBe(code);
+    expect(created.body.data.rates.attorneyRateCents).toBe(7_000);
+    expect(created.body.data.rates.clientRule).toBe('bid_accepted');
+    // Twice is refused.
+    await api()
+      .post('/api/v1/admin/partners')
+      .set(admin.auth)
+      .send({ userId: blogger.id, reason: REASON })
+      .expect(409);
+
+    // The blogger sees the program with their link.
+    const me0 = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(blogger.id, 'client'))
+      .expect(200);
+    expect(me0.body.data.isPartner).toBe(true);
+    expect(me0.body.data.code).toBe(code);
+    expect(me0.body.data.shareUrl).toContain(code);
+    expect(me0.body.data.totals.referredCount).toBe(0);
+
+    // An attorney joins by the code (referral program is OFF: still works).
+    const att = await user('attorney', 'Referred');
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(att.id, 'attorney'))
+      .send({ code })
+      .expect(200);
+    // Self-use is refused.
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(blogger.id, 'client'))
+      .send({ code })
+      .expect(409);
+
+    // Joined, nothing earned yet: a trial or a sign-up pays nothing.
+    const me1 = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(blogger.id, 'client'))
+      .expect(200);
+    expect(me1.body.data.totals.referredCount).toBe(1);
+    expect(me1.body.data.referred[0]).toMatchObject({
+      role: 'attorney',
+      status: 'joined',
+      amountCents: 0,
+    });
+    expect(me1.body.data.referred[0].name).toBe('Referred P.');
+
+    // The first paid invoice → commission (holdDays 0 → approved at once).
+    await referrals.onQualifyingEvent(att.id, 'subscription_payment');
+    await referrals.onQualifyingEvent(att.id, 'subscription_payment'); // idempotent
+    const me2 = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(blogger.id, 'client'))
+      .expect(200);
+    expect(me2.body.data.totals.approvedCents).toBe(7_000);
+    expect(me2.body.data.commissions).toHaveLength(1);
+    expect(me2.body.data.referred[0].status).toBe('qualified');
+    expect(
+      await prisma.notification.count({
+        where: { user_id: blogger.id, type: 'partner_commission' },
+      }),
+    ).toBe(1);
+
+    // Admin detail shows the same.
+    const detail = await api()
+      .get(`/api/v1/admin/partners/${partnerId}`)
+      .set(admin.auth)
+      .expect(200);
+    expect(detail.body.data.partner.totals.approvedCents).toBe(7_000);
+    expect(detail.body.data.referred[0].email).toBeNull();
+    const attCommission = detail.body.data.commissions[0].id as string;
+
+    // Pay everything approved.
+    const paid = await api()
+      .post(`/api/v1/admin/partners/${partnerId}/pay`)
+      .set(admin.auth)
+      .send({ reason: REASON, payoutRef: 'ACH-0001' })
+      .expect(200);
+    expect(paid.body.data).toEqual({ count: 1, totalCents: 7_000 });
+    // Nothing left → 409.
+    await api()
+      .post(`/api/v1/admin/partners/${partnerId}/pay`)
+      .set(admin.auth)
+      .send({ reason: REASON })
+      .expect(409);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: blogger.id, type: 'partner_payout' },
+      }),
+    ).toBe(1);
+    const me3 = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(blogger.id, 'client'))
+      .expect(200);
+    expect(me3.body.data.totals.paidCents).toBe(7_000);
+    expect(me3.body.data.referred[0].status).toBe('paid');
+
+    // Reversing a paid commission adds a deduction instead.
+    await api()
+      .post(`/api/v1/admin/partners/commissions/${attCommission}/reverse`)
+      .set(admin.auth)
+      .send({ reason: 'Chargeback from the attorney' })
+      .expect(200);
+    const afterReverse = await api()
+      .get(`/api/v1/admin/partners/${partnerId}`)
+      .set(admin.auth)
+      .expect(200);
+    expect(afterReverse.body.data.partner.totals.approvedCents).toBe(-7_000);
+
+    // A client: publishing a case is not enough (rule = bid_accepted).
+    await api()
+      .patch(`/api/v1/admin/partners/${partnerId}`)
+      .set(admin.auth)
+      .send({ holdDays: 14, reason: REASON })
+      .expect(200);
+    const client = await user('client', 'Hiring');
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(client.id, 'client'))
+      .send({ code })
+      .expect(200);
+    await referrals.onQualifyingEvent(client.id, 'case_published');
+    expect(
+      await prisma.partnerCommission.count({
+        where: { referred_user_id: client.id },
+      }),
+    ).toBe(0);
+    await referrals.onQualifyingEvent(client.id, 'bid_accepted');
+    const clientCommission = await prisma.partnerCommission.findFirstOrThrow({
+      where: { referred_user_id: client.id },
+    });
+    expect(clientCommission).toMatchObject({
+      kind: 'client_qualified',
+      amount_cents: 1_500,
+      status: 'held',
+    });
+    expect(clientCommission.hold_until).not.toBeNull();
+
+    // The sweep does not release it before the hold ends...
+    const early = await partners.release(new Date());
+    expect(early.approved).toBe(0);
+    // ...and does after.
+    const later = new Date(Date.now() + 15 * 86_400_000);
+    const sweep = await partners.release(later);
+    expect(sweep.approved).toBe(1);
+
+    // The admin rejects the client's referral as fraud → reversed.
+    const referral = await prisma.referral.findUniqueOrThrow({
+      where: { referee_id: client.id },
+    });
+    await api()
+      .post(`/api/v1/admin/referrals/${referral.id}/reject`)
+      .set(admin.auth)
+      .send({ reason: 'Fake account farm' })
+      .expect(200);
+    const reversed = await prisma.partnerCommission.findUniqueOrThrow({
+      where: { id: clientCommission.id },
+    });
+    expect(reversed.status).toBe('reversed');
+
+    // Lists, stats and CSV.
+    const list = await api()
+      .get('/api/v1/admin/partners?q=Ivan')
+      .set(admin.auth)
+      .expect(200);
+    expect((list.body.data as { id: string }[]).map((p) => p.id)).toContain(
+      partnerId,
+    );
+    const commissions = await api()
+      .get(`/api/v1/admin/partners/commissions?partnerId=${partnerId}`)
+      .set(admin.auth)
+      .expect(200);
+    expect(commissions.body.data).toHaveLength(3); // paid, deduction, reversed
+    const stats = await api()
+      .get('/api/v1/admin/partners/stats')
+      .set(admin.auth)
+      .expect(200);
+    expect(stats.body.data.partners).toBeGreaterThanOrEqual(1);
+    const csv = await api()
+      .get(
+        `/api/v1/admin/partners/commissions/export.csv?partnerId=${partnerId}`,
+      )
+      .set(admin.auth)
+      .expect(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.text.split('\n')[0]).toContain('amount_cents');
+    expect(csv.text).toContain('attorney_subscription');
+
+    // Ending the partner stops new accruals.
+    await api()
+      .patch(`/api/v1/admin/partners/${partnerId}`)
+      .set(admin.auth)
+      .send({ status: 'ended', reason: REASON })
+      .expect(200);
+    const late = await user('attorney', 'Late');
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(late.id, 'attorney'))
+      .send({ code })
+      .expect(403); // program off and the partner ended
+  });
+
+  it('support reads, finance writes, moderator is refused', async () => {
+    const support = await adminSession(base, prisma, 'support');
+    await api().get('/api/v1/admin/partners').set(support.auth).expect(200);
+    await api()
+      .post('/api/v1/admin/partners')
+      .set(support.auth)
+      .send({ userId: randomUUID(), reason: REASON })
+      .expect(403);
+    const moderator = await adminSession(base, prisma, 'moderator');
+    await api().get('/api/v1/admin/partners').set(moderator.auth).expect(403);
+  });
+});

@@ -4,6 +4,7 @@ import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
+import 'package:lawbid/core/l10n/strings/partner_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
@@ -1071,6 +1072,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...file06Ru,
         ...file07Ru,
         ...reelsRu,
+        ...partnerRu,
       };
 }
 
@@ -2416,5 +2418,6 @@ class StaticTranslatorEn extends _MapTranslator {
         ...file06En,
         ...file07En,
         ...reelsEn,
+        ...partnerEn,
       };
 }

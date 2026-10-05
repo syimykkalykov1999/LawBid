@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type Referral } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -25,6 +26,7 @@ import type {
   ReferralStatus,
   SetReferralCodeDto,
 } from './referrals.dto';
+import { PartnersService } from '../partners/partners.service';
 import { ReferralsService } from './referrals.service';
 import {
   REFERRAL_SETTINGS_KEY,
@@ -59,6 +61,7 @@ export class AdminReferralsService {
     private readonly prisma: PrismaService,
     private readonly referrals: ReferralsService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly partners?: PartnersService,
   ) {}
 
   getSettings(): Promise<ReferralProgramSettings> {
@@ -263,6 +266,11 @@ export class AdminReferralsService {
       await this.record(admin, REFERRAL_AUDIT.reject, before, row, reason, tx);
       return row;
     });
+    // Owner 2026-10-05: a rejected (fraudulent) referral takes the
+    // partner's commission back too.
+    await this.partners
+      ?.reverseForReferral(id, `referral_rejected: ${reason}`)
+      .catch(() => undefined);
     return (await this.present([after]))[0];
   }
 

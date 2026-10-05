@@ -242,6 +242,28 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Откройте «Результаты», чтобы увидеть решение.',
     },
   },
+  partner_commission: {
+    group: 'system',
+    en: {
+      title: 'Partner earnings',
+      body: 'Someone you brought to LawBid qualified. Your commission is accrued.',
+    },
+    ru: {
+      title: 'Партнёрское начисление',
+      body: 'Приглашённый вами выполнил условие. Вознаграждение начислено.',
+    },
+  },
+  partner_payout: {
+    group: 'system',
+    en: {
+      title: 'Partner payout',
+      body: 'Your partner earnings were paid out. See the details in the app.',
+    },
+    ru: {
+      title: 'Партнёрская выплата',
+      body: 'Ваше партнёрское вознаграждение выплачено. Подробности в приложении.',
+    },
+  },
   referral_reward: {
     group: 'system',
     en: {

@@ -281,6 +281,35 @@ export const REFERRAL_STATUS: Record<string, string> = {
   rejected: 'отклонён',
 };
 
+/** Owner 2026-10-05: partner program. */
+export const PARTNER_STATUS: Record<string, string> = {
+  active: 'активен',
+  paused: 'на паузе',
+  ended: 'завершён',
+};
+export const COMMISSION_STATUS: Record<string, string> = {
+  held: 'на проверке',
+  approved: 'к выплате',
+  paid: 'выплачено',
+  reversed: 'отменено',
+};
+export const COMMISSION_KIND: Record<string, string> = {
+  attorney_subscription: 'адвокат купил подписку',
+  client_qualified: 'клиент нанял адвоката',
+  monthly_base: 'месячная ставка',
+  adjustment: 'корректировка',
+};
+export const REFERRED_STATUS: Record<string, string> = {
+  joined: 'присоединился',
+  qualified: 'условие выполнено',
+  paid: 'выплачено',
+  reversed: 'отменено',
+};
+export const CLIENT_RULE: Record<string, string> = {
+  case_published: 'опубликовал кейс',
+  bid_accepted: 'нанял адвоката (принял отклик)',
+};
+
 export const VIDEO_STATUS: Record<string, string> = {
   awaiting_upload: 'ждёт загрузки',
   uploading: 'загружается',
@@ -300,6 +329,7 @@ export function toneFor(status: string | null | undefined): Tone {
     case 'succeeded':
     case 'accepted':
     case 'approved':
+    case 'paid':
     case 'pass':
     case 'resolved':
     case 'rewarded':
@@ -313,8 +343,11 @@ export function toneFor(status: string | null | undefined): Tone {
     case 'processing':
     case 'waiting_user':
     case 'submitted':
+    case 'joined':
       return 'info';
     case 'pending':
+    case 'held':
+    case 'paused':
     case 'past_due':
     case 'needs_more_info':
     case 'open':
@@ -332,6 +365,7 @@ export function toneFor(status: string | null | undefined): Tone {
     case 'expired':
     case 'deleted':
     case 'refunded':
+    case 'reversed':
       return 'danger';
     default:
       return 'neutral';

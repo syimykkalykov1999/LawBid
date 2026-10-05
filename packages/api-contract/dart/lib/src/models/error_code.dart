@@ -290,6 +290,8 @@ enum ErrorCode {
   referralNotAllowed('REFERRAL_NOT_ALLOWED'),
   @JsonValue('REFERRAL_INVALID_STATE')
   referralInvalidState('REFERRAL_INVALID_STATE'),
+  @JsonValue('PARTNER_INVALID_STATE')
+  partnerInvalidState('PARTNER_INVALID_STATE'),
   @JsonValue('PROMOTION_ALREADY_ACTIVE')
   promotionAlreadyActive('PROMOTION_ALREADY_ACTIVE'),
   @JsonValue('PROMOTION_INVALID_STATE')
