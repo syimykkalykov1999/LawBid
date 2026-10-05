@@ -47,6 +47,10 @@ class ReelsRepository {
     required int sizeBytes,
     required int durationSec,
     String? title,
+    // Owner 2026-10-05: the part the reel plays and the cover frame.
+    int? trimStartMs,
+    int? trimEndMs,
+    int? coverTimeMs,
   }) async {
     final d = (await guardApiCall(
       () => _videos.createVideoUpload(
@@ -54,6 +58,9 @@ class ReelsRepository {
           sizeBytes: sizeBytes,
           durationSec: durationSec,
           title: title,
+          trimStartMs: trimStartMs,
+          trimEndMs: trimEndMs,
+          coverTimeMs: coverTimeMs,
         ),
       ),
     ))

@@ -3,11 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
@@ -15,18 +16,20 @@ import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart
 enum AvatarSource { camera, gallery }
 
 /// Picks a photo and returns its bytes (null = cancelled). Downscaled on
-/// device to 1024 px (docs/03 §4.1: "сжатие до 1024 px"); the server makes
-/// the square centre crop. Overridden in tests.
+/// device to 1024 px (docs/03 §4.1: "сжатие до 1024 px"; owner 2026-10-05:
+/// `media.avatar_max_px` in the admin); the server makes the square centre
+/// crop. Overridden in tests.
 final avatarImagePickerProvider =
     Provider<Future<Uint8List?> Function(AvatarSource)>(
   (ref) => (source) async {
+    final limits = avatarLimitsOf(ref.read(featureFlagsControllerProvider));
     final file = await ImagePicker().pickImage(
       source: source == AvatarSource.camera
           ? ImageSource.camera
           : ImageSource.gallery,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 88,
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
+      imageQuality: limits.quality,
       preferredCameraDevice: CameraDevice.front,
     );
     return file?.readAsBytes();

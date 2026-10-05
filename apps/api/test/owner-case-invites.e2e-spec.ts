@@ -197,6 +197,15 @@ describe('Client → attorney case invites (e2e, owner 2026-10-05)', () => {
     const items = mine.body.data as Inv[];
     expect(items.map((i) => i.id)).toEqual([inv.id]);
     expect(items[0].attorney).toBeNull();
+    // Owner 2026-10-05: the dossier rides on the invite (counts only).
+    expect(mine.body.data[0]).toMatchObject({
+      caseBudget: { mode: expect.any(String) },
+      caseDossier: {
+        imagesCount: 0,
+        documentsCount: 0,
+        descriptionLength: expect.any(Number),
+      },
+    });
 
     const again = await invite(client.auth, caseId, {
       attorneyId: attorney.id,

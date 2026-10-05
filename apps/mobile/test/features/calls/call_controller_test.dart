@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -16,7 +19,12 @@ import 'package:lawbid/features/chat/data/realtime_client.dart';
 /// device. WebRTC and the server are fakes.
 const _peer = CallPeer(id: 'p1', isAttorney: true, displayName: 'Paul Phone');
 
-AppCall _call(String id, CallStatus status, {required bool outgoing}) =>
+AppCall _call(
+  String id,
+  CallStatus status, {
+  required bool outgoing,
+  bool video = false,
+}) =>
     AppCall(
       id: id,
       conversationId: 'conv',
@@ -24,6 +32,7 @@ AppCall _call(String id, CallStatus status, {required bool outgoing}) =>
       outgoing: outgoing,
       peer: _peer,
       createdAt: DateTime(2026, 9, 30),
+      video: video,
     );
 
 Map<String, Object?> _event(AppCall c) => {
@@ -45,6 +54,7 @@ Map<String, Object?> _event(AppCall c) => {
         'answeredAt': null,
         'endedAt': null,
         'durationSec': null,
+        'video': c.video,
       },
     };
 
@@ -55,10 +65,13 @@ class _FakeRepo implements CallsRepository {
   final accepted = <String>[];
   final declined = <String>[];
 
+  final startedVideo = <bool>[];
+
   @override
-  Future<AppCall> start(String conversationId) async {
+  Future<AppCall> start(String conversationId, {bool video = false}) async {
+    startedVideo.add(video);
     if (refuse != null) throw refuse!;
-    return _call('c1', startStatus, outgoing: true);
+    return _call('c1', startStatus, outgoing: true, video: video);
   }
 
   @override
@@ -98,15 +111,33 @@ class _FakeMedia implements CallMedia {
   Map<String, Object?>? gotAnswer;
   final candidates = <Map<String, Object?>>[];
 
+  bool? openedVideo;
+  bool? cameraOn;
+  int flips = 0;
+
   @override
   Future<void> open(
     List<IceServer> iceServers, {
     required void Function(Map<String, Object?> signal) onSignal,
     required void Function(CallMediaState state) onState,
+    bool video = false,
   }) async {
     opened = true;
+    openedVideo = video;
     this.onState = onState;
   }
+
+  @override
+  final ValueListenable<MediaStream?> localVideo = ValueNotifier(null);
+
+  @override
+  final ValueListenable<MediaStream?> remoteVideo = ValueNotifier(null);
+
+  @override
+  Future<void> setCameraOn(bool on) async => cameraOn = on;
+
+  @override
+  Future<void> switchCamera() async => flips++;
 
   @override
   Future<Map<String, Object?>> createOffer() async =>
@@ -342,5 +373,55 @@ void main() {
     await _settle();
     expect(h.s.call?.id, 'c1');
     expect(h.s.phase, CallPhase.outgoing);
+  });
+
+  test('a video call: camera and speaker on, camera toggles and flips',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer, video: true);
+    expect(h.repo.startedVideo, [true]);
+    expect(h.media.openedVideo, isTrue);
+    expect(h.s.video, isTrue);
+    expect(h.s.speaker, isTrue);
+    expect(h.s.cameraOn, isTrue);
+
+    await h.c.toggleCamera();
+    expect(h.s.cameraOn, isFalse);
+    expect(h.media.cameraOn, isFalse);
+    await h.c.switchCamera();
+    expect(h.media.flips, 1);
+    await h.c.hangUp();
+  });
+
+  test('an audio call never opens the camera', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    await h.c.call('conv', peer: _peer);
+    expect(h.repo.startedVideo, [false]);
+    expect(h.media.openedVideo, isFalse);
+    await h.c.toggleCamera();
+    await h.c.switchCamera();
+    expect(h.media.cameraOn, isNull);
+    expect(h.media.flips, 0);
+    await h.c.hangUp();
+  });
+
+  test('a video call rings in as video and answers with the camera', () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+
+    h.emit(
+      'call:incoming',
+      _event(_call('c9', CallStatus.ringing, outgoing: false, video: true)),
+    );
+    await _settle();
+    expect(h.s.phase, CallPhase.incoming);
+    expect(h.s.video, isTrue);
+    await h.c.accept();
+    expect(h.media.openedVideo, isTrue);
+    await h.c.hangUp();
   });
 }

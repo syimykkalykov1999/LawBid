@@ -41,6 +41,32 @@ export class CreateVideoUploadDto {
   @IsString()
   @MaxLength(100)
   title?: string;
+
+  /** Owner 2026-10-05: the part of the video the reel plays (trim). */
+  @ApiPropertyOptional({ type: 'integer', minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3_600_000)
+  trimStartMs?: number;
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3_600_000)
+  trimEndMs?: number;
+
+  /** Owner 2026-10-05: the cover = the frame at this moment. */
+  @ApiPropertyOptional({ type: 'integer', minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3_600_000)
+  coverTimeMs?: number;
 }
 
 /** TUS credentials for one direct upload to Bunny. */
@@ -101,6 +127,14 @@ export class PostVideoDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   height!: number | null;
+
+  /** Owner 2026-10-05: play only from here… */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  trimStartMs!: number | null;
+
+  /** …to here (null = to the end). */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  trimEndMs!: number | null;
 }
 
 export class VideoIdParamDto {

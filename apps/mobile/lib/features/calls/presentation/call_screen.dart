@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -17,6 +18,10 @@ import 'package:lawbid/features/chat/application/voice_recorder.dart'
 /// photo with pulsing rings while it rings, the status or the running
 /// time, and round buttons (Mute · End · Speaker; Decline · Accept when it
 /// rings here). Closes itself when the call is over.
+///
+/// Owner 2026-10-05: a video call shows the other side full screen and our
+/// camera in a small window (top corner); buttons Mute · Camera · End ·
+/// Flip camera.
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({super.key});
 
@@ -63,6 +68,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final name = peer?.name ?? '';
     final ringing =
         s.phase == CallPhase.outgoing || s.phase == CallPhase.incoming;
+    final media = c.media;
+    final remote = s.video ? media?.remoteVideo : null;
+    final local = s.video ? media?.localVideo : null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -82,145 +90,277 @@ class _CallScreenState extends ConsumerState<CallScreen>
                 ],
               ),
             ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: AppSpacing.lg),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // The other side, full screen, once their picture arrives.
+                if (remote != null)
+                  ValueListenableBuilder<MediaStream?>(
+                    valueListenable: remote,
+                    builder: (_, stream, __) =>
+                        stream == null || s.phase != CallPhase.active
+                            ? const SizedBox.shrink()
+                            : CallVideoView(stream: stream),
+                  ),
+                SafeArea(
+                  child: Column(
                     children: [
-                      AppIcon(
-                        AppIcons.lockOutlineRounded,
-                        size: 14,
-                        color: colors.goldLight,
+                      const SizedBox(height: AppSpacing.lg),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AppIcon(
+                            AppIcons.lockOutlineRounded,
+                            size: 14,
+                            color: colors.goldLight,
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Flexible(
+                            child: Text(
+                              t.t(
+                                s.video ? 'call.videoLabel' : 'call.audioOnly',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.caption
+                                  .copyWith(color: colors.goldLight),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          t.t('call.audioOnly'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption.copyWith(color: colors.goldLight),
+                      const Spacer(flex: 2),
+                      // A live video call: the picture is the background.
+                      if (!(s.video && s.phase == CallPhase.active))
+                        SizedBox(
+                          width: 220,
+                          height: 220,
+                          child: AnimatedBuilder(
+                            animation: _pulse,
+                            builder: (context, child) => CustomPaint(
+                              painter: _RingsPainter(
+                                progress: _pulse.value,
+                                on: ringing && !context.reduceMotion,
+                                color: colors.gold,
+                              ),
+                              child: child,
+                            ),
+                            child:
+                                Center(child: _Avatar(peer: peer, size: 132)),
+                          ),
                         ),
+                      const SizedBox(height: AppSpacing.xl),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenSide,
+                        ),
+                        child: Text(
+                          name,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.titleLarge.copyWith(color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Semantics(
+                        liveRegion: true,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.screenSide,
+                          ),
+                          child: Text(
+                            callStatusText(t, s),
+                            textAlign: TextAlign.center,
+                            style: type.body.copyWith(
+                              color: s.phase == CallPhase.active
+                                  ? colors.goldLight
+                                  : Colors.white.withValues(alpha: 0.75),
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Spacer(flex: 3),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          0,
+                          AppSpacing.xl,
+                          AppSpacing.xxl,
+                        ),
+                        child: s.phase == CallPhase.incoming
+                            ? Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [
+                                  _RoundButton(
+                                    icon: AppIcons.callEndRounded,
+                                    label: t.t('call.decline'),
+                                    color: colors.danger,
+                                    onTap: c.decline,
+                                  ),
+                                  _RoundButton(
+                                    icon: s.video
+                                        ? AppIcons.videoCameraOutlined
+                                        : AppIcons.callRounded,
+                                    label: t.t('call.accept'),
+                                    color: colors.success,
+                                    onTap: c.accept,
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [
+                                  _RoundButton(
+                                    icon: s.muted
+                                        ? AppIcons.micOffRounded
+                                        : AppIcons.micRounded,
+                                    label: t.t('call.mute'),
+                                    color: Colors.white.withValues(
+                                      alpha: s.muted ? 0.9 : 0.14,
+                                    ),
+                                    iconColor:
+                                        s.muted ? colors.navy : Colors.white,
+                                    selected: s.muted,
+                                    onTap: s.busy ? c.toggleMute : null,
+                                  ),
+                                  _RoundButton(
+                                    icon: AppIcons.callEndRounded,
+                                    label: t.t('call.end'),
+                                    color: colors.danger,
+                                    onTap: s.busy ? c.hangUp : null,
+                                  ),
+                                  if (s.video) ...[
+                                    _RoundButton(
+                                      icon: s.cameraOn
+                                          ? AppIcons.videoCameraOutlined
+                                          : AppIcons.videocamOffOutlined,
+                                      label: t.t('call.camera'),
+                                      color: Colors.white.withValues(
+                                        alpha: s.cameraOn ? 0.14 : 0.9,
+                                      ),
+                                      iconColor: s.cameraOn
+                                          ? Colors.white
+                                          : colors.navy,
+                                      selected: !s.cameraOn,
+                                      onTap: s.busy ? c.toggleCamera : null,
+                                    ),
+                                    _RoundButton(
+                                      icon: AppIcons.cameraRotateOutlined,
+                                      label: t.t('call.flipCamera'),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.14),
+                                      onTap: s.busy && s.cameraOn
+                                          ? c.switchCamera
+                                          : null,
+                                    ),
+                                  ] else
+                                    _RoundButton(
+                                      icon: AppIcons.volumeUpRounded,
+                                      label: t.t('call.speaker'),
+                                      color: Colors.white.withValues(
+                                        alpha: s.speaker ? 0.9 : 0.14,
+                                      ),
+                                      iconColor: s.speaker
+                                          ? colors.navy
+                                          : Colors.white,
+                                      selected: s.speaker,
+                                      onTap: s.busy ? c.toggleSpeaker : null,
+                                    ),
+                                ],
+                              ),
                       ),
                     ],
                   ),
-                  const Spacer(flex: 2),
-                  SizedBox(
-                    width: 220,
-                    height: 220,
-                    child: AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (context, child) => CustomPaint(
-                        painter: _RingsPainter(
-                          progress: _pulse.value,
-                          on: ringing && !context.reduceMotion,
-                          color: colors.gold,
-                        ),
-                        child: child,
-                      ),
-                      child: Center(child: _Avatar(peer: peer, size: 132)),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenSide,
-                    ),
-                    child: Text(
-                      name,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.titleLarge.copyWith(color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Semantics(
-                    liveRegion: true,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenSide,
-                      ),
-                      child: Text(
-                        callStatusText(t, s),
-                        textAlign: TextAlign.center,
-                        style: type.body.copyWith(
-                          color: s.phase == CallPhase.active
-                              ? colors.goldLight
-                              : Colors.white.withValues(alpha: 0.75),
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(flex: 3),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xl,
-                      0,
-                      AppSpacing.xl,
-                      AppSpacing.xxl,
-                    ),
-                    child: s.phase == CallPhase.incoming
-                        ? Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              _RoundButton(
-                                icon: AppIcons.callEndRounded,
-                                label: t.t('call.decline'),
-                                color: colors.danger,
-                                onTap: c.decline,
-                              ),
-                              _RoundButton(
-                                icon: AppIcons.callRounded,
-                                label: t.t('call.accept'),
-                                color: colors.success,
-                                onTap: c.accept,
-                              ),
-                            ],
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              _RoundButton(
-                                icon: s.muted
-                                    ? AppIcons.micOffRounded
-                                    : AppIcons.micRounded,
-                                label: t.t('call.mute'),
-                                color: Colors.white
-                                    .withValues(alpha: s.muted ? 0.9 : 0.14),
-                                iconColor: s.muted ? colors.navy : Colors.white,
-                                selected: s.muted,
-                                onTap: s.busy ? c.toggleMute : null,
-                              ),
-                              _RoundButton(
-                                icon: AppIcons.callEndRounded,
-                                label: t.t('call.end'),
-                                color: colors.danger,
-                                onTap: s.busy ? c.hangUp : null,
-                              ),
-                              _RoundButton(
-                                icon: AppIcons.volumeUpRounded,
-                                label: t.t('call.speaker'),
-                                color: Colors.white
-                                    .withValues(alpha: s.speaker ? 0.9 : 0.14),
-                                iconColor:
-                                    s.speaker ? colors.navy : Colors.white,
-                                selected: s.speaker,
-                                onTap: s.busy ? c.toggleSpeaker : null,
-                              ),
-                            ],
+                ),
+                // Our camera, small, in the top corner.
+                if (local != null)
+                  ValueListenableBuilder<MediaStream?>(
+                    valueListenable: local,
+                    builder: (_, stream, __) => stream == null || !s.cameraOn
+                        ? const SizedBox.shrink()
+                        : PositionedDirectional(
+                            top: MediaQuery.paddingOf(context).top +
+                                AppSpacing.xxl,
+                            end: AppSpacing.md,
+                            width: 104,
+                            height: 156,
+                            child: ClipRRect(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadii.card),
+                              child:
+                                  CallVideoView(stream: stream, mirror: true),
+                            ),
                           ),
                   ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Owner 2026-10-05: one WebRTC picture (ours mirrored, like a mirror).
+class CallVideoView extends StatefulWidget {
+  const CallVideoView({required this.stream, this.mirror = false, super.key});
+
+  final MediaStream stream;
+  final bool mirror;
+
+  @override
+  State<CallVideoView> createState() => _CallVideoViewState();
+}
+
+class _CallVideoViewState extends State<CallVideoView> {
+  final _renderer = RTCVideoRenderer();
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    await _renderer.initialize();
+    if (!mounted) {
+      await _renderer.dispose();
+      return;
+    }
+    _renderer.srcObject = widget.stream;
+    setState(() => _ready = true);
+  }
+
+  @override
+  void didUpdateWidget(CallVideoView old) {
+    super.didUpdateWidget(old);
+    if (_ready && old.stream != widget.stream) {
+      _renderer.srcObject = widget.stream;
+    }
+  }
+
+  @override
+  void dispose() {
+    _renderer
+      ..srcObject = null
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => !_ready
+      ? const ColoredBox(color: Colors.black)
+      : RTCVideoView(
+          _renderer,
+          mirror: widget.mirror,
+          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+        );
 }
 
 /// "Calling…", "0:42", "Busy", "Calls open once the client accepts…".

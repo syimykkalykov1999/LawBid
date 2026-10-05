@@ -321,6 +321,15 @@ async function main() {
   const baseDb = new URL(baseUrl).pathname.slice(1) || 'defaultdb';
   const current = currentMigrations();
   const prev = resolvePrevious(current);
+  // A PR that adds no migration (MIGRATE_PREV_REF = its base) has nothing
+  // to upgrade: the base's own run already checked this exact set.
+  const sameSet =
+    prev.set.length === current.length &&
+    prev.set.every((name, i) => current[i] === name);
+  if (sameSet && (argValue('--prev-ref') ?? process.env.MIGRATE_PREV_REF)) {
+    log(`no new migrations after ${prev.ref}; nothing to upgrade`);
+    return;
+  }
   if (!isStrictPrefix(prev.set, current)) {
     const missing = prev.set.filter((n) => !current.includes(n));
     fail(

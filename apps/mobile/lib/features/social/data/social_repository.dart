@@ -22,6 +22,41 @@ const kPostMaxChars = 2200;
 /// Owner 2026-09-30: the card title limit (server-enforced too).
 const kPostTitleMaxChars = 120;
 
+/// Owner 2026-10-05: up to 9 documents (PDF, Word, text) per post, each
+/// ≤ `files.post_attachment_max_size_mb` (10 MB by default; the server
+/// enforces it and the total `posts.attachments_max_total_mb`).
+const kPostMaxDocuments = 9;
+const kPostDocumentDefaultMaxMb = 10;
+const kPostDocumentsDefaultTotalMb = 30;
+
+/// Extensions the document picker offers (same list as the server's
+/// `post_attachment` rule, apps/api files.policy.ts).
+const kPostDocumentExtensions = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'];
+
+/// MIME of a post document by its name, or null when not allowed.
+String? postDocumentMimeForName(String name) {
+  final dot = name.lastIndexOf('.');
+  final ext = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+  return switch (ext) {
+    'pdf' => kPdfMime,
+    'doc' => 'application/msword',
+    'docx' =>
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'txt' => 'text/plain',
+    'rtf' => 'application/rtf',
+    'odt' => 'application/vnd.oasis.opendocument.text',
+    _ => null,
+  };
+}
+
+/// An uploaded document and the name readers download it under.
+class PostDocumentRef {
+  const PostDocumentRef({required this.fileId, required this.fileName});
+
+  final String fileId;
+  final String fileName;
+}
+
 /// What "+" publishes (owner 2026-09-30): title, text, the qualification,
 /// Post or News (attorneys), photos in order.
 class PostDraft {
@@ -34,7 +69,11 @@ class PostDraft {
     this.videoAssetId,
     this.locationName,
     this.commentsEnabled = true,
+    this.attachments = const [],
   });
+
+  /// Owner 2026-10-05: documents in order (≤ [kPostMaxDocuments]).
+  final List<PostDocumentRef> attachments;
 
   /// Owner 2026-10-01: a reel — the uploaded video instead of photos.
   final String? videoAssetId;
@@ -177,6 +216,15 @@ abstract interface class SocialRepository {
     void Function(double progress)? onProgress,
     bool casePhoto = false,
     bool reviewPhoto = false,
+  });
+
+  /// Owner 2026-10-05: a post document (PDF, Word, text) through the same
+  /// pipeline; returns the clean file id. [maxBytes] is the admin limit.
+  Future<String> uploadPostDocument(
+    Uint8List bytes,
+    String mime, {
+    required int maxBytes,
+    void Function(double progress)? onProgress,
   });
 }
 
@@ -336,6 +384,15 @@ class ApiSocialRepository implements SocialRepository {
                   ? null
                   : api.PostLocationDto(name: draft.locationName!),
               commentsEnabled: draft.commentsEnabled,
+              attachments: draft.attachments.isEmpty
+                  ? null
+                  : [
+                      for (final a in draft.attachments)
+                        api.PostAttachmentInputDto(
+                          fileId: a.fileId,
+                          fileName: a.fileName,
+                        ),
+                    ],
             ),
             extras: _createsResource,
           ),
@@ -619,16 +676,74 @@ class ApiSocialRepository implements SocialRepository {
         message: 'size',
       );
     }
+    return _upload(
+      bytes,
+      mime,
+      purpose: doc != null
+          ? api.FilePurpose.caseAttachment
+          : casePhoto
+              ? api.FilePurpose.casePhoto
+              : reviewPhoto
+                  ? api.FilePurpose.reviewPhoto
+                  : api.FilePurpose.postImage,
+      filename: doc == null
+          ? 'photo.${mime.split('/').last}'
+          : (doc == kPdfMime ? 'document.pdf' : 'document.docx'),
+      onProgress: onProgress,
+    );
+  }
+
+  @override
+  Future<String> uploadPostDocument(
+    Uint8List bytes,
+    String mime, {
+    required int maxBytes,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (_extOf(mime).isEmpty) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'type',
+      );
+    }
+    if (bytes.length > maxBytes) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'size',
+      );
+    }
+    return _upload(
+      bytes,
+      mime,
+      purpose: api.FilePurpose.postAttachment,
+      filename: 'document.${_extOf(mime)}',
+      onProgress: onProgress,
+    );
+  }
+
+  static String _extOf(String mime) => switch (mime) {
+        kPdfMime => 'pdf',
+        'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' =>
+          'docx',
+        'text/plain' => 'txt',
+        'application/rtf' => 'rtf',
+        'application/vnd.oasis.opendocument.text' => 'odt',
+        _ => '',
+      };
+
+  /// Presign → S3 POST → confirm → wait for a clean scan.
+  Future<String> _upload(
+    Uint8List bytes,
+    String mime, {
+    required api.FilePurpose purpose,
+    required String filename,
+    void Function(double progress)? onProgress,
+  }) async {
     final target = (await guardApiCall(
       () => _files.presign(
         body: api.PresignFileDto(
-          purpose: doc != null
-              ? api.FilePurpose.caseAttachment
-              : casePhoto
-                  ? api.FilePurpose.casePhoto
-                  : reviewPhoto
-                      ? api.FilePurpose.reviewPhoto
-                      : api.FilePurpose.postImage,
+          purpose: purpose,
           mime: mime,
           sizeBytes: bytes.length,
           sha256: sha256Hex(bytes),
@@ -646,9 +761,7 @@ class ApiSocialRepository implements SocialRepository {
           // S3 POST policy: the file must be the LAST field.
           'file': MultipartFile.fromBytes(
             bytes,
-            filename: doc == null
-                ? 'photo.${parts.last}'
-                : (doc == kPdfMime ? 'document.pdf' : 'document.docx'),
+            filename: filename,
             contentType: DioMediaType(parts.first, parts.last),
           ),
         }),
@@ -758,7 +871,21 @@ abstract final class SocialMappers {
                 durationSec: d.video!.durationSec,
                 width: d.video!.width,
                 height: d.video!.height,
+                trimStartMs: d.video!.trimStartMs,
+                trimEndMs: d.video!.trimEndMs,
               ),
+        attachments: [
+          for (final a in [
+            ...d.attachments,
+          ]..sort((a, b) => a.position.compareTo(b.position)))
+            PostAttachment(
+              fileId: a.fileId,
+              fileName: a.fileName,
+              mime: a.mime,
+              sizeBytes: a.sizeBytes,
+              url: a.url,
+            ),
+        ],
       );
 
   static Comment comment(api.CommentDto d) => Comment(

@@ -29,11 +29,21 @@ CaseInviteDto _$CaseInviteDtoFromJson(Map<String, dynamic> json) =>
       caseStateCodes: (json['caseStateCodes'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
+      caseBudget: CaseBudgetDto.fromJson(
+        json['caseBudget'] as Map<String, dynamic>,
+      ),
+      caseDossier: CaseDossierDto.fromJson(
+        json['caseDossier'] as Map<String, dynamic>,
+      ),
       attorney: json['attorney'] == null
           ? null
           : BidAttorneySummaryDto.fromJson(
               json['attorney'] as Map<String, dynamic>,
             ),
+      caseCity: json['caseCity'] as String?,
+      caseUrgency: json['caseUrgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['caseUrgency'] as String),
     );
 
 Map<String, dynamic> _$CaseInviteDtoToJson(CaseInviteDto instance) =>
@@ -55,5 +65,9 @@ Map<String, dynamic> _$CaseInviteDtoToJson(CaseInviteDto instance) =>
       'caseStatus': instance.caseStatus,
       'casePracticeKey': instance.casePracticeKey,
       'caseStateCodes': instance.caseStateCodes,
+      'caseCity': ?instance.caseCity,
+      'caseUrgency': ?instance.caseUrgency?.toJson(),
+      'caseBudget': instance.caseBudget.toJson(),
+      'caseDossier': instance.caseDossier.toJson(),
       'attorney': ?instance.attorney?.toJson(),
     };

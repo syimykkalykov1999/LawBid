@@ -174,6 +174,7 @@ export class AdminContentService {
       include: {
         author: { select: { first_name: true, last_name: true } },
         practice_area: { select: { name_en: true } },
+        _count: { select: { attachments: true, media: true } },
       },
     });
     return page(rows, (p) => ({
@@ -189,6 +190,8 @@ export class AdminContentService {
       comments: p.comment_count,
       deleted: p.deleted_at !== null,
       hasVideo: p.video_asset_id !== null,
+      attachments: p._count.attachments,
+      photos: p._count.media,
       createdAt: p.created_at.toISOString(),
     }));
   }

@@ -122,6 +122,21 @@ class FakeSocialRepository implements SocialRepository {
   }) async =>
       'file-1';
 
+  /// Documents uploaded through [uploadPostDocument], in order.
+  final uploadedDocuments = <String>[];
+
+  @override
+  Future<String> uploadPostDocument(
+    Uint8List bytes,
+    String mime, {
+    required int maxBytes,
+    void Function(double progress)? onProgress,
+  }) async {
+    uploadedDocuments.add(mime);
+    onProgress?.call(1);
+    return 'doc-${uploadedDocuments.length}';
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }

@@ -227,6 +227,19 @@ void main() {
         find.text('Please help, court date is next month.'),
         findsOneWidget,
       );
+      // Owner 2026-10-05: the case file with the "open after you accept" rule.
+      expect(
+        find.byKey(const ValueKey('invite-dossier-inv-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('as soon as you accept this offer'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('invite-decline-inv-1')),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('invite-decline-inv-1')));
       await tester.pumpAndSettle();
       await tester.enterText(

@@ -47211,6 +47211,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartCallDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "Success envelope (docs/01 §7).",
@@ -47233,7 +47243,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: SUBSCRIPTION_REQUIRED, USER_BLOCKED",
+            "description": "Forbidden: SUBSCRIPTION_REQUIRED, USER_BLOCKED, FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -47298,7 +47308,74 @@
             "bearer": []
           }
         ],
-        "summary": "Call the other chat member (audio only)",
+        "summary": "Call the other chat member (audio or video)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/video": {
+      "get": {
+        "operationId": "callVideoConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoCallConfigEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whether video calls are available now",
         "tags": [
           "calls"
         ]
@@ -54049,7 +54126,8 @@
           "chat_attachment",
           "task_attachment",
           "review_photo",
-          "sticker"
+          "sticker",
+          "post_attachment"
         ]
       },
       "PresignFileDto": {
@@ -58479,6 +58557,40 @@
           "mediumUrl"
         ]
       },
+      "PostAttachmentDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string",
+            "example": "application/pdf"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string",
+            "description": "Signed download link (1 hour)."
+          }
+        },
+        "required": [
+          "fileId",
+          "position",
+          "fileName",
+          "mime",
+          "sizeBytes",
+          "url"
+        ]
+      },
       "VideoAssetStatus": {
         "type": "string",
         "enum": [
@@ -58519,6 +58631,16 @@
           "height": {
             "type": "integer",
             "nullable": true
+          },
+          "trimStartMs": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-05: play only from here…"
+          },
+          "trimEndMs": {
+            "type": "integer",
+            "nullable": true,
+            "description": "…to here (null = to the end)."
           }
         },
         "required": [
@@ -58619,6 +58741,13 @@
               "$ref": "#/components/schemas/PostMediaDto"
             }
           },
+          "attachments": {
+            "description": "Owner 2026-10-05: documents (reels: on the inner page).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostAttachmentDto"
+            }
+          },
           "video": {
             "nullable": true,
             "description": "Owner 2026-10-01: a reel's video (null for photo/text posts).",
@@ -58688,6 +58817,7 @@
           "author",
           "body",
           "media",
+          "attachments",
           "tags",
           "mentions",
           "status",
@@ -58699,6 +58829,26 @@
           "savedByMe",
           "isMine",
           "createdAt"
+        ]
+      },
+      "PostAttachmentInputDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A clean post_attachment file."
+          },
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "The name readers see and download (e.g. \"Lease.pdf\")."
+          }
+        },
+        "required": [
+          "fileId",
+          "fileName"
         ]
       },
       "CreatePostDto": {
@@ -58741,9 +58891,17 @@
               "format": "uuid"
             }
           },
+          "attachments": {
+            "description": "Owner 2026-10-05: up to 9 documents (PDF, Word, text).",
+            "maxItems": 9,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostAttachmentInputDto"
+            }
+          },
           "videoAssetId": {
             "type": "string",
-            "description": "Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).\nInstead of photos; the post appears once the video is encoded.",
+            "description": "Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).\nThe post appears once the video is encoded. Owner 2026-10-05: a\nreel's photos and documents form its inner page (\"Смотреть\").",
             "format": "uuid"
           },
           "location": {
@@ -58941,6 +59099,23 @@
           "title": {
             "type": "string",
             "maxLength": 100
+          },
+          "trimStartMs": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the part of the video the reel plays (trim).",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "trimEndMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600000
+          },
+          "coverTimeMs": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: the cover = the frame at this moment.",
+            "minimum": 0,
+            "maximum": 3600000
           }
         },
         "required": [
@@ -60503,6 +60678,25 @@
               "type": "string"
             }
           },
+          "caseCity": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the dossier (\"Case file 4 of 6\") on the invite, so\nthe attorney sees what the client filled in before answering. Counts\nonly — the files open once the client accepts the attorney's bid."
+          },
+          "caseUrgency": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "caseBudget": {
+            "$ref": "#/components/schemas/CaseBudgetDto"
+          },
+          "caseDossier": {
+            "$ref": "#/components/schemas/CaseDossierDto"
+          },
           "attorney": {
             "nullable": true,
             "description": "The invited attorney (client view only).",
@@ -60532,6 +60726,8 @@
           "caseStatus",
           "casePracticeKey",
           "caseStateCodes",
+          "caseBudget",
+          "caseDossier",
           "attorney"
         ]
       },
@@ -63609,6 +63805,13 @@
             "type": "boolean",
             "description": "The post carries a video"
           },
+          "attachments": {
+            "type": "integer",
+            "description": "Documents (PDF, Word…)"
+          },
+          "photos": {
+            "type": "integer"
+          },
           "createdAt": {
             "type": "string"
           }
@@ -63624,6 +63827,8 @@
           "comments",
           "deleted",
           "hasVideo",
+          "attachments",
+          "photos",
           "createdAt"
         ]
       },
@@ -73416,6 +73621,11 @@
             "type": "boolean",
             "description": "The viewer placed the call."
           },
+          "video": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05: cameras on (false = audio only).",
+            "default": false
+          },
           "peer": {
             "$ref": "#/components/schemas/CallPeerDto"
           },
@@ -73445,15 +73655,75 @@
           "calleeId",
           "status",
           "outgoing",
+          "video",
           "peer",
           "createdAt"
         ]
+      },
+      "StartCallDto": {
+        "type": "object",
+        "properties": {
+          "video": {
+            "type": "boolean",
+            "default": false,
+            "description": "A video call (needs the `video_calls` flag)."
+          }
+        }
       },
       "CallEnvelope": {
         "type": "object",
         "properties": {
           "data": {
             "$ref": "#/components/schemas/CallDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "VideoCallUnavailableReason": {
+        "type": "string",
+        "enum": [
+          "flag_off",
+          "provider_not_configured"
+        ],
+        "description": "Why not (null when available)."
+      },
+      "VideoCallConfigDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "webrtc"
+            ]
+          },
+          "reason": {
+            "nullable": true,
+            "description": "Why not (null when available).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VideoCallUnavailableReason"
+              }
+            ]
+          }
+        },
+        "required": [
+          "available",
+          "provider"
+        ]
+      },
+      "VideoCallConfigEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/VideoCallConfigDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

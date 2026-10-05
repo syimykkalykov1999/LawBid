@@ -116,6 +116,8 @@ class PostVideo {
     this.durationSec,
     this.width,
     this.height,
+    this.trimStartMs,
+    this.trimEndMs,
   });
 
   /// `awaiting_upload` | `processing` | `ready` | `failed` | `rejected` | `deleted`.
@@ -126,12 +128,40 @@ class PostVideo {
   final int? width;
   final int? height;
 
+  /// Owner 2026-10-05: the reel plays only this part of the video (trim);
+  /// null = from the start / to the end.
+  final int? trimStartMs;
+  final int? trimEndMs;
+
+  Duration get playStart => Duration(milliseconds: trimStartMs ?? 0);
+  Duration? get playEnd =>
+      trimEndMs == null ? null : Duration(milliseconds: trimEndMs!);
+
   bool get ready => status == 'ready' && playbackUrl != null;
 
   /// Width / height; reels default to 9:16.
   double get aspectRatio => (width != null && height != null && height! > 0)
       ? width! / height!
       : 9 / 16;
+}
+
+/// Owner 2026-10-05: a document of a post (PDF, Word, text), downloaded
+/// by its signed [url] under its own [fileName].
+@immutable
+class PostAttachment {
+  const PostAttachment({
+    required this.fileId,
+    required this.fileName,
+    required this.mime,
+    required this.sizeBytes,
+    required this.url,
+  });
+
+  final String fileId;
+  final String fileName;
+  final String mime;
+  final int sizeBytes;
+  final String url;
 }
 
 class Post {
@@ -157,7 +187,11 @@ class Post {
     this.video,
     this.locationName,
     this.commentsEnabled = true,
+    this.attachments = const [],
   });
+
+  /// Owner 2026-10-05: up to 9 documents readers download.
+  final List<PostAttachment> attachments;
 
   /// Owner 2026-10-02: "Added location" under the author's name.
   final String? locationName;
@@ -237,6 +271,7 @@ class Post {
         video: video,
         locationName: locationName,
         commentsEnabled: commentsEnabled,
+        attachments: attachments,
       );
 }
 

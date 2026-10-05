@@ -92,10 +92,18 @@ export class BunnyStreamClient {
     };
   }
 
-  async createVideo(title: string): Promise<string> {
+  /** [thumbnailTimeMs]: Bunny takes the cover frame at this moment
+   * (owner 2026-10-05: the author picks it). */
+  async createVideo(
+    title: string,
+    thumbnailTimeMs?: number | null,
+  ): Promise<string> {
     const k = await this.required();
     const res = await this.call(k, 'POST', `/library/${k.libraryId}/videos`, {
       title: title.slice(0, 100),
+      ...(thumbnailTimeMs != null
+        ? { thumbnailTime: Math.round(thumbnailTimeMs) }
+        : {}),
     });
     const body = (await res.json()) as { guid?: string };
     if (!body.guid) throw new Error('Bunny returned no video id');
