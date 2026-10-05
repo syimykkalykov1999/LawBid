@@ -116,11 +116,28 @@ export class AuthService {
       email: dto.channel === 'email' ? identifier : null,
       deviceId: meta.deviceId,
     });
-    await this.fraud?.assertSignInAllowed({
-      phone: dto.channel === 'phone' ? identifier : null,
-      email: dto.channel === 'email' ? identifier : null,
-      deviceKey: meta.deviceKey,
-    });
+    // The account that already owns this phone / e-mail is not its own
+    // "repeat": a suspended account still gets 200 here and its
+    // ACCOUNT_SUSPENDED at verify (no account enumeration).
+    const owner = this.fraud
+      ? await this.prisma.userIdentifier.findUnique({
+          where: {
+            provider_provider_uid: {
+              provider: dto.channel,
+              provider_uid: identifier,
+            },
+          },
+          select: { user_id: true },
+        })
+      : null;
+    await this.fraud?.assertSignInAllowed(
+      {
+        phone: dto.channel === 'phone' ? identifier : null,
+        email: dto.channel === 'email' ? identifier : null,
+        deviceKey: meta.deviceKey,
+      },
+      owner?.user_id ?? null,
+    );
 
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(identifier)],
