@@ -86,6 +86,21 @@ resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age" {
   }
 }
 
+# Same value with no dimension, so one alarm sees every queue (an alarm on a
+# dimensionless metric never matches the per-queue series above). The DLQ
+# has no consumer — its jobs wait by design — so it is left out.
+resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_all" {
+  name           = "${var.name}-queue-oldest-age-all"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" }"
+  metric_transformation {
+    name      = "QueueOldestAgeSecondsAll"
+    namespace = local.ns
+    value     = "$.oldestAgeSeconds"
+    unit      = "Seconds"
+  }
+}
+
 resource "aws_cloudwatch_log_metric_filter" "journal_broken" {
   name           = "${var.name}-journal-broken"
   log_group_name = var.worker_log_group
@@ -204,7 +219,7 @@ resource "aws_cloudwatch_metric_alarm" "api_p95" {
 
 resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   alarm_name          = "${var.name}-api-unhealthy-hosts"
-  alarm_description   = "API tasks failing /health/ready. Runbook: docs/runbooks/api-unhealthy.md"
+  alarm_description   = "API tasks failing the ALB health check (/health/live). Runbook: docs/runbooks/api-unhealthy.md"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
   period              = 60
@@ -218,17 +233,19 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   tags                = var.tags
 }
 
+# Missing data breaches: no queue_depth lines means the worker's ops.metrics
+# job is not running, which is itself a backlog in the making.
 resource "aws_cloudwatch_metric_alarm" "queue_backlog" {
   alarm_name          = "${var.name}-queue-backlog"
-  alarm_description   = "Oldest waiting job older than 5 minutes. Runbook: docs/runbooks/queues.md"
+  alarm_description   = "Oldest waiting job older than 5 minutes, or the worker stopped reporting queue depth. Runbook: docs/runbooks/queues.md"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   period              = 300
   threshold           = 300
   statistic           = "Maximum"
-  metric_name         = "QueueOldestAgeSeconds"
+  metric_name         = "QueueOldestAgeSecondsAll"
   namespace           = local.ns
-  treat_missing_data  = "notBreaching"
+  treat_missing_data  = "breaching"
   alarm_actions       = local.ops
   ok_actions          = local.ops
   tags                = var.tags
@@ -361,6 +378,28 @@ resource "aws_cloudwatch_metric_alarm" "service_cpu" {
   tags                = var.tags
 }
 
+# A service with zero running tasks (crash loop, failed deploy, capacity).
+resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
+  for_each = {
+    api    = var.api_service_name
+    worker = var.worker_service_name
+  }
+  alarm_name          = "${var.name}-${each.key}-no-running-tasks"
+  alarm_description   = "${each.key} has no running ECS tasks. Runbook: docs/runbooks/ecs-capacity.md"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  period              = 60
+  threshold           = 1
+  statistic           = "Minimum"
+  metric_name         = "RunningTaskCount"
+  namespace           = "ECS/ContainerInsights"
+  dimensions          = { ClusterName = var.cluster_name, ServiceName = each.value }
+  treat_missing_data  = "breaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 # Email reputation (SES production-access promise): AWS pauses sending
 # above ~10 % bounces or ~0.5 % complaints, so warn well before that.
 # Bounced and complained addresses are skipped by the SES account
@@ -446,11 +485,17 @@ resource "aws_cloudwatch_log_metric_filter" "push_failed" {
 }
 
 # docs/COST_PROTECTION.md / OQ-001c: CostGuard emits `alert: cost_budget`
-# when a paid provider's budget window is exhausted (or nearly so).
+# when a paid provider's budget window is exhausted (or nearly so), and
+# `alert: cost_guard_unavailable` when it cannot reach Redis (paid calls
+# are refused). Both the API and the worker make paid calls.
 resource "aws_cloudwatch_log_metric_filter" "cost_budget" {
-  name           = "${var.name}-cost-budget"
-  log_group_name = var.api_log_group
-  pattern        = "{ $.alert = \"cost_budget\" }"
+  for_each = {
+    api    = var.api_log_group
+    worker = var.worker_log_group
+  }
+  name           = each.key == "api" ? "${var.name}-cost-budget" : "${var.name}-cost-budget-${each.key}"
+  log_group_name = each.value
+  pattern        = "{ $.alert = \"cost_budget\" || $.alert = \"cost_guard_unavailable\" }"
   metric_transformation {
     name      = "CostBudgetAlerts"
     namespace = local.ns
@@ -459,9 +504,14 @@ resource "aws_cloudwatch_log_metric_filter" "cost_budget" {
   }
 }
 
+moved {
+  from = aws_cloudwatch_log_metric_filter.cost_budget
+  to   = aws_cloudwatch_log_metric_filter.cost_budget["api"]
+}
+
 resource "aws_cloudwatch_metric_alarm" "cost_budget" {
   alarm_name          = "${var.name}-cost-budget"
-  alarm_description   = "A paid-provider budget (SMS/email/ID checks/storage) is exhausted or nearly so. Runbook: docs/runbooks/sms-spend.md"
+  alarm_description   = "A paid-provider budget (SMS/email/ID checks/storage/translate/video) is exhausted or nearly so, or the cost guard cannot reach Redis. Runbook: docs/runbooks/sms-spend.md"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 300

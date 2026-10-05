@@ -106,7 +106,13 @@ class _PromoteCaseCardState extends ConsumerState<PromoteCaseCard>
           if (state.canPromote) ...[
             const SizedBox(height: AppSpacing.md),
             AppButton(
-              label: running ? t.t('promote.extend') : t.t('promote.cta'),
+              // The server lets you buy only while nothing is active, so a
+              // "running" promotion here is one waiting for payment.
+              label: p?.status == PromotionStatus.pendingPayment
+                  ? t.t('promote.completePayment')
+                  : running
+                      ? t.t('promote.extend')
+                      : t.t('promote.cta'),
               icon: AppIcons.campaignOutlined,
               onPressed: () =>
                   _PromoteSheet.show(context, widget.caseId, state),

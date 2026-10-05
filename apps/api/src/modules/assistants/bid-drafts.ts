@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -126,12 +127,32 @@ export class BidDraftsService {
   ): Promise<BidDraftDto> {
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
-      select: { id: true },
+      select: { id: true, status: true, deleted_at: true },
     });
-    if (!kase) {
+    if (!kase || kase.deleted_at) {
       throw new NotFoundException({
         code: ErrorCode.CASE_NOT_FOUND,
         message: 'Case not found.',
+      });
+    }
+    // Audit 2026-10-04: a draft only for a bid that can still be sent.
+    if (kase.status !== 'open') {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'This case is no longer accepting bids.',
+        details: { status: kase.status },
+      });
+    }
+    const bid = await this.prisma.bid.findUnique({
+      where: {
+        case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+      },
+      select: { status: true },
+    });
+    if (bid?.status === 'active' || bid?.status === 'accepted') {
+      throw new ConflictException({
+        code: ErrorCode.BID_ALREADY_EXISTS,
+        message: 'There is already a bid on this case.',
       });
     }
     const payload = { ...dto } as Prisma.InputJsonObject;
@@ -183,7 +204,10 @@ export class BidDraftsController {
     summary: 'Save a bid draft (the attorney reviews and sends)',
   })
   @ApiEnvelopeResponse(BidDraftDto)
-  @ApiErrors({ 404: [ErrorCode.CASE_NOT_FOUND] })
+  @ApiErrors({
+    404: [ErrorCode.CASE_NOT_FOUND],
+    409: [ErrorCode.CASE_INVALID_STATE, ErrorCode.BID_ALREADY_EXISTS],
+  })
   saveBidDraft(
     @CurrentUser() user: RequestUser,
     @Param() p: CaseIdParamDto,

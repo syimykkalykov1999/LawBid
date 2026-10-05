@@ -1,4 +1,5 @@
 import { ClientBadgeService } from '../client-badge/client-badge.service';
+import { ClientPlansService } from '../plans/client-plans.service';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, Subscription, SubscriptionStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -51,6 +52,8 @@ export class SubscriptionSyncService {
     @Optional() private readonly clientBadges?: ClientBadgeService,
     // Owner 2026-10-05: client → attorney payments (Stripe Connect).
     @Optional() private readonly casePayments?: CasePaymentsService,
+    // Owner 2026-10-05: a client's plan.
+    @Optional() private readonly clientPlans?: ClientPlansService,
     // Owner 2026-10-05: partner commissions reversed on refunds.
     @Optional() private readonly partners?: PartnersService,
   ) {}
@@ -75,6 +78,7 @@ export class SubscriptionSyncService {
       case 'customer.subscription.deleted':
         // A client's badge subscription is not an attorney's one.
         if (await this.clientBadges?.onSubscriptionEvent(o.id)) return;
+        if (await this.clientPlans?.onSubscriptionEvent(o.id)) return;
         await this.syncById(o.id);
         return;
       case 'invoice.paid':
@@ -94,6 +98,10 @@ export class SubscriptionSyncService {
         }
         if (session?.metadata.kind === 'client_badge') {
           await this.clientBadges?.applyCheckout(session);
+          return;
+        }
+        if (session?.metadata.kind === 'client_plan') {
+          await this.clientPlans?.applyCheckout(session);
           return;
         }
         if (session?.subscriptionId)

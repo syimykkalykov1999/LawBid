@@ -28,6 +28,9 @@ import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 import { PricingService } from './pricing.service';
 import { PricingController } from './pricing.controller';
+import { ClientPlansController } from '../plans/client-plans.controller';
+import { ClientPlansService } from '../plans/client-plans.service';
+import { PlansController } from '../plans/plans.controller';
 
 /**
  * docs/06 §1 (stage 6.7): Stripe subscriptions behind PaymentProvider.
@@ -70,6 +73,10 @@ export class BillingModule {
               AdminSubscriptionsController,
               // Owner 2026-10-03: public price list (app, website).
               PricingController,
+              // Owner 2026-10-05: plans for sale, my entitlements, the
+              // client's plan purchase.
+              PlansController,
+              ClientPlansController,
               // Dev / e2e stand-in for Stripe's hosted page (404 with Stripe).
               FakeCheckoutController,
             ]
@@ -93,6 +100,7 @@ export class BillingModule {
         SubscriptionSyncService,
         PricingService,
         SubscriptionsService,
+        ClientPlansService,
         StripeWebhookIntakeService,
         BillingRunner,
       ],
@@ -101,6 +109,7 @@ export class BillingModule {
         PricingService,
         SubscriptionsService,
         SubscriptionSyncService,
+        ClientPlansService,
         BillingRunner,
       ],
     };

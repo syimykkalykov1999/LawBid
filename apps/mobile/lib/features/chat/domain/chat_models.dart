@@ -64,7 +64,16 @@ class Conversation {
     this.waitingSince,
     this.note,
     this.pinnedAt,
+    this.blocked = false,
   });
+
+  /// Audit 2026-10-04: either side blocked the other. An accepted case
+  /// chat that is not closed keeps working (see [blockedHere]).
+  final bool blocked;
+
+  /// The block applies in this chat: no composer, no call button.
+  bool get blockedHere =>
+      blocked && !(caseId != null && contactsUnlocked && !closed);
 
   /// Owner 2026-10-01: my folder (case chats Primary by default).
   final ChatFolder folder;

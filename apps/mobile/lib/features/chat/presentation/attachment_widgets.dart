@@ -23,8 +23,11 @@ typedef PickedChatFile = ({Uint8List bytes, String name, String mime});
 /// common document format). Files the server would refuse are reported.
 Future<List<PickedChatFile>> pickChatFiles(
   BuildContext context,
-  Translator t,
-) async {
+  Translator t, {
+  /// Owner 2026-10-05: shows "Document template"; picked → this runs and
+  /// no files are returned.
+  VoidCallback? onTemplate,
+}) async {
   final choice = await showAppBottomSheet<String>(
     context: context,
     builder: (sheet) => SafeArea(
@@ -47,6 +50,12 @@ Future<List<PickedChatFile>> pickChatFiles(
             label: t.t('chat.attach.files'),
             onTap: () => Navigator.of(sheet).pop('files'),
           ),
+          if (onTemplate != null)
+            AppListRow(
+              icon: AppIcons.descriptionOutlined,
+              label: t.t('chat.attach.template'),
+              onTap: () => Navigator.of(sheet).pop('template'),
+            ),
           const SizedBox(height: AppSpacing.md),
         ],
       ),
@@ -65,6 +74,9 @@ Future<List<PickedChatFile>> pickChatFiles(
   }
 
   switch (choice) {
+    case 'template':
+      onTemplate?.call();
+      return const [];
     case 'photos':
       final picked = await ImagePicker().pickMultiImage(
         maxWidth: 2560,

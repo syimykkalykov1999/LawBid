@@ -102,7 +102,9 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     };
   }
 
-  async function attorney() {
+  /** A verified attorney; [subscribed] = an active subscription, whose
+   * default plan carries the `platform_payments` term (plan builder). */
+  async function attorney(subscribed = true) {
     const username = `att_${randomUUID().slice(0, 8)}`;
     const u = await prisma.user.create({
       data: {
@@ -116,6 +118,11 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
             verification_status: 'verified',
           },
         },
+        ...(subscribed
+          ? {
+              subscription: { create: { status: 'active', price_cents: 9900 } },
+            }
+          : {}),
       },
     });
     return { id: u.id, auth: auth(u.id, 'attorney', true) };
@@ -264,6 +271,31 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .set(att.auth);
     expect(ob.status).toBe(403);
     await setFlag(true);
+  });
+
+  it('an attorney whose plan lacks platform_payments cannot onboard or invoice; the client sees canPay = false', async () => {
+    const att = await attorney(false);
+    const cli = await client();
+    const c = await caseInProgress(cli, att);
+    const ob = await api()
+      .post('/api/v1/payout-account/onboarding')
+      .set(att.auth);
+    expect(ob.status).toBe(403);
+    expect((ob.body as Body).error?.code).toBe('ENTITLEMENT_REQUIRED');
+    const req = await api()
+      .post(`/api/v1/cases/${c.id}/payment-requests`)
+      .set(att.auth)
+      .send({ description: 'Retainer', items: [{ amountCents: 10_000 }] });
+    expect(req.status).toBe(403);
+    expect((req.body as Body).error?.code).toBe('ENTITLEMENT_REQUIRED');
+    const state = await api()
+      .get(`/api/v1/cases/${c.id}/payments`)
+      .set(cli.auth)
+      .expect(200);
+    expect((state.body as Body).data).toMatchObject({
+      enabled: true,
+      canPay: false,
+    });
   });
 
   it('attorney onboards a payout account; clients and assistants cannot', async () => {

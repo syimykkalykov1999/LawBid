@@ -34,6 +34,8 @@ enum FilePurpose {
   sticker('sticker'),
   @JsonValue('post_attachment')
   postAttachment('post_attachment'),
+  @JsonValue('document_template')
+  documentTemplate('document_template'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

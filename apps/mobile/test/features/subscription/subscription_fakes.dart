@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:lawbid/features/plans/domain/plan_models.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
@@ -40,6 +41,9 @@ SubscriptionOverview makeOverview({
   bool? isActive,
   bool? canStart,
   bool trialEligible = true,
+  List<PlanOffer> plans = const [],
+  PlanOffer? plan,
+  SeatSummary? seats,
 }) =>
     SubscriptionOverview(
       subscription: subscription,
@@ -47,7 +51,52 @@ SubscriptionOverview makeOverview({
       canStart: canStart ?? !(subscription?.isActive ?? false),
       trialEligible: trialEligible,
       priceCents: 39900,
+      plans: plans,
+      plan: plan,
+      entitlements: plan?.entitlements ?? PlanEntitlements.none,
+      seats: seats,
     );
+
+/// Owner 2026-10-05 (plan builder): two attorney plans — Solo (no seats)
+/// and Team (2 included, up to 5, $100 per extra seat, 14-day trial).
+const soloPlan = PlanOffer(
+  id: 'p1',
+  code: 'solo',
+  audience: PlanAudience.attorney,
+  name: LocalizedText(en: 'Solo', ru: 'Соло'),
+  tagline: LocalizedText(en: 'For one attorney', ru: 'Для одного адвоката'),
+  amountCents: 29900,
+  entitlements: PlanEntitlements(
+    includedSeats: 0,
+    maxSeats: 0,
+    bidsAnyState: true,
+    maxActiveBids: 10,
+    calls: true,
+  ),
+  isDefault: true,
+  trialDays: 7,
+);
+
+const teamPlan = PlanOffer(
+  id: 'p2',
+  code: 'team',
+  audience: PlanAudience.attorney,
+  name: LocalizedText(en: 'Team', ru: 'Команда'),
+  amountCents: 59900,
+  extraSeatCents: 10000,
+  entitlements: PlanEntitlements(
+    includedSeats: 2,
+    maxSeats: 5,
+    extraSeatPriceCents: 10000,
+    bidsAnyState: true,
+    maxActiveBids: 0,
+    prioritySearch: true,
+    calls: true,
+    chatTranslate: true,
+  ),
+  highlights: [LocalizedText(en: 'Best for firms', ru: 'Для фирм')],
+  trialDays: 14,
+);
 
 PaymentRecord makePayment(
   String id, {
@@ -123,9 +172,11 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
     String? promoCode,
+    String? planCode,
   }) async {
     calls.add(
-      'checkout:${plan.name}:$assistantSeats:${assistantPhones.join(',')}',
+      'checkout:${plan.name}:$assistantSeats:${assistantPhones.join(',')}'
+      '${planCode == null ? '' : ':$planCode'}',
     );
     return checkoutResult;
   }

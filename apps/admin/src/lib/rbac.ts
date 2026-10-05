@@ -126,6 +126,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
       { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },
+      { href: '/document-templates', label: 'Шаблоны документов', icon: 'file-text', area: 'content', hint: 'PDF и Word для приложения' },
     ],
   },
   {
@@ -140,6 +141,7 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Деньги',
     items: [
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'super', hint: 'стоимость тарифов и галочки' },
+      { href: '/plans', label: 'Планы', icon: 'stack', area: 'super', hint: 'планы подписок и их возможности' },
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'super', hint: 'тарифы адвокатов' },
       { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'super', hint: 'бесплатно блогерам 3–12 мес.' },
       { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'super' },

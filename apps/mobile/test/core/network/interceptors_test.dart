@@ -82,10 +82,37 @@ void main() {
       );
     });
 
-    test('gives up after maxRetries (4 attempts total)', () async {
+    test('gives up after maxRetries (3 attempts total)', () async {
       adapter.handler = (o) async => throwConnectionError(o);
       await expectLater(dio.get<dynamic>('/x'), throwsA(isA<DioException>()));
-      expect(adapter.requests, hasLength(4));
+      expect(adapter.requests, hasLength(3));
+    });
+
+    test('defaults to 2 retries starting at 1 s', () {
+      final r = RetryInterceptor(Dio());
+      expect(r.maxRetries, 2);
+      expect(r.baseDelay, const Duration(seconds: 1));
+    });
+
+    test('waits for Retry-After (seconds), capped at 10 s', () async {
+      ResponseBody busy(String retryAfter) => ResponseBody.fromString(
+            '"busy"',
+            503,
+            headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType],
+              'retry-after': [retryAfter],
+            },
+          );
+      var calls = 0;
+      adapter.handler = (o) async {
+        calls++;
+        if (calls == 1) return busy('3');
+        if (calls == 2) return busy('120');
+        return ok(const {});
+      };
+      await dio.get<dynamic>('/x');
+      expect(calls, 3);
+      expect(sleeps, [const Duration(seconds: 3), const Duration(seconds: 10)]);
     });
 
     test('never retries a plain POST (e.g. /auth/refresh — reuse detection)',

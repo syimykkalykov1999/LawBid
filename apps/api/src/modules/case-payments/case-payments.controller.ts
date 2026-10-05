@@ -123,7 +123,7 @@ export class CasePaymentsController {
   })
   @ApiEnvelopeResponse(PayoutAccountLinkDto, { status: 201 })
   @ApiErrors({
-    403: [E.FORBIDDEN, E.FEATURE_DISABLED],
+    403: [E.FORBIDDEN, E.FEATURE_DISABLED, E.ENTITLEMENT_REQUIRED],
     503: [E.PAYMENTS_NOT_CONFIGURED],
   })
   startPayoutOnboarding(
@@ -208,7 +208,7 @@ export class CasePaymentsController {
   @ApiEnvelopeResponse(PaymentRequestDto, { isArray: true, status: 201 })
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.PAYMENT_AMOUNT_INVALID],
-    403: [E.FORBIDDEN, E.FEATURE_DISABLED],
+    403: [E.FORBIDDEN, E.FEATURE_DISABLED, E.ENTITLEMENT_REQUIRED],
     404: [E.CASE_NOT_FOUND],
     409: [E.CASE_INVALID_STATE, E.PAYOUT_ACCOUNT_NOT_READY],
   })

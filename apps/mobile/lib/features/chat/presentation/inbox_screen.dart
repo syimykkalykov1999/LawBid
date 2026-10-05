@@ -24,6 +24,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -73,7 +74,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     final teamPending =
         showTeam ? (ref.watch(pendingRequestsCountProvider).value ?? 0) : 0;
-    final tab = !showTeam && _tab == InboxTab.team ? InboxTab.chats : _tab;
+    // Audit 2026-10-04: an assistant without "chats" still reaches the
+    // notifications here (the bell stays open, no Chats segment).
+    final chatsAllowed = ref.watch(canDoProvider(AssistantDuty.chats));
+    var tab = !showTeam && _tab == InboxTab.team ? InboxTab.chats : _tab;
+    if (!chatsAllowed && tab == InboxTab.chats) tab = InboxTab.notifications;
     return Scaffold(
       backgroundColor: colors.bg,
       body: SafeArea(
@@ -138,11 +143,12 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         child: _InboxTabs(
                           value: tab,
                           tabs: [
-                            (
-                              InboxTab.chats,
-                              t.t('inbox.tab.chats'),
-                              badges.chats + requests,
-                            ),
+                            if (chatsAllowed)
+                              (
+                                InboxTab.chats,
+                                t.t('inbox.tab.chats'),
+                                badges.chats + requests,
+                              ),
                             if (showTeam)
                               (
                                 InboxTab.team,
@@ -241,9 +247,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     selected: tab == InboxTab.notifications,
                                     label: t.t('inbox.tab.notifications'),
                                     onTap: () => setState(
-                                      () => _tab = tab == InboxTab.notifications
-                                          ? InboxTab.chats
-                                          : InboxTab.notifications,
+                                      () => _tab =
+                                          tab == InboxTab.notifications &&
+                                                  chatsAllowed
+                                              ? InboxTab.chats
+                                              : InboxTab.notifications,
                                     ),
                                   ),
                               ],
@@ -256,16 +264,25 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             Expanded(
               child: TabSwipe<InboxTab>(
                 value: tab,
-                values: [InboxTab.chats, if (showTeam) InboxTab.team],
+                values: [
+                  if (chatsAllowed) InboxTab.chats,
+                  if (showTeam) InboxTab.team,
+                ],
                 onChanged: (v) => setState(() => _tab = v),
                 child: IndexedStack(
                   index: tab.index,
                   children: [
-                    ConversationsView(
-                      folder: _folder,
-                      onFolder: (f) => setState(() => _folder = f),
-                    ),
+                    if (chatsAllowed)
+                      ConversationsView(
+                        folder: _folder,
+                        onFolder: (f) => setState(() => _folder = f),
+                      )
+                    else
+                      const SizedBox.shrink(),
                     NotificationsView(
+                      // Audit 2026-10-04: an Inbox tab target switches the
+                      // tab here instead of pushing a second Inbox.
+                      onInboxTab: (v) => setState(() => _tab = v),
                       // Owner 2026-10-01: on the same line as All ·
                       // Assistants.
                       trailing: Row(

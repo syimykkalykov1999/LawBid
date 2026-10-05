@@ -160,6 +160,8 @@ export class ReviewsController {
     400: [E.VALIDATION_ERROR],
     403: [E.FORBIDDEN],
     404: [E.NOT_FOUND],
+    // A case review of this attorney by the same author already counts.
+    409: [E.REVIEW_ALREADY_EXISTS],
   })
   upsertOpen(
     @CurrentUser() user: RequestUser,

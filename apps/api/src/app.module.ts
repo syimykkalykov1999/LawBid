@@ -45,6 +45,7 @@ import { BidsModule } from './modules/bids/bids.module';
 import { NegotiationsModule } from './modules/negotiations/negotiations.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { PlansCoreModule } from './modules/plans/plans.module';
 import { AppSettingsModule } from './common/app-settings/app-settings.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
@@ -63,6 +64,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AdminContentModule } from './modules/admin-content/admin-content.module';
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
+import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
 import { SupportModule } from './modules/support/support.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
@@ -123,7 +125,16 @@ export const pinoHttpOptions: PinoHttpOptions = {
             url: req.url.replace(/\?.*$/, '?[REDACTED]'),
             query: undefined,
           }
-        : req,
+        : // The Bunny webhook's secret token is a path segment.
+          req.url?.includes('/webhooks/bunny/')
+          ? {
+              ...req,
+              url: req.url.replace(
+                /\/webhooks\/bunny\/[^/?]+/,
+                '/webhooks/bunny/[REDACTED]',
+              ),
+            }
+          : req,
   },
   transport:
     process.env.NODE_ENV === 'development'
@@ -140,6 +151,8 @@ const isDev =
     LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
     PrismaModule,
     RedisModule,
+    // Owner 2026-10-05: plans + the entitlements gate (global).
+    PlansCoreModule,
     ThrottlerModule,
     HealthModule,
     // Registered after ThrottlerModule and before AuthModule so global
@@ -166,6 +179,7 @@ const isDev =
     AdminContentModule,
     // Audit 2026-10-02: reels + stickers in the admin panel.
     AdminMediaModule,
+    DocumentTemplatesModule,
     AdminBillingModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,

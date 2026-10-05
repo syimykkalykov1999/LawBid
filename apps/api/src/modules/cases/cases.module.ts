@@ -11,6 +11,7 @@ import { PostsModule } from '../posts/posts.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { UsersModule } from '../users/users.module';
+import { BidDetailController } from './case-bids/bid-detail.controller';
 import { CaseBidsController } from './case-bids/case-bids.controller';
 import { CaseBidsService } from './case-bids/case-bids.service';
 import { CaseInvitesController } from './case-invites/case-invites.controller';
@@ -63,6 +64,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     CasesController,
     CasesFeedController,
     CaseBidsController,
+    BidDetailController,
     // Owner 2026-10-05: client → attorney case invites.
     CaseInvitesController,
     CaseContactsController,

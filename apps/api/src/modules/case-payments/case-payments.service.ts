@@ -34,6 +34,7 @@ import type {
 } from '../billing/payment-provider';
 import { ChatSystemMessages } from '../chat/chat-system.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type {
@@ -123,6 +124,15 @@ function disabled(): ForbiddenException {
   });
 }
 
+/** The attorney's plan has no `platform_payments` term. */
+function notEntitled(): ForbiddenException {
+  return new ForbiddenException({
+    code: ErrorCode.ENTITLEMENT_REQUIRED,
+    message:
+      'Your plan does not include payments through LawBid; see Settings → Subscription.',
+  });
+}
+
 function notConfigured(): ServiceUnavailableException {
   return new ServiceUnavailableException({
     code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
@@ -200,6 +210,8 @@ export class CasePaymentsService {
     private readonly provider?: PaymentProvider,
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly chatSystem?: ChatSystemMessages,
+    // Owner 2026-10-05 (plan builder): the plan term `platform_payments`.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   // ---- settings -------------------------------------------------------------
@@ -309,14 +321,15 @@ export class CasePaymentsService {
   }
 
   /**
-   * Seam for the plan builder (thread "Конструктор подписок и
-   * преимуществ"): whether this attorney's plan includes receiving
-   * payments through the platform. Until plans carry the entitlement,
-   * every attorney may once the feature is on.
+   * Whether this attorney's plan includes receiving payments through the
+   * platform: the plan builder's term `platform_payments` (default plans
+   * have it on; the baseline of an attorney without a subscription does
+   * not). Resolved by EntitlementsService, the single gate for plan terms.
    */
   attorneyEntitled(attorneyId: string): Promise<boolean> {
-    void attorneyId;
-    return Promise.resolve(true);
+    if (!attorneyId) return Promise.resolve(false);
+    if (!this.entitlements) return Promise.resolve(true);
+    return this.entitlements.has(attorneyId, 'platform_payments');
   }
 
   // ---- payout account (attorney) ---------------------------------------------
@@ -344,7 +357,7 @@ export class CasePaymentsService {
     this.assertAttorney(user);
     this.assertNotAssistant(user);
     if (!(await this.enabled())) throw disabled();
-    if (!(await this.attorneyEntitled(user.sub))) throw disabled();
+    if (!(await this.attorneyEntitled(user.sub))) throw notEntitled();
     if (
       !this.provider?.createConnectAccount ||
       !this.provider.createAccountOnboardingLink
@@ -1105,7 +1118,7 @@ export class CasePaymentsService {
           'Payment requests are possible once you are at work on the case.',
       });
     }
-    if (!(await this.attorneyEntitled(attorneyId))) throw disabled();
+    if (!(await this.attorneyEntitled(attorneyId))) throw notEntitled();
     const s = await this.settings();
     if (!s.allowInvoices) throw disabled();
     const invalid = (message: string, field = 'items') =>

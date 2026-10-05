@@ -24,6 +24,7 @@ import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dar
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
+import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -54,6 +55,7 @@ import 'package:lawbid/features/support/presentation/support_new_screen.dart';
 import 'package:lawbid/features/support/presentation/support_ticket_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -139,8 +141,12 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.create,
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.modal(state, const CreateScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.modal(
+          state,
+          CreateScreen(
+            startWithCase: state.uri.queryParameters['kind'] == 'case',
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.profileSettings,
@@ -293,6 +299,12 @@ GoRouter appRouter(Ref ref) {
             AppPageTransitions.push(state, const CaseHistoryScreen()),
       ),
       GoRoute(
+        path: AppRoutes.templates,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const TemplatesScreen()),
+      ),
+      GoRoute(
         path: AppRoutes.support,
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
@@ -372,6 +384,8 @@ GoRouter appRouter(Ref ref) {
       ...subscriptionRoutes(_rootNavigatorKey),
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
       ...casePaymentsRoutes(_rootNavigatorKey),
+      // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
+      ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.
       ...teamRoutes(_rootNavigatorKey),
     ],

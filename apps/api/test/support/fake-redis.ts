@@ -49,9 +49,10 @@ export class FakeRedis {
     return Promise.resolve(current);
   }
 
-  pexpire(key: string, ms: number): Promise<number> {
+  pexpire(key: string, ms: number, mode?: 'NX'): Promise<number> {
     const entry = this.store.get(key);
     if (!entry) return Promise.resolve(0);
+    if (mode === 'NX' && entry.expiresAt !== null) return Promise.resolve(0);
     entry.expiresAt = Date.now() + ms;
     return Promise.resolve(1);
   }
@@ -71,8 +72,35 @@ export class FakeRedis {
     return Promise.resolve(removed);
   }
 
+  /** MULTI with the commands the throttler storage queues; exec() runs
+   * them in order and resolves ioredis-style `[err, result]` tuples. */
+  multi(): FakeMulti {
+    const ops: Array<() => Promise<unknown>> = [];
+    const chain: FakeMulti = {
+      incr: (key) => (ops.push(() => this.incr(key)), chain),
+      pexpire: (key, ms, mode) => (
+        ops.push(() => this.pexpire(key, ms, mode)),
+        chain
+      ),
+      pttl: (key) => (ops.push(() => this.pttl(key)), chain),
+      exec: async () => {
+        const out: Array<[Error | null, unknown]> = [];
+        for (const op of ops) out.push([null, await op()]);
+        return out;
+      },
+    };
+    return chain;
+  }
+
   // GET /health/ready's Redis indicator.
   ping(): Promise<'PONG'> {
     return Promise.resolve('PONG');
   }
+}
+
+interface FakeMulti {
+  incr(key: string): FakeMulti;
+  pexpire(key: string, ms: number, mode?: 'NX'): FakeMulti;
+  pttl(key: string): FakeMulti;
+  exec(): Promise<Array<[Error | null, unknown]>>;
 }

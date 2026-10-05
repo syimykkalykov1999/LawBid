@@ -441,6 +441,34 @@ export const envSchema = z
       .int()
       .nonnegative()
       .default(100000),
+    // Google Translate (chat): one unit per uncached message translation.
+    BUDGET_TRANSLATE_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(60),
+    BUDGET_TRANSLATE_DAILY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(5000),
+    BUDGET_TRANSLATE_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(50000),
+    // Bunny Stream (reels): one unit per video upload session.
+    BUDGET_VIDEO_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(30),
+    BUDGET_VIDEO_DAILY_MAX: z.coerce.number().int().nonnegative().default(1000),
+    BUDGET_VIDEO_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(10000),
     // POST /files/presign per authenticated user (docs/03 stage 3.2): a
     // verification request needs ~10 files, a post up to 10 photos.
     FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR: z.coerce

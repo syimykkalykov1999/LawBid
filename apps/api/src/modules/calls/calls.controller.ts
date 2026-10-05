@@ -42,6 +42,7 @@ export class CallsController {
     403: [
       ErrorCode.SUBSCRIPTION_REQUIRED,
       ErrorCode.USER_BLOCKED,
+      ErrorCode.ENTITLEMENT_REQUIRED,
       ErrorCode.FEATURE_DISABLED,
     ],
     404: [ErrorCode.CONVERSATION_NOT_FOUND],

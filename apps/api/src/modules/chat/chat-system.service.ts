@@ -15,7 +15,9 @@ export type ChatSystemKey =
   | 'payment_received'
   | 'payment_request_canceled'
   | 'payment_fee_countered'
-  | 'payment_fee_agreed';
+  | 'payment_fee_agreed'
+  // Owner 2026-10-04: one side disputed the completion.
+  | 'case_disputed';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {
