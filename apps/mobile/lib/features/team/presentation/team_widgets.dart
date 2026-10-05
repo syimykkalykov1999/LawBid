@@ -59,11 +59,13 @@ class AddTaskButton extends StatelessWidget {
             children: [
               AppIcon(AppIcons.addRounded, size: 20, color: colors.onCtaBright),
               const SizedBox(width: 4),
-              Text(
-                label,
-                style: typography.bodySmall.copyWith(
-                  color: colors.onCtaBright,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: FitText(
+                  label,
+                  style: typography.bodySmall.copyWith(
+                    color: colors.onCtaBright,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -89,7 +91,9 @@ class _StatusPillSmall extends StatelessWidget {
       RequestStatus.approved => colors.success,
       RequestStatus.rejected => colors.danger,
     };
+    // Capped so a long translation can't squeeze the card's title column.
     return Container(
+      constraints: const BoxConstraints(maxWidth: 110),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
@@ -97,6 +101,8 @@ class _StatusPillSmall extends StatelessWidget {
       ),
       child: Text(
         t.t('team.request.${status.name}'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: typography.caption
             .copyWith(color: color, fontWeight: FontWeight.w600),
       ),

@@ -23,6 +23,22 @@ import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, label, StatusPill, VIDEO_STATUS } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 import { formatBytes } from './media-utils';
+import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import {
+  AuthorFilterButton,
+  BulkBar,
+  bulkData,
+  EMPTY_FILTER,
+  FilterFields,
+  filterKey,
+  type ListFilter,
+  PageSelectBox,
+  RowSelectBox,
+  useBulkRun,
+  useSelection,
+} from '@/components/bulk/bulk-controls';
+
+const VIDEOS: Noun = ['видео', 'видео', 'видео'];
 
 type Video = components['schemas']['AdminVideoRowDto'];
 type VideoStatus = components['schemas']['AdminVideoStatus'];
@@ -45,18 +61,41 @@ export function VideosPanel() {
   const { ask, dialog } = useReason();
   const [status, setStatus] = useState<'' | VideoStatus>('');
   const [playing, setPlaying] = useState<Video | null>(null);
+  const [filter, setFilter] = useState<ListFilter>(EMPTY_FILTER);
+  const sel = useSelection(`${status}|${filterKey(filter)}`);
+  const bulk = useBulkRun();
 
   const stats = useQuery({
     queryKey: ['media-video-stats'],
     queryFn: async () => (await api.GET('/admin/media/videos/stats')).data!.data,
   });
+  const fetchPage = async (cursor: string | undefined) =>
+    (
+      await api.GET('/admin/media/videos', {
+        params: { query: { cursor, status: status || undefined, ownerId: filter.author?.id, ...dayBounds(filter.from, filter.to) } },
+      })
+    ).data!;
   const list = useInfiniteQuery({
-    queryKey: ['media-videos', status],
+    queryKey: ['media-videos', status, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (await api.GET('/admin/media/videos', { params: { query: { cursor: pageParam, status: status || undefined } } })).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
+  const bulkTakedown = () =>
+    bulk.run({
+      ids: [...sel.selected],
+      verb: 'Снять',
+      doneVerb: 'Снято',
+      noun: VIDEOS,
+      danger: true,
+      description: 'Посты с этими видео будут удалены, файлы — стёрты из хранилища. Это необратимо. Каждый автор получит уведомление с этой причиной.',
+      send: async (ids, reason) => bulkData(await api.POST('/admin/media/videos/bulk-takedown', { body: { ids, reason } })),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['media-videos'] });
+        void qc.invalidateQueries({ queryKey: ['media-video-stats'] });
+      },
+    });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
   const count = (s: VideoStatus) => stats.data?.byStatus.find((x) => x.status === s)?.count ?? 0;
 
@@ -83,7 +122,7 @@ export function VideosPanel() {
     onError: (e) => toast.error(growthError(e)),
   });
 
-  const cols = canWrite ? 8 : 7;
+  const cols = canWrite ? 9 : 7;
 
   return (
     <>
@@ -114,15 +153,45 @@ export function VideosPanel() {
             ))}
           </Select>
         </div>
+        <FilterFields id="vf" value={filter} onChange={setFilter} />
       </div>
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={VIDEOS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            // Already deleted assets can't be taken down again.
+            const r = await collectIds(
+              async (c) => {
+                const p = await fetchPage(c);
+                return { data: p.data, nextCursor: p.meta?.nextCursor };
+              },
+              (v) => v.status !== 'deleted',
+            );
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          <Button size="sm" variant="danger" disabled={bulk.pending} onClick={bulkTakedown}>
+            <Prohibit size={14} /> Снять видео
+          </Button>
+        </BulkBar>
+      ) : null}
 
       <ErrorNote text={list.error ? errorText(list.error) : null} />
       {!list.isPending && !list.error && rows.length === 0 ? (
-        <EmptyState icon={VideoCamera} title="Видео нет" text={status ? 'В этом статусе ничего нет.' : 'Видео появятся, когда пользователи начнут публиковать рилсы.'} />
+        <EmptyState icon={VideoCamera} title="Видео нет" text={status || filterKey(filter) !== '||' ? 'По этому фильтру ничего нет.' : 'Видео появятся, когда пользователи начнут публиковать рилсы.'} />
       ) : (
         <Table>
           <thead>
             <tr>
+              {canWrite ? (
+                <Th className="w-10">
+                  <PageSelectBox selected={sel.selected} ids={rows.filter((v) => v.status !== 'deleted').map((v) => v.id)} onToggle={sel.togglePage} />
+                </Th>
+              ) : null}
               <Th>Видео</Th>
               <Th>Автор</Th>
               <Th className="text-right">Длина</Th>
@@ -139,6 +208,7 @@ export function VideosPanel() {
             ) : (
               rows.map((v) => (
                 <tr key={v.id}>
+                  {canWrite ? <Td>{v.status !== 'deleted' ? <RowSelectBox selected={sel.selected} id={v.id} onToggle={sel.toggle} /> : null}</Td> : null}
                   <Td>
                     <button
                       type="button"
@@ -166,6 +236,7 @@ export function VideosPanel() {
                     <Link href={`/users/${v.ownerId}`} className="font-medium text-ink underline-offset-2 hover:text-gold-600 hover:underline">
                       {v.ownerName || v.ownerId.slice(0, 8)}
                     </Link>
+                    <AuthorFilterButton active={filter.author?.id === v.ownerId} onPick={() => setFilter({ ...filter, author: { id: v.ownerId, name: v.ownerName || v.ownerId.slice(0, 8) } })} />
                   </Td>
                   <Td className="text-right tabular-nums">{duration(v.durationSec)}</Td>
                   <Td className="text-right whitespace-nowrap tabular-nums text-muted">{v.sizeBytes != null ? formatBytes(v.sizeBytes) : '—'}</Td>

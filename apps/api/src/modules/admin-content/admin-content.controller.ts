@@ -27,15 +27,17 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import {
+  AdminBulkContentDto,
+  AdminBulkResultDto,
   AdminBidRowDto,
   AdminBidsQueryDto,
   AdminClientReviewRowDto,
   AdminClientReviewsQueryDto,
+  AdminContentFilterQueryDto,
   AdminReasonDto,
   AdminCommentRowDto,
   AdminCommentsQueryDto,
   AdminIdParamDto,
-  AdminListQueryDto,
   AdminOverviewDto,
   AdminPostRowDto,
   AdminPostsQueryDto,
@@ -51,6 +53,7 @@ import {
 } from './admin-content.dto';
 import { AdminContentService } from './admin-content.service';
 import { AdminContentExtrasService } from './admin-content-extras.service';
+import { AdminContentBulkService } from './admin-content-bulk.service';
 import {
   decodeJustification,
   readJustification,
@@ -67,6 +70,7 @@ export class AdminContentController {
   constructor(
     private readonly content: AdminContentService,
     private readonly extras: AdminContentExtrasService,
+    private readonly bulk: AdminContentBulkService,
   ) {}
 
   @Get('overview')
@@ -85,7 +89,7 @@ export class AdminContentController {
   listAdminPosts(
     @Query() q: AdminPostsQueryDto,
   ): Promise<Page<AdminPostRowDto>> {
-    return this.content.posts(q.q, q.kind, q.cursor, q.media === 'video');
+    return this.content.posts(q.q, q.kind, q.cursor, q.media === 'video', q);
   }
 
   @Roles('super_admin', 'moderator')
@@ -107,7 +111,7 @@ export class AdminContentController {
   listAdminComments(
     @Query() q: AdminCommentsQueryDto,
   ): Promise<Page<AdminCommentRowDto>> {
-    return this.content.comments(q.thread ?? 'post', q.q, q.cursor);
+    return this.content.comments(q.thread ?? 'post', q.q, q.cursor, q);
   }
 
   @Roles('super_admin', 'moderator')
@@ -127,9 +131,9 @@ export class AdminContentController {
   @ApiOperation({ summary: 'Reviews of attorneys, newest first' })
   @ApiEnvelopeResponse(AdminReviewRowDto, { isArray: true })
   listAdminReviews(
-    @Query() q: AdminListQueryDto,
+    @Query() q: AdminContentFilterQueryDto,
   ): Promise<Page<AdminReviewRowDto>> {
-    return this.content.reviews(q.cursor, q.q);
+    return this.content.reviews(q.cursor, q.q, q);
   }
 
   @Roles('super_admin', 'moderator')
@@ -219,7 +223,7 @@ export class AdminContentController {
   listAdminClientReviews(
     @Query() q: AdminClientReviewsQueryDto,
   ): Promise<Page<AdminClientReviewRowDto>> {
-    return this.extras.clientReviews(q.q, q.status, q.cursor);
+    return this.extras.clientReviews(q.q, q.status, q.cursor, q);
   }
 
   @Roles('super_admin', 'moderator')
@@ -252,6 +256,25 @@ export class AdminContentController {
     @Body() dto: AdminReasonDto,
   ): Promise<void> {
     return this.extras.setClientReviewStatus(p.id, 'restore', dto.reason);
+  }
+
+  // --- bulk moderation (owner 2026-10-04) ---------------------------------------
+
+  @Roles('super_admin', 'moderator')
+  @Post('content/bulk')
+  @SkipAutoAudit()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Remove, hide or restore many posts / comments / reviews with one reason (authors notified; one audit row per batch)',
+  })
+  @ApiEnvelopeResponse(AdminBulkResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  bulkAdminContent(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminBulkContentDto,
+  ): Promise<AdminBulkResultDto> {
+    return this.bulk.apply(admin, dto.action, dto.type, dto.ids, dto.reason);
   }
 
   // --- bids --------------------------------------------------------------------

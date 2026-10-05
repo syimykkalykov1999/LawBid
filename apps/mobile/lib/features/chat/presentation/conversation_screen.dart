@@ -641,11 +641,16 @@ class _DaySeparator extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Divider(color: colors.border)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: Text(
-              label,
-              style: type.caption.copyWith(color: colors.textSecondary),
+          Flexible(
+            flex: 4,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
             ),
           ),
           Expanded(child: Divider(color: colors.border)),
@@ -894,13 +899,17 @@ class _Bubble extends ConsumerWidget {
                     color: colors.gold,
                   ),
                   const SizedBox(width: 3),
-                  Text(
-                    attorneyName != null
-                        ? t.t('assistant.ofAttorney', {'name': attorneyName!})
-                        : t.t('assistant.of', {'name': m.sentByAssistant!}),
-                    style: type.caption.copyWith(
-                      color: colors.textSecondary,
-                      fontSize: 11,
+                  Flexible(
+                    child: Text(
+                      attorneyName != null
+                          ? t.t('assistant.ofAttorney', {'name': attorneyName!})
+                          : t.t('assistant.of', {'name': m.sentByAssistant!}),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                 ],
@@ -927,30 +936,38 @@ class _Bubble extends ConsumerWidget {
           ),
           if (showSeenLabel)
             Padding(
-              padding: const EdgeInsets.only(top: 2, right: 4),
+              padding: const EdgeInsetsDirectional.only(top: 2, end: 4),
               child: Text(
                 t.t('chat.seen'),
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ),
+          // One row; in long languages the labels shrink instead of moving.
           if (failed)
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  t.t('chat.notSent'),
-                  style: type.caption.copyWith(color: colors.danger),
+                Flexible(
+                  child: FitText(
+                    t.t('chat.notSent'),
+                    style: type.caption.copyWith(color: colors.danger),
+                  ),
                 ),
-                TextButton(
-                  onPressed: () =>
-                      ref.read(chatThreadProvider(threadId).notifier).retry(m),
-                  child: Text(t.t('error.retry')),
+                Flexible(
+                  child: TextButton(
+                    onPressed: () => ref
+                        .read(chatThreadProvider(threadId).notifier)
+                        .retry(m),
+                    child: FitText(t.t('error.retry')),
+                  ),
                 ),
-                TextButton(
-                  onPressed: () => ref
-                      .read(chatThreadProvider(threadId).notifier)
-                      .discard(m),
-                  child: Text(t.t('chat.discard')),
+                Flexible(
+                  child: TextButton(
+                    onPressed: () => ref
+                        .read(chatThreadProvider(threadId).notifier)
+                        .discard(m),
+                    child: FitText(t.t('chat.discard')),
+                  ),
                 ),
               ],
             ),

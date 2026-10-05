@@ -406,7 +406,11 @@ class _BeforeTyping extends ConsumerWidget {
                   style: type.titleMedium.copyWith(color: colors.text),
                 ),
               ),
-              if (trailing != null) trailing,
+              if (trailing != null)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 160),
+                  child: trailing,
+                ),
             ],
           ),
         );
@@ -588,7 +592,11 @@ class _BeforeTyping extends ConsumerWidget {
                 trailing: TextButton(
                   onPressed: () =>
                       ref.read(recentSearchesProvider.notifier).clear(),
-                  child: Text(t.t('search.recent.clear')),
+                  child: Text(
+                    t.t('search.recent.clear'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),
@@ -603,13 +611,18 @@ class _BeforeTyping extends ConsumerWidget {
                   itemCount: recent.length,
                   separatorBuilder: (_, __) =>
                       const SizedBox(width: AppSpacing.sm),
-                  itemBuilder: (context, i) => AppChip(
-                    label: recent[i],
-                    leading: const AppIcon(
-                      AppIcons.historyRounded,
-                      size: AppSpacing.lg,
+                  // Bounded width: the chip's label is Flexible, which needs
+                  // a finite max width inside a horizontal list.
+                  itemBuilder: (context, i) => ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 220),
+                    child: AppChip(
+                      label: recent[i],
+                      leading: const AppIcon(
+                        AppIcons.historyRounded,
+                        size: AppSpacing.lg,
+                      ),
+                      onTap: () => onRecent(recent[i]),
                     ),
-                    onTap: () => onRecent(recent[i]),
                   ),
                 ),
               ),

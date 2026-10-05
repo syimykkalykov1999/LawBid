@@ -149,8 +149,8 @@ class _AppOtpFieldState extends State<AppOtpField> {
                           final digit = index < text.length ? text[index] : '';
                           return Expanded(
                             child: Padding(
-                              padding: EdgeInsets.only(
-                                right: index == _kOtpLength - 1 ? 0 : 8,
+                              padding: EdgeInsetsDirectional.only(
+                                end: index == _kOtpLength - 1 ? 0 : 8,
                               ),
                               child: Container(
                                 height: 54,

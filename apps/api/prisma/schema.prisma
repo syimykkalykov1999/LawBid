@@ -1264,6 +1264,11 @@ model Case {
   city                  String?
   budget_mode           BudgetMode
   budget_cents          Int?
+  // Owner 2026-10-04: the client's card cover (`art:0..3` / `icon:<name>`,
+  // never a personal photo; null = picked from the id) and urgency
+  // (flexible | soon | urgent). CHECKs in the migration.
+  cover_key             String?
+  urgency               String?
   status                CaseStatus               @default(open)
   accepted_bid_id       String?                  @unique @db.Uuid
   accepted_bid          Bid?                     @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)
@@ -2562,6 +2567,9 @@ model AdminBroadcast {
   body       String   @db.String(1000)
   audience   String   @db.String(20)
   state_code String?  @db.String(2)
+  /// Owner 2026-10-04: any set of states (empty = every state);
+  /// `state_code` keeps the first one for older readers.
+  state_codes String[] @default([])
   recipients BigInt   @default(0)
   created_at DateTime @default(now()) @db.Timestamptz
 

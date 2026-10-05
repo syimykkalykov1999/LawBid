@@ -413,6 +413,46 @@ describe('Stage 4.2 — case creation and management (e2e)', () => {
     expect(notOwner.status).toBe(404);
   });
 
+  it('stores the cover and urgency, edits and clears them (owner 2026-10-04)', async () => {
+    const client = await clientUser();
+    const created = await postCase(
+      client.auth,
+      validCase({ coverKey: 'icon:family', urgency: 'urgent' }),
+    );
+    expect(created.status).toBe(201);
+    expect(created.body.data).toMatchObject({
+      coverKey: 'icon:family',
+      urgency: 'urgent',
+    });
+    const caseId = created.body.data.id as string;
+
+    const photoUrl = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(client.auth)
+      .send({ coverKey: 'https://example.com/me.jpg' });
+    expect(photoUrl.status).toBe(400);
+
+    const edited = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(client.auth)
+      .send({ coverKey: 'art:2', urgency: 'soon' });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data).toMatchObject({
+      coverKey: 'art:2',
+      urgency: 'soon',
+    });
+
+    const cleared = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(client.auth)
+      .send({ coverKey: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data).toMatchObject({
+      coverKey: null,
+      urgency: 'soon',
+    });
+  });
+
   it('closes a case: bid auto-rejected and notified; re-closing fails', async () => {
     const client = await clientUser();
     const attorney = await attorneyUser();

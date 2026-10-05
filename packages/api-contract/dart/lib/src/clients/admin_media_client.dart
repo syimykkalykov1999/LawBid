@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/add_official_sticker_dto.dart';
+import '../models/admin_bulk_reason_dto.dart';
+import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_media_reason_dto.dart';
 import '../models/admin_sticker_pack_envelope.dart';
 import '../models/admin_sticker_pack_row_list_envelope.dart';
@@ -28,11 +30,17 @@ abstract class AdminMediaClient {
   /// Video assets (reels), newest first.
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [from] - Uploaded at or after (inclusive).
+  ///
+  /// [to] - Uploaded before (exclusive).
   @GET('/admin/media/videos')
   Future<AdminVideoRowListEnvelope> listAdminVideos({
     @Query('cursor') String? cursor,
     @Query('status') AdminVideoStatus? status,
     @Query('ownerId') String? ownerId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -47,6 +55,13 @@ abstract class AdminMediaClient {
   Future<void> takedownAdminVideo({
     @Path('id') required String id,
     @Body() required AdminMediaReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Take many videos down with one reason (posts removed, authors told why)
+  @POST('/admin/media/videos/bulk-takedown')
+  Future<AdminBulkResultEnvelope> bulkTakedownAdminVideos({
+    @Body() required AdminBulkReasonDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -75,6 +90,20 @@ abstract class AdminMediaClient {
   @GET('/admin/media/sticker-packs/{id}')
   Future<AdminStickerPackEnvelope> getAdminStickerPack({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hide many packs with one reason (authors told why)
+  @POST('/admin/media/sticker-packs/bulk-hide')
+  Future<AdminBulkResultEnvelope> bulkHideAdminStickerPacks({
+    @Body() required AdminBulkReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Make many hidden packs available again
+  @POST('/admin/media/sticker-packs/bulk-unhide')
+  Future<AdminBulkResultEnvelope> bulkUnhideAdminStickerPacks({
+    @Body() required AdminBulkReasonDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

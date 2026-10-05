@@ -82,9 +82,17 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
       appBar: AppTopBar(
         title: Text(t.t('assistant.join.title')),
         actions: [
-          TextButton(
-            onPressed: () => signOut(ref),
-            child: Text(t.t('assistant.leave')),
+          // Capped so a long label leaves room for the title.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: TextButton(
+              onPressed: () => signOut(ref),
+              child: Text(
+                t.t('assistant.leave'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
         ],
       ),

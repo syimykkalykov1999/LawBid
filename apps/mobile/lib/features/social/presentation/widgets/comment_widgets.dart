@@ -151,10 +151,10 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     final a = _c.author;
     final avatarSize = widget.isReply ? 28.0 : 36.0;
     return Padding(
-      padding: EdgeInsets.only(
-        left:
+      padding: EdgeInsetsDirectional.only(
+        start:
             widget.isReply ? AppSpacing.screenSide + 44 : AppSpacing.screenSide,
-        right: AppSpacing.md,
+        end: AppSpacing.md,
         top: AppSpacing.sm,
         bottom: AppSpacing.sm,
       ),
@@ -214,10 +214,14 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                             ),
                           ],
                           const SizedBox(width: AppSpacing.sm),
-                          Text(
-                            SocialFormat.ago(t, f, _c.createdAt),
-                            style: type.caption
-                                .copyWith(color: colors.textSecondary),
+                          Flexible(
+                            child: Text(
+                              SocialFormat.ago(t, f, _c.createdAt),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
+                            ),
                           ),
                         ],
                       ),
@@ -229,44 +233,51 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                         mentions: _c.mentions,
                         height: 1.4,
                       ),
+                      // One row; long translations shrink, nothing moves.
                       Row(
                         children: [
-                          TextButton(
-                            onPressed: () => widget.onReply(
-                              (
-                                parentId: _c.parentId ?? _c.id,
-                                name: a.username ?? a.displayName,
+                          Flexible(
+                            child: TextButton(
+                              onPressed: () => widget.onReply(
+                                (
+                                  parentId: _c.parentId ?? _c.id,
+                                  name: a.username ?? a.displayName,
+                                ),
                               ),
-                            ),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, AppSizes.touchTarget),
-                              foregroundColor: colors.textSecondary,
-                            ),
-                            child: Text(t.t('comment.reply')),
-                          ),
-                          if (!widget.isReply && _c.replyCount > 0) ...[
-                            const SizedBox(width: AppSpacing.lg),
-                            TextButton(
-                              onPressed: () =>
-                                  setState(() => _showReplies = !_showReplies),
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize:
                                     const Size(0, AppSizes.touchTarget),
                                 foregroundColor: colors.textSecondary,
                               ),
-                              child: Text(
-                                t.t(
-                                  _showReplies
-                                      ? 'comment.hideReplies'
-                                      : 'comment.showReplies',
-                                  {
-                                    'count': SocialFormat.count(
-                                      ref.watch(l10nFormatsProvider),
-                                      _c.replyCount,
-                                    ),
-                                  },
+                              child: FitText(t.t('comment.reply')),
+                            ),
+                          ),
+                          if (!widget.isReply && _c.replyCount > 0) ...[
+                            const SizedBox(width: AppSpacing.lg),
+                            Flexible(
+                              child: TextButton(
+                                onPressed: () => setState(
+                                  () => _showReplies = !_showReplies,
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize:
+                                      const Size(0, AppSizes.touchTarget),
+                                  foregroundColor: colors.textSecondary,
+                                ),
+                                child: FitText(
+                                  t.t(
+                                    _showReplies
+                                        ? 'comment.hideReplies'
+                                        : 'comment.showReplies',
+                                    {
+                                      'count': SocialFormat.count(
+                                        ref.watch(l10nFormatsProvider),
+                                        _c.replyCount,
+                                      ),
+                                    },
+                                  ),
                                 ),
                               ),
                             ),
@@ -487,7 +498,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
               Divider(height: 1, color: colors.border),
               if (reply != null)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(
+                  padding: const EdgeInsetsDirectional.fromSTEB(
                     AppSpacing.screenSide,
                     AppSpacing.sm,
                     AppSpacing.sm,
@@ -498,6 +509,8 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                       Expanded(
                         child: Text(
                           t.t('comment.replyingTo', {'name': reply.name}),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
@@ -518,7 +531,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                 child: MentionSuggestions(controller: _text),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: const EdgeInsetsDirectional.fromSTEB(
                   AppSpacing.screenSide,
                   AppSpacing.sm,
                   AppSpacing.sm,

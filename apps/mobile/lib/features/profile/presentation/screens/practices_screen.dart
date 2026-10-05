@@ -544,7 +544,9 @@ class _CategoryCard extends StatelessWidget {
                       ),
                       if (picked > 0)
                         Container(
-                          margin: const EdgeInsets.only(right: AppSpacing.sm),
+                          margin: const EdgeInsetsDirectional.only(
+                            end: AppSpacing.sm,
+                          ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.sm,
                             vertical: AppSpacing.xs / 2,

@@ -39,6 +39,10 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   inMyPractice: json['inMyPractice'] as bool,
   bidAllowed: json['bidAllowed'] as bool,
   city: json['city'] as String?,
+  coverKey: json['coverKey'] as String?,
+  urgency: json['urgency'] == null
+      ? null
+      : CaseUrgency.fromJson(json['urgency'] as String),
   ownBidId: json['ownBidId'] as String?,
   completionRequestedBy: json['completionRequestedBy'] == null
       ? null
@@ -59,6 +63,8 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'city': ?instance.city,
   'status': instance.status.toJson(),
   'budget': instance.budget.toJson(),
+  'coverKey': ?instance.coverKey,
+  'urgency': ?instance.urgency?.toJson(),
   'viewCount': instance.viewCount,
   'bidsCount': instance.bidsCount,
   'createdAt': instance.createdAt.toIso8601String(),

@@ -53,9 +53,14 @@ class CountryCodeChip extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              t.t('auth.phone.countryCode'),
-              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            Flexible(
+              child: Text(
+                t.t('auth.phone.countryCode'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    typography.bodySmall.copyWith(color: colors.textSecondary),
+              ),
             ),
             const SizedBox(width: 4),
             ChevronGlyph(

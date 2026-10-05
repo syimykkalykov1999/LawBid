@@ -230,7 +230,7 @@ class SwitchChannelLink extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: Text(
                 label,
                 style: typography.bodySmall.copyWith(

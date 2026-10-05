@@ -22,6 +22,7 @@ import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingService } from '../users/services/onboarding.service';
 import { CaseStateMachine, caseNotFound } from './domain/case-state-machine';
+import type { CaseUrgency } from './domain/case-cover';
 import {
   validateCaseStates,
   type CaseStateInput,
@@ -149,6 +150,8 @@ function toCaseDto(kase: CaseWithDetails): CaseDto {
     city: kase.city,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    coverKey: kase.cover_key,
+    urgency: kase.urgency as CaseUrgency | null,
     status: kase.status,
     viewCount: kase.view_count,
     bidsCount: kase.bids_count,
@@ -180,6 +183,8 @@ function toSummaryDto(kase: CaseWithPracticeAndStates): CaseSummaryDto {
     status: kase.status,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    coverKey: kase.cover_key,
+    urgency: kase.urgency as CaseUrgency | null,
     bidsCount: kase.bids_count,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
@@ -259,6 +264,8 @@ export class CasesService {
           city: dto.city ?? null,
           budget_mode: dto.budgetMode,
           budget_cents: budgetCents,
+          cover_key: dto.coverKey ?? null,
+          urgency: dto.urgency ?? null,
           status: 'open',
           last_activity_at: now,
         },
@@ -408,6 +415,15 @@ export class CasesService {
             new: { mode: dto.budgetMode, cents: budgetCents },
           };
         }
+      }
+      // Owner 2026-10-04: cover and urgency; null clears.
+      if (dto.coverKey !== undefined && dto.coverKey !== current.cover_key) {
+        extra.cover_key = dto.coverKey;
+        diff.coverKey = { old: current.cover_key, new: dto.coverKey };
+      }
+      if (dto.urgency !== undefined && dto.urgency !== current.urgency) {
+        extra.urgency = dto.urgency;
+        diff.urgency = { old: current.urgency, new: dto.urgency };
       }
       if (
         hasPracticeChange &&

@@ -21,6 +21,22 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, label, ROLE_TEXT, StatusPill } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
+import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import {
+  AuthorFilterButton,
+  BulkBar,
+  bulkData,
+  EMPTY_FILTER,
+  FilterFields,
+  filterKey,
+  type ListFilter,
+  PageSelectBox,
+  RowSelectBox,
+  useBulkRun,
+  useSelection,
+} from '@/components/bulk/bulk-controls';
+
+const REVIEWS: Noun = ['отзыв', 'отзыва', 'отзывов'];
 
 type ClientReview = components['schemas']['AdminClientReviewRowDto'];
 type ReviewStatus = components['schemas']['AdminReviewStatus'];
@@ -48,19 +64,42 @@ export function ClientReviewsPanel() {
   const [tab, setTab] = useState<Tab>('all');
   const [input, setInput] = useState('');
   const text = useDebounced(input.trim(), 300);
+  const [filter, setFilter] = useState<ListFilter>(EMPTY_FILTER);
+  const sel = useSelection(`${tab}|${text}|${filterKey(filter)}`);
+  const bulk = useBulkRun();
 
+  const fetchPage = async (cursor: string | undefined) =>
+    (
+      await api.GET('/admin/content/client-reviews', {
+        params: {
+          query: { cursor, q: text || undefined, status: tab === 'all' ? undefined : tab, authorId: filter.author?.id, ...dayBounds(filter.from, filter.to) },
+        },
+      })
+    ).data!;
   const list = useInfiniteQuery({
-    queryKey: ['admin-client-reviews', tab, text],
+    queryKey: ['admin-client-reviews', tab, text, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (
-        await api.GET('/admin/content/client-reviews', {
-          params: { query: { cursor: pageParam, q: text || undefined, status: tab === 'all' ? undefined : tab } },
-        })
-      ).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const onBulk = (hide: boolean) =>
+    bulk.run({
+      ids: [...sel.selected],
+      verb: hide ? 'Скрыть' : 'Вернуть',
+      doneVerb: hide ? 'Скрыто' : 'Возвращено',
+      noun: REVIEWS,
+      danger: hide,
+      description: hide
+        ? 'Отзывы пропадут из профилей, рейтинги пересчитаются. Каждый автор получит уведомление с этой причиной.'
+        : 'Отзывы снова появятся в профилях, рейтинги пересчитаются.',
+      send: async (ids, reason) =>
+        bulkData(await api.POST('/admin/content/bulk', { body: { action: hide ? 'hide' : 'restore', type: 'client_review', ids, reason } })),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['admin-client-reviews'] });
+      },
+    });
 
   const act = useMutation({
     mutationFn: async ({ r, hide }: { r: ClientReview; hide: boolean }) => {
@@ -83,7 +122,7 @@ export function ClientReviewsPanel() {
     onError: (e) => toast.error(growthError(e)),
   });
 
-  const cols = canWrite ? 6 : 5;
+  const cols = canWrite ? 7 : 5;
 
   return (
     <>
@@ -105,13 +144,44 @@ export function ClientReviewsPanel() {
           <Input className="w-72 pl-9" placeholder="Текст, автор или клиент" value={input} onChange={(e) => setInput(e.target.value)} />
         </div>
       </div>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <FilterFields id="crf" value={filter} onChange={setFilter} />
+      </div>
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={REVIEWS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            const r = await collectIds(async (c) => {
+              const p = await fetchPage(c);
+              return { data: p.data, nextCursor: p.meta?.nextCursor };
+            });
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          <Button size="sm" variant="danger-soft" disabled={bulk.pending} onClick={() => onBulk(true)}>
+            <EyeSlash size={14} /> Скрыть
+          </Button>
+          <Button size="sm" variant="soft" disabled={bulk.pending} onClick={() => onBulk(false)}>
+            <ArrowCounterClockwise size={14} /> Вернуть
+          </Button>
+        </BulkBar>
+      ) : null}
       <ErrorNote text={list.error ? errorText(list.error) : null} />
       {!list.isPending && !list.error && rows.length === 0 ? (
-        <EmptyState icon={ChatCenteredText} title="Отзывов нет" text={text || tab !== 'all' ? 'Ничего не найдено.' : 'Отзывы о клиентах появятся после завершённых кейсов.'} />
+        <EmptyState icon={ChatCenteredText} title="Отзывов нет" text={text || tab !== 'all' || filterKey(filter) !== '||' ? 'Ничего не найдено.' : 'Отзывы о клиентах появятся после завершённых кейсов.'} />
       ) : (
         <Table>
           <thead>
             <tr>
+              {canWrite ? (
+                <Th className="w-10">
+                  <PageSelectBox selected={sel.selected} ids={rows.map((r) => r.id)} onToggle={sel.togglePage} />
+                </Th>
+              ) : null}
               <Th>Отзыв</Th>
               <Th>Автор</Th>
               <Th>О ком</Th>
@@ -126,6 +196,11 @@ export function ClientReviewsPanel() {
             ) : (
               rows.map((r) => (
                 <tr key={r.id}>
+                  {canWrite ? (
+                    <Td>
+                      <RowSelectBox selected={sel.selected} id={r.id} onToggle={sel.toggle} />
+                    </Td>
+                  ) : null}
                   <Td className="max-w-md">
                     <div className="text-gold-600">
                       {'★'.repeat(r.rating)}
@@ -138,6 +213,7 @@ export function ClientReviewsPanel() {
                     <Link href={`/users/${r.authorId}`} className="font-medium text-ink hover:text-gold-600 hover:underline">
                       {r.authorName}
                     </Link>
+                    <AuthorFilterButton active={filter.author?.id === r.authorId} onPick={() => setFilter({ ...filter, author: { id: r.authorId, name: r.authorName } })} />
                     <div className="text-faint">{label(ROLE_TEXT, r.authorRole)}</div>
                   </Td>
                   <Td className="text-xs">

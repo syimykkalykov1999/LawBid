@@ -17,6 +17,7 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { ModerationService, type Tx } from '../moderation/moderation.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { AdminClientReviewRowDto } from './admin-content.dto';
+import { type ContentFilter, createdWindow } from './admin-content.service';
 
 const PAGE = 50;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -61,6 +62,8 @@ export class AdminContentExtrasService {
     type: RestorableType,
     id: string,
     reason: string,
+    // Bulk restore writes one row for the whole batch instead.
+    opts: { audit?: boolean } = {},
   ): Promise<void> {
     const after: (() => Promise<void>)[] = [];
     await withTxRetry(this.prisma, async (tx) => {
@@ -81,6 +84,7 @@ export class AdminContentExtrasService {
       const target = await this.moderation.resolve(type, id, tx);
       if (!target) throw notFound();
       await this.moderation.setContentStatus(tx, target, 'restore', after);
+      if (opts.audit === false) return;
       await this.audit.record(
         {
           adminId: admin.id,
@@ -131,6 +135,7 @@ export class AdminContentExtrasService {
     q?: string,
     status?: 'published' | 'hidden' | 'removed',
     cursor?: string,
+    filter: ContentFilter = {},
   ): Promise<Page<AdminClientReviewRowDto>> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const term = q?.trim();
@@ -138,6 +143,9 @@ export class AdminContentExtrasService {
     const person = { OR: [{ first_name: like }, { last_name: like }] };
     const where: Prisma.ClientReviewWhereInput = {
       ...(status ? { status } : {}),
+      // The author of a review of a client is `attorney_id` (any role).
+      ...(filter.authorId ? { attorney_id: filter.authorId } : {}),
+      ...createdWindow(filter),
       AND: [
         term
           ? { OR: [{ body: like }, { attorney: person }, { client: person }] }

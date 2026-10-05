@@ -34,6 +34,9 @@ class CaseDraftFile {
   @override
   int get hashCode => Object.hash(fileId, name);
 }
+/// Owner 2026-10-04: what the urgency control shows (and sends) until the
+/// client picks.
+const String kDefaultCaseUrgency = 'flexible';
 
 /// The case wizard's working copy (docs/04 §3.1). Stored only locally
 /// until published — there are no server drafts.
@@ -52,7 +55,19 @@ class CaseDraft {
     this.budgetDollars,
     this.step = 0,
     this.files = const [],
+    this.practiceCode,
+    this.coverKey,
+    this.urgency,
   });
+
+  /// The leaf code (`family_law.divorce`) — previews the covers.
+  final String? practiceCode;
+
+  /// Owner 2026-10-04: `art:N` / `icon:<name>`; null = automatic.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: flexible | soon | urgent (API values).
+  final String? urgency;
 
   final String? practiceAreaId;
   final String? practiceI18nKey;
@@ -116,6 +131,10 @@ class CaseDraft {
     bool clearBudgetDollars = false,
     int? step,
     List<CaseDraftFile>? files,
+    String? practiceCode,
+    String? coverKey,
+    bool clearCoverKey = false,
+    String? urgency,
   }) =>
       CaseDraft(
         practiceAreaId: practiceAreaId ?? this.practiceAreaId,
@@ -131,6 +150,9 @@ class CaseDraft {
             clearBudgetDollars ? null : (budgetDollars ?? this.budgetDollars),
         step: step ?? this.step,
         files: files ?? this.files,
+        practiceCode: practiceCode ?? this.practiceCode,
+        coverKey: clearCoverKey ? null : (coverKey ?? this.coverKey),
+        urgency: urgency ?? this.urgency,
       );
 
   Map<String, Object?> toJson() => {
@@ -146,6 +168,9 @@ class CaseDraft {
         'budgetDollars': budgetDollars,
         'step': step,
         'files': [for (final f in files) f.toJson()],
+        'practiceCode': practiceCode,
+        'coverKey': coverKey,
+        'urgency': urgency,
       };
 
   String encode() => jsonEncode(toJson());
@@ -177,6 +202,9 @@ class CaseDraft {
                 name: f['name'] as String?,
               ),
         ],
+        practiceCode: m['practiceCode'] as String?,
+        coverKey: m['coverKey'] as String?,
+        urgency: m['urgency'] as String?,
       );
     } on Object {
       return null; // A corrupt draft is dropped, never crashes the wizard.

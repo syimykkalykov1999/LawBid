@@ -203,29 +203,36 @@ class _ClientBody extends ConsumerWidget {
               ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xs,
-            ),
-            decoration: BoxDecoration(
-              color: colors.goldTint,
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppIcon(
-                  AppIcons.lockOutlineRounded,
-                  size: AppSpacing.md + 2,
-                  color: colors.text,
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  t.t('profile.client.onlyYou'),
-                  style: typography.badge.copyWith(color: colors.text),
-                ),
-              ],
+          // Flexible: a long "Visible only to you" can't push the title out.
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                color: colors.goldTint,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppIcon(
+                    AppIcons.lockOutlineRounded,
+                    size: AppSpacing.md + 2,
+                    color: colors.text,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      t.t('profile.client.onlyYou'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.badge.copyWith(color: colors.text),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

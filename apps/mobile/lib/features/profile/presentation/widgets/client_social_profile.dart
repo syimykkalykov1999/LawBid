@@ -137,11 +137,15 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                     color: selected ? colors.text : colors.textSecondary,
                   ),
                   const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    label,
-                    style: type.bodySmall.copyWith(
-                      color: selected ? colors.text : colors.textSecondary,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.bodySmall.copyWith(
+                        color: selected ? colors.text : colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

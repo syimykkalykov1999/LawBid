@@ -75,6 +75,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
           practiceAreaId: leaf.id,
           practiceI18nKey: leaf.i18nKey,
           practiceNameEn: leaf.nameEn,
+          practiceCode: leaf.code,
         ),
       );
 
@@ -645,6 +646,8 @@ class PickerField extends StatelessWidget {
                     Expanded(
                       child: Text(
                         value ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: typography.body
                             .copyWith(color: colors.text, fontSize: 16),
                       ),
@@ -913,6 +916,25 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
                   ),
                 ),
         ),
+        // Owner 2026-10-04: shown large on the attorney's card.
+        const SizedBox(height: AppSpacing.xl),
+        Text(
+          t.t('cases.create.urgency.title'),
+          style: typography.body.copyWith(
+            color: colors.text,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SegmentedChoice<String>(
+          value: d.urgency ?? kDefaultCaseUrgency,
+          options: [
+            ('flexible', t.t('cases.urgency.flexible')),
+            ('soon', t.t('cases.urgency.soon')),
+            ('urgent', t.t('cases.urgency.urgent')),
+          ],
+          onChanged: (v) => widget.onChange((x) => x.copyWith(urgency: v)),
+        ),
       ],
     );
   }
@@ -949,10 +971,11 @@ class SegmentedChoice<T> extends StatelessWidget {
           final w = box.maxWidth / options.length;
           return Stack(
             children: [
-              AnimatedPositioned(
+              // Directional so the pill tracks the Row's order in RTL.
+              AnimatedPositionedDirectional(
                 duration: motion,
                 curve: AppMotion.enterCurve,
-                left: w * (index < 0 ? 0 : index),
+                start: w * (index < 0 ? 0 : index),
                 top: 0,
                 bottom: 0,
                 width: w,
@@ -980,17 +1003,23 @@ class SegmentedChoice<T> extends StatelessWidget {
                               minHeight: AppSizes.touchTarget,
                             ),
                             child: Center(
-                              child: AnimatedDefaultTextStyle(
-                                duration: motion,
-                                style: typography.button.copyWith(
-                                  color: i == index
-                                      ? colors.onAccent
-                                      : colors.textSecondary,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.xs,
                                 ),
-                                child: Text(
-                                  options[i].$2,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
+                                child: AnimatedDefaultTextStyle(
+                                  duration: motion,
+                                  style: typography.button.copyWith(
+                                    color: i == index
+                                        ? colors.onAccent
+                                        : colors.textSecondary,
+                                  ),
+                                  child: Text(
+                                    options[i].$2,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ),
                             ),

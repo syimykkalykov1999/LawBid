@@ -175,7 +175,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Stack(
-                  alignment: Alignment.centerLeft,
+                  alignment: AlignmentDirectional.centerStart,
                   children: [
                     if (_empty)
                       IgnorePointer(
@@ -187,7 +187,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                             switchInCurve: Curves.easeOutCubic,
                             switchOutCurve: Curves.easeInCubic,
                             layoutBuilder: (current, previous) => Stack(
-                              alignment: Alignment.centerLeft,
+                              alignment: AlignmentDirectional.centerStart,
                               children: [
                                 ...previous,
                                 if (current != null) current,
@@ -272,17 +272,27 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
           duration: d,
           curve: AppMotion.enterCurve,
           child: focused
-              ? TextButton(
-                  onPressed: () {
-                    widget.controller.clear();
-                    widget.focusNode.unfocus();
-                  },
-                  style: TextButton.styleFrom(
-                    foregroundColor: colors.text,
-                    minimumSize: const Size(0, AppSizes.touchTarget),
-                    padding: const EdgeInsets.only(left: AppSpacing.md),
+              // Capped so a long translated "Cancel" can't squeeze the field.
+              ? ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 120),
+                  child: TextButton(
+                    onPressed: () {
+                      widget.controller.clear();
+                      widget.focusNode.unfocus();
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: colors.text,
+                      minimumSize: const Size(0, AppSizes.touchTarget),
+                      padding: const EdgeInsetsDirectional.only(
+                        start: AppSpacing.md,
+                      ),
+                    ),
+                    child: Text(
+                      widget.cancelLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  child: Text(widget.cancelLabel),
                 )
               : const SizedBox.shrink(),
         ),

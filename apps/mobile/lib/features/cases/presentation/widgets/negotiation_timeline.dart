@@ -104,11 +104,11 @@ class _OfferBubble extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: mine ? colors.goldTint : colors.surface,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(AppRadii.card),
-          topRight: const Radius.circular(AppRadii.card),
-          bottomLeft: Radius.circular(mine ? AppRadii.card : AppSpacing.xs),
-          bottomRight: Radius.circular(mine ? AppSpacing.xs : AppRadii.card),
+        borderRadius: BorderRadiusDirectional.only(
+          topStart: const Radius.circular(AppRadii.card),
+          topEnd: const Radius.circular(AppRadii.card),
+          bottomStart: Radius.circular(mine ? AppRadii.card : AppSpacing.xs),
+          bottomEnd: Radius.circular(mine ? AppSpacing.xs : AppRadii.card),
         ),
         border: Border.all(
           color: pending ? colors.gold : colors.border,
@@ -190,8 +190,9 @@ class _OfferBubble extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: Align(
-                  alignment:
-                      mine ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: mine
+                      ? AlignmentDirectional.centerEnd
+                      : AlignmentDirectional.centerStart,
                   child: FractionallySizedBox(widthFactor: 0.92, child: bubble),
                 ),
               ),

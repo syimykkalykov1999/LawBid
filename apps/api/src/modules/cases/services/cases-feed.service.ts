@@ -1,4 +1,5 @@
 import { CasePhotosService } from './case-photos.service';
+import type { CaseUrgency } from '../domain/case-cover';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { Prisma, type Case, type PracticeArea } from '@prisma/client';
 import {
@@ -356,6 +357,8 @@ export class CasesFeedService {
         city: c.city,
         status: c.status,
         budget: { mode: c.budget_mode, amountCents: c.budget_cents },
+        coverKey: c.cover_key,
+        urgency: c.urgency as CaseUrgency | null,
         viewCount: c.view_count,
         bidsCount: c.bids_count,
         createdAt: c.created_at.toISOString(),

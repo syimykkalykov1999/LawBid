@@ -77,6 +77,8 @@ class BlockedUsersScreen extends ConsumerWidget {
                               if (u.username != null)
                                 Text(
                                   '@${u.username}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: type.caption
                                       .copyWith(color: colors.textSecondary),
                                 ),
@@ -84,16 +86,21 @@ class BlockedUsersScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
-                        AppButton(
-                          label: t.t('block.unblock'),
-                          variant: AppButtonVariant.secondary,
-                          height: AppSizes.touchTarget - 4,
-                          onPressed: () => toggleBlock(
-                            context,
-                            ref,
-                            userId: u.id,
-                            displayName: u.displayName,
-                            currentlyBlocked: true,
+                        // AppButton is full-width: bound it so it can't take
+                        // the name's room (a long label wraps inside).
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 140),
+                          child: AppButton(
+                            label: t.t('block.unblock'),
+                            variant: AppButtonVariant.secondary,
+                            height: AppSizes.touchTarget - 4,
+                            onPressed: () => toggleBlock(
+                              context,
+                              ref,
+                              userId: u.id,
+                              displayName: u.displayName,
+                              currentlyBlocked: true,
+                            ),
                           ),
                         ),
                       ],

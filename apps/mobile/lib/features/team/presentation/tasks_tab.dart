@@ -141,37 +141,47 @@ class _TasksTabState extends ConsumerState<TasksTab> {
             AppSpacing.screenSide,
             0,
           ),
+          // One row, everything in its place: in long languages the chips
+          // and "Add a task" shrink their text instead of sliding under each
+          // other or moving to another line (owner 2026-10-05).
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final (v, label) in [
-                        (_TasksView.active, t.t('tasks.view.active')),
-                        (_TasksView.done, t.t('tasks.view.done')),
-                        if (assistant)
-                          (_TasksView.results, t.t('tasks.results')),
-                      ]) ...[
-                        AppChip(
+              Flexible(
+                flex: 3,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final (i, (v, label)) in [
+                      (_TasksView.active, t.t('tasks.view.active')),
+                      (_TasksView.done, t.t('tasks.view.done')),
+                      if (assistant) (_TasksView.results, t.t('tasks.results')),
+                    ].indexed) ...[
+                      if (i > 0) const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: AppChip(
                           key: ValueKey('tasks-view-${v.name}'),
                           label: label,
+                          fitLabel: true,
                           selected: _view == v,
                           onTap: () => setState(() => _view = v),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                      ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
-              if (canAdd)
-                AddTaskButton(
-                  key: const ValueKey('tasks-add'),
-                  label: t.t('tasks.add'),
-                  onTap: _add,
+              if (canAdd) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  flex: 2,
+                  child: AddTaskButton(
+                    key: const ValueKey('tasks-add'),
+                    label: t.t('tasks.add'),
+                    onTap: _add,
+                  ),
                 ),
+              ],
             ],
           ),
         ),
@@ -280,13 +290,17 @@ class _TaskList extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    Text(
-                      s.title,
-                      style: typography.body.copyWith(
-                        color: s.key == '0overdue'
-                            ? colors.dangerText
-                            : colors.text,
-                        fontWeight: FontWeight.w700,
+                    Flexible(
+                      child: Text(
+                        s.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.body.copyWith(
+                          color: s.key == '0overdue'
+                              ? colors.dangerText
+                              : colors.text,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),

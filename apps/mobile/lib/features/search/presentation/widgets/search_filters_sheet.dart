@@ -201,7 +201,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
 
     // ignore: avoid_positional_boolean_parameters
     Widget picker(String label, bool selected, VoidCallback onTap) => Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: AppChip(
             label: label,
             selected: selected,
@@ -257,9 +257,15 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
                 ),
               ),
               if (_f.state != null)
-                TextButton(
-                  onPressed: () => _set((_) => _with(state: null)),
-                  child: Text(any),
+                Flexible(
+                  child: TextButton(
+                    onPressed: () => _set((_) => _with(state: null)),
+                    child: Text(
+                      any,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -467,9 +473,17 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
                       style: type.titleMedium.copyWith(color: colors.text),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => setState(() => _f = const SearchFilters()),
-                    child: Text(t.t('search.filter.reset')),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 160),
+                    child: TextButton(
+                      onPressed: () =>
+                          setState(() => _f = const SearchFilters()),
+                      child: Text(
+                        t.t('search.filter.reset'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
                 ],
               ),

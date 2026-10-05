@@ -29,6 +29,10 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       city: json['city'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
       archivedAt: json['archivedAt'] as String?,
       clientCompletedAt: json['clientCompletedAt'] as String?,
       attorneyConfirmedAt: json['attorneyConfirmedAt'] as String?,
@@ -55,6 +59,8 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'city': ?instance.city,
       'budgetMode': instance.budgetMode.toJson(),
       'budgetCents': ?instance.budgetCents,
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
       'status': instance.status.toJson(),
       'viewCount': instance.viewCount,
       'bidsCount': instance.bidsCount,

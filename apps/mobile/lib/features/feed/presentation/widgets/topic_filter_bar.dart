@@ -181,11 +181,18 @@ class TopicFilterBar extends ConsumerWidget {
                     color: selected ? colors.goldLight : colors.text,
                   ),
                   const SizedBox(width: AppSpacing.xs + 2),
-                  Text(
-                    label,
-                    style: type.bodySmall.copyWith(
-                      color: selected ? Colors.white : colors.text,
-                      fontWeight: FontWeight.w600,
+                  // Capped: a long qualification name ends with "…" instead
+                  // of a pill wider than the screen.
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 220),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.bodySmall.copyWith(
+                        color: selected ? Colors.white : colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   if (trailing != null) ...[

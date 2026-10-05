@@ -157,13 +157,16 @@ class _HistoryTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (item.deleted)
-                StatusPill(
-                  label: t.t('history.deleted'),
-                  tone: StatusTone.neutral,
-                )
-              else
-                CaseStatusPill(status: item.status, t: t),
+              const SizedBox(width: AppSpacing.sm),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: item.deleted
+                    ? StatusPill(
+                        label: t.t('history.deleted'),
+                        tone: StatusTone.neutral,
+                      )
+                    : CaseStatusPill(status: item.status, t: t),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),

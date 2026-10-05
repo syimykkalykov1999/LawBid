@@ -200,7 +200,10 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
           child: AppPressable(
             onTap: _publishing ? null : () => _pick(s),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              padding: const EdgeInsets.symmetric(
+                vertical: AppSpacing.lg,
+                horizontal: AppSpacing.sm,
+              ),
               decoration: BoxDecoration(
                 color: colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.card),
@@ -210,8 +213,9 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                 children: [
                   AppIcon(icon, color: colors.goldDark, size: 28),
                   const SizedBox(height: AppSpacing.sm),
-                  Text(
+                  FitText(
                     label,
+                    textAlign: TextAlign.center,
                     style: type.body.copyWith(color: colors.text),
                   ),
                 ],
@@ -269,8 +273,8 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                                       child: VideoPlayer(c),
                                     ),
                                   ),
-                                  Positioned(
-                                    right: AppSpacing.sm,
+                                  PositionedDirectional(
+                                    end: AppSpacing.sm,
                                     bottom: AppSpacing.sm,
                                     child: Text(
                                       formatReelDuration(_seconds),

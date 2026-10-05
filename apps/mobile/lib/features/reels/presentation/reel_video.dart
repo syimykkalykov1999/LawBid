@@ -213,9 +213,9 @@ class _InlineReelState extends State<InlineReel> {
                   color: Colors.white70,
                 ),
               ),
-            Positioned(
+            PositionedDirectional(
               top: AppSpacing.md,
-              right: AppSpacing.md,
+              end: AppSpacing.md,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.sm,

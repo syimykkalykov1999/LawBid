@@ -396,6 +396,8 @@ class _ContactsBlock extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       value.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: typography.roleTitle.copyWith(color: colors.text),
                     ),
                   ),
@@ -535,13 +537,18 @@ class _ContactAction extends StatelessWidget {
               children: [
                 AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.caption.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
+                // Four actions share the row: a long label shrinks to fit.
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                  ),
+                  child: FitText(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: typography.caption.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],

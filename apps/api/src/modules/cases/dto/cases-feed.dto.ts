@@ -1,3 +1,4 @@
+import { CASE_URGENCIES, type CaseUrgency } from '../domain/case-cover';
 import { CasePhotoDto } from './case-responses.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetMode, CaseStatus, SavedItemType } from '@prisma/client';
@@ -229,6 +230,18 @@ export class CaseFeedItemDto {
 
   @ApiProperty({ type: CaseBudgetDto })
   budget!: CaseBudgetDto;
+
+  /** Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id. */
+  @ApiPropertyOptional({ type: String, nullable: true, example: 'art:2' })
+  coverKey?: string | null;
+
+  /** Owner 2026-10-04: flexible | soon | urgent; null on older cases. */
+  @ApiPropertyOptional({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  urgency?: CaseUrgency | null;
 
   @ApiProperty({ type: 'integer' })
   viewCount!: number;

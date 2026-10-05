@@ -95,8 +95,13 @@ class PracticeArt extends StatelessWidget {
     required this.categoryCode,
     this.practiceCode,
     this.imageUrl,
+    this.cover,
     super.key,
   });
+
+  /// Owner 2026-10-04: a case's own cover (CaseCover) in place of the
+  /// practice photo; [imageUrl] still wins.
+  final Widget? cover;
 
   final String? categoryCode;
 
@@ -149,13 +154,14 @@ class PracticeArt extends StatelessWidget {
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback(),
           )
-        : asset != null
-            ? Image.asset(
-                asset,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => fallback(),
-              )
-            : fallback();
+        : cover ??
+            (asset != null
+                ? Image.asset(
+                    asset,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => fallback(),
+                  )
+                : fallback());
 
     // Fade: transparent at the text side, visible at the right edge.
     return ExcludeSemantics(
@@ -184,11 +190,18 @@ class PracticePhoto extends StatelessWidget {
   const PracticePhoto({
     required this.categoryCode,
     this.practiceCode,
+    this.seed,
     super.key,
   });
 
   final String? categoryCode;
   final String? practiceCode;
+
+  /// Owner 2026-10-04: a case id. Each practice may have up to
+  /// [kPracticePhotoVariants] photos (`<code>.jpg`, `<code>_2.jpg`,
+  /// `<code>_3.jpg`); the id picks one so the feed does not repeat the
+  /// same picture. A variant not bundled falls back to `<code>.jpg`.
+  final String? seed;
 
   @override
   Widget build(BuildContext context) {
@@ -214,13 +227,34 @@ class PracticePhoto extends StatelessWidget {
       ),
     );
     return ExcludeSemantics(
-      child: artKey == null
-          ? panel
-          : Image.asset(
-              'assets/practice_art/$artKey.jpg',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => panel,
-            ),
+      child: artKey == null ? panel : _variant(artKey, panel),
     );
   }
+
+  Widget _variant(String artKey, Widget panel) {
+    Widget base() => Image.asset(
+          'assets/practice_art/$artKey.jpg',
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => panel,
+        );
+    final n = seed == null ? 0 : practicePhotoVariant(seed!);
+    if (n == 0) return base();
+    return Image.asset(
+      'assets/practice_art/${artKey}_${n + 1}.jpg',
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => base(),
+    );
+  }
+}
+
+/// Photos per practice (the base one plus `_2`, `_3`).
+const int kPracticePhotoVariants = 3;
+
+/// FNV-1a over the id: the same case shows the same photo on every device.
+int practicePhotoVariant(String seed) {
+  var h = 0x811c9dc5;
+  for (final c in seed.codeUnits) {
+    h = ((h ^ c) * 0x01000193) & 0xffffffff;
+  }
+  return h % kPracticePhotoVariants;
 }

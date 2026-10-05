@@ -269,7 +269,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding: const EdgeInsetsDirectional.fromSTEB(
             AppSpacing.screenSide,
             0,
             AppSpacing.xs,
@@ -402,7 +402,8 @@ class _NotificationRow extends ConsumerWidget {
             showAppBottomSheet<void>(
               context: context,
               builder: (_) => SafeArea(
-                child: Padding(
+                // Scrolls: a long broadcast must not overflow the sheet.
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.all(AppSpacing.screenSide),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -458,26 +459,34 @@ class _NotificationRow extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              SocialFormat.ago(t, f, n.createdAt),
-                              style: type.caption
-                                  .copyWith(color: colors.textSecondary),
-                            ),
-                            if (n.unread) ...[
-                              const SizedBox(height: 6),
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: colors.gold,
-                                  shape: BoxShape.circle,
-                                ),
+                        // Capped: a long localized "x ago" can't squeeze the
+                        // notification text.
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 88),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                SocialFormat.ago(t, f, n.createdAt),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                                style: type.caption
+                                    .copyWith(color: colors.textSecondary),
                               ),
+                              if (n.unread) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: colors.gold,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -526,8 +535,8 @@ class _Medallion extends StatelessWidget {
                 : actor.displayName.substring(0, 1).toUpperCase(),
             size: 40,
           ),
-          Positioned(
-            right: -2,
+          PositionedDirectional(
+            end: -2,
             bottom: -2,
             child: Container(
               width: 20,

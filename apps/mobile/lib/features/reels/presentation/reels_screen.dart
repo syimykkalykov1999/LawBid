@@ -161,14 +161,17 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         color: Colors.white,
                       ),
                     ),
-                    Text(
-                      t.t('reels.title'),
-                      style: type.titleMedium.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        t.t('reels.title'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.titleMedium.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    const Spacer(),
                     IconButton(
                       tooltip: t.t(muted ? 'reels.unmute' : 'reels.mute'),
                       onPressed: () =>
@@ -300,9 +303,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
               ),
             if (video != null && !video.ready)
               Center(
-                child: Text(
-                  t.t('reels.processing'),
-                  style: type.body.copyWith(color: Colors.white70),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
+                  child: Text(
+                    t.t('reels.processing'),
+                    textAlign: TextAlign.center,
+                    style: type.body.copyWith(color: Colors.white70),
+                  ),
                 ),
               ),
             if (_paused)
@@ -331,8 +340,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
               ),
             ),
-            Positioned(
-              right: AppSpacing.md,
+            PositionedDirectional(
+              end: AppSpacing.md,
               bottom: AppSpacing.xxl + MediaQuery.paddingOf(context).bottom,
               child: Column(
                 children: [
@@ -372,9 +381,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ],
               ),
             ),
-            Positioned(
-              left: AppSpacing.lg,
-              right: 72,
+            PositionedDirectional(
+              start: AppSpacing.lg,
+              end: 72,
               bottom: AppSpacing.xl + MediaQuery.paddingOf(context).bottom,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,6 +414,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           Flexible(
                             child: Text(
                               p.author.displayName,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: type.body.copyWith(
                                 color: Colors.white,

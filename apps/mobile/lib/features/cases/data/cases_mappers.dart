@@ -4,6 +4,9 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 DateTime _date(String iso) => DateTime.parse(iso).toLocal();
 DateTime? _dateOrNull(String? iso) => iso == null ? null : _date(iso);
 
+/// An urgency this build does not know yet reads as "not set".
+CaseUrgency? _urgency(CaseUrgency? u) => u == CaseUrgency.$unknown ? null : u;
+
 /// API DTO → domain (docs/04). Pure functions, unit-tested.
 abstract final class CasesMappers {
   static PracticeRef practiceRef(api.PracticeAreaRefDto p) => PracticeRef(
@@ -36,6 +39,8 @@ abstract final class CasesMappers {
         bidsCount: c.bidsCount,
         createdAt: _date(c.createdAt),
         lastActivityAt: _date(c.lastActivityAt),
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
       );
 
   static OwnerCase ownerCase(api.OwnerCaseDetailDto c) => OwnerCase(
@@ -64,6 +69,8 @@ abstract final class CasesMappers {
         conversationId: c.conversationId,
         photos: c.photos.map(casePhoto).toList(growable: false),
         stalePromptSentAt: _dateOrNull(c.stalePromptSentAt),
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
       );
 
   static CasePhoto casePhoto(api.CasePhotoDto p) => CasePhoto(
@@ -156,6 +163,8 @@ abstract final class CasesMappers {
         commentCount: c.commentCount,
         shareCount: c.shareCount,
         promoted: c.promoted,
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -185,6 +194,8 @@ abstract final class CasesMappers {
         inMyPractice: c.inMyPractice,
         bidAllowed: c.bidAllowed,
         acceptedBidIsMine: c.acceptedBidIsMine,
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

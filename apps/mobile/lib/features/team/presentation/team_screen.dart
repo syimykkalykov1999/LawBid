@@ -175,13 +175,18 @@ class _SeatsCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                info.plan == 'yearly'
-                    ? t.t('plans.yearly')
-                    : info.plan == 'monthly'
-                        ? t.t('plans.monthly')
-                        : '',
-                style: typography.caption.copyWith(color: AppColorsLight.gold),
+              Flexible(
+                child: Text(
+                  info.plan == 'yearly'
+                      ? t.t('plans.yearly')
+                      : info.plan == 'monthly'
+                          ? t.t('plans.monthly')
+                          : '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      typography.caption.copyWith(color: AppColorsLight.gold),
+                ),
               ),
             ],
           ),
@@ -261,7 +266,9 @@ class _MemberTile extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: AppSpacing.xs),
                     Container(
+                      constraints: const BoxConstraints(maxWidth: 110),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 2,
@@ -275,6 +282,8 @@ class _MemberTile extends StatelessWidget {
                         t.t(
                           active ? 'team.status.active' : 'team.status.invited',
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: typography.caption.copyWith(
                           color: active ? colors.success : colors.gold,
                           fontWeight: FontWeight.w600,

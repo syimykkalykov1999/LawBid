@@ -1066,6 +1066,8 @@ class _QuietButton extends StatelessWidget {
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
+        // Fixed height; a long translation shrinks to fit (owner
+        // 2026-10-05: buttons keep their size and place).
         child: Container(
           height: height,
           alignment: Alignment.center,
@@ -1083,16 +1085,15 @@ class _QuietButton extends StatelessWidget {
                   ),
                 )
               : Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      style: typography.button
-                          .copyWith(fontSize: 14, color: colors.text),
-                    ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: FitText(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: typography.button
+                        .copyWith(fontSize: 14, color: colors.text),
                   ),
                 ),
         ),
@@ -1167,9 +1168,10 @@ class _Tabs extends ConsumerWidget {
           Positioned.fill(
             child: AnimatedAlign(
               alignment: switch (selected) {
-                AttorneyProfileTab.posts => Alignment.bottomLeft,
-                AttorneyProfileTab.news => Alignment.bottomCenter,
-                AttorneyProfileTab.reviews => Alignment.bottomRight,
+                // Directional: the tab Row flips in RTL, so must the bar.
+                AttorneyProfileTab.posts => AlignmentDirectional.bottomStart,
+                AttorneyProfileTab.news => AlignmentDirectional.bottomCenter,
+                AttorneyProfileTab.reviews => AlignmentDirectional.bottomEnd,
               },
               duration: reduce ? Duration.zero : AppMotion.stateChange,
               curve: AppMotion.enterCurve,

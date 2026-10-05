@@ -21,6 +21,10 @@ import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { formatDateTime } from '@/lib/utils';
 import { StickerUploader } from './sticker-uploader';
+import { collectIds, type Noun } from '@/lib/bulk';
+import { BulkBar, bulkData, PageSelectBox, RowSelectBox, useBulkRun, useSelection } from '@/components/bulk/bulk-controls';
+
+const PACKS: Noun = ['набор', 'набора', 'наборов'];
 
 type Pack = components['schemas']['AdminStickerPackDto'];
 type Kind = 'official' | 'user';
@@ -37,19 +41,40 @@ export function StickersPanel() {
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const qc = useQueryClient();
+  const sel = useSelection(`${kind}|${status}|${q}`);
+  const bulk = useBulkRun();
 
+  const fetchPage = async (cursor: string | undefined) =>
+    (
+      await api.GET('/admin/media/sticker-packs', {
+        params: { query: { cursor, kind, status: status === 'all' ? undefined : status, q: q || undefined } },
+      })
+    ).data!;
   const list = useInfiniteQuery({
     queryKey: ['media-sticker-packs', kind, status, q],
     initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) =>
-      (
-        await api.GET('/admin/media/sticker-packs', {
-          params: { query: { cursor: pageParam, kind, status: status === 'all' ? undefined : status, q: q || undefined } },
-        })
-      ).data!,
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
   const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const onBulk = (hide: boolean) =>
+    bulk.run({
+      ids: [...sel.selected],
+      verb: hide ? 'Скрыть' : 'Вернуть',
+      doneVerb: hide ? 'Скрыто' : 'Возвращено',
+      noun: PACKS,
+      danger: hide,
+      description: hide
+        ? 'Наборы пропадут у всех пользователей. Авторы пользовательских наборов получат уведомление с этой причиной.'
+        : 'Наборы снова станут доступны.',
+      send: async (ids, reason) =>
+        bulkData(await api.POST(hide ? '/admin/media/sticker-packs/bulk-hide' : '/admin/media/sticker-packs/bulk-unhide', { body: { ids, reason } })),
+      onDone: () => {
+        sel.clear();
+        void qc.invalidateQueries({ queryKey: ['media-sticker-packs'] });
+      },
+    });
 
   return (
     <>
@@ -89,6 +114,29 @@ export function StickersPanel() {
         ) : null}
       </div>
 
+      {bulk.dialog}
+      {canWrite ? (
+        <BulkBar
+          selectedCount={sel.selected.size}
+          noun={PACKS}
+          onClear={sel.clear}
+          onSelectAll={async () => {
+            const r = await collectIds(async (c) => {
+              const p = await fetchPage(c);
+              return { data: p.data, nextCursor: p.meta?.nextCursor };
+            });
+            sel.replace(r.ids);
+            return r.capped;
+          }}
+        >
+          <Button size="sm" variant="danger-soft" disabled={bulk.pending} onClick={() => onBulk(true)}>
+            <EyeSlash size={14} /> Скрыть
+          </Button>
+          <Button size="sm" variant="soft" disabled={bulk.pending} onClick={() => onBulk(false)}>
+            <Eye size={14} /> Вернуть
+          </Button>
+        </BulkBar>
+      ) : null}
       <ErrorNote text={list.error ? errorText(list.error) : null} />
       {!list.isPending && !list.error && rows.length === 0 ? (
         <EmptyState icon={Sticker} title="Наборов нет" text={q ? 'Ничего не нашлось.' : kind === 'official' ? 'Создайте первый официальный набор.' : 'Пользователи ещё не делали свои наборы.'} />
@@ -96,6 +144,11 @@ export function StickersPanel() {
         <Table>
           <thead>
             <tr>
+              {canWrite ? (
+                <Th className="w-10">
+                  <PageSelectBox selected={sel.selected} ids={rows.map((p) => p.id)} onToggle={sel.togglePage} />
+                </Th>
+              ) : null}
               <Th>Набор</Th>
               <Th>Автор</Th>
               <Th className="text-right">Стикеров</Th>
@@ -106,10 +159,15 @@ export function StickersPanel() {
           </thead>
           <tbody>
             {list.isPending ? (
-              <TableEmpty colSpan={6} loading />
+              <TableEmpty colSpan={canWrite ? 7 : 6} loading />
             ) : (
               rows.map((p) => (
                 <tr key={p.id} className="cursor-pointer" onClick={() => setOpenId(p.id)}>
+                  {canWrite ? (
+                    <Td onClick={(e) => e.stopPropagation()}>
+                      <RowSelectBox selected={sel.selected} id={p.id} onToggle={sel.toggle} />
+                    </Td>
+                  ) : null}
                   <Td>
                     <div className="flex items-center gap-1.5 font-medium text-ink">
                       {p.title}

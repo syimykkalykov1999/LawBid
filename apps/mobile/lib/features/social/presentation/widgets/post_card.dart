@@ -200,11 +200,15 @@ class PostCard extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.sm),
                   Row(
                     children: [
-                      Text(
-                        t.t('post.readMore'),
-                        style: typography.body.copyWith(
-                          color: colors.goldDark,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          t.t('post.readMore'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: typography.body.copyWith(
+                            color: colors.goldDark,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       AppIcon(
@@ -420,7 +424,7 @@ class PostCard extends ConsumerWidget {
           ),
         if (!inDetail && p.commentCount > 0)
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: TextButton(
               onPressed: () => context.push(SocialRoutes.post(p.id)),
               style: TextButton.styleFrom(
@@ -460,7 +464,7 @@ class _TimeLine extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: inline
-          ? const EdgeInsets.only(right: AppSpacing.xs)
+          ? const EdgeInsetsDirectional.only(end: AppSpacing.xs)
           : const EdgeInsets.fromLTRB(
               AppSpacing.lg,
               0,
@@ -491,9 +495,13 @@ class _TimeLine extends ConsumerWidget {
           ),
           if (!inline) ...[
             const SizedBox(width: AppSpacing.xs),
-            Text(
-              t.t('post.public'),
-              style: type.caption.copyWith(color: colors.textSecondary),
+            Flexible(
+              child: Text(
+                t.t('post.public'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
             ),
           ],
         ],
@@ -654,13 +662,17 @@ class _TopicChips extends ConsumerWidget {
       children: [
         Expanded(child: topics),
         const SizedBox(width: AppSpacing.sm),
-        pill(
-          label: t.t('post.kind.news'),
-          main: false,
-          gold: true,
-          icon: AppIcons.newspaperRounded,
-          // A label, not a filter: there is no news-only route.
-          onTap: null,
+        // Bounded so the pill's Flexible label can ellipsize.
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 140),
+          child: pill(
+            label: t.t('post.kind.news'),
+            main: false,
+            gold: true,
+            icon: AppIcons.newspaperRounded,
+            // A label, not a filter: there is no news-only route.
+            onTap: null,
+          ),
         ),
       ],
     );
@@ -679,7 +691,7 @@ class _AuthorRow extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = post.author;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: const EdgeInsetsDirectional.fromSTEB(
         AppSpacing.lg,
         AppSpacing.md,
         AppSpacing.xs,
@@ -750,7 +762,11 @@ class _AuthorRow extends ConsumerWidget {
           ),
           // Owner 2026-09-30: a working Follow on the card.
           if (!post.isMine) ...[
-            FollowButton(attorneyId: a.id, initial: a.isFollowing),
+            // Capped so a long "Follow" can't squeeze the author's name.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 136),
+              child: FollowButton(attorneyId: a.id, initial: a.isFollowing),
+            ),
             const SizedBox(width: AppSpacing.xs),
           ],
           AppIconButton(
@@ -1305,7 +1321,7 @@ class _ActionsBar extends ConsumerWidget {
           Expanded(
             child: showTime
                 ? Align(
-                    alignment: Alignment.centerRight,
+                    alignment: AlignmentDirectional.centerEnd,
                     child: _TimeLine(post: post, inline: true),
                   )
                 : const SizedBox.shrink(),
@@ -1335,7 +1351,7 @@ class _Count extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.sm),
+      padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
       child: Text(
         SocialFormat.count(f, value),
         style:
