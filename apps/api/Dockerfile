@@ -23,5 +23,7 @@ COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
 USER app
 WORKDIR /repo/apps/api
 EXPOSE 3000
-# api: node dist/main.js — worker: node dist/worker.js (ECS task command)
-CMD ["node", "dist/main.js"]
+# api: node dist/src/main.js — worker: node dist/src/worker.js (ECS task
+# command). nest build keeps the src/ folder (tsconfig includes prisma/ and
+# scripts/), so the entry points live under dist/src.
+CMD ["node", "dist/src/main.js"]

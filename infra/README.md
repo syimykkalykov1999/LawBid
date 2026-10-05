@@ -19,7 +19,9 @@ infra/
     alb/         ALB (HTTPS only, idle 300 s for WebSockets, sticky api target group) + WAF
     ecs/         Fargate cluster; services api / worker / admin; one-off migrate task;
                  autoscaling CPU 60 % (min 2 tasks), circuit breaker + rollback
-    monitoring/  SNS alerts, log metric filters, CloudWatch alarms (docs/06 §8)
+    monitoring/  SNS alerts, log metric filters, CloudWatch alarms (docs/06 §8);
+                 descriptions in plain Russian with «что делать» + runbook link
+    budget/      monthly AWS budget e-mails + Cost Anomaly Detection
     stack/       composes the above for one environment
   envs/
     staging/     backend + providers + variables (reduced sizes)
@@ -80,6 +82,18 @@ After the first apply:
    `migrate_task_definition_arn`, the deploy workflow does this on every
    release) and roll the services (`.github/workflows/deploy.yml`).
 4. Confirm the alert e-mail subscriptions (SNS sends a confirmation).
+5. Zero maintenance (docs/ZERO_MAINTENANCE.md): run
+   `infra/cockroach/role-settings.sql` once (statement / idle-transaction
+   timeouts per role); add the read-only CockroachDB Cloud API key in the
+   admin (Ключи и сервисы → CockroachDB Cloud) and as the GitHub secrets
+   `COCKROACH_CLOUD_API_KEY` / `COCKROACH_CLOUD_CLUSTER_ID`; optionally a
+   read-only OIDC role `AWS_SELFCHECK_ROLE_PROD` for
+   `.github/workflows/self-check.yml` (falls back to the deploy role).
+   `monthly_budget_usd` creates the AWS budget (e-mails 50/80/100 %, the
+   worker caps autoscaling at the minimum at 100 %) and Cost Anomaly
+   Detection (`create_anomaly_monitor = false` if the account already has
+   a service monitor). A cap set from the admin is reset to the Terraform
+   ceiling by the next `terraform apply`.
 
 ## Acceptance of stage 6.10 (to be run by the owner on the real account)
 

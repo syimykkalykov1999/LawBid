@@ -3,6 +3,10 @@
 Each drill: restore the latest prod backup into a scratch cluster,
 run migrations, boot the API against it, run the smoke and
 `journal.chain-verify`, measure the time from "start" to "smoke ok".
+After the console restore, `scripts/ops/restore-drill.sh` checks the
+restored cluster (answers, migrations, row counts vs prod, newest data)
+and prints the row for this table. The daily self-check warns when the
+last drill is older than 100 days.
 
 | Date | Backup (time) | Target | RTO measured | RPO measured | Chain check | Issues / follow-ups | Run by |
 |---|---|---|---|---|---|---|---|

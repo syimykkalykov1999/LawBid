@@ -180,6 +180,10 @@ jobs:
           MIGRATE_PREV_REF: ${{ github.event.pull_request.base.sha }}
         run: node scripts/migrate-from-previous.mjs
 
+      - name: Migrations are expand/contract only (rolling deploy + rollback safe)
+        working-directory: apps/api
+        run: node scripts/check-migrations.mjs
+
       - name: ERD is up to date
         # docs/02_DATABASE.md §8 stage 2.7: docs/db/ERD.md is generated.
         run: npm run db:erd --workspace apps/api && git diff --exit-code -- docs/db/ERD.md

@@ -354,6 +354,20 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.admin_rate_limit_per_minute': 600,
 };
 
+/** Owner 2026-10-05: zero-maintenance operations (admin Система →
+ * Здоровье системы). Every automatic reaction has a switch, default on. */
+export const OWNER_OPS_SETTINGS = {
+  /** DB answers slower than ops.db_slow_ms → heavy background jobs pause
+   * for 15 minutes on their own (renewed while it stays slow). */
+  'ops.auto_pause_heavy_jobs': true,
+  'ops.db_slow_ms': 800,
+  /** AWS spend reached the monthly budget → api/worker autoscaling capped
+   * at the minimum until the next month (or until the owner lifts it). */
+  'ops.auto_scale_down_on_budget': true,
+  /** The newest CockroachDB Cloud backup older than this → alert. */
+  'ops.backup_max_age_hours': 26,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -378,6 +392,7 @@ export const APP_SETTINGS = {
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
+  ...OWNER_OPS_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
