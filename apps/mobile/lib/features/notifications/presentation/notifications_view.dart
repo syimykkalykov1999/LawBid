@@ -163,6 +163,12 @@ String? notificationRoute({
       return TeamRoutes.team;
     case 'assistant_task' || 'assistant_result':
       return AppRoutes.mine;
+    // Owner 2026-10-05: the planner — a reminder or a task given to me
+    // opens the planner; "removed soon" opens the archive.
+    case 'task_reminder' || 'task_assigned':
+      return AppRoutes.mine;
+    case 'task_purge_soon':
+      return TeamRoutes.tasksArchive;
   }
   return null;
 }
@@ -257,6 +263,13 @@ String notificationText(Translator t, AppNotification n) {
       if (body is String) body,
     ].join(' — ');
   }
+  // Owner 2026-10-05: "N finished tasks will be removed in D days".
+  if (n.type == 'task_purge_soon') {
+    return t.t('notif.list.task_purge_soon', {
+      'count': '${n.payload['count'] ?? ''}',
+      'days': '${n.payload['days'] ?? ''}',
+    });
+  }
   // Audit 2026-10-02: a moderation notice shows the moderator's reason.
   if (n.type == 'moderation_notice') {
     final reason = n.payload['reason'];
@@ -313,7 +326,9 @@ IconData _icon(AppNotification n) => switch (n.type) {
         AppIcons.scheduleRounded,
       'case_payment_disputed' => AppIcons.errorOutlineRounded,
       'payout_account_status' => AppIcons.accountBalanceOutlined,
-      'assistant_task' => AppIcons.eventNoteRounded,
+      'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
+      'task_reminder' => AppIcons.notificationsActiveOutlined,
+      'task_purge_soon' => AppIcons.inventory2Outlined,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       _ => switch (n.category) {
           NotifCategory.bids => AppIcons.gavelRounded,

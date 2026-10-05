@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-126 tables.
+128 tables.
 
 ```mermaid
 erDiagram
@@ -876,21 +876,48 @@ erDiagram
     String id PK
     String attorney_id FK
     String created_by_membership_id FK "nullable"
+    String assignee_membership_id FK "nullable"
     enum_AttorneyTaskKind kind
     String title
     String notes "nullable"
     DateTime due_at "nullable"
-    String location "nullable"
     String case_id FK "nullable"
-    String contact_name "nullable"
-    String contact_phone "nullable"
-    String contact_email "nullable"
+    String conversation_id "nullable"
     enum_AttorneyTaskStatus status
+    enum_AttorneyTaskPriority priority
+    enum_AttorneyTaskRepeat repeat
+    DateTime repeat_until "nullable"
+    DateTime repeated_at "nullable"
+    Int remind_before_min "nullable"
+    DateTime remind_at "nullable"
+    DateTime reminded_at "nullable"
     String outcome_note "nullable"
     DateTime rescheduled_to "nullable"
     DateTime done_at "nullable"
+    DateTime archived_at "nullable"
+    Boolean keep_forever
+    Int purge_notice_days "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  attorney_task_places {
+    String id PK
+    String task_id FK
+    Int position
+    String label "nullable"
+    String address
+    DateTime created_at
+  }
+  attorney_task_people {
+    String id PK
+    String task_id FK
+    Int position
+    String user_id FK "nullable"
+    String role "nullable"
+    String name
+    String phone "nullable"
+    String email "nullable"
+    DateTime created_at
   }
   attorney_task_steps {
     String id PK
@@ -1741,7 +1768,11 @@ erDiagram
   assistant_requests }o--|| assistant_memberships : "membership_id"
   attorney_tasks }o--|| users : "attorney_id"
   attorney_tasks }o--o| assistant_memberships : "created_by_membership_id"
+  attorney_tasks }o--o| assistant_memberships : "assignee_membership_id"
   attorney_tasks }o--o| cases : "case_id"
+  attorney_task_places }o--|| attorney_tasks : "task_id"
+  attorney_task_people }o--|| attorney_tasks : "task_id"
+  attorney_task_people }o--o| users : "user_id"
   attorney_task_steps }o--|| attorney_tasks : "task_id"
   bid_drafts }o--|| users : "attorney_id"
   bid_drafts }o--|| cases : "case_id"

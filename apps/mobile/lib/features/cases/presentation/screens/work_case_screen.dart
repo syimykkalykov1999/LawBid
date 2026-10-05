@@ -24,6 +24,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -250,6 +251,8 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                   onOpenChat: () => _openChat(t),
                 ),
               ),
+              // Owner 2026-10-05: the planner's tasks on this case.
+              CaseTasksSection(caseId: c.id, caseTitle: c.title),
               if (c.ownBidId != null)
                 DetailSection(
                   title: t.t('cases.work.terms'),

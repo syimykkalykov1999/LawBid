@@ -130,6 +130,14 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.self_attestation_auto_approve': true,
 } as const;
 
+// Owner 2026-10-05: the planner's archive — finished tasks are kept this
+// many days (files with them), then removed automatically unless kept
+// forever; notices go out 30 and 7 days before. Off = never removed.
+export const OWNER_TASKS_SETTINGS = {
+  'tasks.archive_retention_days': 365,
+  'tasks.archive_auto_purge': true,
+} as const;
+
 // Future web client (a client form on lawbid.dev sharing this API): the
 // browser origins allowed to call the API cross-origin (CORS). Localhost
 // origins are added on top outside production (src/common/cors).
@@ -264,6 +272,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
