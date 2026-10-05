@@ -627,6 +627,62 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       .expect(200);
     expect(rejected.body.data.staffStatus).toBe('suspended');
     expect(rejected.body.data.attorney.verificationStatus).toBe('suspended');
+
+    // Owner: who approved whom stays on record. The clearance event keeps
+    // the admin, the IP and what they saw; a later suspension names them.
+    const clearedEvent = await prisma.attorneyTrustEvent.findFirstOrThrow({
+      where: { attorney_id: b.id, kind: 'staff_cleared' },
+    });
+    expect(clearedEvent.actor_id).toBe(admin.userId);
+    expect(clearedEvent.details).toMatchObject({
+      ip: expect.any(String) as unknown,
+      documentsSeen: [],
+      signals: expect.objectContaining({ selfAttested: true }) as unknown,
+    });
+    await api()
+      .post(`/api/v1/admin/trust/attorneys/${b.id}/reject`)
+      .set(admin.auth)
+      .send({ note: 'Complaint confirmed' })
+      .expect(200);
+    const suspendedEvent = await prisma.attorneyTrustEvent.findFirstOrThrow({
+      where: { attorney_id: b.id, kind: 'auto_suspended' },
+    });
+    expect(suspendedEvent.details).toMatchObject({ clearedBy: admin.userId });
+    const cardAfter = await api()
+      .get(`/api/v1/admin/trust/attorneys/${b.id}`)
+      .set(admin.auth)
+      .expect(200);
+    expect(cardAfter.body.data.staffClearedBy).toMatchObject({
+      id: admin.userId,
+    });
+
+    const decisions = await api()
+      .get('/api/v1/admin/trust/staff-decisions')
+      .set(admin.auth)
+      .expect(200);
+    const mine = (
+      decisions.body.data as {
+        admin: { id: string };
+        cleared: number;
+        rejected: number;
+        laterSuspended: number;
+        fastDecisions: number;
+      }[]
+    ).find((r) => r.admin.id === admin.userId);
+    expect(mine).toBeDefined();
+    expect(mine?.cleared).toBeGreaterThanOrEqual(2);
+    expect(mine?.rejected).toBeGreaterThanOrEqual(2);
+    expect(mine?.laterSuspended).toBeGreaterThanOrEqual(1);
+    // Everything here happened within seconds: flagged as fast.
+    expect(mine?.fastDecisions).toBeGreaterThanOrEqual(1);
+    const list = await api()
+      .get(`/api/v1/admin/trust/cleared-by?adminId=${admin.userId}`)
+      .set(admin.auth)
+      .expect(200);
+    const rowB = (
+      list.body.data as { attorney: { id: string }; suspendedAfter: boolean }[]
+    ).find((r) => r.attorney.id === b.id);
+    expect(rowB?.suspendedAfter).toBe(true);
   });
 
   it("settings: the owner's switches, stats; a support admin is refused", async () => {

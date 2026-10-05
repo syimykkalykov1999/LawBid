@@ -50,6 +50,8 @@ type Db = PrismaService | Prisma.TransactionClient;
 export interface TrustActor {
   type: (typeof TRUST_ACTOR)[keyof typeof TRUST_ACTOR];
   id?: string | null;
+  /** Admin actions: the request IP, kept on the decision record. */
+  ip?: string | null;
 }
 
 export interface TrustGate {
@@ -91,6 +93,7 @@ export interface TrustSnapshot {
   cleared: boolean;
   clearedBy: 'auto' | 'staff' | null;
   staffClearedAt: Date | null;
+  staffClearedBy: string | null;
   staffStatus: StaffStatus;
   /** Why the attorney sits in the staff queue (empty when not). */
   queueReasons: string[];
@@ -114,6 +117,38 @@ export interface TrustSnapshot {
   complaintsTotal: number;
   duplicateClaims: number;
   computedAt: Date;
+}
+
+export interface StaffDecisionRow {
+  adminId: string;
+  cleared: number;
+  uncleared: number;
+  rejected: number;
+  documentsRequested: number;
+  released: number;
+  /** Decisions that came under a minute after the previous one. */
+  fastDecisions: number;
+  medianSecondsBetween: number | null;
+  laterComplaints: number;
+  laterSuspended: number;
+  firstDecisionAt: Date;
+  lastDecisionAt: Date;
+  gaps: number[];
+}
+
+export interface ClearedByRow {
+  attorney: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    username: string;
+    verificationStatus: string;
+  };
+  level: number;
+  clearedAt: Date;
+  complaintsAfter: number;
+  suspendedAfter: boolean;
+  documentsSeen: string[];
 }
 
 export interface StripePerson {
@@ -956,6 +991,7 @@ export class AttorneyTrustService {
   ): Promise<TrustSnapshot | null> {
     return withTxRetry(this.prisma, async (tx) => {
       const trust = await this.ensureRow(tx, attorneyId);
+      const seen = await this.decisionContext(tx, attorneyId, trust);
       const now = new Date();
       await tx.attorneyTrust.update({
         where: { attorney_id: attorneyId },
@@ -976,8 +1012,11 @@ export class AttorneyTrustService {
             : {}),
         },
       });
+      // Owner 2026-10-05: the decision record — who, when, from where, what
+      // they saw — stays forever (no API deletes trust events).
       await this.event(tx, attorneyId, TRUST_EVENT.staffCleared, actor, {
         note,
+        ...seen,
       });
       await this.releaseIfHeldFor(tx, attorneyId, HOLD.nameMismatch, actor);
       await this.releaseIfHeldFor(tx, attorneyId, HOLD.duplicateClaim, actor);
@@ -1001,11 +1040,7 @@ export class AttorneyTrustService {
       await this.ensureRow(tx, attorneyId);
       await tx.attorneyTrust.update({
         where: { attorney_id: attorneyId },
-        data: {
-          staff_cleared_at: null,
-          staff_cleared_by: null,
-          staff_cleared_note: note,
-        },
+        data: { staff_cleared_at: null, staff_cleared_note: note },
       });
       await this.event(tx, attorneyId, TRUST_EVENT.staffUncleared, actor, {
         note,
@@ -1052,14 +1087,18 @@ export class AttorneyTrustService {
     note: string | null,
   ): Promise<TrustSnapshot | null> {
     return withTxRetry(this.prisma, async (tx) => {
-      await this.ensureRow(tx, attorneyId);
+      const trust = await this.ensureRow(tx, attorneyId);
+      const seen = await this.decisionContext(tx, attorneyId, trust);
+      // The clearance is withdrawn, but who gave it stays on the row and
+      // in the suspension event: the owner can see whose approval it was.
       await tx.attorneyTrust.update({
         where: { attorney_id: attorneyId },
-        data: { staff_cleared_at: null, staff_cleared_by: null },
+        data: { staff_cleared_at: null },
       });
       await this.autoSuspend(tx, attorneyId, actor, {
         note,
         reason: 'staff_reject',
+        ...seen,
       });
       return this.recompute(attorneyId, actor, tx);
     });
@@ -1232,6 +1271,7 @@ export class AttorneyTrustService {
       cleared,
       clearedBy: !cleared ? null : staffCleared ? 'staff' : 'auto',
       staffClearedAt: trust.staff_cleared_at,
+      staffClearedBy: trust.staff_cleared_by,
       staffStatus,
       queueReasons,
       documentsRequestedAt: trust.documents_requested_at,
@@ -1349,6 +1389,10 @@ export class AttorneyTrustService {
       where: { user_id: attorneyId },
       data: { verification_status: 'suspended' },
     });
+    const trustRow = await tx.attorneyTrust.findUnique({
+      where: { attorney_id: attorneyId },
+      select: { staff_cleared_by: true, staff_cleared_at: true },
+    });
     const results = await this.bidMachine.applyToActive(
       tx,
       { attorneyId },
@@ -1380,6 +1424,9 @@ export class AttorneyTrustService {
     await this.event(tx, attorneyId, TRUST_EVENT.autoSuspended, actor, {
       ...details,
       withdrawnBids: results.length,
+      // Owner 2026-10-05: a blocked attorney shows who approved them.
+      clearedBy: trustRow?.staff_cleared_by ?? null,
+      clearedAt: trustRow?.staff_cleared_at?.toISOString() ?? null,
     });
     await this.notifications.emit(
       {
@@ -1434,9 +1481,237 @@ export class AttorneyTrustService {
         to_level: toLevel,
         actor_type: actor.type,
         actor_id: actor.id ?? null,
-        details,
+        details: actor.ip ? { ...details, ip: actor.ip } : details,
       },
     });
+  }
+
+  /** What a verifier had in front of them when deciding: the documents on
+   * the open request, the automatic results, holds and the firm link. */
+  private async decisionContext(
+    db: Db,
+    attorneyId: string,
+    trust: NonNullable<ProfileRow['trust']>,
+  ): Promise<Prisma.InputJsonObject> {
+    const row = await db.attorneyProfile.findUnique({
+      where: { user_id: attorneyId },
+      select: PROFILE_SELECT,
+    });
+    if (!row) return {};
+    const signals = this.signalsOf({ ...row, trust });
+    const request = row.verification_requests[0];
+    return {
+      documentsSeen: request ? request.documents.map((d) => d.doc_type) : [],
+      requestId: request?.id ?? null,
+      signals: signals as unknown as Prisma.InputJsonObject,
+      registry: row.licenses.map((l) => ({
+        state: l.state_code,
+        flag: l.registry_flag,
+        result:
+          l.auto_check_result &&
+          typeof l.auto_check_result === 'object' &&
+          'result' in l.auto_check_result
+            ? ((l.auto_check_result as { result?: unknown }).result ?? null)
+            : null,
+      })) as unknown as Prisma.InputJsonArray,
+      holds: { payments: trust.payments_hold, bids: trust.bids_hold },
+      firmLink: trust.firm_link_status,
+      nameCheck: trust.name_check,
+      stripeBusinessType: trust.stripe_business_type,
+    };
+  }
+
+  /**
+   * Owner 2026-10-05: who approved whom. Per admin: decisions, how fast
+   * they come (gaps between a verifier's consecutive decisions; under a
+   * minute reads as "approving without looking"), and how many attorneys
+   * they cleared later drew a complaint or a suspension.
+   */
+  async staffDecisions(): Promise<StaffDecisionRow[]> {
+    const decisions = await this.prisma.attorneyTrustEvent.findMany({
+      where: {
+        actor_type: TRUST_ACTOR.admin,
+        kind: {
+          in: [
+            TRUST_EVENT.staffCleared,
+            TRUST_EVENT.staffUncleared,
+            TRUST_EVENT.documentsRequested,
+            TRUST_EVENT.autoSuspended,
+            TRUST_EVENT.release,
+          ],
+        },
+      },
+      orderBy: { created_at: 'asc' },
+      select: {
+        actor_id: true,
+        kind: true,
+        attorney_id: true,
+        created_at: true,
+      },
+    });
+    const byAdmin = new Map<string, StaffDecisionRow>();
+    const clearedAttorneys = new Map<string, Map<string, Date>>();
+    const lastAt = new Map<string, Date>();
+    for (const d of decisions) {
+      if (!d.actor_id) continue;
+      let row = byAdmin.get(d.actor_id);
+      if (!row) {
+        row = {
+          adminId: d.actor_id,
+          cleared: 0,
+          uncleared: 0,
+          rejected: 0,
+          documentsRequested: 0,
+          released: 0,
+          fastDecisions: 0,
+          medianSecondsBetween: null,
+          laterComplaints: 0,
+          laterSuspended: 0,
+          firstDecisionAt: d.created_at,
+          lastDecisionAt: d.created_at,
+          gaps: [],
+        };
+        byAdmin.set(d.actor_id, row);
+      }
+      switch (d.kind) {
+        case TRUST_EVENT.staffCleared:
+          row.cleared += 1;
+          if (!clearedAttorneys.has(d.actor_id))
+            clearedAttorneys.set(d.actor_id, new Map());
+          clearedAttorneys.get(d.actor_id)?.set(d.attorney_id, d.created_at);
+          break;
+        case TRUST_EVENT.staffUncleared:
+          row.uncleared += 1;
+          break;
+        case TRUST_EVENT.autoSuspended:
+          row.rejected += 1;
+          break;
+        case TRUST_EVENT.documentsRequested:
+          row.documentsRequested += 1;
+          break;
+        case TRUST_EVENT.release:
+          row.released += 1;
+          break;
+      }
+      const prev = lastAt.get(d.actor_id);
+      if (prev) {
+        const gap = (d.created_at.getTime() - prev.getTime()) / 1000;
+        // Only gaps inside one sitting count as "time per decision".
+        if (gap <= 3600) {
+          row.gaps.push(gap);
+          if (gap < 60) row.fastDecisions += 1;
+        }
+      }
+      lastAt.set(d.actor_id, d.created_at);
+      row.lastDecisionAt = d.created_at;
+    }
+    // What happened to the attorneys each admin cleared, after the clearance.
+    const everCleared = [...clearedAttorneys.values()].flatMap((m) => [
+      ...m.keys(),
+    ]);
+    const later = everCleared.length
+      ? await this.prisma.attorneyTrustEvent.findMany({
+          where: {
+            attorney_id: { in: [...new Set(everCleared)] },
+            kind: { in: [TRUST_EVENT.complaint, TRUST_EVENT.autoSuspended] },
+          },
+          select: { attorney_id: true, kind: true, created_at: true },
+        })
+      : [];
+    for (const [adminId, attorneys] of clearedAttorneys) {
+      const row = byAdmin.get(adminId);
+      if (!row) continue;
+      const complained = new Set<string>();
+      const suspended = new Set<string>();
+      for (const e of later) {
+        const clearedAt = attorneys.get(e.attorney_id);
+        if (!clearedAt || e.created_at <= clearedAt) continue;
+        if (e.kind === TRUST_EVENT.complaint) complained.add(e.attorney_id);
+        else suspended.add(e.attorney_id);
+      }
+      row.laterComplaints = complained.size;
+      row.laterSuspended = suspended.size;
+    }
+    for (const row of byAdmin.values()) {
+      if (row.gaps.length) {
+        const sorted = [...row.gaps].sort((a, b) => a - b);
+        row.medianSecondsBetween = Math.round(
+          sorted[Math.floor(sorted.length / 2)],
+        );
+      }
+    }
+    return [...byAdmin.values()].sort(
+      (a, b) => b.lastDecisionAt.getTime() - a.lastDecisionAt.getTime(),
+    );
+  }
+
+  /** Attorneys one admin cleared, with what happened to them since. */
+  async clearedBy(adminId: string): Promise<ClearedByRow[]> {
+    const events = await this.prisma.attorneyTrustEvent.findMany({
+      where: { kind: TRUST_EVENT.staffCleared, actor_id: adminId },
+      orderBy: { created_at: 'desc' },
+      select: { attorney_id: true, created_at: true, details: true },
+      take: 500,
+    });
+    if (events.length === 0) return [];
+    const ids = [...new Set(events.map((e) => e.attorney_id))];
+    const [profiles, later] = await Promise.all([
+      this.prisma.attorneyProfile.findMany({
+        where: { user_id: { in: ids } },
+        select: {
+          user_id: true,
+          username: true,
+          verification_status: true,
+          trust_level: true,
+          user: { select: { first_name: true, last_name: true } },
+        },
+      }),
+      this.prisma.attorneyTrustEvent.findMany({
+        where: {
+          attorney_id: { in: ids },
+          kind: { in: [TRUST_EVENT.complaint, TRUST_EVENT.autoSuspended] },
+        },
+        select: { attorney_id: true, kind: true, created_at: true },
+      }),
+    ]);
+    const byId = new Map(profiles.map((p) => [p.user_id, p]));
+    const seen = new Set<string>();
+    const out: ClearedByRow[] = [];
+    for (const e of events) {
+      if (seen.has(e.attorney_id)) continue;
+      seen.add(e.attorney_id);
+      const p = byId.get(e.attorney_id);
+      if (!p) continue;
+      const after = later.filter(
+        (l) => l.attorney_id === e.attorney_id && l.created_at > e.created_at,
+      );
+      out.push({
+        attorney: {
+          id: p.user_id,
+          firstName: p.user.first_name,
+          lastName: p.user.last_name,
+          username: p.username,
+          verificationStatus: p.verification_status,
+        },
+        level: p.trust_level,
+        clearedAt: e.created_at,
+        complaintsAfter: after.filter((l) => l.kind === TRUST_EVENT.complaint)
+          .length,
+        suspendedAfter: after.some((l) => l.kind === TRUST_EVENT.autoSuspended),
+        documentsSeen:
+          e.details &&
+          typeof e.details === 'object' &&
+          !Array.isArray(e.details) &&
+          Array.isArray(
+            (e.details as { documentsSeen?: unknown }).documentsSeen,
+          )
+            ? (e.details as { documentsSeen: unknown[] }).documentsSeen.filter(
+                (d): d is string => typeof d === 'string',
+              )
+            : [],
+      });
+    }
+    return out;
   }
 
   private async notify(

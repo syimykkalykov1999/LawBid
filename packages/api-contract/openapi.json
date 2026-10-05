@@ -50019,6 +50019,180 @@
         ]
       }
     },
+    "/admin/trust/staff-decisions": {
+      "get": {
+        "operationId": "staffDecisions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffDecisionStatsListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Who approved whom: decisions per admin, speed, what came after",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/cleared-by": {
+      "get": {
+        "operationId": "clearedBy",
+        "parameters": [
+          {
+            "name": "adminId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearedByItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Attorneys one admin cleared, and what happened since",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
     "/admin/trust/attorneys/{attorneyId}/clear": {
       "post": {
         "operationId": "clearTrust",
@@ -77327,6 +77501,33 @@
           "data"
         ]
       },
+      "StaffAdminDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role"
+        ]
+      },
       "TrustEventDto": {
         "type": "object",
         "properties": {
@@ -77412,6 +77613,16 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "staffClearedBy": {
+            "nullable": true,
+            "description": "Who pressed «Подтвердить» (stays after a suspension).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
           },
           "staffStatus": {
             "type": "string",
@@ -77528,6 +77739,7 @@
           "cleared",
           "clearedBy",
           "staffClearedAt",
+          "staffClearedBy",
           "staffStatus",
           "queueReasons",
           "missing",
@@ -77675,6 +77887,141 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TrustQueueItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffDecisionStatsDto": {
+        "type": "object",
+        "properties": {
+          "admin": {
+            "$ref": "#/components/schemas/StaffAdminDto"
+          },
+          "cleared": {
+            "type": "integer",
+            "description": "«Подтвердить» pressed."
+          },
+          "uncleared": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "integer",
+            "description": "«Отклонить» pressed."
+          },
+          "documentsRequested": {
+            "type": "integer"
+          },
+          "released": {
+            "type": "integer",
+            "description": "Holds lifted."
+          },
+          "fastDecisions": {
+            "type": "integer",
+            "description": "Decisions under a minute after the previous one."
+          },
+          "medianSecondsBetween": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Median seconds between consecutive decisions in a sitting."
+          },
+          "laterComplaints": {
+            "type": "integer",
+            "description": "Attorneys they cleared who drew a complaint afterwards."
+          },
+          "laterSuspended": {
+            "type": "integer",
+            "description": "Attorneys they cleared who were suspended afterwards."
+          },
+          "firstDecisionAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastDecisionAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "admin",
+          "cleared",
+          "uncleared",
+          "rejected",
+          "documentsRequested",
+          "released",
+          "fastDecisions",
+          "medianSecondsBetween",
+          "laterComplaints",
+          "laterSuspended",
+          "firstDecisionAt",
+          "lastDecisionAt"
+        ]
+      },
+      "StaffDecisionStatsListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffDecisionStatsDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ClearedByItemDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "clearedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "complaintsAfter": {
+            "type": "integer"
+          },
+          "suspendedAfter": {
+            "type": "boolean"
+          },
+          "documentsSeen": {
+            "description": "Document types on the request they saw.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "attorney",
+          "level",
+          "clearedAt",
+          "complaintsAfter",
+          "suspendedAfter",
+          "documentsSeen"
+        ]
+      },
+      "ClearedByItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClearedByItemDto"
             }
           },
           "meta": {

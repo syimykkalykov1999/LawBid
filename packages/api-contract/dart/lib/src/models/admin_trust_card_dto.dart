@@ -11,6 +11,7 @@ import 'admin_trust_card_dto_queue_reasons.dart';
 import 'admin_trust_card_dto_staff_status.dart';
 import 'firm_link_dto.dart';
 import 'registry_link_dto.dart';
+import 'staff_admin_dto.dart';
 import 'trust_event_dto.dart';
 import 'trust_gate_dto.dart';
 import 'trust_holds_dto.dart';
@@ -32,6 +33,7 @@ class AdminTrustCardDto {
     required this.cleared,
     required this.clearedBy,
     required this.staffClearedAt,
+    required this.staffClearedBy,
     required this.staffStatus,
     required this.queueReasons,
     required this.missing,
@@ -66,6 +68,9 @@ class AdminTrustCardDto {
   final bool cleared;
   final AdminTrustCardDtoClearedBy? clearedBy;
   final DateTime? staffClearedAt;
+
+  /// Who pressed «Подтвердить» (stays after a suspension).
+  final StaffAdminDto? staffClearedBy;
   final AdminTrustCardDtoStaffStatus staffStatus;
   final List<AdminTrustCardDtoQueueReasons> queueReasons;
   final List<AdminTrustCardDtoMissing> missing;

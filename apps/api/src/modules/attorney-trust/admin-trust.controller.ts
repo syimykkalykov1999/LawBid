@@ -14,6 +14,9 @@ import {
 import {
   AdminTrustCardDto,
   BulkTrustDto,
+  ClearedByItemDto,
+  ClearedByQueryDto,
+  StaffDecisionStatsDto,
   BulkTrustResultDto,
   DocumentRequestDto,
   RecomputeAllResultDto,
@@ -153,6 +156,26 @@ export class AdminTrustController {
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
   trustQueue(@Query() q: TrustQueueQueryDto): Promise<TrustQueueItemDto[]> {
     return this.admin.queue({ reason: q.reason ?? null, q: q.q ?? null });
+  }
+
+  @Get('staff-decisions')
+  @ApiOperation({
+    summary: 'Who approved whom: decisions per admin, speed, what came after',
+  })
+  @ApiEnvelopeResponse(StaffDecisionStatsDto, { isArray: true })
+  @ApiErrors({ 403: [E.FORBIDDEN] })
+  staffDecisions(): Promise<StaffDecisionStatsDto[]> {
+    return this.admin.staffDecisions();
+  }
+
+  @Get('cleared-by')
+  @ApiOperation({
+    summary: 'Attorneys one admin cleared, and what happened since',
+  })
+  @ApiEnvelopeResponse(ClearedByItemDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  clearedBy(@Query() q: ClearedByQueryDto): Promise<ClearedByItemDto[]> {
+    return this.admin.clearedBy(q.adminId);
   }
 
   @Post('attorneys/:attorneyId/clear')

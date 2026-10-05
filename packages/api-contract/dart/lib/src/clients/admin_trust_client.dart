@@ -8,9 +8,11 @@ import 'package:retrofit/retrofit.dart';
 import '../models/admin_trust_card_envelope.dart';
 import '../models/bulk_trust_dto.dart';
 import '../models/bulk_trust_result_envelope.dart';
+import '../models/cleared_by_item_list_envelope.dart';
 import '../models/document_request_dto.dart';
 import '../models/reason.dart';
 import '../models/recompute_all_result_envelope.dart';
+import '../models/staff_decision_stats_list_envelope.dart';
 import '../models/trust_hold_dto.dart';
 import '../models/trust_hold_list_item_list_envelope.dart';
 import '../models/trust_note_dto.dart';
@@ -94,6 +96,19 @@ abstract class AdminTrustClient {
   Future<TrustQueueItemListEnvelope> trustQueue({
     @Query('reason') Reason? reason,
     @Query('q') String? q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Who approved whom: decisions per admin, speed, what came after
+  @GET('/admin/trust/staff-decisions')
+  Future<StaffDecisionStatsListEnvelope> staffDecisions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorneys one admin cleared, and what happened since
+  @GET('/admin/trust/cleared-by')
+  Future<ClearedByItemListEnvelope> clearedBy({
+    @Query('adminId') required String adminId,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -15,6 +15,9 @@ import type { TrustSnapshot } from './attorney-trust.service';
 import type {
   AdminTrustCardDto,
   BulkTrustDto,
+  ClearedByItemDto,
+  StaffAdminDto,
+  StaffDecisionStatsDto,
   BulkTrustResultDto,
   DocumentRequestDto,
   RecomputeAllResultDto,
@@ -479,6 +482,11 @@ export class AdminTrustService {
       cleared: snap.cleared,
       clearedBy: snap.clearedBy,
       staffClearedAt: snap.staffClearedAt?.toISOString() ?? null,
+      staffClearedBy: snap.staffClearedBy
+        ? ((await this.admins([snap.staffClearedBy])).get(
+            snap.staffClearedBy,
+          ) ?? null)
+        : null,
       staffStatus: snap.staffStatus,
       queueReasons: snap.queueReasons,
       missing: snap.missing,
@@ -663,6 +671,70 @@ export class AdminTrustService {
     return result;
   }
 
+  /** Owner 2026-10-05: who approved whom, per admin. */
+  async staffDecisions(): Promise<StaffDecisionStatsDto[]> {
+    const rows = await this.trust.staffDecisions();
+    const admins = await this.admins(rows.map((r) => r.adminId));
+    return rows.map((r) => ({
+      admin: admins.get(r.adminId) ?? {
+        id: r.adminId,
+        name: null,
+        email: null,
+        role: null,
+      },
+      cleared: r.cleared,
+      uncleared: r.uncleared,
+      rejected: r.rejected,
+      documentsRequested: r.documentsRequested,
+      released: r.released,
+      fastDecisions: r.fastDecisions,
+      medianSecondsBetween: r.medianSecondsBetween,
+      laterComplaints: r.laterComplaints,
+      laterSuspended: r.laterSuspended,
+      firstDecisionAt: r.firstDecisionAt.toISOString(),
+      lastDecisionAt: r.lastDecisionAt.toISOString(),
+    }));
+  }
+
+  /** The attorneys one admin cleared («кто одобрил» filter). */
+  async clearedBy(adminId: string): Promise<ClearedByItemDto[]> {
+    const rows = await this.trust.clearedBy(adminId);
+    return rows.map((r) => ({
+      attorney: r.attorney,
+      level: r.level,
+      clearedAt: r.clearedAt.toISOString(),
+      complaintsAfter: r.complaintsAfter,
+      suspendedAfter: r.suspendedAfter,
+      documentsSeen: r.documentsSeen,
+    }));
+  }
+
+  private async admins(ids: string[]): Promise<Map<string, StaffAdminDto>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique } },
+      select: {
+        id: true,
+        email: true,
+        first_name: true,
+        last_name: true,
+        admin_profile: { select: { admin_role: true } },
+      },
+    });
+    return new Map(
+      users.map((u) => [
+        u.id,
+        {
+          id: u.id,
+          name: [u.first_name, u.last_name].filter(Boolean).join(' ') || null,
+          email: u.email,
+          role: u.admin_profile?.admin_role ?? null,
+        },
+      ]),
+    );
+  }
+
   private async exists(attorneyId: string): Promise<void> {
     const row = await this.prisma.attorneyProfile.findUnique({
       where: { user_id: attorneyId },
@@ -692,7 +764,7 @@ export class AdminTrustService {
 }
 
 function actorOf(admin: AdminActor): TrustActor {
-  return { type: TRUST_ACTOR.admin, id: admin.id };
+  return { type: TRUST_ACTOR.admin, id: admin.id, ip: admin.ip };
 }
 
 function attorneyNotFound(): NotFoundException {

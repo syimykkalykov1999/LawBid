@@ -364,6 +364,13 @@ export class AdminTrustCardDto {
   staffClearedAt!: string | null;
 
   @ApiProperty({
+    type: () => StaffAdminDto,
+    nullable: true,
+    description: 'Who pressed «Подтвердить» (stays after a suspension).',
+  })
+  staffClearedBy!: StaffAdminDto | null;
+
+  @ApiProperty({
     type: String,
     enum: ['self_declared', 'needs_staff', 'cleared', 'suspended'],
   })
@@ -496,6 +503,101 @@ export class TrustStatsDto {
     description: 'Waiting for a person in the staff queue.',
   })
   inQueue!: number;
+}
+
+export class StaffAdminDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  name!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  email!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  role!: string | null;
+}
+
+/** Owner 2026-10-05: who approved whom — one row per admin. */
+export class StaffDecisionStatsDto {
+  @ApiProperty({ type: StaffAdminDto })
+  admin!: StaffAdminDto;
+
+  @ApiProperty({ type: 'integer', description: '«Подтвердить» pressed.' })
+  cleared!: number;
+
+  @ApiProperty({ type: 'integer' })
+  uncleared!: number;
+
+  @ApiProperty({ type: 'integer', description: '«Отклонить» pressed.' })
+  rejected!: number;
+
+  @ApiProperty({ type: 'integer' })
+  documentsRequested!: number;
+
+  @ApiProperty({ type: 'integer', description: 'Holds lifted.' })
+  released!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Decisions under a minute after the previous one.',
+  })
+  fastDecisions!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Median seconds between consecutive decisions in a sitting.',
+  })
+  medianSecondsBetween!: number | null;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Attorneys they cleared who drew a complaint afterwards.',
+  })
+  laterComplaints!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Attorneys they cleared who were suspended afterwards.',
+  })
+  laterSuspended!: number;
+
+  @ApiProperty({ format: 'date-time' })
+  firstDecisionAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  lastDecisionAt!: string;
+}
+
+export class ClearedByItemDto {
+  @ApiProperty({ type: AdminTrustAttorneyDto })
+  attorney!: AdminTrustAttorneyDto;
+
+  @ApiProperty({ type: 'integer' })
+  level!: number;
+
+  @ApiProperty({ format: 'date-time' })
+  clearedAt!: string;
+
+  @ApiProperty({ type: 'integer' })
+  complaintsAfter!: number;
+
+  @ApiProperty()
+  suspendedAfter!: boolean;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Document types on the request they saw.',
+  })
+  documentsSeen!: string[];
+}
+
+export class ClearedByQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  adminId!: string;
 }
 
 /** One row of the staff queue («Борьба с мошенниками»). */
