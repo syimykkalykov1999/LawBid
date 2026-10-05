@@ -1,0 +1,4 @@
+# False positives: practice-area i18n keys in an e2e fixture
+# ("i18n_key: 'practice.…'"), not secrets.
+05479892b7eb225b40b2c3a10eb163f3d4eb0577:apps/api/test/owner-case-invites.e2e-spec.ts:generic-api-key:63
+05479892b7eb225b40b2c3a10eb163f3d4eb0577:apps/api/test/owner-case-invites.e2e-spec.ts:generic-api-key:74
