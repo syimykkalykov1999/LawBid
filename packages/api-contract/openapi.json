@@ -9172,7 +9172,7 @@
             }
           },
           "400": {
-            "description": "Bad request: VALIDATION_ERROR, FILE_TYPE_NOT_ALLOWED, FILE_TOO_LARGE",
+            "description": "Bad request: VALIDATION_ERROR, FILE_TYPE_NOT_ALLOWED, FILE_TOO_LARGE, STORAGE_QUOTA_EXCEEDED",
             "content": {
               "application/json": {
                 "schema": {
@@ -39656,6 +39656,374 @@
         ]
       }
     },
+    "/admin/storage": {
+      "get": {
+        "operationId": "getStorageOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Storage: usage, savings, growth, settings",
+        "tags": [
+          "admin-storage"
+        ]
+      }
+    },
+    "/admin/storage/settings": {
+      "put": {
+        "operationId": "updateStorageSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStorageSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change the storage switches and limits",
+        "tags": [
+          "admin-storage"
+        ]
+      }
+    },
+    "/admin/storage/cleanup": {
+      "post": {
+        "operationId": "runStorageCleanup",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageCleanupResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Run the cleanup now (unused files, abandoned uploads)",
+        "tags": [
+          "admin-storage"
+        ]
+      }
+    },
+    "/admin/storage/users/{id}/quota": {
+      "put": {
+        "operationId": "setUserStorageQuota",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserStorageQuotaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStorageQuotaEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set or clear one user's storage cap",
+        "tags": [
+          "admin-storage"
+        ]
+      }
+    },
     "/admin/rewards/settings": {
       "get": {
         "operationId": "getRewardsSettings",
@@ -58603,7 +58971,7 @@
             }
           },
           "400": {
-            "description": "Bad request: VALIDATION_ERROR, MESSAGE_TOO_LONG",
+            "description": "Bad request: VALIDATION_ERROR, MESSAGE_TOO_LONG, CHAT_STORAGE_FULL",
             "content": {
               "application/json": {
                 "schema": {
@@ -58689,6 +59057,93 @@
           }
         ],
         "summary": "Send, idempotent on clientMessageId (§8.4)",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/conversations/{id}/storage": {
+      "get": {
+        "operationId": "getConversationStorage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatStorageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Files in this chat: how many of each kind, bytes, the cap",
         "tags": [
           "chat"
         ]
@@ -66411,6 +66866,8 @@
           "FILE_NOT_UPLOADED",
           "FILE_NOT_ATTACHABLE",
           "FILE_STORAGE_UNAVAILABLE",
+          "STORAGE_QUOTA_EXCEEDED",
+          "CHAT_STORAGE_FULL",
           "VERIFICATION_ALREADY_PENDING",
           "VERIFICATION_SUBMISSION_LIMIT",
           "VERIFICATION_INVALID_STATUS",
@@ -87869,6 +88326,499 @@
           "data"
         ]
       },
+      "StoragePurposeUsageDto": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "purpose",
+          "count",
+          "bytes"
+        ]
+      },
+      "StorageTableUsageDto": {
+        "type": "object",
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "number"
+          },
+          "bytes": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "table",
+          "rows",
+          "bytes"
+        ]
+      },
+      "StorageUserUsageDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "bytes": {
+            "type": "number"
+          },
+          "count": {
+            "type": "number"
+          },
+          "quotaMb": {
+            "type": "number",
+            "nullable": true,
+            "description": "Personal cap in MB; null = the default."
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "email",
+          "bytes",
+          "count",
+          "quotaMb"
+        ]
+      },
+      "StorageHistoryPointDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "example": "2026-10-05"
+          },
+          "filesBytes": {
+            "type": "number"
+          },
+          "storedBytes": {
+            "type": "number"
+          },
+          "dbBytes": {
+            "type": "number"
+          },
+          "filesCount": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "filesBytes",
+          "storedBytes",
+          "dbBytes",
+          "filesCount"
+        ]
+      },
+      "StorageLastCleanupDto": {
+        "type": "object",
+        "properties": {
+          "pendingUploadsRemoved": {
+            "type": "number"
+          },
+          "orphansFound": {
+            "type": "number"
+          },
+          "deletedPostMedia": {
+            "type": "number"
+          },
+          "restored": {
+            "type": "number"
+          },
+          "objectsRemoved": {
+            "type": "number"
+          },
+          "rowsRemoved": {
+            "type": "number"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "pendingUploadsRemoved",
+          "orphansFound",
+          "deletedPostMedia",
+          "restored",
+          "objectsRemoved",
+          "rowsRemoved",
+          "at"
+        ]
+      },
+      "StorageImageFormat": {
+        "type": "string",
+        "enum": [
+          "webp",
+          "jpeg"
+        ]
+      },
+      "StorageSettingsDto": {
+        "type": "object",
+        "properties": {
+          "dedup": {
+            "type": "boolean",
+            "description": "Identical uploads share one stored copy."
+          },
+          "autoCleanup": {
+            "type": "boolean",
+            "description": "Files nobody uses are removed by themselves."
+          },
+          "orphanGraceHours": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 720
+          },
+          "purgeAfterDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 90
+          },
+          "deletedPostsMediaDays": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "imageFormat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StorageImageFormat"
+              }
+            ]
+          },
+          "userQuotaMb": {
+            "type": "number",
+            "description": "MB per user; 0 = no cap."
+          },
+          "chatQuotaMb": {
+            "type": "number",
+            "description": "MB of files per chat; 0 = no cap."
+          },
+          "autoRetention": {
+            "type": "boolean",
+            "description": "Old technical logs are removed nightly."
+          },
+          "retentionAuthEventsDays": {
+            "type": "number",
+            "description": "Days; 0 = keep forever."
+          },
+          "retentionAssistantActivityDays": {
+            "type": "number",
+            "description": "Days; 0 = keep forever."
+          },
+          "notificationsRetentionDays": {
+            "type": "number",
+            "description": "Days a notification is kept."
+          },
+          "growthAlertPercent": {
+            "type": "number",
+            "description": "Alert when storage grows this % in a day."
+          }
+        },
+        "required": [
+          "dedup",
+          "autoCleanup",
+          "orphanGraceHours",
+          "purgeAfterDays",
+          "deletedPostsMediaDays",
+          "imageFormat",
+          "userQuotaMb",
+          "chatQuotaMb",
+          "autoRetention",
+          "retentionAuthEventsDays",
+          "retentionAssistantActivityDays",
+          "notificationsRetentionDays",
+          "growthAlertPercent"
+        ]
+      },
+      "StorageOverviewDto": {
+        "type": "object",
+        "properties": {
+          "filesBytes": {
+            "type": "number",
+            "description": "Live files as users see them."
+          },
+          "filesCount": {
+            "type": "number"
+          },
+          "storedBytes": {
+            "type": "number",
+            "description": "What S3 keeps (shared copies once)."
+          },
+          "dedupSavedBytes": {
+            "type": "number",
+            "description": "filesBytes − storedBytes."
+          },
+          "pendingRemovalCount": {
+            "type": "number"
+          },
+          "pendingRemovalBytes": {
+            "type": "number"
+          },
+          "byPurpose": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StoragePurposeUsageDto"
+            }
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageTableUsageDto"
+            }
+          },
+          "topUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageUserUsageDto"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageHistoryPointDto"
+            }
+          },
+          "lastCleanup": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StorageLastCleanupDto"
+              }
+            ]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/StorageSettingsDto"
+          }
+        },
+        "required": [
+          "filesBytes",
+          "filesCount",
+          "storedBytes",
+          "dedupSavedBytes",
+          "pendingRemovalCount",
+          "pendingRemovalBytes",
+          "byPurpose",
+          "tables",
+          "topUsers",
+          "history",
+          "lastCleanup",
+          "settings"
+        ]
+      },
+      "StorageOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StorageOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateStorageSettingsDto": {
+        "type": "object",
+        "properties": {
+          "dedup": {
+            "type": "boolean"
+          },
+          "autoCleanup": {
+            "type": "boolean"
+          },
+          "orphanGraceHours": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 720
+          },
+          "purgeAfterDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 90
+          },
+          "deletedPostsMediaDays": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "imageFormat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StorageImageFormat"
+              }
+            ]
+          },
+          "userQuotaMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1048576
+          },
+          "chatQuotaMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1048576
+          },
+          "autoRetention": {
+            "type": "boolean"
+          },
+          "retentionAuthEventsDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3650
+          },
+          "retentionAssistantActivityDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3650
+          },
+          "notificationsRetentionDays": {
+            "type": "number",
+            "minimum": 7,
+            "maximum": 3650
+          },
+          "growthAlertPercent": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        }
+      },
+      "StorageSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StorageSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StorageCleanupResultDto": {
+        "type": "object",
+        "properties": {
+          "pendingUploadsRemoved": {
+            "type": "number"
+          },
+          "orphansFound": {
+            "type": "number"
+          },
+          "deletedPostMedia": {
+            "type": "number"
+          },
+          "restored": {
+            "type": "number"
+          },
+          "objectsRemoved": {
+            "type": "number"
+          },
+          "rowsRemoved": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "pendingUploadsRemoved",
+          "orphansFound",
+          "deletedPostMedia",
+          "restored",
+          "objectsRemoved",
+          "rowsRemoved"
+        ]
+      },
+      "StorageCleanupResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StorageCleanupResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UserStorageQuotaDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quotaMb": {
+            "type": "number",
+            "nullable": true
+          },
+          "usedBytes": {
+            "type": "number"
+          },
+          "quotaBytes": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "userId",
+          "quotaMb",
+          "usedBytes",
+          "quotaBytes"
+        ]
+      },
+      "SetUserStorageQuotaDto": {
+        "type": "object",
+        "properties": {
+          "quotaMb": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 1048576,
+            "description": "MB; 0 = no cap, null = back to the default."
+          }
+        },
+        "required": [
+          "quotaMb"
+        ]
+      },
+      "UserStorageQuotaEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UserStorageQuotaDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "RewardDepartmentSettingsDto": {
         "type": "object",
         "properties": {
@@ -97540,6 +98490,50 @@
             "items": {
               "$ref": "#/components/schemas/MessageDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ChatStorageDto": {
+        "type": "object",
+        "properties": {
+          "photos": {
+            "type": "number"
+          },
+          "documents": {
+            "type": "number"
+          },
+          "voice": {
+            "type": "number"
+          },
+          "usedBytes": {
+            "type": "number",
+            "description": "Bytes of every file sent in the chat."
+          },
+          "quotaBytes": {
+            "type": "number",
+            "nullable": true,
+            "description": "The per-chat cap in bytes; null = no cap."
+          }
+        },
+        "required": [
+          "photos",
+          "documents",
+          "voice",
+          "usedBytes",
+          "quotaBytes"
+        ]
+      },
+      "ChatStorageEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChatStorageDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
