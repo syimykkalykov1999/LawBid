@@ -490,7 +490,7 @@ class _Medallion extends StatelessWidget {
             url: actor!.avatarUrl,
             initials: actor.displayName.isEmpty
                 ? '?'
-                : actor.displayName.substring(0, 1).toUpperCase(),
+                : avatarInitials(actor.displayName),
             size: 40,
           ),
           PositionedDirectional(
