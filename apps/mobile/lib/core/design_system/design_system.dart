@@ -46,4 +46,5 @@ export 'widgets/lists/app_paginated_list_view.dart';
 export 'widgets/motion/app_entrance.dart';
 export 'widgets/motion/app_pressable.dart';
 export 'widgets/motion/app_tap_target.dart';
+export 'widgets/text/fit_text.dart';
 export 'widgets/text/legal_text.dart';

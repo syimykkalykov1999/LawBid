@@ -1066,10 +1066,10 @@ class _QuietButton extends StatelessWidget {
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
-        // minHeight (not height): a long translation wraps to a 2nd line
-        // instead of being scaled down to an unreadable size.
+        // Fixed height; a long translation shrinks to fit (owner
+        // 2026-10-05: buttons keep their size and place).
         child: Container(
-          constraints: const BoxConstraints(minHeight: height),
+          height: height,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: colors.surface,
@@ -1089,11 +1089,9 @@ class _QuietButton extends StatelessWidget {
                     horizontal: AppSpacing.sm,
                     vertical: AppSpacing.xs,
                   ),
-                  child: Text(
+                  child: FitText(
                     label,
                     textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                     style: typography.button
                         .copyWith(fontSize: 14, color: colors.text),
                   ),

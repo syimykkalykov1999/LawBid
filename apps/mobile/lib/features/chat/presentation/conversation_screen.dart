@@ -926,25 +926,32 @@ class _Bubble extends ConsumerWidget {
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ),
-          // A Wrap: in long languages the two buttons move to a new line.
+          // One row; in long languages the labels shrink instead of moving.
           if (failed)
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  t.t('chat.notSent'),
-                  style: type.caption.copyWith(color: colors.danger),
+                Flexible(
+                  child: FitText(
+                    t.t('chat.notSent'),
+                    style: type.caption.copyWith(color: colors.danger),
+                  ),
                 ),
-                TextButton(
-                  onPressed: () =>
-                      ref.read(chatThreadProvider(threadId).notifier).retry(m),
-                  child: Text(t.t('error.retry')),
+                Flexible(
+                  child: TextButton(
+                    onPressed: () => ref
+                        .read(chatThreadProvider(threadId).notifier)
+                        .retry(m),
+                    child: FitText(t.t('error.retry')),
+                  ),
                 ),
-                TextButton(
-                  onPressed: () => ref
-                      .read(chatThreadProvider(threadId).notifier)
-                      .discard(m),
-                  child: Text(t.t('chat.discard')),
+                Flexible(
+                  child: TextButton(
+                    onPressed: () => ref
+                        .read(chatThreadProvider(threadId).notifier)
+                        .discard(m),
+                    child: FitText(t.t('chat.discard')),
+                  ),
                 ),
               ],
             ),

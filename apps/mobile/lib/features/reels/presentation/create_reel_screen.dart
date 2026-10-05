@@ -204,10 +204,8 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                 children: [
                   AppIcon(icon, color: colors.goldDark, size: 28),
                   const SizedBox(height: AppSpacing.sm),
-                  Text(
+                  FitText(
                     label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: type.body.copyWith(color: colors.text),
                   ),
