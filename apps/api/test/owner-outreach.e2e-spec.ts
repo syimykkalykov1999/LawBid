@@ -324,8 +324,19 @@ describe('Outreach (e2e)', () => {
       .send({ templateId })
       .expect(409);
 
-    // Daily budget: the employee emails Anna (takes the unassigned lead);
-    // the third email of the day is refused.
+    // Daily budget: the owner hands Anna to the employee, who emails her;
+    // the third email of the day is refused. (Employees reach only their
+    // own leads: an unassigned one is 404 for them, see above.)
+    await api()
+      .post(`/api/v1/admin/outreach/leads/${anna.id}/email`)
+      .set(emp.auth)
+      .send({ templateId })
+      .expect(404);
+    await api()
+      .post('/api/v1/admin/outreach/leads/assign')
+      .set(owner.auth)
+      .send({ leadIds: [anna.id], partnerId })
+      .expect(200);
     await api()
       .post(`/api/v1/admin/outreach/leads/${anna.id}/email`)
       .set(emp.auth)
