@@ -197,6 +197,8 @@ export class BidAcceptanceService {
       acceptedBidId: bidId,
       now,
     });
+    // OQ-048: assistants' bid drafts for this case can't be sent now.
+    await tx.bidDraft.deleteMany({ where: { case_id: caseId } });
     // §7 step 5: every other active bid → rejected_auto, its pending
     // offer → superseded.
     const rejected = await this.bidMachine.applyToActive(
@@ -393,6 +395,19 @@ export class BidAcceptanceService {
           type: 'bid_rejected',
           recipientId: ref.case.client_id,
           payload: { caseId: ref.case_id, bidId, reason: 'withdrawn' },
+        },
+        tx,
+      );
+      // ...and the attorney, so the bid doesn't just vanish.
+      await this.notifications.emit(
+        {
+          type: 'bid_rejected',
+          recipientId: ref.attorney_id,
+          payload: {
+            caseId: ref.case_id,
+            bidId,
+            reason: WITHDRAW_REASON_ATTORNEY_INACTIVE,
+          },
         },
         tx,
       );

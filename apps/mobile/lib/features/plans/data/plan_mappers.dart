@@ -18,6 +18,7 @@ abstract final class PlanMappers {
           prioritySearch: d.prioritySearch,
           calls: d.calls,
           videoCalls: d.videoCalls,
+          documentTemplates: d.documentTemplates,
           chatTranslate: d.chatTranslate,
           translationsPerDay: d.translationsPerDay,
           videoPosts: d.videoPosts,

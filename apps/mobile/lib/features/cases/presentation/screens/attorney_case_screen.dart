@@ -58,6 +58,7 @@ class AttorneyCaseScreen extends ConsumerStatefulWidget {
 class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   bool _messaging = false;
   bool? _savedOverride;
+  bool _openedWork = false;
 
   @override
   void initState() {
@@ -122,6 +123,22 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
     }
   }
 
+  /// Audit 2026-10-04: once the case left "open" with THIS attorney's
+  /// bid accepted, the work screen (chat, completion, dispute) is the
+  /// right place — the feed view would be a dead end.
+  void _openWorkIfMine(FeedCase? c) {
+    if (_openedWork ||
+        c == null ||
+        c.status == CaseStatus.open ||
+        !c.acceptedBidIsMine) {
+      return;
+    }
+    _openedWork = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.replace(AppRoutes.workCase(c.id));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -130,6 +147,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
     final value = ref.watch(attorneyCaseProvider(widget.caseId));
     final c = value.value;
     final saved = _savedOverride ?? c?.isSaved ?? false;
+    _openWorkIfMine(c);
 
     return Scaffold(
       backgroundColor: colors.bg,

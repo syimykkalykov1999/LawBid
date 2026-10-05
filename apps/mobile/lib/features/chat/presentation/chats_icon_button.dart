@@ -16,13 +16,14 @@ class ChatsIconButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Audit 2026-10-02: assistants without "chats" have no inbox to open.
-    if (!ref.watch(canDoProvider(AssistantDuty.chats))) {
-      return const SizedBox.shrink();
-    }
+    // Audit 2026-10-04: assistants without "chats" get the bell — the
+    // Inbox opened on its notifications.
+    final chats = ref.watch(canDoProvider(AssistantDuty.chats));
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final total = ref.watch(badgesProvider.select((b) => b.total));
+    final total = ref.watch(
+      badgesProvider.select((b) => chats ? b.total : b.notifications),
+    );
     return Semantics(
       button: true,
       label: total > 0
@@ -31,7 +32,11 @@ class ChatsIconButton extends ConsumerWidget {
       excludeSemantics: true,
       child: AppTapTarget(
         child: AppPressable(
-          onTap: () => context.push(ChatRoutes.inbox),
+          onTap: () => context.push(
+            chats
+                ? ChatRoutes.inbox
+                : ChatRoutes.inboxTab(InboxTab.notifications),
+          ),
           child: SizedBox.square(
             dimension: AppSizes.touchTarget,
             child: Stack(
@@ -39,7 +44,9 @@ class ChatsIconButton extends ConsumerWidget {
               alignment: Alignment.center,
               children: [
                 AppIcon(
-                  AppIcons.forumOutlined,
+                  chats
+                      ? AppIcons.forumOutlined
+                      : AppIcons.notificationsNoneRounded,
                   color: colors.text,
                   size: AppSizes.iconMd,
                 ),

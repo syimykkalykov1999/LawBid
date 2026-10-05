@@ -22,6 +22,7 @@ ConversationDto _$ConversationDtoFromJson(
   kind: ConversationKind.fromJson(json['kind'] as String),
   requestStatus: MessageRequestStatus.fromJson(json['requestStatus'] as String),
   requestedByMe: json['requestedByMe'] as bool,
+  blocked: json['blocked'] as bool,
   caseId: json['caseId'] as String?,
   caseTitle: json['caseTitle'] as String?,
   lastMessage: json['lastMessage'] == null
@@ -65,4 +66,5 @@ Map<String, dynamic> _$ConversationDtoToJson(ConversationDto instance) =>
       'kind': instance.kind.toJson(),
       'requestStatus': instance.requestStatus.toJson(),
       'requestedByMe': instance.requestedByMe,
+      'blocked': instance.blocked,
     };

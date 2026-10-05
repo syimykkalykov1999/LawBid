@@ -19,6 +19,7 @@ import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/assistant_activity_list.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
@@ -39,6 +40,11 @@ String? notificationRoute({
     case 'new_message' || 'missed_call' || 'incoming_call':
       final c = s('conversationId');
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);
+    // Audit 2026-10-04: the hired attorney lands on the work card, not on
+    // the bid / public case card (which loop into each other).
+    case 'offer_accepted' || 'bid_accepted'
+        when attorney && caseId != null:
+      return AppRoutes.workCase(caseId);
     case 'bid_received' ||
           'offer_countered' ||
           'offer_accepted' ||
@@ -48,9 +54,15 @@ String? notificationRoute({
       if (bidId != null) return AppRoutes.bid(bidId);
       if (caseId == null) return null;
       return attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId);
-    case 'case_updated' ||
-          'case_stale_prompt' ||
-          'case_archived' ||
+    // Audit 2026-10-04: updates of a case go to its card; the work card is
+    // only for completion / closing.
+    case 'case_updated' || 'case_archived':
+      if (caseId == null) return null;
+      return attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId);
+    case 'case_disputed' || 'dispute_resolved':
+      if (caseId == null) return null;
+      return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
+    case 'case_stale_prompt' ||
           'completion_requested' ||
           'completion_reminder' ||
           'case_closed' ||
@@ -69,6 +81,12 @@ String? notificationRoute({
       return postId == null ? null : SocialRoutes.post(postId);
     case 'new_case':
       return caseId == null ? null : AppRoutes.caseDetail(caseId);
+    // Audit 2026-10-04: the attorney answered the client's review.
+    case 'review_received'
+        when _flag(payload['reply']) &&
+            !_flag(payload['clientReview']) &&
+            (s('actorUsername') ?? actorUsername) != null:
+      return AppRoutes.lawyer((s('actorUsername') ?? actorUsername)!);
     case 'review_received':
       return AppRoutes.profile;
     case 'new_follower':
@@ -113,13 +131,18 @@ String? notificationRoute({
     case 'security_new_device' || 'security_phone_changed':
       return AppRoutes.activeDevices;
     // OQ-048: Team requests → Inbox → Team; tasks / answers → Mine.
-    case 'assistant_request' || 'assistant_joined':
+    case 'assistant_request':
       return ChatRoutes.inboxTab(InboxTab.team);
+    case 'assistant_joined':
+      return TeamRoutes.team;
     case 'assistant_task' || 'assistant_result':
       return AppRoutes.mine;
   }
   return null;
 }
+
+/// A payload flag; push data carries every value as a string.
+bool _flag(Object? v) => v == true || v == 'true';
 
 /// The row text: the `notif.list.<type>` template with the actor's name
 /// and, for aggregated rows, "and N more" (§9.4).
@@ -138,6 +161,13 @@ String notificationText(Translator t, AppNotification n) {
               : st == 'rejected'
                   ? 'notif.list.cbadge.rejected'
                   : 'notif.list.cbadge.off',
+    );
+  }
+  if (n.type == 'review_received' && _flag(n.payload['reply'])) {
+    return t.t(
+      _flag(n.payload['clientReview'])
+          ? 'notif.list.client_review_reply'
+          : 'notif.list.review_reply',
     );
   }
   if (n.type == 'subscription_status') {
@@ -217,10 +247,14 @@ IconData _icon(AppNotification n) => switch (n.type) {
 /// неделе", "Раньше"; a gold dot marks unread; a tap opens the target and
 /// marks the row read.
 class NotificationsView extends ConsumerStatefulWidget {
-  const NotificationsView({this.trailing, super.key});
+  const NotificationsView({this.trailing, this.onInboxTab, super.key});
 
   /// Actions at the right of the filter line (mark all read, settings).
   final Widget? trailing;
+
+  /// Shown inside the Inbox: a target that is an Inbox tab switches to it
+  /// instead of pushing a second Inbox.
+  final ValueChanged<InboxTab>? onInboxTab;
 
   @override
   ConsumerState<NotificationsView> createState() => _NotificationsViewState();
@@ -305,7 +339,7 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (first) _GroupHeader(label: t.t('notif.group.$group')),
-            _NotificationRow(n: x),
+            _NotificationRow(n: x, onInboxTab: widget.onInboxTab),
           ],
         );
       },
@@ -341,9 +375,10 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class _NotificationRow extends ConsumerWidget {
-  const _NotificationRow({required this.n});
+  const _NotificationRow({required this.n, this.onInboxTab});
 
   final AppNotification n;
+  final ValueChanged<InboxTab>? onInboxTab;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -369,7 +404,14 @@ class _NotificationRow extends ConsumerWidget {
             myId: ref.read(currentUserIdProvider),
             actorUsername: n.actor?.id == null ? null : n.actor?.username,
           );
-          if (route != null) {
+          final inboxTab = onInboxTab == null
+              ? null
+              : InboxTab.values
+                  .where((v) => route == ChatRoutes.inboxTab(v))
+                  .firstOrNull;
+          if (inboxTab != null) {
+            onInboxTab!(inboxTab);
+          } else if (route != null) {
             context.push(route);
           } else {
             showAppBottomSheet<void>(

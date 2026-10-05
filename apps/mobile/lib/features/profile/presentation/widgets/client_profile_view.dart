@@ -52,30 +52,34 @@ class ClientProfileView extends ConsumerWidget {
                 retryLabel: t.t('error.retry'),
                 onRetry: retry,
               ),
-        data: (p) => RefreshIndicator(
-          key: const ValueKey('data'),
-          color: Theme.of(context).extension<AppColorTokens>()!.gold,
-          onRefresh: () async {
-            ref.invalidate(clientProfileProvider);
-            try {
-              await ref.read(clientProfileProvider.future);
-            } catch (_) {
-              // Rendered by the error state.
-            }
-          },
-          // OQ-038: the same Instagram-like profile others see (+ Edit);
-          // the client's cases live in "Mine".
-          child: p.username.isEmpty
-              ? _ClientBody(profile: p, t: t)
-              : _OwnSocial(username: p.username),
-        ),
+        // OQ-038: the same Instagram-like profile others see (+ Edit);
+        // the client's cases live in "Mine". The social profile has its
+        // own pull-to-refresh (it reloads this provider too).
+        data: (p) => p.username.isNotEmpty
+            ? _OwnSocial(
+                key: const ValueKey('data'),
+                username: p.username,
+              )
+            : RefreshIndicator(
+                key: const ValueKey('data'),
+                color: Theme.of(context).extension<AppColorTokens>()!.gold,
+                onRefresh: () async {
+                  ref.invalidate(clientProfileProvider);
+                  try {
+                    await ref.read(clientProfileProvider.future);
+                  } catch (_) {
+                    // Rendered by the error state.
+                  }
+                },
+                child: _ClientBody(profile: p, t: t),
+              ),
       ),
     );
   }
 }
 
 class _OwnSocial extends ConsumerWidget {
-  const _OwnSocial({required this.username});
+  const _OwnSocial({required this.username, super.key});
 
   final String username;
 

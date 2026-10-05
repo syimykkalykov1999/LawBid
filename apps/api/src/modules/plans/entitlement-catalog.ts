@@ -38,6 +38,7 @@ export const ENTITLEMENT_KEYS = [
   'priority_search',
   'calls',
   'video_calls',
+  'document_templates',
   'chat_translate',
   'translations_per_day',
   'video_posts',
@@ -151,6 +152,17 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     description: {
       en: 'Can start video calls from a chat (needs the global video_calls flag and TURN keys).',
       ru: 'Может начать видеозвонок из чата (нужен общий флаг video_calls и ключи TURN).',
+    },
+  },
+  {
+    key: 'document_templates',
+    type: 'boolean',
+    audiences: ['attorney', 'client'],
+    group: 'features',
+    label: { en: 'Document templates', ru: 'Шаблоны документов' },
+    description: {
+      en: 'Download templates from the library and attach them to a chat or case (needs the global document_templates flag).',
+      ru: 'Скачивать шаблоны из библиотеки и прикреплять их к чату или делу (нужен общий флаг document_templates).',
     },
   },
   {
@@ -314,6 +326,8 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     priority_search: false,
     calls: true,
     video_calls: true,
+    // Owner 2026-10-05: templates come with a paid attorney plan.
+    document_templates: false,
     chat_translate: true,
     translations_per_day: null,
     video_posts: true,
@@ -325,6 +339,8 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
   client: {
     calls: true,
     video_calls: true,
+    // Clients read the public templates for free.
+    document_templates: true,
     chat_translate: true,
     translations_per_day: null,
     video_posts: true,

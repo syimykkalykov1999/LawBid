@@ -11,7 +11,12 @@ import { REDIS_CLIENT } from './redis.constants';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const url = config.get<string>('REDIS_URL');
-        return new Redis(url as string, { maxRetriesPerRequest: 3 });
+        // commandTimeout: a hung Redis fails a command in 2 s instead of
+        // stalling requests (throttler fails open, cost guard fails closed).
+        return new Redis(url as string, {
+          maxRetriesPerRequest: 3,
+          commandTimeout: 2000,
+        });
       },
     },
   ],
