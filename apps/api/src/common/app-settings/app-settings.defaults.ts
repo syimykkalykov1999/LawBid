@@ -354,6 +354,36 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.admin_rate_limit_per_minute': 600,
 };
 
+/** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
+ * switch is on by default (docs/AUTOMATION_PRINCIPLE.md):
+ * - dedup: an identical upload reuses the stored object (one copy in S3);
+ * - auto_cleanup: files nobody uses (uploaded but never sent, replaced
+ *   avatars, photos of posts deleted N days ago) are put aside after
+ *   `orphan_grace_hours`, then their objects are removed after
+ *   `purge_after_days` (S3 versioning keeps a recovery copy on top);
+ * - image_format: photos are stored as WebP (≈30% smaller than JPEG at
+ *   the same quality) or JPEG;
+ * - quotas in MB (0 = no cap): per user (an admin override lives on the
+ *   user) and per chat;
+ * - auto_retention: technical logs older than N days are removed;
+ * - growth alert: one log alert (CloudWatch → e-mail) when files or the
+ *   database grew more than `growth_alert_percent` in a day. */
+export const OWNER_STORAGE_SETTINGS = {
+  'storage.dedup': true,
+  'storage.auto_cleanup': true,
+  'storage.orphan_grace_hours': 24,
+  'storage.purge_after_days': 7,
+  'storage.deleted_posts_media_days': 30,
+  'storage.image_format': 'webp',
+  'storage.user_quota_mb': 10240,
+  'storage.chat_quota_mb': 5120,
+  'storage.auto_retention': true,
+  'storage.retention_auth_events_days': 730,
+  'storage.retention_assistant_activity_days': 365,
+  'storage.retention_snapshots_days': 730,
+  'storage.growth_alert_percent': 20,
+};
+
 /** Owner 2026-10-05: zero-maintenance operations (admin Система →
  * Здоровье системы). Every automatic reaction has a switch, default on. */
 export const OWNER_OPS_SETTINGS = {
@@ -391,6 +421,7 @@ export const APP_SETTINGS = {
   ...OWNER_REWARDS_SETTINGS,
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
+  ...OWNER_STORAGE_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_OPS_SETTINGS,
 };

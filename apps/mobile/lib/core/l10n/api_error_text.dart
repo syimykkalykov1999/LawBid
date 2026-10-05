@@ -104,6 +104,8 @@ const _keys = <String, String>{
   // the transfer broke: "try uploading again".
   ApiErrorCodes.fileTypeNotAllowed: 'error.api.FILE_TYPE_NOT_ALLOWED',
   ApiErrorCodes.fileTooLarge: 'error.api.FILE_TOO_LARGE',
+  ApiErrorCodes.storageQuotaExceeded: 'error.api.STORAGE_QUOTA_EXCEEDED',
+  ApiErrorCodes.chatStorageFull: 'error.api.CHAT_STORAGE_FULL',
   // Owner 2026-10-01: reels and stickers.
   ApiErrorCodes.videoUnavailable: 'error.api.VIDEO_UNAVAILABLE',
   ApiErrorCodes.translationUnavailable: 'error.api.TRANSLATION_UNAVAILABLE',

@@ -40,6 +40,20 @@ import type {
   PresignFileDto,
   PresignedFileDto,
 } from './dto/files.dto';
+import {
+  PENDING_UPLOADS_KEY,
+  pendingUploadMember,
+} from './storage/pending-uploads';
+
+/** Owner 2026-10-05: uploads that never count against a user's storage
+ * cap — a profile photo, identity documents, exports, admin templates. */
+const QUOTA_FREE_PURPOSES: readonly FilePurpose[] = [
+  'avatar',
+  'verification_document',
+  'verification_selfie',
+  'data_export',
+  'document_template',
+];
 
 interface UploadIntent {
   userId: string;
@@ -123,6 +137,9 @@ export class FilesService {
       throw this.tooLarge(maxBytes);
     }
     const bucket = this.storage.bucket(rule.bucket); // 503 if S3 is off
+    if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
+      await this.assertQuota(userId, dto.sizeBytes);
+    }
 
     const limit = await this.rateLimit.consumeFixedWindow(
       ['files-presign', 'user', userId],
@@ -164,6 +181,13 @@ export class FilesService {
       JSON.stringify(intent),
       'EX',
       UPLOAD_INTENT_TTL_SEC,
+    );
+    // Owner 2026-10-05: an upload never confirmed is removed from S3 by
+    // the storage cleanup once the intent has expired.
+    await this.redis.zadd(
+      PENDING_UPLOADS_KEY,
+      Date.now() + (UPLOAD_INTENT_TTL_SEC + 600) * 1000,
+      pendingUploadMember(fileId, bucket, key),
     );
     return {
       fileId,
@@ -227,6 +251,7 @@ export class FilesService {
           mime: detected,
           size_bytes: BigInt(data.length),
           sha256,
+          source_sha256: sha256,
         },
       });
     } catch (err) {
@@ -239,6 +264,10 @@ export class FilesService {
       }
     }
     await this.redis.del(intentKey(fileId));
+    await this.redis.zrem(
+      PENDING_UPLOADS_KEY,
+      pendingUploadMember(fileId, intent.bucket, intent.key),
+    );
     await this.scans.enqueueScan(fileId);
     return this.get(userId, fileId);
   }
@@ -695,11 +724,37 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
+      await this.assertQuota(userId, Number(src.size_bytes));
+    }
+    const fileId = randomUUID();
+    // Owner 2026-10-05 (storage like Telegram): the same bytes in the same
+    // bucket are not copied — the new row points at the stored object
+    // (FileReleaseService removes it only when no live row uses it).
+    if (bucket === src.s3_bucket) {
+      await this.prisma.file.create({
+        data: {
+          id: fileId,
+          owner_user_id: userId,
+          purpose,
+          s3_bucket: src.s3_bucket,
+          s3_key: src.s3_key,
+          mime: src.mime,
+          size_bytes: src.size_bytes,
+          sha256: src.sha256,
+          source_sha256: src.source_sha256 ?? src.sha256,
+          width: src.width,
+          height: src.height,
+          scan_status: 'clean',
+        },
+      });
+      return this.get(userId, fileId);
+    }
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);
-    const fileId = randomUUID();
     const key = `${purpose}/${userId}/${fileId}`;
     await this.storage.put(bucket, key, data, src.mime);
+    const sha256 = createHash('sha256').update(data).digest('hex');
     await this.prisma.file.create({
       data: {
         id: fileId,
@@ -709,7 +764,8 @@ export class FilesService {
         s3_key: key,
         mime: src.mime,
         size_bytes: BigInt(data.length),
-        sha256: createHash('sha256').update(data).digest('hex'),
+        sha256,
+        source_sha256: src.source_sha256 ?? sha256,
         scan_status: 'clean',
       },
     });
@@ -782,6 +838,88 @@ export class FilesService {
       url: await this.mediaUrlOf(file),
       createdAt: file.created_at.toISOString(),
     };
+  }
+
+  /**
+   * Owner 2026-10-05: bytes of [userId]'s live files and their cap
+   * (users.storage_quota_mb set by an admin, else storage.user_quota_mb;
+   * 0 = no cap → null). Avatars, identity documents and exports are free.
+   */
+  async usage(
+    userId: string,
+  ): Promise<{ usedBytes: number; quotaBytes: number | null }> {
+    const [user, agg, fallback] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { storage_quota_mb: true },
+      }),
+      this.prisma.file.aggregate({
+        where: {
+          owner_user_id: userId,
+          deleted_at: null,
+          purpose: { notIn: [...QUOTA_FREE_PURPOSES] },
+        },
+        _sum: { size_bytes: true },
+      }),
+      this.settings.number('storage.user_quota_mb'),
+    ]);
+    const mb = user?.storage_quota_mb ?? fallback;
+    return {
+      usedBytes: Number(agg._sum.size_bytes ?? 0n),
+      quotaBytes: mb > 0 ? mb * MB : null,
+    };
+  }
+
+  /**
+   * Owner 2026-10-05: bytes of files sent in [conversationId] and the
+   * per-chat cap (storage.chat_quota_mb; 0 = no cap → null).
+   */
+  async chatUsage(
+    conversationId: string,
+  ): Promise<{ usedBytes: number; quotaBytes: number | null }> {
+    const [rows, mb] = await Promise.all([
+      this.prisma.$queryRaw<{ bytes: bigint | null }[]>`
+        SELECT sum(f.size_bytes)::INT8 AS bytes
+        FROM messages m JOIN files f ON f.id = m.file_id
+        WHERE m.conversation_id = ${conversationId}::UUID
+          AND f.deleted_at IS NULL`,
+      this.settings.number('storage.chat_quota_mb'),
+    ]);
+    return {
+      usedBytes: Number(rows[0]?.bytes ?? 0n),
+      quotaBytes: mb > 0 ? mb * MB : null,
+    };
+  }
+
+  /** Throws CHAT_STORAGE_FULL when [fileId] would push the chat over its
+   * cap (the file itself is already uploaded; it is just not sent). */
+  async assertChatRoom(conversationId: string, fileId: string): Promise<void> {
+    const [{ usedBytes, quotaBytes }, file] = await Promise.all([
+      this.chatUsage(conversationId),
+      this.prisma.file.findUnique({
+        where: { id: fileId },
+        select: { size_bytes: true },
+      }),
+    ]);
+    const size = Number(file?.size_bytes ?? 0n);
+    if (quotaBytes !== null && usedBytes + size > quotaBytes) {
+      throw new BadRequestException({
+        code: ErrorCode.CHAT_STORAGE_FULL,
+        message: 'This chat has no room for more files.',
+        details: { quotaBytes, usedBytes },
+      });
+    }
+  }
+
+  private async assertQuota(userId: string, addBytes: number): Promise<void> {
+    const { usedBytes, quotaBytes } = await this.usage(userId);
+    if (quotaBytes !== null && usedBytes + addBytes > quotaBytes) {
+      throw new BadRequestException({
+        code: ErrorCode.STORAGE_QUOTA_EXCEEDED,
+        message: 'Your file storage is full.',
+        details: { quotaBytes, usedBytes },
+      });
+    }
   }
 
   private async maxBytes(purpose: FilePurpose): Promise<number> {

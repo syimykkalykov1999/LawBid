@@ -10,6 +10,16 @@ import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
+/// Owner 2026-10-05 (storage like Telegram): counts and bytes of a chat's
+/// files; `quotaBytes` null = no cap.
+typedef ChatStorageSummary = ({
+  int photos,
+  int documents,
+  int voice,
+  int usedBytes,
+  int? quotaBytes,
+});
+
 /// docs/05 §8 chats for the app. Throws [ApiException].
 abstract interface class ChatRepository {
   Future<CursorPage<Conversation>> conversations({
@@ -83,6 +93,9 @@ abstract interface class ChatRepository {
 
   /// OQ-047: only the chat's photos and documents (its "Files" screen).
   Future<CursorPage<ChatMessage>> attachments(String id, {String? cursor});
+
+  /// Owner 2026-10-05: what the chat's files take (the "Files" summary).
+  Future<ChatStorageSummary> storage(String id);
 
   /// OQ-040: the recipient played a voice message.
   Future<ChatMessage> listened(String id, String messageId);
@@ -321,6 +334,21 @@ class ApiChatRepository implements ChatRepository {
     return CursorPage(
       items: env.data.map(ChatMappers.message).toList(),
       nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<ChatStorageSummary> storage(String id) async {
+    final d = (await guardApiCall(
+      () => _chat.getConversationStorage(id: id),
+    ))
+        .data;
+    return (
+      photos: d.photos.toInt(),
+      documents: d.documents.toInt(),
+      voice: d.voice.toInt(),
+      usedBytes: d.usedBytes.toInt(),
+      quotaBytes: d.quotaBytes?.toInt(),
     );
   }
 
