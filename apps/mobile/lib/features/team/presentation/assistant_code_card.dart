@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/seat_limit_note.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -434,6 +435,8 @@ class AssistantSeatsSection extends ConsumerWidget {
             icon: AppIcons.personAddAlt1Rounded,
             onPressed: () => addAssistantWithCode(context, ref, team),
           ),
+        const SizedBox(height: AppSpacing.sm),
+        const SeatLimitNote(),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: TextButton(

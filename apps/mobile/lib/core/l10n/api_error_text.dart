@@ -153,6 +153,8 @@ const _keys = <String, String>{
   ApiErrorCodes.inviteNotFound: 'error.api.INVITE_NOT_FOUND',
   ApiErrorCodes.inviteInvalidState: 'error.api.INVITE_INVALID_STATE',
   ApiErrorCodes.inviteAlreadyPending: 'error.api.INVITE_ALREADY_PENDING',
+  ApiErrorCodes.seatLimitRequestPending: 'error.api.SEAT_LIMIT_REQUEST_PENDING',
+  ApiErrorCodes.seatLimitRequestDecided: 'error.api.SEAT_LIMIT_REQUEST_DECIDED',
   ApiErrorCodes.inviteAttorneyUnavailable:
       'error.api.INVITE_ATTORNEY_UNAVAILABLE',
   ApiErrorCodes.inviteLimitReached: 'error.api.INVITE_LIMIT_REACHED',

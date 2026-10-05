@@ -1114,6 +1114,9 @@ model AttorneyProfile {
   new_case_alerts_custom   Boolean                @default(false)
   new_case_alert_practices NewCaseAlertPractice[]
   verification_requests    VerificationRequest[]
+  // Owner 2026-10-05: a personal assistant limit set by an admin on
+  // the attorney's request; null = the global billing.max_assistant_seats.
+  assistant_seat_limit     Int?                   @db.Int2
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -2736,6 +2739,28 @@ model ContractGrant {
   @@index([user_id, ends_at])
   @@index([ends_at])
   @@map("contract_grants")
+}
+
+// Owner 2026-10-05: an attorney asks for more assistant seats than the
+// global limit; an admin approves (sets attorney_profiles.
+// assistant_seat_limit) or rejects.
+model SeatLimitRequest {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id     String    @db.Uuid
+  requested_seats Int       @db.Int2
+  note            String?   @db.String(1000)
+  // pending | approved | rejected
+  status          String    @default("pending") @db.String(20)
+  granted_seats   Int?      @db.Int2
+  decision_note   String?   @db.String(500)
+  decided_by      String?   @db.Uuid
+  decided_at      DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@index([status, created_at], map: "seat_limit_requests_status_created_idx")
+  @@index([attorney_id, created_at], map: "seat_limit_requests_attorney_created_idx")
+  @@map("seat_limit_requests")
 }
 
 // Promo codes: percent / fixed amount off, or free days of subscription.

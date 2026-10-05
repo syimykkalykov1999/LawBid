@@ -307,8 +307,7 @@ const file07Ru = <String, String>{
   'plans.yearly.line': 'Адвокат + все помощники. Выгода {save} в год (−20%)',
   'plans.yearly.badge': '−20%',
   'plans.seats': 'Помощники',
-  'plans.seats.hint':
-      'Помощник работает в вашем аккаунте под своим входом.',
+  'plans.seats.hint': 'Помощник работает в вашем аккаунте под своим входом.',
   'plans.seats.included': 'Все места включены',
   'plans.total': 'Итого: {price}',
   'plans.total.month': '{price} в месяц',

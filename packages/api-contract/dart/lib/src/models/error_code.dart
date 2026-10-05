@@ -226,6 +226,10 @@ enum ErrorCode {
   inviteAttorneyUnavailable('INVITE_ATTORNEY_UNAVAILABLE'),
   @JsonValue('INVITE_LIMIT_REACHED')
   inviteLimitReached('INVITE_LIMIT_REACHED'),
+  @JsonValue('SEAT_LIMIT_REQUEST_PENDING')
+  seatLimitRequestPending('SEAT_LIMIT_REQUEST_PENDING'),
+  @JsonValue('SEAT_LIMIT_REQUEST_DECIDED')
+  seatLimitRequestDecided('SEAT_LIMIT_REQUEST_DECIDED'),
   @JsonValue('CASE_CONTAINS_CONTACT_INFO')
   caseContainsContactInfo('CASE_CONTAINS_CONTACT_INFO'),
   @JsonValue('CLIENT_CONTACT_SHARING_CONSENT_REQUIRED')

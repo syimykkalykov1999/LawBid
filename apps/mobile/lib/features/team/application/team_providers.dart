@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/team/data/seat_limit_repository.dart';
 import 'package:lawbid/features/team/data/team_repository.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -388,3 +389,14 @@ final openTasksCountProvider = Provider.autoDispose<int>((ref) {
   final list = ref.watch(tasksProvider((done: false, mine: false))).value;
   return list?.length ?? 0;
 });
+
+// --- Seat limit (owner 2026-10-05) ----------------------------------------
+
+final seatLimitRepositoryProvider = Provider<SeatLimitRepository>(
+  (ref) => ApiSeatLimitRepository(ref.watch(dioProvider)),
+);
+
+/// The attorney's assistant limit and their latest request for more.
+final seatLimitProvider = FutureProvider.autoDispose<SeatLimitState>(
+  (ref) => ref.watch(seatLimitRepositoryProvider).state(),
+);

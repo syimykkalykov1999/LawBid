@@ -146,6 +146,8 @@ abstract final class ApiErrorCodes {
   static const inviteNotFound = 'INVITE_NOT_FOUND';
   static const inviteInvalidState = 'INVITE_INVALID_STATE';
   static const inviteAlreadyPending = 'INVITE_ALREADY_PENDING';
+  static const seatLimitRequestPending = 'SEAT_LIMIT_REQUEST_PENDING';
+  static const seatLimitRequestDecided = 'SEAT_LIMIT_REQUEST_DECIDED';
   static const inviteAttorneyUnavailable = 'INVITE_ATTORNEY_UNAVAILABLE';
   static const inviteLimitReached = 'INVITE_LIMIT_REACHED';
   // Case creation and management (docs/04 §3, stage 4.2)
@@ -315,6 +317,8 @@ abstract final class ApiErrorCodes {
     inviteNotFound,
     inviteInvalidState,
     inviteAlreadyPending,
+    seatLimitRequestPending,
+    seatLimitRequestDecided,
     inviteAttorneyUnavailable,
     inviteLimitReached,
     caseContainsContactInfo,

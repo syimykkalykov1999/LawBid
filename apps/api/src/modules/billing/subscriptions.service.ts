@@ -125,7 +125,7 @@ export class SubscriptionsService {
     const attorney = await this.verifiedAttorney(user);
     const priceId = await this.assertConfigured();
     const plan = req.plan ?? 'monthly';
-    const maxSeats = await this.pricing.maxSeats();
+    const maxSeats = await this.pricing.maxSeats(user.sub);
     const seats = plan === 'yearly' ? maxSeats : (req.assistantSeats ?? 0);
     assertSeatsWithin(seats, maxSeats);
     const phones = [...new Set(req.assistantPhones ?? [])];
@@ -464,7 +464,7 @@ export class SubscriptionsService {
       where: { id: row.id },
       data: {
         plan: 'yearly',
-        assistant_seats: await this.pricing.maxSeats(),
+        assistant_seats: await this.pricing.maxSeats(user.sub),
         price_cents: await this.pricing.amount('yearly'),
       },
     });
@@ -493,7 +493,7 @@ export class SubscriptionsService {
         message: 'The yearly plan already includes every assistant seat.',
       });
     }
-    assertSeatsWithin(seats, await this.pricing.maxSeats());
+    assertSeatsWithin(seats, await this.pricing.maxSeats(user.sub));
     const live = await this.prisma.assistantMembership.count({
       where: { attorney_id: user.sub, status: { not: 'removed' } },
     });
@@ -643,7 +643,7 @@ export class SubscriptionsService {
         monthlyCents: amounts.monthly,
         seatCents: amounts.seat,
         yearlyCents: amounts.yearly,
-        maxSeats: await this.pricing.maxSeats(),
+        maxSeats: await this.pricing.maxSeats(user.sub),
       },
     };
   }

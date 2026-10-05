@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { PlanPrice } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { maxAssistantSeats } from './seat-limit';
+import { maxAssistantSeats, seatLimitFor } from './seat-limit';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -123,9 +123,12 @@ export class PricingService {
     };
   }
 
-  /** Owner 2026-10-05: the admin's assistant seat limit. */
-  maxSeats(): Promise<number> {
-    return maxAssistantSeats(this.settings);
+  /** Owner 2026-10-05: the admin's assistant seat limit; with
+   * [attorneyId], that attorney's own limit when an admin set one. */
+  maxSeats(attorneyId?: string): Promise<number> {
+    return attorneyId
+      ? seatLimitFor(this.prisma, attorneyId, this.settings)
+      : maxAssistantSeats(this.settings);
   }
 
   /** The amounts used while the admin has set none. */

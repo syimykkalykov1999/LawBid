@@ -62,6 +62,23 @@ const inviteRu = <String, String>{
       'Этот адвокат сейчас не может взять дело.',
   'error.api.INVITE_LIMIT_REACHED':
       'Слишком много приглашений. Попробуйте позже.',
+  'team.limit.default':
+      'По умолчанию можно добавить до {count} помощников. Нужно больше — отправьте заявку, и мы увеличим лимит.',
+  'team.limit.personal': 'Ваш лимит: до {count} помощников.',
+  'team.limit.pending': 'Заявка на {count} мест на рассмотрении.',
+  'team.limit.rejected': 'Заявку пока отклонили.',
+  'team.limit.request': 'Запросить больше помощников',
+  'team.limit.request.title': 'Больше помощников',
+  'team.limit.request.seats': 'Сколько всего помощников нужно',
+  'team.limit.request.note': 'Зачем (необязательно)',
+  'team.limit.request.send': 'Отправить',
+  'team.limit.sent': 'Заявка отправлена. Мы сообщим о решении.',
+  'notif.list.subscription_status.seat_limit_approved':
+      'Лимит помощников увеличен: {seats}',
+  'notif.list.subscription_status.seat_limit_rejected':
+      'Заявка на увеличение лимита помощников отклонена',
+  'error.api.SEAT_LIMIT_REQUEST_PENDING': 'Заявка уже на рассмотрении.',
+  'error.api.SEAT_LIMIT_REQUEST_DECIDED': 'По заявке уже есть решение.',
 };
 
 const inviteEn = <String, String>{
@@ -80,8 +97,7 @@ const inviteEn = <String, String>{
   'invite.offer.send': 'Send',
   'invite.offer.sent': "Sent. We'll let you know when the attorney answers.",
   'invite.offer.alreadyBid': 'This attorney already sent a bid on this case.',
-  'invite.mismatch.state':
-      "This attorney has no licence in the case's state.",
+  'invite.mismatch.state': "This attorney has no licence in the case's state.",
   'invite.mismatch.practice':
       "This case is outside the attorney's practice areas.",
   'invites.title': 'Invitations from clients',
@@ -124,4 +140,21 @@ const inviteEn = <String, String>{
   'error.api.INVITE_ATTORNEY_UNAVAILABLE':
       "This attorney can't take cases right now.",
   'error.api.INVITE_LIMIT_REACHED': 'Too many invites. Try again later.',
+  'team.limit.default':
+      'By default you can add up to {count} assistants. Need more? Send a request and we will raise your limit.',
+  'team.limit.personal': 'Your limit: up to {count} assistants.',
+  'team.limit.pending': 'Your request for {count} seats is under review.',
+  'team.limit.rejected': 'Your request was declined for now.',
+  'team.limit.request': 'Request more assistants',
+  'team.limit.request.title': 'More assistants',
+  'team.limit.request.seats': 'How many assistants in total',
+  'team.limit.request.note': 'Why (optional)',
+  'team.limit.request.send': 'Send',
+  'team.limit.sent': 'Request sent. We will let you know.',
+  'notif.list.subscription_status.seat_limit_approved':
+      'Assistant limit raised: {seats}',
+  'notif.list.subscription_status.seat_limit_rejected':
+      'Your request for more assistants was declined',
+  'error.api.SEAT_LIMIT_REQUEST_PENDING': 'A request is already under review.',
+  'error.api.SEAT_LIMIT_REQUEST_DECIDED': 'This request is already decided.',
 };

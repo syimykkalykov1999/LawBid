@@ -9,7 +9,9 @@ import '../models/admin_billing_reason_dto.dart';
 import '../models/admin_billing_subscription_row_list_envelope.dart';
 import '../models/admin_payment_list_envelope.dart';
 import '../models/admin_plan_prices_envelope.dart';
+import '../models/admin_seat_limit_request_list_envelope.dart';
 import '../models/admin_set_plan_price_result_envelope.dart';
+import '../models/approve_seat_limit_dto.dart';
 import '../models/billing_overview_envelope.dart';
 import '../models/contract_grant_envelope.dart';
 import '../models/contract_grant_list_envelope.dart';
@@ -29,6 +31,9 @@ import '../models/promo_code_list_envelope.dart';
 import '../models/promo_redemption_list_envelope.dart';
 import '../models/refund_envelope.dart';
 import '../models/refund_list_envelope.dart';
+import '../models/reject_seat_limit_dto.dart';
+import '../models/seat_limit_request_envelope.dart';
+import '../models/seat_limit_request_status.dart';
 import '../models/seats.dart';
 import '../models/set_plan_price_dto.dart';
 import '../models/status7.dart';
@@ -218,6 +223,32 @@ abstract class AdminBillingClient {
   Future<MovePlanSubscribersResultEnvelope> movePlanSubscribers({
     @Path('kind') required PlanKind kind,
     @Body() required MovePlanSubscribersDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Requests for more assistant seats, newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/seat-limit-requests')
+  Future<AdminSeatLimitRequestListEnvelope> listSeatLimitRequests({
+    @Query('status') SeatLimitRequestStatus? status,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Approve: set the attorney's own seat limit
+  @POST('/admin/billing/seat-limit-requests/{id}/approve')
+  Future<SeatLimitRequestEnvelope> approveSeatLimitRequest({
+    @Path('id') required String id,
+    @Body() required ApproveSeatLimitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reject a seat limit request
+  @POST('/admin/billing/seat-limit-requests/{id}/reject')
+  Future<SeatLimitRequestEnvelope> rejectSeatLimitRequest({
+    @Path('id') required String id,
+    @Body() required RejectSeatLimitDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

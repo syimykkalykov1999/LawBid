@@ -35,7 +35,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { maxAssistantSeats } from '../billing/seat-limit';
+import { seatLimitFor } from '../billing/seat-limit';
 import {
   AdminEndpoint,
   CurrentAdmin,
@@ -322,7 +322,10 @@ export class AdminTeamsService {
       plan: sub?.plan ?? 'none',
       // Owner 2026-10-02: max(paid seats, contract grant seats).
       seats: effectiveSeats(
-        paidSeats(sub, await maxAssistantSeats(this.settings)),
+        paidSeats(
+          sub,
+          await seatLimitFor(this.prisma, attorneyId, this.settings),
+        ),
         grant?.assistant_seats ?? null,
       ),
       active: count('active'),

@@ -4,7 +4,7 @@ import { ArrowRight, PencilSimple, Tag, UsersThree } from '@phosphor-icons/react
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useState } from 'react';
-import { dollarsToCents, fadeUp, useBillingRole } from '@/components/billing/shared';
+import { dollarsToCents, fadeUp, useBillingRole, UserCell } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -79,6 +79,7 @@ export default function PricesPage() {
             ))}
           </div>
           <SeatLimitCard canWrite={canWrite} />
+          <SeatRequests canWrite={canWrite} />
           <History data={data} />
         </>
       )}
@@ -262,6 +263,132 @@ function SeatLimitCard({ canWrite }: { canWrite: boolean }) {
         ) : null}
       </form>
     </Card>
+  );
+}
+
+type SeatRequest = components['schemas']['AdminSeatLimitRequestDto'];
+
+const REQUEST_STATUS: Record<SeatRequest['status'], { label: string; tone: 'warning' | 'success' | 'neutral' }> = {
+  pending: { label: 'ждёт решения', tone: 'warning' },
+  approved: { label: 'одобрено', tone: 'success' },
+  rejected: { label: 'отклонено', tone: 'neutral' },
+};
+
+/** Owner 2026-10-05: attorneys asking for more assistants than the limit. */
+function SeatRequests({ canWrite }: { canWrite: boolean }) {
+  const [deciding, setDeciding] = useState<SeatRequest | null>(null);
+  const q = useQuery({
+    queryKey: ['seat-limit-requests'],
+    queryFn: async () => (await api.GET('/admin/billing/seat-limit-requests', { params: { query: {} } })).data!.data,
+  });
+  const rows = q.data ?? [];
+  return (
+    <div className="mt-8">
+      <h2 className="mb-1 text-sm font-medium text-heading">Заявки на увеличение лимита помощников</h2>
+      <p className="mb-3 text-xs text-muted">Одобрите — и у адвоката будет свой лимит вместо общего.</p>
+      <ErrorNote text={q.error ? errorText(q.error) : null} />
+      <Table>
+        <thead>
+          <tr>
+            <Th>Когда</Th>
+            <Th>Адвокат</Th>
+            <Th className="text-right">Сейчас</Th>
+            <Th className="text-right">Просит</Th>
+            <Th>Комментарий</Th>
+            <Th>Статус</Th>
+            <Th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <TableEmpty colSpan={7}>{q.isPending ? 'Загрузка…' : 'Заявок нет'}</TableEmpty>
+          ) : (
+            rows.map((r) => (
+              <tr key={r.id}>
+                <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
+                <Td>
+                  <UserCell user={r.user} userId={r.attorneyId} link />
+                </Td>
+                <Td className="text-right tabular-nums">
+                  {r.assistantsUsed} из {r.currentLimit}
+                </Td>
+                <Td className="text-right tabular-nums">{r.grantedSeats ?? r.requestedSeats}</Td>
+                <Td className="max-w-[280px] text-muted">
+                  <div className="line-clamp-2">{r.note ?? r.decisionNote ?? '—'}</div>
+                </Td>
+                <Td>
+                  <Badge tone={REQUEST_STATUS[r.status].tone}>{REQUEST_STATUS[r.status].label}</Badge>
+                </Td>
+                <Td className="text-right">
+                  {canWrite && r.status === 'pending' ? (
+                    <Button size="sm" variant="outline" onClick={() => setDeciding(r)}>
+                      Решить
+                    </Button>
+                  ) : null}
+                </Td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </Table>
+      {deciding ? <DecideDialog r={deciding} onClose={() => setDeciding(null)} /> : null}
+    </div>
+  );
+}
+
+function DecideDialog({ r, onClose }: { r: SeatRequest; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [seats, setSeats] = useState(String(r.requestedSeats));
+  const [note, setNote] = useState('');
+  const n = Number(seats);
+  const ok = Number.isInteger(n) && n >= 1 && n <= 50;
+  const done = (text: string) => {
+    toast.success(text);
+    void qc.invalidateQueries({ queryKey: ['seat-limit-requests'] });
+    onClose();
+  };
+  const approve = useMutation({
+    mutationFn: () =>
+      api.POST('/admin/billing/seat-limit-requests/{id}/approve', {
+        params: { path: { id: r.id } },
+        body: { seats: n, note: note.trim() || undefined },
+      }),
+    onSuccess: () => done(`Лимит адвоката теперь ${n}`),
+    onError: (e) => toast.error(e),
+  });
+  const reject = useMutation({
+    mutationFn: () =>
+      api.POST('/admin/billing/seat-limit-requests/{id}/reject', {
+        params: { path: { id: r.id } },
+        body: { note: note.trim() || undefined },
+      }),
+    onSuccess: () => done('Заявка отклонена'),
+    onError: (e) => toast.error(e),
+  });
+  const busy = approve.isPending || reject.isPending;
+  return (
+    <Dialog open onClose={onClose} eyebrow="Помощники" title="Заявка на увеличение лимита" description={r.note ?? undefined}>
+      <div className="space-y-5">
+        <div className="text-sm text-muted">
+          Сейчас: {r.assistantsUsed} из {r.currentLimit}. Просит: {r.requestedSeats}.
+        </div>
+        <Field label="Новый лимит" htmlFor="seat-grant" hint="от 1 до 50">
+          <Input id="seat-grant" inputMode="numeric" className="w-24 text-lg" value={seats} onChange={(e) => setSeats(e.target.value)} />
+        </Field>
+        <Field label="Комментарий адвокату" htmlFor="seat-note" hint="необязательно">
+          <Textarea id="seat-note" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
+        </Field>
+        <div className="flex justify-end gap-2 border-t border-line pt-4">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => reject.mutate()}>
+            Отклонить
+          </Button>
+          <Button type="button" variant="gold" loading={approve.isPending} disabled={!ok || busy} onClick={() => approve.mutate()}>
+            Одобрить
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   );
 }
 

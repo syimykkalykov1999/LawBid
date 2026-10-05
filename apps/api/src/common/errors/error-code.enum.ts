@@ -250,6 +250,8 @@ export enum ErrorCode {
   INVITE_ATTORNEY_UNAVAILABLE = 'INVITE_ATTORNEY_UNAVAILABLE',
   // 429: too many pending invites on the case / invites today.
   INVITE_LIMIT_REACHED = 'INVITE_LIMIT_REACHED',
+  SEAT_LIMIT_REQUEST_PENDING = 'SEAT_LIMIT_REQUEST_PENDING',
+  SEAT_LIMIT_REQUEST_DECIDED = 'SEAT_LIMIT_REQUEST_DECIDED',
   // Case creation and management (docs/04_CASES_BIDS.md §3, stage 4.2)
   // 400: title/description/city matched the §3.3 phone/email/link
   // detector; details.field names which one.

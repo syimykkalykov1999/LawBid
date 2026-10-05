@@ -143,6 +143,13 @@ String notificationText(Translator t, AppNotification n) {
     if (k == 'contract' || k == 'contract_revoked') {
       return t.t('notif.list.subscription_status.$k');
     }
+    // Owner 2026-10-05: the admin answered a request for more assistants.
+    if (k == 'seat_limit_approved' || k == 'seat_limit_rejected') {
+      return t.t(
+        'notif.list.subscription_status.$k',
+        {'seats': '${n.payload['seats'] ?? ''}'},
+      );
+    }
   }
   if (n.type == 'admin_broadcast') {
     final title = n.payload['title'];
