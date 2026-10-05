@@ -22,6 +22,7 @@ import {
 } from '../services/token.service';
 import { SessionRevocationService } from '../services/session-revocation.service';
 import type { RequestUser } from '../decorators/current-user.decorator';
+import { demoContext } from '../../../common/demo/demo-context';
 
 /**
  * Global guard (registered as APP_GUARD inside AuthModule, see auth.module
@@ -89,6 +90,20 @@ export class JwtAuthGuard implements CanActivate {
         });
       }
       throw error;
+    }
+
+    // Owner 2026-10-05 (demo mode): the token's world and the request's
+    // world must agree. A demo token used without the demo header would
+    // otherwise read real rows by id; a real token with the header would
+    // land in the demo database. Both are refused as plain UNAUTHORIZED
+    // (not TOKEN_EXPIRED — refreshing cannot fix it).
+    if ((claims.demo === true) !== demoContext.isDemo()) {
+      throw new UnauthorizedException({
+        code: ErrorCode.UNAUTHORIZED,
+        message: claims.demo
+          ? 'A demo session must send the X-LawBid-Demo header.'
+          : 'This session is not a demo session.',
+      });
     }
 
     const revoked = await this.revocation.blacklistReason(claims.sid);

@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
+import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Shared body of every entry point (`lib/main_dev.dart`,
@@ -51,6 +52,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // link is captured; DeepLinkController holds it until the splash
   // sequence below has finished.
   unawaited(container.read(deepLinkControllerProvider.notifier).start());
+
+  // docs/ops/demo-world.md: Android Play install referrer → pending referral
+  // code (first launch only). Fire-and-forget, never delays first paint.
+  unawaited(captureInstallReferrer(container));
 
   // Everything network-bound — session check (refresh token → access
   // token), `/config/bootstrap` flags + legal docs + min version, the

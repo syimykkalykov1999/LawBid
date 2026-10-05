@@ -232,6 +232,11 @@ abstract final class ApiErrorCodes {
   static const outreachImportInvalid = 'OUTREACH_IMPORT_INVALID';
   static const outreachInvalidState = 'OUTREACH_INVALID_STATE';
   static const outreachEmailLimit = 'OUTREACH_EMAIL_LIMIT';
+  // Owner 2026-10-05: demo mode («Продвижение») — docs/ops/demo-world.md
+  static const demoDisabled = 'DEMO_DISABLED';
+  static const demoLimitReached = 'DEMO_LIMIT_REACHED';
+  static const demoUnavailable = 'DEMO_UNAVAILABLE';
+  static const demoCodeInvalid = 'DEMO_CODE_INVALID';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -414,6 +419,10 @@ abstract final class ApiErrorCodes {
     outreachImportInvalid,
     outreachInvalidState,
     outreachEmailLimit,
+    demoDisabled,
+    demoLimitReached,
+    demoUnavailable,
+    demoCodeInvalid,
   ];
 }
 

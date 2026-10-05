@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { demoContext } from '../common/demo/demo-context';
 import { softDeleteExtension } from './soft-delete.extension';
 
 /**
@@ -10,12 +11,68 @@ import { softDeleteExtension } from './soft-delete.extension';
  * soft-deleted rows unless the caller opts out with `withDeleted()` /
  * `onlyDeleted()` or filters on `deleted_at` itself.
  *
- * The constructor returns the extended client (a proxy over this very
- * instance), so `PrismaService` keeps the plain `PrismaClient` type and
- * every existing injection site, `withTxRetry(prisma, ...)` and
- * `prisma.$transaction` call keep compiling and behaving as before. A query
- * extension changes no types, only the args that reach the engine.
+ * Owner 2026-10-05 (demo mode, src/common/demo): the service is a proxy
+ * over TWO extended clients — the real database and the demo database
+ * (`<db>_demo`, see DemoDatabaseService). Every property access picks the
+ * client by `demoContext.isDemo()`, so a request that entered the demo
+ * world at the middleware reads and writes only demo tables, and nothing
+ * else in the code base has to know. The demo client is created lazily
+ * and only when `demoDatabaseUrl()` resolves; while it is missing, demo
+ * context queries throw `DemoDatabaseUnavailableError` (the demo
+ * endpoints turn that into 503 DEMO_UNAVAILABLE before any query runs).
+ *
+ * The constructor returns the proxy, so `PrismaService` keeps the plain
+ * `PrismaClient` type and every existing injection site, `withTxRetry(
+ * prisma, ...)` and `prisma.$transaction` call keep compiling and behaving
+ * as before.
  */
+export class DemoDatabaseUnavailableError extends Error {
+  constructor(reason: string) {
+    super(`Demo database unavailable: ${reason}`);
+    this.name = 'DemoDatabaseUnavailableError';
+  }
+}
+
+type ExtendedClient = ReturnType<typeof extend>;
+
+function extend(client: PrismaClient) {
+  return client.$extends(softDeleteExtension());
+}
+
+/** `postgresql://u@h:26257/lawbid?x=y` → `postgresql://u@h:26257/lawbid_demo?x=y` */
+export function deriveDemoDatabaseUrl(
+  realUrl: string | undefined,
+): string | null {
+  if (!realUrl) return null;
+  try {
+    const u = new URL(realUrl);
+    const db = u.pathname.replace(/^\//, '');
+    if (!db) return null;
+    u.pathname = `/${db}_demo`;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** DEMO_DATABASE_URL wins; otherwise `<DATABASE_URL db>_demo`; `off` disables. */
+export function demoDatabaseUrl(): string | null {
+  const explicit = process.env.DEMO_DATABASE_URL?.trim();
+  if (explicit === 'off') return null;
+  if (explicit) return explicit;
+  return deriveDemoDatabaseUrl(process.env.DATABASE_URL);
+}
+
+export function demoDatabaseName(): string | null {
+  const url = demoDatabaseUrl();
+  if (!url) return null;
+  try {
+    return new URL(url).pathname.replace(/^\//, '') || null;
+  } catch {
+    return null;
+  }
+}
+
 @Injectable()
 export class PrismaService
   extends PrismaClient
@@ -24,11 +81,71 @@ export class PrismaService
   constructor() {
     super();
     // WARNING: do not add instance fields to this class. The constructor
-    // returns the $extends proxy below, so per-instance state set here is
-    // lost for every consumer; only prototype methods survive.
-    // Returning an object from a derived-class constructor makes it the
-    // `new` result; Nest registers that proxy as the provider instance.
-    return this.$extends(softDeleteExtension()) as unknown as PrismaService;
+    // returns a proxy, so per-instance state set here is lost for every
+    // consumer; only prototype methods survive. State lives in the
+    // closure below.
+    const real = extend(this) as unknown as PrismaService;
+    let demo: ExtendedClient | null = null;
+    let demoRaw: PrismaClient | null = null;
+    let demoReady = false;
+    let demoReason = 'not initialised';
+
+    const pick = (): PrismaService => {
+      if (!demoContext.isDemo()) return real;
+      if (!demo || !demoReady) {
+        throw new DemoDatabaseUnavailableError(demoReason);
+      }
+      return demo as unknown as PrismaService;
+    };
+
+    const control: PrismaRoutingControl = {
+      demoClient(): PrismaClient | null {
+        if (demoRaw) return demoRaw;
+        const url = demoDatabaseUrl();
+        if (!url) {
+          demoReason = 'DEMO_DATABASE_URL is off';
+          return null;
+        }
+        demoRaw = new PrismaClient({ datasourceUrl: url });
+        demo = extend(demoRaw);
+        return demoRaw;
+      },
+      markDemoReady(ready: boolean, reason = 'ready'): void {
+        demoReady = ready;
+        demoReason = reason;
+      },
+      demoState: () => ({ ready: demoReady, reason: demoReason }),
+      realClient: () => real,
+      async disconnectDemo() {
+        if (demoRaw) await demoRaw.$disconnect().catch(() => undefined);
+      },
+    };
+
+    const proxy = new Proxy(real, {
+      get(_target, prop) {
+        if (prop === ROUTING) return control;
+        if (prop === 'onModuleInit') {
+          return async () => {
+            await (real as unknown as PrismaClient).$connect();
+          };
+        }
+        if (prop === 'onModuleDestroy') {
+          return async () => {
+            await (real as unknown as PrismaClient).$disconnect();
+            await control.disconnectDemo();
+          };
+        }
+        const client = pick() as unknown as Record<PropertyKey, unknown>;
+        const value = client[prop];
+        return typeof value === 'function'
+          ? (value as (...args: unknown[]) => unknown).bind(client)
+          : value;
+      },
+      has(_target, prop) {
+        return prop === ROUTING || prop in (real as object);
+      },
+    });
+    return proxy;
   }
 
   async onModuleInit(): Promise<void> {
@@ -38,4 +155,22 @@ export class PrismaService
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
   }
+}
+
+/** Hidden handle used by DemoDatabaseService to prepare / inspect the demo
+ * client without exposing it on the PrismaClient type. */
+export const ROUTING = Symbol('prisma.routing');
+
+export interface PrismaRoutingControl {
+  /** The raw (unextended) demo client, created on first call; null when
+   * the demo database is switched off. */
+  demoClient(): PrismaClient | null;
+  markDemoReady(ready: boolean, reason?: string): void;
+  demoState(): { ready: boolean; reason: string };
+  realClient(): PrismaService;
+  disconnectDemo(): Promise<void>;
+}
+
+export function routingOf(prisma: PrismaService): PrismaRoutingControl {
+  return (prisma as unknown as Record<symbol, PrismaRoutingControl>)[ROUTING];
 }

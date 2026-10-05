@@ -118,9 +118,13 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// [isDemo]: the stored refresh token belongs to a demo session, so the
+  /// request must carry the demo header even before a session exists in
+  /// memory (docs/ops/demo-world.md; `RequestFlags.demo`).
   Future<AuthTokensResult> refresh({
     required String refreshToken,
     DeviceInfo? deviceInfo,
+    bool isDemo = false,
   }) async {
     final envelope = await guardApiCall(
       () => _auth.refresh(
@@ -128,7 +132,7 @@ class AuthApiClient {
           refreshToken: refreshToken,
           deviceInfo: deviceInfo,
         ),
-        extras: _skipAuth,
+        extras: isDemo ? {..._skipAuth, RequestFlags.demo: true} : _skipAuth,
       ),
     );
     return envelope.data;

@@ -66,6 +66,8 @@ const intentKey = (fileId: string): string => `files:upload:${fileId}`;
  *    `clean` file of the right purpose passes.
  */
 import { SecretsService } from '../../common/secrets/secrets.service';
+import { demoContext } from '../../common/demo/demo-context';
+import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
 @Injectable()
 export class FilesService {
   constructor(
@@ -140,9 +142,13 @@ export class FilesService {
       );
     }
     await this.costGuard.consume('storage');
+    // Owner 2026-10-05 (demo mode): a demo account may upload a little
+    // (settings demo.program.uploadQuotaMb) under its own key prefix, so
+    // the demo world's objects are easy to find and delete.
+    await this.assertDemoQuota(userId, dto.sizeBytes);
 
     const fileId = randomUUID();
-    const key = `${dto.purpose}/${userId}/${fileId}`;
+    const key = `${demoKeyPrefix()}${dto.purpose}/${userId}/${fileId}`;
     const upload = await this.storage.presignPost({
       bucket,
       key,
@@ -698,7 +704,7 @@ export class FilesService {
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);
     const fileId = randomUUID();
-    const key = `${purpose}/${userId}/${fileId}`;
+    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
     await this.storage.put(bucket, key, data, src.mime);
     await this.prisma.file.create({
       data: {
@@ -816,4 +822,34 @@ export class FilesService {
         'The uploaded file does not match the declared size or checksum.',
     });
   }
+  /** Demo accounts: total uploads capped by `demo.program.uploadQuotaMb`. */
+  private async assertDemoQuota(
+    userId: string,
+    sizeBytes: number,
+  ): Promise<void> {
+    if (!demoContext.isDemo()) return;
+    const row = await this.prisma.appConfig.findUnique({
+      where: { key: DEMO_SETTINGS_KEY },
+    });
+    const quota = parseDemoSettings(row?.value).uploadQuotaMb * 1024 * 1024;
+    const used = await this.prisma.file.aggregate({
+      where: { owner_user_id: userId },
+      _sum: { size_bytes: true },
+    });
+    const total = Number(used._sum.size_bytes ?? 0) + sizeBytes;
+    if (total > quota) {
+      throw new HttpException(
+        {
+          code: ErrorCode.FILE_TOO_LARGE,
+          message: 'The demo account has used its upload space.',
+          details: { quotaBytes: quota, demo: true },
+        },
+        HttpStatus.PAYLOAD_TOO_LARGE,
+      );
+    }
+  }
+}
+
+function demoKeyPrefix(): string {
+  return demoContext.isDemo() ? 'demo/' : '';
 }

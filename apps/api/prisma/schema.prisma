@@ -761,6 +761,11 @@ model User {
   /// Owner 2026-10-05: the country the person works in (from the phone
   /// number at sign-up, then from the state/province they pick). Admin
   /// staff assigned to a country see only its people.
+  // Owner 2026-10-05: a row that stands for a person outside the app (an
+  // external partner — a blogger whose referral code the admin hands out
+  // before they register). No identifiers, cannot sign in, hidden from
+  // the people lists. Values: external_partner.
+  placeholder_kind            String?                        @db.String(24)
   country_code                String                         @default("US") @db.Char(2)
   country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
 
@@ -3325,6 +3330,13 @@ model Partner {
   client_rule         String?   @db.String(24)
   hold_days           Int?      @db.Int2
   created_by          String?   @db.Uuid
+  // Owner 2026-10-05: partner without an app account (user is a placeholder
+  // row, users.placeholder_kind = external_partner): who they are and how
+  // to reach them, admin only. Cleared when a real account is linked.
+  external_name       String?   @db.String(120)
+  external_contact    String?   @db.String(200)
+  // Owner 2026-10-05 («Продвижение»): may create demo accounts for videos.
+  demo_access         Boolean   @default(false)
   created_at          DateTime  @default(now()) @db.Timestamptz
   updated_at          DateTime  @updatedAt @db.Timestamptz
   ended_at            DateTime? @db.Timestamptz
@@ -4101,4 +4113,33 @@ model ClientSubscription {
 
   @@index([status, current_period_end], map: "client_subscriptions_status_idx")
   @@map("client_subscriptions")
+}
+
+// Owner 2026-10-05 («Продвижение»): registry of demo accounts. The demo
+// user itself (and everything it does) lives in the DEMO database
+// (src/common/demo); this row in the real database says who created it,
+// when it was last used and the one-time code a blogger without an app
+// account enters to get in. Deleting the row deletes the demo user.
+model DemoAccount {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // users.id inside the demo database.
+  demo_user_id        String    @unique @db.Uuid
+  // client | attorney | assistant
+  role                String    @db.String(16)
+  display_name        String    @db.String(120)
+  // Admin's note: "блогер Иван, Instagram".
+  label               String?   @db.String(200)
+  // The partner (real user) who created it from the app; null when the
+  // admin created it for a blogger without an account.
+  created_by_user_id  String?   @db.Uuid
+  created_by_admin_id String?   @db.Uuid
+  invite_code_hash    String?   @unique @db.String(64)
+  invite_expires_at   DateTime? @db.Timestamptz
+  last_seen_at        DateTime? @db.Timestamptz
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+
+  @@index([created_by_user_id, created_at])
+  @@index([last_seen_at])
+  @@map("demo_accounts")
 }

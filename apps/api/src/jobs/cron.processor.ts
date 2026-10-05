@@ -37,6 +37,7 @@ import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.servic
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { DemoService } from '../modules/demo/demo.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -72,6 +73,7 @@ export class CronProcessor {
     private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
+    @Optional() private readonly demo: DemoService | undefined,
     private readonly caseDeadlineReminder: CaseDeadlineReminderJob,
     private readonly trust: AttorneyTrustService,
     @Optional() private readonly supportDesk?: SupportDeskService,
@@ -142,6 +144,8 @@ export class CronProcessor {
         return this.casePayments.remind();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.demoSweep:
+        return this.demo?.sweep();
       case CRON_JOBS.caseDeadlineReminder:
         return this.caseDeadlineReminder.run();
       case CRON_JOBS.trustRecompute:

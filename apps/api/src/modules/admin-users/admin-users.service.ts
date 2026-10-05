@@ -156,6 +156,9 @@ export class AdminUsersService {
         : { id: { in: [] } }
       : userInScope(countries);
     const where: Prisma.UserWhereInput = {
+      // Owner 2026-10-05: placeholder rows of partners without an account
+      // are not people in the app.
+      placeholder_kind: null,
       ...byQuery,
       ...country,
       ...(q.role ? { role: q.role } : {}),

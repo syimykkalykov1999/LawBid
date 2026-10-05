@@ -169,6 +169,7 @@ function processor() {
           Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
         ),
       } as unknown as PartnersService,
+      undefined,
       deadline as unknown as CaseDeadlineReminderJob,
       {
         recomputeAll: jest.fn(() =>
@@ -208,7 +209,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-05: + nightly trust.recompute (anti-fraud).
     // Owner 2026-10-05: + daily cases.deadline-reminder,
     // + support.sweep every 5 min and the daily rewards.award.
-    expect(upserts).toHaveLength(35);
+    // Owner 2026-10-05: + hourly demo.sweep (demo accounts past their TTL).
+    expect(upserts).toHaveLength(36);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
