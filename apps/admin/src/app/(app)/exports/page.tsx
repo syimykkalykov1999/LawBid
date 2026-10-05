@@ -1,6 +1,6 @@
 'use client';
 
-import { Briefcase, CreditCard, Gavel, type Icon, Article, Users, UsersThree } from '@phosphor-icons/react';
+import { Briefcase, CreditCard, Gavel, type Icon, Article, Users, UsersThree, HandCoins } from '@phosphor-icons/react';
 import { CsvButton } from '@/components/csv-button';
 import { FadeIn } from '@/components/legacy/fade-in';
 import { PageHeader } from '@/components/page-header';
@@ -12,6 +12,7 @@ const ENTITIES: { code: string; title: string; hint: string; icon: Icon; reason?
   { code: 'cases', title: 'Кейсы', hint: 'название, статус, квалификация, штат, бюджет, ставки, просмотры', icon: Briefcase },
   { code: 'bids', title: 'Ставки', hint: 'кейс, адвокат, статус, тип и сумма, раунды', icon: Gavel },
   { code: 'payments', title: 'Платежи', hint: 'пользователь, сумма, статус, дата оплаты, код ошибки', icon: CreditCard },
+  { code: 'case_payments', title: 'Оплаты адвокатам', hint: 'кейс, клиент, адвокат, суммы, комиссия, возвраты, споры', icon: HandCoins },
   { code: 'posts', title: 'Публикации', hint: 'автор, тип, заголовок, лайки, комментарии', icon: Article },
   { code: 'teams', title: 'Команды помощников', hint: 'адвокат, помощник, телефон, статус, обязанности', icon: UsersThree },
 ];
@@ -20,7 +21,7 @@ const ENTITIES: { code: string; title: string; hint: string; icon: Icon; reason?
 export default function ExportsPage() {
   const { data: me } = useMe();
   // Payments are money: the super admin only.
-  const entities = ENTITIES.filter((e) => e.code !== 'payments' || me?.role === 'super_admin');
+  const entities = ENTITIES.filter((e) => (e.code !== 'payments' && e.code !== 'case_payments') || me?.role === 'super_admin');
   return (
     <>
       <PageHeader

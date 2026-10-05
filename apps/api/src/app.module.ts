@@ -30,6 +30,7 @@ import { PresenceModule } from './modules/presence/presence.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
+import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { PartnersModule } from './modules/partners/partners.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
@@ -216,6 +217,8 @@ const isDev =
     PartnersModule,
     OutreachModule,
     PromotionsModule,
+    // Owner 2026-10-05: client → attorney payments via Stripe Connect.
+    CasePaymentsModule,
     ClientBadgeModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,
