@@ -23,6 +23,7 @@ class CallDto {
     this.answeredAt,
     this.endedAt,
     this.durationSec,
+    this.video = false,
   });
 
   factory CallDto.fromJson(Map<String, Object?> json) =>
@@ -36,6 +37,9 @@ class CallDto {
 
   /// The viewer placed the call.
   final bool outgoing;
+
+  /// Owner 2026-10-05: cameras on (false = audio only).
+  final bool video;
   final CallPeerDto peer;
   final DateTime createdAt;
   final DateTime? answeredAt;

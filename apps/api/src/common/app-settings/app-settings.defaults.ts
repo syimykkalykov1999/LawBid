@@ -86,6 +86,12 @@ export const OWNER_MEDIA_SETTINGS = {
   'rate_limit.sticker_pack_create_per_day': 5,
   'rate_limit.sticker_add_per_hour': 60,
   'files.sticker_max_size_mb': 1,
+  // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
+  // played part stays ≤ video.max_duration_sec.
+  'video.max_source_duration_sec': 180,
+  // Owner 2026-10-05: documents in posts / reels — small on purpose.
+  'files.post_attachment_max_size_mb': 10,
+  'posts.attachments_max_total_mb': 30,
 } as const;
 
 // Owner 2026-10-02: support tickets — per-user limits (429 RATE_LIMITED).

@@ -1,5 +1,33 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
+
+/** POST /conversations/:id/calls — owner 2026-10-05: video or audio. */
+export class StartCallDto {
+  @ApiPropertyOptional({
+    default: false,
+    description: 'A video call (needs the `video_calls` flag).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  video?: boolean;
+}
+
+/** GET /calls/video — may the app offer video calls right now. */
+export class VideoCallConfigDto {
+  @ApiProperty()
+  available!: boolean;
+
+  @ApiProperty({ enum: ['webrtc'] })
+  provider!: 'webrtc';
+
+  @ApiPropertyOptional({
+    enum: ['flag_off', 'provider_not_configured'],
+    enumName: 'VideoCallUnavailableReason',
+    nullable: true,
+    description: 'Why not (null when available).',
+  })
+  reason!: 'flag_off' | 'provider_not_configured' | null;
+}
 
 export class CallIdParamDto {
   @ApiProperty({ format: 'uuid' })
@@ -76,6 +104,10 @@ export class CallDto {
 
   @ApiProperty({ description: 'The viewer placed the call.' })
   outgoing!: boolean;
+
+  /** Owner 2026-10-05: cameras on (false = audio only). */
+  @ApiProperty({ default: false })
+  video!: boolean;
 
   @ApiProperty({ type: CallPeerDto })
   peer!: CallPeerDto;

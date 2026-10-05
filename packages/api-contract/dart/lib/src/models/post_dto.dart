@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'content_status.dart';
 import 'mention_dto.dart';
+import 'post_attachment_dto.dart';
 import 'post_author_dto.dart';
 import 'post_kind.dart';
 import 'post_location_dto.dart';
@@ -23,6 +24,7 @@ class PostDto {
     required this.author,
     required this.body,
     required this.media,
+    required this.attachments,
     required this.tags,
     required this.mentions,
     required this.status,
@@ -56,6 +58,9 @@ class PostDto {
   final PostAuthorDto author;
   final String body;
   final List<PostMediaDto> media;
+
+  /// Owner 2026-10-05: documents (reels: on the inner page).
+  final List<PostAttachmentDto> attachments;
 
   /// Owner 2026-10-01: a reel's video (null for photo/text posts).
   final PostVideoDto? video;
