@@ -9,12 +9,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
-import 'package:lawbid/features/cases/data/cases_local_database.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
+import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/onboarding_harness.dart';
@@ -115,6 +115,7 @@ class _WonCaseRepo extends FakeCasesRepository {
         isNew: false,
         hasOwnBid: true,
         ownBidId: 'bid-1',
+        acceptedBidIsMine: true,
       );
 
   @override
@@ -123,6 +124,36 @@ class _WonCaseRepo extends FakeCasesRepository {
 
   @override
   Future<void> recordView(String caseId) async {}
+}
+
+class _StaleCaseRepo extends FakeCasesRepository {
+  final kept = <String>[];
+
+  @override
+  Future<OwnerCase> ownerCase(String caseId) async => OwnerCase(
+        id: caseId,
+        title: 'Speeding ticket in Trenton',
+        description: 'Got a ticket on the turnpike last week.',
+        practice: const PracticeRef(
+          id: 'leaf-1',
+          code: 'traffic',
+          i18nKey: 'practice.traffic',
+          nameEn: 'Traffic',
+        ),
+        primaryStateCode: 'NJ',
+        additionalStateCodes: const [],
+        city: null,
+        budget: const CaseBudget(mode: BudgetMode.clarifyLater),
+        status: CaseStatus.open,
+        viewCount: 1,
+        bidsCount: 0,
+        createdAt: DateTime(2026, 9, 2),
+        lastActivityAt: DateTime(2026, 9, 2),
+        stalePromptSentAt: kept.isEmpty ? DateTime(2026, 9, 25) : null,
+      );
+
+  @override
+  Future<void> keepAlive(String caseId) async => kept.add(caseId);
 }
 
 class _FinishedBidsRepo extends FakeCasesRepository {
@@ -388,6 +419,23 @@ void main() {
   });
 
   group('Screens', () {
+    testWidgets('a stale open case asks "still relevant?" and keeps it alive',
+        (tester) async {
+      final repo = _StaleCaseRepo();
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        extra: casesOverrides(repo: repo),
+      );
+      await tester.pumpWidget(wrap(const OwnerCaseScreen(caseId: 'case-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('stale-prompt')), findsOneWidget);
+      await tester.tap(find.text('Yes, still relevant'));
+      await tester.pumpAndSettle();
+      expect(repo.kept, ['case-1']);
+      expect(find.byKey(const ValueKey('stale-prompt')), findsNothing);
+    });
+
     testWidgets('a won case opens the work screen for its attorney',
         (tester) async {
       final router = GoRouter(

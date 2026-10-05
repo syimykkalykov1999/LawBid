@@ -215,6 +215,12 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
             sort: _sort,
             bidsKey: _bidsKey,
             onSort: (s) => setState(() => _sort = s),
+            onKeepAlive: _busy
+                ? null
+                : () => _run(
+                      () => ref.read(caseActionsProvider).keepAlive(c.id),
+                      doneKey: 'cases.owner.keptAlive',
+                    ),
           ),
         ),
       ),
@@ -289,8 +295,10 @@ class _OwnerCaseBody extends ConsumerWidget {
     required this.sort,
     required this.bidsKey,
     required this.onSort,
+    required this.onKeepAlive,
   });
 
+  final VoidCallback? onKeepAlive;
   final OwnerCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -363,6 +371,21 @@ class _OwnerCaseBody extends ConsumerWidget {
             NoticeCard(
               icon: AppIcons.inventory2Outlined,
               message: t.t('cases.owner.archivedNotice'),
+            ),
+          ],
+          // Audit 2026-10-04: the "still relevant?" prompt, answered here.
+          if (c.status == CaseStatus.open && c.stalePromptSentAt != null) ...[
+            const SizedBox(height: AppSpacing.lg),
+            NoticeCard(
+              key: const ValueKey('stale-prompt'),
+              icon: AppIcons.hourglassTopRounded,
+              message: t.t('cases.owner.staleNotice'),
+              action: AppButton(
+                label: t.t('cases.owner.keepAlive'),
+                variant: AppButtonVariant.secondary,
+                height: AppSizes.touchTarget,
+                onPressed: onKeepAlive,
+              ),
             ),
           ],
           // Owner 2026-10-02: paid promotion of an open case.
@@ -488,10 +511,15 @@ class _BidsList extends ConsumerWidget {
     return switch (async) {
       AsyncData(:final value) when value.items.isEmpty => Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-          child: AppEmptyState(
-            icon: AppIcons.gavelRounded,
-            title: t.t('cases.bids.emptyTitle'),
-            message: t.t('cases.bids.emptyMessage'),
+          // Audit 2026-10-04: AppEmptyState fills its parent's height — a
+          // bounded box inside this ListView (unbounded made layout throw).
+          child: SizedBox(
+            height: 320,
+            child: AppEmptyState(
+              icon: AppIcons.gavelRounded,
+              title: t.t('cases.bids.emptyTitle'),
+              message: t.t('cases.bids.emptyMessage'),
+            ),
           ),
         ),
       AsyncData(:final value) => Column(

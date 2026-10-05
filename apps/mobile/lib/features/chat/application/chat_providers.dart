@@ -836,6 +836,7 @@ class ChatThread extends Notifier<ChatThreadState> {
                 caseTitle: c.caseTitle,
                 status: c.status,
                 contactsUnlocked: c.contactsUnlocked,
+                blocked: c.blocked,
                 counterpart: c.counterpart,
                 lastMessage: c.lastMessage,
                 lastMessageAt: c.lastMessageAt,

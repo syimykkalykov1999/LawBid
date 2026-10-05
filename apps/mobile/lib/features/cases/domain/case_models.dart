@@ -150,7 +150,12 @@ class OwnerCase {
     this.acceptedBid,
     this.conversationId,
     this.photos = const [],
+    this.stalePromptSentAt,
   });
+
+  /// Audit 2026-10-04: when the "still relevant?" prompt went out for this
+  /// open case (null = not asked); the owner can answer on the case.
+  final DateTime? stalePromptSentAt;
 
   /// OQ-031: the case photos (the owner always sees them).
   final List<CasePhoto> photos;
@@ -330,7 +335,12 @@ class FeedCase {
     this.bidAllowed = true,
     this.promoted = false,
     this.completionRequestedBy,
+    this.acceptedBidIsMine = false,
   });
+
+  /// Audit 2026-10-04 (detail only): this attorney's bid is the accepted
+  /// one — the case belongs on the work screen.
+  final bool acceptedBidIsMine;
 
   /// Owner 2026-10-02: a paid promotion keeps this case near the top.
   final bool promoted;

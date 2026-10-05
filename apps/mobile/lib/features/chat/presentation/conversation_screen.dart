@@ -279,6 +279,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           if (c != null &&
               !c.closed &&
               c.contactsUnlocked &&
+              !c.blockedHere &&
               !c.myRequestPending &&
               !c.awaitingMyAnswer &&
               !c.myRequestDeclined &&
@@ -334,6 +335,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                     // block before anything else.
                     if (c != null && c.awaitingMyAnswer)
                       _RequestPanel(conversation: c, thread: _thread)
+                    else if (c != null && c.blockedHere && !c.closed)
+                      _Banner(
+                        key: const ValueKey('chat-blocked-banner'),
+                        icon: AppIcons.blockRounded,
+                        text: t.t('chat.blockedBanner'),
+                      )
                     else if (c != null && c.myRequestDeclined)
                       _Banner(
                         icon: AppIcons.blockRounded,
@@ -1142,7 +1149,7 @@ class _TypingDotsState extends State<_TypingDots>
 }
 
 class _Banner extends StatelessWidget {
-  const _Banner({required this.icon, required this.text});
+  const _Banner({required this.icon, required this.text, super.key});
 
   final IconData icon;
   final String text;

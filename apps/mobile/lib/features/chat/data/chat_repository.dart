@@ -622,6 +622,7 @@ abstract final class ChatMappers {
           _ => ConversationStatus.preAcceptance,
         },
         contactsUnlocked: d.contactsUnlocked,
+        blocked: d.blocked,
         counterpart: Counterpart(
           isAttorney:
               d.counterpart.kind == api.ConversationCounterpartDtoKind.attorney,

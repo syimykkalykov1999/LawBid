@@ -215,4 +215,27 @@ void main() {
       AppRoutes.profile,
     );
   });
+
+  test('audit 2026-10-04: a block applies except in an active case chat', () {
+    Conversation c({
+      String? caseId = 'k1',
+      bool unlocked = true,
+      ConversationStatus status = ConversationStatus.active,
+    }) =>
+        Conversation(
+          id: 'c1',
+          caseId: caseId,
+          caseTitle: null,
+          status: status,
+          contactsUnlocked: unlocked,
+          blocked: true,
+          counterpart: const Counterpart(isAttorney: false, verified: false),
+          unreadCount: 0,
+          updatedAt: DateTime(2026),
+        );
+    expect(c().blockedHere, isFalse);
+    expect(c(unlocked: false).blockedHere, isTrue);
+    expect(c(status: ConversationStatus.closed).blockedHere, isTrue);
+    expect(c(caseId: null).blockedHere, isTrue);
+  });
 }

@@ -7,10 +7,18 @@ const auditCasesRu = <String, String>{
   'cases.mine.finished': 'Закрытые',
   'cases.photos.failedHint':
       'Повторите или удалите файл, который не загрузился.',
+  'cases.owner.staleNotice':
+      'Кейс всё ещё актуален? Подтвердите, чтобы он остался в ленте.',
+  'cases.owner.keepAlive': 'Да, ещё актуален',
+  'cases.owner.keptAlive': 'Кейс остаётся открытым',
 };
 
 const auditCasesEn = <String, String>{
   'cases.mine.archived': 'Archive',
   'cases.mine.finished': 'Finished',
   'cases.photos.failedHint': 'Retry or remove the file that failed to upload.',
+  'cases.owner.staleNotice':
+      'Is your case still relevant? Confirm to keep it in the feed.',
+  'cases.owner.keepAlive': 'Yes, still relevant',
+  'cases.owner.keptAlive': 'Your case stays open',
 };

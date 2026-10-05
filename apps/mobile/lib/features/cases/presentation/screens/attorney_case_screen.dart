@@ -105,11 +105,12 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   /// bid accepted, the work screen (chat, completion, dispute) is the
   /// right place — the feed view would be a dead end.
   void _openWorkIfMine(FeedCase? c) {
-    if (_openedWork || c == null || c.status == CaseStatus.open) return;
-    final ownBidId = c.ownBidId;
-    if (ownBidId == null) return;
-    final own = ref.watch(bidProvider(ownBidId)).value;
-    if (own?.status != BidStatus.accepted) return;
+    if (_openedWork ||
+        c == null ||
+        c.status == CaseStatus.open ||
+        !c.acceptedBidIsMine) {
+      return;
+    }
     _openedWork = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.replace(AppRoutes.workCase(c.id));

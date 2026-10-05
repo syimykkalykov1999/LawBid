@@ -1,12 +1,12 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
-import 'package:lawbid/core/l10n/strings/file05_strings.dart';
-import 'package:lawbid/core/l10n/strings/file06_strings.dart';
-import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_cases_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
+import 'package:lawbid/core/l10n/strings/file05_strings.dart';
+import 'package:lawbid/core/l10n/strings/file06_strings.dart';
+import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 

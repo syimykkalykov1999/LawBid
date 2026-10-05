@@ -225,11 +225,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     selected: tab == InboxTab.notifications,
                                     label: t.t('inbox.tab.notifications'),
                                     onTap: () => setState(
-                                      () => _tab = tab ==
-                                                  InboxTab.notifications &&
-                                              chatsAllowed
-                                          ? InboxTab.chats
-                                          : InboxTab.notifications,
+                                      () => _tab =
+                                          tab == InboxTab.notifications &&
+                                                  chatsAllowed
+                                              ? InboxTab.chats
+                                              : InboxTab.notifications,
                                     ),
                                   ),
                               ],
