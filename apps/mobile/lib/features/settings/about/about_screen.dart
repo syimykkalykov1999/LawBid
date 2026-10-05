@@ -210,6 +210,13 @@ class AboutScreen extends ConsumerWidget {
                     label: t.t('about.privacy'),
                     onTap: () => context.push(AppRoutes.legalDoc('privacy')),
                   ),
+                  // Owner 2026-10-05 (legal): the DMCA takedown form.
+                  AppListRow(
+                    key: const ValueKey('about-dmca'),
+                    icon: AppIcons.policyOutlined,
+                    label: t.t('about.dmca'),
+                    onTap: () => context.push(AppRoutes.dmcaNotice),
+                  ),
                 ],
               ),
             ),

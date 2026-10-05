@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import '../features/cases/cases_fakes.dart';
 import '../features/social/social_fakes.dart';
+import 'legal_overrides.dart';
 
 /// Controllable [NetworkInterfaceMonitor] (no platform channel).
 class FakeNetworkMonitor implements NetworkInterfaceMonitor {
@@ -66,6 +67,7 @@ List<Override> uxOverrides({
       reachabilityProbeProvider.overrideWithValue((probe ?? FakeProbe()).call),
       ...casesOverrides(repo: cases),
       ...socialOverrides(social, search),
+      ...legalOverrides(),
       ...extra,
     ];
 

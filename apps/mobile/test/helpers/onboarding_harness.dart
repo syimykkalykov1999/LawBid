@@ -20,6 +20,7 @@ import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../features/social/social_fakes.dart';
+import 'legal_overrides.dart';
 
 /// CurrentUserController pinned to a fixed state (no session listening).
 class FixedUserController extends CurrentUserController {
@@ -181,6 +182,8 @@ Future<Widget Function(Widget)> onboardingWrapper(
             onboardingRepositoryProvider.overrideWithValue(repo),
           // docs/05: screens that show posts/follows never hit the network.
           ...socialOverrides(),
+          // Owner 2026-10-05 (legal): disclaimers come from the fallback.
+          ...legalOverrides(),
           ...extra,
         ],
         child: MaterialApp(

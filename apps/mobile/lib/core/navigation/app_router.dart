@@ -27,6 +27,7 @@ import 'package:lawbid/features/client_badge/presentation/client_badge_screen.da
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
@@ -217,6 +218,18 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const VerificationWizardScreen()),
+      ),
+      // Owner 2026-10-05 (legal): before `/legal/:docType` — first match wins.
+      GoRoute(
+        path: AppRoutes.dmcaNotice,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DmcaNoticeScreen(
+            targetType: state.uri.queryParameters['targetType'],
+            targetId: state.uri.queryParameters['targetId'],
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.legal,

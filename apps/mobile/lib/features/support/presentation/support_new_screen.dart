@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 
@@ -127,6 +128,13 @@ class _SupportNewScreenState extends ConsumerState<SupportNewScreen> {
                   const _ReplyTime(),
                   Text(
                     t.t('support.hint'),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                  // Owner 2026-10-05 (legal): support is not legal advice.
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    ref.watch(legalTextsProvider).supportNote,
+                    key: const ValueKey('support-legal-note'),
                     style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                 ],

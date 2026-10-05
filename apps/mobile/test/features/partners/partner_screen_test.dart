@@ -19,14 +19,23 @@ class FakePartnersRepository extends PartnersRepository {
 
   PartnerMe state;
   int joins = 0;
+  int accepts = 0;
+  bool? lastTermsAccepted;
 
   @override
   Future<PartnerMe> me() async => state;
 
   @override
-  Future<PartnerMe> join() async {
+  Future<PartnerMe> join({required bool termsAccepted}) async {
     joins += 1;
+    lastTermsAccepted = termsAccepted;
     return state = state.joinMode == 'approval' ? _pending : _partner;
+  }
+
+  @override
+  Future<PartnerMe> acceptTerms() async {
+    accepts += 1;
+    return state = _partner;
   }
 }
 
@@ -52,6 +61,7 @@ PartnerMe _me({
   required bool canJoin,
   String joinMode = 'open',
   String? status,
+  String? termsAcceptedVersion = '2026-10-05',
 }) =>
     PartnerMe(
       enabled: enabled,
@@ -67,6 +77,10 @@ PartnerMe _me({
       commissions: const [],
       title: 'Partner program',
       summary: 'Share your link.',
+      disclosure: 'Say it is a paid link in every post.',
+      terms: '1. You are an independent contractor.\n2. Disclose the paid link.',
+      termsVersion: '2026-10-05',
+      termsAcceptedVersion: isPartner ? termsAcceptedVersion : null,
     );
 
 final _partner = _me(enabled: true, isPartner: true, canJoin: false);
@@ -112,11 +126,16 @@ void main() {
     expect(find.byKey(const ValueKey('partner-join')), findsOneWidget);
     expect(find.text('Program rates'), findsOneWidget);
     expect(find.text(r'$50.00'), findsOneWidget);
+    // Owner 2026-10-05 (legal): the FTC disclosure is shown before joining.
+    expect(find.byKey(const ValueKey('partner-disclosure')), findsOneWidget);
 
+    await tester.tap(find.byKey(const ValueKey('partner-terms-checkbox')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('partner-join')));
     await tester.pumpAndSettle();
 
     expect(repo.joins, 1);
+    expect(repo.lastTermsAccepted, isTrue);
     expect(find.byKey(const ValueKey('partner-join')), findsNothing);
     expect(find.text('ANN12345'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -129,6 +148,8 @@ void main() {
     );
     await _pump(tester, repo);
     expect(find.textContaining('sends a request'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('partner-terms-checkbox')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('partner-join')));
     await tester.pumpAndSettle();
     expect(repo.joins, 1);
@@ -148,6 +169,64 @@ void main() {
     await _pump(tester, repo);
     expect(find.text('The program is closed for now'), findsOneWidget);
     expect(find.text('ANN12345'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // Owner 2026-10-05 (legal): no join without accepting the partner rules.
+  testWidgets('the join button is gated by the terms checkbox', (tester) async {
+    final repo = FakePartnersRepository(
+      _me(enabled: true, isPartner: false, canJoin: true),
+    );
+    await _pump(tester, repo);
+
+    // Unchecked: the tap does nothing.
+    await tester.tap(find.byKey(const ValueKey('partner-join')));
+    await tester.pumpAndSettle();
+    expect(repo.joins, 0);
+    expect(find.byKey(const ValueKey('partner-join')), findsOneWidget);
+
+    // The label opens the rules in a scrollable sheet.
+    await tester.tap(find.byKey(const ValueKey('partner-terms-open')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('partner-terms-text')), findsOneWidget);
+    expect(find.textContaining('independent contractor'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('partner-terms-text')), findsNothing);
+
+    // Checked: the join goes through with termsAccepted: true.
+    await tester.tap(find.byKey(const ValueKey('partner-terms-checkbox')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('partner-join')));
+    await tester.pumpAndSettle();
+    expect(repo.joins, 1);
+    expect(repo.lastTermsAccepted, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('an existing partner without acceptance sees the rules, not the link',
+      (tester) async {
+    final repo = FakePartnersRepository(
+      _me(
+        enabled: true,
+        isPartner: true,
+        canJoin: false,
+        termsAcceptedVersion: null,
+      ),
+    );
+    await _pump(tester, repo);
+    expect(find.byKey(const ValueKey('partner-terms-pending')), findsOneWidget);
+    expect(find.byKey(const ValueKey('partner-disclosure')), findsOneWidget);
+    expect(find.text('ANN12345'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('partner-terms-open')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('partner-terms-accept')));
+    await tester.pumpAndSettle();
+
+    expect(repo.accepts, 1);
+    expect(find.byKey(const ValueKey('partner-terms-pending')), findsNothing);
+    expect(find.text('ANN12345'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
