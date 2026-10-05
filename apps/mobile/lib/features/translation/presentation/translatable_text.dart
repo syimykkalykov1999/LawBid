@@ -14,11 +14,11 @@ import 'package:lawbid/features/translation/data/content_translation_repository.
 /// the server, and a second tap shows it again.
 class TranslatableText extends ConsumerStatefulWidget {
   const TranslatableText({
-    super.key,
     required this.kind,
     required this.id,
     required this.text,
     required this.builder,
+    super.key,
     this.enabled = true,
   });
 
