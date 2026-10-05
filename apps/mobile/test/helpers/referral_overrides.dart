@@ -2,6 +2,7 @@ import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
+import 'package:lawbid/features/templates/application/templates_providers.dart';
 
 /// Settings watches the referral program flag; widget tests never hit the
 /// network, so they get "program off".
@@ -54,3 +55,7 @@ final partnerOffOverride = partnerMeProvider.overrideWith(
     summary: '',
   ),
 );
+
+/// The settings goldens were drawn on a Mac before the document templates
+/// row existed; they keep that layout until they are regenerated there.
+final templatesOffOverride = templatesEnabledProvider.overrideWithValue(false);
