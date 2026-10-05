@@ -56,6 +56,7 @@ List<Override> uxOverrides({
   FakeSocialRepository? social,
   FakeSearchRepository? search,
   Translator translator = const StaticTranslatorEn(),
+  FakeCasesRepository? cases,
   List<Override> extra = const [],
 }) =>
     [
@@ -63,7 +64,7 @@ List<Override> uxOverrides({
       networkInterfaceMonitorProvider
           .overrideWithValue(monitor ?? FakeNetworkMonitor()),
       reachabilityProbeProvider.overrideWithValue((probe ?? FakeProbe()).call),
-      ...casesOverrides(),
+      ...casesOverrides(repo: cases),
       ...socialOverrides(social, search),
       ...extra,
     ];

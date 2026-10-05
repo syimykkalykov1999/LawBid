@@ -47,6 +47,7 @@ import {
   SessionEndedDto,
 } from './dto/auth-responses.dto';
 import { ContinueLoginDto } from './dto/continue-login.dto';
+import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 
 const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
@@ -157,6 +158,26 @@ export class AuthController {
     @Req() req: Request,
   ): Promise<AuthTokensDto> {
     return this.auth.continueLogin(dto.pendingToken, this.meta(req));
+  }
+
+  /** Owner 2026-10-04: an assistant signs in with the one-time code the
+   * attorney got for their seat — no SMS. A new account becomes the
+   * assistant; a code issued again signs the same assistant in on a new
+   * phone (the old one is signed out). */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.ASSISTANT_CODE_INVALID],
+    403: [E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    429: [E.RATE_LIMITED],
+  })
+  @Public()
+  @Post('assistant/code')
+  async assistantCodeLogin(
+    @Body() dto: AssistantCodeLoginDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.auth.assistantCodeLogin(dto, this.meta(req));
   }
 
   /** Email magic link (docs/01 §10.2 E): one-time token from the email +

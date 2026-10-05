@@ -19,6 +19,8 @@ class AdminTeamRowDto {
     required this.invited,
     required this.pendingRequests,
     required this.openTasks,
+    required this.seatLimit,
+    required this.seatLimitPersonal,
     this.username,
   });
 
@@ -34,6 +36,12 @@ class AdminTeamRowDto {
   final int invited;
   final int pendingRequests;
   final int openTasks;
+
+  /// Owner 2026-10-05: how many assistants this attorney may add.
+  final int seatLimit;
+
+  /// An admin set a personal limit.
+  final bool seatLimitPersonal;
 
   Map<String, Object?> toJson() => _$AdminTeamRowDtoToJson(this);
 }

@@ -6,18 +6,15 @@ import {
   PersonaIdVerificationProvider,
   StripeIdentityProvider,
 } from './id/paid-id-verification.providers';
-import {
-  ManualBarLookupProvider,
-  ManualIdVerificationProvider,
-} from './manual.providers';
+import { ManualIdVerificationProvider } from './manual.providers';
 import {
   VERIFICATION_FLAGS,
-  type BarLookupProvider,
   type IdVerificationProvider,
 } from './verification-providers';
 
 /**
- * Picks the check implementations from the feature flags on every call
+ * Picks the check implementations on every call: bar lookups per state
+ * from the admin's registry settings, ID checks from the feature flags
  * (docs/03 §2.4: "Включение флага в админке переключает проверку на
  * автоматическую без релиза и без переписывания кода"). Flags default to
  * off; with all off everything is `manual`. Stripe Identity wins when
@@ -27,17 +24,17 @@ import {
 export class VerificationProviderSelector {
   constructor(
     private readonly flags: FeatureFlagsService,
-    private readonly manualBar: ManualBarLookupProvider,
     private readonly autoBar: AutoBarLookupProvider,
     private readonly manualId: ManualIdVerificationProvider,
     private readonly stripe: StripeIdentityProvider,
     private readonly persona: PersonaIdVerificationProvider,
   ) {}
 
-  async barLookup(): Promise<BarLookupProvider> {
-    return (await this.flags.isEnabled(VERIFICATION_FLAGS.autoBarCheck, false))
-      ? this.autoBar
-      : this.manualBar;
+  /** Owner 2026-10-05: the registry is chosen per state in the admin
+   * (state_bar_registries) — states without one answer `manual_review`.
+   * The old global flag `auto_bar_check` is no longer read. */
+  barLookup(): Promise<AutoBarLookupProvider> {
+    return Promise.resolve(this.autoBar);
   }
 
   async idVerification(): Promise<{

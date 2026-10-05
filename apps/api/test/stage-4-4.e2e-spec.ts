@@ -137,21 +137,22 @@ describe('Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4)', () => {
 
   async function kase(
     clientId: string,
-    opts: { areaId?: string } = {},
+    opts: { areaId?: string; state?: string } = {},
   ): Promise<string> {
+    const state = opts.state ?? 'NJ';
     const c = await prisma.case.create({
       data: {
         client_id: clientId,
         title: 'Speeding ticket in Trenton',
         description: 'Got a ticket on the turnpike last week driving home.',
         practice_area_id: opts.areaId ?? practiceAreaId,
-        primary_state_code: 'NJ',
+        primary_state_code: state,
         budget_mode: 'clarify_later',
         status: 'open',
       },
     });
     await prisma.caseState.create({
-      data: { case_id: c.id, state_code: 'NJ', is_primary: true },
+      data: { case_id: c.id, state_code: state, is_primary: true },
     });
     return c.id;
   }
@@ -278,6 +279,49 @@ describe('Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4)', () => {
     const asClient = await postBid(client.auth, caseId, bidBody());
     expect(asClient.status).toBe(403);
     expect(asClient.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('owner 2026-10-04: any state and any practice (incl. "Not sure") is biddable; the client sees the mismatch', async () => {
+    await prisma.state.upsert({
+      where: { code: 'CA' },
+      create: { code: 'CA', name: 'California', is_active: true },
+      update: {},
+    });
+    const notSure = await prisma.practiceArea.upsert({
+      where: { code: 'general_practice.not_sure_or_other' },
+      create: {
+        code: 'general_practice.not_sure_or_other',
+        name_en: 'Not Sure or Other',
+        i18n_key: 'practice.general_practice.not_sure_or_other',
+        sort: 99,
+      },
+      update: {},
+    });
+    const client = await user('client');
+    // Licensed in NJ only, practice e2e_bids_leaf only.
+    const attorney = await user('attorney');
+
+    // A California case: no licence there — still a 201, marked.
+    const caCase = await kase(client.id, { state: 'CA' });
+    const outOfState = await postBid(attorney.auth, caCase, bidBody());
+    expect(outOfState.status).toBe(201);
+    expect(outOfState.body.data.outsideLicensedStates).toBe(true);
+    expect(outOfState.body.data.outsidePractice).toBe(false);
+
+    // A "Not sure" case in NJ: not one of the attorney's practices — 201.
+    const notSureCase = await kase(client.id, { areaId: notSure.id });
+    const unsure = await postBid(attorney.auth, notSureCase, bidBody());
+    expect(unsure.status).toBe(201);
+    expect(unsure.body.data.outsidePractice).toBe(true);
+    expect(unsure.body.data.outsideLicensedStates).toBe(false);
+
+    // The client's bid list carries both flags and the attorney's states.
+    const list = await api()
+      .get(`/api/v1/cases/${caCase}/bids`)
+      .set(client.auth);
+    expect(list.status).toBe(200);
+    expect(list.body.data[0].outsideLicensedStates).toBe(true);
+    expect(list.body.data[0].attorney.licensedStates).toEqual(['NJ']);
   });
 
   it('SUBSCRIPTION_REQUIRED: a participant without an active subscription cannot bid', async () => {

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
@@ -6,9 +7,12 @@ import { JournalModule } from '../journal/journal.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AdminStateRegistriesController } from './controllers/admin-state-registries.controller';
 import { AdminVerificationController } from './controllers/admin-verification.controller';
 import { VerificationController } from './controllers/verification.controller';
 import { AutoBarLookupProvider } from './providers/bar-lookup/auto-bar-lookup.provider';
+import { GenericRestAdapter } from './providers/bar-lookup/generic-rest.adapter';
+import { SocrataAdapter } from './providers/bar-lookup/socrata.adapter';
 import {
   STATE_BAR_ADAPTERS,
   type StateBarAdapter,
@@ -29,6 +33,7 @@ import {
 } from './providers/verification-providers';
 import { VerificationAdminService } from './services/verification-admin.service';
 import { VerificationChecksService } from './services/verification-checks.service';
+import { StateRegistryService } from './services/state-registry.service';
 import { VerificationRequestsService } from './services/verification-requests.service';
 
 /**
@@ -48,21 +53,38 @@ import { VerificationRequestsService } from './services/verification-requests.se
     BidsModule,
     JournalModule,
   ],
-  controllers: [VerificationController, AdminVerificationController],
+  controllers: [
+    VerificationController,
+    AdminVerificationController,
+    AdminStateRegistriesController,
+  ],
   providers: [
     ManualBarLookupProvider,
     ManualIdVerificationProvider,
     StripeIdentityProvider,
     PersonaIdVerificationProvider,
-    // State registries with an API (owner 2026-10-04: today only New
-    // York's open data). Other states fall back to manual review, where
-    // the verifier opens the state bar's profile link.
+    // Owner 2026-10-05: the ways a state registry can be asked. Which one a
+    // state uses (and its key) is set per state in the admin
+    // (StateRegistryService); states without one fall back to manual
+    // review, where the verifier opens the state bar's profile link.
     NyOpenDataAdapter,
     {
       provide: STATE_BAR_ADAPTERS,
-      useFactory: (ny: NyOpenDataAdapter): StateBarAdapter[] => [ny],
-      inject: [NyOpenDataAdapter],
+      useFactory: (
+        ny: NyOpenDataAdapter,
+        config: ConfigService,
+      ): StateBarAdapter[] => {
+        // Plain http / local hosts only outside production (e2e fakes).
+        const allowLocal = config.get<string>('NODE_ENV') !== 'production';
+        return [
+          ny,
+          new SocrataAdapter(allowLocal),
+          new GenericRestAdapter(allowLocal),
+        ];
+      },
+      inject: [NyOpenDataAdapter, ConfigService],
     },
+    StateRegistryService,
     AutoBarLookupProvider,
     VerificationProviderSelector,
     // Default (flag-off) implementations, kept for direct injection.
@@ -82,7 +104,7 @@ import { VerificationRequestsService } from './services/verification-requests.se
     ID_VERIFICATION_PROVIDER,
     VerificationProviderSelector,
     // Owner 2026-10-04: the monthly registry re-check job reads the states.
-    STATE_BAR_ADAPTERS,
+    StateRegistryService,
   ],
 })
 export class VerificationModule {}

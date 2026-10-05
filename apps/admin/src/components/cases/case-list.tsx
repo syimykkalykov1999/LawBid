@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { LoadMore } from '@/components/billing/shared';
+import { DossierBadge } from '@/components/cases/dossier';
 import { ErrorNote } from '@/components/page-header';
 import { Badge } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty';
@@ -124,6 +125,7 @@ export function CaseList() {
                     </Link>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className="text-xs text-faint">{c.practiceAreaName}</span>
+                      <DossierBadge c={c} />
                       {c.openReports > 0 ? (
                         <Badge tone="danger">
                           <Flag size={11} /> {c.openReports}

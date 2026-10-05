@@ -827,14 +827,19 @@ class _SummaryRow extends StatelessWidget {
               ],
             ),
           ),
-          TextButton(
-            onPressed: onEdit,
-            style: TextButton.styleFrom(
-              minimumSize: const Size(AppSizes.hitTarget, AppSizes.hitTarget),
-            ),
-            child: Text(
-              t.t('verification.review.edit'),
-              style: typography.bodySmall.copyWith(color: colors.goldDark),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 120),
+            child: TextButton(
+              onPressed: onEdit,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(AppSizes.hitTarget, AppSizes.hitTarget),
+              ),
+              child: Text(
+                t.t('verification.review.edit'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: typography.bodySmall.copyWith(color: colors.goldDark),
+              ),
             ),
           ),
         ],

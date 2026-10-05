@@ -198,6 +198,28 @@ export class CaseBudgetDto {
 }
 
 /**
+ * Owner 2026-10-05: what the client has put into the case, so an attorney
+ * can judge it before bidding. Counts and lengths only — the files
+ * themselves still open to the accepted attorney alone (OQ-031).
+ */
+export class CaseDossierDto {
+  @ApiProperty({ type: 'integer', description: 'Attached photos (image/*).' })
+  imagesCount!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Attached documents (PDF, Word…).',
+  })
+  documentsCount!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Length of the full description, in characters.',
+  })
+  descriptionLength!: number;
+}
+
+/**
  * A case card in the attorney feed (docs/04 §4.2). Never carries any
  * client field (name/photo/phone/email) — the client is not part of this
  * representation at all, by construction, not by filtering.
@@ -272,6 +294,10 @@ export class CaseFeedItemDto {
   /** Owner 2026-10-02: a running paid case promotion ("Promoted" badge). */
   @ApiProperty({ description: 'Promoted by its client right now.' })
   promoted!: boolean;
+
+  /** Owner 2026-10-05: how complete the case is (counts only). */
+  @ApiProperty({ type: CaseDossierDto })
+  dossier!: CaseDossierDto;
 }
 
 /** GET /cases/:id for an attorney (docs/04 §4.3): the feed item plus the
@@ -310,9 +336,14 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   @ApiProperty()
   inMyPractice!: boolean;
 
+  /** Owner 2026-10-04: the attorney holds a verified licence in one of
+   * the case's states — otherwise "Bid" notes that the client will see it. */
+  @ApiProperty()
+  inMyLicensedStates!: boolean;
+
   @ApiProperty({
     description:
-      'Owner 2026-10-04: false when the attorney may only view the case (no verified licence in its states): no offer button.',
+      'Owner 2026-10-04: an attorney may bid on any open case (any state, any practice); kept for older apps, always true.',
   })
   bidAllowed!: boolean;
 }

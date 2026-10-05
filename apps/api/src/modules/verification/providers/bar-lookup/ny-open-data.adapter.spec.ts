@@ -1,5 +1,11 @@
 import type { SecretsService } from '../../../../common/secrets/secrets.service';
-import { NyOpenDataAdapter, normalizeName } from './ny-open-data.adapter';
+import { NyOpenDataAdapter } from './ny-open-data.adapter';
+import { normalizeName } from './registry-http';
+
+// Test-only values (not real credentials).
+const OLD_T = 'test-old-0001';
+const ROW_T = 'test-row-0002';
+const APP_T = 'test-app-0003';
 
 const input = {
   stateCode: 'NY',
@@ -12,7 +18,11 @@ function adapter(rows: unknown[] | Error, token?: string) {
   const fetchMock = jest.fn<Promise<unknown>, [string, RequestInit?]>(() =>
     rows instanceof Error
       ? Promise.reject(rows)
-      : Promise.resolve({ ok: true, json: () => Promise.resolve(rows) }),
+      : Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(rows)),
+        }),
   );
   global.fetch = fetchMock as unknown as typeof fetch;
   const secrets = {
@@ -48,11 +58,32 @@ describe('NyOpenDataAdapter (owner 2026-10-04)', () => {
     );
   });
 
+  it('keeps a short copy of the registry record', async () => {
+    const { ny } = adapter([row]);
+    const out = await ny.lookup(input);
+    expect(String(out.details.raw)).toContain(
+      '"registration_number":"6366132"',
+    );
+  });
+
+  it("the NY row's token wins over the old integration key", async () => {
+    const { ny, fetchMock } = adapter([row], OLD_T);
+    await ny.lookup(input, {
+      stateCode: 'NY',
+      adapter: 'ny_open_data',
+      config: {},
+      secret: ROW_T,
+    });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: { 'X-App-Token': ROW_T },
+    });
+  });
+
   it('sends the optional app token', async () => {
-    const { ny, fetchMock } = adapter([row], 'abcdefghijkl');
+    const { ny, fetchMock } = adapter([row], APP_T);
     await ny.lookup(input);
     expect(fetchMock.mock.calls[0][1]).toMatchObject({
-      headers: { 'X-App-Token': 'abcdefghijkl' },
+      headers: { 'X-App-Token': APP_T },
     });
   });
 

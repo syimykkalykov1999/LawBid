@@ -125,9 +125,18 @@ class _VerificationWizardScreenState
   }
 
   Future<void> _addLicense(WizardState s) async {
+    final now = DateTime.now();
     await AddLicenseSheet.show(
       context,
-      s.request.pendingLicenses.map((l) => l.stateCode).toSet(),
+      {
+        for (final l in s.request.licenses)
+          // Owner 2026-10-05 (audit): verified states aren't offered again
+          // (re-adding would send them back to review).
+          if (l.status == LicenseStatus.pending ||
+              (l.status == LicenseStatus.verified &&
+                  (l.expiresAt == null || l.expiresAt!.isAfter(now))))
+            l.stateCode,
+      },
     );
     if (mounted) setState(() => _stepError = null);
   }
@@ -211,7 +220,14 @@ class _VerificationWizardScreenState
       );
       if (sent == null || !mounted) return;
       ref.invalidate(verificationOverviewProvider);
-      showAppSnackBar(context, _t.t('verification.submit.success'));
+      showAppSnackBar(
+        context,
+        _t.t(
+          sent.status == RequestStatus.approved
+              ? 'verification.submit.confirmed'
+              : 'verification.submit.success',
+        ),
+      );
       if (context.canPop()) {
         context.pop();
       } else {
@@ -419,7 +435,9 @@ class _VerificationWizardScreenState
                       WizardStep.review => t.t(
                           s.isSupplement
                               ? 'verification.submit.supplement'
-                              : 'verification.submit',
+                              : s.attestationOnly
+                                  ? 'verification.submit.confirm'
+                                  : 'verification.submit',
                         ),
                       _ => t.t('verification.next'),
                     },

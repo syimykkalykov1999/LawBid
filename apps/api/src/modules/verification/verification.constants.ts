@@ -103,6 +103,8 @@ export const AUDIT_ACTION = {
   requestInfo: 'verification.request_info',
   reject: 'verification.reject',
   recheck: 'verification.license_recheck',
+  registryCheck: 'verification.registry_check',
+  registryFlagClear: 'verification.registry_flag_clear',
   suspend: 'verification.suspend',
   restore: 'verification.restore',
 } as const;

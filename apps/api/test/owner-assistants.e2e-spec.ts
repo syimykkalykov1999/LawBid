@@ -10,7 +10,7 @@ import { ensurePostPractices } from './support/post-practices';
 
 /**
  * OQ-048 (owner 2026-09-30): attorney assistants — seats from the plan,
- * joining (added phone / code to the attorney's phone), working inside
+ * joining (added phone / the attorney's one-time code, no SMS), working inside
  * the attorney's account without bidding, labelled chat messages, the
  * hidden activity log, publications through approval, bid drafts and
  * tasks with results going back to the assistant.
@@ -179,29 +179,123 @@ describe('Assistants (e2e, OQ-048)', () => {
     expect(me.body.data.role).toBe('assistant');
   });
 
-  it('joining with the code sent to the attorney phone; yearly = 6 seats', async () => {
+  it('owner 2026-10-04: one-time code per seat, no SMS; yearly = all seats (default 10)', async () => {
     const att = await attorney(0, 'yearly');
-    const asst = await assistantUser();
+    const other = await attorney(1);
+    const CODE = /^[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/;
+
+    const added = await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ name: 'Sam' })
+      .expect(201);
+    expect(added.body.data).toMatchObject({ seats: 10, used: 1 });
+    const seat = added.body.data.members[0];
+    expect(seat.status).toBe('invited');
+    expect(seat.phone).toBeNull();
+    expect(seat.joinCode).toMatch(CODE);
+    expect(Date.parse(seat.joinCodeExpiresAt)).toBeGreaterThan(Date.now());
+
+    // Another attorney's seat never shares the code.
+    const theirs = await api()
+      .post('/api/v1/team')
+      .set(other.auth)
+      .send({})
+      .expect(201);
+    expect(theirs.body.data.members[0].joinCode).not.toBe(seat.joinCode);
+
+    const wrong = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: 'AAAA-BBBB-CCCC' })
+      .expect(401);
+    expect(wrong.body.error.code).toBe('ASSISTANT_CODE_INVALID');
+
+    // Lower case and no dashes are fine; a new account becomes the assistant.
+    const login = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({
+        code: (seat.joinCode as string).replace(/-/g, '').toLowerCase(),
+        deviceInfo: { deviceId: `dev-${randomUUID()}`, platform: 'ios' },
+      })
+      .expect(201);
+    expect(login.body.data.isNewUser).toBe(true);
+    const asstAuth = {
+      Authorization: `Bearer ${login.body.data.accessToken}`,
+    };
+    const me = await api()
+      .get('/api/v1/assistants/me')
+      .set(asstAuth)
+      .expect(200);
+    expect(me.body.data).toMatchObject({
+      state: 'active',
+      attorneyName: 'Ada Counsel',
+    });
+
+    // Used once.
+    const again = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: seat.joinCode })
+      .expect(401);
+    expect(again.body.error.code).toBe('ASSISTANT_CODE_INVALID');
+    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
+    expect(team.body.data.members[0]).toMatchObject({
+      status: 'active',
+      joinCode: null,
+    });
+
+    // "New code": the same assistant on a new phone; the old one is out.
+    const renewed = await api()
+      .post(`/api/v1/team/${seat.id}/code`)
+      .set(att.auth)
+      .expect(201);
+    const second = renewed.body.data.members[0].joinCode as string;
+    expect(second).toMatch(CODE);
+    expect(second).not.toBe(seat.joinCode);
+    const relog = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: second })
+      .expect(201);
+    expect(relog.body.data.isNewUser).toBe(false);
+    const row = await prisma.assistantMembership.findUniqueOrThrow({
+      where: { id: seat.id },
+    });
+    const live = await prisma.session.count({
+      where: { user_id: row.assistant_user_id!, revoked_at: null },
+    });
+    expect(live).toBe(1);
+
+    // Removing the assistant voids an issued code.
+    const third = await api()
+      .post(`/api/v1/team/${seat.id}/code`)
+      .set(att.auth)
+      .expect(201);
+    await api().delete(`/api/v1/team/${seat.id}`).set(att.auth).expect(200);
     await api()
-      .post('/api/v1/assistants/join/request-code')
-      .set(asst.auth)
-      .send({ phone: att.phone })
-      .expect(204);
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: third.body.data.members[0].joinCode })
+      .expect(401);
+  });
+
+  it('owner 2026-10-04: a signed-in account without a team joins with the code', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    const added = await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({})
+      .expect(201);
     const bad = await api()
-      .post('/api/v1/assistants/join/verify')
+      .post('/api/v1/assistants/join/code')
       .set(asst.auth)
-      .send({ attorneyPhone: att.phone, code: '111111' })
-      .expect(400);
-    expect(bad.body.error.code).toBe('AUTH_OTP_INVALID');
+      .send({ code: 'ZZZZ-ZZZZ-ZZZZ' })
+      .expect(401);
+    expect(bad.body.error.code).toBe('ASSISTANT_CODE_INVALID');
     const ok = await api()
-      .post('/api/v1/assistants/join/verify')
+      .post('/api/v1/assistants/join/code')
       .set(asst.auth)
-      .send({ attorneyPhone: att.phone, code: '000000' })
+      .send({ code: added.body.data.members[0].joinCode })
       .expect(201);
     expect(ok.body.data.state).toBe('active');
-    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
-    expect(team.body.data).toMatchObject({ seats: 6, used: 1, plan: 'yearly' });
-    expect(team.body.data.members[0].approval).toBe('attorney_otp');
   });
 
   it('approvals, tasks, bid drafts, labelled chat and the hidden log', async () => {
@@ -630,22 +724,19 @@ describe('Assistants (e2e, OQ-048)', () => {
       .expect(404);
   });
 
-  it('join codes are rate-limited (no SMS flood to an attorney)', async () => {
-    const att = await attorney(2);
-    const asst = await assistantUser();
-    for (let i = 0; i < 3; i++) {
+  it('owner 2026-10-04: code sign-in is rate-limited per device', async () => {
+    const deviceInfo = { deviceId: `dev-${randomUUID()}` };
+    for (let i = 0; i < 10; i++) {
       await api()
-        .post('/api/v1/assistants/join/request-code')
-        .set(asst.auth)
-        .send({ phone: att.phone })
-        .expect(204);
+        .post('/api/v1/auth/assistant/code')
+        .send({ code: 'AAAA-BBBB-CCCC', deviceInfo })
+        .expect(401);
     }
     const r = await api()
-      .post('/api/v1/assistants/join/request-code')
-      .set(asst.auth)
-      .send({ phone: att.phone })
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: 'AAAA-BBBB-CCCC', deviceInfo })
       .expect(429);
-    expect(r.body.error.code).toBe('AUTH_OTP_REQUEST_LIMIT');
+    expect(r.body.error.code).toBe('RATE_LIMITED');
   });
 
   it('one task, many steps: each with its own time, checked off one by one', async () => {

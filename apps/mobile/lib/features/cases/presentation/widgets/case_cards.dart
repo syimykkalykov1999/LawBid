@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_facts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -239,6 +240,12 @@ class FeedCaseCard extends StatelessWidget {
           : CaseFormat.money(formats, item.budget.amountCents!),
     );
     final urgency = CaseKeyFacts.urgencyLabel(t, item.urgency);
+    final dossier = CaseDossierScore.of(item);
+    final dossierLabel = [
+      '${t.t('cases.dossier.title')} ${dossier.score(t)}',
+      dossier.files(t),
+      if (item.status == CaseStatus.open) t.t('cases.dossier.ruleShort'),
+    ].join(', ');
     Widget stats() => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -262,6 +269,7 @@ class FeedCaseCard extends StatelessWidget {
       place,
       urgency,
       budget,
+      dossierLabel,
       t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
       if (item.hasOwnBid) t.t('cases.card.youBid'),
     ].join(', ');
@@ -375,6 +383,10 @@ class FeedCaseCard extends StatelessWidget {
                       ],
                       const SizedBox(height: AppSpacing.md),
                       facts,
+                      // Owner 2026-10-05: how complete the case is and
+                      // when its files open.
+                      const SizedBox(height: AppSpacing.md),
+                      CaseDossierStrip(kase: item, t: t),
                       const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
@@ -620,6 +632,7 @@ class FeedCaseCard extends StatelessWidget {
         place,
         urgency,
         budget,
+        dossierLabel,
         t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
         if (item.hasOwnBid) t.t('cases.card.youBid'),
       ].join(', '),
@@ -717,6 +730,8 @@ class FeedCaseCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.md),
                     inlineFacts(),
                     const SizedBox(height: AppSpacing.md),
+                    CaseDossierStrip(kase: item, t: t),
+                    const SizedBox(height: AppSpacing.sm),
                     Align(alignment: Alignment.centerRight, child: stats()),
                   ],
                 ),
@@ -1195,7 +1210,6 @@ class AttorneyLine extends StatelessWidget {
   }
 }
 
-/// A bid in the client's list (docs/04 §5.2).
 /// Owner 2026-09-30: a bid on a case outside the attorney's practices —
 /// the client is asked to discuss it first; the attorney is told the
 /// client will see this.
@@ -1208,6 +1222,51 @@ class OutsidePracticeNote extends StatelessWidget {
 
   final Translator t;
   final bool forClient;
+
+  @override
+  Widget build(BuildContext context) => BidInfoNote(
+        text: t.t(
+          forClient
+              ? 'cases.outsidePractice.client'
+              : 'cases.outsidePractice.attorney',
+        ),
+      );
+}
+
+/// Owner 2026-10-04: an attorney may bid in any state. When none of their
+/// verified licences is in the case's states, the client sees where they
+/// are licensed ([states], 2-letter codes; may be unknown on screens that
+/// only have the bid); the attorney is told the client will see it.
+class OutsideStatesNote extends StatelessWidget {
+  const OutsideStatesNote({
+    required this.t,
+    required this.forClient,
+    this.states = const [],
+    super.key,
+  });
+
+  final Translator t;
+  final bool forClient;
+  final List<String> states;
+
+  @override
+  Widget build(BuildContext context) => BidInfoNote(
+        key: const ValueKey('outside-states-note'),
+        text: !forClient
+            ? t.t('cases.outsideStates.attorney')
+            : states.isEmpty
+                ? t.t('cases.outsideStates.clientNoList')
+                : t.t('cases.outsideStates.client', {
+                    'states': states.join(', '),
+                  }),
+      );
+}
+
+/// Gold info box used by the bid mismatch notes.
+class BidInfoNote extends StatelessWidget {
+  const BidInfoNote({required this.text, super.key});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -1233,11 +1292,7 @@ class OutsidePracticeNote extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                t.t(
-                  forClient
-                      ? 'cases.outsidePractice.client'
-                      : 'cases.outsidePractice.attorney',
-                ),
+                text,
                 style: typography.bodySmall.copyWith(color: colors.text),
               ),
             ),
@@ -1248,6 +1303,7 @@ class OutsidePracticeNote extends StatelessWidget {
   }
 }
 
+/// A bid in the client's list (docs/04 §5.2).
 class BidCard extends StatelessWidget {
   const BidCard({
     required this.bid,
@@ -1290,6 +1346,14 @@ class BidCard extends StatelessWidget {
               formats: formats,
               onTap: onAttorneyTap,
             ),
+          if (bid.outsideLicensedStates) ...[
+            const SizedBox(height: AppSpacing.sm),
+            OutsideStatesNote(
+              t: t,
+              forClient: true,
+              states: bid.attorney?.licensedStates ?? const [],
+            ),
+          ],
           if (bid.outsidePractice) ...[
             const SizedBox(height: AppSpacing.sm),
             OutsidePracticeNote(t: t, forClient: true),

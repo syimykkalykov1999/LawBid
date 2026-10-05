@@ -218,9 +218,19 @@ export class DashboardDto {
 
   @ApiProperty({ type: 'integer' }) openCases!: number;
   @ApiProperty({ type: 'integer' }) bids24h!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Owner 2026-10-05: client → attorney case invites sent.',
+  })
+  invites24h!: number;
   @ApiProperty({ type: 'integer' }) openReports!: number;
   @ApiProperty({ type: 'integer' }) openDisputes!: number;
   @ApiProperty({ type: 'integer' }) openContactIssues!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Owner 2026-10-05: requests for more assistant seats.',
+  })
+  seatLimitRequests!: number;
 
   @ApiProperty({
     format: 'date-time',

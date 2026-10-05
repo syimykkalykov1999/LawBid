@@ -79,6 +79,7 @@ abstract final class ApiErrorCodes {
   static const assistantNotAllowed = 'ASSISTANT_NOT_ALLOWED';
   static const assistantPhoneTaken = 'ASSISTANT_PHONE_TAKEN';
   static const assistantInviteNotFound = 'ASSISTANT_INVITE_NOT_FOUND';
+  static const assistantCodeInvalid = 'ASSISTANT_CODE_INVALID';
   static const assistantLiabilityRequired = 'ASSISTANT_LIABILITY_REQUIRED';
   static const taskClosed = 'TASK_CLOSED';
   static const taskStepsLimit = 'TASK_STEPS_LIMIT';
@@ -141,6 +142,14 @@ abstract final class ApiErrorCodes {
   static const contactIssueAlreadyOpen = 'CONTACT_ISSUE_ALREADY_OPEN';
   static const contactIssueInvalidState = 'CONTACT_ISSUE_INVALID_STATE';
   static const bidAlreadyExists = 'BID_ALREADY_EXISTS';
+  // Owner 2026-10-05: client → attorney case invites.
+  static const inviteNotFound = 'INVITE_NOT_FOUND';
+  static const inviteInvalidState = 'INVITE_INVALID_STATE';
+  static const inviteAlreadyPending = 'INVITE_ALREADY_PENDING';
+  static const seatLimitRequestPending = 'SEAT_LIMIT_REQUEST_PENDING';
+  static const seatLimitRequestDecided = 'SEAT_LIMIT_REQUEST_DECIDED';
+  static const inviteAttorneyUnavailable = 'INVITE_ATTORNEY_UNAVAILABLE';
+  static const inviteLimitReached = 'INVITE_LIMIT_REACHED';
   // Case creation and management (docs/04 §3, stage 4.2)
   static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
   static const clientContactSharingConsentRequired =
@@ -252,6 +261,7 @@ abstract final class ApiErrorCodes {
     assistantNotAllowed,
     assistantPhoneTaken,
     assistantInviteNotFound,
+    assistantCodeInvalid,
     assistantLiabilityRequired,
     taskClosed,
     taskStepsLimit,
@@ -306,6 +316,13 @@ abstract final class ApiErrorCodes {
     contactIssueAlreadyOpen,
     contactIssueInvalidState,
     bidAlreadyExists,
+    inviteNotFound,
+    inviteInvalidState,
+    inviteAlreadyPending,
+    seatLimitRequestPending,
+    seatLimitRequestDecided,
+    inviteAttorneyUnavailable,
+    inviteLimitReached,
     caseContainsContactInfo,
     clientContactSharingConsentRequired,
     paymentsNotConfigured,

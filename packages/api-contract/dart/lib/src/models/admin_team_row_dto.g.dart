@@ -16,6 +16,8 @@ AdminTeamRowDto _$AdminTeamRowDtoFromJson(Map<String, dynamic> json) =>
       invited: (json['invited'] as num).toInt(),
       pendingRequests: (json['pendingRequests'] as num).toInt(),
       openTasks: (json['openTasks'] as num).toInt(),
+      seatLimit: (json['seatLimit'] as num).toInt(),
+      seatLimitPersonal: json['seatLimitPersonal'] as bool,
       username: json['username'] as String?,
     );
 
@@ -30,4 +32,6 @@ Map<String, dynamic> _$AdminTeamRowDtoToJson(AdminTeamRowDto instance) =>
       'invited': instance.invited,
       'pendingRequests': instance.pendingRequests,
       'openTasks': instance.openTasks,
+      'seatLimit': instance.seatLimit,
+      'seatLimitPersonal': instance.seatLimitPersonal,
     };
