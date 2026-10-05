@@ -28,6 +28,13 @@ AdminSupportTicketRowDto _$AdminSupportTicketRowDtoFromJson(
   resolvedAt: json['resolvedAt'] == null
       ? null
       : DateTime.parse(json['resolvedAt'] as String),
+  slaDueAt: json['slaDueAt'] == null
+      ? null
+      : DateTime.parse(json['slaDueAt'] as String),
+  slaBreached: json['slaBreached'] as bool?,
+  firstResponseAt: json['firstResponseAt'] == null
+      ? null
+      : DateTime.parse(json['firstResponseAt'] as String),
 );
 
 Map<String, dynamic> _$AdminSupportTicketRowDtoToJson(
@@ -46,4 +53,7 @@ Map<String, dynamic> _$AdminSupportTicketRowDtoToJson(
   'lastMessageAt': instance.lastMessageAt.toIso8601String(),
   'createdAt': instance.createdAt.toIso8601String(),
   'resolvedAt': ?instance.resolvedAt?.toIso8601String(),
+  'slaDueAt': ?instance.slaDueAt?.toIso8601String(),
+  'slaBreached': ?instance.slaBreached,
+  'firstResponseAt': ?instance.firstResponseAt?.toIso8601String(),
 };

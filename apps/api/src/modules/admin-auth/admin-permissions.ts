@@ -42,10 +42,11 @@ export const SUPER_ONLY_AREAS = [
   'admins', // accounts, roles, passwords
   'audit', // audit log
   'sessions', // everyone's sessions
+  'rewards', // owner 2026-10-05: «Лучший сотрудник» (prizes, bonuses)
 ] as const;
 export type SuperOnlyArea = (typeof SUPER_ONLY_AREAS)[number];
 
-type RouteArea = AdminArea | SuperOnlyArea | 'auth' | 'unknown';
+type RouteArea = AdminArea | SuperOnlyArea | 'auth' | 'workspace' | 'unknown';
 
 /** Sections whose every view is written to the audit log (who looked at
  * money). Exports are audited by the export endpoint itself. */
@@ -99,6 +100,10 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   sanctions: 'sanctions',
   outreach: 'outreach',
   payroll: 'payroll',
+  rewards: 'rewards',
+  // Owner 2026-10-05: every admin's own workspace (it lists only what the
+  // admin's areas allow).
+  workspace: 'workspace',
 };
 
 /** `/api/v1/admin/users/123?x=1` → `users`; null when not an admin route. */
@@ -202,7 +207,7 @@ export function canAccess(
   if (role === 'super_admin') return true;
   const area = routeArea(path);
   if (!area || area === 'unknown') return false;
-  if (area === 'auth') return true;
+  if (area === 'auth' || area === 'workspace') return true;
   // Admin management: only an admin the super admin gave that right; the
   // service narrows it further (what they may grant or touch).
   if (area === 'admins') return manageAdmins;

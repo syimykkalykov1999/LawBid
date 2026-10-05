@@ -3,6 +3,7 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { RateLimitService } from '../auth/services/rate-limit.service';
+import type { SupportDeskService } from './support-desk.service';
 import { SupportService } from './support.service';
 
 const T0 = new Date('2026-10-01T10:00:00Z');
@@ -25,6 +26,12 @@ function ticket(over: Partial<SupportTicket> = {}): SupportTicket {
     resolved_at: null,
     created_at: T0,
     updated_at: T0,
+    assigned_at: null,
+    first_response_at: null,
+    first_response_by: null,
+    resolved_by: null,
+    sla_due_at: null,
+    sla_breached_at: null,
     ...over,
   };
 }
@@ -36,6 +43,7 @@ function msg(over: Partial<SupportMessage>): SupportMessage {
     author_user_id: null,
     author_admin_id: null,
     internal: false,
+    auto: false,
     body: 'hi',
     created_at: T0,
     ...over,
@@ -66,6 +74,7 @@ function setup(opts: { found?: SupportTicket | null; allowed?: boolean } = {}) {
         .mockImplementation(({ data }) => Promise.resolve(msg(data))),
     },
     user: {
+      findUnique: jest.fn().mockResolvedValue({ ui_language: 'en' }),
       findMany: jest
         .fn()
         .mockResolvedValue([{ id: ADMIN, first_name: 'Anna' }]),
@@ -83,12 +92,18 @@ function setup(opts: { found?: SupportTicket | null; allowed?: boolean } = {}) {
     }),
   };
   const settings = { number: jest.fn().mockResolvedValue(5) };
+  const desk = {
+    onCreated: jest.fn().mockResolvedValue(null),
+    onUserMessage: jest.fn().mockResolvedValue(undefined),
+    info: jest.fn(),
+  };
   const service = new SupportService(
     prisma as unknown as PrismaService,
     rateLimit as unknown as RateLimitService,
     settings as unknown as AppSettingsService,
+    desk as unknown as SupportDeskService,
   );
-  return { service, prisma, rateLimit, settings };
+  return { service, prisma, rateLimit, settings, desk };
 }
 
 describe('SupportService (app side)', () => {

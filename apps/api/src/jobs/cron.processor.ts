@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { CRON_JOBS } from './jobs.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
 import { PartnersService } from '../modules/partners/partners.service';
+import { RewardsService } from '../modules/rewards/rewards.service';
+import { SupportDeskService } from '../modules/support/support-desk.service';
 import { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
@@ -70,6 +72,8 @@ export class CronProcessor {
     private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
     private readonly trust: AttorneyTrustService,
+    @Optional() private readonly supportDesk?: SupportDeskService,
+    @Optional() private readonly rewards?: RewardsService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -138,6 +142,10 @@ export class CronProcessor {
         return this.partners.sweep();
       case CRON_JOBS.trustRecompute:
         return this.trust.recomputeAll();
+      case CRON_JOBS.supportSweep:
+        return this.supportDesk?.sweep();
+      case CRON_JOBS.rewardsAward:
+        return this.rewards?.autoAward();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

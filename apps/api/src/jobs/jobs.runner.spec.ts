@@ -203,7 +203,8 @@ describe('JobsRunner', () => {
     // + daily partners.sweep, case-payments.expire every 10 min and the
     // daily case-payments.remind.
     // Owner 2026-10-05: + nightly trust.recompute (anti-fraud).
-    expect(upserts).toHaveLength(32);
+    // + support.sweep every 5 min and the daily rewards.award.
+    expect(upserts).toHaveLength(34);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

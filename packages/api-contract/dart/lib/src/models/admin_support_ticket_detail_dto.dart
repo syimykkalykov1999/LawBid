@@ -31,6 +31,9 @@ class AdminSupportTicketDetailDto {
     this.assigneeId,
     this.assigneeName,
     this.resolvedAt,
+    this.slaDueAt,
+    this.slaBreached,
+    this.firstResponseAt,
   });
 
   factory AdminSupportTicketDetailDto.fromJson(Map<String, Object?> json) =>
@@ -49,6 +52,13 @@ class AdminSupportTicketDetailDto {
   final DateTime lastMessageAt;
   final DateTime createdAt;
   final DateTime? resolvedAt;
+
+  /// Owner 2026-10-05: the answer is due by then (null = nothing due).
+  final DateTime? slaDueAt;
+
+  /// The SLA was missed for the current wait.
+  final bool? slaBreached;
+  final DateTime? firstResponseAt;
   final AdminSupportUserSummaryDto userSummary;
   final List<AdminSupportMessageDto> messages;
 

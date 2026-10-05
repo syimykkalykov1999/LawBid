@@ -34,6 +34,7 @@ describe('PayrollAccrualsService', () => {
       },
       payrollEmployee: {
         findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'emp-1', currency: 'usd' }),
       },
     };

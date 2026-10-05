@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/create_support_ticket_dto.dart';
+import '../models/support_info_envelope.dart';
 import '../models/support_message_body_dto.dart';
 import '../models/support_message_envelope.dart';
 import '../models/support_ticket_detail_envelope.dart';
@@ -53,6 +54,12 @@ abstract class SupportClient {
   @POST('/support/tickets/{id}/close')
   Future<SupportTicketEnvelope> closeMySupportTicket({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Support hours and the usual first answer time
+  @GET('/support/info')
+  Future<SupportInfoEnvelope> getSupportInfo({
     @Extras() Map<String, dynamic>? extras,
   });
 }

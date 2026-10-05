@@ -7,7 +7,7 @@ import { Select, Textarea } from '@/components/ui/input';
 import { Tabs } from '@/components/ui/tabs';
 import { TICKET_STATUS } from '@/lib/labels';
 import { cn } from '@/lib/utils';
-import { STATUSES, type TicketStatus } from './support-labels';
+import { STATUSES, type SupportMacro, type TicketStatus } from './support-labels';
 
 export type ComposerMode = 'reply' | 'note';
 
@@ -15,31 +15,43 @@ export interface ComposerSubmit {
   body: string;
   internal: boolean;
   status?: TicketStatus;
+  /** The ready answer the text came from (counted for the team). */
+  macroId?: string;
 }
 
 /**
  * Reply box: "Ответ пользователю / Заметка для команды", status after a
  * public reply (default "ждём пользователя"), Ctrl/⌘+Enter sends.
  * `onSubmit` resolves true when sent, so the text is cleared only then.
+ * «Готовый ответ» drops a saved answer into the box to edit before sending.
  */
 export function Composer({
   onSubmit,
   busy,
+  macros = [],
 }: {
   onSubmit: (v: ComposerSubmit) => Promise<boolean>;
   busy: boolean;
+  macros?: SupportMacro[];
 }) {
   const [mode, setMode] = useState<ComposerMode>('reply');
   const [body, setBody] = useState('');
+  const [macroId, setMacroId] = useState('');
   const [status, setStatus] = useState<TicketStatus>('waiting_user');
   const note = mode === 'note';
   const ready = body.trim().length > 0 && body.length <= 5000 && !busy;
 
   async function send() {
     if (!ready) return;
-    const ok = await onSubmit({ body: body.trim(), internal: note, status: note ? undefined : status });
+    const ok = await onSubmit({
+      body: body.trim(),
+      internal: note,
+      status: note ? undefined : status,
+      macroId: note ? undefined : macroId || undefined,
+    });
     if (ok) {
       setBody('');
+      setMacroId('');
       setStatus('waiting_user');
     }
   }
@@ -93,6 +105,25 @@ export function Composer({
         className={cn('min-h-28 resize-y', note && 'border-dashed')}
       />
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        {!note && macros.length > 0 ? (
+          <Select
+            value={macroId}
+            onChange={(e) => {
+              const m = macros.find((x) => x.id === e.target.value);
+              setMacroId(m?.id ?? '');
+              if (m) setBody(m.body);
+            }}
+            className="h-8 w-full text-xs sm:w-56"
+            aria-label="Готовый ответ"
+          >
+            <option value="">Готовый ответ…</option>
+            {macros.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.title}
+              </option>
+            ))}
+          </Select>
+        ) : null}
         {!note ? (
           <label className="flex items-center gap-2 text-xs text-muted">
             После ответа

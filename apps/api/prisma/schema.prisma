@@ -3412,26 +3412,37 @@ model CasePromotion {
 
 // Support tickets from the app (any user) answered in the admin.
 model SupportTicket {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id         String    @db.Uuid
-  subject         String    @db.String(200)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String    @db.Uuid
+  subject           String    @db.String(200)
   // account | billing | verification | case | bug | abuse | other
-  category        String    @default("other") @db.String(20)
+  category          String    @default("other") @db.String(20)
   // open | waiting_user | resolved | closed
-  status          String    @default("open") @db.String(16)
+  status            String    @default("open") @db.String(16)
   // low | normal | high | urgent
-  priority        String    @default("normal") @db.String(8)
-  assignee_id     String?   @db.Uuid
-  unread_by_admin Boolean   @default(true)
-  unread_by_user  Boolean   @default(false)
-  last_message_at DateTime  @default(now()) @db.Timestamptz
-  resolved_at     DateTime? @db.Timestamptz
-  created_at      DateTime  @default(now()) @db.Timestamptz
-  updated_at      DateTime  @updatedAt @db.Timestamptz
+  priority          String    @default("normal") @db.String(8)
+  assignee_id       String?   @db.Uuid
+  unread_by_admin   Boolean   @default(true)
+  unread_by_user    Boolean   @default(false)
+  last_message_at   DateTime  @default(now()) @db.Timestamptz
+  resolved_at       DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+  // Owner 2026-10-05 (support 24/7): when the ticket was given to someone,
+  // the team's first public answer and who gave it, who resolved it.
+  assigned_at       DateTime? @db.Timestamptz
+  first_response_at DateTime? @db.Timestamptz
+  first_response_by String?   @db.Uuid
+  resolved_by       String?   @db.Uuid
+  // The answer the user is waiting for is due by sla_due_at (null = the
+  // ball is on the user's side); sla_breached_at once it was missed.
+  sla_due_at        DateTime? @db.Timestamptz
+  sla_breached_at   DateTime? @db.Timestamptz
 
   @@index([status, last_message_at(sort: Desc)])
   @@index([user_id, last_message_at(sort: Desc)])
   @@index([assignee_id, status])
+  @@index([sla_due_at])
   @@map("support_tickets")
 }
 
@@ -3443,11 +3454,70 @@ model SupportMessage {
   author_admin_id String?  @db.Uuid
   // Admin-only note, never shown to the user.
   internal        Boolean  @default(false)
+  // Owner 2026-10-05: an automatic answer (after hours, "we got it"):
+  // neither author id is set; shown as "LawBid Support".
+  auto            Boolean  @default(false)
   body            String   @db.String(5000)
   created_at      DateTime @default(now()) @db.Timestamptz
 
   @@index([ticket_id, created_at])
   @@map("support_messages")
+}
+
+/// Owner 2026-10-05: ready answers for support («Шаблоны ответов»).
+/// `{name}` in the body becomes the user's first name.
+model SupportMacro {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title      String   @db.String(120)
+  body       String   @db.String(5000)
+  /// null = any category.
+  category   String?  @db.String(20)
+  active     Boolean  @default(true)
+  uses       Int      @default(0)
+  created_by String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@index([active, title])
+  @@map("support_macros")
+}
+
+/// Owner 2026-10-05: a support agent's shift switch. New tickets go to the
+/// agents on shift, the one with the fewest open tickets first.
+model SupportAgent {
+  admin_id   String   @id @db.Uuid
+  on_shift   Boolean  @default(false)
+  /// Open tickets at which auto-assignment skips this agent.
+  max_open   Int      @default(25)
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@map("support_agents")
+}
+
+/// Owner 2026-10-05: «Лучший сотрудник» — a prize given to an employee for
+/// a period and a department. A bonus becomes a payroll accrual.
+model StaffReward {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// "2026-10" (month) or "2026-W41" (week).
+  period      String   @db.String(20)
+  /// verification · moderation · support · finance
+  department  String   @db.String(24)
+  admin_id    String   @db.Uuid
+  rank        Int      @default(1)
+  score       Int      @default(0)
+  prize       String   @default("") @db.String(200)
+  bonus_cents Int      @default(0)
+  currency    String   @default("usd") @db.String(3)
+  /// The payroll accrual created for the bonus, when there is one.
+  accrual_id  String?  @db.Uuid
+  /// Given by the period-end job (true) or by hand.
+  auto        Boolean  @default(false)
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@unique([period, department, admin_id])
+  @@index([admin_id, created_at(sort: Desc)])
+  @@map("staff_rewards")
 }
 
 // Admin overrides of the built-in transactional emails, per locale.

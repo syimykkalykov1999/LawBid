@@ -16,6 +16,9 @@ AdminSupportStatsDto _$AdminSupportStatsDtoFromJson(
   unreadByAdmin: json['unreadByAdmin'] as num,
   attention: json['attention'] as num,
   avgFirstResponseMinutes30d: json['avgFirstResponseMinutes30d'] as num?,
+  slaBreached: json['slaBreached'] as num?,
+  onShift: json['onShift'] as num?,
+  openNow: json['openNow'] as bool?,
 );
 
 Map<String, dynamic> _$AdminSupportStatsDtoToJson(
@@ -26,4 +29,7 @@ Map<String, dynamic> _$AdminSupportStatsDtoToJson(
   'unreadByAdmin': instance.unreadByAdmin,
   'attention': instance.attention,
   'avgFirstResponseMinutes30d': ?instance.avgFirstResponseMinutes30d,
+  'slaBreached': ?instance.slaBreached,
+  'onShift': ?instance.onShift,
+  'openNow': ?instance.openNow,
 };

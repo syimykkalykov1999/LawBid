@@ -13,6 +13,7 @@ class AdminSupportReplyDto {
   const AdminSupportReplyDto({
     required this.body,
     this.status,
+    this.macroId,
     this.internal = false,
   });
 
@@ -26,6 +27,9 @@ class AdminSupportReplyDto {
 
   /// Status after a public reply (default waiting_user). Ignored for internal notes.
   final AdminSupportReplyDtoStatus? status;
+
+  /// The ready answer this reply was made from (counted).
+  final String? macroId;
 
   Map<String, Object?> toJson() => _$AdminSupportReplyDtoToJson(this);
 }

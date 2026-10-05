@@ -7,6 +7,10 @@ import { can } from '@/lib/rbac';
 export type TicketRow = components['schemas']['AdminSupportTicketRowDto'];
 export type TicketDetail = components['schemas']['AdminSupportTicketDetailDto'];
 export type TicketMessage = components['schemas']['AdminSupportMessageDto'];
+export type SupportMacro = components['schemas']['SupportMacroDto'];
+export type DeskSettings = components['schemas']['SupportDeskSettingsDto'];
+export type SupportAgent = components['schemas']['SupportAgentDto'];
+export type StaffStats = components['schemas']['SupportStaffStatsDto'];
 export type TicketStatus = TicketRow['status'];
 export type TicketPriority = TicketRow['priority'];
 export type TicketCategory = TicketRow['category'];
@@ -66,4 +70,30 @@ export function minutesText(m: number | null | undefined): string {
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return (parts[0]?.[0] ?? '?').toUpperCase() + (parts[1]?.[0] ?? '').toUpperCase();
+}
+
+/** «до ответа 25 мин» / «просрочено 10 мин»; null when no answer is due. */
+export function slaText(dueAt: string | null | undefined, now = Date.now()): { text: string; late: boolean; soon: boolean } | null {
+  if (!dueAt) return null;
+  const min = Math.round((new Date(dueAt).getTime() - now) / 60_000);
+  if (min < 0) return { text: `просрочено ${durationText(-min)}`, late: true, soon: false };
+  return { text: `ответить за ${durationText(min)}`, late: false, soon: min <= 15 };
+}
+
+function durationText(min: number): string {
+  if (min < 60) return `${min} мин`;
+  const h = Math.floor(min / 60);
+  if (h < 48) return `${h} ч${min % 60 ? ` ${min % 60} мин` : ''}`;
+  return `${Math.floor(h / 24)} дн`;
+}
+
+/** SLA chip on a ticket: red when late, amber when due within 15 min. */
+export function SlaBadge({ dueAt, breached }: { dueAt?: string | null; breached?: boolean }) {
+  const s = slaText(dueAt);
+  if (!s) return breached ? <Badge tone="danger" dot>просрочено</Badge> : null;
+  return (
+    <Badge tone={s.late || breached ? 'danger' : s.soon ? 'warning' : 'neutral'} dot={s.late || s.soon}>
+      {s.text}
+    </Badge>
+  );
 }

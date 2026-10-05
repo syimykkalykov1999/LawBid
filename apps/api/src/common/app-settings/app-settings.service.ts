@@ -26,6 +26,13 @@ export class AppSettingsService {
     return typeof value === 'boolean' ? value : (APP_SETTINGS[key] as boolean);
   }
 
+  async string(key: AppSettingKey): Promise<string> {
+    const value = (await this.appConfig.getConfig())[key];
+    return typeof value === 'string' && value.length > 0
+      ? value
+      : String(APP_SETTINGS[key]);
+  }
+
   async numberList(key: AppSettingKey): Promise<number[]> {
     const value = (await this.appConfig.getConfig())[key];
     return Array.isArray(value) && value.every((v) => typeof v === 'number')

@@ -12,6 +12,11 @@ final supportTicketsProvider = FutureProvider.autoDispose<List<SupportTicket>>(
   (ref) => ref.watch(supportRepositoryProvider).tickets(),
 );
 
+/// When the team answers (hours, after-hours notice).
+final supportInfoProvider = FutureProvider.autoDispose<SupportInfo>(
+  (ref) => ref.watch(supportRepositoryProvider).info(),
+);
+
 /// One ticket with its messages.
 final supportTicketProvider =
     FutureProvider.autoDispose.family<SupportTicket, String>(

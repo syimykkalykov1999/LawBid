@@ -263,6 +263,35 @@ export const OWNER_TRANSLATE_SETTINGS = {
   'translate.profiles': true,
 };
 
+/** Owner 2026-10-05: support 24/7 (Связь → Поддержка → Настройки).
+ * New tickets go to the agents on shift; an unanswered ticket past its
+ * SLA is flagged, its priority goes up and the team is told; outside the
+ * opening hours (when not 24/7) the user gets an automatic answer;
+ * resolved tickets close by themselves after N days (0 = never). */
+export const OWNER_SUPPORT_DESK_SETTINGS = {
+  'support.auto_assign': true,
+  'support.sla_first_response_minutes': 60,
+  'support.sla_urgent_minutes': 15,
+  'support.sla_alerts': true,
+  'support.escalate_on_breach': true,
+  'support.always_open': true,
+  'support.open_days': [1, 2, 3, 4, 5],
+  'support.open_from_hour': 9,
+  'support.open_to_hour': 18,
+  'support.timezone': 'America/Chicago',
+  'support.auto_reply': true,
+  'support.auto_close_resolved_days': 7,
+};
+
+/** Owner 2026-10-05: «Лучший сотрудник». Off until the owner switches it
+ * on; then the best employee of each department is chosen at the end of
+ * every period (automatically unless `rewards.auto_award` is off). */
+export const OWNER_REWARDS_SETTINGS = {
+  'rewards.enabled': false,
+  'rewards.auto_award': true,
+  'rewards.period': 'month',
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -281,6 +310,8 @@ export const APP_SETTINGS = {
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,
   ...OWNER_TRANSLATE_SETTINGS,
+  ...OWNER_SUPPORT_DESK_SETTINGS,
+  ...OWNER_REWARDS_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
