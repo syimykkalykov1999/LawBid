@@ -166,6 +166,23 @@ function resolvePrevious(current) {
   if (headSet && isStrictPrefix(headSet, current)) {
     return { ref: 'HEAD', set: headSet, how: 'HEAD (uncommitted new migrations)' };
   }
+  // A feature branch that merged the default branch in: the last commit
+  // touching migrations is the merge, whose first parent is the branch's
+  // own earlier head — missing the migrations that came from main. The
+  // branch's base (merge-base with main) is the right "previous" there.
+  for (const base of ['origin/main', 'origin/master', 'main', 'master']) {
+    const mergeBase = tryGit('merge-base', 'HEAD', base);
+    if (!mergeBase) continue;
+    const set = migrationsAtRef(mergeBase);
+    if (set && isStrictPrefix(set, current)) {
+      return {
+        ref: mergeBase,
+        set,
+        how: `merge-base with ${base} (${mergeBase.slice(0, 10)})`,
+      };
+    }
+    break;
+  }
   const last = tryGit(
     'log',
     '-1',
