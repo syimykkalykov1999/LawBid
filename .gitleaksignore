@@ -3,3 +3,5 @@
 5bf94bd6fe656d57350c21916e4b81ec09f647d2:apps/api/src/modules/verification/providers/bar-lookup/generic-rest.adapter.spec.ts:generic-api-key:72
 5bf94bd6fe656d57350c21916e4b81ec09f647d2:apps/api/src/modules/verification/services/state-registry.service.spec.ts:generic-api-key:91
 5bf94bd6fe656d57350c21916e4b81ec09f647d2:apps/api/src/modules/verification/services/state-registry.service.spec.ts:generic-api-key:106
+# Owner 2026-10-05: an i18n key in the plan-builder e2e test, not a secret.
+6bbabfd4ab4aa8f8f176bd5c61d793410c52e6b9:apps/api/test/owner-plan-builder.e2e-spec.ts:generic-api-key:83
