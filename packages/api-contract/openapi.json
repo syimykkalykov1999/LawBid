@@ -80380,7 +80380,7 @@
             "type": "boolean"
           },
           "joinMode": {
-            "description": "open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners.",
+            "description": "open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners. Omitted = keep the current mode.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/PartnerJoinMode"
@@ -80415,7 +80415,6 @@
         },
         "required": [
           "enabled",
-          "joinMode",
           "attorneyRateCents",
           "clientRateCents",
           "clientRule",

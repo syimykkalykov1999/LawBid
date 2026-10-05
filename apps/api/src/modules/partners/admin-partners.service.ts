@@ -97,9 +97,10 @@ export class AdminPartnersService {
     admin: AdminActor,
     dto: PartnerSettingsDto,
   ): Promise<PartnerProgramSettings> {
+    const current = await this.partners.settings();
     const next: PartnerProgramSettings = {
       enabled: dto.enabled,
-      joinMode: dto.joinMode,
+      joinMode: dto.joinMode ?? current.joinMode,
       attorneyRateCents: dto.attorneyRateCents,
       clientRateCents: dto.clientRateCents,
       clientRule: dto.clientRule,

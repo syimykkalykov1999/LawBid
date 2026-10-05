@@ -261,14 +261,15 @@ export class PartnerSettingsDto {
   @IsBoolean()
   enabled!: boolean;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     enum: JOIN_MODES,
     enumName: 'PartnerJoinMode',
     description:
-      'open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners.',
+      'open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners. Omitted = keep the current mode.',
   })
+  @IsOptional()
   @IsIn(JOIN_MODES)
-  joinMode!: JoinMode;
+  joinMode?: JoinMode;
 
   @ApiProperty({ type: 'integer' })
   @IsInt()

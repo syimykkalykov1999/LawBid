@@ -14,12 +14,12 @@ part 'partner_settings_dto.g.dart';
 class PartnerSettingsDto {
   const PartnerSettingsDto({
     required this.enabled,
-    required this.joinMode,
     required this.attorneyRateCents,
     required this.clientRateCents,
     required this.clientRule,
     required this.holdDays,
     required this.texts,
+    this.joinMode,
   });
 
   factory PartnerSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -27,8 +27,8 @@ class PartnerSettingsDto {
 
   final bool enabled;
 
-  /// open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners.
-  final PartnerJoinMode joinMode;
+  /// open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners. Omitted = keep the current mode.
+  final PartnerJoinMode? joinMode;
   final int attorneyRateCents;
   final int clientRateCents;
   final PartnerClientRule clientRule;

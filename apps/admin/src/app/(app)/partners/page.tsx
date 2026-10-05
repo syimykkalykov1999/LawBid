@@ -588,7 +588,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const qc = useQueryClient();
   const toast = useToast();
   const [enabled, setEnabled] = useState(initial.enabled);
-  const [joinMode, setJoinMode] = useState<JoinMode>(initial.joinMode);
+  const [joinMode, setJoinMode] = useState<JoinMode>(initial.joinMode ?? "open");
   const [attorney, setAttorney] = useState(centsToText(initial.attorneyRateCents));
   const [client, setClient] = useState(centsToText(initial.clientRateCents));
   const [rule, setRule] = useState<ClientRule>(initial.clientRule);
