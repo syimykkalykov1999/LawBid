@@ -174,8 +174,22 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         verification_status: opts.status ?? 'unverified',
         bio: 'Traffic lawyer',
         languages: ['en'],
+        // Owner 2026-10-05: the blue check follows the anti-fraud clearance;
+        // a fixture that is "verified" stands for an attorney staff cleared.
+        trust_badge: opts.status === 'verified',
+        trust_level: opts.status === 'verified' ? 1 : 0,
       },
     });
+    if (opts.status === 'verified') {
+      await prisma.attorneyTrust.create({
+        data: {
+          attorney_id: userId,
+          level: 1,
+          staff_cleared_at: new Date(),
+          staff_cleared_note: 'e2e fixture',
+        },
+      });
+    }
     const barNumbers: string[] = [];
     for (const l of opts.licenses ?? []) {
       const bar = `BAR-${randomUUID()}`;

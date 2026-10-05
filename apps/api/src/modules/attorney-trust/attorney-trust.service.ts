@@ -1043,8 +1043,9 @@ export class AttorneyTrustService {
     attorneyId: string,
     actor: TrustActor,
     note: string | null,
+    opts: { tx?: Prisma.TransactionClient; notify?: boolean } = {},
   ): Promise<TrustSnapshot | null> {
-    return withTxRetry(this.prisma, async (tx) => {
+    const run = async (tx: Prisma.TransactionClient) => {
       const trust = await this.ensureRow(tx, attorneyId);
       const seen = await this.decisionContext(tx, attorneyId, trust);
       const now = new Date();
@@ -1080,9 +1081,12 @@ export class AttorneyTrustService {
         where: { attorney_id: attorneyId, registry_flag: { not: null } },
         data: { registry_flag: null, registry_flagged_at: null },
       });
-      await this.notify(tx, attorneyId, TRUST_NOTIFICATION_KIND.cleared, {});
+      if (opts.notify !== false) {
+        await this.notify(tx, attorneyId, TRUST_NOTIFICATION_KIND.cleared, {});
+      }
       return this.recompute(attorneyId, actor, tx);
-    });
+    };
+    return opts.tx ? run(opts.tx) : withTxRetry(this.prisma, run);
   }
 
   /** Withdraw a staff clearance (it was a mistake). */

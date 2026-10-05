@@ -51,6 +51,16 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     redis = app.get<Redis>(REDIS_CLIENT);
     tokens = app.get(TokenService);
     trust = app.get(AttorneyTrustService);
+    for (const [code, name] of [
+      ['NJ', 'New Jersey'],
+      ['CA', 'California'],
+    ]) {
+      await prisma.state.upsert({
+        where: { code },
+        create: { code, name },
+        update: {},
+      });
+    }
     const area = await prisma.practiceArea.upsert({
       where: { code: 'e2e_trust_leaf' },
       create: {

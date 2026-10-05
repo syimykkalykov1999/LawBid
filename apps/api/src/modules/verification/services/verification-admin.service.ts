@@ -465,20 +465,26 @@ export class VerificationAdminService {
       });
       const types = new Set<string>(docs.map((d) => d.doc_type));
       const identity = IDENTITY_DOC_TYPES.some((t) => types.has(t));
+      const actor = { type: 'admin' as const, id: admin.id, ip: admin.ip };
       if (identity && types.has('selfie')) {
         await this.trust.confirmDocuments(
           req.attorney_id,
-          { type: 'admin', id: admin.id },
+          actor,
           `request ${req.id}`,
           tx,
         );
-      } else {
-        await this.trust.recompute(
-          req.attorney_id,
-          { type: 'admin', id: admin.id },
-          tx,
-        );
       }
+      // Owner 2026-10-05 05:53: a verifier who approved the request by hand
+      // has vouched for the attorney — the same «Подтвердить» as in the
+      // anti-fraud queue: badge and payments open, no re-checks except
+      // complaints, and the decision (who, when, what they saw) is recorded.
+      // The attorney already got the `approved` notice.
+      await this.trust.clearByStaff(
+        req.attorney_id,
+        actor,
+        `request ${req.id}`,
+        { tx, notify: false },
+      );
     });
     return this.card(requestId);
   }
