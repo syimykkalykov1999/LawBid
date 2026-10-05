@@ -1,3 +1,8 @@
+import {
+  CASE_DEADLINE_KINDS,
+  CASE_URGENCIES,
+  CASE_URGENCY_LEVELS,
+} from '../cases/domain/case-urgency';
 import { DOSSIER_ITEMS } from '../cases/domain/case-dossier';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
@@ -228,6 +233,15 @@ export class AdminCasesQueryDto extends CursorDto {
   @Transform(toBool)
   @IsBoolean()
   hasReports?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-05: only cases with a date (court hearing, filing…) from today on.',
+  })
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  withDeadline?: boolean;
 }
 
 export class AdminCaseActionDto {
@@ -267,6 +281,28 @@ export class AdminCaseRowDto {
     description: 'Dossier items the client has not filled in.',
   })
   dossierMissing!: string[];
+  /** Owner 2026-10-05: the client's urgency (a level or `by_date`), the
+   * level it reads as today and the date with what it is. */
+  @ApiProperty({
+    enum: CASE_URGENCIES,
+    enumName: 'CaseUrgency',
+    nullable: true,
+  })
+  urgency!: string | null;
+  @ApiProperty({
+    enum: CASE_URGENCY_LEVELS,
+    enumName: 'CaseUrgencyLevel',
+    nullable: true,
+  })
+  urgencyLevel!: string | null;
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  deadlineAt!: string | null;
+  @ApiProperty({
+    enum: CASE_DEADLINE_KINDS,
+    enumName: 'CaseDeadlineKind',
+    nullable: true,
+  })
+  deadlineKind!: string | null;
   @ApiProperty({ format: 'date-time' }) lastActivityAt!: string;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }

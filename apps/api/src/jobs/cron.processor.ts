@@ -16,6 +16,7 @@ import {
   CaseCompletionReminderJob,
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
+import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
@@ -60,6 +61,7 @@ export class CronProcessor {
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
     private readonly partners: PartnersService,
+    private readonly caseDeadlineReminder: CaseDeadlineReminderJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -118,6 +120,8 @@ export class CronProcessor {
         return this.promotions.expire();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.caseDeadlineReminder:
+        return this.caseDeadlineReminder.run();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

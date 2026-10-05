@@ -6,9 +6,11 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'bid_attorney_summary_dto.dart';
 import 'case_budget_dto.dart';
+import 'case_deadline_kind.dart';
 import 'case_dossier_dto.dart';
 import 'case_invite_status.dart';
 import 'case_urgency.dart';
+import 'case_urgency_level.dart';
 
 part 'case_invite_dto.g.dart';
 
@@ -37,6 +39,9 @@ class CaseInviteDto {
     required this.attorney,
     this.caseCity,
     this.caseUrgency,
+    this.caseUrgencyLevel,
+    this.caseDeadlineAt,
+    this.caseDeadlineKind,
   });
 
   factory CaseInviteDto.fromJson(Map<String, Object?> json) =>
@@ -75,6 +80,11 @@ class CaseInviteDto {
   /// only — the files open once the client accepts the attorney's bid.
   final String? caseCity;
   final CaseUrgency? caseUrgency;
+
+  /// Owner 2026-10-05: the level the case reads as today.
+  final CaseUrgencyLevel? caseUrgencyLevel;
+  final DateTime? caseDeadlineAt;
+  final CaseDeadlineKind? caseDeadlineKind;
   final CaseBudgetDto caseBudget;
   final CaseDossierDto caseDossier;
 

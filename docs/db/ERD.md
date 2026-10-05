@@ -214,6 +214,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     Boolean new_case_alerts_custom
+    Boolean new_case_alerts_urgent_only
     Int assistant_seat_limit "nullable"
   }
   attorney_licenses {
@@ -296,6 +297,8 @@ erDiagram
     Int budget_cents "nullable"
     String cover_key "nullable"
     String urgency "nullable"
+    DateTime deadline_at "nullable"
+    String deadline_kind "nullable"
     enum_CaseStatus status
     String accepted_bid_id FK,UK "nullable"
     Int view_count

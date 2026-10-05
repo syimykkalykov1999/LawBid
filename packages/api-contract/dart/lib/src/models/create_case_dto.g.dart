@@ -26,6 +26,12 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
       urgency: json['urgency'] == null
           ? null
           : CaseUrgency.fromJson(json['urgency'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
     );
 
 Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
@@ -42,4 +48,6 @@ Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
       'clientContactSharingConsent': ?instance.clientContactSharingConsent,
       'coverKey': ?instance.coverKey,
       'urgency': ?instance.urgency?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
     };

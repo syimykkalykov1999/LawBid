@@ -107,6 +107,51 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Клиент обновил кейс, на который вы сделали бид.',
     },
   },
+  // Owner 2026-10-05: the case's date ({days} = days left).
+  case_deadline_soon: {
+    group: 'cases',
+    en: {
+      title: 'The case date is coming up',
+      body: 'Days left until the date: {days}. Open the case.',
+    },
+    ru: {
+      title: 'Срок по делу приближается',
+      body: 'Дней до срока: {days}. Откройте дело.',
+    },
+  },
+  case_deadline_today: {
+    group: 'cases',
+    en: {
+      title: 'The case date is today',
+      body: 'Today is the date set for the case.',
+    },
+    ru: {
+      title: 'Срок по делу — сегодня',
+      body: 'Сегодня дата, указанная в деле.',
+    },
+  },
+  case_deadline_passed: {
+    group: 'cases',
+    en: {
+      title: 'The case date has passed',
+      body: 'Nobody is hired yet. Update the date or the urgency so attorneys see what is current.',
+    },
+    ru: {
+      title: 'Срок по делу прошёл',
+      body: 'Адвокат ещё не выбран. Обновите дату или срочность, чтобы адвокаты видели актуальное.',
+    },
+  },
+  case_deadline_changed: {
+    group: 'cases',
+    en: {
+      title: 'The case date changed',
+      body: 'The other side changed the date or urgency of your case.',
+    },
+    ru: {
+      title: 'Срок по делу изменён',
+      body: 'Другая сторона изменила дату или срочность дела.',
+    },
+  },
   case_stale_prompt: {
     group: 'cases',
     en: {
@@ -224,6 +269,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
     ru: {
       title: 'Новый кейс для вас',
       body: 'Опубликован новый кейс по вашим практикам.',
+    },
+  },
+  // Owner 2026-10-05: an urgent case (urgent / very urgent level or a
+  // date within the urgent threshold).
+  new_urgent_case: {
+    group: 'cases',
+    en: {
+      title: 'Urgent case for you',
+      body: 'An urgent case in your practice areas was published.',
+    },
+    ru: {
+      title: 'Срочное дело для вас',
+      body: 'Опубликовано срочное дело по вашим практикам.',
     },
   },
   // OQ-048.
@@ -438,4 +496,19 @@ export function templateKeys(type: NotificationType): {
     title: `notif.${t.group}.${type}.title`,
     body: `notif.${t.group}.${type}.body`,
   };
+}
+
+/** Owner 2026-10-05: fills `{name}` placeholders from the payload's
+ * string / number values (identifiers and counts only — docs/05 §9.5);
+ * an unknown placeholder stays as written. */
+export function fillTemplate(
+  text: TemplateText,
+  payload: Record<string, unknown>,
+): TemplateText {
+  const fill = (s: string) =>
+    s.replace(/\{([a-zA-Z0-9_]+)\}/g, (m, k: string) => {
+      const v = payload[k];
+      return typeof v === 'number' || typeof v === 'string' ? String(v) : m;
+    });
+  return { title: fill(text.title), body: fill(text.body) };
 }

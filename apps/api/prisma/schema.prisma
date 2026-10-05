@@ -464,6 +464,14 @@ enum NotificationType {
   // attorney declined it.
   case_invite_received
   case_invite_declined
+  // Owner 2026-10-05: the case's date (court hearing, filing deadline…)
+  // is near / today / passed with nobody hired; the other side moved it;
+  // an urgent case was posted in the attorney's practice.
+  case_deadline_soon
+  case_deadline_today
+  case_deadline_passed
+  case_deadline_changed
+  new_urgent_case
 
   @@map("notification_type")
 }
@@ -1120,6 +1128,8 @@ model AttorneyProfile {
   practice_areas           AttorneyPracticeArea[]
   /// Owner 2026-10-01: true = new-case alerts follow new_case_alert_practices.
   new_case_alerts_custom   Boolean                @default(false)
+  /// Owner 2026-10-05: new-case alerts only for urgent cases.
+  new_case_alerts_urgent_only Boolean             @default(false)
   new_case_alert_practices NewCaseAlertPractice[]
   verification_requests    VerificationRequest[]
   // Owner 2026-10-05: a personal assistant limit set by an admin on
@@ -1286,9 +1296,14 @@ model Case {
   budget_cents          Int?
   // Owner 2026-10-04: the client's card cover (`art:0..3` / `icon:<name>`,
   // never a personal photo; null = picked from the id) and urgency
-  // (flexible | soon | urgent). CHECKs in the migration.
+  // (flexible | within_month | soon | urgent | very_urgent | by_date —
+  // owner 2026-10-05). `by_date` keeps the date in deadline_at (a
+  // calendar date: court hearing, filing deadline…) and what it is in
+  // deadline_kind. CHECKs in the migrations.
   cover_key             String?
   urgency               String?
+  deadline_at           DateTime?                @db.Date
+  deadline_kind         String?
   status                CaseStatus               @default(open)
   accepted_bid_id       String?                  @unique @db.Uuid
   accepted_bid          Bid?                     @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)
@@ -1338,6 +1353,8 @@ model Case {
   // Review-reminder job: status = 'closed' AND closed_at range (docs/03
   // §7, stage 4.1 migration, file-03 DB review).
   @@index([status, closed_at])
+  // Owner 2026-10-05: the daily deadline-reminder job.
+  @@index([deadline_at])
   @@map("cases")
 }
 

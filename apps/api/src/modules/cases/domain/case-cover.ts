@@ -33,9 +33,9 @@ export const CASE_COVER_KEYS: readonly string[] = [
 ];
 
 /** Owner 2026-10-04: how soon the client needs an attorney (shown large
- * on the attorney's feed card). Null on cases posted before it existed. */
-export const CASE_URGENCIES = ['flexible', 'soon', 'urgent'] as const;
-export type CaseUrgency = (typeof CASE_URGENCIES)[number];
+ * on the attorney's feed card). Null on cases posted before it existed.
+ * Owner 2026-10-05: levels or a date, see case-urgency.ts. */
+export { CASE_URGENCIES, type CaseUrgency } from './case-urgency';
 
 /** Exactly [CASE_COVER_KEYS] (a pattern, not an enum, on the wire). */
 export const CASE_COVER_RE = new RegExp(

@@ -44,6 +44,19 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
+  // Owner 2026-10-05: case urgency thresholds (days left) and reminders.
+  for (const level of ['very_urgent', 'urgent', 'soon', 'within_month']) {
+    out[`cases.urgency_days_${level}`] = {
+      ...out[`cases.urgency_days_${level}`],
+      min: 0,
+      max: 365,
+    };
+  }
+  out['cases.deadline_reminder_days'] = {
+    ...out['cases.deadline_reminder_days'],
+    min: 0,
+    max: 60,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],

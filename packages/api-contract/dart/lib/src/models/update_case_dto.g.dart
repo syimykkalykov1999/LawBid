@@ -24,6 +24,12 @@ UpdateCaseDto _$UpdateCaseDtoFromJson(Map<String, dynamic> json) =>
       urgency: json['urgency'] == null
           ? null
           : CaseUrgency.fromJson(json['urgency'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
       photoFileIds: (json['photoFileIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
@@ -41,5 +47,7 @@ Map<String, dynamic> _$UpdateCaseDtoToJson(UpdateCaseDto instance) =>
       'budgetAmountDollars': ?instance.budgetAmountDollars,
       'coverKey': ?instance.coverKey,
       'urgency': ?instance.urgency?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
       'photoFileIds': ?instance.photoFileIds,
     };

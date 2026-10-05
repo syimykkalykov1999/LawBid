@@ -11,6 +11,7 @@ class UpdateNewCaseAlertsDto {
   const UpdateNewCaseAlertsDto({
     required this.useProfile,
     this.practiceAreaIds,
+    this.urgentOnly,
   });
 
   factory UpdateNewCaseAlertsDto.fromJson(Map<String, Object?> json) =>
@@ -18,6 +19,9 @@ class UpdateNewCaseAlertsDto {
 
   final bool useProfile;
   final List<String>? practiceAreaIds;
+
+  /// Owner 2026-10-05: absent = unchanged.
+  final bool? urgentOnly;
 
   Map<String, Object?> toJson() => _$UpdateNewCaseAlertsDtoToJson(this);
 }

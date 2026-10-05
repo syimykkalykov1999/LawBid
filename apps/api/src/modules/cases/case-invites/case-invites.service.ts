@@ -18,7 +18,7 @@ import {
   BID_LIST_INCLUDE,
   toAttorneySummary,
 } from '../case-bids/case-bids.service';
-import type { CaseUrgency } from '../domain/case-cover';
+import { loadUrgencyThresholds, urgencyFields } from '../domain/case-urgency';
 import { caseNotFound } from '../domain/case-state-machine';
 import { CaseAccessPolicy } from '../policies/case-access.policy';
 import { CasePhotosService } from '../services/case-photos.service';
@@ -43,6 +43,8 @@ const INVITE_INCLUDE = {
       description: true,
       city: true,
       urgency: true,
+      deadline_at: true,
+      deadline_kind: true,
       budget_mode: true,
       budget_cents: true,
       practice_area: { select: { i18n_key: true } },
@@ -420,7 +422,18 @@ export class CaseInvitesService {
       casePracticeKey: row.case.practice_area.i18n_key,
       caseStateCodes: row.case.states.map((s) => s.state_code),
       caseCity: row.case.city,
-      caseUrgency: row.case.urgency as CaseUrgency | null,
+      ...(({ urgency, urgencyLevel, deadlineAt, deadlineKind }) => ({
+        caseUrgency: urgency,
+        caseUrgencyLevel: urgencyLevel,
+        caseDeadlineAt: deadlineAt,
+        caseDeadlineKind: deadlineKind,
+      }))(
+        urgencyFields(
+          row.case,
+          now,
+          await loadUrgencyThresholds(this.settings),
+        ),
+      ),
       caseBudget: {
         mode: row.case.budget_mode,
         amountCents: row.case.budget_cents,

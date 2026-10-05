@@ -39,6 +39,7 @@ import {
   CreateCaseDto,
   ListMyCasesQueryDto,
   UpdateCaseDto,
+  UpdateCaseUrgencyDto,
 } from './dto/case-requests.dto';
 import {
   CaseDeletedDto,
@@ -113,6 +114,26 @@ export class CasesController {
     @Body() dto: UpdateCaseDto,
   ): Promise<CaseDto> {
     return this.cases.update(user, params.id, dto);
+  }
+
+  @Patch('cases/:id/urgency')
+  @ApiOperation({
+    summary:
+      'Change how urgent a case is or its date — the client (open or hired) or the hired attorney; the other side is told (owner 2026-10-05)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+  })
+  updateCaseUrgency(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+    @Body() dto: UpdateCaseUrgencyDto,
+  ): Promise<CaseDto> {
+    return this.cases.updateUrgency(user, params.id, dto);
   }
 
   @Post('cases/:id/close')

@@ -23,6 +23,7 @@ import {
   quietHoursEnd,
 } from '../notification-rules';
 import { NotificationTemplateService } from './notification-template.service';
+import { fillTemplate } from './notification-templates';
 import { PushQueueService } from './push-queue.service';
 import {
   NOTIFICATION_EMAIL,
@@ -224,7 +225,10 @@ export class PushDispatcher
       typeof payload.title === 'string' &&
       typeof payload.body === 'string'
         ? { title: payload.title, body: payload.body }
-        : await this.templates.render(n.type, n.user.ui_language);
+        : fillTemplate(
+            await this.templates.render(n.type, n.user.ui_language),
+            payload,
+          );
     const deepLink: Record<string, string> = {
       notificationId: n.id,
       type: n.type,

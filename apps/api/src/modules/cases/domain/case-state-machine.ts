@@ -61,6 +61,8 @@ export type CaseAction =
   // In-place actions (status unchanged): §3.5 edit and delete, §10.2
   // "Да, актуален".
   | 'client_edit'
+  // Owner 2026-10-05: the urgency / date, also after an attorney is hired.
+  | 'set_urgency'
   | 'client_keep_alive'
   | 'client_delete'
   // §10.2 "Напоминание об актуальности" job: stale_prompt_sent_at = now().
@@ -135,6 +137,11 @@ export const CASE_TRANSITIONS: Readonly<
   admin_archive: { from: ['open'], to: 'archived', event: 'archived' },
   admin_restore: { from: ['archived'], to: 'open', event: 'restored' },
   client_edit: { from: ['open'], to: null, event: 'updated' },
+  set_urgency: {
+    from: ['open', 'in_progress', 'pending_completion'],
+    to: null,
+    event: 'updated',
+  },
   client_keep_alive: { from: ['open'], to: null, event: 'updated' },
   // §3.5 / §10.1: deletion only from open and archived.
   client_delete: { from: ['open', 'archived'], to: null, event: 'deleted' },
@@ -259,6 +266,7 @@ export function planCaseTransition(
       };
       break;
     case 'client_edit':
+    case 'set_urgency':
       data = { last_activity_at: now };
       break;
     case 'client_keep_alive':

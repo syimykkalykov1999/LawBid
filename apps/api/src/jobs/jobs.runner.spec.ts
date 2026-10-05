@@ -21,6 +21,7 @@ import {
   CaseCompletionReminderJob,
   CaseStalePromptJob,
 } from './handlers/case-lifecycle.jobs';
+import type { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
@@ -103,6 +104,7 @@ function processor() {
   const archive = caseJob();
   const autoClose = caseJob();
   const completion = caseJob();
+  const deadline = caseJob();
   return {
     countersRecon,
     stale,
@@ -156,6 +158,7 @@ function processor() {
           Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
         ),
       } as unknown as PartnersService,
+      deadline as unknown as CaseDeadlineReminderJob,
     ),
   };
 }
@@ -183,8 +186,8 @@ describe('JobsRunner', () => {
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
     // + monthly licenses.registry-recheck; owner 2026-10-05: + daily
-    // partners.sweep.
-    expect(upserts).toHaveLength(27);
+    // partners.sweep, + daily cases.deadline-reminder.
+    expect(upserts).toHaveLength(28);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

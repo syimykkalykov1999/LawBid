@@ -150,6 +150,21 @@ export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
 } as const;
 
+// Owner 2026-10-05: case urgency. A case with a date reads as "very
+// urgent" with at most `cases.urgency_days_very_urgent` days left, and so
+// on down. Client and hired attorney get reminders
+// `cases.deadline_reminder_days` before the date (0 = on the day); a
+// client whose date passed with no attorney hired is asked to update it.
+// `cases.deadline_reminders_auto` off stops all of them.
+export const OWNER_URGENCY_SETTINGS = {
+  'cases.urgency_days_very_urgent': 1,
+  'cases.urgency_days_urgent': 3,
+  'cases.urgency_days_soon': 7,
+  'cases.urgency_days_within_month': 31,
+  'cases.deadline_reminder_days': [7, 3, 1, 0],
+  'cases.deadline_reminders_auto': true,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -163,6 +178,7 @@ export const APP_SETTINGS = {
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
+  ...OWNER_URGENCY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

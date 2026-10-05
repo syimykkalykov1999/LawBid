@@ -22,7 +22,16 @@ import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingService } from '../users/services/onboarding.service';
 import { CaseStateMachine, caseNotFound } from './domain/case-state-machine';
-import type { CaseUrgency } from './domain/case-cover';
+import {
+  DEFAULT_URGENCY_THRESHOLDS,
+  hasUrgencyInput,
+  loadUrgencyThresholds,
+  resolveUrgencyInput,
+  UrgencyInputError,
+  urgencyFields,
+  type UrgencyInput,
+  type UrgencyThresholds,
+} from './domain/case-urgency';
 import {
   validateCaseStates,
   type CaseStateInput,
@@ -35,6 +44,7 @@ import {
 import { CaseJournalService } from '../journal/case-journal.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { EntitlementsService } from '../plans/entitlements.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   MY_CASES_PAGE_DEFAULT,
   type CreateCaseDto,
@@ -132,7 +142,60 @@ export function budgetCentsOf(
   return (amountDollars as number) * 100;
 }
 
-function toCaseDto(kase: CaseWithDetails): CaseDto {
+/** The urgency columns for a request (400 VALIDATION_FAILED on a bad
+ * date or `by_date` without one). */
+export function urgencyColumnsOf(
+  dto: UrgencyInput,
+  current: Parameters<typeof resolveUrgencyInput>[1],
+  now: Date = new Date(),
+): ReturnType<typeof resolveUrgencyInput> {
+  try {
+    return resolveUrgencyInput(dto, current, now);
+  } catch (e) {
+    if (e instanceof UrgencyInputError) {
+      throw validationError(e.message, { field: e.field });
+    }
+    throw e;
+  }
+}
+
+/** Changed urgency columns of [current] (empty when nothing changes),
+ * recording old → new in [diff] for the journal. */
+export function urgencyDiff(
+  dto: UrgencyInput,
+  current: {
+    urgency: string | null;
+    deadline_at: Date | null;
+    deadline_kind: string | null;
+  },
+  diff: Record<string, { old: unknown; new: unknown }>,
+): Partial<ReturnType<typeof resolveUrgencyInput>> {
+  const before = urgencyFields(current);
+  const next = urgencyColumnsOf(
+    dto,
+    current as Parameters<typeof resolveUrgencyInput>[1],
+  );
+  const after = urgencyFields(next);
+  const out: Partial<ReturnType<typeof resolveUrgencyInput>> = {};
+  if (before.urgency !== after.urgency) {
+    out.urgency = next.urgency;
+    diff.urgency = { old: before.urgency, new: after.urgency };
+  }
+  if (before.deadlineAt !== after.deadlineAt) {
+    out.deadline_at = next.deadline_at;
+    diff.deadlineAt = { old: before.deadlineAt, new: after.deadlineAt };
+  }
+  if (before.deadlineKind !== after.deadlineKind) {
+    out.deadline_kind = next.deadline_kind;
+    diff.deadlineKind = { old: before.deadlineKind, new: after.deadlineKind };
+  }
+  return out;
+}
+
+function toCaseDto(
+  kase: CaseWithDetails,
+  t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+): CaseDto {
   return {
     id: kase.id,
     title: kase.title,
@@ -152,7 +215,7 @@ function toCaseDto(kase: CaseWithDetails): CaseDto {
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
     coverKey: kase.cover_key,
-    urgency: kase.urgency as CaseUrgency | null,
+    ...urgencyFields(kase, new Date(), t),
     status: kase.status,
     viewCount: kase.view_count,
     bidsCount: kase.bids_count,
@@ -167,7 +230,10 @@ function toCaseDto(kase: CaseWithDetails): CaseDto {
   };
 }
 
-function toSummaryDto(kase: CaseWithPracticeAndStates): CaseSummaryDto {
+function toSummaryDto(
+  kase: CaseWithPracticeAndStates,
+  t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+): CaseSummaryDto {
   return {
     id: kase.id,
     title: kase.title,
@@ -184,7 +250,7 @@ function toSummaryDto(kase: CaseWithPracticeAndStates): CaseSummaryDto {
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
     coverKey: kase.cover_key,
-    urgency: kase.urgency as CaseUrgency | null,
+    ...urgencyFields(kase, new Date(), t),
     bidsCount: kase.bids_count,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
@@ -213,6 +279,8 @@ export class CasesService {
     @Optional() private readonly referrals?: ReferralsService,
     // Owner 2026-10-05 (plan builder): the client's open-cases limit.
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-05: urgency thresholds (admin settings).
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -241,6 +309,7 @@ export class CasesService {
     await this.assertValidStateCodes(states.map((s) => s.stateCode));
     const practiceArea = await this.assertLeafPracticeArea(dto.practiceAreaId);
     const budgetCents = budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
+    const urgency = urgencyColumnsOf(dto, null);
 
     // OQ-031: 0-9 of the author's own clean case photos.
     const photoIds = dto.photoFileIds ?? [];
@@ -268,7 +337,7 @@ export class CasesService {
           budget_mode: dto.budgetMode,
           budget_cents: budgetCents,
           cover_key: dto.coverKey ?? null,
-          urgency: dto.urgency ?? null,
+          ...urgency,
           status: 'open',
           last_activity_at: now,
         },
@@ -316,11 +385,14 @@ export class CasesService {
       // Referral bookkeeping never breaks case creation.
     }
 
-    return toCaseDto({
-      ...created,
-      practice_area: practiceArea,
-      states: statesRows(states),
-    });
+    return toCaseDto(
+      {
+        ...created,
+        practice_area: practiceArea,
+        states: statesRows(states),
+      },
+      await this.thresholds(),
+    );
   }
 
   /** PATCH /cases/:id (§3.5). */
@@ -434,9 +506,9 @@ export class CasesService {
         extra.cover_key = dto.coverKey;
         diff.coverKey = { old: current.cover_key, new: dto.coverKey };
       }
-      if (dto.urgency !== undefined && dto.urgency !== current.urgency) {
-        extra.urgency = dto.urgency;
-        diff.urgency = { old: current.urgency, new: dto.urgency };
+      // Owner 2026-10-05: a level or a date.
+      if (hasUrgencyInput(dto)) {
+        Object.assign(extra, urgencyDiff(dto, current, diff));
       }
       if (
         hasPracticeChange &&
@@ -524,11 +596,98 @@ export class CasesService {
       where: { case_id: caseId },
       select: { state_code: true, is_primary: true },
     });
-    return toCaseDto({
-      ...updated,
-      practice_area: finalPracticeArea,
-      states: finalStates,
+    return toCaseDto(
+      {
+        ...updated,
+        practice_area: finalPracticeArea,
+        states: finalStates,
+      },
+      await this.thresholds(),
+    );
+  }
+
+  /**
+   * PATCH /cases/:id/urgency (owner 2026-10-05): the level or the date
+   * alone. The client changes it while the case is open or in work; the
+   * hired attorney too (they often learn the court date first). The other
+   * side is told: the hired attorney or the client (`case_deadline_changed`),
+   * or, on an open case, the attorneys with an active bid (`case_updated`).
+   */
+  async updateUrgency(
+    user: RequestUser,
+    caseId: string,
+    dto: UrgencyInput,
+  ): Promise<CaseDto> {
+    if (!hasUrgencyInput(dto)) {
+      throw validationError('Send urgency, deadlineAt or deadlineKind.');
+    }
+    if (user.role !== 'client' && user.role !== 'attorney') {
+      throw forbidden('Only the client or the hired attorney can do this.');
+    }
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        include: { accepted_bid: { select: { attorney_id: true } } },
+      });
+      if (!current || current.deleted_at) throw caseNotFound();
+      const hiredAttorney = current.accepted_bid?.attorney_id ?? null;
+      const isClient = user.role === 'client' && current.client_id === user.sub;
+      const isAttorney =
+        user.role === 'attorney' &&
+        hiredAttorney === user.sub &&
+        current.status !== 'open';
+      if (!isClient && !isAttorney) throw caseNotFound();
+
+      const diff: Record<string, { old: unknown; new: unknown }> = {};
+      const extra = urgencyDiff(dto, current, diff);
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'set_urgency',
+        extra,
+      });
+      if (Object.keys(diff).length === 0) return afterCase;
+      await this.journal.append(tx, {
+        caseId,
+        clientId: current.client_id,
+        actor: { userId: user.sub, role: isClient ? 'client' : 'attorney' },
+        event: plan.event,
+        payload: diff as unknown as Prisma.InputJsonObject,
+      });
+      const deadlineAt = afterCase.deadline_at
+        ? afterCase.deadline_at.toISOString().slice(0, 10)
+        : null;
+      if (current.status === 'open') {
+        const bidders = await tx.bid.findMany({
+          where: { case_id: caseId, status: 'active' },
+          select: { attorney_id: true },
+          distinct: ['attorney_id'],
+        });
+        for (const { attorney_id } of bidders) {
+          await this.notifications.emit(
+            {
+              type: 'case_updated',
+              recipientId: attorney_id,
+              payload: { caseId },
+            },
+            tx,
+          );
+        }
+      } else {
+        const recipient = isClient ? hiredAttorney : current.client_id;
+        if (recipient) {
+          await this.notifications.emit(
+            {
+              type: 'case_deadline_changed',
+              recipientId: recipient,
+              payload: { caseId, actorId: user.sub, deadlineAt },
+            },
+            tx,
+          );
+        }
+      }
+      return afterCase;
     });
+    return this.toFullDto(updated);
   }
 
   /** POST /cases/:id/close (§3.5 "Закрыть кейс"). */
@@ -636,9 +795,10 @@ export class CasesService {
       page.map((k) => k.id),
       user.sub,
     );
+    const t = await this.thresholds();
     return {
       items: page.map((k) => ({
-        ...toSummaryDto(k),
+        ...toSummaryDto(k, t),
         coverUrl: covers.get(k.id) ?? null,
       })),
       nextCursor:
@@ -763,7 +923,15 @@ export class CasesService {
         select: { state_code: true, is_primary: true },
       }),
     ]);
-    return toCaseDto({ ...kase, practice_area: practiceArea, states });
+    return toCaseDto(
+      { ...kase, practice_area: practiceArea, states },
+      await this.thresholds(),
+    );
+  }
+
+  /** Owner 2026-10-05: the admin's urgency thresholds (days left). */
+  thresholds(): Promise<UrgencyThresholds> {
+    return loadUrgencyThresholds(this.settings);
   }
 
   /** Shared body of close/delete: the state transition plus auto-rejecting

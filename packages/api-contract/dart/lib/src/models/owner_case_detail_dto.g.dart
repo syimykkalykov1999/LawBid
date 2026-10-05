@@ -33,6 +33,15 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
       urgency: json['urgency'] == null
           ? null
           : CaseUrgency.fromJson(json['urgency'] as String),
+      urgencyLevel: json['urgencyLevel'] == null
+          ? null
+          : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
       archivedAt: json['archivedAt'] as String?,
       clientCompletedAt: json['clientCompletedAt'] as String?,
       attorneyConfirmedAt: json['attorneyConfirmedAt'] as String?,
@@ -60,6 +69,9 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'budgetCents': ?instance.budgetCents,
       'coverKey': ?instance.coverKey,
       'urgency': ?instance.urgency?.toJson(),
+      'urgencyLevel': ?instance.urgencyLevel?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
       'status': instance.status.toJson(),
       'viewCount': instance.viewCount,
       'bidsCount': instance.bidsCount,

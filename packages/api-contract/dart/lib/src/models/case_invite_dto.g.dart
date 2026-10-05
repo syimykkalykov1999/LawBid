@@ -44,6 +44,15 @@ CaseInviteDto _$CaseInviteDtoFromJson(Map<String, dynamic> json) =>
       caseUrgency: json['caseUrgency'] == null
           ? null
           : CaseUrgency.fromJson(json['caseUrgency'] as String),
+      caseUrgencyLevel: json['caseUrgencyLevel'] == null
+          ? null
+          : CaseUrgencyLevel.fromJson(json['caseUrgencyLevel'] as String),
+      caseDeadlineAt: json['caseDeadlineAt'] == null
+          ? null
+          : DateTime.parse(json['caseDeadlineAt'] as String),
+      caseDeadlineKind: json['caseDeadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['caseDeadlineKind'] as String),
     );
 
 Map<String, dynamic> _$CaseInviteDtoToJson(CaseInviteDto instance) =>
@@ -67,6 +76,9 @@ Map<String, dynamic> _$CaseInviteDtoToJson(CaseInviteDto instance) =>
       'caseStateCodes': instance.caseStateCodes,
       'caseCity': ?instance.caseCity,
       'caseUrgency': ?instance.caseUrgency?.toJson(),
+      'caseUrgencyLevel': ?instance.caseUrgencyLevel?.toJson(),
+      'caseDeadlineAt': ?instance.caseDeadlineAt?.toIso8601String(),
+      'caseDeadlineKind': ?instance.caseDeadlineKind?.toJson(),
       'caseBudget': instance.caseBudget.toJson(),
       'caseDossier': instance.caseDossier.toJson(),
       'attorney': ?instance.attorney?.toJson(),

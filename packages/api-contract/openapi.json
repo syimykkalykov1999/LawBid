@@ -10916,6 +10916,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "withDeadline",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only cases with a date (court hearing, filing…) from today on.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -20577,6 +20586,30 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "minUrgency",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "within_month",
+                "soon",
+                "urgent",
+                "very_urgent"
+              ]
+            }
+          },
+          {
+            "name": "hasDeadline",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -20974,6 +21007,133 @@
           }
         ],
         "summary": "Case detail for an attorney (docs/04 §4.3, no client field)",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{id}/urgency": {
+      "patch": {
+        "operationId": "updateCaseUrgency",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCaseUrgencyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change how urgent a case is or its date — the client (open or hired) or the hired attorney; the other side is told (owner 2026-10-05)",
         "tags": [
           "cases"
         ]
@@ -56461,6 +56621,39 @@
           "data"
         ]
       },
+      "CaseUrgency": {
+        "type": "string",
+        "enum": [
+          "flexible",
+          "within_month",
+          "soon",
+          "urgent",
+          "very_urgent",
+          "by_date"
+        ],
+        "description": "Owner 2026-10-05: the client's urgency (a level or `by_date`), the\nlevel it reads as today and the date with what it is."
+      },
+      "CaseUrgencyLevel": {
+        "type": "string",
+        "enum": [
+          "flexible",
+          "within_month",
+          "soon",
+          "urgent",
+          "very_urgent",
+          "overdue"
+        ]
+      },
+      "CaseDeadlineKind": {
+        "type": "string",
+        "enum": [
+          "court_hearing",
+          "filing_deadline",
+          "meeting",
+          "signing",
+          "other"
+        ]
+      },
       "AdminCaseRowDto": {
         "type": "object",
         "properties": {
@@ -56541,6 +56734,36 @@
               ]
             }
           },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the client's urgency (a level or `by_date`), the\nlevel it reads as today and the date with what it is.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "urgencyLevel": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
+              }
+            ]
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -56568,6 +56791,10 @@
           "documentsCount",
           "dossierScore",
           "dossierMissing",
+          "urgency",
+          "urgencyLevel",
+          "deadlineAt",
+          "deadlineKind",
           "lastActivityAt",
           "createdAt"
         ]
@@ -56789,6 +57016,36 @@
               ]
             }
           },
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the client's urgency (a level or `by_date`), the\nlevel it reads as today and the date with what it is.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "urgencyLevel": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
+              }
+            ]
+          },
           "lastActivityAt": {
             "type": "string",
             "format": "date-time"
@@ -56901,6 +57158,10 @@
           "documentsCount",
           "dossierScore",
           "dossierMissing",
+          "urgency",
+          "urgencyLevel",
+          "deadlineAt",
+          "deadlineKind",
           "lastActivityAt",
           "createdAt",
           "description",
@@ -61373,15 +61634,6 @@
           "clarify_later"
         ]
       },
-      "CaseUrgency": {
-        "type": "string",
-        "enum": [
-          "flexible",
-          "soon",
-          "urgent"
-        ],
-        "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases."
-      },
       "CaseStatus": {
         "type": "string",
         "enum": [
@@ -61442,10 +61694,35 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "description": "Owner 2026-10-04/05: the client's choice — a level, or `by_date`\n(see deadlineAt); null when not set.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "urgencyLevel": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the level the case reads as today (a dated case's\nlevel follows from the days left; `overdue` once the date passed).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is (court hearing, filing…).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
               }
             ]
           },
@@ -61581,10 +61858,27 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-04: how soon the client needs an attorney.",
+            "description": "Owner 2026-10-04/05: how soon the client needs an attorney — a\nlevel, or `by_date` with deadlineAt (a date alone means `by_date`).\nA level clears the date; null clears both.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date it is needed by (today … 2 years).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is; only with a date.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
               }
             ]
           }
@@ -61668,10 +61962,27 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-04: how soon the client needs an attorney.",
+            "description": "Owner 2026-10-04/05: how soon the client needs an attorney — a\nlevel, or `by_date` with deadlineAt (a date alone means `by_date`).\nA level clears the date; null clears both.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date it is needed by (today … 2 years).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is; only with a date.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
               }
             ]
           },
@@ -61684,6 +61995,37 @@
               "type": "string",
               "format": "uuid"
             }
+          }
+        }
+      },
+      "UpdateCaseUrgencyDto": {
+        "type": "object",
+        "properties": {
+          "urgency": {
+            "nullable": true,
+            "description": "Owner 2026-10-04/05: how soon the client needs an attorney — a\nlevel, or `by_date` with deadlineAt (a date alone means `by_date`).\nA level clears the date; null clears both.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date it is needed by (today … 2 years).",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is; only with a date.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
+              }
+            ]
           }
         }
       },
@@ -61769,10 +62111,35 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "description": "Owner 2026-10-04/05: the client's choice — a level, or `by_date`\n(see deadlineAt); null when not set.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "urgencyLevel": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the level the case reads as today (a dated case's\nlevel follows from the days left; `overdue` once the date passed).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is (court hearing, filing…).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
               }
             ]
           },
@@ -61954,10 +62321,35 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "description": "Owner 2026-10-04/05: the client's choice — a level, or `by_date`\n(see deadlineAt); null when not set.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "urgencyLevel": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the level the case reads as today (a dated case's\nlevel follows from the days left; `overdue` once the date passed).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is (court hearing, filing…).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
               }
             ]
           },
@@ -62129,10 +62521,35 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "description": "Owner 2026-10-04/05: the client's choice — a level, or `by_date`\n(see deadlineAt); null when not set.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "urgencyLevel": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the level the case reads as today (a dated case's\nlevel follows from the days left; `overdue` once the date passed).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is (court hearing, filing…).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
               }
             ]
           },
@@ -62580,6 +62997,28 @@
               }
             ]
           },
+          "caseUrgencyLevel": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the level the case reads as today.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "caseDeadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "caseDeadlineKind": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
+              }
+            ]
+          },
           "caseBudget": {
             "$ref": "#/components/schemas/CaseBudgetDto"
           },
@@ -63023,10 +63462,35 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-04: flexible | soon | urgent; null on older cases.",
+            "description": "Owner 2026-10-04/05: the client's choice — a level, or `by_date`\n(see deadlineAt); null when not set.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
+              }
+            ]
+          },
+          "urgencyLevel": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: the level the case reads as today (a dated case's\nlevel follows from the days left; `overdue` once the date passed).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseUrgencyLevel"
+              }
+            ]
+          },
+          "deadlineAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).",
+            "format": "date",
+            "example": "2026-11-03"
+          },
+          "deadlineKind": {
+            "nullable": true,
+            "description": "Owner 2026-10-05: what the date is (court hearing, filing…).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CaseDeadlineKind"
               }
             ]
           },
@@ -76483,12 +76947,17 @@
             "items": {
               "type": "string"
             }
+          },
+          "urgentOnly": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05: only urgent cases (urgent / very urgent, or a date that close)."
           }
         },
         "required": [
           "useProfile",
           "practiceAreaIds",
-          "profilePracticeAreaIds"
+          "profilePracticeAreaIds",
+          "urgentOnly"
         ]
       },
       "NewCaseAlertsEnvelope": {
@@ -76518,6 +76987,10 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "urgentOnly": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05: absent = unchanged."
           }
         },
         "required": [

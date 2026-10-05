@@ -45,6 +45,15 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   urgency: json['urgency'] == null
       ? null
       : CaseUrgency.fromJson(json['urgency'] as String),
+  urgencyLevel: json['urgencyLevel'] == null
+      ? null
+      : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
+  deadlineAt: json['deadlineAt'] == null
+      ? null
+      : DateTime.parse(json['deadlineAt'] as String),
+  deadlineKind: json['deadlineKind'] == null
+      ? null
+      : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
   ownBidId: json['ownBidId'] as String?,
   completionRequestedBy: json['completionRequestedBy'] == null
       ? null
@@ -67,6 +76,9 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'budget': instance.budget.toJson(),
   'coverKey': ?instance.coverKey,
   'urgency': ?instance.urgency?.toJson(),
+  'urgencyLevel': ?instance.urgencyLevel?.toJson(),
+  'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+  'deadlineKind': ?instance.deadlineKind?.toJson(),
   'viewCount': instance.viewCount,
   'bidsCount': instance.bidsCount,
   'createdAt': instance.createdAt.toIso8601String(),

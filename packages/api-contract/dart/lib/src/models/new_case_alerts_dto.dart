@@ -12,6 +12,7 @@ class NewCaseAlertsDto {
     required this.useProfile,
     required this.practiceAreaIds,
     required this.profilePracticeAreaIds,
+    required this.urgentOnly,
   });
 
   factory NewCaseAlertsDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,9 @@ class NewCaseAlertsDto {
 
   /// The profile's qualifications.
   final List<String> profilePracticeAreaIds;
+
+  /// Owner 2026-10-05: only urgent cases (urgent / very urgent, or a date that close).
+  final bool urgentOnly;
 
   Map<String, Object?> toJson() => _$NewCaseAlertsDtoToJson(this);
 }
