@@ -2,7 +2,13 @@ import {
   OTP_LOCKOUT_MEMORY_SECONDS,
   OTP_LOCKOUT_SCHEDULE_SECONDS,
 } from '../otp-limits';
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import {
@@ -20,6 +26,7 @@ import { CostGuardService } from '../../../common/cost-guard/cost-guard.service'
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { AppConfigService } from '../../feature-flags/services/app-config.service';
 import { checkSmsDestination } from '../dto/validators';
+import { CountriesService } from '../../countries/countries.service';
 import {
   buildAdminLoginCodeEmail,
   buildContactOtpEmail,
@@ -111,6 +118,7 @@ export class OtpService {
     private readonly config: ConfigService,
     private readonly costGuard: CostGuardService,
     private readonly appConfig: AppConfigService,
+    @Optional() private readonly countries?: CountriesService,
   ) {
     this.codeTtlSeconds = this.config.getOrThrow<number>(
       'OTP_CODE_TTL_SECONDS',
@@ -263,11 +271,17 @@ export class OtpService {
     const allowed = await this.allowedSmsCountries();
     const verdict = checkSmsDestination(e164, allowed);
     if (verdict === 'ok') return;
+    // Owner 2026-10-05: the app offers "tell me when it opens" for the
+    // number's country when LawBid is not switched on there.
+    const countryCode = this.countries?.countryOfPhone(e164) ?? null;
     throw new HttpException(
       {
         code: ErrorCode.PHONE_COUNTRY_NOT_SUPPORTED,
-        message: 'SMS codes can only be sent to supported US mobile numbers.',
-        details: { reason: verdict, allowedCountries: allowed },
+        message:
+          verdict === 'country_not_allowed'
+            ? 'LawBid is not available in this country yet.'
+            : 'SMS codes can only be sent to supported mobile numbers.',
+        details: { reason: verdict, allowedCountries: allowed, countryCode },
       },
       HttpStatus.BAD_REQUEST,
     );
@@ -277,6 +291,20 @@ export class OtpService {
    * alpha-2 codes) if well-formed and non-empty, else the
    * SMS_ALLOWED_COUNTRY_CODES env fallback (default 'US'). */
   private async allowedSmsCountries(): Promise<string[]> {
+    const extra = await this.storedSmsCountries();
+    // Owner 2026-10-05: codes go to the countries switched on in Система →
+    // Страны; the stored list adds territories without their own regions.
+    if (this.countries) {
+      try {
+        return await this.countries.smsCountries(extra);
+      } catch {
+        // countries unreadable -> the stored list alone
+      }
+    }
+    return extra;
+  }
+
+  private async storedSmsCountries(): Promise<string[]> {
     let stored: unknown;
     try {
       stored = (await this.appConfig.getConfig())[

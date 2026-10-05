@@ -73,7 +73,7 @@ export class AdminSupportController {
     @CurrentAdmin() admin: AdminActor,
     @Query() q: AdminSupportTicketsQueryDto,
   ): Promise<Page<AdminSupportTicketRowDto>> {
-    return this.support.list(admin.id, q);
+    return this.support.list(admin.id, q, admin.countries);
   }
 
   @Get('stats')
@@ -93,9 +93,10 @@ export class AdminSupportController {
   @ApiEnvelopeResponse(AdminSupportTicketDetailDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
   getAdminSupportTicket(
+    @CurrentAdmin() admin: AdminActor,
     @Param() p: SupportTicketIdParamDto,
   ): Promise<AdminSupportTicketDetailDto> {
-    return this.support.get(p.id);
+    return this.support.get(p.id, admin.countries);
   }
 
   @Roles('super_admin', 'support')

@@ -1,3 +1,5 @@
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { isKnownCountry } from '../../../common/reference-data/countries';
 import { ConflictException, Injectable } from '@nestjs/common';
 import type { Prisma, PrismaClient, User } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -98,6 +100,9 @@ export class IdentityService {
         status: 'active',
         [channel === 'phone' ? 'phone_e164' : 'email']: normalizedIdentifier,
         [channel === 'phone' ? 'phone_verified_at' : 'email_verified_at']: now,
+        // Owner 2026-10-05: a phone sign-up starts in the number's country
+        // (a profile's state/province moves it later).
+        ...(channel === 'phone' ? phoneCountry(normalizedIdentifier) : {}),
         identifiers: {
           create: {
             provider: channel,
@@ -224,4 +229,11 @@ function maskEmail(email: string): string {
       ? domainName
       : domainName[0] + '*'.repeat(domainName.length - 1);
   return `${maskedLocal}@${[maskedDomain, ...rest].join('.')}`;
+}
+
+/** `{country_code}` for a number whose country we list, else nothing
+ * (the column default, US). */
+function phoneCountry(e164: string): { country_code?: string } {
+  const code = parsePhoneNumberFromString(e164)?.country;
+  return code && isKnownCountry(code) ? { country_code: code } : {};
 }

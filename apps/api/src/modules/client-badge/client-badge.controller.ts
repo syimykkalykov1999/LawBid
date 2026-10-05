@@ -137,8 +137,17 @@ export class AdminClientBadgeController {
   @ApiOperation({ summary: 'Requests, newest first (filter by status)' })
   @ApiEnvelopeResponse(AdminClientBadgeRowDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  listAdminClientBadges(@Query() q: AdminClientBadgeQueryDto) {
-    return this.admin.list(q.status, q.cursor, q.subStatus, q.q);
+  listAdminClientBadges(
+    @CurrentAdmin() admin: AdminActor,
+    @Query() q: AdminClientBadgeQueryDto,
+  ) {
+    return this.admin.list(
+      q.status,
+      q.cursor,
+      q.subStatus,
+      q.q,
+      admin.countries,
+    );
   }
 
   @Post('bulk-approve')
@@ -172,9 +181,10 @@ export class AdminClientBadgeController {
   @ApiEnvelopeResponse(AdminClientBadgeDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
   getAdminClientBadge(
+    @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminClientBadgeIdParamDto,
   ): Promise<AdminClientBadgeDto> {
-    return this.admin.get(p.id);
+    return this.admin.get(p.id, admin.countries);
   }
 
   @Post(':id/approve')

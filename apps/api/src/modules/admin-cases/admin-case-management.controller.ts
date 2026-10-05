@@ -54,9 +54,10 @@ export class AdminCaseManagementController {
   @ApiEnvelopeResponse(AdminCaseRowDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   listAdminCases(
+    @CurrentAdmin() admin: AdminActor,
     @Query() q: AdminCasesQueryDto,
   ): Promise<Page<AdminCaseRowDto>> {
-    return this.cases.list(q);
+    return this.cases.list(q, admin.countries);
   }
 
   @Get(':id')
@@ -65,8 +66,11 @@ export class AdminCaseManagementController {
   })
   @ApiEnvelopeResponse(AdminCaseCardDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.CASE_NOT_FOUND] })
-  getAdminCase(@Param() p: AdminIdParamDto): Promise<AdminCaseCardDto> {
-    return this.cases.card(p.id);
+  getAdminCase(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminIdParamDto,
+  ): Promise<AdminCaseCardDto> {
+    return this.cases.card(p.id, admin.countries);
   }
 
   @Post('bulk')

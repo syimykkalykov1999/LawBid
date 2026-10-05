@@ -96,9 +96,16 @@ export class SupportService {
     );
     const now = new Date();
     const { ticket, messages } = await withTxRetry(this.prisma, async (tx) => {
+      // Owner 2026-10-05: the ticket belongs to the asker's country, so
+      // staff assigned to that country see it.
+      const asker = await tx.user.findUnique({
+        where: { id: userId },
+        select: { country_code: true },
+      });
       const t = await tx.supportTicket.create({
         data: {
           user_id: userId,
+          country_code: asker?.country_code ?? 'US',
           subject: dto.subject,
           category: dto.category,
           status: 'open',

@@ -1,6 +1,7 @@
 'use client';
 
 import createClient, { type Middleware } from 'openapi-fetch';
+import { countryTab } from '../country-tab';
 import type { paths } from './schema';
 
 /**
@@ -49,10 +50,13 @@ async function reroute(
 ): Promise<Request> {
   const url = new URL(request.url);
   url.pathname = map(url.pathname);
+  const headers = new Headers(request.headers);
+  const country = countryTab();
+  if (country) headers.set('x-admin-country', country);
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
   return new Request(url, {
     method: request.method,
-    headers: request.headers,
+    headers,
     body: hasBody ? await request.text() : undefined,
     credentials: 'same-origin',
   });

@@ -123,7 +123,12 @@ export class CasePaymentsController {
   })
   @ApiEnvelopeResponse(PayoutAccountLinkDto, { status: 201 })
   @ApiErrors({
-    403: [E.FORBIDDEN, E.FEATURE_DISABLED, E.ENTITLEMENT_REQUIRED],
+    403: [
+      E.FORBIDDEN,
+      E.FEATURE_DISABLED,
+      E.ENTITLEMENT_REQUIRED,
+      E.COUNTRY_NOT_AVAILABLE,
+    ],
     503: [E.PAYMENTS_NOT_CONFIGURED],
   })
   startPayoutOnboarding(

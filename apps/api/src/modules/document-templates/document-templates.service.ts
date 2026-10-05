@@ -15,6 +15,7 @@ import {
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { US_STATES } from '../../common/reference-data/us-states';
+import { EXTRA_REGIONS } from '../../common/reference-data/countries';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -39,7 +40,8 @@ import type {
 
 export const DOCUMENT_TEMPLATES_FLAG = 'document_templates';
 const PAGE = 30;
-const STATES = new Set(US_STATES.map((s) => s.code));
+// Owner 2026-10-05: every country's states/provinces.
+const STATES = new Set([...US_STATES, ...EXTRA_REGIONS].map((s) => s.code));
 
 export const TEMPLATE_AUDIT = {
   create: 'admin.document_template.create',

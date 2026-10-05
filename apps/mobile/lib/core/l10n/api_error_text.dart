@@ -35,6 +35,9 @@ String apiErrorText(Translator t, ApiException error) {
     if (reason == 'number_type_not_allowed') {
       return t.t('error.api.PHONE_TYPE_NOT_ALLOWED');
     }
+    if (reason == 'country_not_allowed') {
+      return t.t('error.api.COUNTRY_NOT_AVAILABLE');
+    }
   }
   // Owner 2026-10-05: attorney trust — name the requirements the gate is
   // missing ({gate, missing: [registry|identity|documents], current}).
@@ -76,6 +79,7 @@ const _keys = <String, String>{
   ApiErrorCodes.identifierAlreadyLinked: 'error.api.CONTACT_ALREADY_EXISTS',
   ApiErrorCodes.phoneCountryNotSupported:
       'error.api.PHONE_COUNTRY_NOT_SUPPORTED',
+  ApiErrorCodes.countryNotAvailable: 'error.api.COUNTRY_NOT_AVAILABLE',
   ApiErrorCodes.providerBudgetExceeded: 'error.api.PROVIDER_BUDGET_EXCEEDED',
   ApiErrorCodes.reviewCaseNotClosed: 'error.api.REVIEW_CASE_NOT_CLOSED',
   ApiErrorCodes.reviewNoAcceptedBid: 'error.api.REVIEW_NO_ACCEPTED_BID',

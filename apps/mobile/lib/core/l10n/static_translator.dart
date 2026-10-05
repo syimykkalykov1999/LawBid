@@ -300,6 +300,15 @@ class StaticTranslatorRu extends _MapTranslator {
         'common.search': 'Поиск',
         'splash.loading': 'Загружаем LawBid…',
         'auth.phone.countryCode': 'US +1',
+        'auth.phone.pickCountry': 'Выберите страну',
+        'auth.phone.waitlist.cta': 'Сообщить, когда откроемся',
+        'auth.phone.waitlist.title': 'Сообщим, когда LawBid откроется у вас',
+        'auth.phone.waitlist.body':
+            'Оставьте e-mail: придёт одно письмо, когда ваша страна откроется. Без рассылок.',
+        'auth.phone.waitlist.email': 'E-mail',
+        'auth.phone.waitlist.submit': 'Сообщить мне',
+        'auth.phone.waitlist.done': 'Готово. Напишем, как только откроемся.',
+        'auth.phone.waitlist.open': 'Уже открыто. Попробуйте войти ещё раз.',
         'auth.phone.hint': '(555) 123-4567',
         'auth.phone.useEmail': 'Войти по email',
         'auth.magicLink.otherDevice':
@@ -328,7 +337,9 @@ class StaticTranslatorRu extends _MapTranslator {
         'error.api.CONTACT_ALREADY_EXISTS':
             'Этот контакт уже привязан к другому аккаунту LawBid.',
         'error.api.PHONE_COUNTRY_NOT_SUPPORTED':
-            'Номера этой страны пока не поддерживаются. Укажите номер США.',
+            'Номера этой страны пока не поддерживаются. Выберите другую страну.',
+        'error.api.COUNTRY_NOT_AVAILABLE':
+            'LawBid пока не работает в этой стране.',
         'error.api.PHONE_INVALID_US':
             'Такого номера США нет. Проверьте код города, например (202) 555-1234.',
         'error.api.PHONE_TYPE_NOT_ALLOWED':
@@ -1308,6 +1319,15 @@ class StaticTranslatorEn extends _MapTranslator {
         'common.search': 'Search',
         'splash.loading': 'Loading LawBid…',
         'auth.phone.countryCode': 'US +1',
+        'auth.phone.pickCountry': 'Choose your country',
+        'auth.phone.waitlist.cta': 'Tell me when it opens',
+        'auth.phone.waitlist.title': "We'll tell you when LawBid opens for you",
+        'auth.phone.waitlist.body':
+            'Leave your e-mail: one message when your country opens. No newsletters.',
+        'auth.phone.waitlist.email': 'E-mail',
+        'auth.phone.waitlist.submit': 'Notify me',
+        'auth.phone.waitlist.done': "Done. We'll write as soon as we open.",
+        'auth.phone.waitlist.open': "It's open already. Try signing in again.",
         'auth.phone.hint': '(555) 123-4567',
         'auth.phone.useEmail': 'Use email instead',
         'auth.magicLink.otherDevice':
@@ -1336,7 +1356,9 @@ class StaticTranslatorEn extends _MapTranslator {
         'error.api.CONTACT_ALREADY_EXISTS':
             'This contact is already linked to another LawBid account.',
         'error.api.PHONE_COUNTRY_NOT_SUPPORTED':
-            "Phone numbers from this country aren't supported yet. Please use a US number.",
+            "Phone numbers from this country aren't supported yet. Please choose another country.",
+        'error.api.COUNTRY_NOT_AVAILABLE':
+            "LawBid isn't available in this country yet.",
         'error.api.PHONE_INVALID_US':
             "This isn't a valid US number. Check the area code, e.g. (202) 555-1234.",
         'error.api.PHONE_TYPE_NOT_ALLOWED':
