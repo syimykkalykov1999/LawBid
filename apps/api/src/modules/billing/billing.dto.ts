@@ -1,4 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  PlanEntitlementsDto,
+  PublicPlanDto,
+  SeatSummaryDto,
+} from '../plans/plans.dto';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -71,10 +76,23 @@ export class CheckoutRequestDto {
   plan?: 'monthly' | 'yearly';
 
   @ApiPropertyOptional({
+    description:
+      "Owner 2026-10-05: the plan to buy (code from GET /plans or /subscriptions/me). Default: the audience's default plan of `plan`'s interval.",
+    maxLength: 64,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(2, 64)
+  @Matches(/^[a-z0-9_-]+$/)
+  planCode?: string;
+
+  @ApiPropertyOptional({
     type: 'integer',
     minimum: 0,
     maximum: SEATS_HARD_CAP,
     default: 0,
+    description: 'Extra assistant seats on top of the ones the plan includes.',
   })
   @IsOptional()
   @Type(() => Number)
@@ -108,7 +126,12 @@ export class CheckoutRequestDto {
 }
 
 export class SetSeatsDto {
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: SEATS_HARD_CAP })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: SEATS_HARD_CAP,
+    description: 'Extra seats on top of the ones the plan includes.',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -175,7 +198,12 @@ export class SubscriptionDto {
   @ApiProperty({ type: 'integer' }) priceCents!: number;
   @ApiProperty({ enum: ['monthly', 'yearly'], enumName: 'SubscriptionPlan' })
   plan!: 'monthly' | 'yearly';
-  @ApiProperty({ type: 'integer' }) assistantSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      "Every assistant seat the attorney has: the plan's included seats + the extra bought (owner 2026-10-05).",
+  })
+  assistantSeats!: number;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   trialEndsAt!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
@@ -226,6 +254,15 @@ export class SubscriptionMeDto {
   canStart!: boolean;
   @ApiProperty() trialEligible!: boolean;
   @ApiProperty({ type: 'integer' }) priceCents!: number;
+  // Owner 2026-10-05 (plan builder): the plan the attorney is on, every
+  // plan for sale and the entitlements that stand right now.
+  @ApiProperty({ type: PublicPlanDto, nullable: true })
+  plan!: PublicPlanDto | null;
+  @ApiProperty({ type: [PublicPlanDto] }) plans!: PublicPlanDto[];
+  @ApiProperty({ type: PlanEntitlementsDto })
+  entitlements!: PlanEntitlementsDto;
+  @ApiProperty({ type: SeatSummaryDto, nullable: true })
+  seats!: SeatSummaryDto | null;
 }
 
 export class PaymentDto {

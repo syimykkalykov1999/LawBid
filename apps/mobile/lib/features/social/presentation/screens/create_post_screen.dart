@@ -6,10 +6,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
+    show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/create_reel_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -124,10 +127,27 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       final video = picked.where(_isVideo).firstOrNull;
       if (video != null) {
         if (!mounted) return;
-        // A video makes it a reel: the reel screen takes it from here.
+        // A reel carries one video and no photos: the picked ones would go.
+        if (_photos.isNotEmpty) {
+          final t = ref.read(translatorProvider);
+          final ok = await showConfirmSheet(
+            context,
+            t: t,
+            title: t.t('post.toReel.title'),
+            message: t.t('post.toReel.message'),
+            confirmLabel: t.t('post.toReel.confirm'),
+          );
+          if (!ok || !mounted) return;
+        }
+        // A video makes it a reel: the reel screen takes it from here,
+        // keeping the typed title and text.
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => CreateReelScreen(initialFile: File(video.path)),
+            builder: (_) => CreateReelScreen(
+              initialFile: File(video.path),
+              initialTitle: _title.text,
+              initialText: _text.text,
+            ),
           ),
         );
         return;
@@ -245,6 +265,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           );
       if (!mounted) return;
       ref.read(feedProvider.notifier).prepend(post);
+      // The author's profile grids and post counters follow at once.
+      ref
+        ..invalidate(attorneyPostsProvider(post.author.id))
+        ..invalidate(attorneyNewsProvider(post.author.id))
+        ..invalidate(publicAttorneyProfileProvider)
+        ..invalidate(publicClientProfileProvider);
       // ignore: unawaited_futures
       HapticFeedback.mediumImpact();
       showAppSnackBar(

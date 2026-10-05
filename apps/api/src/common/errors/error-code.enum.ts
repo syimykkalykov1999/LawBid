@@ -361,6 +361,17 @@ export enum ErrorCode {
   CONTENT_INVALID_STATE = 'CONTENT_INVALID_STATE',
   // 409: an official sticker pack with this short name exists.
   STICKER_PACK_NAME_TAKEN = 'STICKER_PACK_NAME_TAKEN',
+  // Owner 2026-10-05 (plan builder) — 409: an attorney's open offers or a
+  // client's open cases are at the plan's limit.
+  BID_LIMIT_REACHED = 'BID_LIMIT_REACHED',
+  CASE_LIMIT_REACHED = 'CASE_LIMIT_REACHED',
+  // 409: the plan is not for sale (archived / draft / other audience).
+  PLAN_NOT_AVAILABLE = 'PLAN_NOT_AVAILABLE',
+  // 409: a plan with this code exists / the plan has subscribers.
+  PLAN_CODE_EXISTS = 'PLAN_CODE_EXISTS',
+  PLAN_IN_USE = 'PLAN_IN_USE',
+  // 403: the plan does not include this feature (video calls, templates).
+  ENTITLEMENT_REQUIRED = 'ENTITLEMENT_REQUIRED',
   // Owner 2026-10-05 — outreach (Привлечение). 400: the CSV/registry
   // import is unusable; 409: lead unsubscribed / no email / status change
   // not valid; 429: the partner's daily email limit is spent.

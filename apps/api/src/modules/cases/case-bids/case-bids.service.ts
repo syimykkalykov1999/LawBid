@@ -187,6 +187,20 @@ export class CaseBidsService {
       attorney: toAttorneySummary(bid.attorney_id, a, avatar.url256),
     };
   }
+
+  /** GET /bids/:id: the attorney summary of one bid (the caller has
+   * already checked that the viewer is one of the bid's parties). */
+  async attorneySummaryOf(
+    bidId: string,
+  ): Promise<BidAttorneySummaryDto | undefined> {
+    const bid = await this.prisma.bid.findUnique({
+      where: { id: bidId },
+      include: BID_LIST_INCLUDE,
+    });
+    if (!bid) return undefined;
+    const avatar = await this.files.avatarUrls(bid.attorney.avatar_file_id);
+    return toAttorneySummary(bid.attorney_id, bid.attorney, avatar.url256);
+  }
 }
 
 /** The attorney's public summary on a bid / invite card (§5.2). */

@@ -83,8 +83,10 @@ resource "aws_lb_target_group" "api" {
   target_type          = "ip"
   vpc_id               = var.vpc_id
   deregistration_delay = 30
+  # Liveness, not readiness: ECS replaces tasks the ALB marks unhealthy, so a
+  # DB/Redis blip on /health/ready would kill every API task at once.
   health_check {
-    path                = "/health/ready"
+    path                = "/health/live"
     matcher             = "200"
     interval            = 15
     timeout             = 5

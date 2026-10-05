@@ -158,9 +158,14 @@ class OwnerCase {
     this.acceptedBid,
     this.conversationId,
     this.photos = const [],
+    this.stalePromptSentAt,
     this.coverKey,
     this.urgency,
   });
+
+  /// Audit 2026-10-04: when the "still relevant?" prompt went out for this
+  /// open case (null = not asked); the owner can answer on the case.
+  final DateTime? stalePromptSentAt;
 
   /// OQ-031: the case photos (the owner always sees them).
   final List<CasePhoto> photos;
@@ -372,11 +377,17 @@ class FeedCase {
     this.inMyLicensedStates = true,
     this.bidAllowed = true,
     this.promoted = false,
+    this.priorityClient = false,
     this.completionRequestedBy,
+    this.acceptedBidIsMine = false,
     this.coverKey,
     this.urgency,
     this.dossier = CaseDossier.empty,
   });
+
+  /// Audit 2026-10-04 (detail only): this attorney's bid is the accepted
+  /// one — the case belongs on the work screen.
+  final bool acceptedBidIsMine;
 
   /// Owner 2026-10-05: files and filled-in details (counts only).
   final CaseDossier dossier;
@@ -390,6 +401,10 @@ class FeedCase {
 
   /// Owner 2026-10-02: a paid promotion keeps this case near the top.
   final bool promoted;
+
+  /// Owner 2026-10-05 (plan builder): the client's plan puts the case
+  /// first in the feed (shown with a small «Приоритет» mark).
+  final bool priorityClient;
 
   /// `client` / `attorney`: who marked "Done" first (waiting for the other).
   final String? completionRequestedBy;
@@ -464,10 +479,12 @@ class FeedCase {
         shareCount: shareCount,
         inMyPractice: inMyPractice,
         promoted: promoted,
+        priorityClient: priorityClient,
         completionRequestedBy: completionRequestedBy,
         coverKey: coverKey,
         urgency: urgency,
         bidAllowed: bidAllowed,
+        acceptedBidIsMine: acceptedBidIsMine,
         dossier: dossier,
       );
 }

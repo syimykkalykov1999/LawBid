@@ -9,14 +9,19 @@ import '../models/admin_billing_reason_dto.dart';
 import '../models/admin_billing_subscription_row_list_envelope.dart';
 import '../models/admin_payment_list_envelope.dart';
 import '../models/admin_plan_prices_envelope.dart';
+import '../models/admin_plan_result_envelope.dart';
+import '../models/admin_plans_envelope.dart';
 import '../models/admin_seat_limit_request_list_envelope.dart';
 import '../models/admin_set_plan_price_result_envelope.dart';
+import '../models/apply_plan_dto.dart';
+import '../models/apply_plan_result_envelope.dart';
 import '../models/approve_seat_limit_dto.dart';
 import '../models/billing_overview_envelope.dart';
 import '../models/contract_grant_envelope.dart';
 import '../models/contract_grant_list_envelope.dart';
 import '../models/contract_grant_status.dart';
 import '../models/create_contract_grant_dto.dart';
+import '../models/create_plan_dto.dart';
 import '../models/create_promo_code_dto.dart';
 import '../models/create_refund_dto.dart';
 import '../models/extend_contract_grant_dto.dart';
@@ -24,6 +29,7 @@ import '../models/move_plan_subscribers_dto.dart';
 import '../models/move_plan_subscribers_result_envelope.dart';
 import '../models/payment_status.dart';
 import '../models/plan.dart';
+import '../models/plan_fields_dto.dart';
 import '../models/plan_kind.dart';
 import '../models/promo_code_envelope.dart';
 import '../models/promo_code_filter.dart';
@@ -223,6 +229,49 @@ abstract class AdminBillingClient {
   Future<MovePlanSubscribersResultEnvelope> movePlanSubscribers({
     @Path('kind') required PlanKind kind,
     @Body() required MovePlanSubscribersDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Every plan with its entitlements, price and subscribers
+  @GET('/admin/billing/plans')
+  Future<AdminPlansEnvelope> adminListPlans({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create a plan (draft unless status is given)
+  @POST('/admin/billing/plans')
+  Future<AdminPlanResultEnvelope> adminCreatePlan({
+    @Body() required CreatePlanDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Edit a plan: texts, entitlements, price, status (subscribers keep their terms)
+  @PUT('/admin/billing/plans/{id}')
+  Future<AdminPlanResultEnvelope> adminUpdatePlan({
+    @Path('id') required String id,
+    @Body() required PlanFieldsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a plan nobody ever bought
+  @DELETE('/admin/billing/plans/{id}')
+  Future<AdminPlansEnvelope> adminDeletePlan({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Archive: no new purchases, subscribers keep their terms
+  @POST('/admin/billing/plans/{id}/archive')
+  Future<AdminPlansEnvelope> adminArchivePlan({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Give current subscribers the plan's terms as they are now
+  @POST('/admin/billing/plans/{id}/apply-to-subscribers')
+  Future<ApplyPlanResultEnvelope> adminApplyPlanToSubscribers({
+    @Path('id') required String id,
+    @Body() required ApplyPlanDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

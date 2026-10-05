@@ -460,6 +460,9 @@ enum NotificationType {
   partner_payout
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
+  // Owner 2026-10-04: the other side disputed completion / support decided.
+  case_disputed
+  dispute_resolved
   // Owner 2026-10-05: a client offered their case to the attorney / the
   // attorney declined it.
   case_invite_received
@@ -628,6 +631,7 @@ model User {
   sticker_packs           StickerPack[]           @relation("StickerPackOwner")
   installed_sticker_packs UserStickerPack[]
   client_verification     ClientVerification?
+  client_subscription     ClientSubscription?
   recent_stickers         UserRecentSticker[]
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
   show_activity_status    Boolean                 @default(true)
@@ -1019,7 +1023,7 @@ model State {
   verification_documents VerificationDocument[]
 
   primary_for_cases CaseState[]
-  cases_primary     Case[]      @relation("CasePrimaryState")
+  cases_primary     Case[]            @relation("CasePrimaryState")
   bar_registry      StateBarRegistry?
 
   @@map("states")
@@ -1132,28 +1136,28 @@ model AttorneyProfile {
 }
 
 model AttorneyLicense {
-  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attorney_id       String          @db.Uuid
-  attorney          AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
-  state_code        String          @db.Char(2)
-  state             State           @relation(fields: [state_code], references: [code], onDelete: Restrict)
-  bar_number        String
-  license_status    LicenseStatus   @default(pending)
-  expires_at        DateTime?       @db.Date
-  verified_at       DateTime?       @db.Timestamptz
-  verified_by       String?         @db.Uuid
-  verifier          User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)
-  auto_check_result Json?
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id         String          @db.Uuid
+  attorney            AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
+  state_code          String          @db.Char(2)
+  state               State           @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  bar_number          String
+  license_status      LicenseStatus   @default(pending)
+  expires_at          DateTime?       @db.Date
+  verified_at         DateTime?       @db.Timestamptz
+  verified_by         String?         @db.Uuid
+  verifier            User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)
+  auto_check_result   Json?
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
-  rejection_code    String?
-  rejection_note    String?
+  rejection_code      String?
+  rejection_note      String?
   /// Owner 2026-10-05: the state registry disagreed with a self-attested
   /// license (name_mismatch / not_found / not_active). The license stays
   /// verified; the flag puts it on the admin's "registry" list.
   registry_flag       String?
   registry_flagged_at DateTime?       @db.Timestamptz
-  created_at        DateTime        @default(now()) @db.Timestamptz
-  updated_at        DateTime        @updatedAt @db.Timestamptz
+  created_at          DateTime        @default(now()) @db.Timestamptz
+  updated_at          DateTime        @updatedAt @db.Timestamptz
 
   // One license can't be attached to two accounts (§4.C, §5.1).
   @@unique([state_code, bar_number])
@@ -1993,8 +1997,15 @@ model Subscription {
   card_fingerprint       String?
   // OQ-048: monthly ($399 + $100 per seat) or yearly (6 seats, −20 %).
   plan                   SubscriptionPlan   @default(monthly)
-  // 0–6 (CHECK in the migration).
+  // 0–6 (CHECK in the migration). Owner 2026-10-05: with a plan_id these
+  // are the EXTRA seats bought on top of the plan's included ones.
   assistant_seats        Int                @default(0) @db.Int2
+  // Owner 2026-10-05 (plan builder): the plan bought and the entitlements
+  // frozen at purchase — a later edit of the plan does not change a
+  // subscriber's terms until the admin applies it.
+  plan_id                String?            @db.Uuid
+  plan_ref               Plan?              @relation(fields: [plan_id], references: [id], onDelete: SetNull)
+  entitlements           Json?
   created_at             DateTime           @default(now()) @db.Timestamptz
   updated_at             DateTime           @updatedAt @db.Timestamptz
 
@@ -3261,8 +3272,9 @@ model ClientVerification {
 /// keep the price they bought unless the admin moves them.
 model PlanPrice {
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  /// monthly · seat · yearly · client_badge
-  kind               String   @db.String(16)
+  /// monthly · seat · yearly · client_badge, or a plan code / seat.<plan code>
+  /// (owner 2026-10-05, plan builder).
+  kind               String   @db.String(64)
   amount_cents       Int
   currency           String   @default("usd") @db.String(3)
   active             Boolean  @default(true)
@@ -3276,4 +3288,70 @@ model PlanPrice {
 
   @@index([kind, active, created_at(sort: Desc)], map: "plan_prices_kind_idx")
   @@map("plan_prices")
+}
+
+/// Owner 2026-10-05 (plan builder): a subscription plan the admin
+/// assembles in Деньги → Планы. `kind` = paid (sold through plan_prices /
+/// Stripe) or baseline (what a user with no subscription gets; one per
+/// audience, never sold). `entitlements` = {key: value} over the catalog in
+/// apps/api/src/modules/plans/entitlement-catalog.ts; `highlights` = the
+/// admin's own bullet lines [{en, ru}]. Subscribers keep the entitlements
+/// frozen on their subscription row until the admin applies a change.
+model Plan {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String   @unique @db.String(64)
+  /// attorney · client
+  audience     String   @db.String(16)
+  /// paid · baseline
+  kind         String   @default("paid") @db.String(16)
+  /// {"en": "...", "ru": "..."}
+  name         Json     @default("{}")
+  tagline      Json     @default("{}")
+  description  Json     @default("{}")
+  /// month · year (null for a baseline)
+  interval     String?  @db.String(8)
+  /// plan_prices.kind that carries this plan's price (null for a baseline).
+  price_kind   String?  @db.String(64)
+  entitlements Json     @default("{}")
+  highlights   Json     @default("[]")
+  /// draft · active · archived
+  status       String   @default("draft") @db.String(16)
+  sort         Int      @default(0)
+  /// The plan legacy flows (no planCode given) buy for this audience+interval.
+  is_default   Boolean  @default(false)
+  created_by   String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  subscriptions        Subscription[]
+  client_subscriptions ClientSubscription[]
+
+  @@index([audience, status, sort], map: "plans_audience_idx")
+  @@map("plans")
+}
+
+/// Owner 2026-10-05 (plan builder): a client's paid plan (badge, cases
+/// first in the attorneys' feed, …). One row per client, driven by Stripe
+/// webhooks like the attorney's `subscriptions` row.
+model ClientSubscription {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                String    @unique @db.Uuid
+  user                   User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plan_id                String?   @db.Uuid
+  plan                   Plan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
+  stripe_checkout_id     String?   @db.String(255)
+  stripe_subscription_id String?   @unique @db.String(255)
+  /// incomplete · trialing · active · past_due · canceled · expired
+  status                 String    @default("incomplete") @db.String(16)
+  price_cents            Int       @default(0)
+  trial_ends_at          DateTime? @db.Timestamptz
+  current_period_end     DateTime? @db.Timestamptz
+  cancel_at_period_end   Boolean   @default(false)
+  canceled_at            DateTime? @db.Timestamptz
+  entitlements           Json?
+  created_at             DateTime  @default(now()) @db.Timestamptz
+  updated_at             DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, current_period_end], map: "client_subscriptions_status_idx")
+  @@map("client_subscriptions")
 }

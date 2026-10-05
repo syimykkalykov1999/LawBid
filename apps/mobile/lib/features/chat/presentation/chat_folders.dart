@@ -209,7 +209,13 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               onTap: _busy
                   ? null
                   : () => _run(
-                        () => repo.organize(c.id, folder: other),
+                        // Audit 2026-10-04: as in the bulk move, moving
+                        // takes the "waiting" mark off.
+                        () => repo.organize(
+                          c.id,
+                          folder: other,
+                          waiting: false,
+                        ),
                         done: 'chat.organize.moved',
                       ),
             ),

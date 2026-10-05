@@ -103,6 +103,8 @@ export const ERROR_TEXT: Record<string, string> = {
   FORBIDDEN: 'Недостаточно прав.',
   JUSTIFICATION_REQUIRED: 'Укажите причину просмотра (не короче 10 символов).',
   VALIDATION_ERROR: 'Проверьте введённые данные.',
+  PLAN_CODE_EXISTS: 'План с таким кодом уже есть.',
+  PLAN_IN_USE: 'У плана есть подписчики — его можно только архивировать.',
   RATE_LIMITED: 'Слишком много запросов. Попробуйте позже.',
   UNAUTHORIZED: 'Сессия завершена. Войдите снова.',
 };

@@ -9,11 +9,13 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -65,12 +67,15 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.account'),
             onTap: () => context.push(AccountRoutes.account),
           ),
-          // docs/03 §5 (stage 3.9): confirmed contacts + contact preferences.
-          AppListRow(
-            icon: AppIcons.contactPhoneOutlined,
-            label: t.t('contacts.title'),
-            onTap: () => context.push(AppRoutes.myContacts),
-          ),
+          // docs/03 §5 (stage 3.9): contact preferences. Audit 2026-10-04:
+          // clients only; phone / email are edited in Account.
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-contact-prefs'),
+              icon: AppIcons.contactPhoneOutlined,
+              label: t.t('settings.contactPreferences'),
+              onTap: () => context.push(AppRoutes.myContacts),
+            ),
           AppListRow(
             icon: AppIcons.shieldOutlined,
             label: t.t('settings.security'),
@@ -102,6 +107,16 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('cbadge.title'),
               subtitle: t.t('cbadge.hint'),
               onTap: () => context.push(AppRoutes.clientBadge),
+            ),
+          // Owner 2026-10-05 (plan builder): the client's plan (badge
+          // included, priority in the feed, case limits).
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-client-plan'),
+              icon: AppIcons.workspacePremiumOutlined,
+              label: t.t('plan.client.title'),
+              subtitle: t.t('plan.client.hint'),
+              onTap: () => context.push(ClientPlanRoutes.clientPlan),
             ),
           // Owner 2026-10-02: referrals (shown only when the program is on).
           if (ref.watch(referralMeProvider).value?.enabled ?? false)
@@ -153,16 +168,34 @@ class SettingsScreen extends ConsumerWidget {
       AppListSection(
         title: t.t('settings.section.support'),
         children: [
-          AppListRow(
-            icon: AppIcons.helpOutlineRounded,
-            label: t.t('support.title'),
-            subtitle: t.t('support.hint.short'),
-            onTap: () => context.push(AppRoutes.support),
-          ),
-          AppListRow(
-            icon: AppIcons.balanceRounded,
-            label: t.t('settings.legal'),
-            onTap: () => context.push(AppRoutes.legalDoc('terms')),
+          // Audit 2026-10-04: a gold dot (left of the chevron) for an
+          // unread reply from the team.
+          Stack(
+            children: [
+              AppListRow(
+                icon: AppIcons.helpOutlineRounded,
+                label: t.t('support.title'),
+                subtitle: t.t('support.hint.short'),
+                onTap: () => context.push(AppRoutes.support),
+              ),
+              if (ref.watch(supportUnreadProvider))
+                Positioned(
+                  right: AppSpacing.md + AppSizes.iconSm + AppSpacing.sm,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      key: const ValueKey('settings-support-unread'),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: colors.gold,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           // Owner 2026-10-02: About LawBid + the website.
           AppListRow(

@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import type { AssistantMembership, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -13,8 +12,6 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { getAssistantLimit } from '../billing/seat-limit';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { AssistantCodeService } from '../auth/assistant/assistant-code.service';
@@ -26,6 +23,7 @@ import type { CreatePostDto } from '../posts/dto/posts.dto';
 import { PostsService } from '../posts/posts.service';
 import { AttorneyProfilesService } from '../profiles/services/attorney-profiles.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import {
   DEFAULT_DUTIES,
   LIABILITY_DUTIES,
@@ -41,11 +39,6 @@ import type {
   TeamDto,
   UpdateAssistantDto,
 } from './assistants.dto';
-import {
-  effectiveSeats,
-  findActiveGrant,
-  paidSeats,
-} from '../subscriptions/contract-grant.util';
 import {
   formatJoinCode,
   hashJoinCode,
@@ -85,13 +78,13 @@ export class AssistantsService {
     private readonly cipher: JoinCodeCipher,
     private readonly context: AssistantContextService,
     private readonly access: SubscriptionAccessService,
+    private readonly entitlements: EntitlementsService,
     private readonly notifications: NotificationsService,
     private readonly posts: PostsService,
     private readonly comments: CommentsService,
     private readonly caseComments: CaseCommentsService,
     private readonly profiles: AttorneyProfilesService,
     private readonly files: FilesService,
-    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   // --- the assistant themself ------------------------------------------
@@ -219,20 +212,15 @@ export class AssistantsService {
   private async seatsOf(attorneyId: string) {
     const sub = await this.prisma.subscription.findUnique({
       where: { user_id: attorneyId },
-      select: { plan: true, assistant_seats: true },
+      select: { plan: true },
     });
     const used = await this.prisma.assistantMembership.count({
       where: { attorney_id: attorneyId, status: { not: 'removed' } },
     });
-    // Owner 2026-10-02: a contract grant may carry its own seats.
-    const grant = await findActiveGrant(this.prisma, attorneyId);
-    const seats = effectiveSeats(
-      paidSeats(
-        sub,
-        await getAssistantLimit(this.prisma, attorneyId, this.settings),
-      ),
-      grant?.assistant_seats ?? null,
-    );
+    // Owner 2026-10-05 (plan builder): the plan's included seats + the
+    // extra ones bought, or the contract grant's — EntitlementsService is
+    // the single source.
+    const seats = (await this.entitlements.seats(attorneyId)).total;
     return { seats, used, plan: sub?.plan ?? null };
   }
 

@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'bid_attorney_summary_dto.dart';
 import 'bid_offer_dto.dart';
 import 'bid_status.dart';
 import 'fee_type.dart';
@@ -32,6 +33,7 @@ class BidDto {
     required this.outsideLicensedStates,
     required this.createdAt,
     required this.offers,
+    this.attorney,
   });
 
   factory BidDto.fromJson(Map<String, Object?> json) => _$BidDtoFromJson(json);
@@ -59,6 +61,9 @@ class BidDto {
   final bool outsideLicensedStates;
   final DateTime createdAt;
   final List<BidOfferDto> offers;
+
+  /// The attorney summary — only on GET /bids/:id.
+  final BidAttorneySummaryDto? attorney;
 
   Map<String, Object?> toJson() => _$BidDtoToJson(this);
 }

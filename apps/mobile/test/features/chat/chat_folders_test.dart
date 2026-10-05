@@ -175,12 +175,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.organized.last, 'w:null:true:Call back at 5:null');
 
-    // ⋯ → move to Primary.
+    // ⋯ → move to Primary (takes the waiting mark off, as the bulk move).
     await tester.tap(find.byKey(const ValueKey('chat-organize-w')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('organize-move')));
     await tester.pumpAndSettle();
-    expect(repo.organized.last, 'w:primary:null:null:null');
+    expect(repo.organized.last, 'w:primary:false:null:null');
   });
 
   testWidgets('⋮ → Select chats → pick all → delete hides them',

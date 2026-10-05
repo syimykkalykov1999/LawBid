@@ -23,6 +23,7 @@ import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dar
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart';
+import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -138,8 +139,12 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.create,
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.modal(state, const CreateScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.modal(
+          state,
+          CreateScreen(
+            startWithCase: state.uri.queryParameters['kind'] == 'case',
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.profileSettings,
@@ -369,6 +374,8 @@ GoRouter appRouter(Ref ref) {
       ...chatRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
       ...subscriptionRoutes(_rootNavigatorKey),
+      // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
+      ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.
       ...teamRoutes(_rootNavigatorKey),
     ],

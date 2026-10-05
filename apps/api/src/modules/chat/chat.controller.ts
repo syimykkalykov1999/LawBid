@@ -194,6 +194,7 @@ export class ChatController {
   @ApiEnvelopeResponse(MessageTranslationDto)
   @ApiErrors({
     400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.ENTITLEMENT_REQUIRED],
     404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
     429: [ErrorCode.RATE_LIMITED],
     503: [ErrorCode.TRANSLATION_UNAVAILABLE],

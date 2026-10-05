@@ -22,6 +22,7 @@ import 'clients/admin_data_requests_client.dart';
 import 'clients/admin_config_client.dart';
 import 'clients/subscriptions_client.dart';
 import 'clients/admin_subscriptions_client.dart';
+import 'clients/plans_client.dart';
 import 'clients/assistants_client.dart';
 import 'clients/admin_teams_client.dart';
 import 'clients/posts_client.dart';
@@ -102,6 +103,7 @@ class LawbidApi {
   AdminConfigClient? _adminConfig;
   SubscriptionsClient? _subscriptions;
   AdminSubscriptionsClient? _adminSubscriptions;
+  PlansClient? _plans;
   AssistantsClient? _assistants;
   AdminTeamsClient? _adminTeams;
   PostsClient? _posts;
@@ -202,6 +204,8 @@ class LawbidApi {
 
   AdminSubscriptionsClient get adminSubscriptions =>
       _adminSubscriptions ??= AdminSubscriptionsClient(_dio, baseUrl: _baseUrl);
+
+  PlansClient get plans => _plans ??= PlansClient(_dio, baseUrl: _baseUrl);
 
   AssistantsClient get assistants =>
       _assistants ??= AssistantsClient(_dio, baseUrl: _baseUrl);

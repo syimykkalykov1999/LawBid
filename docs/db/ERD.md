@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-110 tables.
+112 tables.
 
 ```mermaid
 erDiagram
@@ -630,6 +630,8 @@ erDiagram
     String card_fingerprint "nullable"
     enum_SubscriptionPlan plan
     Int assistant_seats
+    String plan_id FK "nullable"
+    Json entitlements "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1302,6 +1304,41 @@ erDiagram
     String created_by "nullable"
     DateTime created_at
   }
+  plans {
+    String id PK
+    String code UK
+    String audience
+    String kind
+    Json name
+    Json tagline
+    Json description
+    String interval "nullable"
+    String price_kind "nullable"
+    Json entitlements
+    Json highlights
+    String status
+    Int sort
+    Boolean is_default
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  client_subscriptions {
+    String id PK
+    String user_id FK,UK
+    String plan_id FK "nullable"
+    String stripe_checkout_id "nullable"
+    String stripe_subscription_id UK "nullable"
+    String status
+    Int price_cents
+    DateTime trial_ends_at "nullable"
+    DateTime current_period_end "nullable"
+    Boolean cancel_at_period_end
+    DateTime canceled_at "nullable"
+    Json entitlements "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   users }o--o| files : "avatar_file_id"
   files }o--|| users : "owner_user_id"
   user_identifiers }o--|| users : "user_id"
@@ -1403,6 +1440,7 @@ erDiagram
   push_tokens }o--|| sessions : "session_id"
   stripe_customers |o--|| users : "user_id"
   subscriptions |o--|| users : "user_id"
+  subscriptions }o--o| plans : "plan_id"
   payments }o--|| users : "user_id"
   reports }o--|| users : "reporter_id"
   reports }o--o| users : "handled_by"
@@ -1463,4 +1501,6 @@ erDiagram
   user_recent_stickers }o--|| users : "user_id"
   user_recent_stickers }o--|| stickers : "sticker_id"
   client_verifications |o--|| users : "user_id"
+  client_subscriptions |o--|| users : "user_id"
+  client_subscriptions }o--o| plans : "plan_id"
 ```

@@ -18,11 +18,16 @@ import 'package:lawbid/core/network/request_flags.dart';
 ///   error) or a 502/503/504 WITHOUT a domain error code. A 503
 ///   `PROVIDER_BUDGET_EXCEEDED` is a deliberate server decision, not a
 ///   blip, so it is surfaced immediately.
+///
+/// At most 2 retries (3 attempts): a struggling server isn't hammered. A
+/// `Retry-After` header (seconds) replaces the backoff, capped at
+/// [maxRetryAfter].
 class RetryInterceptor extends Interceptor {
   RetryInterceptor(
     this._dio, {
-    this.maxRetries = 3,
-    this.baseDelay = const Duration(milliseconds: 400),
+    this.maxRetries = 2,
+    this.baseDelay = const Duration(seconds: 1),
+    this.maxRetryAfter = const Duration(seconds: 10),
     Future<void> Function(Duration)? sleep,
     Random? random,
   })  : _sleep = sleep ?? Future<void>.delayed,
@@ -31,6 +36,7 @@ class RetryInterceptor extends Interceptor {
   final Dio _dio;
   final int maxRetries;
   final Duration baseDelay;
+  final Duration maxRetryAfter;
   final Future<void> Function(Duration) _sleep;
   final Random _random;
 
@@ -49,7 +55,7 @@ class RetryInterceptor extends Interceptor {
       return;
     }
 
-    await _sleep(backoffFor(attempt));
+    await _sleep(retryAfter(err.response) ?? backoffFor(attempt));
     options.extra = {...options.extra, RequestFlags.retryAttempt: attempt + 1};
     try {
       final response = await _dio.fetch<dynamic>(options);
@@ -65,6 +71,16 @@ class RetryInterceptor extends Interceptor {
     final exp = baseDelay * pow(2, attempt).toInt();
     final jitterMs = (exp.inMilliseconds * 0.3 * _random.nextDouble()).round();
     return exp + Duration(milliseconds: jitterMs);
+  }
+
+  /// The server's `Retry-After` in seconds (an HTTP date is ignored),
+  /// capped at [maxRetryAfter]; null when absent or unparseable.
+  Duration? retryAfter(Response<dynamic>? response) {
+    final raw = response?.headers.value('retry-after');
+    final secs = raw == null ? null : int.tryParse(raw.trim());
+    if (secs == null || secs < 0) return null;
+    final d = Duration(seconds: secs);
+    return d > maxRetryAfter ? maxRetryAfter : d;
   }
 
   static bool isRetryable(DioException err) {

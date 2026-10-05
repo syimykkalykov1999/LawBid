@@ -1,27 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
-import 'package:lawbid/features/settings/account/account_routes.dart';
-import 'package:lawbid/features/settings/account/presentation/screens/account_contact_flow_screen.dart';
-import 'package:lawbid/features/settings/account/presentation/widgets/account_tile.dart';
 
-/// Settings → "My contacts" (docs/03 §5): the confirmed phone and email
-/// with their status. Changing one reuses the Account flow (re-auth + code
-/// on the new contact, docs/01 §11). Clients also set the preferred way to
-/// be contacted (`PATCH /users/me/contact-preferences`) — shared with an
-/// attorney only after a bid is accepted.
+/// Settings → "Contact preferences" (docs/03 §5): clients set the preferred
+/// way to be contacted (`PATCH /users/me/contact-preferences`) — shared
+/// with an attorney only after a bid is accepted. The phone and email
+/// themselves are edited in Account.
 class MyContactsScreen extends ConsumerWidget {
   const MyContactsScreen({super.key});
 
@@ -41,47 +34,8 @@ class MyContactsScreen extends ConsumerWidget {
             )
           : const ProfileEditSkeleton();
     } else {
-      Widget contactTile(ContactType type) {
-        final isPhone = type == ContactType.phone;
-        final value = isPhone ? user.phone : user.email;
-        final verified = isPhone ? user.phoneVerified : user.emailVerified;
-        return AccountTile(
-          icon: isPhone
-              ? AppIcons.phoneIphoneRounded
-              : AppIcons.alternateEmailRounded,
-          title:
-              t.t(isPhone ? 'account.contact.phone' : 'account.contact.email'),
-          subtitle: value == null
-              ? t.t('account.contact.notSet')
-              : (isPhone ? UsPhone.format(value) : value),
-          badge: value == null
-              ? null
-              : AccountBadge(
-                  label: t.t(
-                    verified
-                        ? 'account.identifier.verified'
-                        : 'account.contact.unverified',
-                  ),
-                  tone: verified
-                      ? AccountBadgeTone.success
-                      : AccountBadgeTone.warning,
-                ),
-          actionLabel:
-              t.t(verified ? 'account.contact.change' : 'account.contact.add'),
-          onTap: () => context
-              .push(AccountRoutes.contact(type, AccountContactMode.primary)),
-        );
-      }
-
+      // Audit 2026-10-04: the phone / email tiles live in Account only.
       final sections = <Widget>[
-        AppListSection(
-          title: t.t('contacts.section.confirmed'),
-          children: [
-            contactTile(ContactType.phone),
-            contactTile(ContactType.email),
-          ],
-        ),
-        _Hint(text: t.t('account.contacts.reauthHint')),
         if (user.isClient) const _ContactPreferencesSection(),
       ];
       body = RefreshIndicator(
@@ -111,42 +65,13 @@ class MyContactsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Text(t.t('contacts.title')),
+        title: Text(t.t('settings.contactPreferences')),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
       body: body,
-    );
-  }
-}
-
-class _Hint extends StatelessWidget {
-  const _Hint({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppIcon(
-          AppIcons.lockOutlineRounded,
-          size: AppSpacing.lg,
-          color: colors.textSecondary,
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            text,
-            style: typography.caption.copyWith(color: colors.textSecondary),
-          ),
-        ),
-      ],
     );
   }
 }

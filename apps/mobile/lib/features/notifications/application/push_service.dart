@@ -126,6 +126,9 @@ class PushService {
       );
       return;
     }
+    // Audit 2026-10-04: opening a push reads its notification.
+    final id = data['notificationId'];
+    if (id is String) unawaited(_markRead(id));
     final route = notificationRoute(
       type: '${data['type'] ?? ''}',
       payload: Map<String, Object?>.from(data),
@@ -133,6 +136,16 @@ class PushService {
       myId: _ref.read(currentUserIdProvider),
     );
     if (route != null) unawaited(_ref.read(appRouterProvider).push(route));
+  }
+
+  Future<void> _markRead(String id) async {
+    try {
+      await _ref.read(notificationsRepositoryProvider).markRead(ids: [id]);
+      _ref.invalidate(notificationsProvider);
+    } on Object {
+      // The row stays unread; a tap in the list reads it.
+    }
+    unawaited(_ref.read(badgesProvider.notifier).refresh());
   }
 
   void dispose() {
