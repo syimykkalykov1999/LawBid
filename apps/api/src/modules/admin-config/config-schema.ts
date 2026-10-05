@@ -3,6 +3,10 @@ import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
 import { ADMIN_AREAS } from '../admin-auth/admin-permissions';
 import { SEATS_HARD_CAP, TRIAL_DAYS_MAX } from '../billing/billing.constants';
+import {
+  ADMIN_THROTTLE_MAX,
+  ADMIN_THROTTLE_MIN,
+} from '../../throttler/throttle-limits';
 
 export interface ConfigKeySchema {
   type: ConfigValueType;
@@ -63,6 +67,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['cases.deadline_reminder_days'],
     min: 0,
     max: 60,
+  };
+  // Owner 2026-10-05: the admin panel's own request limit.
+  out['security.admin_rate_limit_per_minute'] = {
+    ...out['security.admin_rate_limit_per_minute'],
+    description:
+      'Requests per minute one signed-in admin may make (users stay at 100); ADMIN_THROTTLE_LIMIT in the env overrides it.',
+    min: ADMIN_THROTTLE_MIN,
+    max: ADMIN_THROTTLE_MAX,
   };
   out['trust.payout_delay_days'] = {
     ...out['trust.payout_delay_days'],

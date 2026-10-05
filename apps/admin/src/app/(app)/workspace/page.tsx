@@ -13,9 +13,11 @@ import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
+import { UpdatedAgo } from '@/components/updated-ago';
 import { useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { workspaceQuery } from '@/lib/live';
 import { money } from '@/lib/payroll';
 import { cn } from '@/lib/utils';
 
@@ -38,11 +40,7 @@ const ICON: Record<Queue['key'], Icon> = {
 export default function WorkspacePage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const ws = useQuery({
-    queryKey: ['workspace'],
-    queryFn: async () => (await api.GET('/admin/workspace')).data!.data,
-    refetchInterval: 30_000,
-  });
+  const ws = useQuery(workspaceQuery);
   const rewards = useQuery({
     queryKey: ['workspace-rewards'],
     queryFn: async () => (await api.GET('/admin/workspace/rewards')).data!.data,
@@ -76,6 +74,7 @@ export default function WorkspacePage() {
               : `Ждёт: ${waiting}${late ? `, из них просрочено или срочно: ${late}` : ''}. Нажмите «Начать», и задачи будут открываться одна за другой.`
             : 'Ваши очереди по правам доступа.'
         }
+        actions={ws.data ? <span className="text-xs text-muted"><UpdatedAgo at={ws.dataUpdatedAt} /></span> : undefined}
       />
 
       {ws.data?.shift ? (

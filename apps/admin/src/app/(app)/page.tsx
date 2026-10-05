@@ -11,7 +11,9 @@ import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
+import { UpdatedAgo } from '@/components/updated-ago';
 import { api, errorText } from '@/lib/api/client';
+import { dashboardQuery, supportStatsQuery } from '@/lib/live';
 import { useMe } from '@/lib/hooks';
 import { can, canOpen } from '@/lib/rbac';
 import { cn, formatDateTime, formatDuration } from '@/lib/utils';
@@ -30,28 +32,22 @@ function greeting(): string {
 /** docs/06 §2.3 item 1 — numbers, queues that need a human, activity. */
 export default function DashboardPage() {
   const { data: me } = useMe();
-  const dq = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: async () => (await api.GET('/admin/dashboard')).data!.data,
-    refetchInterval: 60_000,
-  });
+  // Live numbers come from the sidebar's minute poll (lib/live.ts); the
+  // overview and money cards load once per visit.
+  const dq = useQuery(dashboardQuery);
   const oq = useQuery({
     queryKey: ['admin-overview'],
     queryFn: async () => (await api.GET('/admin/overview')).data!.data,
-    refetchInterval: 60_000,
     enabled: me ? can(me, 'content') : false,
   });
   const showMoney = me?.role === 'super_admin';
   const bq = useQuery({
     queryKey: ['billing-overview'],
     queryFn: async () => (await api.GET('/admin/billing/overview')).data!.data,
-    refetchInterval: 120_000,
     enabled: showMoney,
   });
   const sq = useQuery({
-    queryKey: ['support-stats'],
-    queryFn: async () => (await api.GET('/admin/support/stats')).data!.data,
-    refetchInterval: 60_000,
+    ...supportStatsQuery,
     enabled: me ? canOpen(me, '/support') : false,
   });
   const d = dq.data;
@@ -74,7 +70,7 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow={greeting()}
         title="Обзор LawBid"
-        subtitle={d ? `Данные на ${formatDateTime(d.computedAt)} · обновляются каждую минуту` : 'Загружаем цифры…'}
+        subtitle={d ? <>Данные на {formatDateTime(d.computedAt)} · <UpdatedAgo at={dq.dataUpdatedAt} /></> : 'Загружаем цифры…'}
       />
       <ErrorNote text={dq.error ? errorText(dq.error) : oq.error ? errorText(oq.error) : null} />
 

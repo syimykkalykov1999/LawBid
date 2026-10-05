@@ -14,6 +14,7 @@ import { Table, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { livePoll } from '@/lib/live';
 import { useMe } from '@/lib/hooks';
 
 type Days = '7' | '30' | '90';
@@ -33,7 +34,7 @@ export default function SupportTeamPage() {
   const agents = useQuery({
     queryKey: ['support-agents'],
     queryFn: async () => (await api.GET('/admin/support/agents')).data!.data,
-    refetchInterval: 60_000,
+    refetchInterval: livePoll(),
   });
   const stats = useQuery({
     queryKey: ['support-staff-stats', days],

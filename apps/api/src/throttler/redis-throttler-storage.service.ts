@@ -16,6 +16,12 @@ import { REDIS_CLIENT } from '../redis/redis.constants';
  * Fixed-window counter: INCR + PEXPIRE NX in one MULTI (a key can never
  * be left without an expiry), no external package needed.
  *
+ * A block never outlives the blockDuration asked for now: builds before
+ * 09c4f7e wrote `blockDuration * 1000` ms (60 s became ~16.7 h), and such
+ * a stale key locked an admin out for hours (owner's Mac, 2026-10-05).
+ * A block key with more time left than the current blockDuration is
+ * dropped and the request is counted normally.
+ *
  * Fails OPEN: if Redis is unreachable the request is let through with a
  * warning (alert `throttler_unavailable`) instead of turning a Redis blip
  * into a full API outage. Paid provider calls stay protected by
@@ -73,7 +79,11 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
     const hitsKey = `throttle:${throttlerName}:${key}`;
     const blockKey = `throttle-block:${throttlerName}:${key}`;
 
-    const blockTtlMs = await this.redis.pttl(blockKey);
+    let blockTtlMs = await this.redis.pttl(blockKey);
+    if (blockTtlMs > Math.max(blockDuration, ttl)) {
+      await this.redis.del(blockKey);
+      blockTtlMs = 0;
+    }
     if (blockTtlMs > 0) {
       return {
         totalHits: limit + 1,
