@@ -8,10 +8,19 @@ import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 /// circle for what it did not (never says "verified" for a level the facts
 /// do not support).
 class TrustSignalsList extends StatelessWidget {
-  const TrustSignalsList({required this.trust, required this.t, super.key});
+  const TrustSignalsList({
+    required this.trust,
+    required this.t,
+    super.key,
+    this.self = false,
+  });
 
   final PublicTrust trust;
   final Translator t;
+
+  /// The attorney is looking at their own list: the payments line speaks
+  /// to them («Клиенты пока не могут платить вам…»).
+  final bool self;
 
   @override
   Widget build(BuildContext context) {
@@ -36,11 +45,7 @@ class TrustSignalsList extends StatelessWidget {
         ),
       (
         trust.acceptsPayments,
-        t.t(
-          trust.acceptsPayments
-              ? 'trust.signal.payments.ok'
-              : 'trust.signal.payments.no',
-        ),
+        t.t(paymentsKey(ok: trust.acceptsPayments, self: self)),
       ),
       (
         trust.canBid,
@@ -61,6 +66,11 @@ class TrustSignalsList extends StatelessWidget {
   bool _isDanger(TrustSignals s, String text) =>
       s.nameCheck == NameCheck.mismatch &&
       text == t.t('trust.signal.name.mismatch');
+
+  /// Payments inside LawBid (the client paying this attorney in the app),
+  /// worded for the client or for the attorney themselves.
+  static String paymentsKey({required bool ok, required bool self}) =>
+      'trust.signal.payments.${ok ? 'ok' : 'no'}${self ? '.self' : ''}';
 
   /// How identity was confirmed (the pre-payment sentence uses the same
   /// split: Stripe name match → documents → firm link).

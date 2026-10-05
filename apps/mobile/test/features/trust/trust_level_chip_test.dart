@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/trust/application/trust_providers.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
@@ -38,12 +39,16 @@ Widget _app(
   Widget child, {
   Translator translator = const StaticTranslatorEn(),
   PublicTrust? trust,
+  String? me,
+  OwnTrust? own,
 }) =>
     ProviderScope(
       overrides: [
         translatorProvider.overrideWithValue(translator),
+        currentUserIdProvider.overrideWithValue(me),
         if (trust != null)
           attorneyTrustProvider.overrideWith((ref, id) async => trust),
+        if (own != null) myTrustProvider.overrideWith((ref) async => own),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -129,7 +134,11 @@ void main() {
     expect(find.text('Identity not confirmed yet'), findsOneWidget);
     // The client's pre-payment notice and the registry link are inside.
     expect(find.byType(TrustPaymentNotice), findsOneWidget);
-    expect(find.textContaining('does not accept payments'), findsOneWidget);
+    expect(
+      find.textContaining("You can't pay this attorney through LawBid yet"),
+      findsOneWidget,
+    );
+    expect(find.text("Can't be paid through LawBid yet"), findsOneWidget);
     expect(find.byKey(const ValueKey('trust-registry-CA')), findsOneWidget);
   });
 
@@ -161,5 +170,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Stripe verification'), findsOneWidget);
     expect(find.text('Identity'), findsOneWidget);
+  });
+
+  testWidgets(
+      'the attorney sees on their own card that clients cannot pay them yet, '
+      'what is missing and that the subscription is unaffected',
+      (tester) async {
+    const own = OwnTrust(
+      public: _fixture,
+      bidsGate: TrustGate(
+        ok: true,
+        reason: null,
+        missing: [],
+        currentLevel: 1,
+        hold: null,
+      ),
+      paymentsGate: TrustGate(
+        ok: false,
+        reason: TrustGateReason.requirements,
+        missing: [TrustRequirement.identity],
+        currentLevel: 1,
+        hold: null,
+      ),
+      requirements: {TrustRequirement.registry, TrustRequirement.identity},
+      missing: [TrustRequirement.identity],
+      staffStatus: TrustStaffStatus.selfDeclared,
+      documentsRequested: null,
+      payoutDelayDays: null,
+      nextSteps: [],
+      firmLink: FirmLink(
+        status: FirmLinkStatus.none,
+        source: null,
+        at: null,
+        emailDomain: null,
+      ),
+      stripeBusinessType: null,
+    );
+    await tester.pumpWidget(
+      _app(
+        const TrustLevelChip(level: 1, attorneyId: 'a1'),
+        trust: _fixture,
+        me: 'a1',
+        own: own,
+      ),
+    );
+    await tester.tap(find.byType(TrustLevelChip));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Payments through LawBid'), findsOneWidget);
+    expect(
+      find.text("Clients can't pay you through LawBid yet"),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('your account is not confirmed'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Still needed: identity check through Stripe.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('nothing to do with your subscription'),
+      findsOneWidget,
+    );
+    expect(find.text('How to confirm my account'), findsOneWidget);
+    expect(find.textContaining("You can't pay this attorney"), findsNothing);
   });
 }

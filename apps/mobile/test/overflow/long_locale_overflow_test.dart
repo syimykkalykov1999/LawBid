@@ -19,12 +19,16 @@ import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
+import 'package:lawbid/features/trust/application/trust_providers.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
+import 'package:lawbid/features/trust/presentation/trust_level_sheet.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -367,6 +371,29 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
+      // Owner 2026-10-05: the trust sheet's payment card, as a client sees
+      // it and as the attorney sees their own (longest texts on both).
+      for (final self in [false, true]) {
+        testWidgets('trust sheet payments card (${self ? 'own' : 'client'})',
+            (tester) async {
+          await pump(
+            tester,
+            const Scaffold(
+              body: TrustLevelSheet(attorneyId: 'att-1', level: 1),
+            ),
+            t,
+            dir,
+            extra: [
+              currentUserIdProvider.overrideWithValue(self ? 'att-1' : 'c-1'),
+              attorneyTrustProvider.overrideWith((ref, id) async => _trust),
+              myTrustProvider.overrideWith((ref) async => _ownTrust),
+            ],
+          );
+          expect(find.byType(TrustLevelSheet), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+      }
+
       final screens = <String, Widget>{
         'feed': const FeedScreen(),
         'search': const SearchScreen(),
@@ -383,3 +410,69 @@ void main() {
     });
   }
 }
+
+const _trust = PublicTrust(
+  attorneyId: 'att-1',
+  level: 1,
+  badge: false,
+  cleared: false,
+  signals: TrustSignals(
+    selfAttested: true,
+    licenseConfirmed: false,
+    licenseConfirmedBy: null,
+    documentsVerified: false,
+    stripeKyc: false,
+    stripeIdentity: false,
+    identityConfirmed: false,
+    nameCheck: NameCheck.unknown,
+    firmLinkConfirmed: false,
+  ),
+  acceptsPayments: false,
+  canBid: true,
+  registryLinks: [
+    RegistryLink(stateCode: 'IL', stateName: 'Illinois', url: 'https://x'),
+  ],
+);
+
+const _ownTrust = OwnTrust(
+  public: _trust,
+  bidsGate: TrustGate(
+    ok: true,
+    reason: null,
+    missing: [],
+    currentLevel: 1,
+    hold: null,
+  ),
+  paymentsGate: TrustGate(
+    ok: false,
+    reason: TrustGateReason.requirements,
+    missing: [
+      TrustRequirement.registry,
+      TrustRequirement.identity,
+      TrustRequirement.documents,
+    ],
+    currentLevel: 1,
+    hold: null,
+  ),
+  requirements: {
+    TrustRequirement.registry,
+    TrustRequirement.identity,
+    TrustRequirement.documents,
+  },
+  missing: [
+    TrustRequirement.registry,
+    TrustRequirement.identity,
+    TrustRequirement.documents,
+  ],
+  staffStatus: TrustStaffStatus.selfDeclared,
+  documentsRequested: null,
+  payoutDelayDays: null,
+  nextSteps: [],
+  firmLink: FirmLink(
+    status: FirmLinkStatus.none,
+    source: null,
+    at: null,
+    emailDomain: null,
+  ),
+  stripeBusinessType: null,
+);
