@@ -37,6 +37,9 @@ export interface BroadcastJob {
   body: string;
   audience: BroadcastAudience;
   stateCode: string | null;
+  /** Owner 2026-10-04: the chosen states; jobs queued before it carry
+   * only `stateCode`. */
+  stateCodes?: string[];
   /** Last user id of the previous batch (null: start). */
   after: string | null;
 }
@@ -127,7 +130,10 @@ export class BroadcastFanoutRunner
   async emitBatch(data: BroadcastJob): Promise<string | null> {
     const batch = await this.prisma.user.findMany({
       where: {
-        ...broadcastAudienceWhere(data.audience, data.stateCode),
+        ...broadcastAudienceWhere(
+          data.audience,
+          data.stateCodes ?? data.stateCode,
+        ),
         ...(data.after ? { id: { gt: data.after } } : {}),
       },
       orderBy: { id: 'asc' },

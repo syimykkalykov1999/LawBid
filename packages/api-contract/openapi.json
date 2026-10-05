@@ -24226,6 +24226,36 @@
             }
           },
           {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "kind",
             "required": false,
             "in": "query",
@@ -24443,6 +24473,36 @@
             }
           },
           {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "thread",
             "required": false,
             "in": "query",
@@ -24644,6 +24704,36 @@
             "in": "query",
             "schema": {
               "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
               "type": "string"
             }
           }
@@ -25295,6 +25385,36 @@
             }
           },
           {
+            "name": "authorId",
+            "required": false,
+            "in": "query",
+            "description": "Only this author.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Created at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Created before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -25621,6 +25741,103 @@
           }
         ],
         "summary": "Show a hidden / removed review of a client",
+        "tags": [
+          "admin-content"
+        ]
+      }
+    },
+    "/admin/content/bulk": {
+      "post": {
+        "operationId": "bulkAdminContent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkContentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Remove, hide or restore many posts / comments / reviews with one reason (authors notified; one audit row per batch)",
         "tags": [
           "admin-content"
         ]
@@ -26300,6 +26517,26 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Uploaded at or after (inclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Uploaded before (exclusive).",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -26577,6 +26814,103 @@
           }
         ],
         "summary": "Take a video down: its post is removed (author told why), the asset deleted",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/videos/bulk-takedown": {
+      "post": {
+        "operationId": "bulkTakedownAdminVideos",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Take many videos down with one reason (posts removed, authors told why)",
         "tags": [
           "admin-media"
         ]
@@ -26930,6 +27264,200 @@
           }
         ],
         "summary": "A pack with its stickers and image links",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/sticker-packs/bulk-hide": {
+      "post": {
+        "operationId": "bulkHideAdminStickerPacks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Hide many packs with one reason (authors told why)",
+        "tags": [
+          "admin-media"
+        ]
+      }
+    },
+    "/admin/media/sticker-packs/bulk-unhide": {
+      "post": {
+        "operationId": "bulkUnhideAdminStickerPacks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBulkReasonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Make many hidden packs available again",
         "tags": [
           "admin-media"
         ]
@@ -58334,8 +58862,17 @@
             "type": "string",
             "nullable": true
           },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "attorneyName": {
             "type": "string"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "The review's author.",
+            "format": "uuid"
           },
           "clientName": {
             "type": "string"
@@ -58360,7 +58897,9 @@
         "required": [
           "id",
           "rating",
+          "attorneyId",
           "attorneyName",
+          "clientId",
           "clientName",
           "status",
           "createdAt"
@@ -58487,6 +59026,123 @@
             "items": {
               "$ref": "#/components/schemas/AdminClientReviewRowDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminBulkSkippedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "not_found",
+              "invalid_state",
+              "failed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ]
+      },
+      "AdminBulkResultDto": {
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "skipped": {
+            "description": "Ids that were missing or not in a state to change.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminBulkSkippedDto"
+            }
+          }
+        },
+        "required": [
+          "done",
+          "skipped"
+        ]
+      },
+      "AdminBulkContentAction": {
+        "type": "string",
+        "enum": [
+          "remove",
+          "hide",
+          "restore"
+        ],
+        "description": "remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible."
+      },
+      "AdminBulkContentType": {
+        "type": "string",
+        "enum": [
+          "post",
+          "comment",
+          "case_comment",
+          "review",
+          "client_review"
+        ]
+      },
+      "AdminBulkContentDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "ids": {
+            "minItems": 1,
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "action": {
+            "description": "remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBulkContentAction"
+              }
+            ]
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBulkContentType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reason",
+          "ids",
+          "action",
+          "type"
+        ]
+      },
+      "AdminBulkResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminBulkResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -58689,6 +59345,13 @@
             "type": "string",
             "nullable": true
           },
+          "stateCodes": {
+            "description": "The chosen states (empty = every state).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "recipients": {
             "type": "integer"
           },
@@ -58701,6 +59364,7 @@
           "title",
           "body",
           "audience",
+          "stateCodes",
           "recipients",
           "createdAt"
         ]
@@ -58753,7 +59417,21 @@
             "type": "string",
             "pattern": "^[A-Z]{2}$",
             "example": "IL",
-            "description": "Only this state."
+            "description": "Only this state (older clients; prefer stateCodes)."
+          },
+          "stateCodes": {
+            "maxItems": 60,
+            "example": [
+              "IL",
+              "NY",
+              "CA"
+            ],
+            "description": "Owner 2026-10-04: only these states (empty or missing = every state). Wins over stateCode.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
           }
         },
         "required": [
@@ -58975,6 +59653,29 @@
         },
         "required": [
           "reason"
+        ]
+      },
+      "AdminBulkReasonDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          },
+          "ids": {
+            "minItems": 1,
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "reason",
+          "ids"
         ]
       },
       "AdminStickerPackRowDto": {

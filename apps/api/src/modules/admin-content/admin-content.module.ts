@@ -4,6 +4,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminContentController } from './admin-content.controller';
 import { AdminContentService } from './admin-content.service';
 import { AdminContentExtrasService } from './admin-content-extras.service';
+import { AdminContentBulkService } from './admin-content-bulk.service';
 import { BroadcastFanoutModule } from './broadcast-fanout.module';
 
 /** Owner 2026-09-30: content, bids, qualifications, broadcasts, CSV. */
@@ -15,7 +16,11 @@ import { BroadcastFanoutModule } from './broadcast-fanout.module';
     BroadcastFanoutModule.register({ mode: 'api' }),
   ],
   controllers: [AdminContentController],
-  providers: [AdminContentService, AdminContentExtrasService],
+  providers: [
+    AdminContentService,
+    AdminContentExtrasService,
+    AdminContentBulkService,
+  ],
   // Admin media (video takedown) reuses the post removal path.
   exports: [AdminContentService],
 })

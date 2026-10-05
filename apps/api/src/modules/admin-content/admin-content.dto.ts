@@ -1,8 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsIn,
+  IsISO8601,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -39,7 +43,32 @@ export class AdminListQueryDto {
   cursor?: string;
 }
 
-export class AdminPostsQueryDto extends AdminListQueryDto {
+/** Owner 2026-10-04 (bulk moderation): narrow a moderation list to one
+ * author and / or a time window, so a whole batch can be selected. */
+export class AdminContentFilterQueryDto extends AdminListQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Only this author.' })
+  @IsOptional()
+  @IsUUID('all')
+  authorId?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Created at or after (inclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Created before (exclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
+export class AdminPostsQueryDto extends AdminContentFilterQueryDto {
   @ApiPropertyOptional({ enum: ['post', 'news'], enumName: 'AdminPostKind' })
   @IsOptional()
   @IsIn(['post', 'news'])
@@ -54,7 +83,7 @@ export class AdminPostsQueryDto extends AdminListQueryDto {
   media?: 'video';
 }
 
-export class AdminCommentsQueryDto extends AdminListQueryDto {
+export class AdminCommentsQueryDto extends AdminContentFilterQueryDto {
   @ApiPropertyOptional({
     enum: ['post', 'case'],
     enumName: 'AdminCommentThread',
@@ -139,7 +168,10 @@ export class AdminReviewRowDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ type: 'integer' }) rating!: number;
   @ApiPropertyOptional({ type: String, nullable: true }) body!: string | null;
+  @ApiProperty({ format: 'uuid' }) attorneyId!: string;
   @ApiProperty() attorneyName!: string;
+  /** The review's author. */
+  @ApiProperty({ format: 'uuid' }) clientId!: string;
   @ApiProperty() clientName!: string;
   /** null = an open review (no shared case, owner 2026-10-01). */
   @ApiPropertyOptional({ type: String, nullable: true })
@@ -237,10 +269,26 @@ export class CreateBroadcastDto {
   @IsIn(BROADCAST_AUDIENCES)
   audience!: (typeof BROADCAST_AUDIENCES)[number];
 
-  @ApiPropertyOptional({ example: 'IL', description: 'Only this state.' })
+  @ApiPropertyOptional({
+    example: 'IL',
+    description: 'Only this state (older clients; prefer stateCodes).',
+  })
   @IsOptional()
   @Matches(/^[A-Z]{2}$/)
   stateCode?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['IL', 'NY', 'CA'],
+    maxItems: 60,
+    description:
+      'Owner 2026-10-04: only these states (empty or missing = every state). Wins over stateCode.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(60)
+  @Matches(/^[A-Z]{2}$/, { each: true })
+  stateCodes?: string[];
 }
 
 export class BroadcastDto {
@@ -250,6 +298,11 @@ export class BroadcastDto {
   @ApiProperty() audience!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) stateCode!:
     string | null;
+  @ApiProperty({
+    type: [String],
+    description: 'The chosen states (empty = every state).',
+  })
+  stateCodes!: string[];
   @ApiProperty({ type: 'integer' }) recipients!: number;
   @ApiProperty() createdAt!: string;
 }
@@ -301,7 +354,7 @@ export class AdminReasonDto {
   reason!: string;
 }
 
-export class AdminClientReviewsQueryDto extends AdminListQueryDto {
+export class AdminClientReviewsQueryDto extends AdminContentFilterQueryDto {
   @ApiPropertyOptional({
     enum: ['published', 'hidden', 'removed'],
     enumName: 'AdminReviewStatus',
@@ -332,4 +385,62 @@ export class AdminClientReviewRowDto {
   })
   appealStatus!: string | null;
   @ApiProperty() createdAt!: string;
+}
+
+// --- Owner 2026-10-04: bulk moderation ---------------------------------------
+
+export const BULK_MAX = 500;
+
+export const BULK_CONTENT_TYPES = [
+  'post',
+  'comment',
+  'case_comment',
+  'review',
+  'client_review',
+] as const;
+export type BulkContentType = (typeof BULK_CONTENT_TYPES)[number];
+
+export const BULK_CONTENT_ACTIONS = ['remove', 'hide', 'restore'] as const;
+export type BulkContentAction = (typeof BULK_CONTENT_ACTIONS)[number];
+
+/** Many ids and one reason (10–500 characters, same as single actions). */
+export class AdminBulkReasonDto extends AdminReasonDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: BULK_MAX })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(BULK_MAX)
+  @IsUUID('all', { each: true })
+  ids!: string[];
+}
+
+export class AdminBulkContentDto extends AdminBulkReasonDto {
+  @ApiProperty({
+    enum: BULK_CONTENT_ACTIONS,
+    enumName: 'AdminBulkContentAction',
+    description:
+      'remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible.',
+  })
+  @IsIn(BULK_CONTENT_ACTIONS)
+  action!: BulkContentAction;
+
+  @ApiProperty({ enum: BULK_CONTENT_TYPES, enumName: 'AdminBulkContentType' })
+  @IsIn(BULK_CONTENT_TYPES)
+  type!: BulkContentType;
+}
+
+export class AdminBulkSkippedDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ enum: ['not_found', 'invalid_state', 'failed'] })
+  reason!: string;
+}
+
+export class AdminBulkResultDto {
+  @ApiProperty({ type: [String], format: 'uuid' })
+  done!: string[];
+
+  @ApiProperty({
+    type: [AdminBulkSkippedDto],
+    description: 'Ids that were missing or not in a state to change.',
+  })
+  skipped!: AdminBulkSkippedDto[];
 }
