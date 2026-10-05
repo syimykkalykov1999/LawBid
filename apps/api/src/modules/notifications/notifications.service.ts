@@ -51,6 +51,10 @@ export const NOTIFICATION_CATEGORY: Record<
   assistant_task: 'cases',
   assistant_joined: 'system',
   assistant_result: 'messages',
+  // Owner 2026-10-05: the planner.
+  task_reminder: 'cases',
+  task_assigned: 'cases',
+  task_purge_soon: 'system',
   admin_broadcast: 'system',
   referral_reward: 'system',
   // Owner 2026-10-05: partner program.

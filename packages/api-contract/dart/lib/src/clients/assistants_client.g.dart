@@ -484,6 +484,13 @@ class _AssistantsClient implements AssistantsClient {
   @override
   Future<TaskListEnvelope> listTasks({
     TasksView? view,
+    String? caseId,
+    String? assignee,
+    DateTime? dueFrom,
+    DateTime? dueTo,
+    bool? overdue,
+    String? q,
+    TasksSort? sort,
     bool? mine,
     DateTime? from,
     DateTime? to,
@@ -493,6 +500,13 @@ class _AssistantsClient implements AssistantsClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'view': view?.toJson(),
+      r'caseId': caseId,
+      r'assignee': assignee,
+      r'dueFrom': dueFrom?.toIso8601String(),
+      r'dueTo': dueTo?.toIso8601String(),
+      r'overdue': overdue,
+      r'q': q,
+      r'sort': sort?.toJson(),
       r'mine': mine,
       r'from': from?.toIso8601String(),
       r'to': to?.toIso8601String(),
@@ -514,6 +528,102 @@ class _AssistantsClient implements AssistantsClient {
     late TaskListEnvelope _value;
     try {
       _value = TaskListEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<TaskPlaceSuggestionListEnvelope> taskPlaces({
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<TaskPlaceSuggestionListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/tasks/places',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late TaskPlaceSuggestionListEnvelope _value;
+    try {
+      _value = TaskPlaceSuggestionListEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<TaskPersonSuggestionListEnvelope> taskPeople({
+    String? q,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{r'q': q};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<TaskPersonSuggestionListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/tasks/people',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late TaskPersonSuggestionListEnvelope _value;
+    try {
+      _value = TaskPersonSuggestionListEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<BulkTasksResultEnvelope> bulkTasks({
+    required BulkTasksDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<BulkTasksResultEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/tasks/bulk',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late BulkTasksResultEnvelope _value;
+    try {
+      _value = BulkTasksResultEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

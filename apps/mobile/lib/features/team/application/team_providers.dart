@@ -242,7 +242,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
             rescheduleTo: rescheduleTo,
           );
       final current = state.value ?? const <TaskItem>[];
-      final keep = key.done ? !updated.status.active : updated.status.active;
+      final keep = key.done ? updated.archived : !updated.archived;
       if (ref.mounted) {
         state = AsyncData([
           for (final t in current)
@@ -261,7 +261,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
   /// (it moves to Done when its last step was checked).
   void _put(TaskItem updated) {
     final current = state.value ?? const <TaskItem>[];
-    final keep = key.done ? !updated.status.active : updated.status.active;
+    final keep = key.done ? updated.archived : !updated.archived;
     final had = current.any((t) => t.id == updated.id);
     if (!ref.mounted) return;
     state = AsyncData([
@@ -288,46 +288,26 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
           // ignore: prefer_if_elements_to_conditional_expressions
           t.id != task.id
               ? t
-              : TaskItem(
-                  id: t.id,
-                  kind: t.kind,
-                  title: t.title,
-                  status: t.status,
-                  createdAt: t.createdAt,
-                  notes: t.notes,
-                  dueAt: t.dueAt,
-                  location: t.location,
-                  caseId: t.caseId,
-                  caseTitle: t.caseTitle,
-                  contactName: t.contactName,
-                  contactPhone: t.contactPhone,
-                  contactEmail: t.contactEmail,
-                  files: t.files,
-                  outcomeNote: t.outcomeNote,
-                  rescheduledTo: t.rescheduledTo,
-                  createdByName: t.createdByName,
-                  doneAt: t.doneAt,
-                  steps: [
-                    for (final s in t.steps)
-                      // ignore: prefer_if_elements_to_conditional_expressions
-                      s.id != step.id
-                          ? s
-                          : TaskStep(
-                              id: s.id,
-                              title: s.title,
-                              status: status,
-                              kind: s.kind,
-                              dueAt: s.dueAt,
-                              location: s.location,
-                              contactName: s.contactName,
-                              contactPhone: s.contactPhone,
-                              contactEmail: s.contactEmail,
-                              note: note ?? s.note,
-                              doneAt: DateTime.now(),
-                              createdByName: s.createdByName,
-                            ),
-                  ],
-                ),
+              : t.withSteps([
+                  for (final s in t.steps)
+                    // ignore: prefer_if_elements_to_conditional_expressions
+                    s.id != step.id
+                        ? s
+                        : TaskStep(
+                            id: s.id,
+                            title: s.title,
+                            status: status,
+                            kind: s.kind,
+                            dueAt: s.dueAt,
+                            location: s.location,
+                            contactName: s.contactName,
+                            contactPhone: s.contactPhone,
+                            contactEmail: s.contactEmail,
+                            note: note ?? s.note,
+                            doneAt: DateTime.now(),
+                            createdByName: s.createdByName,
+                          ),
+                ]),
       ]);
     }
     try {
@@ -383,6 +363,50 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     return updated;
   }
 }
+
+/// Owner 2026-10-05: the same action on many tasks; both lists reload.
+Future<({int affected, int skipped})> bulkTasks(
+  WidgetRef ref,
+  List<String> ids,
+  TaskBulkAction action, {
+  TaskStatus? status,
+  TaskPriority? priority,
+  String? assigneeMembershipId,
+}) async {
+  final r = await ref.read(teamRepositoryProvider).bulkTasks(
+        ids,
+        action,
+        status: status,
+        priority: priority,
+        assigneeMembershipId: assigneeMembershipId,
+      );
+  invalidateAllTasks(ref);
+  return r;
+}
+
+/// Every task list (active, archive, an assistant's Results).
+void invalidateAllTasks(WidgetRef ref) {
+  for (final done in [false, true]) {
+    for (final mine in [false, true]) {
+      ref.invalidate(tasksProvider((done: done, mine: mine)));
+    }
+  }
+}
+
+/// Owner 2026-10-05: addresses used before — the address field offers them.
+final taskPlacesProvider =
+    FutureProvider.autoDispose<List<TaskPlaceSuggestion>>(
+  (ref) => ref.watch(teamRepositoryProvider).taskPlaces(),
+  retry: _noRetry,
+);
+
+/// Owner 2026-10-05: people to add (team, chats, contacts; attorneys by
+/// name when searching).
+final taskPeopleProvider =
+    FutureProvider.autoDispose.family<List<TaskPersonSuggestion>, String>(
+  (ref, q) => ref.watch(teamRepositoryProvider).taskPeople(q),
+  retry: _noRetry,
+);
 
 /// Open tasks count for the Mine → Tasks tab badge.
 final openTasksCountProvider = Provider.autoDispose<int>((ref) {

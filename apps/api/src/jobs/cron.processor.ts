@@ -22,6 +22,10 @@ import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import {
+  TaskArchivePurgeJob,
+  TaskRemindersJob,
+} from './handlers/tasks-planner.jobs';
 import { CallsService } from '../modules/calls/calls.service';
 import { PostVideosService } from '../modules/posts/post-videos.service';
 import { ClientReviewsService } from '../modules/client-reviews/client-reviews.service';
@@ -60,6 +64,8 @@ export class CronProcessor {
     private readonly clientReviews: ClientReviewsService,
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
+    private readonly taskReminders: TaskRemindersJob,
+    private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
   ) {}
@@ -118,6 +124,10 @@ export class CronProcessor {
         return this.postVideos.sweep();
       case CRON_JOBS.promotionsExpire:
         return this.promotions.expire();
+      case CRON_JOBS.taskReminders:
+        return this.taskReminders.run();
+      case CRON_JOBS.taskArchivePurge:
+        return this.taskArchivePurge.run();
       case CRON_JOBS.casePaymentsExpire:
         return this.casePayments.expire();
       case CRON_JOBS.casePaymentsRemind:
