@@ -187,6 +187,10 @@ class ApiCasesRepository implements CasesRepository {
               draft.budgetIsAmount ? draft.budgetDollars : null,
           clientContactSharingConsent: contactSharingConsent ? true : null,
           photoFileIds: photoFileIds.isEmpty ? null : photoFileIds,
+          coverKey: draft.coverKey,
+          urgency: api.CaseUrgency.fromJson(
+            draft.urgency ?? kDefaultCaseUrgency,
+          ),
         ),
         extras: _createsResource,
       ),
@@ -227,6 +231,11 @@ class ApiCasesRepository implements CasesRepository {
           budgetAmountDollars: budgetChanged && draft.budgetIsAmount
               ? draft.budgetDollars
               : null,
+          coverKey: draft.coverKey != original.coverKey ? draft.coverKey : null,
+          urgency:
+              draft.urgency != null && draft.urgency != original.urgency?.json
+                  ? api.CaseUrgency.fromJson(draft.urgency!)
+                  : null,
         ),
       ),
     );

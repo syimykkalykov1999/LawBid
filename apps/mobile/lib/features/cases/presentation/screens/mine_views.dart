@@ -154,6 +154,8 @@ class _ClientCasesGrid extends ConsumerWidget {
         coverUrl: c.coverUrl,
         practiceCode: c.practice.code,
         categoryCode: c.practice.categoryCode,
+        coverKey: c.coverKey,
+        coverSeed: c.id,
         badge: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
         onTap: () => context.push(AppRoutes.myCase(c.id)),
       ),
