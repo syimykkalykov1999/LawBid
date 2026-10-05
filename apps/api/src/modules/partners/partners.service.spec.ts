@@ -55,6 +55,7 @@ function setup(
     partner: {
       findUnique: jest.fn().mockResolvedValue(partner),
       findMany: jest.fn().mockResolvedValue([]),
+      create: jest.fn().mockResolvedValue({ id: 'p-new' }),
     },
     referral: { findUnique: jest.fn().mockResolvedValue(referral) },
     partnerCommission: {
@@ -69,9 +70,17 @@ function setup(
     },
     payment: { count: jest.fn().mockResolvedValue(0) },
     user: {
-      findUnique: jest
-        .fn()
-        .mockResolvedValue({ status: 'active', deleted_at: null }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'blogger',
+        role: 'client',
+        status: 'active',
+        deleted_at: null,
+        ui_language: 'en',
+      }),
+    },
+    referralCode: {
+      findUnique: jest.fn().mockResolvedValue({ code: 'ABCD1234' }),
+      create: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -89,6 +98,12 @@ function setup(
 }
 
 describe('partner settings', () => {
+  it('self-enrolment is on by default and parsed as a boolean', () => {
+    expect(parsePartnerSettings(null).selfEnroll).toBe(true);
+    expect(parsePartnerSettings({ selfEnroll: false }).selfEnroll).toBe(false);
+    expect(parsePartnerSettings({ selfEnroll: 'no' }).selfEnroll).toBe(true);
+  });
+
   it('defaults field by field', () => {
     expect(parsePartnerSettings(null)).toEqual(DEFAULT_PARTNER_SETTINGS);
     const s = parsePartnerSettings({
@@ -354,5 +369,91 @@ describe('PartnersService.release / reverse / markPaid', () => {
         period: '2026-11',
       },
     );
+  });
+});
+
+describe('PartnersService.join (self-enrolment)', () => {
+  it('a client who is not a partner joins and gets the program rates and a link', async () => {
+    const { svc, prisma } = setup({ partner: null });
+    // me() after the create: the partner row now exists.
+    prisma.partner.findUnique.mockResolvedValueOnce(null).mockResolvedValue({
+      id: 'p-new',
+      user_id: 'blogger',
+      status: 'active',
+      attorney_rate_cents: null,
+      client_rate_cents: null,
+      monthly_base_cents: 0,
+      client_rule: null,
+      hold_days: null,
+    });
+    jest.spyOn(svc, 'totals').mockResolvedValue({
+      heldCents: 0,
+      approvedCents: 0,
+      paidCents: 0,
+      thisMonthCents: 0,
+      referredCount: 0,
+      qualifiedCount: 0,
+    });
+    jest
+      .spyOn(
+        svc as unknown as { referredOf: () => Promise<never[]> },
+        'referredOf',
+      )
+      .mockResolvedValue([]);
+    const me = await svc.join('blogger');
+    expect(prisma.partner.create).toHaveBeenCalledWith({
+      data: { user_id: 'blogger', status: 'active', note: 'self-enrolled' },
+    });
+    expect(me.isPartner).toBe(true);
+    expect(me.canJoin).toBe(false);
+    expect(me.code).toBe('ABCD1234');
+    expect(me.rates.attorneyRateCents).toBe(
+      DEFAULT_PARTNER_SETTINGS.attorneyRateCents,
+    );
+  });
+
+  it('non-partners see canJoin and the program rates; off switches hide it', async () => {
+    const on = await setup({ partner: null }).svc.me('blogger');
+    expect(on).toMatchObject({
+      enabled: true,
+      isPartner: false,
+      canJoin: true,
+    });
+    expect(on.rates.attorneyRateCents).toBe(5_000);
+    const noSelf = await setup({
+      partner: null,
+      settings: { selfEnroll: false },
+    }).svc.me('blogger');
+    expect(noSelf.canJoin).toBe(false);
+    const off = await setup({
+      partner: null,
+      settings: { enabled: false },
+    }).svc.me('blogger');
+    expect(off).toMatchObject({ enabled: false, canJoin: false });
+  });
+
+  it('refuses when the program or self-enrolment is off, for assistants, and for existing or ended partners', async () => {
+    await expect(
+      setup({ partner: null, settings: { enabled: false } }).svc.join('b'),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      setup({ partner: null, settings: { selfEnroll: false } }).svc.join('b'),
+    ).rejects.toMatchObject({ status: 403 });
+    const assistant = setup({ partner: null });
+    assistant.prisma.user.findUnique.mockResolvedValue({
+      id: 'a',
+      role: 'assistant',
+      status: 'active',
+      deleted_at: null,
+    });
+    await expect(assistant.svc.join('a')).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(setup().svc.join('blogger')).rejects.toMatchObject({
+      status: 409,
+    });
+    await expect(
+      setup({ partner: { status: 'ended' } }).svc.join('blogger'),
+    ).rejects.toMatchObject({ status: 409 });
   });
 });

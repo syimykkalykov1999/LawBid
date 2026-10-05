@@ -534,6 +534,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const qc = useQueryClient();
   const toast = useToast();
   const [enabled, setEnabled] = useState(initial.enabled);
+  const [selfEnroll, setSelfEnroll] = useState(initial.selfEnroll);
   const [attorney, setAttorney] = useState(centsToText(initial.attorneyRateCents));
   const [client, setClient] = useState(centsToText(initial.clientRateCents));
   const [rule, setRule] = useState<ClientRule>(initial.clientRule);
@@ -550,6 +551,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         await api.PUT("/admin/partners/settings", {
           body: {
             enabled,
+            selfEnroll,
             attorneyRateCents: attorneyCents ?? 0,
             clientRateCents: clientCents ?? 0,
             clientRule: rule,
@@ -608,6 +610,22 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           </p>
         </div>
         <Switch checked={enabled} onChange={setEnabled} disabled={!canEdit} label={enabled ? "Включена" : "Выключена"} />
+      </div>
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4 rounded-[var(--radius-md)] border border-line-strong bg-surface-2 p-3">
+        <div>
+          <p className="text-sm font-medium text-heading">Самостоятельное подключение в приложении</p>
+          <p className="mt-1 text-sm text-muted">
+            Адвокаты и клиенты видят раздел «Партнёрская программа» в настройках и
+            берут свою ссылку сами по ставкам по умолчанию. Выключено — партнёров
+            добавляет только админ; уже подключённые продолжают работать.
+          </p>
+        </div>
+        <Switch
+          checked={selfEnroll}
+          onChange={setSelfEnroll}
+          disabled={!canEdit || !enabled}
+          label={selfEnroll ? "Разрешено" : "Только админ"}
+        />
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="За адвоката, $" htmlFor="ps-att" hint="первый оплаченный счёт подписки">

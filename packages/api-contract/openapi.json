@@ -43027,6 +43027,93 @@
         ]
       }
     },
+    "/partners/me/join": {
+      "post": {
+        "operationId": "joinPartnerProgram",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerMeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Become a partner myself (program and self-enrolment on); returns the dashboard with my link",
+        "tags": [
+          "partners"
+        ]
+      }
+    },
     "/admin/partners": {
       "get": {
         "operationId": "listAdminPartners",
@@ -75211,9 +75298,17 @@
       "PartnerMeDto": {
         "type": "object",
         "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Program switched on by the owner. Off: the app hides the section."
+          },
           "isPartner": {
             "type": "boolean",
             "description": "False for everyone who is not a partner."
+          },
+          "canJoin": {
+            "type": "boolean",
+            "description": "The user may become a partner right now (program on, self-enrolment on, not a partner yet)."
           },
           "status": {
             "nullable": true,
@@ -75260,7 +75355,9 @@
           }
         },
         "required": [
+          "enabled",
           "isPartner",
+          "canJoin",
           "code",
           "shareUrl",
           "rates",
@@ -75479,6 +75576,10 @@
           "enabled": {
             "type": "boolean"
           },
+          "selfEnroll": {
+            "type": "boolean",
+            "description": "Users may join from the app by themselves."
+          },
           "attorneyRateCents": {
             "type": "integer",
             "minimum": 0,
@@ -75507,6 +75608,7 @@
         },
         "required": [
           "enabled",
+          "selfEnroll",
           "attorneyRateCents",
           "clientRateCents",
           "clientRule",

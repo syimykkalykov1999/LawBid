@@ -13,6 +13,7 @@ part 'partner_settings_dto.g.dart';
 class PartnerSettingsDto {
   const PartnerSettingsDto({
     required this.enabled,
+    required this.selfEnroll,
     required this.attorneyRateCents,
     required this.clientRateCents,
     required this.clientRule,
@@ -24,6 +25,9 @@ class PartnerSettingsDto {
       _$PartnerSettingsDtoFromJson(json);
 
   final bool enabled;
+
+  /// Users may join from the app by themselves.
+  final bool selfEnroll;
   final int attorneyRateCents;
   final int clientRateCents;
   final PartnerClientRule clientRule;

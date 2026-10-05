@@ -9,10 +9,18 @@ class PartnersRepository {
 
   final api.PartnersClient _api;
 
-  Future<PartnerMe> me() async {
-    final d = (await guardApiCall(_api.getMyPartnerDashboard)).data;
+  Future<PartnerMe> me() async =>
+      _map((await guardApiCall(_api.getMyPartnerDashboard)).data);
+
+  /// Owner 2026-10-05: attorneys and clients take their link themselves.
+  Future<PartnerMe> join() async =>
+      _map((await guardApiCall(_api.joinPartnerProgram)).data);
+
+  PartnerMe _map(api.PartnerMeDto d) {
     return PartnerMe(
+      enabled: d.enabled,
       isPartner: d.isPartner,
+      canJoin: d.canJoin,
       status: d.status?.json,
       code: d.code,
       shareUrl: d.shareUrl,

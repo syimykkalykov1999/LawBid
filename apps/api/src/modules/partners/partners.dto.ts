@@ -192,8 +192,20 @@ export class PartnerTextsByLangDto {
 // ---- app --------------------------------------------------------------
 
 export class PartnerMeDto {
+  @ApiProperty({
+    description:
+      'Program switched on by the owner. Off: the app hides the section.',
+  })
+  enabled!: boolean;
+
   @ApiProperty({ description: 'False for everyone who is not a partner.' })
   isPartner!: boolean;
+
+  @ApiProperty({
+    description:
+      'The user may become a partner right now (program on, self-enrolment on, not a partner yet).',
+  })
+  canJoin!: boolean;
 
   @ApiPropertyOptional({
     enum: PARTNER_STATUSES,
@@ -239,6 +251,12 @@ export class PartnerSettingsDto {
   @ApiProperty()
   @IsBoolean()
   enabled!: boolean;
+
+  @ApiProperty({
+    description: 'Users may join from the app by themselves.',
+  })
+  @IsBoolean()
+  selfEnroll!: boolean;
 
   @ApiProperty({ type: 'integer' })
   @IsInt()

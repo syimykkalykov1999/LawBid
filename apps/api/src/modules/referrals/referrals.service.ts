@@ -238,9 +238,12 @@ export class ReferralsService {
     const codeOwner = await this.prisma.referralCode.findUnique({
       where: { code },
     });
-    const partner = codeOwner
-      ? await this.partners?.activePartnerOf(codeOwner.user_id)
-      : null;
+    // A switched-off partner program attributes nobody (owner 2026-10-05:
+    // "выключил — никто не зарабатывает").
+    const partner =
+      codeOwner && (await this.partners?.programEnabled())
+        ? await this.partners?.activePartnerOf(codeOwner.user_id)
+        : null;
     if (!settings.enabled && !partner) {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,

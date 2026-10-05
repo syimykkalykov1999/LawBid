@@ -1,4 +1,10 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   Prisma,
@@ -6,6 +12,7 @@ import {
   type PartnerCommission,
   type Referral,
 } from '@prisma/client';
+import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -71,6 +78,11 @@ export function commissionDto(c: PartnerCommission): PartnerCommissionDto {
   };
 }
 
+/** Who may join by themselves: attorneys and clients (not assistants). */
+export function canSelfEnroll(role: string | null | undefined): boolean {
+  return role === 'attorney' || role === 'client';
+}
+
 /** joined → qualified (commission held/approved) → paid; reversed. */
 export function referredStatusOf(
   c: PartnerCommission | undefined,
@@ -107,6 +119,11 @@ export class PartnersService {
       where: { key: PARTNER_SETTINGS_KEY },
     });
     return parsePartnerSettings(row?.value);
+  }
+
+  /** The owner's master switch (settings `partners.program.enabled`). */
+  async programEnabled(): Promise<boolean> {
+    return (await this.settings()).enabled;
   }
 
   shareUrl(code: string): string {
@@ -155,17 +172,25 @@ export class PartnersService {
     const settings = await this.settings();
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { ui_language: true },
+      select: { ui_language: true, role: true },
     });
     const lang: PartnerLang = user?.ui_language === 'ru' ? 'ru' : 'en';
+    const canJoin =
+      settings.enabled &&
+      settings.selfEnroll &&
+      !partner &&
+      canSelfEnroll(user?.role);
     const empty: PartnerMeDto = {
+      enabled: settings.enabled,
       isPartner: false,
+      canJoin,
       status: null,
       code: '',
       shareUrl: '',
+      // Program rates, so the app can show what joining pays.
       rates: {
-        attorneyRateCents: 0,
-        clientRateCents: 0,
+        attorneyRateCents: settings.attorneyRateCents,
+        clientRateCents: settings.clientRateCents,
         monthlyBaseCents: 0,
         clientRule: settings.clientRule,
         holdDays: settings.holdDays,
@@ -187,7 +212,9 @@ export class PartnersService {
       }),
     ]);
     return {
+      enabled: settings.enabled,
       isPartner: true,
+      canJoin: false,
       status: partner.status as PartnerStatus,
       code,
       shareUrl: this.shareUrl(code),
@@ -206,6 +233,59 @@ export class PartnersService {
       commissions: commissions.map(commissionDto),
       texts: settings.texts[lang],
     };
+  }
+
+  /**
+   * POST /partners/me/join — owner 2026-10-05: attorneys and clients take
+   * their partner link themselves; the admin no longer has to hand out
+   * codes one by one. Program defaults apply (the admin can still set own
+   * rates later). Refused while the program or self-enrolment is off, and
+   * for a partnership the admin ended.
+   */
+  async join(userId: string): Promise<PartnerMeDto> {
+    const settings = await this.settings();
+    if (!settings.enabled || !settings.selfEnroll) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'The partner program is not open for joining right now.',
+      });
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, status: true, deleted_at: true },
+    });
+    if (
+      !user ||
+      user.deleted_at ||
+      user.status !== 'active' ||
+      !canSelfEnroll(user.role)
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Only active attorney and client accounts can join.',
+      });
+    }
+    const existing = await this.prisma.partner.findUnique({
+      where: { user_id: userId },
+    });
+    if (existing) {
+      throw new ConflictException({
+        code: ErrorCode.PARTNER_INVALID_STATE,
+        message:
+          existing.status === 'ended'
+            ? 'This partnership was ended by the administrator.'
+            : 'You are already a partner.',
+      });
+    }
+    try {
+      await this.prisma.partner.create({
+        data: { user_id: userId, status: 'active', note: 'self-enrolled' },
+      });
+    } catch (e) {
+      if (!isUniqueViolation(e)) throw e; // joined twice at once: fine
+    }
+    await this.ensureCode(userId);
+    return this.me(userId);
   }
 
   rates(settings: PartnerProgramSettings, partner: Partner): PartnerRatesDto {

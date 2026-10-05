@@ -99,6 +99,7 @@ export class AdminPartnersService {
   ): Promise<PartnerProgramSettings> {
     const next: PartnerProgramSettings = {
       enabled: dto.enabled,
+      selfEnroll: dto.selfEnroll,
       attorneyRateCents: dto.attorneyRateCents,
       clientRateCents: dto.clientRateCents,
       clientRule: dto.clientRule,

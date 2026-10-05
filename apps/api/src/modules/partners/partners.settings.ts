@@ -41,7 +41,12 @@ export type PartnerTextsByLang = Record<PartnerLang, PartnerTexts>;
 export const PARTNER_TEXT_LIMITS = { title: 80, summary: 600 } as const;
 
 export interface PartnerProgramSettings {
+  /** Off: the section disappears from the app, partner codes stop
+   * attributing and nothing new accrues; earned amounts stay. */
   enabled: boolean;
+  /** Attorneys and clients may join by themselves from Settings
+   * (owner 2026-10-05: "в профилях тоже нужно сделать"). */
+  selfEnroll: boolean;
   /** Per referred attorney whose first paid subscription invoice succeeded. */
   attorneyRateCents: number;
   /** Per referred client who met [clientRule]. */
@@ -70,6 +75,7 @@ export const DEFAULT_PARTNER_TEXTS: PartnerTextsByLang = {
 
 export const DEFAULT_PARTNER_SETTINGS: PartnerProgramSettings = {
   enabled: true,
+  selfEnroll: true,
   attorneyRateCents: 5_000, // $50 per paying attorney
   clientRateCents: 1_000, // $10 per client who hired
   clientRule: 'bid_accepted',
@@ -109,6 +115,7 @@ export function parsePartnerSettings(raw: unknown): PartnerProgramSettings {
   const r = raw as Record<string, unknown>;
   return {
     enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
+    selfEnroll: typeof r.selfEnroll === 'boolean' ? r.selfEnroll : d.selfEnroll,
     attorneyRateCents: nonNegInt(r.attorneyRateCents, MAX_RATE_CENTS)
       ? r.attorneyRateCents
       : d.attorneyRateCents,

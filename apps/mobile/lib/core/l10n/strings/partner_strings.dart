@@ -51,6 +51,16 @@ const partnerRu = <String, String>{
   'partner.off.title': 'Вы не участник программы',
   'partner.off.message':
       'Партнёров подключает команда LawBid. Напишите в поддержку, если хотите приводить адвокатов и клиентов за вознаграждение.',
+  'partner.disabled.title': 'Программа временно закрыта',
+  'partner.disabled.message':
+      'Партнёрская программа сейчас выключена. Уже начисленное сохраняется; новые начисления не идут.',
+  'partner.join.hint':
+      'Приводите адвокатов и клиентов — получайте вознаграждение',
+  'partner.join.rates': 'Ставки программы',
+  'partner.join.button': 'Стать партнёром',
+  'partner.join.note':
+      'Нажимая кнопку, вы получаете личную ссылку. Начисления проходят проверку и выплачиваются командой LawBid.',
+  'partner.join.done': 'Вы партнёр LawBid. Ваша ссылка готова',
   'notif.system.partner_commission.title': 'Партнёрское начисление',
   'notif.system.partner_commission.body':
       'Приглашённый вами выполнил условие. Вознаграждение начислено.',
@@ -108,6 +118,15 @@ const partnerEn = <String, String>{
   'partner.off.title': 'You are not in the program',
   'partner.off.message':
       'The LawBid team enrolls partners. Contact support if you would like to bring attorneys and clients for a reward.',
+  'partner.disabled.title': 'The program is closed for now',
+  'partner.disabled.message':
+      'The partner program is switched off. What you earned stays; nothing new accrues.',
+  'partner.join.hint': 'Bring attorneys and clients, get paid for each',
+  'partner.join.rates': 'Program rates',
+  'partner.join.button': 'Become a partner',
+  'partner.join.note':
+      'Tapping the button gives you a personal link. Earnings are checked and paid out by the LawBid team.',
+  'partner.join.done': 'You are a LawBid partner. Your link is ready',
   'notif.system.partner_commission.title': 'Partner earnings',
   'notif.system.partner_commission.body':
       'Someone you brought to LawBid qualified. Your commission is accrued.',

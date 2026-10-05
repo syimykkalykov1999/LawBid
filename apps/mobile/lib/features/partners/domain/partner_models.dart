@@ -110,7 +110,9 @@ class PartnerCommission {
 @immutable
 class PartnerMe {
   const PartnerMe({
+    required this.enabled,
     required this.isPartner,
+    required this.canJoin,
     required this.status,
     required this.code,
     required this.shareUrl,
@@ -122,7 +124,12 @@ class PartnerMe {
     required this.summary,
   });
 
+  /// The owner's master switch: off hides the section everywhere.
+  final bool enabled;
   final bool isPartner;
+
+  /// Program on, self-enrolment on and not a partner yet.
+  final bool canJoin;
 
   /// active · paused · ended (null for non-partners).
   final String? status;

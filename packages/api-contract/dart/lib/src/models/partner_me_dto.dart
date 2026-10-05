@@ -16,7 +16,9 @@ part 'partner_me_dto.g.dart';
 @JsonSerializable()
 class PartnerMeDto {
   const PartnerMeDto({
+    required this.enabled,
     required this.isPartner,
+    required this.canJoin,
     required this.code,
     required this.shareUrl,
     required this.rates,
@@ -30,8 +32,14 @@ class PartnerMeDto {
   factory PartnerMeDto.fromJson(Map<String, Object?> json) =>
       _$PartnerMeDtoFromJson(json);
 
+  /// Program switched on by the owner. Off: the app hides the section.
+  final bool enabled;
+
   /// False for everyone who is not a partner.
   final bool isPartner;
+
+  /// The user may become a partner right now (program on, self-enrolment on, not a partner yet).
+  final bool canJoin;
   final PartnerStatus? status;
 
   /// Referral code (same as the referral screen).
