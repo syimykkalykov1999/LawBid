@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_payment_dto.dart';
+import 'payment_request_dto.dart';
 
 part 'case_payments_state_dto.g.dart';
 
@@ -22,6 +23,11 @@ class CasePaymentsStateDto {
     required this.maxAmountCents,
     required this.allowCustomAmount,
     required this.allowPartial,
+    required this.canRequest,
+    required this.allowInstallments,
+    required this.maxInstallments,
+    required this.openRequestsCents,
+    required this.requests,
     required this.items,
   });
 
@@ -48,6 +54,17 @@ class CasePaymentsStateDto {
   final int maxAmountCents;
   final bool allowCustomAmount;
   final bool allowPartial;
+
+  /// The attorney (or their assistant) may send a payment request now.
+  final bool canRequest;
+  final bool allowInstallments;
+  final int maxInstallments;
+
+  /// Sum of open requests.
+  final int openRequestsCents;
+
+  /// Newest first.
+  final List<PaymentRequestDto> requests;
   final List<CasePaymentDto> items;
 
   Map<String, Object?> toJson() => _$CasePaymentsStateDtoToJson(this);

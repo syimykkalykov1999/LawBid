@@ -14,6 +14,8 @@ import '../models/admin_payout_account_action_result_envelope.dart';
 import '../models/admin_payout_account_row_list_envelope.dart';
 import '../models/admin_refund_case_payment_dto.dart';
 import '../models/case_payment_status.dart';
+import '../models/payment_request_list_envelope.dart';
+import '../models/payment_request_status.dart';
 import '../models/payout_account_status.dart';
 
 part 'admin_case_payments_client.g.dart';
@@ -58,6 +60,20 @@ abstract class AdminCasePaymentsClient {
   @PUT('/admin/case-payments/settings')
   Future<AdminPaymentSettingsViewEnvelope> updateCasePaymentSettings({
     @Body() required AdminPaymentSettingsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Payment requests (invoices) from attorneys.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [userId] - Client or attorney.
+  @GET('/admin/case-payments/requests')
+  Future<PaymentRequestListEnvelope> listRequests({
+    @Query('cursor') String? cursor,
+    @Query('status') PaymentRequestStatus? status,
+    @Query('userId') String? userId,
+    @Query('caseId') String? caseId,
     @Extras() Map<String, dynamic>? extras,
   });
 

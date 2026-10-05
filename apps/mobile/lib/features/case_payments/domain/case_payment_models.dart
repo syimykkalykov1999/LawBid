@@ -28,10 +28,21 @@ enum CasePaymentKind {
   bid,
   deposit,
   balance,
-  custom;
+  custom,
+  invoice;
 
   static CasePaymentKind parse(String? v) => CasePaymentKind.values
       .firstWhere((k) => k.name == v, orElse: () => CasePaymentKind.custom);
+}
+
+enum PaymentRequestStatus {
+  open,
+  paid,
+  canceled,
+  expired;
+
+  static PaymentRequestStatus parse(String? v) => PaymentRequestStatus.values
+      .firstWhere((s) => s.name == v, orElse: () => PaymentRequestStatus.open);
 }
 
 enum PayoutAccountStatus {
@@ -78,6 +89,7 @@ class CasePayment {
     required this.currency,
     required this.createdAt,
     required this.refundable,
+    this.requestId,
     this.caseTitle,
     this.note,
     this.receiptUrl,
@@ -91,6 +103,7 @@ class CasePayment {
   final String caseId;
   final String? caseTitle;
   final CasePaymentKind kind;
+  final String? requestId;
   final CasePaymentStatus status;
   final int amountCents;
   final int platformFeeCents;
@@ -117,12 +130,65 @@ class PaymentQuote {
     required this.processingFeeCents,
     required this.clientTotalCents,
     required this.attorneyNetCents,
+    required this.stripeFeeEstimateCents,
+    required this.attorneyReceivesCents,
   });
   final int amountCents;
   final int platformFeeCents;
   final int processingFeeCents;
   final int clientTotalCents;
   final int attorneyNetCents;
+
+  /// Stripe's card fee on the whole charge, at the admin's rate.
+  final int stripeFeeEstimateCents;
+
+  /// What the attorney keeps once Stripe took its fee (estimate).
+  final int attorneyReceivesCents;
+}
+
+/// A payment request (invoice) the attorney sent from the case; several
+/// with one [planId] are installments.
+@immutable
+class PaymentRequest {
+  const PaymentRequest({
+    required this.id,
+    required this.caseId,
+    required this.amountCents,
+    required this.description,
+    required this.status,
+    required this.overdue,
+    required this.seq,
+    required this.total,
+    required this.createdAt,
+    this.caseTitle,
+    this.dueAt,
+    this.planId,
+    this.paymentId,
+    this.paidAt,
+    this.client,
+    this.attorney,
+  });
+
+  final String id;
+  final String caseId;
+  final String? caseTitle;
+  final int amountCents;
+  final String description;
+  final DateTime? dueAt;
+  final PaymentRequestStatus status;
+  final bool overdue;
+  final String? planId;
+  final int seq;
+  final int total;
+  final String? paymentId;
+  final DateTime? paidAt;
+  final DateTime createdAt;
+  final PaymentParty? client;
+  final PaymentParty? attorney;
+
+  bool get payable =>
+      status == PaymentRequestStatus.open ||
+      status == PaymentRequestStatus.expired;
 }
 
 @immutable
@@ -134,6 +200,11 @@ class PaymentSettings {
     required this.allowCustomAmount,
     required this.allowPartial,
     required this.refundWindowDays,
+    required this.processingFeePayer,
+    required this.saveCards,
+    required this.allowInvoices,
+    required this.allowInstallments,
+    required this.maxInstallments,
     required this.disclaimerEn,
     required this.disclaimerRu,
   });
@@ -143,6 +214,13 @@ class PaymentSettings {
   final bool allowCustomAmount;
   final bool allowPartial;
   final int refundWindowDays;
+
+  /// client | attorney | split — who covers Stripe's card fee.
+  final String processingFeePayer;
+  final bool saveCards;
+  final bool allowInvoices;
+  final bool allowInstallments;
+  final int maxInstallments;
   final String disclaimerEn;
   final String disclaimerRu;
 
@@ -164,6 +242,11 @@ class CasePaymentsState {
     required this.maxAmountCents,
     required this.allowCustomAmount,
     required this.allowPartial,
+    required this.canRequest,
+    required this.allowInstallments,
+    required this.maxInstallments,
+    required this.openRequestsCents,
+    required this.requests,
     required this.items,
     this.bidAmountCents,
     this.remainingCents,
@@ -171,6 +254,11 @@ class CasePaymentsState {
   final bool enabled;
   final bool attorneyReady;
   final bool canPay;
+  final bool canRequest;
+  final bool allowInstallments;
+  final int maxInstallments;
+  final int openRequestsCents;
+  final List<PaymentRequest> requests;
   final int? bidAmountCents;
   final int paidCents;
   final int refundedCents;
@@ -183,6 +271,9 @@ class CasePaymentsState {
 
   bool get hasPending =>
       items.any((p) => p.status == CasePaymentStatus.pendingPayment);
+
+  List<PaymentRequest> get openRequests =>
+      requests.where((r) => r.payable).toList();
 }
 
 @immutable

@@ -11,6 +11,7 @@ import 'package:lawbid/features/case_payments/application/case_payments_provider
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
+import 'package:lawbid/features/case_payments/presentation/payment_request_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
@@ -58,6 +59,45 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
 
   void _refresh() => ref.invalidate(casePaymentsStateProvider(widget.caseId));
 
+  /// Two taps: «Оплатить» on the invoice, then Stripe's page.
+  Future<void> _payRequest(PaymentRequest r) async {
+    final t = ref.read(translatorProvider);
+    try {
+      final start =
+          await ref.read(casePaymentsRepositoryProvider).payRequest(r);
+      _refresh();
+      await openExternal(start.checkoutUrl);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  Future<void> _cancelRequest(PaymentRequest r) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref.read(casePaymentsRepositoryProvider).cancelRequest(r.id);
+      _refresh();
+      if (mounted) showAppSnackBar(context, t.t('cpay.req.canceled'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  Future<void> _receipt(CasePayment p) async {
+    final t = ref.read(translatorProvider);
+    try {
+      final bytes =
+          await ref.read(casePaymentsRepositoryProvider).receiptPdf(p.id);
+      await shareBytes(
+        bytes,
+        'lawbid-receipt-${p.id.substring(0, 8)}.pdf',
+        mimeType: 'application/pdf',
+      );
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
   Future<void> _cancelPending(CasePayment p) async {
     final t = ref.read(translatorProvider);
     try {
@@ -83,6 +123,8 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
         .where((p) => p.status == CasePaymentStatus.pendingPayment)
         .toList();
     final shown = state.items.take(5).toList();
+    final openReqs = state.openRequests;
+    final shownReqs = state.requests.take(5).toList();
 
     String summary() {
       final bid = state.bidAmountCents;
@@ -170,6 +212,67 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
           ),
         ),
       ],
+      // Owner 2026-10-05: invoices from the attorney, paid in two taps.
+      if (shownReqs.isNotEmpty) ...[
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          widget.asAttorney || openReqs.isEmpty
+              ? t.t('cpay.req.title')
+              : t.t('cpay.req.open', {
+                  'amount': f.currencyFromCents(state.openRequestsCents),
+                }),
+          style: type.caption.copyWith(
+            color: openReqs.isEmpty ? colors.textSecondary : colors.goldDark,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        for (final r in shownReqs)
+          PaymentRequestTile(
+            request: r,
+            t: t,
+            formats: f,
+            action: !widget.asAttorney && r.payable && state.canPay
+                ? AppButton(
+                    label: t.t('cpay.req.pay', {
+                      'amount': f.currencyFromCents(r.amountCents),
+                    }),
+                    icon: AppIcons.lockOutlineRounded,
+                    height: 44,
+                    onPressed: () => _payRequest(r),
+                  )
+                : widget.asAttorney && r.payable
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: AppButton(
+                              label: t.t('cpay.req.cancel'),
+                              variant: AppButtonVariant.secondary,
+                              height: 40,
+                              onPressed: () => _cancelRequest(r),
+                            ),
+                          ),
+                        ],
+                      )
+                    : null,
+          ),
+      ],
+      if (widget.asAttorney && state.canRequest) ...[
+        const SizedBox(height: AppSpacing.md),
+        AppButton(
+          label: t.t('cpay.req.new'),
+          icon: AppIcons.receiptLongOutlined,
+          variant: shownReqs.isEmpty
+              ? AppButtonVariant.primary
+              : AppButtonVariant.secondary,
+          onPressed: () => PaymentRequestSheet.show(
+            context,
+            widget.caseId,
+            state,
+            onSent: _refresh,
+          ),
+        ),
+      ],
       if (shown.isNotEmpty) ...[
         const SizedBox(height: AppSpacing.md),
         for (final p in shown)
@@ -178,6 +281,9 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
             t: t,
             formats: f,
             asAttorney: widget.asAttorney,
+            onReceipt: p.status.isPaid || p.status == CasePaymentStatus.refunded
+                ? () => _receipt(p)
+                : null,
             action: widget.asAttorney && p.refundable && !isAssistant
                 ? AppButton(
                     label: t.t('cpay.attorney.refund'),
@@ -189,7 +295,7 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
                   )
                 : null,
           ),
-      ] else if (widget.asAttorney) ...[
+      ] else if (widget.asAttorney && shownReqs.isEmpty) ...[
         const SizedBox(height: AppSpacing.sm),
         Text(
           t.t('cpay.attorney.none'),
@@ -474,6 +580,18 @@ class _PaySheetState extends ConsumerState<PaySheet> {
                   }),
                   style: type.caption.copyWith(color: colors.textSecondary),
                 ),
+              _Line(
+                text: t.t('cpay.sheet.stripeFee', {
+                  'amount': f.currencyFromCents(q.stripeFeeEstimateCents),
+                }),
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+              _Line(
+                text: t.t('cpay.sheet.attorneyReceives', {
+                  'amount': f.currencyFromCents(q.attorneyReceivesCents),
+                }),
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
               _Line(
                 text: t.t('cpay.sheet.youPay', {
                   'amount': f.currencyFromCents(q.clientTotalCents),

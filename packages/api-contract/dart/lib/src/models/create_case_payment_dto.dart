@@ -10,7 +10,12 @@ part 'create_case_payment_dto.g.dart';
 
 @JsonSerializable()
 class CreateCasePaymentDto {
-  const CreateCasePaymentDto({required this.kind, this.amountCents, this.note});
+  const CreateCasePaymentDto({
+    required this.kind,
+    this.amountCents,
+    this.note,
+    this.requestId,
+  });
 
   factory CreateCasePaymentDto.fromJson(Map<String, Object?> json) =>
       _$CreateCasePaymentDtoFromJson(json);
@@ -21,6 +26,9 @@ class CreateCasePaymentDto {
   /// Required for deposit and custom.
   final int? amountCents;
   final String? note;
+
+  /// Required for kind = invoice: the open payment request.
+  final String? requestId;
 
   Map<String, Object?> toJson() => _$CreateCasePaymentDtoToJson(this);
 }

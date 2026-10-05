@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -36,6 +37,27 @@ class CasePaymentsHistoryScreen extends ConsumerWidget {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(t.t('cpay.history.title')),
+        actions: [
+          IconButton(
+            tooltip: t.t('cpay.csv.export'),
+            icon: const AppIcon(AppIcons.downloadRounded),
+            onPressed: () async {
+              try {
+                final bytes =
+                    await ref.read(casePaymentsRepositoryProvider).exportCsv();
+                await shareBytes(
+                  bytes,
+                  'lawbid-payments.csv',
+                  mimeType: 'text/csv',
+                );
+              } on Object catch (e) {
+                if (context.mounted) {
+                  showAppSnackBar(context, errorText(t, e));
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: PagedListBody<CasePayment>(
         value: value,

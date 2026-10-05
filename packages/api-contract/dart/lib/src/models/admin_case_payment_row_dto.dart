@@ -8,6 +8,7 @@ import 'case_payment_kind.dart';
 import 'case_payment_party_dto.dart';
 import 'case_payment_refund_dto.dart';
 import 'case_payment_status.dart';
+import 'processing_fee_payer.dart';
 
 part 'admin_case_payment_row_dto.g.dart';
 
@@ -18,12 +19,14 @@ class AdminCasePaymentRowDto {
     required this.caseId,
     required this.caseTitle,
     required this.kind,
+    required this.requestId,
     required this.status,
     required this.amountCents,
     required this.platformFeeCents,
     required this.processingFeeCents,
     required this.clientTotalCents,
     required this.attorneyNetCents,
+    required this.processingFeePayer,
     required this.refundedCents,
     required this.currency,
     required this.note,
@@ -47,12 +50,16 @@ class AdminCasePaymentRowDto {
   final String caseId;
   final String? caseTitle;
   final CasePaymentKind kind;
+
+  /// The payment request this pays (kind = invoice).
+  final String? requestId;
   final CasePaymentStatus status;
   final int amountCents;
   final int platformFeeCents;
   final int processingFeeCents;
   final int clientTotalCents;
   final int attorneyNetCents;
+  final ProcessingFeePayer processingFeePayer;
   final int refundedCents;
   final String currency;
   final String? note;

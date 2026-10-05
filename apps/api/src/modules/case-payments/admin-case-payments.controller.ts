@@ -27,6 +27,7 @@ import {
   AdminCasePaymentRowDto,
   AdminCasePaymentsQueryDto,
   AdminCasePaymentStatsDto,
+  AdminPaymentRequestsQueryDto,
   AdminPaymentSettingsDto,
   AdminPaymentSettingsViewDto,
   AdminPayoutAccountActionResultDto,
@@ -34,6 +35,7 @@ import {
   AdminPayoutAccountsQueryDto,
   AdminPayoutAccountUserParamDto,
   AdminRefundCasePaymentDto,
+  PaymentRequestDto,
   CasePaymentIdParamDto,
 } from './case-payments.dto';
 
@@ -87,6 +89,16 @@ export class AdminCasePaymentsController {
     @Body() dto: AdminPaymentSettingsDto,
   ): Promise<AdminPaymentSettingsViewDto> {
     return this.payments.updateSettings(admin, dto);
+  }
+
+  @Get('requests')
+  @ApiOperation({ summary: 'Payment requests (invoices) from attorneys' })
+  @ApiEnvelopeResponse(PaymentRequestDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listRequests(
+    @Query() q: AdminPaymentRequestsQueryDto,
+  ): Promise<Page<PaymentRequestDto>> {
+    return this.payments.listRequests(q);
   }
 
   @Get('payout-accounts')

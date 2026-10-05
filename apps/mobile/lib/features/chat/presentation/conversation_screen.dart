@@ -20,6 +20,7 @@ import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart';
+import 'package:lawbid/features/case_payments/presentation/chat_payment_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
@@ -349,6 +350,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     )
                                   else if (!c.contactsUnlocked)
                                     const _MaskingHint(),
+                                  // Owner 2026-10-05: pay / invoice from
+                                  // the chat in two taps.
+                                  if (c.caseId != null && c.contactsUnlocked)
+                                    ChatPaymentBar(caseId: c.caseId!),
                                   _Composer(
                                     controller: _text,
                                     onSend: _send,
@@ -574,7 +579,7 @@ class _MessageList extends ConsumerWidget {
           children: [
             if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
             if (m.kind == MessageKind.system)
-              _SystemMessage(text: t.t('chat.system.${m.body}'))
+              _SystemMessage(text: systemLineText(t, m.body, formats: f))
             else if (m.kind == MessageKind.call && m.callLog != null)
               CallLogEntry(
                 message: m,

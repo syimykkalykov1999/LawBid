@@ -455,6 +455,7 @@ export class FakePaymentProvider implements PaymentProvider {
   readonly connectedCheckouts = new Map<
     string,
     ProviderConnectedCheckout & {
+      customerId?: string | null;
       successUrl: string;
       applicationFeeCents: number;
     }
@@ -554,8 +555,23 @@ export class FakePaymentProvider implements PaymentProvider {
       metadata: input.metadata,
       successUrl: input.successUrl,
       applicationFeeCents: input.applicationFeeCents,
+      customerId: input.customerId ?? null,
     });
     return Promise.resolve({ id, url });
+  }
+
+  /** Customers created on connected accounts (saved cards), for tests. */
+  readonly connectedCustomers: { accountId: string; id: string }[] = [];
+
+  ensureConnectedCustomer(input: {
+    accountId: string;
+    email: string | null;
+  }): Promise<string> {
+    if (!this.connectAccounts.has(input.accountId))
+      throw new Error('no such connected account');
+    const id = `cus_fake_${randomUUID().slice(0, 12)}`;
+    this.connectedCustomers.push({ accountId: input.accountId, id });
+    return Promise.resolve(id);
   }
 
   retrieveConnectedCheckout(

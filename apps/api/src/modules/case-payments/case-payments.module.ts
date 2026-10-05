@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { ChatSystemModule } from '../chat/chat-system.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -12,7 +13,12 @@ import { CasePaymentsService } from './case-payments.service';
  * the jobs module (`case-payments.expire`) and the HTTP module below.
  * Uses the global PAYMENT_PROVIDER when present. */
 @Module({
-  imports: [FeatureFlagsModule, FilesModule, NotificationsModule],
+  imports: [
+    FeatureFlagsModule,
+    FilesModule,
+    NotificationsModule,
+    ChatSystemModule,
+  ],
   providers: [CasePaymentsService],
   exports: [CasePaymentsService],
 })

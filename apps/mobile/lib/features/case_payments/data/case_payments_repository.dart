@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
@@ -8,8 +10,11 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// Owner 2026-10-05 — `/payments/*`, `/payout-account*`,
 /// `/cases/:id/payments`.
 class CasePaymentsRepository {
-  CasePaymentsRepository(Dio dio) : _api = api.CasePaymentsClient(dio);
+  CasePaymentsRepository(Dio dio)
+      : _dio = dio,
+        _api = api.CasePaymentsClient(dio);
 
+  final Dio _dio;
   final api.CasePaymentsClient _api;
 
   Future<PaymentSettings> settings() async {
@@ -21,6 +26,11 @@ class CasePaymentsRepository {
       allowCustomAmount: d.allowCustomAmount,
       allowPartial: d.allowPartial,
       refundWindowDays: d.refundWindowDays,
+      processingFeePayer: d.processingFeePayer.json ?? 'client',
+      saveCards: d.saveCards,
+      allowInvoices: d.allowInvoices,
+      allowInstallments: d.allowInstallments,
+      maxInstallments: d.maxInstallments,
       disclaimerEn: d.disclaimerEn,
       disclaimerRu: d.disclaimerRu,
     );
@@ -47,6 +57,11 @@ class CasePaymentsRepository {
       maxAmountCents: d.maxAmountCents,
       allowCustomAmount: d.allowCustomAmount,
       allowPartial: d.allowPartial,
+      canRequest: d.canRequest,
+      allowInstallments: d.allowInstallments,
+      maxInstallments: d.maxInstallments,
+      openRequestsCents: d.openRequestsCents,
+      requests: d.requests.map(_request).toList(),
       items: d.items.map(_payment).toList(),
     );
   }
@@ -56,6 +71,7 @@ class CasePaymentsRepository {
     required CasePaymentKind kind,
     int? amountCents,
     String? note,
+    String? requestId,
   }) async {
     final d = (await guardApiCall(
       () => _api.createCasePayment(
@@ -64,12 +80,69 @@ class CasePaymentsRepository {
           kind: api.CasePaymentKind.fromJson(kind.name),
           amountCents: amountCents,
           note: note,
+          requestId: requestId,
         ),
         extras: const {RequestFlags.createsResource: true},
       ),
     ))
         .data;
     return PaymentStart(paymentId: d.paymentId, checkoutUrl: d.checkoutUrl);
+  }
+
+  /// The client pays an attorney's request in two taps.
+  Future<PaymentStart> payRequest(PaymentRequest r) =>
+      pay(r.caseId, kind: CasePaymentKind.invoice, requestId: r.id);
+
+  Future<List<PaymentRequest>> createRequests(
+    String caseId, {
+    required String description,
+    required List<({int amountCents, DateTime? dueAt, String? description})>
+        items,
+  }) async {
+    final r = await guardApiCall(
+      () => _api.createPaymentRequests(
+        id: caseId,
+        body: api.CreatePaymentRequestsDto(
+          description: description,
+          items: [
+            for (final it in items)
+              api.PaymentRequestItemDto(
+                amountCents: it.amountCents,
+                dueAt: it.dueAt?.toUtc(),
+                description: it.description,
+              ),
+          ],
+        ),
+        extras: const {RequestFlags.createsResource: true},
+      ),
+    );
+    return r.data.map(_request).toList();
+  }
+
+  Future<PaymentRequest> cancelRequest(String id) async => _request(
+        (await guardApiCall(() => _api.cancelPaymentRequest(id: id))).data,
+      );
+
+  /// PDF receipt bytes (both sides).
+  Future<Uint8List> receiptPdf(String paymentId) async {
+    final r = await guardApiCall(
+      () => _dio.get<List<int>>(
+        '/payments/$paymentId/receipt.pdf',
+        options: Options(responseType: ResponseType.bytes),
+      ),
+    );
+    return Uint8List.fromList(r.data ?? const []);
+  }
+
+  /// CSV of my payments for bookkeeping.
+  Future<Uint8List> exportCsv() async {
+    final r = await guardApiCall(
+      () => _dio.get<List<int>>(
+        '/payments/export.csv',
+        options: Options(responseType: ResponseType.bytes),
+      ),
+    );
+    return Uint8List.fromList(r.data ?? const []);
   }
 
   Future<CasePayment> cancel(String paymentId) async => _payment(
@@ -126,6 +199,27 @@ class CasePaymentsRepository {
         processingFeeCents: d.processingFeeCents,
         clientTotalCents: d.clientTotalCents,
         attorneyNetCents: d.attorneyNetCents,
+        stripeFeeEstimateCents: d.stripeFeeEstimateCents,
+        attorneyReceivesCents: d.attorneyReceivesCents,
+      );
+
+  static PaymentRequest _request(api.PaymentRequestDto d) => PaymentRequest(
+        id: d.id,
+        caseId: d.caseId,
+        caseTitle: d.caseTitle,
+        amountCents: d.amountCents,
+        description: d.description,
+        dueAt: d.dueAt?.toLocal(),
+        status: PaymentRequestStatus.parse(d.status.json),
+        overdue: d.overdue,
+        planId: d.planId,
+        seq: d.seq,
+        total: d.total,
+        paymentId: d.paymentId,
+        paidAt: d.paidAt?.toLocal(),
+        createdAt: d.createdAt.toLocal(),
+        client: _party(d.client),
+        attorney: _party(d.attorney),
       );
 
   static PaymentParty? _party(api.CasePaymentPartyDto? d) => d == null
@@ -142,6 +236,7 @@ class CasePaymentsRepository {
         caseId: d.caseId,
         caseTitle: d.caseTitle,
         kind: CasePaymentKind.parse(d.kind.json),
+        requestId: d.requestId,
         status: CasePaymentStatus.parse(d.status.json),
         amountCents: d.amountCents,
         platformFeeCents: d.platformFeeCents,

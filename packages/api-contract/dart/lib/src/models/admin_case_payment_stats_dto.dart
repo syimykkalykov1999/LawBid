@@ -19,6 +19,9 @@ class AdminCasePaymentStatsDto {
     required this.payoutAccountsPending,
     required this.volumeAllCents,
     required this.platformFeesAllCents,
+    required this.openRequests,
+    required this.openRequestsCents,
+    required this.overdueRequests,
   });
 
   factory AdminCasePaymentStatsDto.fromJson(Map<String, Object?> json) =>
@@ -39,6 +42,11 @@ class AdminCasePaymentStatsDto {
   /// All-time succeeded.
   final int volumeAllCents;
   final int platformFeesAllCents;
+
+  /// Open payment requests.
+  final int openRequests;
+  final int openRequestsCents;
+  final int overdueRequests;
 
   Map<String, Object?> toJson() => _$AdminCasePaymentStatsDtoToJson(this);
 }

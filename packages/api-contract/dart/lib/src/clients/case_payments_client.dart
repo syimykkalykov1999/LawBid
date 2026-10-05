@@ -11,8 +11,11 @@ import '../models/case_payment_status.dart';
 import '../models/case_payments_state_envelope.dart';
 import '../models/create_case_payment_dto.dart';
 import '../models/create_case_payment_result_envelope.dart';
+import '../models/create_payment_requests_dto.dart';
 import '../models/my_case_payments_summary_envelope.dart';
 import '../models/payment_quote_envelope.dart';
+import '../models/payment_request_envelope.dart';
+import '../models/payment_request_list_envelope.dart';
 import '../models/payment_settings_public_envelope.dart';
 import '../models/payout_account_envelope.dart';
 import '../models/payout_account_link_envelope.dart';
@@ -67,6 +70,43 @@ abstract class CasePaymentsClient {
   Future<CreateCasePaymentResultEnvelope> createCasePayment({
     @Path('id') required String id,
     @Body() required CreateCasePaymentDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Ask the client to pay: one request or an installment plan (attorney)
+  @POST('/cases/{id}/payment-requests')
+  Future<PaymentRequestListEnvelope> createPaymentRequests({
+    @Path('id') required String id,
+    @Body() required CreatePaymentRequestsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A case's payment requests, newest first
+  @GET('/cases/{id}/payment-requests')
+  Future<PaymentRequestListEnvelope> listPaymentRequests({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Withdraw an open payment request (attorney)
+  @POST('/payment-requests/{id}/cancel')
+  Future<PaymentRequestEnvelope> cancelPaymentRequest({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My payments as CSV for bookkeeping (attorney: received; client: paid)
+  @GET('/payments/export.csv')
+  Future<void> exportMyCasePayments({
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// PDF receipt of one of my payments (both sides)
+  @GET('/payments/{id}/receipt.pdf')
+  Future<void> getCasePaymentReceipt({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -10,7 +10,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { CasePayment, PayoutAccount, Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import type {
+  CasePayment,
+  PaymentRequest,
+  PayoutAccount,
+  Prisma,
+} from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -26,6 +32,7 @@ import type {
   ProviderConnectedCheckout,
   ProviderEvent,
 } from '../billing/payment-provider';
+import { ChatSystemMessages } from '../chat/chat-system.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -36,21 +43,27 @@ import type {
   CasePaymentsStateDto,
   CreateCasePaymentDto,
   CreateCasePaymentResultDto,
+  CreatePaymentRequestsDto,
   MyCasePaymentsQueryDto,
   MyCasePaymentsSummaryDto,
   PaymentQuoteDto,
+  PaymentRequestDto,
   PaymentSettingsPublicDto,
+  PaymentsExportQueryDto,
   PayoutAccountDto,
   RefundCasePaymentDto,
 } from './case-payments.dto';
+import { renderPaymentReceiptPdf } from './payment-receipt.pdf';
 import {
   PAYMENT_SETTINGS_KEY,
   PAYMENTS_FLAG,
   PENDING_PAYMENT_TTL_MS,
   type PaymentKind,
+  type PaymentRequestStatus,
   type PaymentSettings,
   type PaymentStatus,
   type PayoutAccountStatus,
+  type ProcessingFeePayer,
   parsePaymentSettings,
   quotePayment,
 } from './case-payments.settings';
@@ -80,6 +93,13 @@ function notFound(): NotFoundException {
   return new NotFoundException({
     code: ErrorCode.NOT_FOUND,
     message: 'Payment not found.',
+  });
+}
+
+function requestNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: ErrorCode.NOT_FOUND,
+    message: 'Payment request not found.',
   });
 }
 
@@ -173,6 +193,7 @@ export class CasePaymentsService {
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
     @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly chatSystem?: ChatSystemMessages,
   ) {}
 
   // ---- settings -------------------------------------------------------------
@@ -196,7 +217,13 @@ export class CasePaymentsService {
       feeType: s.feeType,
       feeFixedCents: s.feeFixedCents,
       feePayer: s.feePayer,
-      passProcessingFeeToClient: s.passProcessingFeeToClient,
+      processingFeePayer: s.processingFeePayer,
+      processingFeePercent: s.processingFeePercent,
+      processingFeeFixedCents: s.processingFeeFixedCents,
+      saveCards: s.saveCards,
+      allowInvoices: s.allowInvoices,
+      allowInstallments: s.allowInstallments,
+      maxInstallments: s.maxInstallments,
       minAmountCents: s.minAmountCents,
       maxAmountCents: s.maxAmountCents,
       allowCustomAmount: s.allowCustomAmount,
@@ -375,12 +402,22 @@ export class CasePaymentsService {
     const refundedCents = rows.reduce((sum, r) => sum + r.refunded_cents, 0);
     const remainingCents =
       bidAmountCents === null ? null : Math.max(0, bidAmountCents - paidCents);
+    const entitled = await this.attorneyEntitled(attorneyId ?? '');
+    const payable = PAYABLE_CASE_STATUSES.has(kase.status);
     const canPay =
+      enabled && side === 'client' && attorneyReady && payable && entitled;
+    const canRequest =
       enabled &&
-      side === 'client' &&
+      side === 'attorney' &&
       attorneyReady &&
-      PAYABLE_CASE_STATUSES.has(kase.status) &&
-      (await this.attorneyEntitled(attorneyId ?? ''));
+      payable &&
+      entitled &&
+      s.allowInvoices;
+    const requests = await this.prisma.paymentRequest.findMany({
+      where: { case_id: caseId },
+      orderBy: [{ created_at: 'desc' }, { seq: 'desc' }],
+      take: 50,
+    });
     return {
       enabled,
       attorneyReady,
@@ -393,6 +430,13 @@ export class CasePaymentsService {
       maxAmountCents: s.maxAmountCents,
       allowCustomAmount: s.allowCustomAmount,
       allowPartial: s.allowPartial,
+      canRequest,
+      allowInstallments: s.allowInstallments,
+      maxInstallments: s.maxInstallments,
+      openRequestsCents: requests
+        .filter((r) => r.status === 'open')
+        .reduce((sum, r) => sum + r.amount_cents, 0),
+      requests: await this.presentRequests(requests),
       items: await this.present(rows, s),
     };
   }
@@ -433,11 +477,13 @@ export class CasePaymentsService {
     if (!this.provider?.createConnectedCheckout) throw notConfigured();
     const s = await this.settings();
     const bid = kase.accepted_bid;
+    const req = await this.openRequestFor(dto, caseId, user.sub);
     const amountCents = await this.amountFor(
       dto,
       s,
       caseId,
       fixedBidAmount(bid),
+      req,
     );
     const quote = quotePayment(amountCents, s);
 
@@ -458,6 +504,7 @@ export class CasePaymentsService {
           client_id: user.sub,
           attorney_id: attorneyId,
           kind: dto.kind,
+          request_id: req?.id ?? null,
           status: 'pending_payment',
           amount_cents: quote.amountCents,
           platform_fee_cents: quote.platformFeeCents,
@@ -466,7 +513,8 @@ export class CasePaymentsService {
           attorney_net_cents: quote.attorneyNetCents,
           fee_type: quote.feeType,
           fee_payer: quote.feePayer,
-          note: dto.note?.trim() || null,
+          processing_fee_payer: quote.processingFeePayer,
+          note: req ? req.description : dto.note?.trim() || null,
           stripe_account_id: account.stripe_account_id,
         },
       });
@@ -476,23 +524,37 @@ export class CasePaymentsService {
     try {
       const client = await this.prisma.user.findUnique({
         where: { id: user.sub },
-        select: { email: true },
+        select: { email: true, first_name: true, last_name: true },
       });
+      const customerId = s.saveCards
+        ? await this.connectedCustomer(
+            user.sub,
+            account.stripe_account_id,
+            client?.email ?? null,
+            [client?.first_name, client?.last_name].filter(Boolean).join(' ') ||
+              null,
+          )
+        : null;
       const base = this.appLinkBase();
       session = await this.provider.createConnectedCheckout({
         accountId: account.stripe_account_id,
         customerEmail: client?.email ?? null,
+        customerId,
+        saveCard: s.saveCards && !!customerId,
         amountCents: quote.clientTotalCents,
         // Only the platform's own fee; the processing estimate stays on
         // the attorney's balance, where Stripe takes its real fee.
         applicationFeeCents: quote.platformFeeCents,
-        description: `LawBid — ${kase.title.slice(0, 80)}`,
+        description: req
+          ? `LawBid — ${req.description.slice(0, 80)}`
+          : `LawBid — ${kase.title.slice(0, 80)}`,
         metadata: {
           kind: CASE_PAYMENT_CHECKOUT_KIND,
           paymentId: row.id,
           caseId,
           userId: user.sub,
           attorneyId,
+          ...(req ? { requestId: req.id } : {}),
         },
         successUrl: `${base}/payment/success?payment_id=${row.id}&case_id=${caseId}`,
         cancelUrl: `${base}/payment/cancel?payment_id=${row.id}&case_id=${caseId}`,
@@ -705,9 +767,16 @@ export class CasePaymentsService {
           canceled_reason: null,
         },
       });
+      if (p.request_id) {
+        await tx.paymentRequest.updateMany({
+          where: { id: p.request_id, status: { in: ['open', 'expired'] } },
+          data: { status: 'paid', payment_id: p.id, paid_at: new Date() },
+        });
+      }
       return p;
     });
     if (!paid) return false;
+    await this.chatLine(paid.case_id, 'payment_received', paid.amount_cents);
     await this.notify(paid.attorney_id, 'case_payment_received', {
       caseId: paid.case_id,
       paymentId: paid.id,
@@ -917,6 +986,476 @@ export class CasePaymentsService {
     return dto;
   }
 
+  // ---- payment requests (invoices) ---------------------------------------------
+
+  /** `POST /cases/:id/payment-requests` — the attorney (or an assistant)
+   * asks the client to pay: one request, or several = installments. */
+  async createRequests(
+    user: RequestUser,
+    caseId: string,
+    dto: CreatePaymentRequestsDto,
+  ): Promise<PaymentRequestDto[]> {
+    if (!(await this.enabled())) throw disabled();
+    const { kase, side, attorneyId } = await this.caseSide(user, caseId);
+    if (side !== 'attorney' || !attorneyId) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only the attorney of this case can request a payment.',
+      });
+    }
+    if (!PAYABLE_CASE_STATUSES.has(kase.status)) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message:
+          'Payment requests are possible once you are at work on the case.',
+      });
+    }
+    if (!(await this.attorneyEntitled(attorneyId))) throw disabled();
+    const s = await this.settings();
+    if (!s.allowInvoices) throw disabled();
+    const invalid = (message: string, field = 'items') =>
+      new BadRequestException({
+        code: ErrorCode.PAYMENT_AMOUNT_INVALID,
+        message,
+        details: { field },
+      });
+    if (dto.items.length > 1 && !s.allowInstallments)
+      throw invalid('Installments are off; send one request.');
+    if (dto.items.length > s.maxInstallments)
+      throw invalid(`At most ${s.maxInstallments} installments.`);
+    for (const it of dto.items) this.assertAmount(it.amountCents, s);
+    const account = await this.prisma.payoutAccount.findUnique({
+      where: { user_id: attorneyId },
+    });
+    if (!account || account.status !== 'active' || !account.charges_enabled) {
+      throw new ConflictException({
+        code: ErrorCode.PAYOUT_ACCOUNT_NOT_READY,
+        message:
+          'Connect your payout account first (Settings → Receiving payments).',
+      });
+    }
+    const planId = dto.items.length > 1 ? randomUUID() : null;
+    const total = dto.items.reduce((sum, it) => sum + it.amountCents, 0);
+    const rows = await withTxRetry(this.prisma, async (tx) => {
+      const created: PaymentRequest[] = [];
+      for (const [i, it] of dto.items.entries()) {
+        created.push(
+          await tx.paymentRequest.create({
+            data: {
+              case_id: caseId,
+              attorney_id: attorneyId,
+              client_id: kase.client_id,
+              created_by: user.assistant?.userId ?? user.sub,
+              amount_cents: it.amountCents,
+              description: (it.description?.trim() || dto.description).slice(
+                0,
+                200,
+              ),
+              due_at: it.dueAt ? new Date(it.dueAt) : null,
+              plan_id: planId,
+              seq: i + 1,
+              total: dto.items.length,
+            },
+          }),
+        );
+      }
+      // The chat line is written in the same transaction (one per plan).
+      const changes = await this.chatSystem?.post(
+        tx,
+        { case_id: caseId },
+        'payment_requested',
+        { param: String(total) },
+      );
+      return { created, changes: changes ?? [] };
+    });
+    this.chatSystem?.publish(rows.changes);
+    await this.notify(kase.client_id, 'payment_request_created', {
+      caseId,
+      requestId: rows.created[0]?.id ?? null,
+      planId,
+      amountCents: total,
+      installments: dto.items.length,
+    });
+    return this.presentRequests(rows.created);
+  }
+
+  async listRequests(
+    user: RequestUser,
+    caseId: string,
+  ): Promise<PaymentRequestDto[]> {
+    await this.caseSide(user, caseId);
+    const rows = await this.prisma.paymentRequest.findMany({
+      where: { case_id: caseId },
+      orderBy: [{ created_at: 'desc' }, { seq: 'desc' }],
+      take: 100,
+    });
+    return this.presentRequests(rows);
+  }
+
+  /** The attorney withdraws an open request. */
+  async cancelRequest(
+    user: RequestUser,
+    id: string,
+  ): Promise<PaymentRequestDto> {
+    const row = await this.prisma.paymentRequest.findUnique({ where: { id } });
+    if (!row || row.attorney_id !== user.sub) throw requestNotFound();
+    if (row.status !== 'open' && row.status !== 'expired') {
+      throw new ConflictException({
+        code: ErrorCode.PAYMENT_INVALID_STATE,
+        message: `This request is ${row.status}.`,
+      });
+    }
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const u = await tx.paymentRequest.update({
+        where: { id },
+        data: { status: 'canceled', canceled_at: new Date() },
+      });
+      const changes = await this.chatSystem?.post(
+        tx,
+        { case_id: row.case_id },
+        'payment_request_canceled',
+        { param: String(row.amount_cents) },
+      );
+      return { u, changes: changes ?? [] };
+    });
+    this.chatSystem?.publish(updated.changes);
+    await this.notify(row.client_id, 'payment_request_canceled', {
+      caseId: row.case_id,
+      requestId: row.id,
+      amountCents: row.amount_cents,
+    });
+    const [dto] = await this.presentRequests([updated.u]);
+    return dto;
+  }
+
+  /** The open request a `kind = invoice` payment pays, checked against
+   * the case and the client. An expired request may still be paid. */
+  private async openRequestFor(
+    dto: CreateCasePaymentDto,
+    caseId: string,
+    clientId: string,
+  ): Promise<PaymentRequest | null> {
+    if (dto.kind !== 'invoice') return null;
+    if (!dto.requestId) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'requestId is required for kind = invoice.',
+        details: { field: 'requestId' },
+      });
+    }
+    const row = await this.prisma.paymentRequest.findUnique({
+      where: { id: dto.requestId },
+    });
+    if (!row || row.case_id !== caseId || row.client_id !== clientId)
+      throw requestNotFound();
+    if (row.status !== 'open' && row.status !== 'expired') {
+      throw new ConflictException({
+        code: ErrorCode.PAYMENT_INVALID_STATE,
+        message: `This request is already ${row.status}.`,
+      });
+    }
+    return row;
+  }
+
+  async presentRequests(rows: PaymentRequest[]): Promise<PaymentRequestDto[]> {
+    if (rows.length === 0) return [];
+    const [parties, cases] = await Promise.all([
+      this.parties(rows.flatMap((r) => [r.client_id, r.attorney_id])),
+      this.prisma.case.findMany({
+        where: { id: { in: [...new Set(rows.map((r) => r.case_id))] } },
+        select: { id: true, title: true },
+      }),
+    ]);
+    const titles = new Map(cases.map((c) => [c.id, c.title]));
+    const now = Date.now();
+    return rows.map((r) => ({
+      id: r.id,
+      caseId: r.case_id,
+      caseTitle: titles.get(r.case_id) ?? null,
+      amountCents: r.amount_cents,
+      description: r.description,
+      dueAt: r.due_at?.toISOString() ?? null,
+      status: r.status as PaymentRequestStatus,
+      overdue: r.status === 'open' && !!r.due_at && r.due_at.getTime() < now,
+      planId: r.plan_id,
+      seq: r.seq,
+      total: r.total,
+      paymentId: r.payment_id,
+      paidAt: r.paid_at?.toISOString() ?? null,
+      createdAt: r.created_at.toISOString(),
+      client: strip(parties.get(r.client_id)),
+      attorney: strip(parties.get(r.attorney_id)),
+    }));
+  }
+
+  /**
+   * Cron `case-payments.remind` (daily): the client is reminded N days
+   * before a request is due (admin setting), then every K days while it
+   * is overdue; a request left unpaid long after its due date is closed
+   * as expired (the client may still pay it from the case).
+   */
+  async remind(
+    now = new Date(),
+  ): Promise<{ reminded: number; overdue: number; expired: number }> {
+    const s = await this.settings();
+    const result = { reminded: 0, overdue: 0, expired: 0 };
+    if (!(await this.enabled())) return result;
+    const today = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+    );
+    const open = await this.prisma.paymentRequest.findMany({
+      where: { status: 'open', due_at: { not: null } },
+      take: 2000,
+    });
+    for (const r of open) {
+      if (!r.due_at) continue;
+      const dueDay = Date.UTC(
+        r.due_at.getUTCFullYear(),
+        r.due_at.getUTCMonth(),
+        r.due_at.getUTCDate(),
+      );
+      const daysLeft = Math.round((dueDay - today) / DAY_MS);
+      const remindedToday =
+        !!r.last_reminded_at && r.last_reminded_at.getTime() >= today;
+      if (
+        daysLeft < 0 &&
+        s.invoiceExpireDays > 0 &&
+        -daysLeft > s.invoiceExpireDays
+      ) {
+        await this.prisma.paymentRequest.update({
+          where: { id: r.id },
+          data: { status: 'expired' },
+        });
+        result.expired += 1;
+        continue;
+      }
+      let type: 'payment_request_due' | 'payment_request_overdue' | null = null;
+      if (daysLeft >= 0 && s.invoiceReminderDays.includes(daysLeft)) {
+        type = 'payment_request_due';
+      } else if (daysLeft < 0 && s.overdueReminderEveryDays > 0) {
+        const since = r.last_reminded_at ?? r.due_at;
+        if (
+          now.getTime() - since.getTime() >=
+          s.overdueReminderEveryDays * DAY_MS
+        )
+          type = 'payment_request_overdue';
+      }
+      if (!type || remindedToday) continue;
+      await this.notify(r.client_id, type, {
+        caseId: r.case_id,
+        requestId: r.id,
+        amountCents: r.amount_cents,
+        dueAt: r.due_at.toISOString(),
+        daysLeft,
+      });
+      await this.prisma.paymentRequest.update({
+        where: { id: r.id },
+        data: { last_reminded_at: now, reminders_sent: { increment: 1 } },
+      });
+      if (type === 'payment_request_due') result.reminded += 1;
+      else result.overdue += 1;
+    }
+    return result;
+  }
+
+  /** «Счёт выставлен / оплачен» in the case chat; never fails a payment. */
+  private async chatLine(
+    caseId: string,
+    key: 'payment_received',
+    cents: number,
+  ): Promise<void> {
+    if (!this.chatSystem) return;
+    try {
+      const changes = await withTxRetry(this.prisma, (tx) =>
+        this.chatSystem!.post(tx, { case_id: caseId }, key, {
+          param: String(cents),
+        }),
+      );
+      this.chatSystem.publish(changes);
+    } catch (e) {
+      this.logger.warn(`chat line ${key} failed: ${String(e)}`);
+    }
+  }
+
+  /** The client as a Stripe customer on this attorney's account (saved
+   * cards). Created once per (client, account); never blocks a payment. */
+  private async connectedCustomer(
+    clientId: string,
+    accountId: string,
+    email: string | null,
+    name: string | null,
+  ): Promise<string | null> {
+    if (!this.provider?.ensureConnectedCustomer) return null;
+    const existing = await this.prisma.connectedCustomer.findUnique({
+      where: {
+        client_id_stripe_account_id: {
+          client_id: clientId,
+          stripe_account_id: accountId,
+        },
+      },
+    });
+    if (existing) return existing.stripe_customer_id;
+    try {
+      const id = await this.provider.ensureConnectedCustomer({
+        accountId,
+        email,
+        name,
+        metadata: { userId: clientId },
+      });
+      await this.prisma.connectedCustomer.upsert({
+        where: {
+          client_id_stripe_account_id: {
+            client_id: clientId,
+            stripe_account_id: accountId,
+          },
+        },
+        create: {
+          client_id: clientId,
+          stripe_account_id: accountId,
+          stripe_customer_id: id,
+        },
+        update: {},
+      });
+      return id;
+    } catch (e) {
+      this.logger.warn(`connected customer failed: ${String(e)}`);
+      return null;
+    }
+  }
+
+  // ---- documents -------------------------------------------------------------------
+
+  /** `GET /payments/:id/receipt.pdf` — a receipt for either side. */
+  async receiptPdf(
+    user: RequestUser,
+    id: string,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const row = await this.prisma.casePayment.findUnique({ where: { id } });
+    if (!row || (row.client_id !== user.sub && row.attorney_id !== user.sub))
+      throw notFound();
+    if (!isPaid(row.status) && row.status !== 'refunded') {
+      throw new ConflictException({
+        code: ErrorCode.PAYMENT_INVALID_STATE,
+        message: 'A receipt exists once the payment went through.',
+      });
+    }
+    const s = await this.settings();
+    const [dto] = await this.present([row], s);
+    const [refunds, request, parties] = await Promise.all([
+      this.prisma.casePaymentRefund.findMany({
+        where: { payment_id: id, status: 'succeeded' },
+        orderBy: { created_at: 'asc' },
+      }),
+      row.request_id
+        ? this.prisma.paymentRequest.findUnique({
+            where: { id: row.request_id },
+          })
+        : null,
+      this.parties([row.client_id, row.attorney_id]),
+    ]);
+    const buffer = await renderPaymentReceiptPdf({
+      payment: dto,
+      quote: quotePayment(row.amount_cents, {
+        ...s,
+        processingFeePayer: row.processing_fee_payer as ProcessingFeePayer,
+        feeType: row.fee_type as PaymentSettings['feeType'],
+        feePayer: row.fee_payer as PaymentSettings['feePayer'],
+        feeFixedCents: row.platform_fee_cents,
+      }),
+      clientEmail: parties.get(row.client_id)?.email ?? null,
+      attorneyEmail: parties.get(row.attorney_id)?.email ?? null,
+      request: request
+        ? {
+            description: request.description,
+            seq: request.seq,
+            total: request.total,
+          }
+        : null,
+      refunds: refunds.map((r) => ({
+        amountCents: r.amount_cents,
+        reason: r.reason,
+        createdAt: r.created_at,
+      })),
+      stripePaymentIntentId: row.stripe_payment_intent_id,
+      stripeChargeId: row.stripe_charge_id,
+      disclaimerEn: s.disclaimerEn,
+      disclaimerRu: s.disclaimerRu,
+      forAttorney: user.sub === row.attorney_id,
+    });
+    return {
+      buffer,
+      filename: `lawbid-receipt-${row.id.slice(0, 8)}.pdf`,
+    };
+  }
+
+  /** `GET /payments/export.csv` — the user's own payments for their
+   * bookkeeping (attorney: received; client: paid). */
+  async exportCsv(
+    user: RequestUser,
+    q: PaymentsExportQueryDto,
+  ): Promise<string> {
+    const rows = await this.prisma.casePayment.findMany({
+      where: {
+        AND: [
+          this.mine(user),
+          { status: { in: [...PAID_STATUSES, 'refunded'] } },
+          q.from ? { paid_at: { gte: new Date(q.from) } } : {},
+          q.to ? { paid_at: { lte: new Date(q.to) } } : {},
+        ],
+      },
+      orderBy: [{ paid_at: 'asc' }],
+      take: 5000,
+    });
+    const s = await this.settings();
+    const items = await this.present(rows, s);
+    const attorney = user.role === 'attorney';
+    const head = [
+      'date',
+      'case',
+      'description',
+      attorney ? 'client' : 'attorney',
+      'kind',
+      'status',
+      'amount_usd',
+      'platform_fee_usd',
+      'processing_fee_usd',
+      'client_total_usd',
+      'attorney_net_usd',
+      'refunded_usd',
+      'stripe_payment_intent',
+      'payment_id',
+    ];
+    const usd = (c: number) => (c / 100).toFixed(2);
+    const esc = (v: string | null | undefined) =>
+      `"${(v ?? '').replace(/"/g, '""')}"`;
+    const lines = items.map((p, i) => {
+      const r = rows[i];
+      return [
+        p.paidAt ?? p.createdAt,
+        esc(p.caseTitle),
+        esc(p.note),
+        esc(
+          attorney
+            ? (p.client?.name ?? p.client?.username)
+            : (p.attorney?.name ?? p.attorney?.username),
+        ),
+        p.kind,
+        p.status,
+        usd(p.amountCents),
+        usd(p.platformFeeCents),
+        usd(p.processingFeeCents),
+        usd(p.clientTotalCents),
+        usd(p.attorneyNetCents),
+        usd(p.refundedCents),
+        esc(r.stripe_payment_intent_id),
+        p.id,
+      ].join(',');
+    });
+    return [head.join(','), ...lines].join('\r\n') + '\r\n';
+  }
+
   // ---- housekeeping ------------------------------------------------------------
 
   /** Cron `case-payments.expire`: unpaid checkouts older than a day →
@@ -953,12 +1492,14 @@ export class CasePaymentsService {
       caseId: r.case_id,
       caseTitle: titles.get(r.case_id) ?? null,
       kind: r.kind as PaymentKind,
+      requestId: r.request_id,
       status: r.status as PaymentStatus,
       amountCents: r.amount_cents,
       platformFeeCents: r.platform_fee_cents,
       processingFeeCents: r.processing_fee_cents,
       clientTotalCents: r.client_total_cents,
       attorneyNetCents: r.attorney_net_cents,
+      processingFeePayer: r.processing_fee_payer as ProcessingFeePayer,
       refundedCents: r.refunded_cents,
       currency: r.currency,
       note: r.note,
@@ -1117,6 +1658,7 @@ export class CasePaymentsService {
     s: PaymentSettings,
     caseId: string,
     bidAmountCents: number | null,
+    req: PaymentRequest | null,
   ): Promise<number> {
     const invalid = (message: string) =>
       new BadRequestException({
@@ -1125,7 +1667,10 @@ export class CasePaymentsService {
         details: { field: 'amountCents' },
       });
     let amount: number;
-    if (dto.kind === 'bid' || dto.kind === 'balance') {
+    if (dto.kind === 'invoice') {
+      if (!req) throw invalid('Pick the payment request to pay.');
+      amount = req.amount_cents;
+    } else if (dto.kind === 'bid' || dto.kind === 'balance') {
       if (bidAmountCents === null)
         throw invalid('This case has no fixed bid amount; enter an amount.');
       amount = bidAmountCents;
@@ -1195,7 +1740,11 @@ export class CasePaymentsService {
       | 'case_payment_sent'
       | 'case_payment_refunded'
       | 'case_payment_disputed'
-      | 'payout_account_status',
+      | 'payout_account_status'
+      | 'payment_request_created'
+      | 'payment_request_due'
+      | 'payment_request_overdue'
+      | 'payment_request_canceled',
     payload: Prisma.InputJsonObject,
   ): Promise<void> {
     try {

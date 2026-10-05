@@ -235,6 +235,14 @@ export interface PaymentProvider {
     idempotencyKey: string;
     metadata: Record<string, string>;
   }): Promise<ProviderRefund>;
+  /** Owner 2026-10-05: the client as a customer on the attorney's account
+   * so Checkout can save and reuse their card for that attorney. */
+  ensureConnectedCustomer?(input: {
+    accountId: string;
+    email: string | null;
+    name: string | null;
+    metadata: Record<string, string>;
+  }): Promise<string>;
   /** The charge behind a connected payment (receipt, refunds, dispute). */
   retrieveConnectedCharge?(
     accountId: string,
@@ -256,6 +264,10 @@ export interface ProviderConnectAccount {
 export interface ProviderConnectedCheckoutInput {
   accountId: string;
   customerEmail?: string | null;
+  /** A customer on the connected account (saved cards). */
+  customerId?: string | null;
+  /** Offer to save the card for next time (needs customerId). */
+  saveCard?: boolean;
   /** What the client pays. */
   amountCents: number;
   /** The platform's share, moved to the platform balance by Stripe. */

@@ -118,6 +118,8 @@ export class CronProcessor {
         return this.promotions.expire();
       case CRON_JOBS.casePaymentsExpire:
         return this.casePayments.expire();
+      case CRON_JOBS.casePaymentsRemind:
+        return this.casePayments.remind();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

@@ -21,6 +21,12 @@ export const FEE_TYPES = ['none', 'fixed'] as const;
 export type FeeType = (typeof FEE_TYPES)[number];
 export const FEE_PAYERS = ['client', 'attorney'] as const;
 export type FeePayer = (typeof FEE_PAYERS)[number];
+/** Who covers Stripe's card fee: the attorney (out of the amount, as
+ * Stripe takes it from the connected balance), the client (added on
+ * top so the attorney receives the full amount) or half each. Never the
+ * platform — direct charges make that impossible by construction. */
+export const PROCESSING_FEE_PAYERS = ['client', 'attorney', 'split'] as const;
+export type ProcessingFeePayer = (typeof PROCESSING_FEE_PAYERS)[number];
 
 export interface PaymentSettings {
   /** none = no platform fee (default); fixed = a flat service charge per
@@ -30,12 +36,30 @@ export interface PaymentSettings {
   /** client = charged on top of the attorney's fee; attorney = deducted
    * from what the attorney receives. */
   feePayer: FeePayer;
-  /** Add an estimate of Stripe's card fee to what the client pays, so the
-   * attorney receives the full amount. */
-  passProcessingFeeToClient: boolean;
-  /** Stripe's card rate used for that estimate (2.9 % + 30 ¢ by default). */
+  /** Who covers Stripe's card fee (owner 2026-10-05: the parties, never
+   * the platform). client = grossed up on top of the amount so the
+   * attorney receives the full fee; attorney = out of the amount; split =
+   * half each. */
+  processingFeePayer: ProcessingFeePayer;
+  /** Stripe's card rate used for that estimate (2.9 % + 30 ¢ by default).
+   * When Stripe changes its tariff the owner edits the number here. */
   processingFeePercent: number;
   processingFeeFixedCents: number;
+  /** Stripe Checkout offers to save the card for the next payment to the
+   * same attorney (a Stripe customer on the attorney's account). */
+  saveCards: boolean;
+  /** The attorney may send the client payment requests (invoices). */
+  allowInvoices: boolean;
+  /** …and split them into installments (several requests with due dates). */
+  allowInstallments: boolean;
+  maxInstallments: number;
+  /** Days before the due date on which the client is reminded. */
+  invoiceReminderDays: number[];
+  /** Overdue requests: remind again every N days (0 = never). */
+  overdueReminderEveryDays: number;
+  /** An unpaid request is closed this many days after its due date
+   * (0 = stays open). */
+  invoiceExpireDays: number;
   minAmountCents: number;
   maxAmountCents: number;
   /** The client may pay any amount (not only the bid). */
@@ -58,9 +82,16 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   feeType: 'none',
   feeFixedCents: 0,
   feePayer: 'client',
-  passProcessingFeeToClient: true,
+  processingFeePayer: 'client',
   processingFeePercent: 2.9,
   processingFeeFixedCents: 30,
+  saveCards: true,
+  allowInvoices: true,
+  allowInstallments: true,
+  maxInstallments: 12,
+  invoiceReminderDays: [3, 1],
+  overdueReminderEveryDays: 3,
+  invoiceExpireDays: 30,
   minAmountCents: 500,
   maxAmountCents: 2_500_000,
   allowCustomAmount: true,
@@ -75,7 +106,14 @@ export const MIN_CHARGE_CENTS = 50;
 /** Unpaid checkouts are given up after this long (Stripe: 24 h). */
 export const PENDING_PAYMENT_TTL_MS = 24 * 3_600_000;
 
-export const PAYMENT_KINDS = ['bid', 'deposit', 'balance', 'custom'] as const;
+/** invoice = a payment request the attorney sent (amount from it). */
+export const PAYMENT_KINDS = [
+  'bid',
+  'deposit',
+  'balance',
+  'custom',
+  'invoice',
+] as const;
 export type PaymentKind = (typeof PAYMENT_KINDS)[number];
 export const PAYMENT_STATUSES = [
   'pending_payment',
@@ -95,6 +133,13 @@ export const PAYOUT_ACCOUNT_STATUSES = [
   'disabled',
 ] as const;
 export type PayoutAccountStatus = (typeof PAYOUT_ACCOUNT_STATUSES)[number];
+export const PAYMENT_REQUEST_STATUSES = [
+  'open',
+  'paid',
+  'canceled',
+  'expired',
+] as const;
+export type PaymentRequestStatus = (typeof PAYMENT_REQUEST_STATUSES)[number];
 
 const int = (v: unknown, min: number, max: number): number | null =>
   typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
@@ -110,6 +155,19 @@ const text = (v: unknown): string | null =>
     : null;
 const bool = (v: unknown, d: boolean): boolean =>
   typeof v === 'boolean' ? v : d;
+const intList = (
+  v: unknown,
+  min: number,
+  max: number,
+  cap: number,
+): number[] | null =>
+  Array.isArray(v) &&
+  v.length <= cap &&
+  v.every(
+    (x) => typeof x === 'number' && Number.isInteger(x) && x >= min && x <= max,
+  )
+    ? [...new Set(v as number[])].sort((a, b) => b - a)
+    : null;
 const oneOf = <T extends string>(v: unknown, all: readonly T[], d: T): T =>
   typeof v === 'string' && (all as readonly string[]).includes(v)
     ? (v as T)
@@ -129,9 +187,15 @@ export function parsePaymentSettings(raw: unknown): PaymentSettings {
     feeType: oneOf(r.feeType, FEE_TYPES, d.feeType),
     feeFixedCents: int(r.feeFixedCents, 0, 100_000) ?? d.feeFixedCents,
     feePayer: oneOf(r.feePayer, FEE_PAYERS, d.feePayer),
-    passProcessingFeeToClient: bool(
-      r.passProcessingFeeToClient,
-      d.passProcessingFeeToClient,
+    processingFeePayer: oneOf(
+      r.processingFeePayer,
+      PROCESSING_FEE_PAYERS,
+      // Rows saved before the three-way option: the old boolean.
+      typeof r.passProcessingFeeToClient === 'boolean'
+        ? r.passProcessingFeeToClient
+          ? 'client'
+          : 'attorney'
+        : d.processingFeePayer,
     ),
     processingFeePercent:
       num(r.processingFeePercent, 0, 15) ?? d.processingFeePercent,
@@ -142,6 +206,15 @@ export function parsePaymentSettings(raw: unknown): PaymentSettings {
     allowCustomAmount: bool(r.allowCustomAmount, d.allowCustomAmount),
     allowPartial: bool(r.allowPartial, d.allowPartial),
     refundWindowDays: int(r.refundWindowDays, 0, 365) ?? d.refundWindowDays,
+    saveCards: bool(r.saveCards, d.saveCards),
+    allowInvoices: bool(r.allowInvoices, d.allowInvoices),
+    allowInstallments: bool(r.allowInstallments, d.allowInstallments),
+    maxInstallments: int(r.maxInstallments, 2, 36) ?? d.maxInstallments,
+    invoiceReminderDays:
+      intList(r.invoiceReminderDays, 0, 60, 6) ?? d.invoiceReminderDays,
+    overdueReminderEveryDays:
+      int(r.overdueReminderEveryDays, 0, 60) ?? d.overdueReminderEveryDays,
+    invoiceExpireDays: int(r.invoiceExpireDays, 0, 365) ?? d.invoiceExpireDays,
     disclaimerEn: text(r.disclaimerEn) ?? d.disclaimerEn,
     disclaimerRu: text(r.disclaimerRu) ?? d.disclaimerRu,
   };
@@ -156,8 +229,13 @@ export interface PaymentQuote {
   clientTotalCents: number;
   /** What lands on the attorney's balance before Stripe's own fee. */
   attorneyNetCents: number;
+  /** Stripe's card fee on the whole charge at the configured rate. */
+  stripeFeeEstimateCents: number;
+  /** What the attorney keeps once Stripe took its fee (estimate). */
+  attorneyReceivesCents: number;
   feeType: FeeType;
   feePayer: FeePayer;
+  processingFeePayer: ProcessingFeePayer;
 }
 
 /**
@@ -165,9 +243,12 @@ export interface PaymentQuote {
  * `application_fee_amount` (moved to the platform's balance): when the
  * client pays it, it is added on top of the attorney's fee, otherwise it
  * is deducted from what the attorney receives. With direct charges Stripe
- * takes its own card fee from the attorney's balance, so when the
- * processing estimate is passed to the client it is grossed up and added
- * to the client's total — the attorney then receives ≈ the full fee.
+ * takes its own card fee from the ATTORNEY's balance, never the
+ * platform's. `processingFeePayer` decides who ends up covering it: the
+ * client (the estimate is grossed up and added to the client's total, so
+ * the attorney receives ≈ the full fee), the attorney (nothing added) or
+ * half each. Invariant (unit-tested): the platform's balance only ever
+ * moves by `platformFeeCents ≥ 0`.
  */
 export function quotePayment(
   amountCents: number,
@@ -178,21 +259,39 @@ export function quotePayment(
   if (s.feePayer === 'attorney')
     platformFeeCents = Math.min(platformFeeCents, amountCents);
   const base = amountCents + (s.feePayer === 'client' ? platformFeeCents : 0);
-  let processingFeeCents = 0;
-  if (s.passProcessingFeeToClient) {
-    // Gross-up: total × (1 − p) − fixed = base → total = (base + fixed) / (1 − p).
-    const p = s.processingFeePercent / 100;
-    const total = Math.ceil((base + s.processingFeeFixedCents) / (1 - p));
-    processingFeeCents = Math.max(0, total - base);
-  }
+  const p = s.processingFeePercent / 100;
+  // Gross-up: total × (1 − p) − fixed = base → total = (base + fixed) / (1 − p).
+  const grossUp = Math.max(
+    0,
+    Math.ceil((base + s.processingFeeFixedCents) / (1 - p)) - base,
+  );
+  const processingFeeCents =
+    s.processingFeePayer === 'client'
+      ? grossUp
+      : s.processingFeePayer === 'split'
+        ? Math.ceil(grossUp / 2)
+        : 0;
+  const clientTotalCents = base + processingFeeCents;
+  const stripeFeeEstimateCents = Math.round(
+    clientTotalCents * p + s.processingFeeFixedCents,
+  );
+  const attorneyNetCents =
+    s.feePayer === 'attorney' ? amountCents - platformFeeCents : amountCents;
   return {
     amountCents,
     platformFeeCents,
     processingFeeCents,
-    clientTotalCents: base + processingFeeCents,
-    attorneyNetCents:
-      s.feePayer === 'attorney' ? amountCents - platformFeeCents : amountCents,
+    clientTotalCents,
+    attorneyNetCents,
+    stripeFeeEstimateCents,
+    // Stripe debits its fee from the attorney's balance, where the
+    // whole charge minus the platform fee landed.
+    attorneyReceivesCents: Math.max(
+      0,
+      clientTotalCents - platformFeeCents - stripeFeeEstimateCents,
+    ),
     feeType: s.feeType,
     feePayer: s.feePayer,
+    processingFeePayer: s.processingFeePayer,
   };
 }

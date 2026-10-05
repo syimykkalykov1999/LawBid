@@ -6,7 +6,14 @@ import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 
 /** docs/05 §8.2 system messages; the app localizes `chat.system.<key>`. */
 export type ChatSystemKey =
-  'offer_accepted' | 'no_agreement' | 'case_closed' | 'accepted_by_other';
+  | 'offer_accepted'
+  | 'no_agreement'
+  | 'case_closed'
+  | 'accepted_by_other'
+  // Owner 2026-10-05: payments through the platform (body `key:cents`).
+  | 'payment_requested'
+  | 'payment_received'
+  | 'payment_request_canceled';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {
@@ -32,8 +39,10 @@ export class ChatSystemMessages {
     tx: Prisma.TransactionClient,
     where: Prisma.ConversationWhereInput,
     key: ChatSystemKey,
-    opts: { close?: boolean } = {},
+    opts: { close?: boolean; param?: string } = {},
   ): Promise<ChatChange[]> {
+    // The app localizes `chat.system.<key>`; a parameter rides after ':'.
+    const body = opts.param ? `${key}:${opts.param}` : key;
     const conversations = await tx.conversation.findMany({
       where,
       select: { id: true, client_id: true, attorney_id: true },
@@ -45,8 +54,8 @@ export class ChatSystemMessages {
           conversation_id: c.id,
           sender_id: null,
           type: 'system',
-          body_original: key,
-          body_display: key,
+          body_original: body,
+          body_display: body,
           client_message_id: `system:${key}:${randomUUID()}`,
         },
         select: { id: true, created_at: true },

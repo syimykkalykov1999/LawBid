@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
@@ -318,4 +320,19 @@ String newClientMessageId() {
       .map((x) => x.toRadixString(16).padLeft(2, '0'))
       .join();
   return '${hex(0, 4)}-${hex(4, 6)}-${hex(6, 8)}-${hex(8, 10)}-${hex(10, 16)}';
+}
+
+/// A system line's text: `key`, or `key:cents` for the payment lines
+/// (owner 2026-10-05: «Выставлен счёт на $500», «Оплачено $500»). Without
+/// [formats] (inbox previews) the amount is plain dollars.
+String systemLineText(Translator t, String body, {L10nFormats? formats}) {
+  final i = body.indexOf(':');
+  if (i < 0) return t.t('chat.system.$body');
+  final raw = body.substring(i + 1);
+  final cents = int.tryParse(raw);
+  final amount = cents == null
+      ? raw
+      : formats?.currencyFromCents(cents) ??
+          '\$${(cents / 100).toStringAsFixed(2)}';
+  return t.t('chat.system.${body.substring(0, i)}', {'amount': amount});
 }

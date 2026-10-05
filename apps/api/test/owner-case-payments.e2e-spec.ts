@@ -843,4 +843,318 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .send(body)
       .expect(403);
   });
+
+  it('who covers the Stripe fee is a setting: client / attorney / split; the platform never pays', async () => {
+    await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
+    const root = await adminSession(baseUrl, prisma, 'super_admin');
+    const cli = await client();
+    const s0 = await api()
+      .get('/api/v1/admin/case-payments/settings')
+      .set(root.auth)
+      .expect(200);
+    const body = { ...(s0.body as Body).data } as Record<string, unknown>;
+    delete body.flagEnabled;
+    delete body.stripeConfigured;
+    expect(body.processingFeePayer).toBe('client');
+    // The old boolean is gone from the contract.
+    await api()
+      .put('/api/v1/admin/case-payments/settings')
+      .set(root.auth)
+      .send({ ...body, passProcessingFeeToClient: true })
+      .expect(400);
+    const quote = async () =>
+      (
+        await api()
+          .get('/api/v1/payments/quote?amountCents=50000')
+          .set(cli.auth)
+          .expect(200)
+      ).body as Body;
+    // Default: the client covers Stripe, the attorney receives it all.
+    expect((await quote()).data).toMatchObject({
+      processingFeePayer: 'client',
+      processingFeeCents: 1525,
+      clientTotalCents: 51_525,
+      attorneyNetCents: 50_000,
+      platformFeeCents: 0,
+    });
+    for (const [payer, processingFeeCents] of [
+      ['split', 763],
+      ['attorney', 0],
+    ] as const) {
+      await api()
+        .put('/api/v1/admin/case-payments/settings')
+        .set(root.auth)
+        .send({ ...body, processingFeePayer: payer })
+        .expect(200);
+      const q = (await quote()).data;
+      expect(q).toMatchObject({
+        processingFeePayer: payer,
+        processingFeeCents,
+      });
+      // Platform balance moves only by the platform fee (0 here).
+      expect(
+        (q.clientTotalCents as number) -
+          (q.attorneyNetCents as number) -
+          (q.platformFeeCents as number),
+      ).toBe(processingFeeCents);
+    }
+    // A tariff change is a number in the admin, not code.
+    await api()
+      .put('/api/v1/admin/case-payments/settings')
+      .set(root.auth)
+      .send({
+        ...body,
+        processingFeePayer: 'client',
+        processingFeePercent: 3.5,
+        processingFeeFixedCents: 50,
+      })
+      .expect(200);
+    expect((await quote()).data).toMatchObject({ clientTotalCents: 51_866 });
+    await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
+  });
+
+  it('payment requests: installment plan from the attorney, two-tap payment by the client, chat lines, reminders, cancel; receipt PDF, CSV, saved card', async () => {
+    await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
+    const att = await attorney();
+    const cli = await client();
+    const acct = await onboard(att);
+    const c = await caseInProgress(cli, att, 50_000);
+    await prisma.conversation.create({
+      data: {
+        case_id: c.id,
+        attorney_id: att.id,
+        client_id: cli.id,
+        bid_id: c.bidId,
+        status: 'active',
+      },
+    });
+    const systemLines = async () =>
+      (
+        await prisma.message.findMany({
+          where: { conversation: { case_id: c.id }, type: 'system' },
+          orderBy: { created_at: 'asc' },
+          select: { body_original: true },
+        })
+      ).map((m) => m.body_original);
+
+    // Only the attorney sends requests.
+    await api()
+      .post(`/api/v1/cases/${c.id}/payment-requests`)
+      .set(cli.auth)
+      .send({ description: 'Retainer', items: [{ amountCents: 10_000 }] })
+      .expect(403);
+    const due1 = new Date(Date.now() + 36 * 3_600_000);
+    const due2 = new Date(Date.now() + 10 * 86_400_000);
+    const created = await api()
+      .post(`/api/v1/cases/${c.id}/payment-requests`)
+      .set(att.auth)
+      .send({
+        description: 'Retainer in two parts',
+        items: [
+          { amountCents: 20_000, dueAt: due1.toISOString() },
+          {
+            amountCents: 30_000,
+            dueAt: due2.toISOString(),
+            description: 'Second part',
+          },
+        ],
+      })
+      .expect(201);
+    const reqs = (created.body as { data: Record<string, unknown>[] }).data;
+    expect(reqs).toHaveLength(2);
+    expect(reqs[0].planId).toBe(reqs[1].planId);
+    expect(reqs.map((r) => r.seq)).toEqual([1, 2]);
+    expect(reqs[1]).toMatchObject({ description: 'Second part', total: 2 });
+    expect(await systemLines()).toEqual(['payment_requested:50000']);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: cli.id, type: 'payment_request_created' },
+      }),
+    ).toBe(1);
+
+    // Both sides see the requests in the case; only the attorney can send.
+    const stateCli = (
+      (
+        await api()
+          .get(`/api/v1/cases/${c.id}/payments`)
+          .set(cli.auth)
+          .expect(200)
+      ).body as Body
+    ).data;
+    expect(stateCli).toMatchObject({
+      canPay: true,
+      canRequest: false,
+      openRequestsCents: 50_000,
+    });
+    expect(stateCli.requests as unknown[]).toHaveLength(2);
+    const stateAtt = (
+      (
+        await api()
+          .get(`/api/v1/cases/${c.id}/payments`)
+          .set(att.auth)
+          .expect(200)
+      ).body as Body
+    ).data;
+    expect(stateAtt.canRequest).toBe(true);
+
+    // Two taps: "Pay" on the request → Stripe page.
+    const first = reqs[0].id as string;
+    expect((await pay(cli, c.id, { kind: 'invoice' })).status).toBe(400);
+    const started = await pay(cli, c.id, {
+      kind: 'invoice',
+      requestId: first,
+    });
+    expect(started.status).toBe(201);
+    const paymentId = (started.body as Body).data.paymentId as string;
+    expect((started.body as Body).data.payment).toMatchObject({
+      kind: 'invoice',
+      requestId: first,
+      amountCents: 20_000,
+      note: 'Retainer in two parts',
+      processingFeePayer: 'client',
+    });
+    // Receipt only once paid.
+    await api()
+      .get(`/api/v1/payments/${paymentId}/receipt.pdf`)
+      .set(cli.auth)
+      .expect(409);
+    const row = await prisma.casePayment.findUniqueOrThrow({
+      where: { id: paymentId },
+    });
+    fake.payConnectedCheckout(row.stripe_checkout_id!);
+    expect(await service.applyCheckoutById(row.stripe_checkout_id!, acct)).toBe(
+      true,
+    );
+    const paidReq = await prisma.paymentRequest.findUniqueOrThrow({
+      where: { id: first },
+    });
+    expect(paidReq).toMatchObject({ status: 'paid', payment_id: paymentId });
+    expect(await systemLines()).toEqual([
+      'payment_requested:50000',
+      'payment_received:20000',
+    ]);
+    // Paying it again is refused.
+    const again = await pay(cli, c.id, {
+      kind: 'invoice',
+      requestId: first,
+    });
+    expect(again.status).toBe(409);
+    expect((again.body as Body).error?.code).toBe('PAYMENT_INVALID_STATE');
+
+    // Saved card: the client became a customer on the attorney's account, once.
+    expect(
+      fake.connectedCustomers.filter((x) => x.accountId === acct),
+    ).toHaveLength(1);
+    const second = reqs[1].id as string;
+    const started2 = await pay(cli, c.id, {
+      kind: 'invoice',
+      requestId: second,
+    });
+    expect(started2.status).toBe(201);
+    expect(
+      fake.connectedCustomers.filter((x) => x.accountId === acct),
+    ).toHaveLength(1);
+    const cust = await prisma.connectedCustomer.findUnique({
+      where: {
+        client_id_stripe_account_id: {
+          client_id: cli.id,
+          stripe_account_id: acct,
+        },
+      },
+    });
+    expect(cust?.stripe_customer_id).toMatch(/^cus_fake_/);
+    // The client changes their mind: the open checkout is dropped.
+    await api()
+      .post(
+        `/api/v1/payments/${(started2.body as Body).data.paymentId as string}/cancel`,
+      )
+      .set(cli.auth)
+      .expect(200);
+
+    // Reminders: due in ~1 day → reminded once a day; overdue → every N days; long overdue → expired.
+    let r = await service.remind();
+    expect(r.reminded).toBe(1);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: cli.id, type: 'payment_request_due' },
+      }),
+    ).toBe(1);
+    r = await service.remind();
+    expect(r.reminded).toBe(0);
+    await prisma.paymentRequest.update({
+      where: { id: second },
+      data: {
+        due_at: new Date(Date.now() - 5 * 86_400_000),
+        last_reminded_at: null,
+      },
+    });
+    r = await service.remind(new Date(Date.now() + 86_400_000));
+    expect(r.overdue).toBe(1);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: cli.id, type: 'payment_request_overdue' },
+      }),
+    ).toBe(1);
+    await prisma.paymentRequest.update({
+      where: { id: second },
+      data: { due_at: new Date(Date.now() - 45 * 86_400_000) },
+    });
+    r = await service.remind(new Date(Date.now() + 2 * 86_400_000));
+    expect(r.expired).toBe(1);
+    // The attorney withdraws it; the client is told; a second cancel is 409.
+    const canceled = await api()
+      .post(`/api/v1/payment-requests/${second}/cancel`)
+      .set(att.auth)
+      .expect(200);
+    expect((canceled.body as Body).data.status).toBe('canceled');
+    expect((await systemLines()).at(-1)).toBe('payment_request_canceled:30000');
+    await api()
+      .post(`/api/v1/payment-requests/${second}/cancel`)
+      .set(att.auth)
+      .expect(409);
+    await api()
+      .post(`/api/v1/payment-requests/${second}/cancel`)
+      .set(cli.auth)
+      .expect(404);
+
+    // Receipt PDF for both sides.
+    for (const who of [cli, att]) {
+      const pdf = await api()
+        .get(`/api/v1/payments/${paymentId}/receipt.pdf`)
+        .set(who.auth)
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (d: Buffer) => chunks.push(d));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
+      expect(pdf.headers['content-type']).toContain('application/pdf');
+      expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
+    }
+    // CSV for the attorney's bookkeeping.
+    const csv = await api()
+      .get('/api/v1/payments/export.csv')
+      .set(att.auth)
+      .expect(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.text).toContain(
+      'date,case,description,client,kind,status,amount_usd',
+    );
+    expect(csv.text).toContain(paymentId);
+    expect(csv.text).toContain('200.00');
+
+    // Admin: requests list + stats.
+    const root = await adminSession(baseUrl, prisma, 'super_admin');
+    const adminList = await api()
+      .get(`/api/v1/admin/case-payments/requests?caseId=${c.id}&status=paid`)
+      .set(root.auth)
+      .expect(200);
+    expect((adminList.body as { data: unknown[] }).data).toHaveLength(1);
+    const stats = await api()
+      .get('/api/v1/admin/case-payments/stats')
+      .set(root.auth)
+      .expect(200);
+    expect((stats.body as Body).data).toHaveProperty('openRequests');
+  });
 });

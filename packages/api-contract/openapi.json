@@ -41294,6 +41294,494 @@
         ]
       }
     },
+    "/cases/{id}/payment-requests": {
+      "post": {
+        "operationId": "createPaymentRequests",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentRequestsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequestListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, PAYMENT_AMOUNT_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, PAYOUT_ACCOUNT_NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ask the client to pay: one request or an installment plan (attorney)",
+        "tags": [
+          "case-payments"
+        ]
+      },
+      "get": {
+        "operationId": "listPaymentRequests",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequestListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A case's payment requests, newest first",
+        "tags": [
+          "case-payments"
+        ]
+      }
+    },
+    "/payment-requests/{id}/cancel": {
+      "post": {
+        "operationId": "cancelPaymentRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequestEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PAYMENT_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Withdraw an open payment request (attorney)",
+        "tags": [
+          "case-payments"
+        ]
+      }
+    },
+    "/payments/export.csv": {
+      "get": {
+        "operationId": "exportMyCasePayments",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV file."
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My payments as CSV for bookkeeping (attorney: received; client: paid)",
+        "tags": [
+          "case-payments"
+        ]
+      }
+    },
+    "/payments/{id}/receipt.pdf": {
+      "get": {
+        "operationId": "getCasePaymentReceipt",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF file."
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PAYMENT_INVALID_STATE",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "PDF receipt of one of my payments (both sides)",
+        "tags": [
+          "case-payments"
+        ]
+      }
+    },
     "/payments/history": {
       "get": {
         "operationId": "listMyCasePayments",
@@ -42183,6 +42671,131 @@
           }
         ],
         "summary": "Change the platform fee (type / amount / who pays) and limits (super admin)",
+        "tags": [
+          "admin-case-payments"
+        ]
+      }
+    },
+    "/admin/case-payments/requests": {
+      "get": {
+        "operationId": "listRequests",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PaymentRequestStatus"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "description": "Client or attorney.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "caseId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequestListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Payment requests (invoices) from attorneys",
         "tags": [
           "admin-case-payments"
         ]
@@ -67928,6 +68541,14 @@
           "attorney"
         ]
       },
+      "ProcessingFeePayer": {
+        "type": "string",
+        "enum": [
+          "client",
+          "attorney",
+          "split"
+        ]
+      },
       "PaymentSettingsPublicDto": {
         "type": "object",
         "properties": {
@@ -67952,8 +68573,31 @@
               }
             ]
           },
-          "passProcessingFeeToClient": {
+          "processingFeePayer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
+          },
+          "processingFeePercent": {
+            "type": "number",
+            "description": "Stripe's card rate used for estimates."
+          },
+          "processingFeeFixedCents": {
+            "type": "integer"
+          },
+          "saveCards": {
             "type": "boolean"
+          },
+          "allowInvoices": {
+            "type": "boolean"
+          },
+          "allowInstallments": {
+            "type": "boolean"
+          },
+          "maxInstallments": {
+            "type": "integer"
           },
           "minAmountCents": {
             "type": "integer"
@@ -67984,7 +68628,13 @@
           "feeType",
           "feeFixedCents",
           "feePayer",
-          "passProcessingFeeToClient",
+          "processingFeePayer",
+          "processingFeePercent",
+          "processingFeeFixedCents",
+          "saveCards",
+          "allowInvoices",
+          "allowInstallments",
+          "maxInstallments",
           "minAmountCents",
           "maxAmountCents",
           "allowCustomAmount",
@@ -68029,6 +68679,14 @@
             "type": "integer",
             "description": "Lands on the attorney."
           },
+          "stripeFeeEstimateCents": {
+            "type": "integer",
+            "description": "Stripe's card fee on the whole charge (estimate)."
+          },
+          "attorneyReceivesCents": {
+            "type": "integer",
+            "description": "What the attorney keeps after Stripe (estimate)."
+          },
           "feeType": {
             "allOf": [
               {
@@ -68042,6 +68700,13 @@
                 "$ref": "#/components/schemas/PaymentFeePayer"
               }
             ]
+          },
+          "processingFeePayer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
           }
         },
         "required": [
@@ -68050,8 +68715,11 @@
           "processingFeeCents",
           "clientTotalCents",
           "attorneyNetCents",
+          "stripeFeeEstimateCents",
+          "attorneyReceivesCents",
           "feeType",
-          "feePayer"
+          "feePayer",
+          "processingFeePayer"
         ]
       },
       "PaymentQuoteEnvelope": {
@@ -68177,25 +68845,13 @@
           "data"
         ]
       },
-      "CasePaymentKind": {
+      "PaymentRequestStatus": {
         "type": "string",
         "enum": [
-          "bid",
-          "deposit",
-          "balance",
-          "custom"
-        ]
-      },
-      "CasePaymentStatus": {
-        "type": "string",
-        "enum": [
-          "pending_payment",
-          "succeeded",
-          "failed",
+          "open",
+          "paid",
           "canceled",
-          "refunded",
-          "partially_refunded",
-          "disputed"
+          "expired"
         ]
       },
       "CasePaymentPartyDto": {
@@ -68225,6 +68881,131 @@
           "avatarUrl"
         ]
       },
+      "PaymentRequestDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentRequestStatus"
+              }
+            ]
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Open and past its due date."
+          },
+          "planId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Installment plan this belongs to."
+          },
+          "seq": {
+            "type": "integer",
+            "description": "1-based installment number."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Installments in the plan."
+          },
+          "paymentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "paidAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "client": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CasePaymentPartyDto"
+              }
+            ]
+          },
+          "attorney": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CasePaymentPartyDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "caseId",
+          "caseTitle",
+          "amountCents",
+          "description",
+          "dueAt",
+          "status",
+          "overdue",
+          "planId",
+          "seq",
+          "total",
+          "paymentId",
+          "paidAt",
+          "createdAt",
+          "client",
+          "attorney"
+        ]
+      },
+      "CasePaymentKind": {
+        "type": "string",
+        "enum": [
+          "bid",
+          "deposit",
+          "balance",
+          "custom",
+          "invoice"
+        ]
+      },
+      "CasePaymentStatus": {
+        "type": "string",
+        "enum": [
+          "pending_payment",
+          "succeeded",
+          "failed",
+          "canceled",
+          "refunded",
+          "partially_refunded",
+          "disputed"
+        ]
+      },
       "CasePaymentDto": {
         "type": "object",
         "properties": {
@@ -68247,6 +69028,12 @@
               }
             ]
           },
+          "requestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The payment request this pays (kind = invoice)."
+          },
           "status": {
             "allOf": [
               {
@@ -68268,6 +69055,13 @@
           },
           "attorneyNetCents": {
             "type": "integer"
+          },
+          "processingFeePayer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
           },
           "refundedCents": {
             "type": "integer"
@@ -68325,12 +69119,14 @@
           "caseId",
           "caseTitle",
           "kind",
+          "requestId",
           "status",
           "amountCents",
           "platformFeeCents",
           "processingFeeCents",
           "clientTotalCents",
           "attorneyNetCents",
+          "processingFeePayer",
           "refundedCents",
           "currency",
           "note",
@@ -68386,6 +69182,27 @@
           "allowPartial": {
             "type": "boolean"
           },
+          "canRequest": {
+            "type": "boolean",
+            "description": "The attorney (or their assistant) may send a payment request now."
+          },
+          "allowInstallments": {
+            "type": "boolean"
+          },
+          "maxInstallments": {
+            "type": "integer"
+          },
+          "openRequestsCents": {
+            "type": "integer",
+            "description": "Sum of open requests."
+          },
+          "requests": {
+            "description": "Newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentRequestDto"
+            }
+          },
           "items": {
             "type": "array",
             "items": {
@@ -68405,6 +69222,11 @@
           "maxAmountCents",
           "allowCustomAmount",
           "allowPartial",
+          "canRequest",
+          "allowInstallments",
+          "maxInstallments",
+          "openRequestsCents",
+          "requests",
           "items"
         ]
       },
@@ -68467,6 +69289,11 @@
           "note": {
             "type": "string",
             "maxLength": 200
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for kind = invoice: the open payment request."
           }
         },
         "required": [
@@ -68478,6 +69305,83 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/CreateCasePaymentResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PaymentRequestItemDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 100000000
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "What this is for; defaults to the plan description."
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "amountCents"
+        ]
+      },
+      "CreatePaymentRequestsDto": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What the client pays for (shown on every installment)."
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 36,
+            "description": "One item = one request; several = an installment plan.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentRequestItemDto"
+            }
+          }
+        },
+        "required": [
+          "description",
+          "items"
+        ]
+      },
+      "PaymentRequestListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentRequestDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PaymentRequestEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PaymentRequestDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -68646,6 +69550,12 @@
               }
             ]
           },
+          "requestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The payment request this pays (kind = invoice)."
+          },
           "status": {
             "allOf": [
               {
@@ -68667,6 +69577,13 @@
           },
           "attorneyNetCents": {
             "type": "integer"
+          },
+          "processingFeePayer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
           },
           "refundedCents": {
             "type": "integer"
@@ -68742,12 +69659,14 @@
           "caseId",
           "caseTitle",
           "kind",
+          "requestId",
           "status",
           "amountCents",
           "platformFeeCents",
           "processingFeeCents",
           "clientTotalCents",
           "attorneyNetCents",
+          "processingFeePayer",
           "refundedCents",
           "currency",
           "note",
@@ -68816,6 +69735,16 @@
           },
           "platformFeesAllCents": {
             "type": "integer"
+          },
+          "openRequests": {
+            "type": "integer",
+            "description": "Open payment requests."
+          },
+          "openRequestsCents": {
+            "type": "integer"
+          },
+          "overdueRequests": {
+            "type": "integer"
           }
         },
         "required": [
@@ -68828,7 +69757,10 @@
           "payoutAccountsActive",
           "payoutAccountsPending",
           "volumeAllCents",
-          "platformFeesAllCents"
+          "platformFeesAllCents",
+          "openRequests",
+          "openRequestsCents",
+          "overdueRequests"
         ]
       },
       "AdminCasePaymentStatsEnvelope": {
@@ -68867,8 +69799,12 @@
               }
             ]
           },
-          "passProcessingFeeToClient": {
-            "type": "boolean"
+          "processingFeePayer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
           },
           "processingFeePercent": {
             "type": "number",
@@ -68901,6 +69837,40 @@
             "minimum": 0,
             "maximum": 365
           },
+          "saveCards": {
+            "type": "boolean"
+          },
+          "allowInvoices": {
+            "type": "boolean"
+          },
+          "allowInstallments": {
+            "type": "boolean"
+          },
+          "maxInstallments": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 36
+          },
+          "invoiceReminderDays": {
+            "maxItems": 6,
+            "description": "Days before the due date to remind the client.",
+            "type": "array",
+            "items": {
+              "type": "number",
+              "maximum": 60,
+              "minimum": 0
+            }
+          },
+          "overdueReminderEveryDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60
+          },
+          "invoiceExpireDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
           "disclaimerEn": {
             "type": "string",
             "maxLength": 4000,
@@ -68924,7 +69894,7 @@
           "feeType",
           "feeFixedCents",
           "feePayer",
-          "passProcessingFeeToClient",
+          "processingFeePayer",
           "processingFeePercent",
           "processingFeeFixedCents",
           "minAmountCents",
@@ -68932,6 +69902,13 @@
           "allowCustomAmount",
           "allowPartial",
           "refundWindowDays",
+          "saveCards",
+          "allowInvoices",
+          "allowInstallments",
+          "maxInstallments",
+          "invoiceReminderDays",
+          "overdueReminderEveryDays",
+          "invoiceExpireDays",
           "disclaimerEn",
           "disclaimerRu",
           "flagEnabled",
@@ -68974,8 +69951,12 @@
               }
             ]
           },
-          "passProcessingFeeToClient": {
-            "type": "boolean"
+          "processingFeePayer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProcessingFeePayer"
+              }
+            ]
           },
           "processingFeePercent": {
             "type": "number",
@@ -69008,6 +69989,40 @@
             "minimum": 0,
             "maximum": 365
           },
+          "saveCards": {
+            "type": "boolean"
+          },
+          "allowInvoices": {
+            "type": "boolean"
+          },
+          "allowInstallments": {
+            "type": "boolean"
+          },
+          "maxInstallments": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 36
+          },
+          "invoiceReminderDays": {
+            "maxItems": 6,
+            "description": "Days before the due date to remind the client.",
+            "type": "array",
+            "items": {
+              "type": "number",
+              "maximum": 60,
+              "minimum": 0
+            }
+          },
+          "overdueReminderEveryDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60
+          },
+          "invoiceExpireDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
           "disclaimerEn": {
             "type": "string",
             "maxLength": 4000,
@@ -69023,7 +70038,7 @@
           "feeType",
           "feeFixedCents",
           "feePayer",
-          "passProcessingFeeToClient",
+          "processingFeePayer",
           "processingFeePercent",
           "processingFeeFixedCents",
           "minAmountCents",
@@ -69031,6 +70046,13 @@
           "allowCustomAmount",
           "allowPartial",
           "refundWindowDays",
+          "saveCards",
+          "allowInvoices",
+          "allowInstallments",
+          "maxInstallments",
+          "invoiceReminderDays",
+          "overdueReminderEveryDays",
+          "invoiceExpireDays",
           "disclaimerEn",
           "disclaimerRu"
         ]

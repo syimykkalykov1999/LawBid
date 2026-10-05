@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'payment_fee_payer.dart';
 import 'payment_fee_type.dart';
+import 'processing_fee_payer.dart';
 
 part 'payment_quote_dto.g.dart';
 
@@ -17,8 +18,11 @@ class PaymentQuoteDto {
     required this.processingFeeCents,
     required this.clientTotalCents,
     required this.attorneyNetCents,
+    required this.stripeFeeEstimateCents,
+    required this.attorneyReceivesCents,
     required this.feeType,
     required this.feePayer,
+    required this.processingFeePayer,
   });
 
   factory PaymentQuoteDto.fromJson(Map<String, Object?> json) =>
@@ -34,8 +38,15 @@ class PaymentQuoteDto {
 
   /// Lands on the attorney.
   final int attorneyNetCents;
+
+  /// Stripe's card fee on the whole charge (estimate).
+  final int stripeFeeEstimateCents;
+
+  /// What the attorney keeps after Stripe (estimate).
+  final int attorneyReceivesCents;
   final PaymentFeeType feeType;
   final PaymentFeePayer feePayer;
+  final ProcessingFeePayer processingFeePayer;
 
   Map<String, Object?> toJson() => _$PaymentQuoteDtoToJson(this);
 }

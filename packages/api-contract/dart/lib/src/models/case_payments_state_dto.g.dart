@@ -20,6 +20,13 @@ CasePaymentsStateDto _$CasePaymentsStateDtoFromJson(
   maxAmountCents: (json['maxAmountCents'] as num).toInt(),
   allowCustomAmount: json['allowCustomAmount'] as bool,
   allowPartial: json['allowPartial'] as bool,
+  canRequest: json['canRequest'] as bool,
+  allowInstallments: json['allowInstallments'] as bool,
+  maxInstallments: (json['maxInstallments'] as num).toInt(),
+  openRequestsCents: (json['openRequestsCents'] as num).toInt(),
+  requests: (json['requests'] as List<dynamic>)
+      .map((e) => PaymentRequestDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   items: (json['items'] as List<dynamic>)
       .map((e) => CasePaymentDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -39,5 +46,10 @@ Map<String, dynamic> _$CasePaymentsStateDtoToJson(
   'maxAmountCents': instance.maxAmountCents,
   'allowCustomAmount': instance.allowCustomAmount,
   'allowPartial': instance.allowPartial,
+  'canRequest': instance.canRequest,
+  'allowInstallments': instance.allowInstallments,
+  'maxInstallments': instance.maxInstallments,
+  'openRequestsCents': instance.openRequestsCents,
+  'requests': instance.requests.map((e) => e.toJson()).toList(),
   'items': instance.items.map((e) => e.toJson()).toList(),
 };

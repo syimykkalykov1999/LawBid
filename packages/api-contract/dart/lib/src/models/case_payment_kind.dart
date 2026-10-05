@@ -14,6 +14,8 @@ enum CasePaymentKind {
   balance('balance'),
   @JsonValue('custom')
   custom('custom'),
+  @JsonValue('invoice')
+  invoice('invoice'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

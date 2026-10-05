@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-104 tables.
+106 tables.
 
 ```mermaid
 erDiagram
@@ -1174,6 +1174,7 @@ erDiagram
     String client_id
     String attorney_id
     String kind
+    String request_id "nullable"
     String status
     Int amount_cents
     Int platform_fee_cents
@@ -1182,6 +1183,7 @@ erDiagram
     Int attorney_net_cents
     String fee_type
     String fee_payer
+    String processing_fee_payer
     String currency
     String note "nullable"
     String stripe_account_id "nullable"
@@ -1197,6 +1199,33 @@ erDiagram
     String failure_code "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  payment_requests {
+    String id PK
+    String case_id
+    String attorney_id
+    String client_id
+    String created_by
+    Int amount_cents
+    String description
+    DateTime due_at "nullable"
+    String status
+    String plan_id "nullable"
+    Int seq
+    Int total
+    String payment_id UK "nullable"
+    DateTime paid_at "nullable"
+    DateTime canceled_at "nullable"
+    DateTime last_reminded_at "nullable"
+    Int reminders_sent
+    DateTime created_at
+    DateTime updated_at
+  }
+  connected_customers {
+    String client_id PK
+    String stripe_account_id PK
+    String stripe_customer_id
+    DateTime created_at
   }
   case_payment_refunds {
     String id PK

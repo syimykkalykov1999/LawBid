@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'payment_fee_payer.dart';
 import 'payment_fee_type.dart';
+import 'processing_fee_payer.dart';
 
 part 'payment_settings_public_dto.g.dart';
 
@@ -16,7 +17,13 @@ class PaymentSettingsPublicDto {
     required this.feeType,
     required this.feeFixedCents,
     required this.feePayer,
-    required this.passProcessingFeeToClient,
+    required this.processingFeePayer,
+    required this.processingFeePercent,
+    required this.processingFeeFixedCents,
+    required this.saveCards,
+    required this.allowInvoices,
+    required this.allowInstallments,
+    required this.maxInstallments,
     required this.minAmountCents,
     required this.maxAmountCents,
     required this.allowCustomAmount,
@@ -34,7 +41,15 @@ class PaymentSettingsPublicDto {
   final PaymentFeeType feeType;
   final int feeFixedCents;
   final PaymentFeePayer feePayer;
-  final bool passProcessingFeeToClient;
+  final ProcessingFeePayer processingFeePayer;
+
+  /// Stripe's card rate used for estimates.
+  final num processingFeePercent;
+  final int processingFeeFixedCents;
+  final bool saveCards;
+  final bool allowInvoices;
+  final bool allowInstallments;
+  final int maxInstallments;
   final int minAmountCents;
   final int maxAmountCents;
   final bool allowCustomAmount;

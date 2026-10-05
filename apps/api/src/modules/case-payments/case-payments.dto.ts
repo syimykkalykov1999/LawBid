@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsIn,
@@ -14,6 +17,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import {
   FEE_PAYERS,
@@ -21,11 +25,15 @@ import {
   type FeePayer,
   type FeeType,
   PAYMENT_KINDS,
+  PAYMENT_REQUEST_STATUSES,
   PAYMENT_STATUSES,
   PAYOUT_ACCOUNT_STATUSES,
+  PROCESSING_FEE_PAYERS,
   type PaymentKind,
+  type PaymentRequestStatus,
   type PaymentStatus,
   type PayoutAccountStatus,
+  type ProcessingFeePayer,
 } from './case-payments.settings';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -63,10 +71,22 @@ export class PaymentQuoteDto {
   clientTotalCents!: number;
   @ApiProperty({ type: 'integer', description: 'Lands on the attorney.' })
   attorneyNetCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: "Stripe's card fee on the whole charge (estimate).",
+  })
+  stripeFeeEstimateCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'What the attorney keeps after Stripe (estimate).',
+  })
+  attorneyReceivesCents!: number;
   @ApiProperty({ enum: FEE_TYPES, enumName: 'PaymentFeeType' })
   feeType!: FeeType;
   @ApiProperty({ enum: FEE_PAYERS, enumName: 'PaymentFeePayer' })
   feePayer!: FeePayer;
+  @ApiProperty({ enum: PROCESSING_FEE_PAYERS, enumName: 'ProcessingFeePayer' })
+  processingFeePayer!: ProcessingFeePayer;
 }
 
 /** What the app needs to show / hide in-app payments. */
@@ -80,7 +100,15 @@ export class PaymentSettingsPublicDto {
   @ApiProperty({ type: 'integer' }) feeFixedCents!: number;
   @ApiProperty({ enum: FEE_PAYERS, enumName: 'PaymentFeePayer' })
   feePayer!: FeePayer;
-  @ApiProperty() passProcessingFeeToClient!: boolean;
+  @ApiProperty({ enum: PROCESSING_FEE_PAYERS, enumName: 'ProcessingFeePayer' })
+  processingFeePayer!: ProcessingFeePayer;
+  @ApiProperty({ description: "Stripe's card rate used for estimates." })
+  processingFeePercent!: number;
+  @ApiProperty({ type: 'integer' }) processingFeeFixedCents!: number;
+  @ApiProperty() saveCards!: boolean;
+  @ApiProperty() allowInvoices!: boolean;
+  @ApiProperty() allowInstallments!: boolean;
+  @ApiProperty({ type: 'integer' }) maxInstallments!: number;
   @ApiProperty({ type: 'integer' }) minAmountCents!: number;
   @ApiProperty({ type: 'integer' }) maxAmountCents!: number;
   @ApiProperty() allowCustomAmount!: boolean;
@@ -146,6 +174,13 @@ export class CasePaymentDto {
   @ApiProperty({ type: String, nullable: true }) caseTitle!: string | null;
   @ApiProperty({ enum: PAYMENT_KINDS, enumName: 'CasePaymentKind' })
   kind!: PaymentKind;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'The payment request this pays (kind = invoice).',
+  })
+  requestId!: string | null;
   @ApiProperty({ enum: PAYMENT_STATUSES, enumName: 'CasePaymentStatus' })
   status!: PaymentStatus;
   @ApiProperty({ type: 'integer' }) amountCents!: number;
@@ -153,6 +188,8 @@ export class CasePaymentDto {
   @ApiProperty({ type: 'integer' }) processingFeeCents!: number;
   @ApiProperty({ type: 'integer' }) clientTotalCents!: number;
   @ApiProperty({ type: 'integer' }) attorneyNetCents!: number;
+  @ApiProperty({ enum: PROCESSING_FEE_PAYERS, enumName: 'ProcessingFeePayer' })
+  processingFeePayer!: ProcessingFeePayer;
   @ApiProperty({ type: 'integer' }) refundedCents!: number;
   @ApiProperty() currency!: string;
   @ApiProperty({ type: String, nullable: true }) note!: string | null;
@@ -170,6 +207,108 @@ export class CasePaymentDto {
     description: 'The attorney (or admin) may still refund part of it.',
   })
   refundable!: boolean;
+}
+
+// ---- payment requests (invoices) --------------------------------------------
+
+export class PaymentRequestDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) caseId!: string;
+  @ApiProperty({ type: String, nullable: true }) caseTitle!: string | null;
+  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty() description!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  dueAt!: string | null;
+  @ApiProperty({
+    enum: PAYMENT_REQUEST_STATUSES,
+    enumName: 'PaymentRequestStatus',
+  })
+  status!: PaymentRequestStatus;
+  @ApiProperty({ description: 'Open and past its due date.' })
+  overdue!: boolean;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Installment plan this belongs to.',
+  })
+  planId!: string | null;
+  @ApiProperty({ type: 'integer', description: '1-based installment number.' })
+  seq!: number;
+  @ApiProperty({ type: 'integer', description: 'Installments in the plan.' })
+  total!: number;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  paymentId!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  paidAt!: string | null;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ type: CasePaymentPartyDto, nullable: true })
+  client!: CasePaymentPartyDto | null;
+  @ApiProperty({ type: CasePaymentPartyDto, nullable: true })
+  attorney!: CasePaymentPartyDto | null;
+}
+
+export class PaymentRequestItemDto {
+  @ApiProperty({ type: 'integer', minimum: 50 })
+  @IsInt()
+  @Min(50)
+  @Max(100_000_000)
+  amountCents!: number;
+
+  @ApiPropertyOptional({
+    maxLength: 200,
+    description: 'What this is for; defaults to the plan description.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(200)
+  description?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  dueAt?: string;
+}
+
+export class CreatePaymentRequestsDto {
+  @ApiProperty({
+    maxLength: 200,
+    description: 'What the client pays for (shown on every installment).',
+  })
+  @Transform(trim)
+  @IsString()
+  @Length(1, 200)
+  description!: string;
+
+  @ApiProperty({
+    type: [PaymentRequestItemDto],
+    description: 'One item = one request; several = an installment plan.',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(36)
+  @ValidateNested({ each: true })
+  @Type(() => PaymentRequestItemDto)
+  items!: PaymentRequestItemDto[];
+}
+
+export class PaymentRequestIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+}
+
+export class PaymentsExportQueryDto {
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
 }
 
 /** `GET /cases/:id/payments` — what either side of a case sees. */
@@ -203,6 +342,17 @@ export class CasePaymentsStateDto {
   @ApiProperty({ type: 'integer' }) maxAmountCents!: number;
   @ApiProperty() allowCustomAmount!: boolean;
   @ApiProperty() allowPartial!: boolean;
+  @ApiProperty({
+    description:
+      'The attorney (or their assistant) may send a payment request now.',
+  })
+  canRequest!: boolean;
+  @ApiProperty() allowInstallments!: boolean;
+  @ApiProperty({ type: 'integer' }) maxInstallments!: number;
+  @ApiProperty({ type: 'integer', description: 'Sum of open requests.' })
+  openRequestsCents!: number;
+  @ApiProperty({ type: [PaymentRequestDto], description: 'Newest first.' })
+  requests!: PaymentRequestDto[];
   @ApiProperty({ type: [CasePaymentDto] }) items!: CasePaymentDto[];
 }
 
@@ -233,6 +383,14 @@ export class CreateCasePaymentDto {
   @IsString()
   @MaxLength(200)
   note?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Required for kind = invoice: the open payment request.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  requestId?: string;
 }
 
 export class CreateCasePaymentResultDto {
@@ -313,9 +471,9 @@ export class AdminPaymentSettingsDto {
   @IsIn(FEE_PAYERS)
   feePayer!: FeePayer;
 
-  @ApiProperty()
-  @IsBoolean()
-  passProcessingFeeToClient!: boolean;
+  @ApiProperty({ enum: PROCESSING_FEE_PAYERS, enumName: 'ProcessingFeePayer' })
+  @IsIn(PROCESSING_FEE_PAYERS)
+  processingFeePayer!: ProcessingFeePayer;
 
   @ApiProperty({ minimum: 0, maximum: 15 })
   @IsNumber()
@@ -354,6 +512,47 @@ export class AdminPaymentSettingsDto {
   @Min(0)
   @Max(365)
   refundWindowDays!: number;
+
+  @ApiProperty()
+  @IsBoolean()
+  saveCards!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  allowInvoices!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  allowInstallments!: boolean;
+
+  @ApiProperty({ type: 'integer', minimum: 2, maximum: 36 })
+  @IsInt()
+  @Min(2)
+  @Max(36)
+  maxInstallments!: number;
+
+  @ApiProperty({
+    type: [Number],
+    description: 'Days before the due date to remind the client.',
+  })
+  @IsArray()
+  @ArrayMaxSize(6)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(60, { each: true })
+  invoiceReminderDays!: number[];
+
+  @ApiProperty({ type: 'integer', minimum: 0, maximum: 60 })
+  @IsInt()
+  @Min(0)
+  @Max(60)
+  overdueReminderEveryDays!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 0, maximum: 365 })
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  invoiceExpireDays!: number;
 
   @ApiProperty({ maxLength: 4000, description: 'Legal disclaimer, English.' })
   @IsString()
@@ -435,6 +634,30 @@ export class AdminCasePaymentStatsDto {
   @ApiProperty({ type: 'integer', description: 'All-time succeeded.' })
   volumeAllCents!: number;
   @ApiProperty({ type: 'integer' }) platformFeesAllCents!: number;
+  @ApiProperty({ type: 'integer', description: 'Open payment requests.' })
+  openRequests!: number;
+  @ApiProperty({ type: 'integer' }) openRequestsCents!: number;
+  @ApiProperty({ type: 'integer' }) overdueRequests!: number;
+}
+
+export class AdminPaymentRequestsQueryDto extends CasePaymentsCursorQueryDto {
+  @ApiPropertyOptional({
+    enum: PAYMENT_REQUEST_STATUSES,
+    enumName: 'PaymentRequestStatus',
+  })
+  @IsOptional()
+  @IsIn(PAYMENT_REQUEST_STATUSES)
+  status?: PaymentRequestStatus;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Client or attorney.' })
+  @IsOptional()
+  @IsUUID('all')
+  userId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  caseId?: string;
 }
 
 export class AdminPayoutAccountsQueryDto extends CasePaymentsCursorQueryDto {

@@ -182,7 +182,7 @@ describe('JobsRunner', () => {
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
     // + monthly licenses.registry-recheck; owner 2026-10-05: +
     // case-payments.expire every 10 min.
-    expect(upserts).toHaveLength(27);
+    expect(upserts).toHaveLength(28);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

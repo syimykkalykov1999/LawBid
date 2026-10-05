@@ -317,6 +317,50 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Клиент оспорил платёж через банк. Ответьте в панели Stripe.',
     },
   },
+  payment_request_created: {
+    group: 'cases',
+    en: {
+      title: 'Payment request',
+      body: 'Your attorney sent you a payment request. Open the case to pay in two taps.',
+    },
+    ru: {
+      title: 'Счёт от адвоката',
+      body: 'Адвокат выставил вам счёт. Откройте дело, чтобы оплатить в два касания.',
+    },
+  },
+  payment_request_due: {
+    group: 'cases',
+    en: {
+      title: 'Payment due soon',
+      body: 'A payment request from your attorney is due soon.',
+    },
+    ru: {
+      title: 'Скоро срок оплаты',
+      body: 'Срок оплаты счёта от адвоката скоро наступит.',
+    },
+  },
+  payment_request_overdue: {
+    group: 'cases',
+    en: {
+      title: 'Payment overdue',
+      body: 'A payment request from your attorney is past its due date.',
+    },
+    ru: {
+      title: 'Счёт просрочен',
+      body: 'Срок оплаты счёта от адвоката прошёл.',
+    },
+  },
+  payment_request_canceled: {
+    group: 'cases',
+    en: {
+      title: 'Payment request withdrawn',
+      body: 'Your attorney withdrew a payment request.',
+    },
+    ru: {
+      title: 'Счёт отозван',
+      body: 'Адвокат отозвал выставленный счёт.',
+    },
+  },
   payout_account_status: {
     group: 'system',
     en: {

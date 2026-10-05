@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
-import type { CasePayment, PayoutAccount, Prisma } from '@prisma/client';
+import type {
+  CasePayment,
+  PaymentRequest,
+  PayoutAccount,
+  Prisma,
+} from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -21,12 +26,14 @@ import type {
   AdminCasePaymentRowDto,
   AdminCasePaymentsQueryDto,
   AdminCasePaymentStatsDto,
+  AdminPaymentRequestsQueryDto,
   AdminPaymentSettingsDto,
   AdminPaymentSettingsViewDto,
   AdminPayoutAccountActionResultDto,
   AdminPayoutAccountRowDto,
   AdminPayoutAccountsQueryDto,
   AdminRefundCasePaymentDto,
+  PaymentRequestDto,
 } from './case-payments.dto';
 import { CasePaymentsService, strip } from './case-payments.service';
 import {
@@ -71,7 +78,7 @@ export class AdminCasePaymentsService {
       feeType: dto.feeType,
       feeFixedCents: dto.feeFixedCents,
       feePayer: dto.feePayer,
-      passProcessingFeeToClient: dto.passProcessingFeeToClient,
+      processingFeePayer: dto.processingFeePayer,
       processingFeePercent: dto.processingFeePercent,
       processingFeeFixedCents: dto.processingFeeFixedCents,
       minAmountCents: Math.min(dto.minAmountCents, dto.maxAmountCents),
@@ -79,6 +86,13 @@ export class AdminCasePaymentsService {
       allowCustomAmount: dto.allowCustomAmount,
       allowPartial: dto.allowPartial,
       refundWindowDays: dto.refundWindowDays,
+      saveCards: dto.saveCards,
+      allowInvoices: dto.allowInvoices,
+      allowInstallments: dto.allowInstallments,
+      maxInstallments: dto.maxInstallments,
+      invoiceReminderDays: dto.invoiceReminderDays,
+      overdueReminderEveryDays: dto.overdueReminderEveryDays,
+      invoiceExpireDays: dto.invoiceExpireDays,
       disclaimerEn: dto.disclaimerEn,
       disclaimerRu: dto.disclaimerRu,
     });
@@ -188,41 +202,58 @@ export class AdminCasePaymentsService {
   async stats(now = new Date()): Promise<AdminCasePaymentStatsDto> {
     const since = new Date(now.getTime() - 30 * DAY_MS);
     const paidStatuses = ['succeeded', 'partially_refunded', 'refunded'];
-    const [m30, all, refunded30, disputedOpen, pending, accActive, accPending] =
-      await Promise.all([
-        this.prisma.casePayment.aggregate({
-          where: { status: { in: paidStatuses }, paid_at: { gte: since } },
-          _sum: { amount_cents: true, platform_fee_cents: true },
-          _count: { _all: true },
-        }),
-        this.prisma.casePayment.aggregate({
-          where: { status: { in: paidStatuses } },
-          _sum: { amount_cents: true, platform_fee_cents: true },
-        }),
-        this.prisma.casePaymentRefund.aggregate({
-          where: { status: 'succeeded', created_at: { gte: since } },
-          _sum: { amount_cents: true },
-        }),
-        this.prisma.casePayment.count({
-          where: {
-            dispute_status: {
-              in: [
-                'warning_needs_response',
-                'needs_response',
-                'under_review',
-                'warning_under_review',
-              ],
-            },
+    const [
+      m30,
+      all,
+      refunded30,
+      disputedOpen,
+      pending,
+      accActive,
+      accPending,
+      openReq,
+      overdueReq,
+    ] = await Promise.all([
+      this.prisma.casePayment.aggregate({
+        where: { status: { in: paidStatuses }, paid_at: { gte: since } },
+        _sum: { amount_cents: true, platform_fee_cents: true },
+        _count: { _all: true },
+      }),
+      this.prisma.casePayment.aggregate({
+        where: { status: { in: paidStatuses } },
+        _sum: { amount_cents: true, platform_fee_cents: true },
+      }),
+      this.prisma.casePaymentRefund.aggregate({
+        where: { status: 'succeeded', created_at: { gte: since } },
+        _sum: { amount_cents: true },
+      }),
+      this.prisma.casePayment.count({
+        where: {
+          dispute_status: {
+            in: [
+              'warning_needs_response',
+              'needs_response',
+              'under_review',
+              'warning_under_review',
+            ],
           },
-        }),
-        this.prisma.casePayment.count({
-          where: { status: 'pending_payment' },
-        }),
-        this.prisma.payoutAccount.count({ where: { status: 'active' } }),
-        this.prisma.payoutAccount.count({
-          where: { status: { in: ['pending', 'onboarding', 'restricted'] } },
-        }),
-      ]);
+        },
+      }),
+      this.prisma.casePayment.count({
+        where: { status: 'pending_payment' },
+      }),
+      this.prisma.payoutAccount.count({ where: { status: 'active' } }),
+      this.prisma.payoutAccount.count({
+        where: { status: { in: ['pending', 'onboarding', 'restricted'] } },
+      }),
+      this.prisma.paymentRequest.aggregate({
+        where: { status: 'open' },
+        _sum: { amount_cents: true },
+        _count: { _all: true },
+      }),
+      this.prisma.paymentRequest.count({
+        where: { status: 'open', due_at: { lt: now } },
+      }),
+    ]);
     return {
       volume30dCents: m30._sum.amount_cents ?? 0,
       count30d: m30._count._all,
@@ -234,6 +265,40 @@ export class AdminCasePaymentsService {
       payoutAccountsPending: accPending,
       volumeAllCents: all._sum.amount_cents ?? 0,
       platformFeesAllCents: all._sum.platform_fee_cents ?? 0,
+      openRequests: openReq._count._all,
+      openRequestsCents: openReq._sum.amount_cents ?? 0,
+      overdueRequests: overdueReq,
+    };
+  }
+
+  /** Payment requests (invoices) across the platform, newest first. */
+  async listRequests(
+    q: AdminPaymentRequestsQueryDto,
+  ): Promise<Page<PaymentRequestDto>> {
+    const where: Prisma.PaymentRequestWhereInput = {
+      AND: [
+        q.status ? { status: q.status } : {},
+        q.caseId ? { case_id: q.caseId } : {},
+        q.userId
+          ? { OR: [{ client_id: q.userId }, { attorney_id: q.userId }] }
+          : {},
+        afterCursor(q.cursor),
+      ],
+    };
+    const rows: PaymentRequest[] = await this.prisma.paymentRequest.findMany({
+      where,
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: ADMIN_BILLING_PAGE + 1,
+    });
+    const page = rows.slice(0, ADMIN_BILLING_PAGE);
+    const items = await this.payments.presentRequests(page);
+    const last = page[page.length - 1];
+    return {
+      items,
+      nextCursor:
+        rows.length > ADMIN_BILLING_PAGE && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
     };
   }
 

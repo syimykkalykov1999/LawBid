@@ -27,7 +27,9 @@ import {
   label,
   PAYMENT_FEE_PAYER,
   PAYMENT_FEE_TYPE,
+  PAYMENT_REQUEST_STATUS,
   PAYOUT_ACCOUNT_STATUS,
+  PROCESSING_FEE_PAYER,
   StatusPill,
   usd,
 } from '@/lib/labels';
@@ -39,7 +41,10 @@ type Account = components['schemas']['AdminPayoutAccountRowDto'];
 type AccountStatus = components['schemas']['PayoutAccountStatus'];
 type Settings = components['schemas']['AdminPaymentSettingsViewDto'];
 type Party = components['schemas']['CasePaymentPartyDto'];
-type Tab = 'payments' | 'accounts' | 'settings';
+type PaymentRequest = components['schemas']['PaymentRequestDto'];
+type RequestStatus = components['schemas']['PaymentRequestStatus'];
+type Tab = 'payments' | 'requests' | 'accounts' | 'settings';
+const REQUEST_STATUSES: RequestStatus[] = ['open', 'paid', 'canceled', 'expired'];
 type StatusTab = 'all' | PaymentStatus | 'disputes';
 
 const STATUSES: PaymentStatus[] = ['succeeded', 'pending_payment', 'partially_refunded', 'refunded', 'disputed', 'canceled', 'failed'];
@@ -87,7 +92,7 @@ export default function CasePaymentsPage() {
             <Kpi i={0} icon={CurrencyDollar} title="Оборот за 30 дней" value={stats.data.volume30dCents} format={(n) => usd(n)} gold hint={`${stats.data.count30d} платежей`} />
             <Kpi i={1} icon={HandCoins} title="Комиссия платформы, 30 дней" value={stats.data.platformFees30dCents} format={(n) => usd(n, 2)} hint={`за всё время ${usd(stats.data.platformFeesAllCents)}`} />
             <Kpi i={2} icon={ShieldWarning} title="Открытых споров" value={stats.data.disputedOpen} warn={stats.data.disputedOpen > 0} hint={`возвратов за 30 дней ${usd(stats.data.refunded30dCents)}`} />
-            <Kpi i={3} icon={Bank} title="Адвокатов принимают оплату" value={stats.data.payoutAccountsActive} hint={`${stats.data.payoutAccountsPending} в процессе подключения`} />
+            <Kpi i={3} icon={Bank} title="Адвокатов принимают оплату" value={stats.data.payoutAccountsActive} hint={`${stats.data.payoutAccountsPending} в процессе подключения · открытых счетов ${stats.data.openRequests} на ${usd(stats.data.openRequestsCents)}${stats.data.overdueRequests > 0 ? `, просрочено ${stats.data.overdueRequests}` : ''}`} />
           </>
         ) : null}
       </div>
@@ -99,6 +104,7 @@ export default function CasePaymentsPage() {
           onChange={setTab}
           items={[
             { value: 'payments' as Tab, label: 'Платежи' },
+            { value: 'requests' as Tab, label: 'Счета клиентам' },
             { value: 'accounts' as Tab, label: 'Счета адвокатов' },
             { value: 'settings' as Tab, label: 'Комиссия и лимиты' },
           ]}
@@ -106,6 +112,7 @@ export default function CasePaymentsPage() {
       </div>
 
       {tab === 'payments' ? <PaymentsTab canWrite={canWrite} /> : null}
+      {tab === 'requests' ? <RequestsTab /> : null}
       {tab === 'accounts' ? <AccountsTab canWrite={canWrite} /> : null}
       {tab === 'settings' ? <SettingsCard canEdit={me?.role === 'super_admin'} /> : null}
     </>
@@ -313,6 +320,81 @@ function RefundDialog({ payment, onClose, onDone }: { payment: Payment | null; o
   );
 }
 
+function RequestsTab() {
+  const [status, setStatus] = useState<'all' | RequestStatus>('all');
+  const list = useInfiniteQuery({
+    queryKey: ['payment-requests', status],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) =>
+      (
+        await api.GET('/admin/case-payments/requests', {
+          params: { query: { cursor: pageParam, status: status === 'all' ? undefined : status } },
+        })
+      ).data!,
+    getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
+  });
+  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  return (
+    <>
+      <Card className="mb-3 p-3">
+        <Tabs
+          value={status}
+          onChange={setStatus}
+          items={[
+            { value: 'all' as const, label: 'Все' },
+            ...REQUEST_STATUSES.map((st) => ({ value: st, label: label(PAYMENT_REQUEST_STATUS, st) })),
+          ]}
+        />
+      </Card>
+      {list.isPending ? (
+        <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
+      ) : list.isError ? (
+        <ErrorNote text={errorText(list.error)} />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Дата</Th>
+              <Th>Дело</Th>
+              <Th>Адвокат</Th>
+              <Th>Клиент</Th>
+              <Th>За что</Th>
+              <Th className="text-right">Сумма</Th>
+              <Th>Срок</Th>
+              <Th>Статус</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><Td colSpan={8} className="py-8 text-center text-muted">Счетов пока нет</Td></tr>
+            ) : (
+              rows.map((r: PaymentRequest) => (
+                <tr key={r.id}>
+                  <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
+                  <Td className="max-w-[16rem] truncate">{r.caseTitle ?? '—'}</Td>
+                  <Td><PartyCell p={r.attorney} id={r.attorney?.id ?? ''} /></Td>
+                  <Td><PartyCell p={r.client} id={r.client?.id ?? ''} /></Td>
+                  <Td className="max-w-[16rem] truncate">
+                    {r.description}
+                    {r.total > 1 ? <span className="ml-1 text-xs text-faint">{r.seq}/{r.total}</span> : null}
+                  </Td>
+                  <Td className="text-right font-medium tabular-nums">{usd(r.amountCents, 2)}</Td>
+                  <Td className="whitespace-nowrap text-muted">
+                    {r.dueAt ? formatDateTime(r.dueAt) : '—'}
+                    {r.overdue ? <span className="ml-1 text-xs text-danger">просрочен</span> : null}
+                  </Td>
+                  <Td><StatusPill map={PAYMENT_REQUEST_STATUS} value={r.status} /></Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Table>
+      )}
+      <LoadMore q={list} />
+    </>
+  );
+}
+
 function AccountsTab({ canWrite }: { canWrite: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -427,7 +509,14 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [feeType, setFeeType] = useState(initial.feeType);
   const [feeFixed, setFeeFixed] = useState((initial.feeFixedCents / 100).toFixed(2));
   const [feePayer, setFeePayer] = useState(initial.feePayer);
-  const [passProcessing, setPassProcessing] = useState(initial.passProcessingFeeToClient);
+  const [procPayer, setProcPayer] = useState(initial.processingFeePayer);
+  const [saveCards, setSaveCards] = useState(initial.saveCards);
+  const [allowInvoices, setAllowInvoices] = useState(initial.allowInvoices);
+  const [allowInstallments, setAllowInstallments] = useState(initial.allowInstallments);
+  const [maxInstallments, setMaxInstallments] = useState(String(initial.maxInstallments));
+  const [reminderDays, setReminderDays] = useState(initial.invoiceReminderDays.join(', '));
+  const [overdueEvery, setOverdueEvery] = useState(String(initial.overdueReminderEveryDays));
+  const [expireDays, setExpireDays] = useState(String(initial.invoiceExpireDays));
   const [procPercent, setProcPercent] = useState(String(initial.processingFeePercent));
   const [procFixed, setProcFixed] = useState(String(initial.processingFeeFixedCents));
   const [minAmount, setMinAmount] = useState((initial.minAmountCents / 100).toFixed(0));
@@ -444,19 +533,27 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const minC = dollarsToCents(minAmount);
   const maxC = dollarsToCents(maxAmount);
   const rd = Number(refundDays);
+  const mi = Number(maxInstallments);
+  const oe = Number(overdueEvery);
+  const ed = Number(expireDays);
+  const remind = reminderDays.split(/[,\s]+/).filter(Boolean).map(Number);
+  const remindOk = remind.length <= 6 && remind.every((n) => Number.isInteger(n) && n >= 0 && n <= 60);
   const valid =
     fixedCents != null && fixedCents >= 0 && fixedCents <= 100_000 &&
     Number.isFinite(pp) && pp >= 0 && pp <= 15 &&
     Number.isInteger(pf) && pf >= 0 && pf <= 500 &&
     minC != null && maxC != null && minC >= 50 && maxC >= minC &&
     Number.isInteger(rd) && rd >= 0 && rd <= 365 &&
+    Number.isInteger(mi) && mi >= 2 && mi <= 36 &&
+    Number.isInteger(oe) && oe >= 0 && oe <= 60 &&
+    Number.isInteger(ed) && ed >= 0 && ed <= 365 && remindOk &&
     disclaimerEn.trim().length > 0 && disclaimerEn.length <= 4000 &&
     disclaimerRu.trim().length > 0 && disclaimerRu.length <= 4000;
   const body = {
     feeType,
     feeFixedCents: fixedCents ?? 0,
     feePayer,
-    passProcessingFeeToClient: passProcessing,
+    processingFeePayer: procPayer,
     processingFeePercent: pp,
     processingFeeFixedCents: pf,
     minAmountCents: minC ?? 0,
@@ -464,10 +561,17 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     allowCustomAmount: allowCustom,
     allowPartial,
     refundWindowDays: rd,
+    saveCards,
+    allowInvoices,
+    allowInstallments,
+    maxInstallments: mi,
+    invoiceReminderDays: [...new Set(remind)].sort((a, b) => b - a),
+    overdueReminderEveryDays: oe,
+    invoiceExpireDays: ed,
     disclaimerEn: disclaimerEn.trim(),
     disclaimerRu: disclaimerRu.trim(),
   };
-  const dirty = (Object.keys(body) as (keyof typeof body)[]).some((k) => body[k] !== initial[k]);
+  const dirty = (Object.keys(body) as (keyof typeof body)[]).some((k) => JSON.stringify(body[k]) !== JSON.stringify(initial[k]));
 
   const save = useMutation({
     mutationFn: async () => (await api.PUT('/admin/case-payments/settings', { body })).data!.data,
@@ -481,9 +585,12 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const example = 100_000;
   const platformFee = feeType === 'fixed' ? (fixedCents ?? 0) : 0;
   const base = example + (feePayer === 'client' ? platformFee : 0);
-  const processing = passProcessing ? Math.max(0, Math.ceil((base + pf) / (1 - pp / 100)) - base) : 0;
+  const grossUp = Math.max(0, Math.ceil((base + pf) / (1 - pp / 100)) - base);
+  const processing = procPayer === 'client' ? grossUp : procPayer === 'split' ? Math.ceil(grossUp / 2) : 0;
   const clientTotal = base + processing;
   const attorneyNet = feePayer === 'attorney' ? example - platformFee : example;
+  const stripeFee = Math.round(clientTotal * (pp / 100) + pf);
+  const attorneyReceives = Math.max(0, clientTotal - platformFee - stripeFee);
 
   return (
     <motion.div {...fadeUp(0)}>
@@ -535,15 +642,19 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             </Field>
           </div>
 
-          <div className="mt-4 flex items-start justify-between gap-4 border-t border-line pt-4">
-            <div>
-              <h4 className="text-sm font-medium text-heading">Комиссия Stripe — на клиента</h4>
-              <p className="mt-1 text-sm text-muted">Stripe берёт свою плату с адвоката. Если включено, к сумме клиента добавляется оценка этой платы, и адвокат получает примерно всю сумму.</p>
-            </div>
-            <Switch checked={passProcessing} onChange={setPassProcessing} disabled={!canEdit} label="Комиссия Stripe на клиента" />
-          </div>
-          {passProcessing ? (
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 border-t border-line pt-4">
+            <h4 className="text-sm font-medium text-heading">Комиссия Stripe — кто платит</h4>
+            <p className="mt-1 text-sm text-muted">
+              Деньги списываются прямо на Stripe-аккаунт адвоката, и свою плату Stripe берёт с адвоката — платформа не платит ни при какой настройке. «Клиент» — к сумме добавляется оценка платы Stripe, и адвокат получает всю сумму; «пополам» — половина надбавки. Ставку Stripe держите здесь: поменяется тариф — поменяйте цифру.
+            </p>
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <Field label="Кто платит комиссию Stripe" htmlFor="cp-proc-payer">
+                <Select id="cp-proc-payer" value={procPayer} disabled={!canEdit} onChange={(e) => setProcPayer(e.target.value as Settings['processingFeePayer'])}>
+                  {(Object.keys(PROCESSING_FEE_PAYER) as Settings['processingFeePayer'][]).map((k) => (
+                    <option key={k} value={k}>{PROCESSING_FEE_PAYER[k]}</option>
+                  ))}
+                </Select>
+              </Field>
               <Field label="Ставка Stripe, %" htmlFor="cp-pp" hint="Обычно 2.9.">
                 <Input id="cp-pp" inputMode="decimal" value={procPercent} disabled={!canEdit} onChange={(e) => setProcPercent(e.target.value)} />
               </Field>
@@ -551,7 +662,37 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
                 <Input id="cp-pf" type="number" min={0} max={500} value={procFixed} disabled={!canEdit} onChange={(e) => setProcFixed(e.target.value)} />
               </Field>
             </div>
-          ) : null}
+          </div>
+
+          <div className="mt-4 border-t border-line pt-4">
+            <h4 className="text-sm font-medium text-heading">Счета от адвоката и удобство оплаты</h4>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-line p-3">
+                <span className="text-sm text-ink">Счета клиентам</span>
+                <Switch checked={allowInvoices} onChange={setAllowInvoices} disabled={!canEdit} label="Счета клиентам" />
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-line p-3">
+                <span className="text-sm text-ink">Рассрочка этапами</span>
+                <Switch checked={allowInstallments} onChange={setAllowInstallments} disabled={!canEdit || !allowInvoices} label="Рассрочка этапами" />
+              </div>
+              <Field label="Этапов максимум" htmlFor="cp-mi">
+                <Input id="cp-mi" type="number" min={2} max={36} value={maxInstallments} disabled={!canEdit || !allowInstallments} onChange={(e) => setMaxInstallments(e.target.value)} />
+              </Field>
+              <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-line p-3">
+                <span className="text-sm text-ink">Сохранять карты (Stripe)</span>
+                <Switch checked={saveCards} onChange={setSaveCards} disabled={!canEdit} label="Сохранять карты" />
+              </div>
+              <Field label="Напоминать за N дней до срока" htmlFor="cp-remind" hint="Через запятую, например 3, 1.">
+                <Input id="cp-remind" value={reminderDays} disabled={!canEdit} onChange={(e) => setReminderDays(e.target.value)} />
+              </Field>
+              <Field label="Просрочен: напоминать каждые, дней" htmlFor="cp-oe" hint="0 — не напоминать.">
+                <Input id="cp-oe" type="number" min={0} max={60} value={overdueEvery} disabled={!canEdit} onChange={(e) => setOverdueEvery(e.target.value)} />
+              </Field>
+              <Field label="Закрывать неоплаченный через, дней после срока" htmlFor="cp-ed" hint="0 — не закрывать.">
+                <Input id="cp-ed" type="number" min={0} max={365} value={expireDays} disabled={!canEdit} onChange={(e) => setExpireDays(e.target.value)} />
+              </Field>
+            </div>
+          </div>
 
           <div className="mt-4 grid gap-4 border-t border-line pt-4 sm:grid-cols-2 lg:grid-cols-4">
             <Field label="Минимум, $" htmlFor="cp-min">
@@ -571,8 +712,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           </div>
 
           <div className="mt-4 rounded-[var(--radius-md)] bg-surface-2 p-3 text-sm text-muted">
-            Пример на {usd(example)}: клиент платит <b className="text-ink">{usd(clientTotal, 2)}</b>, платформа получает <b className="text-ink">{usd(platformFee, 2)}</b>, адвокат — <b className="text-ink">{usd(attorneyNet, 2)}</b>
-            {passProcessing ? ' (минус плата Stripe, которую покрывает надбавка)' : ' минус плата Stripe'}.
+            Пример на {usd(example)}: клиент платит <b className="text-ink">{usd(clientTotal, 2)}</b>, платформа получает <b className="text-ink">{usd(platformFee, 2)}</b>, на баланс адвоката приходит <b className="text-ink">{usd(attorneyNet, 2)}</b>; Stripe удерживает с адвоката ≈ {usd(stripeFee, 2)}, адвокат получает на руки <b className="text-ink">≈ {usd(attorneyReceives, 2)}</b>.
           </div>
 
           <div className="mt-4 border-t border-line pt-4">

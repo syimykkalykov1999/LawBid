@@ -1,0 +1,62 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'case_payment_party_dto.dart';
+import 'payment_request_status.dart';
+
+part 'payment_request_dto.g.dart';
+
+@JsonSerializable()
+class PaymentRequestDto {
+  const PaymentRequestDto({
+    required this.id,
+    required this.caseId,
+    required this.caseTitle,
+    required this.amountCents,
+    required this.description,
+    required this.dueAt,
+    required this.status,
+    required this.overdue,
+    required this.planId,
+    required this.seq,
+    required this.total,
+    required this.paymentId,
+    required this.paidAt,
+    required this.createdAt,
+    required this.client,
+    required this.attorney,
+  });
+
+  factory PaymentRequestDto.fromJson(Map<String, Object?> json) =>
+      _$PaymentRequestDtoFromJson(json);
+
+  final String id;
+  final String caseId;
+  final String? caseTitle;
+  final int amountCents;
+  final String description;
+  final DateTime? dueAt;
+  final PaymentRequestStatus status;
+
+  /// Open and past its due date.
+  final bool overdue;
+
+  /// Installment plan this belongs to.
+  final String? planId;
+
+  /// 1-based installment number.
+  final int seq;
+
+  /// Installments in the plan.
+  final int total;
+  final String? paymentId;
+  final DateTime? paidAt;
+  final DateTime createdAt;
+  final CasePaymentPartyDto? client;
+  final CasePaymentPartyDto? attorney;
+
+  Map<String, Object?> toJson() => _$PaymentRequestDtoToJson(this);
+}

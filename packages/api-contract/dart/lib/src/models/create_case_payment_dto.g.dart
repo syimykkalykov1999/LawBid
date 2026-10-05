@@ -12,6 +12,7 @@ CreateCasePaymentDto _$CreateCasePaymentDtoFromJson(
   kind: CasePaymentKind.fromJson(json['kind'] as String),
   amountCents: (json['amountCents'] as num?)?.toInt(),
   note: json['note'] as String?,
+  requestId: json['requestId'] as String?,
 );
 
 Map<String, dynamic> _$CreateCasePaymentDtoToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$CreateCasePaymentDtoToJson(
   'kind': instance.kind.toJson(),
   'amountCents': ?instance.amountCents,
   'note': ?instance.note,
+  'requestId': ?instance.requestId,
 };

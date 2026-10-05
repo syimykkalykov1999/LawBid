@@ -461,6 +461,11 @@ enum NotificationType {
   case_payment_refunded
   case_payment_disputed
   payout_account_status
+  // Owner 2026-10-05: payment requests (invoices) from the attorney.
+  payment_request_created
+  payment_request_due
+  payment_request_overdue
+  payment_request_canceled
 
   @@map("notification_type")
 }
@@ -3034,8 +3039,10 @@ model CasePayment {
   bid_id                   String?   @db.Uuid
   client_id                String    @db.Uuid
   attorney_id              String    @db.Uuid
-  // bid | deposit | balance | custom
+  // bid | deposit | balance | custom | invoice
   kind                     String    @db.String(16)
+  // The attorney's payment request this pays (kind = invoice).
+  request_id               String?   @db.Uuid
   // pending_payment | succeeded | failed | canceled | refunded |
   // partially_refunded | disputed
   status                   String    @db.String(24)
@@ -3047,9 +3054,11 @@ model CasePayment {
   processing_fee_cents     Int       @default(0)
   client_total_cents       Int
   attorney_net_cents       Int
-  // fixed | percent | none; client | attorney
+  // fixed | none; client | attorney
   fee_type                 String    @db.String(16)
   fee_payer                String    @db.String(16)
+  // Who covered Stripe's card fee: client | attorney | split.
+  processing_fee_payer     String    @default("client") @db.String(16)
   currency                 String    @default("usd") @db.String(3)
   note                     String?   @db.String(200)
   stripe_account_id        String?
@@ -3071,7 +3080,54 @@ model CasePayment {
   @@index([client_id, created_at(sort: Desc)])
   @@index([attorney_id, created_at(sort: Desc)])
   @@index([status, created_at(sort: Desc)])
+  @@index([request_id])
   @@map("case_payments")
+}
+
+// Owner 2026-10-05: a payment request (invoice) the attorney sends the
+// client from the case: an amount, a description, an optional due date.
+// Installments = several requests sharing a plan_id. The client pays it in
+// two taps; reminders go out before and after the due date.
+model PaymentRequest {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id          String    @db.Uuid
+  attorney_id      String    @db.Uuid
+  client_id        String    @db.Uuid
+  // Who actually created it (the attorney or one of their assistants).
+  created_by       String    @db.Uuid
+  amount_cents     Int
+  description      String    @db.String(200)
+  due_at           DateTime? @db.Timestamptz
+  // open | paid | canceled | expired
+  status           String    @default("open") @db.String(16)
+  plan_id          String?   @db.Uuid
+  seq              Int       @default(1)
+  total            Int       @default(1)
+  payment_id       String?   @unique @db.Uuid
+  paid_at          DateTime? @db.Timestamptz
+  canceled_at      DateTime? @db.Timestamptz
+  last_reminded_at DateTime? @db.Timestamptz
+  reminders_sent   Int       @default(0)
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@index([case_id, created_at(sort: Desc)])
+  @@index([client_id, status, due_at])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([status, due_at])
+  @@map("payment_requests")
+}
+
+// Owner 2026-10-05: the client as a Stripe customer on one attorney's
+// connected account, so Checkout can offer their saved card next time.
+model ConnectedCustomer {
+  client_id          String   @db.Uuid
+  stripe_account_id  String
+  stripe_customer_id String
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@id([client_id, stripe_account_id])
+  @@map("connected_customers")
 }
 
 // A refund of a case payment, started by the attorney (the app), an admin

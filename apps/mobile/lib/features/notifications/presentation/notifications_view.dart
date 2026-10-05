@@ -100,7 +100,12 @@ String? notificationRoute({
     case 'case_payment_received' || 'case_payment_disputed':
       if (caseId == null) return CasePaymentsRoutes.history;
       return AppRoutes.workCase(caseId);
-    case 'case_payment_sent' || 'case_payment_refunded':
+    case 'case_payment_sent' ||
+          'case_payment_refunded' ||
+          'payment_request_created' ||
+          'payment_request_due' ||
+          'payment_request_overdue' ||
+          'payment_request_canceled':
       if (caseId == null) return CasePaymentsRoutes.history;
       return AppRoutes.myCase(caseId);
     case 'payout_account_status':
@@ -196,8 +201,13 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
       'case_payment_received' ||
       'case_payment_sent' ||
-      'case_payment_refunded' =>
+      'case_payment_refunded' ||
+      'payment_request_created' ||
+      'payment_request_canceled' =>
         AppIcons.paymentsOutlined,
+      'payment_request_due' ||
+      'payment_request_overdue' =>
+        AppIcons.scheduleRounded,
       'case_payment_disputed' => AppIcons.errorOutlineRounded,
       'payout_account_status' => AppIcons.accountBalanceOutlined,
       'assistant_task' => AppIcons.eventNoteRounded,

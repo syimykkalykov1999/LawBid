@@ -576,7 +576,20 @@ export class StripePaymentProvider implements PaymentProvider {
             },
           },
         ],
-        ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
+        ...(input.customerId
+          ? {
+              customer: input.customerId,
+              ...(input.saveCard
+                ? {
+                    saved_payment_method_options: {
+                      payment_method_save: 'enabled' as const,
+                    },
+                  }
+                : {}),
+            }
+          : input.customerEmail
+            ? { customer_email: input.customerEmail }
+            : {}),
         metadata: input.metadata,
         payment_intent_data: {
           metadata: input.metadata,
@@ -596,6 +609,23 @@ export class StripePaymentProvider implements PaymentProvider {
       },
     );
     return { id: s.id, url: s.url ?? '' };
+  }
+
+  async ensureConnectedCustomer(input: {
+    accountId: string;
+    email: string | null;
+    name: string | null;
+    metadata: Record<string, string>;
+  }): Promise<string> {
+    const c = await this.stripe.customers.create(
+      {
+        ...(input.email ? { email: input.email } : {}),
+        ...(input.name ? { name: input.name } : {}),
+        metadata: input.metadata,
+      },
+      { stripeAccount: input.accountId },
+    );
+    return c.id;
   }
 
   async retrieveConnectedCheckout(

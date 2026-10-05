@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -14,8 +15,11 @@ import {
   ApiBearerAuth,
   ApiHeader,
   ApiOperation,
+  ApiProduces,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -35,10 +39,14 @@ import {
   CasePaymentsStateDto,
   CreateCasePaymentDto,
   CreateCasePaymentResultDto,
+  CreatePaymentRequestsDto,
   MyCasePaymentsQueryDto,
   MyCasePaymentsSummaryDto,
   PaymentQuoteDto,
   PaymentQuoteQueryDto,
+  PaymentRequestDto,
+  PaymentRequestIdParamDto,
+  PaymentsExportQueryDto,
   PaymentSettingsPublicDto,
   PayoutAccountDto,
   PayoutAccountLinkDto,
@@ -165,6 +173,93 @@ export class CasePaymentsController {
     @Body() dto: CreateCasePaymentDto,
   ): Promise<CreateCasePaymentResultDto> {
     return this.payments.create(user, p.id, dto);
+  }
+
+  // ---- payment requests (invoices) -----------------------------------------
+
+  @Post('cases/:id/payment-requests')
+  @ApiOperation({
+    summary:
+      'Ask the client to pay: one request or an installment plan (attorney)',
+  })
+  @ApiEnvelopeResponse(PaymentRequestDto, { isArray: true, status: 201 })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR, E.PAYMENT_AMOUNT_INVALID],
+    403: [E.FORBIDDEN, E.FEATURE_DISABLED],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE, E.PAYOUT_ACCOUNT_NOT_READY],
+  })
+  createPaymentRequests(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CasePaymentCaseParamDto,
+    @Body() dto: CreatePaymentRequestsDto,
+  ): Promise<PaymentRequestDto[]> {
+    return this.payments.createRequests(user, p.id, dto);
+  }
+
+  @Get('cases/:id/payment-requests')
+  @ApiOperation({ summary: "A case's payment requests, newest first" })
+  @ApiEnvelopeResponse(PaymentRequestDto, { isArray: true })
+  @ApiErrors({ 404: [E.CASE_NOT_FOUND] })
+  listPaymentRequests(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CasePaymentCaseParamDto,
+  ): Promise<PaymentRequestDto[]> {
+    return this.payments.listRequests(user, p.id);
+  }
+
+  @Post('payment-requests/:id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Withdraw an open payment request (attorney)' })
+  @ApiEnvelopeResponse(PaymentRequestDto)
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.PAYMENT_INVALID_STATE] })
+  cancelPaymentRequest(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PaymentRequestIdParamDto,
+  ): Promise<PaymentRequestDto> {
+    return this.payments.cancelRequest(user, p.id);
+  }
+
+  // ---- documents --------------------------------------------------------------
+
+  @Get('payments/export.csv')
+  @ApiOperation({
+    summary:
+      'My payments as CSV for bookkeeping (attorney: received; client: paid)',
+  })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file.' })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  async exportMyCasePayments(
+    @CurrentUser() user: RequestUser,
+    @Query() q: PaymentsExportQueryDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const csv = await this.payments.exportCsv(user, q);
+    res
+      .type('text/csv')
+      .setHeader(
+        'Content-Disposition',
+        `attachment; filename="lawbid-payments-${new Date().toISOString().slice(0, 10)}.csv"`,
+      )
+      .send(csv);
+  }
+
+  @Get('payments/:id/receipt.pdf')
+  @ApiOperation({ summary: 'PDF receipt of one of my payments (both sides)' })
+  @ApiProduces('application/pdf')
+  @ApiResponse({ status: 200, description: 'PDF file.' })
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.PAYMENT_INVALID_STATE] })
+  async getCasePaymentReceipt(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CasePaymentIdParamDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { buffer, filename } = await this.payments.receiptPdf(user, p.id);
+    res
+      .type('application/pdf')
+      .setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(buffer);
   }
 
   // ---- single payment -------------------------------------------------------

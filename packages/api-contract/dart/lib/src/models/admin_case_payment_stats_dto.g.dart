@@ -19,6 +19,9 @@ AdminCasePaymentStatsDto _$AdminCasePaymentStatsDtoFromJson(
   payoutAccountsPending: (json['payoutAccountsPending'] as num).toInt(),
   volumeAllCents: (json['volumeAllCents'] as num).toInt(),
   platformFeesAllCents: (json['platformFeesAllCents'] as num).toInt(),
+  openRequests: (json['openRequests'] as num).toInt(),
+  openRequestsCents: (json['openRequestsCents'] as num).toInt(),
+  overdueRequests: (json['overdueRequests'] as num).toInt(),
 );
 
 Map<String, dynamic> _$AdminCasePaymentStatsDtoToJson(
@@ -34,4 +37,7 @@ Map<String, dynamic> _$AdminCasePaymentStatsDtoToJson(
   'payoutAccountsPending': instance.payoutAccountsPending,
   'volumeAllCents': instance.volumeAllCents,
   'platformFeesAllCents': instance.platformFeesAllCents,
+  'openRequests': instance.openRequests,
+  'openRequestsCents': instance.openRequestsCents,
+  'overdueRequests': instance.overdueRequests,
 };
