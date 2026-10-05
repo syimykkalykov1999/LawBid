@@ -16,6 +16,7 @@ export type CommissionStatus =
   components["schemas"]["PartnerCommissionStatus"];
 export type CommissionKind = components["schemas"]["PartnerCommissionKind"];
 export type ClientRule = components["schemas"]["PartnerClientRule"];
+export type JoinMode = components["schemas"]["PartnerJoinMode"];
 export type PartnerStatus = components["schemas"]["PartnerStatus"];
 
 export const COMMISSION_STATUSES: CommissionStatus[] = [
@@ -25,6 +26,7 @@ export const COMMISSION_STATUSES: CommissionStatus[] = [
   "reversed",
 ];
 export const CLIENT_RULES: ClientRule[] = ["case_published", "bid_accepted"];
+export const JOIN_MODES: JoinMode[] = ["open", "approval", "closed"];
 
 /** "$50.00" ↔ cents in an input. */
 export function centsToText(c: number | null | undefined): string {

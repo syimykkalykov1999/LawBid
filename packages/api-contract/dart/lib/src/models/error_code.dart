@@ -358,6 +358,12 @@ enum ErrorCode {
   planInUse('PLAN_IN_USE'),
   @JsonValue('ENTITLEMENT_REQUIRED')
   entitlementRequired('ENTITLEMENT_REQUIRED'),
+  @JsonValue('OUTREACH_IMPORT_INVALID')
+  outreachImportInvalid('OUTREACH_IMPORT_INVALID'),
+  @JsonValue('OUTREACH_INVALID_STATE')
+  outreachInvalidState('OUTREACH_INVALID_STATE'),
+  @JsonValue('OUTREACH_EMAIL_LIMIT')
+  outreachEmailLimit('OUTREACH_EMAIL_LIMIT'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

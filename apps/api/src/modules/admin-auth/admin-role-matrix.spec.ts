@@ -56,6 +56,11 @@ const PROBES: [string, string, string][] = [
     '/api/v1/admin/sanctions/bans',
     '/api/v1/admin/sanctions/users/x/block',
   ],
+  [
+    'outreach',
+    '/api/v1/admin/outreach/leads',
+    '/api/v1/admin/outreach/leads/x/activities',
+  ],
 ];
 const SUPER_ONLY = [
   '/api/v1/admin/billing/payments',

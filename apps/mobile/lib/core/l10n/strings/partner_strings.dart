@@ -10,6 +10,8 @@ const partnerRu = <String, String>{
   'partner.copied': 'Ссылка скопирована',
   'partner.share': 'Поделиться',
   'partner.shareText': 'Присоединяйся к LawBid по моей ссылке! Код {code}',
+  'partner.status.pending':
+      'Заявка отправлена. Команда LawBid рассмотрит её, и ссылка заработает — мы пришлём уведомление.',
   'partner.status.paused':
       'Программа для вас приостановлена: новые начисления не идут, уже начисленное будет выплачено.',
   'partner.status.ended':
@@ -51,6 +53,25 @@ const partnerRu = <String, String>{
   'partner.off.title': 'Вы не участник программы',
   'partner.off.message':
       'Партнёров подключает команда LawBid. Напишите в поддержку, если хотите приводить адвокатов и клиентов за вознаграждение.',
+  'partner.disabled.title': 'Программа временно закрыта',
+  'partner.disabled.message':
+      'Партнёрская программа сейчас выключена. Уже начисленное сохраняется; новые начисления не идут.',
+  'partner.join.hint':
+      'Приводите адвокатов и клиентов — получайте вознаграждение',
+  'partner.join.rates': 'Ставки программы',
+  'partner.join.button': 'Стать партнёром',
+  'partner.join.note':
+      'Нажимая кнопку, вы получаете личную ссылку. Начисления проходят проверку и выплачиваются командой LawBid.',
+  'partner.join.done': 'Вы партнёр LawBid. Ваша ссылка готова',
+  'partner.join.note.approval':
+      'Нажимая кнопку, вы отправляете заявку. После одобрения командой LawBid вы получите личную ссылку.',
+  'partner.join.sent': 'Заявка отправлена',
+  'notif.system.partner_approved.title': 'Вы партнёр LawBid',
+  'notif.system.partner_approved.body':
+      'Заявка одобрена. Ваша партнёрская ссылка готова в настройках.',
+  'notif.system.partner_declined.title': 'Заявка партнёра отклонена',
+  'notif.system.partner_declined.body':
+      'Команда LawBid пока не одобрила вашу заявку на участие в программе.',
   'notif.system.partner_commission.title': 'Партнёрское начисление',
   'notif.system.partner_commission.body':
       'Приглашённый вами выполнил условие. Вознаграждение начислено.',
@@ -67,6 +88,8 @@ const partnerEn = <String, String>{
   'partner.copied': 'Link copied',
   'partner.share': 'Share',
   'partner.shareText': 'Join me on LawBid with my link! Code {code}',
+  'partner.status.pending':
+      'Your request is in. The LawBid team will review it; your link starts working after approval and we will notify you.',
   'partner.status.paused':
       'The program is paused for you: nothing new accrues, what was accrued will be paid.',
   'partner.status.ended':
@@ -108,6 +131,24 @@ const partnerEn = <String, String>{
   'partner.off.title': 'You are not in the program',
   'partner.off.message':
       'The LawBid team enrolls partners. Contact support if you would like to bring attorneys and clients for a reward.',
+  'partner.disabled.title': 'The program is closed for now',
+  'partner.disabled.message':
+      'The partner program is switched off. What you earned stays; nothing new accrues.',
+  'partner.join.hint': 'Bring attorneys and clients, get paid for each',
+  'partner.join.rates': 'Program rates',
+  'partner.join.button': 'Become a partner',
+  'partner.join.note':
+      'Tapping the button gives you a personal link. Earnings are checked and paid out by the LawBid team.',
+  'partner.join.done': 'You are a LawBid partner. Your link is ready',
+  'partner.join.note.approval':
+      'Tapping the button sends a request. Once the LawBid team approves it, you get a personal link.',
+  'partner.join.sent': 'Request sent',
+  'notif.system.partner_approved.title': 'You are a LawBid partner',
+  'notif.system.partner_approved.body':
+      'Your request is approved. Your partner link is ready in Settings.',
+  'notif.system.partner_declined.title': 'Partner request declined',
+  'notif.system.partner_declined.body':
+      'The LawBid team did not approve your partner request this time.',
   'notif.system.partner_commission.title': 'Partner earnings',
   'notif.system.partner_commission.body':
       'Someone you brought to LawBid qualified. Your commission is accrued.',

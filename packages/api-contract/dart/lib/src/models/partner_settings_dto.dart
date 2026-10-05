@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'partner_client_rule.dart';
+import 'partner_join_mode.dart';
 import 'partner_texts_by_lang_dto.dart';
 
 part 'partner_settings_dto.g.dart';
@@ -18,12 +19,16 @@ class PartnerSettingsDto {
     required this.clientRule,
     required this.holdDays,
     required this.texts,
+    this.joinMode,
   });
 
   factory PartnerSettingsDto.fromJson(Map<String, Object?> json) =>
       _$PartnerSettingsDtoFromJson(json);
 
   final bool enabled;
+
+  /// open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners. Omitted = keep the current mode.
+  final PartnerJoinMode? joinMode;
   final int attorneyRateCents;
   final int clientRateCents;
   final PartnerClientRule clientRule;

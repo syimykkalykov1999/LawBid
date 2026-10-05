@@ -15,6 +15,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
 import type { PaymentProvider } from '../billing/payment-provider';
+import { OutreachService } from '../outreach/outreach.service';
 import { PartnersService } from '../partners/partners.service';
 import {
   generateReferralCode,
@@ -99,6 +100,7 @@ export class ReferralsService {
     private readonly provider?: PaymentProvider,
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly partners?: PartnersService,
+    @Optional() private readonly outreach?: OutreachService,
   ) {}
 
   // ---- settings ---------------------------------------------------------
@@ -236,9 +238,12 @@ export class ReferralsService {
     const codeOwner = await this.prisma.referralCode.findUnique({
       where: { code },
     });
-    const partner = codeOwner
-      ? await this.partners?.activePartnerOf(codeOwner.user_id)
-      : null;
+    // A switched-off partner program attributes nobody (owner 2026-10-05:
+    // "выключил — никто не зарабатывает").
+    const partner =
+      codeOwner && (await this.partners?.programEnabled())
+        ? await this.partners?.activePartnerOf(codeOwner.user_id)
+        : null;
     if (!settings.enabled && !partner) {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
@@ -342,6 +347,9 @@ export class ReferralsService {
       }
       throw e;
     }
+    // Owner 2026-10-05: a cold-outreach lead with this email or phone is
+    // now a registered user (never throws).
+    await this.outreach?.onReferralApplied(userId, owner.user_id);
 
     // The qualifying action may already have happened (e.g. the client
     // posted a case before entering the code).
@@ -398,7 +406,13 @@ export class ReferralsService {
       }
       // Owner 2026-10-05: the partner program accrues on the same events
       // (plus bid_accepted); it never throws either.
-      await this.partners?.onQualifyingEvent(userId, kind);
+      const commission = await this.partners?.onQualifyingEvent(userId, kind);
+      if (commission) {
+        await this.outreach?.onCommission(
+          commission.referred_user_id,
+          commission.kind,
+        );
+      }
     } catch (e) {
       this.logger.warn(
         { userId, kind, err: String(e) },

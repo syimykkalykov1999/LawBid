@@ -394,4 +394,10 @@ export enum ErrorCode {
   PLAN_IN_USE = 'PLAN_IN_USE',
   // 403: the plan does not include this feature (video calls, templates).
   ENTITLEMENT_REQUIRED = 'ENTITLEMENT_REQUIRED',
+  // Owner 2026-10-05 — outreach (Привлечение). 400: the CSV/registry
+  // import is unusable; 409: lead unsubscribed / no email / status change
+  // not valid; 429: the partner's daily email limit is spent.
+  OUTREACH_IMPORT_INVALID = 'OUTREACH_IMPORT_INVALID',
+  OUTREACH_INVALID_STATE = 'OUTREACH_INVALID_STATE',
+  OUTREACH_EMAIL_LIMIT = 'OUTREACH_EMAIL_LIMIT',
 }
