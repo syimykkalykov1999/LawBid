@@ -295,6 +295,11 @@ export class CaseFeedItemDto {
   @ApiProperty({ description: 'Promoted by its client right now.' })
   promoted!: boolean;
 
+  @ApiProperty({
+    description:
+      "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).",
+  })
+  priorityClient!: boolean;
   /** Owner 2026-10-05: how complete the case is (counts only). */
   @ApiProperty({ type: CaseDossierDto })
   dossier!: CaseDossierDto;
@@ -314,6 +319,12 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
       'The attorney\'s own bid on this case (§4.3: shown instead of "Сделать бид").',
   })
   ownBidId!: string | null;
+
+  @ApiProperty({
+    description:
+      "True when this attorney's bid is the case's accepted one (the hired lawyer: open the work screen).",
+  })
+  acceptedBidIsMine!: boolean;
 
   @ApiPropertyOptional({
     enum: ['client', 'attorney'],

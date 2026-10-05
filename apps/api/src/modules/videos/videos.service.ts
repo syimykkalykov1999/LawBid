@@ -4,12 +4,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { VideoAsset, VideoAssetStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -92,6 +94,7 @@ export class VideosService {
     private readonly settings: AppSettingsService,
     private readonly limits: UsageLimitsService,
     private readonly costGuard: CostGuardService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** The flag is on and every Bunny key is set. */
@@ -121,6 +124,16 @@ export class VideosService {
     dto: CreateVideoUploadDto,
   ): Promise<VideoUploadDto> {
     await this.assertAvailable();
+    // Owner 2026-10-05 (plan builder): video posts are a plan term.
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(userId, 'video_posts'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include video posts.',
+      });
+    }
     const maxSec = await this.settings.number('video.max_duration_sec');
     const maxMb = await this.settings.number('video.max_size_mb');
     const sourceSec = await this.sourceLimitSec(maxSec);
@@ -165,7 +178,7 @@ export class VideosService {
       });
     }
     await this.limits.consume('video_upload', userId);
-    await this.costGuard.consume('storage');
+    await this.costGuard.consume('video');
     const keys = (await this.bunny.keys())!;
     const guid = await this.bunny.createVideo(
       dto.title?.trim() || 'LawBid',
@@ -254,6 +267,19 @@ export class VideosService {
             status: 'rejected',
             failure_reason: 'too_long',
             duration_sec: Math.round(v.length),
+          },
+        });
+      }
+      // The phone also declared the size; a TUS upload can be far bigger.
+      // 3× leaves room for the encoded renditions Bunny stores alongside.
+      const maxMb = await this.settings.number('video.max_size_mb');
+      if ((v.storageSize || 0) > 3 * maxMb * 1024 * 1024) {
+        return this.prisma.videoAsset.update({
+          where: { id: a.id },
+          data: {
+            status: 'rejected',
+            failure_reason: 'too_large',
+            storage_bytes: BigInt(Math.round(v.storageSize)),
           },
         });
       }

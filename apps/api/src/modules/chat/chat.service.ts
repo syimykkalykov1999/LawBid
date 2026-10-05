@@ -19,6 +19,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
+import { caseWorkOngoing } from '../blocks/block-guard';
 import { PresenceService } from '../presence/presence.service';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { isImageMime } from '../files/files.policy';
@@ -287,6 +288,8 @@ export class ChatService {
       },
       update: data,
     });
+    // A hidden chat leaves the unread badge (and comes back when unhidden).
+    if (dto.hidden !== undefined) await this.badges.chatsChanged(user.sub);
     return this.get(user, id);
   }
 
@@ -480,11 +483,14 @@ export class ChatService {
         message: 'This person does not accept your messages.',
       });
     }
-    // OQ-028: no messages either way while one side blocks the other.
-    await this.blocks.assertNotBlocked(
-      user.sub,
-      user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id,
-    );
+    // OQ-028: no messages either way while one side blocks the other —
+    // except the chat of a case in progress (blocks leave it untouched).
+    if (!(await caseWorkOngoing(this.prisma, conv))) {
+      await this.blocks.assertNotBlocked(
+        user.sub,
+        user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id,
+      );
+    }
     if (
       user.sub === conv.attorney_id &&
       !(await this.subscriptions.isActive(user.sub))
@@ -1180,6 +1186,7 @@ export class ChatService {
         kind: c.case_id ? 'case' : 'direct',
         requestStatus: c.request_status,
         requestedByMe: c.requested_by === viewerId,
+        blocked: blockedIds.has(otherId),
         updatedAt: c.updated_at,
         ...(() => {
           const me = partOf.get(`${c.id}:${viewerId}`);

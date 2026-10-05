@@ -32,6 +32,7 @@ class CaseFeedItemDto {
     required this.shareCount,
     required this.isSaved,
     required this.promoted,
+    required this.priorityClient,
     required this.dossier,
     this.city,
     this.coverKey,
@@ -79,6 +80,9 @@ class CaseFeedItemDto {
 
   /// Promoted by its client right now.
   final bool promoted;
+
+  /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
+  final bool priorityClient;
 
   /// Owner 2026-10-05: how complete the case is (counts only).
   final CaseDossierDto dossier;

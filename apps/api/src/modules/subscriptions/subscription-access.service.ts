@@ -1,8 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { EntitlementsService } from '../plans/entitlements.service';
+import { subscriptionRowIsActive } from './subscription-rules';
 import {
   type ActiveGrant,
   findActiveGrant,
@@ -30,6 +32,8 @@ export class SubscriptionAccessService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-05: the plan's terms are cached per user as well.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   async isActive(attorneyId: string, db?: Db): Promise<boolean> {
@@ -46,6 +50,7 @@ export class SubscriptionAccessService {
 
   async invalidate(attorneyId: string): Promise<void> {
     await this.redis.del(key(attorneyId)).catch(() => undefined);
+    await this.entitlements?.invalidateUser(attorneyId);
   }
 
   /** Pure rule over a row — shared with the sync service's transition check. */
@@ -53,13 +58,7 @@ export class SubscriptionAccessService {
     row: { status: string; grace_ends_at: Date | null } | null,
     now = new Date(),
   ): boolean {
-    if (!row) return false;
-    if (row.status === 'trialing' || row.status === 'active') return true;
-    return (
-      row.status === 'past_due' &&
-      !!row.grace_ends_at &&
-      row.grace_ends_at > now
-    );
+    return subscriptionRowIsActive(row, now);
   }
 
   /** Owner 2026-10-02: the attorney's active contract grant (uncached). */

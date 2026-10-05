@@ -13,6 +13,7 @@ import { PushModule } from '../modules/notifications/push/push.module';
 import { CountersModule } from '../modules/counters/counters.module';
 import { RealtimeModule } from '../modules/realtime/realtime.module';
 import { BillingModule } from '../modules/billing/billing.module';
+import { PlansCoreModule } from '../modules/plans/plans.module';
 import { PrivacyModule } from '../modules/privacy/privacy.module';
 import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout.module';
 
@@ -59,6 +60,7 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,
     // docs/06 §1.5: stripe webhook processing + trial reminders.
+    PlansCoreModule,
     BillingModule.register({ mode: 'worker' }),
     // docs/06 §5 (stage 6.9): data export ZIP worker.
     PrivacyModule.register({ mode: 'worker' }),

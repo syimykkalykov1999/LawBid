@@ -54,7 +54,7 @@ export class PostVideosController {
   @ApiOperation({ summary: 'Start a direct video upload (TUS credentials)' })
   @ApiEnvelopeResponse(VideoUploadDto, { status: 201 })
   @ApiErrors({
-    403: [E.VIDEO_UNAVAILABLE, E.POST_NOT_ALLOWED],
+    403: [E.VIDEO_UNAVAILABLE, E.POST_NOT_ALLOWED, E.ENTITLEMENT_REQUIRED],
     409: [E.VIDEO_NOT_READY],
     422: [E.VIDEO_TOO_LONG],
     429: [E.RATE_LIMITED],

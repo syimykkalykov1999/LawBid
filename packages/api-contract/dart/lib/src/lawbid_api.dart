@@ -22,6 +22,7 @@ import 'clients/admin_data_requests_client.dart';
 import 'clients/admin_config_client.dart';
 import 'clients/subscriptions_client.dart';
 import 'clients/admin_subscriptions_client.dart';
+import 'clients/plans_client.dart';
 import 'clients/assistants_client.dart';
 import 'clients/admin_teams_client.dart';
 import 'clients/posts_client.dart';
@@ -41,6 +42,8 @@ import 'clients/clients_client.dart';
 import 'clients/blocks_client.dart';
 import 'clients/admin_content_client.dart';
 import 'clients/admin_media_client.dart';
+import 'clients/document_templates_client.dart';
+import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
 import 'clients/billing_client.dart';
 import 'clients/support_client.dart';
@@ -103,6 +106,7 @@ class LawbidApi {
   AdminConfigClient? _adminConfig;
   SubscriptionsClient? _subscriptions;
   AdminSubscriptionsClient? _adminSubscriptions;
+  PlansClient? _plans;
   AssistantsClient? _assistants;
   AdminTeamsClient? _adminTeams;
   PostsClient? _posts;
@@ -122,6 +126,8 @@ class LawbidApi {
   BlocksClient? _blocks;
   AdminContentClient? _adminContent;
   AdminMediaClient? _adminMedia;
+  DocumentTemplatesClient? _documentTemplates;
+  AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
   BillingClient? _billing;
   SupportClient? _support;
@@ -205,6 +211,8 @@ class LawbidApi {
   AdminSubscriptionsClient get adminSubscriptions =>
       _adminSubscriptions ??= AdminSubscriptionsClient(_dio, baseUrl: _baseUrl);
 
+  PlansClient get plans => _plans ??= PlansClient(_dio, baseUrl: _baseUrl);
+
   AssistantsClient get assistants =>
       _assistants ??= AssistantsClient(_dio, baseUrl: _baseUrl);
 
@@ -255,6 +263,15 @@ class LawbidApi {
 
   AdminMediaClient get adminMedia =>
       _adminMedia ??= AdminMediaClient(_dio, baseUrl: _baseUrl);
+
+  DocumentTemplatesClient get documentTemplates =>
+      _documentTemplates ??= DocumentTemplatesClient(_dio, baseUrl: _baseUrl);
+
+  AdminDocumentTemplatesClient get adminDocumentTemplates =>
+      _adminDocumentTemplates ??= AdminDocumentTemplatesClient(
+        _dio,
+        baseUrl: _baseUrl,
+      );
 
   AdminBillingClient get adminBilling =>
       _adminBilling ??= AdminBillingClient(_dio, baseUrl: _baseUrl);

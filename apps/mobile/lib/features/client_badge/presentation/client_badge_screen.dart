@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
 import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
@@ -44,8 +45,13 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
   // Back from Stripe's page: show the new state.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) ref.invalidate(clientBadgeProvider);
+    if (state == AppLifecycleState.resumed) _reload();
   }
+
+  /// The badge state and the public profile that shows the badge.
+  void _reload() => ref
+    ..invalidate(clientBadgeProvider)
+    ..invalidate(publicClientProfileProvider);
 
   Future<void> _add() async {
     final doc =
@@ -82,7 +88,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
       await ref.read(clientBadgeRepositoryProvider).submit(ids);
       if (!mounted) return;
       setState(_docs.clear);
-      ref.invalidate(clientBadgeProvider);
+      _reload();
       showAppSnackBar(context, t.t('cbadge.sent'));
     } on Object catch (e) {
       if (mounted) {
@@ -121,7 +127,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
     setState(() => _busy = true);
     try {
       await ref.read(clientBadgeRepositoryProvider).setCancel(cancel: cancel);
-      ref.invalidate(clientBadgeProvider);
+      _reload();
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {
@@ -222,28 +228,54 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
           ],
         );
       }
+      // Owner 2026-10-05 (plan builder): the plan covers the badge — no
+      // buy button, the badge comes with the approval.
+      Widget includedCard() => card([
+            Row(
+              children: [
+                AppIcon(AppIcons.verifiedRounded, color: colors.gold, size: 28),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    t.t('plan.badge.included'),
+                    key: const ValueKey('cbadge-included-in-plan'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              t.t('plan.badge.included.hint'),
+              style: type.body.copyWith(color: colors.textSecondary),
+            ),
+          ]);
       if (s.canSubscribe) {
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.screenSide),
           children: [
-            card([
-              Text(
-                t.t('cbadge.approved.title'),
-                style: type.titleMedium.copyWith(color: colors.text),
+            if (s.includedInPlan)
+              includedCard()
+            else ...[
+              card([
+                Text(
+                  t.t('cbadge.approved.title'),
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  t.t('cbadge.approved.text', {'price': price}),
+                  style: type.body.copyWith(color: colors.textSecondary),
+                ),
+              ]),
+              const SizedBox(height: AppSpacing.lg),
+              AppButton(
+                label: t.t('cbadge.pay', {'price': price}),
+                icon: AppIcons.verifiedRounded,
+                isLoading: _busy,
+                onPressed: _pay,
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                t.t('cbadge.approved.text', {'price': price}),
-                style: type.body.copyWith(color: colors.textSecondary),
-              ),
-            ]),
-            const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: t.t('cbadge.pay', {'price': price}),
-              icon: AppIcons.verifiedRounded,
-              isLoading: _busy,
-              onPressed: _pay,
-            ),
+            ],
           ],
         );
       }
@@ -335,10 +367,13 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               onPressed: _busy ? null : _add,
             ),
           const SizedBox(height: AppSpacing.lg),
-          Text(
-            t.t('cbadge.price', {'price': price}),
-            style: type.bodySmall.copyWith(color: colors.textSecondary),
-          ),
+          if (s.includedInPlan)
+            includedCard()
+          else
+            Text(
+              t.t('cbadge.price', {'price': price}),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: _progress == null

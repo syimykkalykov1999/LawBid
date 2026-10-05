@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
@@ -49,6 +52,72 @@ void main() {
       await c.read(socialActionsProvider).like(fakePost('p1', liked: true));
       expect(repo.likeCalls, isEmpty);
     });
+  });
+
+  test("deleting a post reloads the author's profile grid", () async {
+    final repo = FakeSocialRepository(posts: [fakePost('p1')]);
+    final c = ProviderContainer(overrides: socialOverrides(repo));
+    addTearDown(c.dispose);
+    final sub = c.listen(attorneyPostsProvider('att-1'), (_, __) {});
+    addTearDown(sub.close);
+    await c.read(attorneyPostsProvider('att-1').future);
+    expect(repo.attorneyPostsCalls, 1);
+    await c.read(socialActionsProvider).deletePost(fakePost('p1'));
+    await c.read(attorneyPostsProvider('att-1').future);
+    expect(repo.attorneyPostsCalls, 2);
+    expect(c.read(deletedPostsProvider), contains('p1'));
+  });
+
+  testWidgets('tapping your own name opens the Profile tab, not a copy',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/start',
+      routes: [
+        GoRoute(
+          path: '/start',
+          builder: (_, __) => Consumer(
+            builder: (context, ref, _) => Column(
+              children: [
+                TextButton(
+                  onPressed: () =>
+                      openProfile(context, ref, id: 'me', username: 'mine'),
+                  child: const Text('me'),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      openProfile(context, ref, id: 'x', username: 'other'),
+                  child: const Text('other'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.profile,
+          builder: (_, __) => const Text('PROFILE TAB'),
+        ),
+        GoRoute(
+          path: '/lawyer/:u',
+          builder: (_, s) => Text('LAWYER ${s.pathParameters['u']}'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [currentUserIdProvider.overrideWithValue('me')],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.tap(find.text('other'));
+    await tester.pumpAndSettle();
+    expect(find.text('LAWYER other'), findsOneWidget);
+    router.go('/start');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('me'));
+    await tester.pumpAndSettle();
+    expect(find.text('PROFILE TAB'), findsOneWidget);
+    expect(router.canPop(), isFalse);
   });
 
   test('offline feed falls back to the cached first page (§2.3)', () async {

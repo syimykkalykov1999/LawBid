@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
@@ -19,12 +20,56 @@ import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
+
+/** Journal reason of the hourly subscription-lapse withdrawal. */
+export const WITHDRAW_REASON_SUBSCRIPTION_LAPSED = 'subscription_lapsed';
+
+function bidAlreadyExists(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.BID_ALREADY_EXISTS,
+    message: 'You already have a bid on this case.',
+  });
+}
+
+/**
+ * May the attorney's earlier bid row on this (open) case be reused as a
+ * new bid? Only when the system ended it, not a party:
+ *  - `rejected_auto` on a case that is open again: the case was archived
+ *    (auto/admin/suspension) and then restored — no other path brings a
+ *    case with auto-rejected bids back to `open`;
+ *  - `withdrawn` by the subscription-lapse job (journal reason).
+ * The attorney's own withdrawal and the client's rejection stay final.
+ */
+export async function reusableBid(
+  tx: Prisma.TransactionClient,
+  caseId: string,
+  attorneyId: string,
+  bid: { id: string; status: Bid['status'] },
+): Promise<boolean> {
+  if (bid.status === 'rejected_auto') return true; // caller checked `open`
+  if (bid.status !== 'withdrawn') return false;
+  const rows = await tx.caseJournal.findMany({
+    where: {
+      case_id: caseId,
+      attorney_id: attorneyId,
+      event_type: 'bid_withdrawn',
+    },
+    orderBy: { created_at: 'desc' },
+    select: { payload: true },
+    take: 20,
+  });
+  const last = rows
+    .map((r) => r.payload as { bidId?: unknown; reason?: unknown } | null)
+    .find((p) => p?.bidId === bid.id);
+  return last?.reason === WITHDRAW_REASON_SUBSCRIPTION_LAPSED;
+}
 
 /**
  * docs/04_CASES_BIDS.md §5–§6 (stage 4.4): bid creation, withdraw,
@@ -44,11 +89,14 @@ export class BidsService {
     private readonly caseAccess: CaseAccessPolicy,
     private readonly chat: ChatSystemMessages,
     private readonly trust: AttorneyTrustService,
+    // Owner 2026-10-05: the plan's terms (offers in any state, offer limit).
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** POST /cases/:caseId/bids (§5.1). One active-or-ever bid per attorney
    * per case (UQ bids(case_id, attorney_id)): a second attempt — even
-   * after the first was withdrawn — is BID_ALREADY_EXISTS. */
+   * after the first was withdrawn — is BID_ALREADY_EXISTS, except when
+   * the system (not a party) ended the first one: see reusableBid(). */
   async create(
     user: RequestUser,
     caseId: string,
@@ -72,9 +120,22 @@ export class BidsService {
       { userId: user.sub, role: 'attorney' },
       caseId,
     );
-    // Owner 2026-09-30 / 2026-10-04: an attorney may bid on ANY open case —
-    // any state, any practice (incl. "Not sure"). A mismatch never blocks;
-    // the bid is marked and the client sees it before accepting.
+    // Owner 2026-10-04: any open case can be viewed; an offer outside the
+    // states of a verified licence needs the plan's "offers in any state"
+    // (owner 2026-10-05, plan builder — on by default).
+    if (
+      access.kind === 'attorney_browser' &&
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'bids_any_state'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.LICENSE_STATE_REQUIRED,
+        message:
+          'You can send an offer only in states where you hold a verified licence.',
+      });
+    }
+    // Owner 2026-09-30: bids outside the attorney's practices are allowed
+    // and marked (the client is warned).
     const outsidePractice = access.kind !== 'owner' && !access.inPractice;
     const outsideLicensedStates =
       access.kind !== 'owner' && !access.inLicensedState;
@@ -85,9 +146,26 @@ export class BidsService {
         message: 'An active subscription or trial is required to bid.',
       });
     }
-    // Owner 2026-10-05 (trust levels): the bid gate — minimum level
-    // `trust.min_level_bids` and no hold (a client's fraud complaint).
+    // Owner 2026-10-05 (anti-fraud): the bid gate — `trust.bids_require_cleared`
+    // and no hold (a client's fraud complaint) / suspension.
     await this.trust.assertCanBid(user.sub);
+    // Owner 2026-10-05 (plan builder): the plan may cap open offers.
+    const maxActive = await this.entitlements?.limit(
+      user.sub,
+      'max_active_bids',
+    );
+    if (maxActive && maxActive > 0) {
+      const open = await this.prisma.bid.count({
+        where: { attorney_id: user.sub, status: 'active' },
+      });
+      if (open >= maxActive) {
+        throw new ConflictException({
+          code: ErrorCode.BID_LIMIT_REACHED,
+          message: 'Your plan allows no more open offers at once.',
+          details: { limit: maxActive, open },
+        });
+      }
+    }
 
     try {
       const bid = await withTxRetry(this.prisma, async (tx) => {
@@ -104,23 +182,44 @@ export class BidsService {
           });
         }
         const now = new Date();
-        const created = await tx.bid.create({
-          data: {
-            case_id: caseId,
-            attorney_id: user.sub,
-            status: 'active',
-            fee_type: dto.feeType,
-            amount_cents: amountCents,
-            message: dto.message,
-            start_availability: dto.startAvailability,
-            start_date: dto.startDate ? new Date(dto.startDate) : null,
-            estimated_duration_days: dto.estimatedDurationDays ?? null,
-            round_count: 0,
-            turn: 'client',
-            outside_practice: outsidePractice,
-            outside_licensed_states: outsideLicensedStates,
+        const fresh = {
+          status: 'active',
+          fee_type: dto.feeType,
+          amount_cents: amountCents,
+          message: dto.message,
+          start_availability: dto.startAvailability,
+          start_date: dto.startDate ? new Date(dto.startDate) : null,
+          estimated_duration_days: dto.estimatedDurationDays ?? null,
+          round_count: 0,
+          turn: 'client',
+          outside_practice: outsidePractice,
+          outside_licensed_states: outsideLicensedStates,
+        } satisfies Prisma.BidUncheckedUpdateInput;
+        const previous = await tx.bid.findUnique({
+          where: {
+            case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
           },
+          select: { id: true, status: true },
         });
+        let created: Bid;
+        if (previous) {
+          if (!(await reusableBid(tx, caseId, user.sub, previous))) {
+            throw bidAlreadyExists();
+          }
+          // The system ended the old bid (case archived then restored, or
+          // a subscription lapse): it becomes a brand-new bid. Its old
+          // rounds go — the journal keeps that history — so round_no
+          // restarts at 0 (§6.1 invariant round_no = round_count).
+          await tx.bidOffer.deleteMany({ where: { bid_id: previous.id } });
+          created = await tx.bid.update({
+            where: { id: previous.id },
+            data: { ...fresh, decided_at: null, created_at: now },
+          });
+        } else {
+          created = await tx.bid.create({
+            data: { case_id: caseId, attorney_id: user.sub, ...fresh },
+          });
+        }
         const offer = await tx.bidOffer.create({
           data: {
             bid_id: created.id,
@@ -136,7 +235,8 @@ export class BidsService {
         await tx.case.update({
           where: { id: caseId },
           data: {
-            bids_count: { increment: 1 },
+            // bids_count counts bid rows; a reused row is already counted.
+            ...(previous ? {} : { bids_count: { increment: 1 } }),
             last_activity_at: now,
           },
         });
@@ -173,12 +273,7 @@ export class BidsService {
         .catch(() => undefined);
       return toBidDto(bid);
     } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new ConflictException({
-          code: ErrorCode.BID_ALREADY_EXISTS,
-          message: 'You already have a bid on this case.',
-        });
-      }
+      if (isUniqueViolation(error)) throw bidAlreadyExists();
       throw error;
     }
   }
@@ -258,13 +353,29 @@ export class BidsService {
           actor: { userId: null, role: null },
           attorneyId,
           event: r.plan.event,
-          payload: { bidId: r.id, reason: 'subscription_lapsed' },
+          payload: {
+            bidId: r.id,
+            reason: WITHDRAW_REASON_SUBSCRIPTION_LAPSED,
+          },
         });
         await this.notifications.emit(
           {
             type: 'bid_rejected',
             recipientId: clientId,
             payload: { caseId: r.case_id, bidId: r.id, reason: 'withdrawn' },
+          },
+          tx,
+        );
+        // The attorney is told why their bid is gone.
+        await this.notifications.emit(
+          {
+            type: 'bid_rejected',
+            recipientId: attorneyId,
+            payload: {
+              caseId: r.case_id,
+              bidId: r.id,
+              reason: WITHDRAW_REASON_SUBSCRIPTION_LAPSED,
+            },
           },
           tx,
         );

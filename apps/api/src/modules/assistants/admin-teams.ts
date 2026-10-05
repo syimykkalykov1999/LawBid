@@ -40,6 +40,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { SEATS_HARD_CAP } from '../billing/billing.constants';
 import { getAssistantLimit } from '../billing/seat-limit';
+import { EntitlementsService } from '../plans/entitlements.service';
 import {
   AdminEndpoint,
   CurrentAdmin,
@@ -152,6 +153,7 @@ export class AdminTeamsService {
     private readonly context: AssistantContextService,
     private readonly audit: AuditLogService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   async list(q?: string): Promise<AdminTeamRowDto[]> {
@@ -338,6 +340,7 @@ export class AdminTeamsService {
       this.prisma,
       attorneyId,
       this.settings,
+      this.entitlements,
     );
     if (!u) {
       throw new NotFoundException({
@@ -388,6 +391,7 @@ export class AdminTeamsService {
       where: { user_id: attorneyId },
       data: { assistant_seat_limit: limit },
     });
+    await this.entitlements?.invalidateUser(attorneyId);
     await this.audit.record({
       adminId: admin.id,
       action: 'billing.seat_limit.set',

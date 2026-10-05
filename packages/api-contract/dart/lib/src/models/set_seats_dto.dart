@@ -13,6 +13,7 @@ class SetSeatsDto {
   factory SetSeatsDto.fromJson(Map<String, Object?> json) =>
       _$SetSeatsDtoFromJson(json);
 
+  /// Extra seats on top of the ones the plan includes.
   final int seats;
 
   Map<String, Object?> toJson() => _$SetSeatsDtoToJson(this);

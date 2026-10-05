@@ -19,6 +19,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { S3StorageService } from './storage/s3-storage.service';
@@ -79,6 +80,7 @@ export class FilesService {
     private readonly logger: PinoLogger,
     private readonly flags: FeatureFlagsService,
     @Optional() private readonly secrets?: SecretsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -94,6 +96,17 @@ export class FilesService {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
         message: 'Video posts are not available yet.',
+      });
+    }
+    // Owner 2026-10-05 (plan builder): video posts are a plan term.
+    if (
+      dto.purpose === 'post_video' &&
+      this.entitlements &&
+      !(await this.entitlements.has(userId, 'video_posts'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include video posts.',
       });
     }
     const rule = PURPOSE_RULES[dto.purpose];
@@ -606,6 +619,101 @@ export class FilesService {
       });
     }
     return out;
+  }
+
+  /**
+   * Owner 2026-10-05: a signed download link to a clean document template
+   * (documents bucket, saved under [fileName]); null when not available.
+   */
+  async documentTemplateUrl(
+    fileId: string,
+    fileName: string,
+  ): Promise<string | null> {
+    if (!this.storage.configured) return null;
+    const f = await this.prisma.file.findFirst({
+      where: {
+        id: fileId,
+        purpose: 'document_template',
+        scan_status: 'clean',
+        deleted_at: null,
+      },
+      select: { s3_bucket: true, s3_key: true },
+    });
+    if (!f) return null;
+    return this.storage.signedGetUrl(
+      f.s3_bucket,
+      f.s3_key,
+      MEDIA_SIGNED_URL_TTL_SEC,
+      fileName,
+    );
+  }
+
+  /**
+   * Owner 2026-10-05: a private copy of a clean file for [userId] under
+   * another purpose (a document template → the user's chat or case
+   * attachment). Same bytes as an already-scanned file, so the copy is
+   * clean at once; the target purpose's types, size limit, upload rate
+   * limit and storage budget still apply.
+   */
+  async copyForUser(
+    sourceFileId: string,
+    userId: string,
+    purpose: FilePurpose,
+  ): Promise<FileDto> {
+    const src = await this.prisma.file.findUnique({
+      where: { id: sourceFileId },
+    });
+    if (!src || src.deleted_at !== null || src.scan_status !== 'clean') {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'File not found.',
+      });
+    }
+    const rule = PURPOSE_RULES[purpose];
+    if (!rule.mimes.includes(src.mime as FileMime)) {
+      throw new BadRequestException({
+        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+        message: 'This file type is not allowed here.',
+        details: { allowed: rule.mimes },
+      });
+    }
+    const maxBytes = await this.maxBytes(purpose);
+    if (Number(src.size_bytes) > maxBytes) throw this.tooLarge(maxBytes);
+    const bucket = this.storage.bucket(rule.bucket);
+    const limit = await this.rateLimit.consumeFixedWindow(
+      ['files-presign', 'user', userId],
+      this.config.getOrThrow<number>('FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR'),
+      3600,
+    );
+    if (!limit.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many uploads. Try again later.',
+          details: { retryAfterSeconds: limit.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    await this.costGuard.consume('storage');
+    const data = await this.storage.read(src.s3_bucket, src.s3_key);
+    const fileId = randomUUID();
+    const key = `${purpose}/${userId}/${fileId}`;
+    await this.storage.put(bucket, key, data, src.mime);
+    await this.prisma.file.create({
+      data: {
+        id: fileId,
+        owner_user_id: userId,
+        purpose,
+        s3_bucket: bucket,
+        s3_key: key,
+        mime: src.mime,
+        size_bytes: BigInt(data.length),
+        sha256: createHash('sha256').update(data).digest('hex'),
+        scan_status: 'clean',
+      },
+    });
+    return this.get(userId, fileId);
   }
 
   /**

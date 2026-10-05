@@ -41,7 +41,8 @@ export interface PurposeRule {
     | 'files.avatar_max_size_mb'
     | 'files.chat_max_size_mb'
     | 'files.sticker_max_size_mb'
-    | 'files.post_attachment_max_size_mb';
+    | 'files.post_attachment_max_size_mb'
+    | 'files.document_template_max_size_mb';
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
   readonly bucket: BucketKind;
@@ -161,6 +162,13 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   post_attachment: {
     mimes: POST_ATTACHMENT_MIMES,
     sizeSetting: 'files.post_attachment_max_size_mb',
+    bucket: 'documents',
+  },
+  // Owner 2026-10-05: a document template (PDF, Word) the admin
+  // publishes; private bucket, short signed links on download.
+  document_template: {
+    mimes: [FILE_MIME.pdf, FILE_MIME.docx, FILE_MIME.doc],
+    sizeSetting: 'files.document_template_max_size_mb',
     bucket: 'documents',
   },
   // OQ-040: voice messages; private (only the two chat members get a
