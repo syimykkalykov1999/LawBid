@@ -108,7 +108,11 @@ void main() {
       // A single tap waits out the double-tap window.
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const ValueKey('task-not-done')));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('task-not-done')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('task-not-done')));
       await tester.pumpAndSettle();
@@ -199,19 +203,18 @@ void main() {
     expect(find.byKey(const ValueKey('task-title')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('task-kind-call')));
     await tester.pump();
-    // Call: whom + phone, no address / email.
+    // Call: whom first; people are added from the team / chats / contacts
+    // (no fake "+1 312…" placeholders any more).
     expect(find.text('Whom to call'), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-contact-phone')), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-location')), findsNothing);
-    expect(find.byKey(const ValueKey('task-contact-email')), findsNothing);
-    // Email: whom + address ("Change" opens the kinds again).
+    expect(find.byKey(const ValueKey('task-person-add')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-place-add')), findsOneWidget);
+    expect(find.text('+1 312 555 0123'), findsNothing);
+    // Email: whom to write to ("Change" opens the kinds again).
     await tester.tap(find.byKey(const ValueKey('task-kind-change')));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('task-kind-email')));
     await tester.pump();
     expect(find.text('Whom to write to'), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-contact-email')), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-contact-phone')), findsNothing);
     // Visit: where to go.
     await tester.tap(find.byKey(const ValueKey('task-kind-change')));
     await tester.pump();

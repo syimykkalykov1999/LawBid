@@ -473,8 +473,8 @@ const file07Ru = <String, String>{
   'tasks.empty': 'Задач нет',
   'tasks.empty.body':
       'Звонки, встречи, суды, сроки, документы — всё в одном списке по дням.',
-  'tasks.view.active': 'Активные',
-  'tasks.view.done': 'Выполненные',
+  'tasks.view.active': 'Все',
+  'tasks.view.done': 'Архив',
   'tasks.today': 'Сегодня',
   'tasks.yesterday': 'Вчера',
   'team.req.ask.post': 'просит опубликовать от вашего имени',
@@ -1040,7 +1040,7 @@ const file07En = <String, String>{
   'tasks.empty': 'No tasks',
   'tasks.empty.body':
       'Calls, meetings, court dates, deadlines, documents — one list by day.',
-  'tasks.view.active': 'Active',
+  'tasks.view.active': 'All',
   'tasks.view.done': 'Done',
   'tasks.today': 'Today',
   'tasks.yesterday': 'Yesterday',

@@ -385,8 +385,8 @@ final taskPlacesProvider =
 
 /// Owner 2026-10-05: people to add (team, chats, contacts; attorneys by
 /// name when searching).
-final taskPeopleProvider = FutureProvider.autoDispose
-    .family<List<TaskPersonSuggestion>, String>(
+final taskPeopleProvider =
+    FutureProvider.autoDispose.family<List<TaskPersonSuggestion>, String>(
   (ref, q) => ref.watch(teamRepositoryProvider).taskPeople(q),
   retry: _noRetry,
 );

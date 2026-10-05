@@ -35,6 +35,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 const kMessageMaxChars = 2000;
@@ -188,6 +189,34 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => ChatFilesScreen(conversationId: c.id),
+                    ),
+                  );
+                },
+              ),
+            // Owner 2026-10-05: a task about this chat — linked to it (and
+            // its case), with this person already on it.
+            if (ref.read(actsAsAttorneyProvider) &&
+                ref.read(canDoProvider(AssistantDuty.tasks)))
+              AppListRow(
+                key: const ValueKey('chat-new-task'),
+                icon: AppIcons.eventNoteOutlined,
+                label: t.t('tasks.fromChat'),
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  final name = c.counterpart.displayName ??
+                      (c.counterpart.username == null
+                          ? null
+                          : '@${c.counterpart.username}');
+                  context.push(
+                    TeamRoutes.newTaskFor(
+                      chatId: c.id,
+                      chatTitle: name,
+                      caseId: c.caseId,
+                      caseTitle: c.caseTitle,
+                      personId: c.counterpart.id,
+                      personName: name,
+                      personRole:
+                          c.counterpart.isAttorney ? 'attorney' : 'client',
                     ),
                   );
                 },

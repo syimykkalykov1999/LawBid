@@ -20,6 +20,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
 /// accepted attorney, and the bids (§5.2) with sorting.
@@ -376,6 +377,9 @@ class _OwnerCaseBody extends ConsumerWidget {
                 conversationId: c.conversationId,
               ),
             ),
+          // Owner 2026-10-05: the client's own planner tasks on this case.
+          if (c.status != CaseStatus.archived)
+            CaseTasksSection(caseId: c.id, caseTitle: c.title),
           DetailSection(
             title: t.t('cases.detail.description'),
             child: Text(

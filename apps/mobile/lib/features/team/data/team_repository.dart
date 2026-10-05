@@ -69,6 +69,10 @@ abstract interface class TeamRepository {
   Future<TaskItem> updateTask(String id, TaskDraft draft);
   Future<void> deleteTask(String id);
 
+  /// Owner 2026-10-05: "postpone" — the task gets a new time (and a new
+  /// reminder); nothing else changes.
+  Future<TaskItem> moveTask(String id, DateTime dueAt);
+
   /// Owner 2026-10-05: addresses used before (suggestions in the editor).
   Future<List<TaskPlaceSuggestion>> taskPlaces();
 
@@ -568,6 +572,17 @@ class ApiTeamRepository implements TeamRepository {
   @override
   Future<void> deleteTask(String id) =>
       guardApiCall(() => _api.deleteTask(id: id));
+
+  @override
+  Future<TaskItem> moveTask(String id, DateTime dueAt) async => _task(
+        (await guardApiCall(
+          () => _api.updateTask(
+            id: id,
+            body: api.UpdateTaskDto(dueAt: dueAt.toUtc()),
+          ),
+        ))
+            .data,
+      );
 
   @override
   Future<List<TaskPlaceSuggestion>> taskPlaces() async {
