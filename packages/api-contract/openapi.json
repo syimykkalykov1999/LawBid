@@ -67190,6 +67190,23 @@
           "email"
         ]
       },
+      "AdminCountryTabDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "CA"
+          },
+          "name": {
+            "type": "string",
+            "example": "Canada"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
       "AdminMeDto": {
         "type": "object",
         "properties": {
@@ -67254,6 +67271,13 @@
               "type": "string"
             }
           },
+          "countryTabs": {
+            "description": "Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCountryTabDto"
+            }
+          },
           "securityQuestion": {
             "type": "string",
             "nullable": true
@@ -67278,6 +67302,7 @@
           "hasSecurityQuestion",
           "canManageAdmins",
           "countries",
+          "countryTabs",
           "securityQuestion",
           "reasonRequiredAreas"
         ]

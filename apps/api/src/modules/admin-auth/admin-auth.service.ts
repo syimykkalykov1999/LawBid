@@ -363,6 +363,10 @@ export class AdminAuthService {
     });
     const role = user.admin_profile?.admin_role ?? fallbackRole;
     const c = user.admin_credential;
+    const assigned =
+      role === 'super_admin'
+        ? []
+        : readCountries(user.admin_profile?.permissions);
     return {
       id: user.id,
       email: user.email ?? '',
@@ -378,10 +382,15 @@ export class AdminAuthService {
       canManageAdmins:
         role === 'super_admin' ||
         readManageAdmins(user.admin_profile?.permissions),
-      countries:
-        role === 'super_admin'
-          ? []
-          : readCountries(user.admin_profile?.permissions),
+      countries: assigned,
+      countryTabs: await this.prisma.country.findMany({
+        where:
+          assigned.length > 0
+            ? { code: { in: assigned } }
+            : { is_enabled: true },
+        orderBy: { sort: 'asc' },
+        select: { code: true, name: true },
+      }),
       reasonRequiredAreas:
         role === 'super_admin' || !this.settings
           ? []

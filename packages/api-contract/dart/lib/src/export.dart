@@ -119,6 +119,7 @@ export 'models/identifier_linked_dto.dart';
 export 'models/link_identifier_dto.dart';
 export 'models/identifier_linked_envelope.dart';
 export 'models/admin_login_start_dto.dart';
+export 'models/admin_country_tab_dto.dart';
 export 'models/admin_me_dto.dart';
 export 'models/admin_session_dto.dart';
 export 'models/admin_login_verify_result_dto.dart';

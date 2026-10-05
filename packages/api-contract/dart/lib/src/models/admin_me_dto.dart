@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_country_tab_dto.dart';
 import 'admin_me_dto_role.dart';
 import 'permissions_permissions.dart';
 
@@ -23,6 +24,7 @@ class AdminMeDto {
     required this.hasSecurityQuestion,
     required this.canManageAdmins,
     required this.countries,
+    required this.countryTabs,
     required this.securityQuestion,
     required this.reasonRequiredAreas,
   });
@@ -53,6 +55,9 @@ class AdminMeDto {
 
   /// Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.
   final List<String> countries;
+
+  /// Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.
+  final List<AdminCountryTabDto> countryTabs;
   final String? securityQuestion;
 
   /// Sections where this admin must write a reason (always empty for the super admin).

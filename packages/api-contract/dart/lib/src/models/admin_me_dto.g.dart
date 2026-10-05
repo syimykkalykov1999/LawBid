@@ -24,6 +24,9 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
   countries: (json['countries'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
+  countryTabs: (json['countryTabs'] as List<dynamic>)
+      .map((e) => AdminCountryTabDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   securityQuestion: json['securityQuestion'] as String?,
   reasonRequiredAreas: (json['reasonRequiredAreas'] as List<dynamic>)
       .map((e) => e as String)
@@ -44,6 +47,7 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'hasSecurityQuestion': instance.hasSecurityQuestion,
   'canManageAdmins': instance.canManageAdmins,
   'countries': instance.countries,
+  'countryTabs': instance.countryTabs.map((e) => e.toJson()).toList(),
   'securityQuestion': ?instance.securityQuestion,
   'reasonRequiredAreas': instance.reasonRequiredAreas,
 };

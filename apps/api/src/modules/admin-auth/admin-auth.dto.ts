@@ -166,6 +166,12 @@ export class AdminLoginVerifyResultDto {
   session!: AdminSessionDto | null;
 }
 
+/** Owner 2026-10-05: one country tab of the admin panel. */
+export class AdminCountryTabDto {
+  @ApiProperty({ example: 'CA' }) code!: string;
+  @ApiProperty({ example: 'Canada' }) name!: string;
+}
+
 export class AdminMeDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -213,6 +219,13 @@ export class AdminMeDto {
       'Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.',
   })
   countries!: string[];
+
+  @ApiProperty({
+    type: [AdminCountryTabDto],
+    description:
+      'Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.',
+  })
+  countryTabs!: AdminCountryTabDto[];
 
   @ApiProperty({ type: String, nullable: true })
   securityQuestion!: string | null;

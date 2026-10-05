@@ -235,7 +235,12 @@ export default function UsersPage() {
                     <span className="font-mono">{u.id}</span>
                   </div>
                 </Td>
-                <Td>{u.role ? ROLE_TEXT[u.role] ?? u.role : '—'}</Td>
+                <Td>
+                  {u.role ? ROLE_TEXT[u.role] ?? u.role : '—'}
+                  {u.countryCode && u.countryCode !== 'US' ? (
+                    <span className="ml-1.5 font-mono text-xs text-faint">{u.countryCode}</span>
+                  ) : null}
+                </Td>
                 <Td>
                   <StatusBadge status={u.status} />
                 </Td>
