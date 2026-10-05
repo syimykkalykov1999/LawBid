@@ -11,7 +11,16 @@ export const PARTNER_SETTINGS_KEY = 'partners.program';
 export const CLIENT_RULES = ['case_published', 'bid_accepted'] as const;
 export type ClientRule = (typeof CLIENT_RULES)[number];
 
-export const PARTNER_STATUSES = ['active', 'paused', 'ended'] as const;
+export const JOIN_MODES = ['open', 'approval', 'closed'] as const;
+export type JoinMode = (typeof JOIN_MODES)[number];
+
+/** pending = asked to join, waits for the admin (joinMode 'approval'). */
+export const PARTNER_STATUSES = [
+  'pending',
+  'active',
+  'paused',
+  'ended',
+] as const;
 export type PartnerStatus = (typeof PARTNER_STATUSES)[number];
 
 export const COMMISSION_KINDS = [
@@ -41,7 +50,15 @@ export type PartnerTextsByLang = Record<PartnerLang, PartnerTexts>;
 export const PARTNER_TEXT_LIMITS = { title: 80, summary: 600 } as const;
 
 export interface PartnerProgramSettings {
+  /** Off: the section disappears from the app, partner codes stop
+   * attributing and nothing new accrues; earned amounts stay. */
   enabled: boolean;
+  /**
+   * How attorneys and clients join from Settings (owner 2026-10-05: "в
+   * профилях тоже нужно сделать"): open = link at once; approval = a
+   * request the admin approves; closed = only the admin adds partners.
+   */
+  joinMode: JoinMode;
   /** Per referred attorney whose first paid subscription invoice succeeded. */
   attorneyRateCents: number;
   /** Per referred client who met [clientRule]. */
@@ -70,6 +87,7 @@ export const DEFAULT_PARTNER_TEXTS: PartnerTextsByLang = {
 
 export const DEFAULT_PARTNER_SETTINGS: PartnerProgramSettings = {
   enabled: true,
+  joinMode: 'open',
   attorneyRateCents: 5_000, // $50 per paying attorney
   clientRateCents: 1_000, // $10 per client who hired
   clientRule: 'bid_accepted',
@@ -109,6 +127,9 @@ export function parsePartnerSettings(raw: unknown): PartnerProgramSettings {
   const r = raw as Record<string, unknown>;
   return {
     enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
+    joinMode: (JOIN_MODES as readonly string[]).includes(r.joinMode as string)
+      ? (r.joinMode as JoinMode)
+      : d.joinMode,
     attorneyRateCents: nonNegInt(r.attorneyRateCents, MAX_RATE_CENTS)
       ? r.attorneyRateCents
       : d.attorneyRateCents,

@@ -11,6 +11,7 @@ class AdminPartnerStatsDto {
   const AdminPartnerStatsDto({
     required this.partners,
     required this.active,
+    required this.pending,
     required this.referredCount,
     required this.heldCents,
     required this.approvedCents,
@@ -23,6 +24,9 @@ class AdminPartnerStatsDto {
 
   final int partners;
   final int active;
+
+  /// Requests waiting for the admin.
+  final int pending;
   final int referredCount;
   final int heldCents;
   final int approvedCents;

@@ -1,10 +1,11 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import { ErrorCode as E } from '../../common/errors/error-code.enum';
 import {
   CurrentUser,
   type RequestUser,
@@ -30,5 +31,20 @@ export class PartnersController {
     @CurrentUser() user: RequestUser,
   ): Promise<PartnerMeDto> {
     return this.partners.me(user.sub);
+  }
+
+  @Post('me/join')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Become a partner myself (program and self-enrolment on); returns the dashboard with my link',
+  })
+  @ApiEnvelopeResponse(PartnerMeDto)
+  @ApiErrors({
+    403: [E.FEATURE_DISABLED],
+    409: [E.PARTNER_INVALID_STATE],
+  })
+  joinPartnerProgram(@CurrentUser() user: RequestUser): Promise<PartnerMeDto> {
+    return this.partners.join(user.sub);
   }
 }

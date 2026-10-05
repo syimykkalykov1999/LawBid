@@ -11,6 +11,7 @@ AdminPartnerStatsDto _$AdminPartnerStatsDtoFromJson(
 ) => AdminPartnerStatsDto(
   partners: (json['partners'] as num).toInt(),
   active: (json['active'] as num).toInt(),
+  pending: (json['pending'] as num).toInt(),
   referredCount: (json['referredCount'] as num).toInt(),
   heldCents: (json['heldCents'] as num).toInt(),
   approvedCents: (json['approvedCents'] as num).toInt(),
@@ -23,6 +24,7 @@ Map<String, dynamic> _$AdminPartnerStatsDtoToJson(
 ) => <String, dynamic>{
   'partners': instance.partners,
   'active': instance.active,
+  'pending': instance.pending,
   'referredCount': instance.referredCount,
   'heldCents': instance.heldCents,
   'approvedCents': instance.approvedCents,

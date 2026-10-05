@@ -6,6 +6,8 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum PartnerStatus {
+  @JsonValue('pending')
+  pending('pending'),
   @JsonValue('active')
   active('active'),
   @JsonValue('paused')

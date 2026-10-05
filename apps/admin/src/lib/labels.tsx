@@ -332,9 +332,15 @@ export const REFERRAL_STATUS: Record<string, string> = {
 
 /** Owner 2026-10-05: partner program. */
 export const PARTNER_STATUS: Record<string, string> = {
+  pending: 'заявка',
   active: 'активен',
   paused: 'на паузе',
   ended: 'завершён',
+};
+export const JOIN_MODE: Record<string, string> = {
+  open: 'Открыто: ссылка сразу',
+  approval: 'По заявке: одобряет админ',
+  closed: 'Только админ',
 };
 export const COMMISSION_STATUS: Record<string, string> = {
   held: 'на проверке',
@@ -354,6 +360,36 @@ export const REFERRED_STATUS: Record<string, string> = {
   paid: 'выплачено',
   reversed: 'отменено',
 };
+export const LEAD_STATUS: Record<string, string> = {
+  new: 'новый',
+  working: 'в работе',
+  contacted: 'связались',
+  replied: 'ответил',
+  registered: 'зарегистрировался',
+  paid: 'оплатил',
+  lost: 'отказ',
+};
+export const LEAD_KIND: Record<string, string> = { attorney: 'адвокат', client: 'клиент' };
+export const LEAD_SOURCE: Record<string, string> = { manual: 'вручную', csv: 'CSV', ny_registry: 'реестр NY' };
+export const CALL_OUTCOME: Record<string, string> = {
+  no_answer: 'не ответил',
+  voicemail: 'голосовая почта',
+  talked: 'поговорили',
+  interested: 'заинтересован',
+  not_interested: 'не интересно',
+  callback: 'перезвонить',
+  wrong_number: 'неверный номер',
+};
+export const OUTREACH_ACTIVITY: Record<string, string> = {
+  call: 'звонок',
+  email: 'письмо',
+  note: 'заметка',
+  status: 'статус',
+  assign: 'назначение',
+  system: 'система',
+};
+export const TEMPLATE_KIND: Record<string, string> = { any: 'для всех', attorney: 'адвокатам', client: 'клиентам' };
+
 export const CLIENT_RULE: Record<string, string> = {
   case_published: 'опубликовал кейс',
   bid_accepted: 'нанял адвоката (принял отклик)',

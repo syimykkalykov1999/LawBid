@@ -7,7 +7,10 @@ part of 'partner_me_dto.dart';
 // **************************************************************************
 
 PartnerMeDto _$PartnerMeDtoFromJson(Map<String, dynamic> json) => PartnerMeDto(
+  enabled: json['enabled'] as bool,
   isPartner: json['isPartner'] as bool,
+  canJoin: json['canJoin'] as bool,
+  joinMode: PartnerJoinMode.fromJson(json['joinMode'] as String),
   code: json['code'] as String,
   shareUrl: json['shareUrl'] as String,
   rates: PartnerRatesDto.fromJson(json['rates'] as Map<String, dynamic>),
@@ -26,7 +29,10 @@ PartnerMeDto _$PartnerMeDtoFromJson(Map<String, dynamic> json) => PartnerMeDto(
 
 Map<String, dynamic> _$PartnerMeDtoToJson(PartnerMeDto instance) =>
     <String, dynamic>{
+      'enabled': instance.enabled,
       'isPartner': instance.isPartner,
+      'canJoin': instance.canJoin,
+      'joinMode': instance.joinMode.toJson(),
       'status': ?instance.status?.toJson(),
       'code': instance.code,
       'shareUrl': instance.shareUrl,
