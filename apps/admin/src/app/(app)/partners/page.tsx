@@ -458,7 +458,7 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
         return partnersExtApi.createExternal({
           ...common,
           externalName: extName.trim(),
-          externalContact: extContact.trim() || null,
+          externalContact: extContact.trim() || undefined,
         });
       }
       return extend(
