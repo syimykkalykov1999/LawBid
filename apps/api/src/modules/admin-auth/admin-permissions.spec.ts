@@ -1,4 +1,6 @@
 import {
+  effectiveCountries,
+  readCountries,
   canAccess,
   covers,
   intersect,
@@ -183,5 +185,41 @@ describe('plan prices (owner 2026-10-03: super admin only)', () => {
         'PUT',
       ),
     ).toBe(true);
+  });
+});
+
+describe('countries of an employee (owner 2026-10-05)', () => {
+  it('reads assigned countries, dropping junk', () => {
+    expect(readCountries({ countries: ['CA', 'US', 'CA', 'x', 5] })).toEqual([
+      'CA',
+      'US',
+    ]);
+    expect(readCountries({ users: 'view' })).toEqual([]);
+    expect(readCountries(null)).toEqual([]);
+  });
+
+  it('keeps countries when the areas are stored again', () => {
+    expect(storePermissions({ users: 'view' }, false, ['CA'])).toEqual({
+      users: 'view',
+      countries: ['CA'],
+    });
+    expect(storePermissions({ users: 'view' }, false)).toEqual({
+      users: 'view',
+    });
+  });
+
+  it('owner and unassigned staff see every country unless a tab is picked', () => {
+    expect(effectiveCountries(true, [], undefined)).toBeNull();
+    expect(effectiveCountries(false, [], undefined)).toBeNull();
+    expect(effectiveCountries(true, [], 'ca')).toEqual(['CA']);
+    expect(effectiveCountries(false, [], 'MX')).toEqual(['MX']);
+  });
+
+  it('a country employee never leaves their countries', () => {
+    expect(effectiveCountries(false, ['CA'], undefined)).toEqual(['CA']);
+    expect(effectiveCountries(false, ['CA', 'MX'], 'MX')).toEqual(['MX']);
+    // A tab outside their countries is ignored.
+    expect(effectiveCountries(false, ['CA'], 'US')).toEqual(['CA']);
+    expect(effectiveCountries(false, ['CA'], 'garbage')).toEqual(['CA']);
   });
 });

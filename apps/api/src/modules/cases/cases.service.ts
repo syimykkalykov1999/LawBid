@@ -1,3 +1,4 @@
+import { notAvailable } from '../countries/countries.service';
 import { CasePhotosService } from './services/case-photos.service';
 import {
   BadRequestException,
@@ -893,6 +894,12 @@ export class CasesService {
         invalid,
       });
     }
+    // Owner 2026-10-05: new cases only in switched-on countries.
+    const closed = await db.state.findFirst({
+      where: { code: { in: codes }, country: { is_enabled: false } },
+      select: { country_code: true },
+    });
+    if (closed) throw notAvailable(closed.country_code);
   }
 
   private async assertLeafPracticeArea(

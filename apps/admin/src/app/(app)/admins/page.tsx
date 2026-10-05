@@ -315,6 +315,11 @@ export default function AdminsPage() {
                           : 'нет разделов'}
                       </Badge>
                       {a.canManageAdmins ? <Badge tone="gold">заместитель</Badge> : null}
+                      {(a.countries ?? []).length ? (
+                        <Badge tone="neutral" title={(a.countries ?? []).join(', ')}>
+                          {(a.countries ?? []).length > 3 ? `${(a.countries ?? []).length} стран` : (a.countries ?? []).join(' · ')}
+                        </Badge>
+                      ) : null}
                     </div>
                   )}
                 </Td>
@@ -512,16 +517,22 @@ function RightsForm({
   const cap = (key: string): AccessLevel[] => (isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view']);
   const [perms, setPerms] = useState<Record<string, AccessLevel>>({ ...account.permissions });
   const [manager, setManager] = useState(account.canManageAdmins);
+  const [countries, setCountries] = useState<string[]>(account.countries ?? []);
   const templates = useQuery({
     queryKey: ['admin-templates'],
     queryFn: async () => (await api.GET('/admin/admins/templates')).data!.data,
   });
   const save = useMutation({
-    mutationFn: () =>
-      api.PATCH('/admin/admins/{id}/permissions', {
+    mutationFn: async () => {
+      await api.PATCH('/admin/admins/{id}/permissions', {
         params: { path: { id: account.id } },
         body: { permissions: perms, ...(isSuper ? { canManageAdmins: manager } : {}) },
-      }),
+      });
+      const before = [...(account.countries ?? [])].sort().join();
+      if ([...countries].sort().join() !== before) {
+        await api.PUT('/admin/admins/{id}/countries', { params: { path: { id: account.id } }, body: { countries } });
+      }
+    },
     onSuccess: onSaved,
     onError,
   });
@@ -575,6 +586,7 @@ function RightsForm({
         </Button>
       </div>
       <AreaToggles areas={areas} cap={cap} perms={perms} set={set} />
+      <CountriesPicker value={countries} onChange={setCountries} />
       {isSuper ? (
         <label className="mt-3 flex items-start gap-2.5 rounded-[var(--radius-md)] border border-line px-3.5 py-3 text-sm">
           <input
@@ -613,6 +625,74 @@ function RightsForm({
           Сохранить права
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Owner 2026-10-05: the countries this employee works in. Someone hired to
+ * check Canadian attorneys sees only Canadian people, cases and queues.
+ * None picked = every country (a country-limited manager can only hand
+ * out their own countries; the API checks too).
+ */
+function CountriesPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const { data: me } = useMe();
+  const limited = (me?.countries ?? []).length > 0;
+  const all = useQuery({
+    queryKey: ['countries'],
+    enabled: !limited,
+    retry: false,
+    queryFn: async () => (await api.GET('/admin/countries')).data!.data,
+  });
+  const names = new Map<string, string>();
+  for (const t of me?.countryTabs ?? []) names.set(t.code, t.name);
+  for (const c of all.data?.countries ?? []) if (!names.has(c.code)) names.set(c.code, c.name);
+  const enabled = new Set((all.data?.countries ?? []).filter((c) => c.isEnabled).map((c) => c.code));
+  for (const t of me?.countryTabs ?? []) enabled.add(t.code);
+  // Enabled countries first, then the rest (staff can be prepared before a launch).
+  const options = [...names.keys()]
+    .filter((c) => !value.includes(c))
+    .sort((a, b) => Number(enabled.has(b)) - Number(enabled.has(a)) || (names.get(a) ?? a).localeCompare(names.get(b) ?? b));
+  return (
+    <div className="mt-3 rounded-[var(--radius-md)] border border-line px-3.5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm text-ink">Страны</div>
+          <div className="text-xs text-faint">
+            {value.length ? 'Видит людей, кейсы и очереди только этих стран.' : limited ? 'Выберите хотя бы одну из ваших стран.' : 'Все страны. Выберите, чтобы ограничить.'}
+          </div>
+        </div>
+        <Select
+          aria-label="Добавить страну"
+          className="h-9 w-56 max-w-full"
+          value=""
+          onChange={(e) => e.target.value && onChange([...value, e.target.value])}
+        >
+          <option value="">Добавить страну…</option>
+          {options.map((c) => (
+            <option key={c} value={c}>
+              {names.get(c) ?? c}
+              {enabled.has(c) ? '' : ' (выключена)'}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {value.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {value.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onChange(value.filter((x) => x !== c))}
+              className="inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs text-ink hover:border-danger/50"
+              title="Убрать"
+            >
+              <span className="truncate">{names.get(c) ?? c}</span>
+              <span aria-hidden className="text-faint">×</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

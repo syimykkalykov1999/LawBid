@@ -225,7 +225,7 @@ export class AdminCasesQueryDto extends CursorDto {
 
   @ApiPropertyOptional({ example: 'IL', description: 'Any state of the case.' })
   @IsOptional()
-  @Matches(/^[A-Z]{2}$/)
+  @Matches(/^[A-Z0-9]{2}$/)
   stateCode?: string;
 
   @ApiPropertyOptional({

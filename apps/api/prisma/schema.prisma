@@ -758,6 +758,11 @@ model User {
   client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
   review_helpful_votes        ReviewHelpfulVote[]            @relation("ReviewHelpfulVoter")
   client_review_helpful_votes ClientReviewHelpfulVote[]      @relation("ClientReviewHelpfulVoter")
+  /// Owner 2026-10-05: the country the person works in (from the phone
+  /// number at sign-up, then from the state/province they pick). Admin
+  /// staff assigned to a country see only its people.
+  country_code                String                         @default("US") @db.Char(2)
+  country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -766,6 +771,7 @@ model User {
   // scan must not walk the whole table.
   @@index([created_at])
   @@index([status, deletion_requested_at])
+  @@index([country_code])
   @@map("users")
 }
 
@@ -1048,12 +1054,65 @@ model I18nBundleVersion {
 // Reference data (docs/02_DATABASE.md §3.1/§3.2) — stage 2.1.
 // -----------------------------------------------------------------------
 
+/// Owner 2026-10-05: countries LawBid can work in (ISO 3166-1 alpha-2),
+/// switched on one by one in the admin (Система → Страны) like the app
+/// languages. A switched-off country takes no new sign-ups, profiles or
+/// cases; people already there keep their accounts.
+model Country {
+  code             String    @id @db.Char(2)
+  name             String
+  is_enabled       Boolean   @default(false)
+  /// E.164 country calling code without "+", e.g. "1", "52".
+  calling_code     String
+  /// ISO 4217, upper case (USD, CAD, MXN).
+  currency         String    @db.Char(3)
+  /// Default app language for new people there (i18n code).
+  language         String    @default("en")
+  /// What a first-level region is called: state | province | region.
+  region_kind      String    @default("region")
+  timezone         String?
+  /// Stripe Connect pays attorneys out in this country.
+  stripe_supported Boolean   @default(false)
+  sort             Int
+  enabled_at       DateTime? @db.Timestamptz
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  states   State[]
+  users    User[]
+  waitlist CountryWaitlist[]
+
+  @@index([is_enabled, sort])
+  @@map("countries")
+}
+
+/// Owner 2026-10-05: people who tried LawBid in a country that is not
+/// switched on yet; they get an e-mail automatically when it is.
+model CountryWaitlist {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  country_code String    @db.Char(2)
+  country      Country   @relation(fields: [country_code], references: [code], onDelete: Cascade)
+  email        String
+  locale       String    @default("en")
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  notified_at  DateTime? @db.Timestamptz
+
+  @@unique([country_code, email])
+  @@index([country_code, notified_at])
+  @@map("country_waitlist")
+}
+
 // docs/02_DATABASE.md §3.1: states(code PK char(2), name, is_active
 // default true). 50 states + DC; UI names come from i18n `state.<code>`.
 model State {
-  code      String  @id @db.Char(2)
-  name      String
-  is_active Boolean @default(true)
+  code         String  @id @db.Char(2)
+  name         String
+  is_active    Boolean @default(true)
+  /// Owner 2026-10-05: states, provinces and other first-level regions of
+  /// every country live here; a region is usable only while its country
+  /// is switched on. iso_code is the ISO 3166-2 code (US-NY, CA-ON, MX-JAL).
+  country_code String  @default("US") @db.Char(2)
+  country      Country @relation(fields: [country_code], references: [code], onDelete: Restrict)
+  iso_code     String?
 
   // Reference/seed table — no timestamps, per §3.1's column list.
   client_profiles        ClientProfile[]
@@ -1064,6 +1123,7 @@ model State {
   cases_primary     Case[]            @relation("CasePrimaryState")
   bar_registry      StateBarRegistry?
 
+  @@index([country_code])
   @@map("states")
 }
 
@@ -1158,26 +1218,26 @@ model AttorneyProfile {
   created_at          DateTime           @default(now()) @db.Timestamptz
   updated_at          DateTime           @updatedAt @db.Timestamptz
 
-  licenses                 AttorneyLicense[]
-  practice_areas           AttorneyPracticeArea[]
+  licenses                    AttorneyLicense[]
+  practice_areas              AttorneyPracticeArea[]
   /// Owner 2026-10-01: true = new-case alerts follow new_case_alert_practices.
-  new_case_alerts_custom   Boolean                @default(false)
+  new_case_alerts_custom      Boolean                @default(false)
   /// Owner 2026-10-05: new-case alerts only for urgent cases.
-  new_case_alerts_urgent_only Boolean             @default(false)
-  new_case_alert_practices NewCaseAlertPractice[]
-  verification_requests    VerificationRequest[]
+  new_case_alerts_urgent_only Boolean                @default(false)
+  new_case_alert_practices    NewCaseAlertPractice[]
+  verification_requests       VerificationRequest[]
   // Owner 2026-10-05: a personal assistant limit set by an admin on
   // the attorney's request; null = the global billing.max_assistant_seats.
-  assistant_seat_limit     Int?                   @db.Int2
+  assistant_seat_limit        Int?                   @db.Int2
   // Owner 2026-10-05 (attorney trust levels): 0 self-attested, 1 license
   // confirmed (registry / staff), 2 identity confirmed (Stripe KYC with a
   // matching name, or staff-checked documents), 3 both. Recomputed by
   // AttorneyTrustService from events; `trust_badge` is the blue check
   // (level >= trust.min_level_badge, verified, no name mismatch).
-  trust_level              Int                    @default(0) @db.Int2
-  trust_badge              Boolean                @default(false)
-  trust                    AttorneyTrust?
-  trust_events             AttorneyTrustEvent[]
+  trust_level                 Int                    @default(0) @db.Int2
+  trust_badge                 Boolean                @default(false)
+  trust                       AttorneyTrust?
+  trust_events                AttorneyTrustEvent[]
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -3455,8 +3515,12 @@ model SupportTicket {
   // ball is on the user's side); sla_breached_at once it was missed.
   sla_due_at        DateTime? @db.Timestamptz
   sla_breached_at   DateTime? @db.Timestamptz
+  // Owner 2026-10-05: the asker's country, copied at creation, so support
+  // staff assigned to a country see only its tickets.
+  country_code      String    @default("US") @db.Char(2)
 
   @@index([status, last_message_at(sort: Desc)])
+  @@index([country_code, status])
   @@index([user_id, last_message_at(sort: Desc)])
   @@index([assignee_id, status])
   @@index([sla_due_at])

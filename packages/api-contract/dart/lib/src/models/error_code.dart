@@ -366,6 +366,8 @@ enum ErrorCode {
   outreachInvalidState('OUTREACH_INVALID_STATE'),
   @JsonValue('OUTREACH_EMAIL_LIMIT')
   outreachEmailLimit('OUTREACH_EMAIL_LIMIT'),
+  @JsonValue('COUNTRY_NOT_AVAILABLE')
+  countryNotAvailable('COUNTRY_NOT_AVAILABLE'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -1,3 +1,4 @@
+import { CountriesCoreModule } from '../modules/countries/countries.module';
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { ConfigModule } from '../config/config.module';
@@ -59,6 +60,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     AttorneyTrustCoreModule,
     // Owner 2026-10-05: nightly `fraud.sweep` (repeat accounts, retention).
     ClientFraudCoreModule,
+
+    CountriesCoreModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,

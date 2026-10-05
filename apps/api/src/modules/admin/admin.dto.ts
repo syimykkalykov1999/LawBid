@@ -1,15 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEmail,
+  IsISO8601,
   IsIn,
   IsInt,
   IsObject,
-  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -74,6 +77,20 @@ export class SetAdminPermissionsDto {
   canManageAdmins?: boolean;
 }
 
+/** Owner 2026-10-05: the countries an employee works with. */
+export class SetAdminCountriesDto {
+  @ApiProperty({
+    type: [String],
+    description:
+      'ISO 3166-1 alpha-2 codes; an empty list = every country. Applies at once.',
+    example: ['CA'],
+  })
+  @IsArray()
+  @ArrayMaxSize(300)
+  @Matches(/^[A-Z]{2}$/, { each: true })
+  countries!: string[];
+}
+
 export class SetAdminCredentialsDto {
   @ApiPropertyOptional({ maxLength: 40 })
   @IsOptional()
@@ -130,6 +147,13 @@ export class AdminAccountDto {
 
   @ApiProperty({ description: 'May create and manage other admins.' })
   canManageAdmins!: boolean;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Countries this admin works with (ISO 3166-1 alpha-2); empty = every country.',
+  })
+  countries!: string[];
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLoginAt!: string | null;

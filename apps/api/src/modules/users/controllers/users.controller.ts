@@ -145,7 +145,11 @@ export class UsersController {
 
   @Patch('onboarding')
   @ApiEnvelopeResponse(MeDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.COUNTRY_NOT_AVAILABLE],
+    404: [E.NOT_FOUND],
+  })
   async saveOnboardingStep(
     @CurrentUser() user: RequestUser,
     @Body() dto: SaveOnboardingStepDto,

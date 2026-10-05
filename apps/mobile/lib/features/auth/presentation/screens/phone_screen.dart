@@ -10,7 +10,9 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/auth/presentation/widgets/country_waitlist_sheet.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
+import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 
 /// `/auth/phone` (file 07 §6.2). Stage 1.7 mobile: the country chip and
 /// formatter are shared with the onboarding contacts step
@@ -40,12 +42,13 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     WidgetRef ref,
     Translator t,
   ) async {
-    if (!UsPhone.isValid(_controller.text)) {
+    final callingCode = UsPhone.callingCodeFor(ref.read(phoneCountryProvider));
+    if (!UsPhone.isValid(_controller.text, callingCode: callingCode)) {
       setState(() => _localError = t.t('auth.phone.error.invalid'));
       return;
     }
     setState(() => _localError = null);
-    final e164 = UsPhone.toE164(_controller.text);
+    final e164 = UsPhone.toE164(_controller.text, callingCode: callingCode);
     final ok =
         await ref.read(onboardingFlowProvider.notifier).submitPhoneNumber(e164);
     // ignore: unawaited_futures
@@ -124,13 +127,25 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                           const SizedBox(height: 26),
                           AppTextField(
                             controller: _controller,
-                            leading: const CountryCodeChip(),
+                            leading: CountryCodeChip(
+                              onChanged: () {
+                                _controller.clear();
+                                setState(() => _localError = null);
+                              },
+                            ),
                             hintText: t.t('auth.phone.hint'),
                             errorText: _localError ?? networkError,
                             keyboardType: TextInputType.phone,
                             autofocus: true,
                             semanticLabel: t.t('auth.phone.fieldLabel'),
-                            inputFormatters: [UsPhoneFormatter()],
+                            inputFormatters: [
+                              UsPhoneFormatter(
+                                nanp: UsPhone.callingCodeFor(
+                                      ref.watch(phoneCountryProvider),
+                                    ) ==
+                                    '1',
+                              ),
+                            ],
                             autofillHints: const [
                               AutofillHints.telephoneNumberNational,
                             ],
@@ -143,6 +158,16 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                                   .clearError();
                             },
                           ),
+                          if (flowState.closedCountry != null) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            SwitchChannelLink(
+                              label: t.t('auth.phone.waitlist.cta'),
+                              onTap: () => showCountryWaitlistSheet(
+                                context,
+                                countryCode: flowState.closedCountry!,
+                              ),
+                            ),
+                          ],
                           if (emailEnabled) ...[
                             const SizedBox(height: AppSpacing.md),
                             SwitchChannelLink(

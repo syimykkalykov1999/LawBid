@@ -53,8 +53,19 @@ export class AdminUsersQueryDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
-  @Matches(/^[A-Z]{2}$/)
+  @Matches(/^[A-Z0-9]{2}$/)
   stateCode?: string;
+
+  @ApiPropertyOptional({
+    example: 'CA',
+    description: 'Owner 2026-10-05: people of this country only.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @Matches(/^[A-Z]{2}$/)
+  countryCode?: string;
 
   @ApiPropertyOptional({
     format: 'date-time',
@@ -159,6 +170,8 @@ export class AdminUserListItemDto {
   @ApiProperty({ type: String, nullable: true }) firstName!: string | null;
   @ApiProperty({ type: String, nullable: true }) lastName!: string | null;
   @ApiProperty({ type: String, nullable: true }) email!: string | null;
+  @ApiProperty({ example: 'US', description: 'Country the person works in.' })
+  countryCode!: string;
   @ApiProperty({ type: String, nullable: true, description: 'Attorneys only.' })
   username!: string | null;
   @ApiProperty({ type: String, nullable: true })

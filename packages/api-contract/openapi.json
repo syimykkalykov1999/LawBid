@@ -4040,6 +4040,123 @@
         ]
       }
     },
+    "/admin/admins/{id}/countries": {
+      "put": {
+        "operationId": "setAdminCountries",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAdminCountriesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Countries an employee works with (owner 2026-10-05): their lists, queues and workspace show only people, cases and tickets of these countries. Empty = every country.",
+        "tags": [
+          "admin-admins"
+        ]
+      }
+    },
     "/admin/admins/{id}/credentials": {
       "put": {
         "operationId": "setAdminCredentials",
@@ -4809,7 +4926,18 @@
             "in": "query",
             "description": "Owner 2026-10-04: clients of this state and attorneys licensed in it.",
             "schema": {
+              "pattern": "^[A-Z0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "countryCode",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: people of this country only.",
+            "schema": {
               "pattern": "^[A-Z]{2}$",
+              "example": "CA",
               "type": "string"
             }
           },
@@ -6344,7 +6472,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN, ATTORNEY_SUSPENDED",
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_SUSPENDED, COUNTRY_NOT_AVAILABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -10933,7 +11061,7 @@
             "in": "query",
             "description": "Any state of the case.",
             "schema": {
-              "pattern": "^[A-Z]{2}$",
+              "pattern": "^[A-Z0-9]{2}$",
               "example": "IL",
               "type": "string"
             }
@@ -20858,7 +20986,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN, CLIENT_CONTACTS_INCOMPLETE, ONBOARDING_INCOMPLETE, CLIENT_CONTACT_SHARING_CONSENT_REQUIRED",
+            "description": "Forbidden: FORBIDDEN, CLIENT_CONTACTS_INCOMPLETE, ONBOARDING_INCOMPLETE, CLIENT_CONTACT_SHARING_CONSENT_REQUIRED, COUNTRY_NOT_AVAILABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -25238,6 +25366,16 @@
           },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: COUNTRY_NOT_AVAILABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -31091,7 +31229,7 @@
             "in": "query",
             "description": "Two-letter state; templates for every state are included.",
             "schema": {
-              "pattern": "^[A-Z]{2}$",
+              "pattern": "^[A-Z0-9]{2}$",
               "type": "string"
             }
           },
@@ -31576,7 +31714,7 @@
             "in": "query",
             "description": "Two-letter state; templates for every state are included.",
             "schema": {
-              "pattern": "^[A-Z]{2}$",
+              "pattern": "^[A-Z0-9]{2}$",
               "type": "string"
             }
           },
@@ -54024,7 +54162,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN, FEATURE_DISABLED, ENTITLEMENT_REQUIRED",
+            "description": "Forbidden: FORBIDDEN, FEATURE_DISABLED, ENTITLEMENT_REQUIRED, COUNTRY_NOT_AVAILABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -63989,6 +64127,890 @@
         ]
       }
     },
+    "/countries": {
+      "get": {
+        "operationId": "listCountries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryListEnvelope"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Switched-on countries with their regions (states / provinces), calling code and currency",
+        "tags": [
+          "countries"
+        ]
+      }
+    },
+    "/countries/waitlist": {
+      "post": {
+        "operationId": "joinCountryWaitlist",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinCountryWaitlistDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryWaitlistResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "\"Tell me when LawBid opens in my country\": an e-mail goes out by itself when the country is switched on",
+        "tags": [
+          "countries"
+        ]
+      }
+    },
+    "/admin/countries": {
+      "get": {
+        "operationId": "listAdminCountries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountriesAdminEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Every country with its switch, regions, people and readiness",
+        "tags": [
+          "admin-countries"
+        ]
+      }
+    },
+    "/admin/countries/{code}": {
+      "patch": {
+        "operationId": "updateAdminCountry",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "example": "CA",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCountryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryAdminEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Switch a country on or off (on needs at least one region). Off: no new sign-ups, profiles or cases there; people already there keep their accounts.",
+        "tags": [
+          "admin-countries"
+        ]
+      }
+    },
+    "/admin/countries/bulk": {
+      "post": {
+        "operationId": "bulkAdminCountries",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkCountriesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkCountriesResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Owner only: switch every country (or the given ones) on or off at once; countries without regions stay off",
+        "tags": [
+          "admin-countries"
+        ]
+      }
+    },
+    "/admin/countries/settings": {
+      "put": {
+        "operationId": "updateAdminCountrySettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCountrySettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountriesAdminEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Countries settings (waiting-list e-mails)",
+        "tags": [
+          "admin-countries"
+        ]
+      }
+    },
+    "/admin/countries/{code}/regions": {
+      "get": {
+        "operationId": "listAdminCountryRegions",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "example": "CA",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryRegionAdminListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "A country’s regions (states / provinces)",
+        "tags": [
+          "admin-countries"
+        ]
+      },
+      "post": {
+        "operationId": "addAdminCountryRegion",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "example": "CA",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddCountryRegionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryRegionAdminEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add a region to a country (its code must be free in every country)",
+        "tags": [
+          "admin-countries"
+        ]
+      }
+    },
+    "/admin/countries/{code}/regions/{region}": {
+      "patch": {
+        "operationId": "updateAdminCountryRegion",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "example": "CA",
+              "type": "string"
+            }
+          },
+          {
+            "name": "region",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[A-Z0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCountryRegionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryRegionAdminEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Switch a region on or off",
+        "tags": [
+          "admin-countries"
+        ]
+      }
+    },
     "/cases/{caseId}/review": {
       "post": {
         "operationId": "create",
@@ -66710,7 +67732,8 @@
           "ENTITLEMENT_REQUIRED",
           "OUTREACH_IMPORT_INVALID",
           "OUTREACH_INVALID_STATE",
-          "OUTREACH_EMAIL_LIMIT"
+          "OUTREACH_EMAIL_LIMIT",
+          "COUNTRY_NOT_AVAILABLE"
         ]
       },
       "ErrorBodyDto": {
@@ -67379,6 +68402,23 @@
           "email"
         ]
       },
+      "AdminCountryTabDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "CA"
+          },
+          "name": {
+            "type": "string",
+            "example": "Canada"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
       "AdminMeDto": {
         "type": "object",
         "properties": {
@@ -67436,6 +68476,20 @@
             "type": "boolean",
             "description": "May create and manage other admins (the super admin always can)."
           },
+          "countries": {
+            "description": "Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "countryTabs": {
+            "description": "Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminCountryTabDto"
+            }
+          },
           "securityQuestion": {
             "type": "string",
             "nullable": true
@@ -67459,6 +68513,8 @@
           "permissions",
           "hasSecurityQuestion",
           "canManageAdmins",
+          "countries",
+          "countryTabs",
           "securityQuestion",
           "reasonRequiredAreas"
         ]
@@ -68266,6 +69322,13 @@
             "type": "boolean",
             "description": "May create and manage other admins."
           },
+          "countries": {
+            "description": "Countries this admin works with (ISO 3166-1 alpha-2); empty = every country.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "lastLoginAt": {
             "type": "string",
             "nullable": true,
@@ -68286,6 +69349,7 @@
           "hasPassword",
           "permissions",
           "canManageAdmins",
+          "countries",
           "lastLoginAt",
           "createdAt"
         ]
@@ -68399,6 +69463,26 @@
         },
         "required": [
           "permissions"
+        ]
+      },
+      "SetAdminCountriesDto": {
+        "type": "object",
+        "properties": {
+          "countries": {
+            "maxItems": 300,
+            "description": "ISO 3166-1 alpha-2 codes; an empty list = every country. Applies at once.",
+            "example": [
+              "CA"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          }
+        },
+        "required": [
+          "countries"
         ]
       },
       "SetAdminCredentialsDto": {
@@ -68535,6 +69619,11 @@
             "type": "string",
             "nullable": true
           },
+          "countryCode": {
+            "type": "string",
+            "example": "US",
+            "description": "Country the person works in."
+          },
           "username": {
             "type": "string",
             "nullable": true,
@@ -68560,6 +69649,7 @@
           "firstName",
           "lastName",
           "email",
+          "countryCode",
           "username",
           "verificationStatus",
           "avatarUrl",
@@ -77776,7 +78866,7 @@
           },
           "primaryStateCode": {
             "type": "string",
-            "pattern": "^[A-Z]{2}$",
+            "pattern": "^[A-Z0-9]{2}$",
             "example": "NY"
           },
           "additionalStateCodes": {
@@ -77896,7 +78986,7 @@
           },
           "primaryStateCode": {
             "type": "string",
-            "pattern": "^[A-Z]{2}$",
+            "pattern": "^[A-Z0-9]{2}$",
             "example": "NY"
           },
           "additionalStateCodes": {
@@ -80279,7 +81369,7 @@
           "stateCode": {
             "type": "string",
             "description": "Client: state of residence (50 + DC).",
-            "pattern": "^[A-Z]{2}$"
+            "pattern": "^[A-Z0-9]{2}$"
           },
           "languages": {
             "type": "array",
@@ -80502,7 +81592,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^[A-Z]{2}$"
+              "pattern": "^[A-Z0-9]{2}$"
             }
           }
         }
@@ -81559,7 +82649,7 @@
           "stateCode": {
             "type": "string",
             "description": "Client: state of residence (50 + DC).",
-            "pattern": "^[A-Z]{2}$"
+            "pattern": "^[A-Z0-9]{2}$"
           },
           "languages": {
             "type": "array",
@@ -82773,7 +83863,7 @@
           },
           "stateCode": {
             "type": "string",
-            "pattern": "^[A-Z]{2}$",
+            "pattern": "^[A-Z0-9]{2}$",
             "example": "IL",
             "description": "Only this state (older clients; prefer stateCodes)."
           },
@@ -82788,7 +83878,7 @@
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^[A-Z]{2}$"
+              "pattern": "^[A-Z0-9]{2}$"
             }
           }
         },
@@ -83597,7 +84687,7 @@
           "state": {
             "type": "string",
             "nullable": true,
-            "pattern": "^[A-Z]{2}$",
+            "pattern": "^[A-Z0-9]{2}$",
             "description": "Two-letter state; null = every state."
           },
           "language": {
@@ -83726,7 +84816,7 @@
           "state": {
             "type": "string",
             "nullable": true,
-            "pattern": "^[A-Z]{2}$",
+            "pattern": "^[A-Z0-9]{2}$",
             "description": "Two-letter state; null = every state."
           },
           "language": {
@@ -100608,6 +101698,462 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "CountryRegionDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NY",
+            "description": "Region (state) code."
+          },
+          "name": {
+            "type": "string",
+            "example": "New York"
+          },
+          "isoCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "US-NY"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "isoCode"
+        ]
+      },
+      "CountryDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "US"
+          },
+          "name": {
+            "type": "string",
+            "example": "United States"
+          },
+          "callingCode": {
+            "type": "string",
+            "example": "1",
+            "description": "Calling code without \"+\"."
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "language": {
+            "type": "string",
+            "example": "en"
+          },
+          "regionKind": {
+            "type": "string",
+            "enum": [
+              "state",
+              "province",
+              "region"
+            ]
+          },
+          "timezone": {
+            "type": "string",
+            "nullable": true,
+            "example": "America/New_York"
+          },
+          "stripeSupported": {
+            "type": "boolean",
+            "description": "In-app payments to attorneys work here."
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountryRegionDto"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "callingCode",
+          "currency",
+          "language",
+          "regionKind",
+          "timezone",
+          "stripeSupported",
+          "regions"
+        ]
+      },
+      "CountryListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountryDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CountryWaitlistResultDto": {
+        "type": "object",
+        "properties": {
+          "countryCode": {
+            "type": "string",
+            "example": "CA"
+          },
+          "available": {
+            "type": "boolean",
+            "description": "True when the country is already open (nothing to wait for)."
+          }
+        },
+        "required": [
+          "countryCode",
+          "available"
+        ]
+      },
+      "JoinCountryWaitlistDto": {
+        "type": "object",
+        "properties": {
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "example": "CA"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "locale": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[A-Za-z]{2,4})?$",
+            "example": "en"
+          }
+        },
+        "required": [
+          "countryCode",
+          "email"
+        ]
+      },
+      "CountryWaitlistResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CountryWaitlistResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CountryAdminDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "callingCode": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "regionKind": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string",
+            "nullable": true
+          },
+          "stripeSupported": {
+            "type": "boolean"
+          },
+          "sort": {
+            "type": "integer"
+          },
+          "enabledAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "regions": {
+            "type": "integer",
+            "description": "Active regions."
+          },
+          "clients": {
+            "type": "integer"
+          },
+          "attorneys": {
+            "type": "integer"
+          },
+          "waiting": {
+            "type": "integer",
+            "description": "People waiting to be told it is open."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "Can be switched on: it has regions (states/provinces) to pick."
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "isEnabled",
+          "callingCode",
+          "currency",
+          "language",
+          "regionKind",
+          "timezone",
+          "stripeSupported",
+          "sort",
+          "enabledAt",
+          "regions",
+          "clients",
+          "attorneys",
+          "waiting",
+          "ready"
+        ]
+      },
+      "CountriesAdminDto": {
+        "type": "object",
+        "properties": {
+          "countries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountryAdminDto"
+            }
+          },
+          "notifyWaitlist": {
+            "type": "boolean",
+            "description": "E-mail the waiting list by itself when a country is switched on."
+          },
+          "canBulk": {
+            "type": "boolean",
+            "description": "The caller may use the master switch (owner only)."
+          }
+        },
+        "required": [
+          "countries",
+          "notifyWaitlist",
+          "canBulk"
+        ]
+      },
+      "CountriesAdminEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CountriesAdminDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateCountryDto": {
+        "type": "object",
+        "properties": {
+          "isEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "isEnabled"
+        ]
+      },
+      "CountryAdminEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CountryAdminDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BulkCountriesResultDto": {
+        "type": "object",
+        "properties": {
+          "changed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "skipped": {
+            "description": "Left off: no regions to pick yet.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "changed",
+          "skipped"
+        ]
+      },
+      "BulkCountriesDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Switch on (true) or off (false)."
+          },
+          "codes": {
+            "maxItems": 300,
+            "description": "Only these countries; omitted = every country.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "BulkCountriesResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkCountriesResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateCountrySettingsDto": {
+        "type": "object",
+        "properties": {
+          "notifyWaitlist": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CountryRegionAdminDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NY",
+            "description": "Region (state) code."
+          },
+          "name": {
+            "type": "string",
+            "example": "New York"
+          },
+          "isoCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "US-NY"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "isoCode",
+          "isActive"
+        ]
+      },
+      "CountryRegionAdminListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CountryRegionAdminDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AddCountryRegionDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2}$",
+            "example": "ON"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80,
+            "example": "Ontario"
+          },
+          "isoCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}-[A-Z0-9]{1,3}$",
+            "example": "CA-ON"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "CountryRegionAdminEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CountryRegionAdminDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateCountryRegionDto": {
+        "type": "object",
+        "properties": {
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "isActive"
         ]
       },
       "ReviewAuthorRole": {

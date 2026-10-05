@@ -1,3 +1,4 @@
+import type { CountryScope } from '../countries/country-scope';
 import { urgencyFields } from '../cases/domain/case-urgency';
 import { statusOf } from '../cases/case-invites/case-invites.service';
 import { Injectable } from '@nestjs/common';
@@ -113,12 +114,19 @@ export class AdminCaseManagementService {
     private readonly audit: AuditLogService,
   ) {}
 
-  async list(q: AdminCasesQueryDto): Promise<Page<AdminCaseRowDto>> {
+  async list(
+    q: AdminCasesQueryDto,
+    countries: CountryScope = null,
+  ): Promise<Page<AdminCaseRowDto>> {
     const limit = q.limit ?? DEFAULT_LIMIT;
     const c = q.cursor ? decodeCursor(q.cursor) : undefined;
     const reported =
       q.hasReports === undefined ? null : await this.reportedCaseIds();
     const and: Prisma.CaseWhereInput[] = [];
+    // Owner 2026-10-05: a case belongs to the country of its main state.
+    if (countries) {
+      and.push({ primary_state: { country_code: { in: countries } } });
+    }
     if (q.status) and.push({ status: q.status });
     if (q.q) and.push({ title: { contains: q.q, mode: 'insensitive' } });
     if (q.clientId) and.push({ client_id: q.clientId });
@@ -170,7 +178,16 @@ export class AdminCaseManagementService {
     };
   }
 
-  async card(id: string): Promise<AdminCaseCardDto> {
+  async card(
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<AdminCaseCardDto> {
+    if (countries) {
+      const visible = await this.prisma.case.count({
+        where: { id, primary_state: { country_code: { in: countries } } },
+      });
+      if (visible === 0) throw caseNotFound();
+    }
     const kase = await this.prisma.case.findUnique({
       where: { id },
       select: {

@@ -341,6 +341,12 @@ export const OWNER_FRAUD_SETTINGS = {
   'fraud.blocked_retention_days': 1095,
 } as const;
 
+/** Owner 2026-10-05: countries (Система → Страны). People who asked to
+ * be told get an e-mail by themselves when their country is switched on. */
+export const OWNER_COUNTRY_SETTINGS = {
+  'countries.notify_waitlist': true,
+};
+
 /** Owner 2026-10-05: requests per minute for one signed-in admin (the
  * panel keeps several queues live on one screen). Users keep 100/min.
  * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
@@ -369,6 +375,7 @@ export const APP_SETTINGS = {
   ...OWNER_TRANSLATE_SETTINGS,
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,
+  ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
 };

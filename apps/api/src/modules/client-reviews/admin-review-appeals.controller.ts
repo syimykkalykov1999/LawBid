@@ -43,8 +43,15 @@ export class AdminReviewAppealsController {
   @ApiOperation({ summary: 'Appeals by status, oldest first' })
   @ApiEnvelopeResponse(AdminReviewAppealDto, { isArray: true })
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
-  listReviewAppeals(@Query() q: AdminReviewAppealsQueryDto) {
-    return this.reviews.listAppeals(q.status ?? 'pending', q.cursor);
+  listReviewAppeals(
+    @CurrentAdmin() admin: AdminActor,
+    @Query() q: AdminReviewAppealsQueryDto,
+  ) {
+    return this.reviews.listAppeals(
+      q.status ?? 'pending',
+      q.cursor,
+      admin.countries,
+    );
   }
 
   @Post('decide')

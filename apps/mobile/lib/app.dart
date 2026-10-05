@@ -12,6 +12,7 @@ import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
+import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 
 class LawBidApp extends ConsumerWidget {
   const LawBidApp({super.key});
@@ -20,7 +21,10 @@ class LawBidApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Mirrors theme/language to PATCH /users/me while signed in and applies
     // the account's values after login (core/theme/preferences_sync.dart).
-    ref.listen(preferencesSyncProvider, (_, __) {});
+    ref
+      ..listen(preferencesSyncProvider, (_, __) {})
+      // Owner 2026-10-05: switched-on countries and their regions.
+      ..listen(countriesProvider, (_, __) {});
     final router = ref.watch(appRouterProvider);
     final themeMode =
         ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;

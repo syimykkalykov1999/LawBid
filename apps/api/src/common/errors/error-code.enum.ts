@@ -405,4 +405,7 @@ export enum ErrorCode {
   OUTREACH_IMPORT_INVALID = 'OUTREACH_IMPORT_INVALID',
   OUTREACH_INVALID_STATE = 'OUTREACH_INVALID_STATE',
   OUTREACH_EMAIL_LIMIT = 'OUTREACH_EMAIL_LIMIT',
+  // Owner 2026-10-05 — countries. 403: LawBid is not switched on in this
+  // country yet (sign-up, profile, new case); details.countryCode.
+  COUNTRY_NOT_AVAILABLE = 'COUNTRY_NOT_AVAILABLE',
 }
