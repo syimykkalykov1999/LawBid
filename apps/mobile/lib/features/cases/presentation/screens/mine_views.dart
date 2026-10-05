@@ -16,17 +16,17 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
 // Owner 2026-10-02: three tabs on top — Planner · Cases (Open · In progress ·
-// Completed inside) · Saved.
+// Completed · Archive inside) · Saved.
 enum _ClientTab { planner, cases, saved }
 
-enum _CaseSection { open, inProgress, completed }
+enum _CaseSection { open, inProgress, completed, archived }
 
 // Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
-// Completed · Saved inside) and the Planner (tasks calendar).
+// Completed · Finished · Saved inside) and the Planner (tasks calendar).
 // Owner 2026-10-01: Planner first, My bids second.
 enum _AttorneyTab { planner, bids }
 
-enum _BidsSection { active, work, completed, saved }
+enum _BidsSection { active, work, completed, finished, saved }
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
 /// Completed and Saved (posts). Cases show as an Instagram-like grid —
@@ -52,6 +52,8 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       _CaseSection.open => MyCasesFilter.open,
       _CaseSection.inProgress => MyCasesFilter.inProgress,
       _CaseSection.completed => MyCasesFilter.closed,
+      // Audit 2026-10-04: archived cases were unreachable from Mine.
+      _CaseSection.archived => MyCasesFilter.archived,
     };
     final body = switch (_tab) {
       // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
@@ -76,6 +78,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                 (_CaseSection.open, t.t('mine.tab.open')),
                 (_CaseSection.inProgress, t.t('mine.tab.inWork')),
                 (_CaseSection.completed, t.t('mine.tab.completed')),
+                (_CaseSection.archived, t.t('cases.mine.archived')),
               ],
               onChanged: (v) => setState(() => _section = v),
             ),
@@ -143,7 +146,8 @@ class _ClientCasesGrid extends ConsumerWidget {
                 label: t.t('mine.cases.create'),
                 icon: AppIcons.addRounded,
                 height: AppSizes.touchTarget,
-                onPressed: () => context.push(AppRoutes.create),
+                // Audit 2026-10-04: straight to the case form.
+                onPressed: () => context.push('${AppRoutes.create}?kind=case'),
               )
             : null,
       ),
@@ -155,55 +159,6 @@ class _ClientCasesGrid extends ConsumerWidget {
         practiceCode: c.practice.code,
         categoryCode: c.practice.categoryCode,
         badge: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
-        onTap: () => context.push(AppRoutes.myCase(c.id)),
-      ),
-    );
-  }
-}
-
-/// "Мои кейсы" list — also used by the client profile tab (§11.3).
-class MyCasesList extends ConsumerWidget {
-  const MyCasesList({required this.filter, super.key});
-
-  final MyCasesFilter filter;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
-    final value = ref.watch(myCasesProvider(filter));
-    final notifier = ref.read(myCasesProvider(filter).notifier);
-    final ids = value.value?.items.map((c) => c.id).join(',') ?? '';
-    final seen = ref.watch(seenBidCountsProvider(ids)).value ?? const {};
-    return PagedListBody<CaseSummary>(
-      value: value,
-      t: t,
-      itemKey: (c) => c.id,
-      onRefresh: notifier.refresh,
-      onLoadMore: notifier.loadMore,
-      onRetryMore: notifier.retryLoadMore,
-      empty: AppEmptyState(
-        icon: AppIcons.folderOpenRounded,
-        title: filter == MyCasesFilter.active
-            ? t.t('mine.cases.emptyTitle')
-            : null,
-        message: filter == MyCasesFilter.active
-            ? t.t('mine.cases.emptyMessage')
-            : t.t('mine.cases.emptyFiltered'),
-        action: filter == MyCasesFilter.active
-            ? AppButton(
-                label: t.t('mine.cases.create'),
-                icon: AppIcons.addRounded,
-                height: AppSizes.touchTarget,
-                onPressed: () => context.push(AppRoutes.create),
-              )
-            : null,
-      ),
-      itemBuilder: (context, c, _) => ClientCaseCard(
-        item: c,
-        unseenBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
-        t: t,
-        formats: formats,
         onTap: () => context.push(AppRoutes.myCase(c.id)),
       ),
     );
@@ -248,6 +203,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           (_BidsSection.active, t.t('mine.filter.active')),
           (_BidsSection.work, t.t('mine.tab.inWork')),
           (_BidsSection.completed, t.t('mine.tab.completed')),
+          (_BidsSection.finished, t.t('cases.mine.finished')),
           (_BidsSection.saved, t.t('mine.tab.saved')),
         ],
         onChanged: (v) => setState(() => _section = v),
@@ -258,6 +214,13 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       _BidsSection.active => _BidsGrid(
           key: const ValueKey('active'),
           filter: MyBidsFilter.active,
+          search: _search,
+        ),
+      // Audit 2026-10-04: declined / withdrawn / expired bids (accepted
+      // ones are under In progress).
+      _BidsSection.finished => _BidsGrid(
+          key: const ValueKey('finished'),
+          filter: MyBidsFilter.finished,
           search: _search,
         ),
       _BidsSection.work || _BidsSection.completed => _WorkGrid(
@@ -496,49 +459,6 @@ class _SavedGrid extends ConsumerWidget {
                 },
         );
       },
-    );
-  }
-}
-
-/// Saved cases of an attorney (docs/04 §11.2).
-class SavedCasesList extends ConsumerWidget {
-  const SavedCasesList({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
-    final value = ref.watch(savedCasesProvider);
-    final n = ref.read(savedCasesProvider.notifier);
-    return PagedListBody<SavedCase>(
-      value: value,
-      t: t,
-      itemKey: (s) => s.caseId,
-      onRefresh: n.refresh,
-      onLoadMore: n.loadMore,
-      onRetryMore: n.retryLoadMore,
-      header: const SizedBox(height: AppSpacing.xs),
-      empty: AppEmptyState(
-        icon: AppIcons.bookmarkOutlineRounded,
-        message: t.t('mine.saved.empty'),
-      ),
-      itemBuilder: (context, s, _) => s.available && s.card != null
-          ? FeedCaseCard(
-              item: s.card!,
-              t: t,
-              formats: formats,
-              onTap: () => context.push(AppRoutes.caseDetail(s.caseId)),
-            )
-          : UnavailableCaseCard(
-              title: s.title,
-              t: t,
-              onRemove: () async {
-                await ref
-                    .read(caseActionsProvider)
-                    .setSaved(s.caseId, saved: false);
-                n.removeWhere((x) => x.caseId == s.caseId);
-              },
-            ),
     );
   }
 }

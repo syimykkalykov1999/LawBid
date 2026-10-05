@@ -232,6 +232,11 @@ export class PushDispatcher
       'reviewId',
       // Owner 2026-10-02: a support reply opens the ticket.
       'ticketId',
+      // Audit 2026-10-04: chats, assistant requests/tasks open their screen.
+      'conversationId',
+      'kind',
+      'requestId',
+      'taskId',
     ]) {
       if (typeof payload[k] === 'string') deepLink[k] = payload[k];
     }

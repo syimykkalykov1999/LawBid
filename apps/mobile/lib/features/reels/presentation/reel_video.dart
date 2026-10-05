@@ -7,7 +7,7 @@ import 'package:visibility_detector/visibility_detector.dart';
 
 /// Owner 2026-10-01 — one reel video: the poster frame until the stream is
 /// ready, then the video filling its box (cover), looping. Plays only while
-/// [active]; a widget that leaves the tree frees its player.
+/// [active]; an inactive reel or one that leaves the tree frees its player.
 class ReelVideo extends StatefulWidget {
   const ReelVideo({
     required this.video,
@@ -47,6 +47,13 @@ class _ReelVideoState extends State<ReelVideo> {
   @override
   void didUpdateWidget(ReelVideo old) {
     super.didUpdateWidget(old);
+    // Off screen: free the player so it stops buffering (data + memory);
+    // coming back re-opens it at the same spot.
+    if (!widget.active && _c != null) {
+      final at = _c!.value.isInitialized ? _c!.value.position : null;
+      _close();
+      _resumeAt = at;
+    }
     // With sound a reel takes the audio focus (other music pauses, like
     // Instagram); muted previews mix with it. The mode is fixed when the
     // player is created, so a mute change re-opens it at the same spot.

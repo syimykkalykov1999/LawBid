@@ -30,6 +30,7 @@ import type {
   UpsertClientReviewDto,
 } from './client-reviews.dto';
 import { assertNoBlock } from '../blocks/block-guard';
+import { removedByModeration } from '../reviews/reviews.service';
 
 const PAGE = 20;
 
@@ -39,13 +40,9 @@ export const REVIEW_APPEAL_AUTO_REMOVE_DAYS = 30;
 /** Owner 2026-10-01: Google-style — no automatic removal. */
 const AUTO_REMOVE_UNDECIDED_APPEALS = false;
 
-/** Cases in these states have a working relationship to review. */
-const REVIEWABLE = [
-  'in_progress',
-  'pending_completion',
-  'disputed',
-  'closed',
-] as const;
+/** Audit 2026-10-04: like client → attorney reviews, only once the case
+ * is closed. */
+const REVIEWABLE = ['closed'] as const;
 
 /**
  * Owner 2026-09-30 (OQ-038, OQ-046): reviews of clients. The hired
@@ -93,12 +90,37 @@ export class ClientReviewsService {
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
-    const existing = await this.prisma.clientReview.findUnique({
+    const found = await this.prisma.clientReview.findUnique({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        status: true,
+        appeal: { select: { status: true, decided_by: true } },
+      },
     });
+    // A review the author deleted is absent: writing again publishes the
+    // row anew. One removed by an admin (appeal or moderation) stays.
+    if (
+      found?.status === 'removed' &&
+      (found.appeal?.decided_by ||
+        (await removedByModeration(this.prisma, found.id, 'client_review')))
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.REVIEW_NOT_EDITABLE,
+        message: 'This review was removed by moderation.',
+      });
+    }
+    const revived = found?.status === 'removed';
+    if (revived) {
+      // Its appeal was closed by the author's delete: the client may
+      // appeal the new review.
+      await this.prisma.clientReviewAppeal.deleteMany({
+        where: { review_id: found.id, decided_by: null },
+      });
+    }
+    const existing = revived ? null : found;
     const row = await this.prisma.clientReview.upsert({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
@@ -115,6 +137,7 @@ export class ClientReviewsService {
         rating: dto.rating,
         body,
         ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+        ...(revived ? { status: 'published' as const } : {}),
       },
     });
     await this.recalc(kase.client_id);

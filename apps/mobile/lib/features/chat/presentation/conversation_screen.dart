@@ -207,8 +207,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                 }
               },
             ),
-            if (c.counterpart.id != null)
-              // OQ-028: block / unblock the other party.
+            // OQ-028: block / unblock the other party. Audit 2026-10-04: not
+            // inside an active case (the work goes through the case).
+            if (c.counterpart.id != null &&
+                !(c.caseId != null && c.contactsUnlocked && !c.closed))
               BlockListRow(
                 userId: c.counterpart.id!,
                 displayName: c.counterpart.displayName ??
@@ -219,7 +221,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                           c.counterpart.id,
                         ) ??
                     false,
-                onChanged: () {},
+                onChanged: () =>
+                    ref.invalidate(chatThreadProvider(widget.conversationId)),
               ),
             if (c.counterpart.id != null)
               AppListRow(
@@ -272,8 +275,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           // Owner 2026-09-30: no call button until a request is accepted.
           // Audit 2026-10-02: no call button across a block or for an
           // assistant without the "calls" duty (the server refuses both).
+          // Audit 2026-10-04: nor in a case chat before acceptance.
           if (c != null &&
               !c.closed &&
+              c.contactsUnlocked &&
               !c.myRequestPending &&
               !c.awaitingMyAnswer &&
               !c.myRequestDeclined &&
@@ -286,7 +291,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
             AppIconButton(
               icon: AppIcon(
                 AppIcons.callOutlined,
-                color: c.contactsUnlocked ? colors.text : colors.textSecondary,
+                color: colors.text,
               ),
               semanticLabel: t.t('call.button'),
               onPressed: () => _call(c),
@@ -426,10 +431,14 @@ class _Header extends ConsumerWidget {
         // Without a case (reserved) the header opens the attorney's profile.
         onTap: () {
           if (caseId != null) {
+            // Audit 2026-10-04: the hired attorney opens the work card —
+            // the case card's "Message client" would push this chat again.
             context.push(
-              attorney
-                  ? AppRoutes.caseDetail(caseId)
-                  : AppRoutes.myCase(caseId),
+              !attorney
+                  ? AppRoutes.myCase(caseId)
+                  : c.contactsUnlocked
+                      ? AppRoutes.workCase(caseId)
+                      : AppRoutes.caseDetail(caseId),
             );
           } else if (c.counterpart.username != null) {
             // OQ-043: a direct chat opens the other person's profile.

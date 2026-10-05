@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -45,6 +46,7 @@ export class ChatTranslationService {
     private readonly flags: FeatureFlagsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    private readonly costGuard: CostGuardService,
   ) {}
 
   /** The Google key when the feature is on and configured, else null. */
@@ -84,9 +86,8 @@ export class ChatTranslationService {
 
     const day = new Date().toISOString().slice(0, 10);
     const quotaKey = `chat:tr:quota:${user.sub}:${day}`;
-    const used = await this.redis.incr(quotaKey);
-    if (used === 1) await this.redis.expire(quotaKey, 26 * 3600);
-    if (used > DAILY_TRANSLATIONS) {
+    const used = Number((await this.redis.get(quotaKey)) ?? 0);
+    if (used >= DAILY_TRANSLATIONS) {
       throw new HttpException(
         {
           code: ErrorCode.RATE_LIMITED,
@@ -96,7 +97,13 @@ export class ChatTranslationService {
       );
     }
 
+    // Global cap across all users (PROVIDER_BUDGET_EXCEEDED, fails closed).
+    await this.costGuard.consume('translate');
     const out = await this.callGoogle(key, text, target);
+    // Counted only after a successful call: a Google error costs no quota.
+    if ((await this.redis.incr(quotaKey)) === 1) {
+      await this.redis.expire(quotaKey, 26 * 3600);
+    }
     await this.redis.set(cacheKey, JSON.stringify(out), 'EX', CACHE_TTL_S);
     return out;
   }

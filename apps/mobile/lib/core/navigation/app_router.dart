@@ -136,8 +136,12 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.create,
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.modal(state, const CreateScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.modal(
+          state,
+          CreateScreen(
+            startWithCase: state.uri.queryParameters['kind'] == 'case',
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.profileSettings,

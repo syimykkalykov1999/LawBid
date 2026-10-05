@@ -97,7 +97,8 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
             AppTextField(
               controller: controller,
               label: t.t('cases.work.disputeReason'),
-              maxLength: 500,
+              // Audit 2026-10-04: 1000, as the API and the lawyer form.
+              maxLength: 1000,
               maxLines: 4,
             ),
             const SizedBox(height: AppSpacing.md),

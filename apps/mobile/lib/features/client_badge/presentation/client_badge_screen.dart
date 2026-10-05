@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
 import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
@@ -44,8 +45,13 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
   // Back from Stripe's page: show the new state.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) ref.invalidate(clientBadgeProvider);
+    if (state == AppLifecycleState.resumed) _reload();
   }
+
+  /// The badge state and the public profile that shows the badge.
+  void _reload() => ref
+    ..invalidate(clientBadgeProvider)
+    ..invalidate(publicClientProfileProvider);
 
   Future<void> _add() async {
     final doc =
@@ -82,7 +88,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
       await ref.read(clientBadgeRepositoryProvider).submit(ids);
       if (!mounted) return;
       setState(_docs.clear);
-      ref.invalidate(clientBadgeProvider);
+      _reload();
       showAppSnackBar(context, t.t('cbadge.sent'));
     } on Object catch (e) {
       if (mounted) {
@@ -121,7 +127,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
     setState(() => _busy = true);
     try {
       await ref.read(clientBadgeRepositoryProvider).setCancel(cancel: cancel);
-      ref.invalidate(clientBadgeProvider);
+      _reload();
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {

@@ -430,7 +430,8 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
   bool _accepted = false;
 
   Future<void> _toggle(AssistantDuty d, bool on) async {
-    if (on) {
+    // Audit 2026-10-04: asked once per edit, not at every switch.
+    if (on && !_accepted) {
       final t = ref.read(translatorProvider);
       final ok = await askLiability(context, t, dutyLabel(t, d));
       if (!ok || !mounted) return;

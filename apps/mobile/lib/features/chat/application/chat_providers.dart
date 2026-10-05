@@ -749,7 +749,12 @@ class ChatThread extends Notifier<ChatThreadState> {
       id,
       muted ? DateTime.now().add(const Duration(days: 3650)) : null,
     );
-    if (ref.mounted) state = state.copyWith(conversation: updated);
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    // Audit 2026-10-04: the lists show the mute mark at once.
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
   }
 
   void _onOutbox(List<OutboxRow> rows) {

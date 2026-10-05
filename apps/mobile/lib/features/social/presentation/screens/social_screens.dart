@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart'
@@ -253,6 +254,15 @@ class _PostScreenState extends ConsumerState<PostScreen> {
   ReplyTarget? _replyTo;
   final _focus = FocusNode();
 
+  void _leave(BuildContext context) {
+    // A deep link opens this with go(): nothing to pop → back to the feed.
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.feed);
+    }
+  }
+
   @override
   void dispose() {
     _focus.dispose();
@@ -277,7 +287,7 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => _leave(context),
         ),
         title: Text(t.t('post.title')),
       ),
@@ -530,38 +540,24 @@ class _TagScreenState extends ConsumerState<TagScreen> {
   }
 }
 
-/// docs/05 §6.2 followers / following of an attorney, or my follows.
+/// docs/05 §6.2 followers / following of a person.
 class FollowListScreen extends ConsumerWidget {
   const FollowListScreen({
     required this.kind,
-    this.attorneyId,
+    required this.attorneyId,
     super.key,
   });
 
-  /// null = "Мои подписки" (`GET /users/me/following`).
-  final String? attorneyId;
+  final String attorneyId;
   final FollowListKind kind;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final id = attorneyId;
-    final AsyncValue<PaginatedList<PersonRow>> value;
-    final PagedNotifierLike notifier;
-    if (id == null) {
-      // My follows are attorneys only; shown through the same row type.
-      value = ref.watch(myFollowingProvider).whenData(
-            (l) => l.map(PersonRow.attorney),
-          );
-      final n = ref.read(myFollowingProvider.notifier);
-      notifier = (n.refresh, n.loadMore, n.retryLoadMore);
-    } else {
-      final key = (attorneyId: id, kind: kind);
-      value = ref.watch(followListProvider(key));
-      final n = ref.read(followListProvider(key).notifier);
-      notifier = (n.refresh, n.loadMore, n.retryLoadMore);
-    }
+    final key = (attorneyId: attorneyId, kind: kind);
+    final value = ref.watch(followListProvider(key));
+    final n = ref.read(followListProvider(key).notifier);
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -590,19 +586,13 @@ class FollowListScreen extends ConsumerWidget {
                 : 'follow.following.empty',
           ),
         ),
-        onRefresh: notifier.$1,
-        onLoadMore: notifier.$2,
-        onRetryMore: notifier.$3,
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
       ),
     );
   }
 }
-
-typedef PagedNotifierLike = (
-  Future<void> Function(),
-  VoidCallback,
-  VoidCallback,
-);
 
 /// "Моё → Сохранённое" posts (docs/05 §4); a post deleted or hidden since
 /// shows as "Пост недоступен".

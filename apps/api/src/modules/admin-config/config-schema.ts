@@ -1,4 +1,5 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
+import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
 
 export interface ConfigKeySchema {
@@ -24,7 +25,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   for (const [key, def] of Object.entries(APP_SETTINGS)) {
     out[key] = inferred(def);
   }
-  for (const provider of ['sms', 'email', 'id_check', 'storage']) {
+  for (const provider of COST_PROVIDERS) {
     for (const window of ['per_minute_max', 'daily_max', 'monthly_max']) {
       out[`budget.${provider}.${window}`] = {
         type: 'integer',

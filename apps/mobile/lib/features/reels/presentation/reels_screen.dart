@@ -91,13 +91,19 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     final t = ref.watch(translatorProvider);
     final muted = ref.watch(reelsMutedProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // A reel deleted from its "⋯" menu leaves the list.
+    final deleted = ref.watch(deletedPostsProvider);
+    final items = [
+      for (final p in _items)
+        if (!deleted.contains(p.id)) p,
+    ];
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
           children: [
-            if (_items.isEmpty)
+            if (items.isEmpty)
               Center(
                 child: _loading
                     ? const CircularProgressIndicator(color: Colors.white)
@@ -127,13 +133,14 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
               PageView.builder(
                 controller: _pages,
                 scrollDirection: Axis.vertical,
-                itemCount: _items.length,
+                itemCount: items.length,
                 onPageChanged: (i) {
                   setState(() => _index = i);
-                  if (i >= _items.length - 3) _load();
+                  if (i >= items.length - 3) _load();
                 },
                 itemBuilder: (_, i) => _ReelPage(
-                  post: _items[i],
+                  key: ValueKey(items[i].id),
+                  post: items[i],
                   active: i == _index,
                   muted: muted,
                 ),
@@ -187,6 +194,7 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.post,
     required this.active,
     required this.muted,
+    super.key,
   });
 
   final Post post;
@@ -357,6 +365,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     () => run(() => actions.toggleSave(p)),
                     color: p.savedByMe ? colors.gold : null,
                   ),
+                  rail(AppIcons.moreHorizRounded, t.t('post.menu'), null, () {
+                    setState(() => _paused = true);
+                    showPostMenu(context, ref, p);
+                  }),
                 ],
               ),
             ),
@@ -368,36 +380,50 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Colors.white24,
-                        backgroundImage: p.author.avatarUrl == null
-                            ? null
-                            : CachedNetworkImageProvider(p.author.avatarUrl!),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Flexible(
-                        child: Text(
-                          p.author.displayName,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.body.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            shadows: shadow,
+                  Semantics(
+                    button: true,
+                    label:
+                        t.t('post.author.open', {'name': p.author.displayName}),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        setState(() => _paused = true);
+                        openAuthorProfile(context, ref, p.author);
+                      },
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.white24,
+                            backgroundImage: p.author.avatarUrl == null
+                                ? null
+                                : CachedNetworkImageProvider(
+                                    p.author.avatarUrl!,
+                                  ),
                           ),
-                        ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Flexible(
+                            child: Text(
+                              p.author.displayName,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.body.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                shadows: shadow,
+                              ),
+                            ),
+                          ),
+                          if (p.author.verified) ...[
+                            const SizedBox(width: 4),
+                            AppIcon(
+                              AppIcons.verifiedRounded,
+                              size: 16,
+                              color: colors.gold,
+                            ),
+                          ],
+                        ],
                       ),
-                      if (p.author.verified) ...[
-                        const SizedBox(width: 4),
-                        AppIcon(
-                          AppIcons.verifiedRounded,
-                          size: 16,
-                          color: colors.gold,
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                   if (p.locationName != null) ...[
                     const SizedBox(height: AppSpacing.xs),

@@ -12,6 +12,7 @@ import { caseNotFound } from '../domain/case-state-machine';
 import { CaseAccessPolicy } from '../policies/case-access.policy';
 import {
   CASE_BIDS_PAGE_DEFAULT,
+  type BidAttorneySummaryDto,
   type CaseBidItemDto,
   type CaseBidPage,
   type CaseBidsQueryDto,
@@ -162,9 +163,6 @@ export class CaseBidsService {
 
   /** A bid with the attorney's public summary (§5.2 card). */
   async toItem(bid: BidListRow): Promise<CaseBidItemDto> {
-    const a = bid.attorney;
-    const p = a.attorney_profile;
-    const avatar = await this.files.avatarUrls(a.avatar_file_id);
     return {
       id: bid.id,
       caseId: bid.case_id,
@@ -183,20 +181,41 @@ export class CaseBidsService {
       outsidePractice: bid.outside_practice,
       decidedAt: bid.decided_at?.toISOString() ?? null,
       createdAt: bid.created_at.toISOString(),
-      attorney: {
-        id: bid.attorney_id,
-        username: p?.username ?? '',
-        firstName: a.first_name,
-        lastName: a.last_name,
-        avatarUrl256: avatar.url256,
-        verifiedBadge:
-          p?.verification_status === 'verified' &&
-          !p.name_mismatch &&
-          (p.licenses.length ?? 0) > 0,
-        rating: {
-          avg: p ? Number(p.rating_avg) : 0,
-          count: p?.rating_count ?? 0,
-        },
+      attorney: await this.toAttorneySummary(bid),
+    };
+  }
+
+  /** GET /bids/:id: the attorney summary of one bid (the caller has
+   * already checked that the viewer is one of the bid's parties). */
+  async attorneySummaryOf(
+    bidId: string,
+  ): Promise<BidAttorneySummaryDto | undefined> {
+    const bid = await this.prisma.bid.findUnique({
+      where: { id: bidId },
+      include: BID_LIST_INCLUDE,
+    });
+    return bid ? this.toAttorneySummary(bid) : undefined;
+  }
+
+  private async toAttorneySummary(
+    bid: BidListRow,
+  ): Promise<BidAttorneySummaryDto> {
+    const a = bid.attorney;
+    const p = a.attorney_profile;
+    const avatar = await this.files.avatarUrls(a.avatar_file_id);
+    return {
+      id: bid.attorney_id,
+      username: p?.username ?? '',
+      firstName: a.first_name,
+      lastName: a.last_name,
+      avatarUrl256: avatar.url256,
+      verifiedBadge:
+        p?.verification_status === 'verified' &&
+        !p.name_mismatch &&
+        (p.licenses.length ?? 0) > 0,
+      rating: {
+        avg: p ? Number(p.rating_avg) : 0,
+        count: p?.rating_count ?? 0,
       },
     };
   }

@@ -62,6 +62,7 @@ class FakeSocialRepository implements SocialRepository {
   bool failLikes = false;
   final likeCalls = <(String, bool)>[];
   final followCalls = <(String, bool)>[];
+  int attorneyPostsCalls = 0;
 
   @override
   Future<CursorPage<Post>> feed({String? cursor}) async {
@@ -106,8 +107,10 @@ class FakeSocialRepository implements SocialRepository {
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
-  }) async =>
-      CursorPage(items: posts);
+  }) async {
+    attorneyPostsCalls++;
+    return CursorPage(items: posts);
+  }
 
   @override
   Future<CursorPage<SavedPost>> savedPosts({String? cursor}) async =>

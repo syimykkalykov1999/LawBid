@@ -101,7 +101,17 @@ class CasePhotosPicker extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppRadii.field),
                       child: p.isDocument
                           ? _DocTile(name: p.name!)
-                          : Image.memory(p.bytes, fit: BoxFit.cover),
+                          // A photo restored with a saved draft has no
+                          // bytes on the device any more.
+                          : p.bytes.isEmpty
+                              ? ColoredBox(
+                                  color: colors.surface,
+                                  child: AppIcon(
+                                    AppIcons.imageOutlined,
+                                    color: colors.goldDark,
+                                  ),
+                                )
+                              : Image.memory(p.bytes, fit: BoxFit.cover),
                     ),
                     if (p.uploading)
                       const Center(
@@ -192,6 +202,16 @@ class CasePhotosPicker extends ConsumerWidget {
               ),
           ],
         ),
+        if (photos.any((p) => p.failed)) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              t.t('cases.photos.failedHint'),
+              style: type.caption.copyWith(color: colors.dangerText),
+            ),
+          ),
+        ],
       ],
     );
   }

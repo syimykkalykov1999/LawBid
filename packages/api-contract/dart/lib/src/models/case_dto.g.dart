@@ -31,6 +31,7 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   autoCloseAt: json['autoCloseAt'] as String?,
   closedAt: json['closedAt'] as String?,
   deletedAt: json['deletedAt'] as String?,
+  stalePromptSentAt: json['stalePromptSentAt'] as String?,
 );
 
 Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
@@ -54,4 +55,5 @@ Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
   'autoCloseAt': ?instance.autoCloseAt,
   'closedAt': ?instance.closedAt,
   'deletedAt': ?instance.deletedAt,
+  'stalePromptSentAt': ?instance.stalePromptSentAt,
 };

@@ -1,14 +1,21 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
+import 'package:lawbid/features/cases/data/cases_local_database.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../helpers/onboarding_harness.dart';
 import '../profile/profile_fakes.dart';
@@ -18,12 +25,14 @@ CaseBid bidFixture({
   PartyRole turn = PartyRole.client,
   int rounds = 0,
   FeeType fee = FeeType.fixed,
+  String id = 'bid-1',
+  BidStatus status = BidStatus.active,
 }) =>
     CaseBid(
-      id: 'bid-1',
+      id: id,
       caseId: 'case-1',
       attorneyId: 'att-1',
-      status: BidStatus.active,
+      status: status,
       feeType: fee,
       amountCents: 60000,
       message: 'I handle NJ speeding tickets every week, happy to help.',
@@ -68,6 +77,73 @@ class _PublishRepo extends FakeCasesRepository {
     if (error != null) throw error!;
     return 'new-case';
   }
+}
+
+MyBid _myBid(String id, BidStatus status) {
+  final bid = bidFixture(id: id, status: status);
+  return MyBid(
+    bid: bid,
+    caseId: 'case-$id',
+    caseTitle: 'Case $id',
+    caseStatus: CaseStatus.closed,
+    casePracticeI18nKey: 'practice.traffic',
+    casePracticeNameEn: 'Traffic',
+    primaryStateCode: 'NJ',
+    lastOffer: bid.offers.first,
+  );
+}
+
+class _WonCaseRepo extends FakeCasesRepository {
+  @override
+  Future<FeedCase> attorneyCase(String caseId) async => FeedCase(
+        id: caseId,
+        title: 'Speeding ticket in Trenton',
+        practice: const PracticeRef(
+          id: 'leaf-1',
+          code: 'traffic',
+          i18nKey: 'practice.traffic',
+          nameEn: 'Traffic',
+        ),
+        primaryStateCode: 'NJ',
+        additionalStateCodes: const [],
+        city: null,
+        status: CaseStatus.inProgress,
+        budget: const CaseBudget(mode: BudgetMode.clarifyLater),
+        viewCount: 1,
+        bidsCount: 1,
+        createdAt: DateTime(2026, 9, 20),
+        isNew: false,
+        hasOwnBid: true,
+        ownBidId: 'bid-1',
+      );
+
+  @override
+  Future<CaseBid> bid(String bidId) async =>
+      bidFixture(status: BidStatus.accepted);
+
+  @override
+  Future<void> recordView(String caseId) async {}
+}
+
+class _FinishedBidsRepo extends FakeCasesRepository {
+  @override
+  Future<CursorPage<MyBid>> myBids(
+    MyBidsFilter filter, {
+    String? cursor,
+    MineSearch search = const MineSearch(),
+  }) async =>
+      cursor == null
+          // A first page of only accepted bids reads on to the next one.
+          ? CursorPage(
+              items: [_myBid('a1', BidStatus.accepted)],
+              nextCursor: 'p2',
+            )
+          : CursorPage(
+              items: [
+                _myBid('a2', BidStatus.accepted),
+                _myBid('w1', BidStatus.withdrawn),
+              ],
+            );
 }
 
 void main() {
@@ -126,6 +202,19 @@ void main() {
       expect(back.step, 4);
       expect(CaseDraft.decode('{broken'), isNull);
     });
+
+    test('keeps uploaded files and counts them as content', () {
+      const d = CaseDraft(
+        files: [
+          CaseDraftFile(fileId: 'f1'),
+          CaseDraftFile(fileId: 'f2', name: 'lease.pdf'),
+        ],
+      );
+      expect(d.isEmpty, isFalse);
+      expect(const CaseDraft().isEmpty, isTrue);
+      final back = CaseDraft.decode(d.encode())!;
+      expect(back.files, d.files);
+    });
   });
 
   group('CaseBid rules (docs/04 §6.1)', () {
@@ -139,6 +228,69 @@ void main() {
   });
 
   group('CreateCaseController (docs/04 §3.1, §3.4)', () {
+    test('a failed upload blocks Next and Publish', () {
+      final failed = CasePhotoUpload(
+        key: 0,
+        bytes: Uint8List(1),
+        failed: true,
+      );
+      final essence = CreateCaseState(
+        draft: completeDraft().copyWith(step: 1),
+        photos: [failed],
+      );
+      expect(essence.stepValid, isFalse);
+      expect(essence.copyWith(photos: const []).stepValid, isTrue);
+      final review = CreateCaseState(
+        draft: completeDraft(),
+        needsConsent: false,
+        photos: [failed],
+      );
+      expect(review.stepValid, isFalse);
+    });
+
+    testWidgets('a restored draft brings back its uploaded files',
+        (tester) async {
+      late ProviderContainer c;
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        extra: casesOverrides(),
+      );
+      await tester.pumpWidget(
+        wrap(
+          Consumer(
+            builder: (context, ref, _) {
+              c = ProviderScope.containerOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      final draft = completeDraft().copyWith(
+        step: 2,
+        files: const [
+          CaseDraftFile(fileId: 'f1'),
+          CaseDraftFile(fileId: 'f2', name: 'lease.pdf'),
+        ],
+      );
+      await tester.runAsync(
+        () => c
+            .read(casesLocalDatabaseProvider)
+            .saveDraft(clientMe().id, draft.encode()),
+      );
+      c.listen(createCaseControllerProvider, (_, __) {});
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump();
+      final s = c.read(createCaseControllerProvider);
+      expect(s.restoredDraft, isTrue);
+      expect(s.draft.step, 2);
+      expect(s.photos.map((p) => p.fileId), ['f1', 'f2']);
+      expect(s.photos.last.isDocument, isTrue);
+      expect(s.photosUploading, isFalse);
+    });
+
     testWidgets('publishes with the first-case consent and clears the draft',
         (tester) async {
       final repo = _PublishRepo();
@@ -210,7 +362,68 @@ void main() {
     });
   });
 
+  group('Mine bids', () {
+    testWidgets('"Finished" leaves out accepted bids', (tester) async {
+      late ProviderContainer c;
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: attorneyMe(),
+        extra: casesOverrides(repo: _FinishedBidsRepo()),
+      );
+      await tester.pumpWidget(
+        wrap(
+          Consumer(
+            builder: (context, ref, _) {
+              c = ProviderScope.containerOf(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      const key = (filter: MyBidsFilter.finished, search: MineSearch());
+      c.listen(mineBidsProvider(key), (_, __) {});
+      final page = await c.read(mineBidsProvider(key).future);
+      expect(page.items.map((b) => b.bid.id), ['w1']);
+    });
+  });
+
   group('Screens', () {
+    testWidgets('a won case opens the work screen for its attorney',
+        (tester) async {
+      final router = GoRouter(
+        initialLocation: '/case/case-1',
+        routes: [
+          GoRoute(
+            path: '/case/:id',
+            builder: (_, s) =>
+                AttorneyCaseScreen(caseId: s.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: '/mine/work/:id',
+            builder: (_, s) => Scaffold(
+              body: Text('WORK ${s.pathParameters['id']}'),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: attorneyMe(),
+        extra: casesOverrides(repo: _WonCaseRepo()),
+      );
+      final scoped = wrap(const SizedBox.shrink()) as ProviderScope;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: scoped.overrides,
+          child:
+              MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('WORK case-1'), findsOneWidget);
+    });
+
     testWidgets('client "Мои кейсы" empty state offers "Create a case"',
         (tester) async {
       final wrap = await onboardingWrapper(

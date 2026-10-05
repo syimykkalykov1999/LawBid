@@ -110,6 +110,16 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.self_attestation_auto_approve': true,
 } as const;
 
+// Future web client (a client form on lawbid.dev sharing this API): the
+// browser origins allowed to call the API cross-origin (CORS). Localhost
+// origins are added on top outside production (src/common/cors).
+export const OWNER_WEB_SETTINGS = {
+  'web.allowed_origins': [
+    'https://lawbid.dev',
+    'https://www.lawbid.dev',
+  ] as string[],
+};
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -120,6 +130,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_WEB_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
