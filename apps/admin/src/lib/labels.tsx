@@ -175,6 +175,16 @@ export const BID_STATUS: Record<string, string> = {
   failed_negotiation: 'переговоры не удались',
 };
 
+// Owner 2026-10-05: client → attorney case invites.
+export const INVITE_STATUS: Record<string, string> = {
+  pending: 'ждёт ответа',
+  accepted: 'адвокат ответил ставкой',
+  declined: 'отклонено',
+  cancelled: 'отменено клиентом',
+  expired: 'истекло',
+  closed: 'кейс закрыт',
+};
+
 export const FEE_TYPE: Record<string, string> = {
   fixed: 'фикс',
   hourly: 'почасово',

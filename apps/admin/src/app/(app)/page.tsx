@@ -83,7 +83,7 @@ export default function DashboardPage() {
           <>
             <Kpi i={0} icon={UserPlus} title="Новые клиенты" value={d.newUsers.clients24h} hint={`за 24 ч · за 7 дней ${d.newUsers.clients7d}`} />
             <Kpi i={1} icon={Users} title="Новые адвокаты" value={d.newUsers.attorneys24h} hint={`за 24 ч · за 7 дней ${d.newUsers.attorneys7d}`} />
-            <Kpi i={2} icon={Briefcase} title="Открытые кейсы" value={d.openCases} hint={`ставок за сутки: ${d.bids24h}`} />
+            <Kpi i={2} icon={Briefcase} title="Открытые кейсы" value={d.openCases} hint={`ставок за сутки: ${d.bids24h} · приглашений: ${d.invites24h}`} />
             {showMoney ? (
               <Kpi
                 i={3}
