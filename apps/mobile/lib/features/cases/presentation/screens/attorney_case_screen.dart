@@ -20,10 +20,13 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/subscription/application/subscription_providers.dart';
+import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Opens the subscription call-to-action when the server answers
 /// SUBSCRIPTION_REQUIRED (docs/04 §2); true when it handled [e].
@@ -83,6 +86,24 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
       setState(() => _savedOverride = !next);
       showAppSnackBar(context, errorText(t, e));
     }
+  }
+
+  /// Owner 2026-10-04: an attorney without an active subscription or trial
+  /// gets the subscription offer (start the 7-day trial / subscribe)
+  /// instead of a bid form the server would refuse. Assistants bid under
+  /// the attorney's subscription — the server decides for them.
+  Future<void> _bid(FeedCase c) async {
+    if (ref.read(currentUserRoleProvider) == UserRole.attorney) {
+      final overview = await ref
+          .read(subscriptionOverviewProvider.future)
+          .then<SubscriptionOverview?>((o) => o, onError: (Object _) => null);
+      if (!mounted) return;
+      if (overview != null && !overview.isActive) {
+        await context.push(AppRoutes.subscriptionRequiredFor('bid'));
+        return;
+      }
+    }
+    if (mounted) await context.push(AppRoutes.placeBid(c.id));
   }
 
   Future<void> _message(FeedCase c) async {
@@ -158,7 +179,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
                   AppButton(
                     label: t.t('cases.bidForm.cta'),
                     icon: AppIcons.gavelRounded,
-                    onPressed: () => context.push(AppRoutes.placeBid(c.id)),
+                    onPressed: () => _bid(c),
                   ),
                 if (c.bidAllowed &&
                     ref.watch(canDoProvider(AssistantDuty.chats)))
@@ -211,17 +232,12 @@ class _Body extends ConsumerWidget {
               ? StatusPill(label: t.t('cases.card.new'), tone: StatusTone.gold)
               : null,
         ),
-        // Owner 2026-10-04: any open case can be viewed; an offer needs a
-        // verified licence in one of its states.
-        if (!c.bidAllowed)
+        // Owner 2026-10-04: a case in a state without the attorney's
+        // licence is still biddable; the client is told on the bid.
+        if (!c.inMyLicensedStates && c.ownBidId == null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: InlineNotice(
-              tone: NoticeTone.info,
-              icon: AppIcons.workspacePremiumOutlined,
-              title: t.t('cases.detail.viewOnlyTitle'),
-              message: t.t('cases.detail.viewOnlyMessage'),
-            ),
+            child: OutsideStatesNote(t: t, forClient: false),
           ),
         // Owner 2026-09-30: another practice — bidding is allowed and the
         // client is told.

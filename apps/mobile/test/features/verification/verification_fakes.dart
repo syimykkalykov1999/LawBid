@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
@@ -15,6 +16,7 @@ import 'package:lawbid/features/verification/presentation/screens/verification_w
 import 'package:lawbid/features/verification/verification_providers.dart';
 
 import '../../helpers/ux_harness.dart';
+import '../profile/profile_fakes.dart';
 
 const _states = {'AL': 'Alabama', 'AK': 'Alaska', 'NY': 'New York'};
 
@@ -304,6 +306,7 @@ Widget verificationApp({
     overrides: uxOverrides(
       extra: [
         verificationRepositoryProvider.overrideWithValue(backend),
+        practicesRepositoryProvider.overrideWithValue(FakePracticesRepo()),
         fileUploadRepositoryProvider.overrideWithValue(backend),
         documentSourceProvider
             .overrideWithValue(source ?? FakeDocumentSource()),

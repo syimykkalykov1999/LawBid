@@ -16,6 +16,10 @@ import { formatDateTime } from '@/lib/utils';
 
 /** Russian explanations for the known keys (most server descriptions are null or English). */
 const KEY_TEXT: Record<string, string> = {
+  'billing.max_assistant_seats': 'Сколько помощников может добавить адвокат (годовой тариф включает все).',
+  'invites.expiry_days': 'Через сколько дней истекает приглашение клиента («Предложить дело»), если адвокат не ответил.',
+  'invites.max_pending_per_case': 'Сколько адвокатов одновременно могут ждать ответа по одному делу.',
+  'invites.max_per_day': 'Сколько приглашений клиент может отправить за день.',
   'verification.max_submissions_30d': 'Сколько заявок на верификацию адвокат может подать за 30 дней.',
   'verification.signed_url_ttl_sec': 'Сколько секунд живёт ссылка на документ верификации.',
   'verification.license_expiry_notify_days': 'За сколько дней напоминать об окончании лицензии.',

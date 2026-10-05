@@ -1,11 +1,14 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
+import 'package:lawbid/core/l10n/strings/assistant_code_strings.dart';
+import 'package:lawbid/core/l10n/strings/attorney_setup_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
+import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
@@ -780,6 +783,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.submit.supplement': 'Отправить ответ',
         'verification.submit.success':
             'Заявка отправлена на проверку. Мы сообщим о решении.',
+        'verification.submit.confirm': 'Подтвердить',
+        'verification.submit.confirmed': 'Лицензия подтверждена.',
         'verification.submit.blocked.uploading':
             'Дождитесь окончания загрузки и проверки всех файлов.',
         'verification.submit.blocked.failed':
@@ -931,6 +936,10 @@ class StaticTranslatorRu extends _MapTranslator {
         'practices.remove': 'Убрать {name}',
         'practices.save': 'Сохранить',
         'practices.saved': 'Практики сохранены.',
+        'practices.unsaved.title': 'Выйти без сохранения?',
+        'practices.unsaved.body': 'Выбранные изменения не сохранятся.',
+        'practices.unsaved.stay': 'Остаться',
+        'practices.unsaved.leave': 'Выйти',
         'practices.noResults': 'По запросу ничего не найдено.',
         'practices.emptyTree':
             'Справочник практик сейчас пуст. Попробуйте позже.',
@@ -1074,6 +1083,9 @@ class StaticTranslatorRu extends _MapTranslator {
         ...file07Ru,
         ...reelsRu,
         ...caseCoverRu,
+        ...attorneySetupRu,
+        ...assistantCodeRu,
+        ...inviteRu,
         ...caseDossierRu,
       };
 }
@@ -2127,6 +2139,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.submit.supplement': 'Send the answer',
         'verification.submit.success':
             "Sent for review. We'll notify you about the decision.",
+        'verification.submit.confirm': 'Confirm',
+        'verification.submit.confirmed': 'License confirmed.',
         'verification.submit.blocked.uploading':
             'Wait until all files finish uploading and checking.',
         'verification.submit.blocked.failed':
@@ -2278,6 +2292,10 @@ class StaticTranslatorEn extends _MapTranslator {
         'practices.remove': 'Remove {name}',
         'practices.save': 'Save',
         'practices.saved': 'Practices saved.',
+        'practices.unsaved.title': 'Leave without saving?',
+        'practices.unsaved.body': "Your changes won't be saved.",
+        'practices.unsaved.stay': 'Stay',
+        'practices.unsaved.leave': 'Leave',
         'practices.noResults': 'No practice areas match your search.',
         'practices.emptyTree':
             'The practice directory is empty right now. Please try again later.',
@@ -2421,6 +2439,9 @@ class StaticTranslatorEn extends _MapTranslator {
         ...file07En,
         ...reelsEn,
         ...caseCoverEn,
+        ...attorneySetupEn,
+        ...assistantCodeEn,
+        ...inviteEn,
         ...caseDossierEn,
       };
 }

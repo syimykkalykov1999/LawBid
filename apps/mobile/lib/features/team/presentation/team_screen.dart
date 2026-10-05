@@ -1,60 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/subscription/presentation/plan_picker.dart'
-    show phoneE164;
-import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 
 /// OQ-048 (owner 2026-09-30) — Team: the attorney's assistants, seats,
-/// and who does what (one duty to many, many to one). Adding a phone lets
-/// that assistant join without a code; removing ends access at once.
+/// and who does what (one duty to many, many to one). Adding an assistant
+/// gives the seat a one-time code (owner 2026-10-04, no SMS); removing
+/// ends access at once and voids the code.
 class TeamScreen extends ConsumerWidget {
   const TeamScreen({super.key});
-
-  Future<void> _add(BuildContext context, WidgetRef ref, TeamInfo team) async {
-    final t = ref.read(translatorProvider);
-    if (!team.hasFreeSeat) {
-      final go = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          content: Text(t.t('team.noSeats')),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text(t.t('common.cancel')),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text(t.t('team.buySeats')),
-            ),
-          ],
-        ),
-      );
-      if ((go ?? false) && context.mounted) {
-        await context.push(SubscriptionRoutes.subscription);
-        ref.invalidate(teamProvider);
-      }
-      return;
-    }
-    final added = await showAppBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _AddSheet(),
-    );
-    if ((added ?? false) && context.mounted) {
-      showAppSnackBar(context, t.t('team.add.done'));
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -121,11 +83,11 @@ class TeamScreen extends ConsumerWidget {
                 key: const ValueKey('team-add'),
                 label: t.t('team.add'),
                 icon: AppIcons.personAddAlt1Rounded,
-                onPressed: () => _add(context, ref, info),
+                onPressed: () => addAssistantWithCode(context, ref, info),
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                t.t('plans.phones.hint'),
+                t.t('plans.seatCodes.hint'),
                 textAlign: TextAlign.center,
                 style: typography.caption.copyWith(color: colors.textSecondary),
               ),
@@ -257,7 +219,9 @@ class _MemberTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        member.label,
+                        member.label.isEmpty
+                            ? t.t('team.member.unnamed')
+                            : member.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: typography.body.copyWith(
@@ -292,11 +256,21 @@ class _MemberTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (member.name != null)
+                if (member.name != null && member.phone != null)
                   Text(
-                    member.phone,
+                    member.phone!,
                     style: typography.caption
                         .copyWith(color: colors.textSecondary),
+                  ),
+                if (member.joinCode != null)
+                  Text(
+                    member.joinCode!,
+                    key: ValueKey('tile-code-${member.id}'),
+                    style: typography.caption.copyWith(
+                      color: colors.gold,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
                   ),
                 const SizedBox(height: AppSpacing.xs),
                 Wrap(
@@ -319,102 +293,6 @@ class _MemberTile extends StatelessWidget {
             ),
           ),
           AppIcon(AppIcons.chevronRightRounded, color: colors.textSecondary),
-        ],
-      ),
-    );
-  }
-}
-
-class _AddSheet extends ConsumerStatefulWidget {
-  const _AddSheet();
-
-  @override
-  ConsumerState<_AddSheet> createState() => _AddSheetState();
-}
-
-class _AddSheetState extends ConsumerState<_AddSheet> {
-  final _phone = TextEditingController();
-  final _name = TextEditingController();
-  bool _busy = false;
-  bool _tried = false;
-
-  @override
-  void dispose() {
-    _phone.dispose();
-    _name.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final t = ref.read(translatorProvider);
-    setState(() => _tried = true);
-    if (!phoneE164.hasMatch(_phone.text.trim())) return;
-    setState(() => _busy = true);
-    try {
-      await ref.read(teamProvider.notifier).add(
-            _phone.text.trim(),
-            name: _name.text.trim().isEmpty ? null : _name.text.trim(),
-          );
-      if (mounted) Navigator.of(context).pop(true);
-    } on Object catch (e) {
-      if (mounted) {
-        setState(() => _busy = false);
-        showAppSnackBar(context, errorText(t, e));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        0,
-        AppSpacing.screenSide,
-        AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            t.t('team.add'),
-            style: typography.titleMedium.copyWith(color: colors.text),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppTextField(
-            key: const ValueKey('team-add-phone'),
-            controller: _phone,
-            label: t.t('team.add.phone'),
-            hintText: '+13125550123',
-            keyboardType: TextInputType.phone,
-            autofocus: true,
-            leading: const AppIcon(AppIcons.phoneOutlined),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp('[+0-9]')),
-            ],
-            errorText: _tried && !phoneE164.hasMatch(_phone.text.trim())
-                ? t.t('plans.phones.invalid')
-                : null,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          AppTextField(
-            key: const ValueKey('team-add-name'),
-            controller: _name,
-            label: t.t('team.add.name'),
-            textCapitalization: TextCapitalization.words,
-            maxLength: 80,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            key: const ValueKey('team-add-save'),
-            label: t.t('team.add'),
-            isLoading: _busy,
-            onPressed: _save,
-          ),
         ],
       ),
     );
@@ -449,6 +327,16 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
       _duties = {..._duties};
       on ? _duties.add(d) : _duties.remove(d);
     });
+  }
+
+  /// Owner 2026-10-05: a ready role sets several accesses in one tap
+  /// (the attorney accepts responsibility once for all of them).
+  Future<void> _applyRole(AssistantRole role) async {
+    final t = ref.read(translatorProvider);
+    final ok = await askLiability(context, t, t.t(role.labelKey));
+    if (!ok || !mounted) return;
+    _accepted = true;
+    setState(() => _duties = {...role.duties});
   }
 
   @override
@@ -538,12 +426,28 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
         ),
         children: [
           Text(
-            widget.member.label,
+            widget.member.label.isEmpty
+                ? t.t('team.member.unnamed')
+                : widget.member.label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: typography.titleMedium.copyWith(color: colors.text),
           ),
-          Text(
-            widget.member.phone,
-            style: typography.caption.copyWith(color: colors.textSecondary),
+          if (widget.member.phone != null)
+            Text(
+              widget.member.phone!,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          // Owner 2026-10-04: the seat's code (live: "New code" updates it).
+          AssistantCodeCard(
+            member: ref
+                    .watch(teamProvider)
+                    .value
+                    ?.members
+                    .where((m) => m.id == widget.member.id)
+                    .firstOrNull ??
+                widget.member,
           ),
           const SizedBox(height: AppSpacing.lg),
           AppTextField(
@@ -580,6 +484,30 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
               color: colors.text,
               fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('team.role.hint'),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              for (final r in AssistantRole.values)
+                ChoiceChip(
+                  key: ValueKey('role-${r.name}'),
+                  label: Text(
+                    t.t(r.labelKey),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  selected: _duties.length == r.duties.length &&
+                      _duties.containsAll(r.duties),
+                  onSelected: (_) => _applyRole(r),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xs),
           for (final d in AssistantDuty.values)

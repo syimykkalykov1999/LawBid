@@ -8,7 +8,7 @@ part of 'add_assistant_dto.dart';
 
 AddAssistantDto _$AddAssistantDtoFromJson(Map<String, dynamic> json) =>
     AddAssistantDto(
-      phone: json['phone'] as String,
+      phone: json['phone'] as String?,
       name: json['name'] as String?,
       duties: (json['duties'] as List<dynamic>?)
           ?.map((e) => AddAssistantDtoDuties.fromJson(e as String))
@@ -18,7 +18,7 @@ AddAssistantDto _$AddAssistantDtoFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$AddAssistantDtoToJson(AddAssistantDto instance) =>
     <String, dynamic>{
-      'phone': instance.phone,
+      'phone': ?instance.phone,
       'name': ?instance.name,
       'duties': ?instance.duties?.map((e) => e.toJson()).toList(),
       'acceptLiability': ?instance.acceptLiability,

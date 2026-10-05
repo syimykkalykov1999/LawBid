@@ -34,6 +34,15 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<OtpVerifyResult> signInWithAssistantCode(String code) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (code.replaceAll('-', '').length < 12) {
+      return const OtpVerifyResult.invalid();
+    }
+    return const OtpVerifyResult.success(isNewUser: true);
+  }
+
+  @override
   Future<OtpVerifyResult> verifyEmailLink({
     required String token,
     required String verifier,

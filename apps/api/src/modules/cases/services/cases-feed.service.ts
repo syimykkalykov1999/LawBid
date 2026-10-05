@@ -226,7 +226,10 @@ export class CasesFeedService {
               : null,
       ...media,
       inMyPractice: access.inPractice,
-      bidAllowed: access.kind !== 'attorney_browser',
+      inMyLicensedStates: access.inLicensedState,
+      // Owner 2026-10-04: every open case the attorney can see is biddable
+      // (any state, any practice); the client is told about a mismatch.
+      bidAllowed: true,
     };
   }
 

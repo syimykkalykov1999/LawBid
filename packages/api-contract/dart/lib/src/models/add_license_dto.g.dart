@@ -11,6 +11,7 @@ AddLicenseDto _$AddLicenseDtoFromJson(Map<String, dynamic> json) =>
       stateCode: json['stateCode'] as String,
       barNumber: json['barNumber'] as String,
       expiresAt: json['expiresAt'] as String?,
+      renewal: json['renewal'] as bool?,
     );
 
 Map<String, dynamic> _$AddLicenseDtoToJson(AddLicenseDto instance) =>
@@ -18,4 +19,5 @@ Map<String, dynamic> _$AddLicenseDtoToJson(AddLicenseDto instance) =>
       'stateCode': instance.stateCode,
       'barNumber': instance.barNumber,
       'expiresAt': ?instance.expiresAt,
+      'renewal': ?instance.renewal,
     };

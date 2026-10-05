@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-102 tables.
+104 tables.
 
 ```mermaid
 erDiagram
@@ -214,6 +214,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     Boolean new_case_alerts_custom
+    Int assistant_seat_limit "nullable"
   }
   attorney_licenses {
     String id PK
@@ -332,6 +333,7 @@ erDiagram
     Int round_count
     enum_PartyRole turn
     Boolean outside_practice
+    Boolean outside_licensed_states
     DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
@@ -824,9 +826,12 @@ erDiagram
     String id PK
     String attorney_id FK
     String assistant_user_id FK "nullable"
-    String phone_e164
+    String phone_e164 "nullable"
     String display_name "nullable"
     enum_AssistantStatus status
+    String join_code_hash UK "nullable"
+    String join_code_enc "nullable"
+    DateTime join_code_expires_at "nullable"
     enum_AssistantApproval approval
     DateTime created_at
     DateTime joined_at "nullable"
@@ -898,6 +903,23 @@ erDiagram
     String case_id FK
     Json payload
     String prepared_by_name "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_invites {
+    String id PK
+    String case_id FK
+    String client_id FK
+    String attorney_id FK
+    String status
+    String message "nullable"
+    Int budget_cents "nullable"
+    String decline_reason "nullable"
+    Boolean outside_practice
+    Boolean outside_licensed_states
+    String bid_id "nullable"
+    DateTime expires_at
+    DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -984,6 +1006,19 @@ erDiagram
     DateTime revoked_at "nullable"
     String revoked_by "nullable"
     String revoke_reason "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  seat_limit_requests {
+    String id PK
+    String attorney_id
+    Int requested_seats
+    String note "nullable"
+    String status
+    Int granted_seats "nullable"
+    String decision_note "nullable"
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1309,6 +1344,9 @@ erDiagram
   attorney_task_steps }o--|| attorney_tasks : "task_id"
   bid_drafts }o--|| users : "attorney_id"
   bid_drafts }o--|| cases : "case_id"
+  case_invites }o--|| cases : "case_id"
+  case_invites }o--|| users : "client_id"
+  case_invites }o--|| users : "attorney_id"
   assistant_liability_acceptances }o--|| users : "attorney_id"
   assistant_liability_acceptances }o--|| assistant_memberships : "membership_id"
   integration_credentials }o--o| users : "created_by"

@@ -1,3 +1,7 @@
+# False positives: practice-area i18n keys in an e2e fixture
+# ("i18n_key: 'practice.…'"), not secrets.
+05479892b7eb225b40b2c3a10eb163f3d4eb0577:apps/api/test/owner-case-invites.e2e-spec.ts:generic-api-key:63
+05479892b7eb225b40b2c3a10eb163f3d4eb0577:apps/api/test/owner-case-invites.e2e-spec.ts:generic-api-key:74
 # Test-only placeholder keys in specs of commit 5bf94bd (PR #43), replaced
 # by obvious test constants in the next commit. Not real credentials.
 5bf94bd6fe656d57350c21916e4b81ec09f647d2:apps/api/src/modules/verification/providers/bar-lookup/generic-rest.adapter.spec.ts:generic-api-key:72

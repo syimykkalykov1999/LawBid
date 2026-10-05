@@ -59,12 +59,17 @@ export async function findActiveGrant(
   };
 }
 
-/** Seats bought on the Stripe subscription (the yearly plan has 6). */
+/** Seats bought on the Stripe subscription (the yearly plan covers
+ * `yearlySeats`, the admin's seat limit). */
 export function paidSeats(
   sub: { plan: string; assistant_seats: number } | null,
+  yearlySeats = 6,
 ): number {
   if (!sub) return 0;
-  return sub.plan === 'yearly' ? 6 : sub.assistant_seats;
+  // Owner 2026-10-05: the yearly plan covers the admin's seat limit.
+  return sub.plan === 'yearly'
+    ? Math.max(yearlySeats, sub.assistant_seats)
+    : sub.assistant_seats;
 }
 
 /** max(paid seats, active grant seats). */

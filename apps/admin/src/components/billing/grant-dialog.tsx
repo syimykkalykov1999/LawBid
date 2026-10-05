@@ -170,8 +170,8 @@ function GrantForm({ onClose, attorney }: { onClose: () => void; attorney: Picke
           <Field label="Срок">
             <Tabs value={months} onChange={setMonths} items={MONTHS.map((m) => ({ value: m, label: `${m} мес.` }))} />
           </Field>
-          <Field label="Места помощников" hint="0–6, бесплатно на весь срок">
-            <Stepper value={seats} min={0} max={6} onChange={setSeats} label="Места помощников" />
+          <Field label="Места помощников" hint="0–50, бесплатно на весь срок">
+            <Stepper value={seats} min={0} max={50} onChange={setSeats} label="Места помощников" />
           </Field>
         </div>
 

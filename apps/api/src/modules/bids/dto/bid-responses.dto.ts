@@ -83,6 +83,11 @@ export class BidDto {
   @ApiProperty()
   outsidePractice!: boolean;
 
+  /** Owner 2026-10-04: the attorney holds no verified licence in the
+   * case's states — bidding is allowed, the client is told. */
+  @ApiProperty()
+  outsideLicensedStates!: boolean;
+
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
 
