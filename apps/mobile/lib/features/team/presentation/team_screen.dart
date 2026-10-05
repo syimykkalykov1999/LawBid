@@ -329,6 +329,16 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
     });
   }
 
+  /// Owner 2026-10-05: a ready role sets several accesses in one tap
+  /// (the attorney accepts responsibility once for all of them).
+  Future<void> _applyRole(AssistantRole role) async {
+    final t = ref.read(translatorProvider);
+    final ok = await askLiability(context, t, t.t(role.labelKey));
+    if (!ok || !mounted) return;
+    _accepted = true;
+    setState(() => _duties = {...role.duties});
+  }
+
   @override
   void dispose() {
     _name.dispose();
@@ -474,6 +484,30 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
               color: colors.text,
               fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('team.role.hint'),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              for (final r in AssistantRole.values)
+                ChoiceChip(
+                  key: ValueKey('role-${r.name}'),
+                  label: Text(
+                    t.t(r.labelKey),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  selected: _duties.length == r.duties.length &&
+                      _duties.containsAll(r.duties),
+                  onSelected: (_) => _applyRole(r),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xs),
           for (final d in AssistantDuty.values)

@@ -31,6 +31,38 @@ enum AssistantDuty {
       {...raw.map(parse).whereType<AssistantDuty>()};
 }
 
+/// Owner 2026-10-05: ready sets of accesses the attorney gives in one tap;
+/// each access can still be switched on or off after.
+enum AssistantRole {
+  /// Calls, chats, files and tasks.
+  secretary({
+    AssistantDuty.calls,
+    AssistantDuty.chats,
+    AssistantDuty.files,
+    AssistantDuty.tasks,
+  }),
+
+  /// The secretary's work plus cases, bid drafts and posts for approval.
+  paralegal({
+    AssistantDuty.calls,
+    AssistantDuty.chats,
+    AssistantDuty.files,
+    AssistantDuty.tasks,
+    AssistantDuty.cases,
+    AssistantDuty.bidDrafts,
+    AssistantDuty.posts,
+  }),
+
+  /// Everything, bids and publishing in the attorney's name included.
+  full({...AssistantDuty.values});
+
+  const AssistantRole(this.duties);
+
+  final Set<AssistantDuty> duties;
+
+  String get labelKey => 'team.role.$name';
+}
+
 enum MemberStatus { invited, active, removed }
 
 @immutable

@@ -79,6 +79,11 @@ const inviteRu = <String, String>{
       'Заявка на увеличение лимита помощников отклонена',
   'error.api.SEAT_LIMIT_REQUEST_PENDING': 'Заявка уже на рассмотрении.',
   'error.api.SEAT_LIMIT_REQUEST_DECIDED': 'По заявке уже есть решение.',
+  'team.role.hint':
+      'Быстро: выберите роль. Отдельные права ниже можно менять. За действия помощника отвечаете вы.',
+  'team.role.secretary': 'Секретарь',
+  'team.role.paralegal': 'Помощник юриста',
+  'team.role.full': 'Полный доступ',
 };
 
 const inviteEn = <String, String>{
@@ -157,4 +162,9 @@ const inviteEn = <String, String>{
       'Your request for more assistants was declined',
   'error.api.SEAT_LIMIT_REQUEST_PENDING': 'A request is already under review.',
   'error.api.SEAT_LIMIT_REQUEST_DECIDED': 'This request is already decided.',
+  'team.role.hint':
+      'Quick start: pick a role. You can still switch each access below. You are responsible for what the assistant does.',
+  'team.role.secretary': 'Secretary',
+  'team.role.paralegal': 'Paralegal',
+  'team.role.full': 'Full access',
 };

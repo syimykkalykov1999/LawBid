@@ -467,6 +467,42 @@ void main() {
       expect(find.text('NEW2-CODE-XYZ9'), findsWidgets);
     });
 
+    testWidgets('owner 2026-10-05: a role sets its accesses in one tap',
+        (tester) async {
+      await repo.addAssistant(name: 'Sam');
+      await pump(tester, const TeamScreen());
+      await tester.tap(find.text('Sam').first);
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('role-paralegal')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.byKey(const ValueKey('role-paralegal')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('liability-check')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('liability-accept')));
+      await tester.pumpAndSettle();
+      final chip = tester.widget<ChoiceChip>(
+        find.byKey(const ValueKey('role-paralegal')),
+      );
+      expect(chip.selected, isTrue);
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('member-save')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.byKey(const ValueKey('member-save')));
+      await tester.pumpAndSettle();
+      final update = repo.calls.lastWhere((c) => c.startsWith('update:'));
+      for (final d in AssistantRole.paralegal.duties) {
+        expect(update, contains(d.wire));
+      }
+      expect(update, isNot(contains('publish')));
+      expect(update, endsWith(':true'));
+    });
+
     testWidgets('requests: approve publishes, reject asks for a note',
         (tester) async {
       repo.requestList = [makeRequest('r1'), makeRequest('r2')];
