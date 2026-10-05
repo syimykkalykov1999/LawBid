@@ -123,10 +123,15 @@ export class OutreachService {
     return scope.partner ? { partner_id: scope.partner.id } : {};
   }
 
-  /** The lead, or 404/403-as-404 when outside the admin's scope. */
+  /**
+   * The lead, or 404/403-as-404 when outside the admin's scope. An employee
+   * also reaches UNASSIGNED leads: working one (a call, an email) takes it.
+   */
   async leadFor(scope: OutreachScope, id: string): Promise<LeadWithPartner> {
     const lead = await this.prisma.outreachLead.findFirst({
-      where: { id, ...this.scopeWhere(scope) },
+      where: scope.partner
+        ? { id, OR: [{ partner_id: scope.partner.id }, { partner_id: null }] }
+        : { id },
       include: { partner: true },
     });
     if (!lead) {
