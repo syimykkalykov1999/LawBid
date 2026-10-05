@@ -10,6 +10,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 
@@ -655,7 +656,7 @@ class _CategoryCard extends StatelessWidget {
                     child: Column(
                       children: [
                         Divider(height: 1, color: colors.border),
-                        _CheckRow(
+                        PickerCheckRow(
                           key: ValueKey('select-all-${category.id}'),
                           label: t.t(
                             allPicked
@@ -667,7 +668,7 @@ class _CategoryCard extends StatelessWidget {
                           onTap: onToggleAll,
                         ),
                         for (final l in leaves)
-                          _CheckRow(
+                          PickerCheckRow(
                             key: ValueKey('leaf-${l.id}'),
                             label: leafName(l),
                             checked: selected.contains(l.id),
@@ -678,78 +679,6 @@ class _CategoryCard extends StatelessWidget {
                   ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CheckRow extends StatelessWidget {
-  const _CheckRow({
-    required this.label,
-    required this.checked,
-    required this.onTap,
-    super.key,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final bool checked;
-  final VoidCallback onTap;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final reduce = context.reduceMotion;
-    return Semantics(
-      checked: checked,
-      label: label,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadii.field),
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: AppSizes.hitTarget),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            child: Row(
-              children: [
-                AnimatedContainer(
-                  duration: reduce ? Duration.zero : AppMotion.stateChange,
-                  width: AppSizes.iconMd - 2,
-                  height: AppSizes.iconMd - 2,
-                  decoration: BoxDecoration(
-                    color: checked ? colors.accent : colors.surface,
-                    borderRadius: BorderRadius.circular(AppSpacing.xs + 2),
-                    border: Border.all(
-                      color: checked ? colors.accent : colors.textSecondary,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: checked
-                      ? AppIcon(
-                          AppIcons.checkRounded,
-                          size: AppSpacing.lg,
-                          color: colors.onAccent,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: (emphasized ? typography.button : typography.body)
-                        .copyWith(
-                      color: emphasized ? colors.goldStroke : colors.text,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

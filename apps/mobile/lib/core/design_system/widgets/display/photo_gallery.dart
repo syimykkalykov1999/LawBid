@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
+import 'package:lawbid/core/design_system/widgets/bars/system_nav_band.dart';
 
 /// Owner 2026-09-30: full-screen photos — swipe between them, pinch to
 /// zoom, a counter and a close button. Used by posts and case photos.
@@ -52,58 +53,61 @@ class _GalleryState extends State<_Gallery> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          PageView.builder(
-            controller: _controller,
-            itemCount: widget.urls.length,
-            onPageChanged: (i) => setState(() => _page = i),
-            itemBuilder: (_, i) => InteractiveViewer(
-              maxScale: 4,
-              child: Center(
-                child: CachedNetworkImage(
-                  imageUrl: widget.urls[i],
-                  fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const AppIcon(
-                    AppIcons.imageNotSupportedOutlined,
-                    color: Colors.white54,
+    return SystemNavBandColor(
+      color: Colors.black,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            PageView.builder(
+              controller: _controller,
+              itemCount: widget.urls.length,
+              onPageChanged: (i) => setState(() => _page = i),
+              itemBuilder: (_, i) => InteractiveViewer(
+                maxScale: 4,
+                child: Center(
+                  child: CachedNetworkImage(
+                    imageUrl: widget.urls[i],
+                    fit: BoxFit.contain,
+                    errorWidget: (_, __, ___) => const AppIcon(
+                      AppIcons.imageNotSupportedOutlined,
+                      color: Colors.white54,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: widget.closeLabel,
-                    icon: const AppIcon(
-                      AppIcons.closeRounded,
-                      color: Colors.white,
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: widget.closeLabel,
+                      icon: const AppIcon(
+                        AppIcons.closeRounded,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const Spacer(),
-                  if (widget.urls.length > 1)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 12),
-                      child: Text(
-                        '${_page + 1} / ${widget.urls.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                    const Spacer(),
+                    if (widget.urls.length > 1)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 12),
+                        child: Text(
+                          '${_page + 1} / ${widget.urls.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

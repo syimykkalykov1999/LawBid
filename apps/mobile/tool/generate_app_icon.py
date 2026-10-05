@@ -5,117 +5,186 @@
 mark used inside the app (see lib/core/design_system/widgets/display/
 scales_logo.dart), with the same "Law"/"Bid" pan inscriptions -- not a
 separate design. This script is a from-scratch Python/Pillow re-drawing of
-that CustomPainter's geometry (not a screenshot or export of the Flutter
-widget -- this repo's tooling bridge has no way to run Flutter and render
-it directly), scaled into a square icon canvas.
+that CustomPainter's geometry (static angle=0 pose), scaled into the icon.
 
-Uses the static (angle=0) pose deliberately, not the welcome screen's
-subtle idle-animation tilt: at angle=0 every pan sits at its exact
-un-rotated base coordinate (see _ScalesPainter.paint()'s rotation math --
-translation and panRotation both reduce to zero), which also just reads
-as a cleaner, more symmetric mark at icon sizes.
+2026-10-05 owner request: on Android the icon showed as a small square
+navy tile inside the launcher's rounded shape, and the scales were small
+and thin. So Android now gets a real ADAPTIVE icon (API 26+, which is our
+minSdk): a navy background layer + a transparent foreground layer with the
+scales, plus a monochrome layer for themed icons. The launcher masks the
+whole 108dp canvas into its own shape (circle, squircle...), so the navy
+fills the shape edge to edge like every other app. The scales are sized to
+the 66dp safe zone and drawn with icon-weight strokes (thicker than the
+in-app 2.6) so they stay crisp at 48dp.
 
-Colors intentionally reuse dark theme's palette (AppColorsDark in
-tokens/app_colors.dart) rather than introducing new hex values: navy
-background, gold stroke, white pan fill, navy pan text -- the same pair
-the owner approved for the welcome screen's dark-theme phone button and
-pan fill earlier in this session (docs/CHANGELOG.md).
+Every bitmap is drawn at 4x and downsampled, from vector geometry, at the
+exact pixel size of each density -- no upscaling of a small master.
 
 Run from apps/mobile/:
     python3 tool/generate_app_icon.py
-Requires Pillow (`pip install Pillow`) and a serif bold TTF font -- edit
-FONT_PATH below if Liberation Serif isn't available on your machine.
+Requires Pillow (`pip install Pillow`). The pan inscriptions use the app's
+own bundled serif, assets/fonts/SourceSerif4-Variable.ttf.
 """
 
 import math
+import os
 
 from PIL import Image, ImageDraw, ImageFont
 
-FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"
+FONT_PATH = "assets/fonts/SourceSerif4-Variable.ttf"
 
-BG = (10, 26, 63)          # #0A1A3F -- AppColorsDark navy/accent family
+BG = (10, 26, 63)          # #0A1A3F -- AppColorsDark navy
 LINE = (212, 175, 90)      # #D4AF5A -- AppColorsDark.goldStroke
 PAN_FILL = (255, 255, 255)  # #FFFFFF -- AppColorsDark.panFill
 PAN_TEXT = (10, 26, 63)    # #0A1A3F -- AppColorsDark.panText
+WHITE = (255, 255, 255)
 
-CANVAS = 2048  # master resolution; every platform size is downsampled from this
+# Icon-weight strokes in the 300x212 design space (in-app widget: 2.6/1.6).
+STROKE = 6.0
+PAN_STROKE = 4.0
+FONT_SIZE = 25
+FONT_WEIGHT = 700
+
+# Visual bounds of the drawing in design space (incl. stroke), used to
+# center it optically rather than by the 300x212 box.
+BOUNDS = (12 - STROKE / 2, 11 - STROKE / 2, 288 + STROKE / 2, 203 + STROKE / 2)
+
+SS = 4  # supersampling factor
 
 
-def build_master() -> Image.Image:
-    img = Image.new("RGB", (CANVAS, CANVAS), BG)
+def _font(px: float) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(FONT_PATH, round(px))
+    try:
+        font.set_variation_by_axes([FONT_WEIGHT])
+    except (OSError, ValueError):
+        pass
+    return font
+
+
+def draw_scales(size: int, width_frac: float, background, mono: bool = False) -> Image.Image:
+    """Draws the scales centered on a size x size canvas.
+
+    width_frac: drawing width (visual bounds) as a fraction of the canvas.
+    background: RGB tuple, or None for a transparent canvas.
+    mono: single-color (white) silhouette for Android themed icons; the pan
+          words are knocked out of the filled pans.
+    """
+    big = size * SS
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0) if background is None else background + (255,))
     draw = ImageDraw.Draw(img)
 
-    # Design space is 300x212 (scales_logo.dart). Fit into ~74% of the
-    # canvas width, centered both axes -- standard icon safe-zone padding.
-    content_w = CANVAS * 0.74
-    scale = content_w / 300
-    content_h = 212 * scale
-    ox = (CANVAS - content_w) / 2
-    oy = (CANVAS - content_h) / 2
+    bx0, by0, bx1, by1 = BOUNDS
+    scale = big * width_frac / (bx1 - bx0)
+    ox = big / 2 - (bx0 + bx1) / 2 * scale
+    oy = big / 2 - (by0 + by1) / 2 * scale
 
     def p(x, y):
         return (ox + x * scale, oy + y * scale)
 
-    stroke_w = max(2, round(2.6 * scale))
+    line_c = WHITE if mono else LINE
+    pan_c = WHITE if mono else PAN_FILL
+    sw = max(1, round(STROKE * scale))
 
-    def line(p1, p2, width=stroke_w):
-        draw.line([p(*p1), p(*p2)], fill=LINE, width=width, joint="curve")
+    def cap(pt, w):
+        r = w / 2
+        draw.ellipse([pt[0] - r, pt[1] - r, pt[0] + r, pt[1] + r], fill=line_c)
 
-    def circle_stroke(center, r, width=stroke_w):
-        cx, cy = p(*center)
-        rr = r * scale
-        draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=LINE, width=width)
+    def line(a, b, w=sw):
+        pa, pb = p(*a), p(*b)
+        draw.line([pa, pb], fill=line_c, width=w)
+        cap(pa, w)  # round caps, like StrokeCap.round in the widget
+        cap(pb, w)
 
-    def circle_fill(center, r):
-        cx, cy = p(*center)
-        rr = r * scale
-        draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=LINE)
+    # Topper ring.
+    cx, cy = p(150, 16)
+    r = 5.5 * scale
+    draw.ellipse([cx - r - sw / 2, cy - r - sw / 2, cx + r + sw / 2, cy + r + sw / 2], outline=line_c, width=sw)
+    line((150, 16 + 5.5), (150, 192))   # stand
+    line((112, 192), (188, 192))        # base, upper line
+    line((122, 203), (178, 203))        # base, lower line
+    line((50, 44), (250, 44))           # beam
 
-    circle_stroke((150, 16), 5)          # topper
-    line((150, 21), (150, 192))          # stand
-    line((112, 192), (188, 192))         # base, upper line
-    line((122, 203), (178, 203))         # base, lower line
-    line((50, 44), (250, 44))            # beam
+    font = _font(FONT_SIZE * scale)
+    psw = max(1, round(PAN_STROKE * scale))
 
-    def pan(origin, bowl_tl, bowl_tr, text_cx, text):
-        line(origin, bowl_tl)
-        line(origin, bowl_tr)
-        tl = p(*bowl_tl)
-        tr = p(*bowl_tr)
-        cx = (tl[0] + tr[0]) / 2
-        top_y = tl[1]
+    def pan(origin, tl_d, tr_d, text_cx, text):
+        line(origin, tl_d)
+        line(origin, tr_d)
+        tl, tr = p(*tl_d), p(*tr_d)
+        mx = (tl[0] + tr[0]) / 2
         rx = (tr[0] - tl[0]) / 2
         ry = 34 * scale
-        # Half-ellipse bulging downward (the CustomPainter's arcToPoint
-        # radius (38,34) bowl), approximated as a polygon -- smooth enough
-        # at this resolution once downsampled with LANCZOS.
-        pts = [tl]
-        steps = 64
-        for i in range(steps + 1):
-            t = math.pi * i / steps
-            pts.append((cx + rx * math.cos(t), top_y + ry * math.sin(t)))
-        pts.append(tr)
-        draw.polygon(pts, fill=PAN_FILL)
-        outline_w = max(2, round(1.6 * scale))
-        draw.line([tl, tr], fill=LINE, width=outline_w)
-        draw.line(pts[1:], fill=LINE, width=outline_w, joint="curve")
-
-        font = ImageFont.truetype(FONT_PATH, round(19 * scale))
-        tcx, tcy = p(text_cx, 135)
+        pts = [(mx + rx * math.cos(math.pi * i / 96), tl[1] + ry * math.sin(math.pi * i / 96)) for i in range(97)]
+        draw.polygon(pts, fill=pan_c)
+        if not mono:
+            draw.line(pts + [pts[0]], fill=line_c, width=psw, joint="curve")
+        tcx, tcy = p(text_cx, 136)
         bbox = draw.textbbox((0, 0), text, font=font)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        draw.text((tcx - tw / 2 - bbox[0], tcy - th / 2 - bbox[1]), text, fill=PAN_TEXT, font=font)
+        pos = (tcx - tw / 2 - bbox[0], tcy - th / 2 - bbox[1])
+        if mono:
+            # Knock the word out of the white pan.
+            mask = Image.new("L", img.size, 0)
+            ImageDraw.Draw(mask).text(pos, text, fill=255, font=font)
+            img.paste((0, 0, 0, 0), (0, 0), mask)
+        else:
+            draw.text(pos, text, fill=PAN_TEXT, font=font)
 
     pan((50, 44), (12, 118), (88, 118), 50, "Law")
     pan((250, 44), (212, 118), (288, 118), 250, "Bid")
-    circle_fill((150, 44), 6)  # pivot, drawn last so it sits over the beam/threads
 
-    return img
+    # Pivot, drawn last so it sits over the beam.
+    cx, cy = p(150, 44)
+    r = 8 * scale
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=line_c)
+
+    return img.resize((size, size), Image.LANCZOS)
 
 
-def write_sizes(master: Image.Image) -> None:
-    ios_base = "ios/Runner/Assets.xcassets/AppIcon.appiconset/"
-    ios_sizes = {
+ANDROID_RES = "android/app/src/main/res/"
+DENSITIES = {"mdpi": 1, "hdpi": 1.5, "xhdpi": 2, "xxhdpi": 3, "xxxhdpi": 4}
+
+# Adaptive layers are 108dp; the launcher always shows the inner 72dp and
+# guarantees only a 66dp circle. 60dp-wide scales keep every pan inside it
+# with breathing room on squircle launchers (Samsung).
+ADAPTIVE_WIDTH = 60 / 108
+# Full-bleed squares (iOS, legacy Android): the OS rounds the corners.
+FULL_BLEED_WIDTH = 0.82
+
+
+def write_android() -> None:
+    for name, mult in DENSITIES.items():
+        folder = f"{ANDROID_RES}mipmap-{name}/"
+        legacy = round(48 * mult)
+        layer = round(108 * mult)
+        draw_scales(legacy, FULL_BLEED_WIDTH, BG).convert("RGB").save(folder + "ic_launcher.png")
+        draw_scales(layer, ADAPTIVE_WIDTH, None).save(folder + "ic_launcher_foreground.png")
+        draw_scales(layer, ADAPTIVE_WIDTH, None, mono=True).save(folder + "ic_launcher_monochrome.png")
+
+    os.makedirs(f"{ANDROID_RES}mipmap-anydpi-v26", exist_ok=True)
+    with open(f"{ANDROID_RES}mipmap-anydpi-v26/ic_launcher.xml", "w") as f:
+        f.write(
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            "<!-- Generated by tool/generate_app_icon.py -->\n"
+            '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+            '    <background android:drawable="@color/ic_launcher_background" />\n'
+            '    <foreground android:drawable="@mipmap/ic_launcher_foreground" />\n'
+            '    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />\n'
+            "</adaptive-icon>\n"
+        )
+    with open(f"{ANDROID_RES}values/ic_launcher_background.xml", "w") as f:
+        f.write(
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            "<!-- Generated by tool/generate_app_icon.py -->\n"
+            "<resources>\n"
+            '    <color name="ic_launcher_background">#%02X%02X%02X</color>\n' % BG
+            + "</resources>\n"
+        )
+
+
+def write_ios() -> None:
+    base = "ios/Runner/Assets.xcassets/AppIcon.appiconset/"
+    sizes = {
         "Icon-App-20x20@1x.png": 20,
         "Icon-App-20x20@2x.png": 40,
         "Icon-App-20x20@3x.png": 60,
@@ -132,21 +201,12 @@ def write_sizes(master: Image.Image) -> None:
         "Icon-App-83.5x83.5@2x.png": 167,
         "Icon-App-1024x1024@1x.png": 1024,
     }
-    for name, px in ios_sizes.items():
-        master.resize((px, px), Image.LANCZOS).save(ios_base + name)
-
-    android_sizes = {
-        "android/app/src/main/res/mipmap-mdpi/ic_launcher.png": 48,
-        "android/app/src/main/res/mipmap-hdpi/ic_launcher.png": 72,
-        "android/app/src/main/res/mipmap-xhdpi/ic_launcher.png": 96,
-        "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png": 144,
-        "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png": 192,
-    }
-    for path, px in android_sizes.items():
-        master.resize((px, px), Image.LANCZOS).save(path)
-
-    print(f"Wrote {len(ios_sizes)} iOS + {len(android_sizes)} Android icon files.")
+    for name, px in sizes.items():
+        # App Store rejects an alpha channel on the 1024 icon: save as RGB.
+        draw_scales(px, FULL_BLEED_WIDTH, BG).convert("RGB").save(base + name)
 
 
 if __name__ == "__main__":
-    write_sizes(build_master().convert("RGB"))
+    write_android()
+    write_ios()
+    print("Wrote Android adaptive + legacy icons and the iOS AppIcon set.")

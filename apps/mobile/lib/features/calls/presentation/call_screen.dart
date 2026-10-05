@@ -94,232 +94,238 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final remote = s.video ? media?.remoteVideo : null;
     final local = s.video ? media?.localVideo : null;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: PopScope(
-        // Back never drops a live call by accident.
-        canPop: !s.busy,
-        child: Scaffold(
-          backgroundColor: colors.navy,
-          body: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colors.navy,
-                  Color.lerp(colors.navy, Colors.black, 0.55)!,
-                ],
+    return SystemNavBandColor(
+      color: colors.navy,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: PopScope(
+          // Back never drops a live call by accident.
+          canPop: !s.busy,
+          child: Scaffold(
+            backgroundColor: colors.navy,
+            body: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    colors.navy,
+                    Color.lerp(colors.navy, Colors.black, 0.55)!,
+                  ],
+                ),
               ),
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // The other side, full screen, once their picture arrives.
-                if (remote != null)
-                  ValueListenableBuilder<MediaStream?>(
-                    valueListenable: remote,
-                    builder: (_, stream, __) =>
-                        stream == null || s.phase != CallPhase.active
-                            ? const SizedBox.shrink()
-                            : CallVideoView(stream: stream),
-                  ),
-                SafeArea(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: AppSpacing.lg),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AppIcon(
-                            AppIcons.lockOutlineRounded,
-                            size: 14,
-                            color: colors.goldLight,
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Flexible(
-                            child: Text(
-                              t.t(
-                                s.video ? 'call.videoLabel' : 'call.audioOnly',
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // The other side, full screen, once their picture arrives.
+                  if (remote != null)
+                    ValueListenableBuilder<MediaStream?>(
+                      valueListenable: remote,
+                      builder: (_, stream, __) =>
+                          stream == null || s.phase != CallPhase.active
+                              ? const SizedBox.shrink()
+                              : CallVideoView(stream: stream),
+                    ),
+                  SafeArea(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: AppSpacing.lg),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AppIcon(
+                              AppIcons.lockOutlineRounded,
+                              size: 14,
+                              color: colors.goldLight,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Flexible(
+                              child: Text(
+                                t.t(
+                                  s.video
+                                      ? 'call.videoLabel'
+                                      : 'call.audioOnly',
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.caption
+                                    .copyWith(color: colors.goldLight),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.caption
-                                  .copyWith(color: colors.goldLight),
+                            ),
+                          ],
+                        ),
+                        const Spacer(flex: 2),
+                        // A live video call: the picture is the background.
+                        if (!(s.video && s.phase == CallPhase.active))
+                          SizedBox(
+                            width: 220,
+                            height: 220,
+                            child: AnimatedBuilder(
+                              animation: _pulse,
+                              builder: (context, child) => CustomPaint(
+                                painter: _RingsPainter(
+                                  progress: _pulse.value,
+                                  on: ringing && !context.reduceMotion,
+                                  color: colors.gold,
+                                ),
+                                child: child,
+                              ),
+                              child:
+                                  Center(child: _Avatar(peer: peer, size: 132)),
                             ),
                           ),
-                        ],
-                      ),
-                      const Spacer(flex: 2),
-                      // A live video call: the picture is the background.
-                      if (!(s.video && s.phase == CallPhase.active))
-                        SizedBox(
-                          width: 220,
-                          height: 220,
-                          child: AnimatedBuilder(
-                            animation: _pulse,
-                            builder: (context, child) => CustomPaint(
-                              painter: _RingsPainter(
-                                progress: _pulse.value,
-                                on: ringing && !context.reduceMotion,
-                                color: colors.gold,
-                              ),
-                              child: child,
-                            ),
-                            child:
-                                Center(child: _Avatar(peer: peer, size: 132)),
-                          ),
-                        ),
-                      const SizedBox(height: AppSpacing.xl),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenSide,
-                        ),
-                        child: Text(
-                          name,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.titleLarge.copyWith(color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Semantics(
-                        liveRegion: true,
-                        child: Padding(
+                        const SizedBox(height: AppSpacing.xl),
+                        Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.screenSide,
                           ),
                           child: Text(
-                            callStatusText(t, s),
+                            name,
                             textAlign: TextAlign.center,
-                            style: type.body.copyWith(
-                              color: s.phase == CallPhase.active
-                                  ? colors.goldLight
-                                  : Colors.white.withValues(alpha: 0.75),
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                type.titleLarge.copyWith(color: Colors.white),
                           ),
                         ),
-                      ),
-                      const Spacer(flex: 3),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.xl,
-                          0,
-                          AppSpacing.xl,
-                          AppSpacing.xxl,
-                        ),
-                        child: s.phase == CallPhase.incoming
-                            ? Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceAround,
-                                children: [
-                                  _RoundButton(
-                                    icon: AppIcons.callEndRounded,
-                                    label: t.t('call.decline'),
-                                    color: colors.danger,
-                                    onTap: c.decline,
-                                  ),
-                                  _RoundButton(
-                                    icon: s.video
-                                        ? AppIcons.videoCameraOutlined
-                                        : AppIcons.callRounded,
-                                    label: t.t('call.accept'),
-                                    color: colors.success,
-                                    onTap: c.accept,
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceAround,
-                                children: [
-                                  _RoundButton(
-                                    icon: s.muted
-                                        ? AppIcons.micOffRounded
-                                        : AppIcons.micRounded,
-                                    label: t.t('call.mute'),
-                                    color: Colors.white.withValues(
-                                      alpha: s.muted ? 0.9 : 0.14,
-                                    ),
-                                    iconColor:
-                                        s.muted ? colors.navy : Colors.white,
-                                    selected: s.muted,
-                                    onTap: s.busy ? c.toggleMute : null,
-                                  ),
-                                  _RoundButton(
-                                    icon: AppIcons.callEndRounded,
-                                    label: t.t('call.end'),
-                                    color: colors.danger,
-                                    onTap: s.busy ? c.hangUp : null,
-                                  ),
-                                  if (s.video) ...[
-                                    _RoundButton(
-                                      icon: s.cameraOn
-                                          ? AppIcons.videoCameraOutlined
-                                          : AppIcons.videocamOffOutlined,
-                                      label: t.t('call.camera'),
-                                      color: Colors.white.withValues(
-                                        alpha: s.cameraOn ? 0.14 : 0.9,
-                                      ),
-                                      iconColor: s.cameraOn
-                                          ? Colors.white
-                                          : colors.navy,
-                                      selected: !s.cameraOn,
-                                      onTap: s.busy ? c.toggleCamera : null,
-                                    ),
-                                    _RoundButton(
-                                      icon: AppIcons.cameraRotateOutlined,
-                                      label: t.t('call.flipCamera'),
-                                      color:
-                                          Colors.white.withValues(alpha: 0.14),
-                                      onTap: s.busy && s.cameraOn
-                                          ? c.switchCamera
-                                          : null,
-                                    ),
-                                  ] else
-                                    _RoundButton(
-                                      icon: AppIcons.volumeUpRounded,
-                                      label: t.t('call.speaker'),
-                                      color: Colors.white.withValues(
-                                        alpha: s.speaker ? 0.9 : 0.14,
-                                      ),
-                                      iconColor: s.speaker
-                                          ? colors.navy
-                                          : Colors.white,
-                                      selected: s.speaker,
-                                      onTap: s.busy ? c.toggleSpeaker : null,
-                                    ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Semantics(
+                          liveRegion: true,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.screenSide,
+                            ),
+                            child: Text(
+                              callStatusText(t, s),
+                              textAlign: TextAlign.center,
+                              style: type.body.copyWith(
+                                color: s.phase == CallPhase.active
+                                    ? colors.goldLight
+                                    : Colors.white.withValues(alpha: 0.75),
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
                                 ],
                               ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Our camera, small, in the top corner.
-                if (local != null)
-                  ValueListenableBuilder<MediaStream?>(
-                    valueListenable: local,
-                    builder: (_, stream, __) => stream == null || !s.cameraOn
-                        ? const SizedBox.shrink()
-                        : PositionedDirectional(
-                            top: MediaQuery.paddingOf(context).top +
-                                AppSpacing.xxl,
-                            end: AppSpacing.md,
-                            width: 104,
-                            height: 156,
-                            child: ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.card),
-                              child:
-                                  CallVideoView(stream: stream, mirror: true),
                             ),
                           ),
+                        ),
+                        const Spacer(flex: 3),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.xl,
+                            0,
+                            AppSpacing.xl,
+                            AppSpacing.xxl,
+                          ),
+                          child: s.phase == CallPhase.incoming
+                              ? Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _RoundButton(
+                                      icon: AppIcons.callEndRounded,
+                                      label: t.t('call.decline'),
+                                      color: colors.danger,
+                                      onTap: c.decline,
+                                    ),
+                                    _RoundButton(
+                                      icon: s.video
+                                          ? AppIcons.videoCameraOutlined
+                                          : AppIcons.callRounded,
+                                      label: t.t('call.accept'),
+                                      color: colors.success,
+                                      onTap: c.accept,
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _RoundButton(
+                                      icon: s.muted
+                                          ? AppIcons.micOffRounded
+                                          : AppIcons.micRounded,
+                                      label: t.t('call.mute'),
+                                      color: Colors.white.withValues(
+                                        alpha: s.muted ? 0.9 : 0.14,
+                                      ),
+                                      iconColor:
+                                          s.muted ? colors.navy : Colors.white,
+                                      selected: s.muted,
+                                      onTap: s.busy ? c.toggleMute : null,
+                                    ),
+                                    _RoundButton(
+                                      icon: AppIcons.callEndRounded,
+                                      label: t.t('call.end'),
+                                      color: colors.danger,
+                                      onTap: s.busy ? c.hangUp : null,
+                                    ),
+                                    if (s.video) ...[
+                                      _RoundButton(
+                                        icon: s.cameraOn
+                                            ? AppIcons.videoCameraOutlined
+                                            : AppIcons.videocamOffOutlined,
+                                        label: t.t('call.camera'),
+                                        color: Colors.white.withValues(
+                                          alpha: s.cameraOn ? 0.14 : 0.9,
+                                        ),
+                                        iconColor: s.cameraOn
+                                            ? Colors.white
+                                            : colors.navy,
+                                        selected: !s.cameraOn,
+                                        onTap: s.busy ? c.toggleCamera : null,
+                                      ),
+                                      _RoundButton(
+                                        icon: AppIcons.cameraRotateOutlined,
+                                        label: t.t('call.flipCamera'),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.14),
+                                        onTap: s.busy && s.cameraOn
+                                            ? c.switchCamera
+                                            : null,
+                                      ),
+                                    ] else
+                                      _RoundButton(
+                                        icon: AppIcons.volumeUpRounded,
+                                        label: t.t('call.speaker'),
+                                        color: Colors.white.withValues(
+                                          alpha: s.speaker ? 0.9 : 0.14,
+                                        ),
+                                        iconColor: s.speaker
+                                            ? colors.navy
+                                            : Colors.white,
+                                        selected: s.speaker,
+                                        onTap: s.busy ? c.toggleSpeaker : null,
+                                      ),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
-              ],
+                  // Our camera, small, in the top corner.
+                  if (local != null)
+                    ValueListenableBuilder<MediaStream?>(
+                      valueListenable: local,
+                      builder: (_, stream, __) => stream == null || !s.cameraOn
+                          ? const SizedBox.shrink()
+                          : PositionedDirectional(
+                              top: MediaQuery.paddingOf(context).top +
+                                  AppSpacing.xxl,
+                              end: AppSpacing.md,
+                              width: 104,
+                              height: 156,
+                              child: ClipRRect(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.card),
+                                child:
+                                    CallVideoView(stream: stream, mirror: true),
+                              ),
+                            ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

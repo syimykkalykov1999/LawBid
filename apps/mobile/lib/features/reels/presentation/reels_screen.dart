@@ -101,96 +101,100 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       for (final p in _items)
         if (!deleted.contains(p.id)) p,
     ];
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            if (items.isEmpty)
-              Center(
-                child: _loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AppIcon(
-                              AppIcons.filmReelOutlined,
-                              size: 48,
-                              color: Colors.white70,
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            Text(
-                              _error != null
-                                  ? errorText(t, _error!)
-                                  : t.t('reels.empty'),
-                              textAlign: TextAlign.center,
-                              style: type.body.copyWith(color: Colors.white70),
-                            ),
-                          ],
+    return SystemNavBandColor(
+      color: Colors.black,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              if (items.isEmpty)
+                Center(
+                  child: _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xl),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const AppIcon(
+                                AppIcons.filmReelOutlined,
+                                size: 48,
+                                color: Colors.white70,
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                _error != null
+                                    ? errorText(t, _error!)
+                                    : t.t('reels.empty'),
+                                textAlign: TextAlign.center,
+                                style:
+                                    type.body.copyWith(color: Colors.white70),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-              )
-            else
-              PageView.builder(
-                controller: _pages,
-                scrollDirection: Axis.vertical,
-                itemCount: items.length,
-                onPageChanged: (i) {
-                  setState(() => _index = i);
-                  if (i >= items.length - 3) _load();
-                },
-                itemBuilder: (_, i) => _ReelPage(
-                  key: ValueKey(items[i].id),
-                  post: items[i],
-                  active: i == _index,
-                  muted: muted,
+                )
+              else
+                PageView.builder(
+                  controller: _pages,
+                  scrollDirection: Axis.vertical,
+                  itemCount: items.length,
+                  onPageChanged: (i) {
+                    setState(() => _index = i);
+                    if (i >= items.length - 3) _load();
+                  },
+                  itemBuilder: (_, i) => _ReelPage(
+                    key: ValueKey(items[i].id),
+                    post: items[i],
+                    active: i == _index,
+                    muted: muted,
+                  ),
                 ),
-              ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: t.t('common.back'),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const AppIcon(
-                        AppIcons.arrowBackRounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        t.t('reels.title'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.titleMedium.copyWith(
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: t.t('common.back'),
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const AppIcon(
+                          AppIcons.arrowBackRounded,
                           color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                          size: 26,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: t.t(muted ? 'reels.unmute' : 'reels.mute'),
-                      onPressed: () =>
-                          ref.read(reelsMutedProvider.notifier).toggle(),
-                      icon: AppIcon(
-                        muted ? AppIcons.speakerSlash : AppIcons.speakerHigh,
-                        color: Colors.white,
+                      Expanded(
+                        child: Text(
+                          t.t('reels.title'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.titleMedium.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      IconButton(
+                        tooltip: t.t(muted ? 'reels.unmute' : 'reels.mute'),
+                        onPressed: () =>
+                            ref.read(reelsMutedProvider.notifier).toggle(),
+                        icon: AppIcon(
+                          muted ? AppIcons.speakerSlash : AppIcons.speakerHigh,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -18,6 +18,7 @@ export 'widgets/bars/app_bottom_nav.dart';
 export 'widgets/bars/app_feed_header.dart';
 export 'widgets/bars/app_sheet_handle.dart';
 export 'widgets/bars/app_top_bar.dart';
+export 'widgets/bars/system_nav_band.dart';
 export 'widgets/buttons/app_back_button.dart';
 export 'widgets/buttons/app_button.dart';
 export 'widgets/buttons/app_icon_button.dart';
