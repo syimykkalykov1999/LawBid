@@ -8,7 +8,7 @@ part 'move_plan_subscribers_dto.g.dart';
 
 @JsonSerializable()
 class MovePlanSubscribersDto {
-  const MovePlanSubscribersDto({required this.reason});
+  const MovePlanSubscribersDto({this.reason = ''});
 
   factory MovePlanSubscribersDto.fromJson(Map<String, Object?> json) =>
       _$MovePlanSubscribersDtoFromJson(json);

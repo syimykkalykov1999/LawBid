@@ -306,12 +306,12 @@ export class AdminPartnerIdParamDto {
 }
 
 export class AdminPartnerReasonDto {
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminPartnerUserDto {
@@ -556,12 +556,12 @@ export class CreatePartnerDto extends PartnerFieldsDto {
   @MaxLength(24)
   code?: string;
 
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 }
 
 export class UpdatePartnerDto extends PartnerFieldsDto {
@@ -570,12 +570,12 @@ export class UpdatePartnerDto extends PartnerFieldsDto {
   @IsIn(PARTNER_STATUSES)
   status?: PartnerStatus;
 
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminPartnerAdjustmentDto {
@@ -595,21 +595,21 @@ export class AdminPartnerAdjustmentDto {
   @MaxLength(300)
   note!: string;
 
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminPartnerPayDto {
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 
   @ApiPropertyOptional({
     maxLength: 120,

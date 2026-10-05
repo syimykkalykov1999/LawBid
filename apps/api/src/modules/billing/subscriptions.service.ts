@@ -25,7 +25,6 @@ import {
   PAYMENT_PROVIDER,
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_JOBS_QUEUE,
-  TRIAL_DAYS,
   TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
   SEATS_HARD_CAP,
@@ -120,7 +119,7 @@ export class SubscriptionsService {
       customerId,
       trialEligible: await this.attorneyTrialEligible(user.sub),
       priceCents: await this.pricing.amount('monthly'),
-      trialDays: TRIAL_DAYS,
+      trialDays: await this.pricing.defaultTrialDays(),
     };
   }
 
@@ -216,8 +215,10 @@ export class SubscriptionsService {
         },
       });
     }
-    const eligible = await this.attorneyTrialEligible(user.sub);
-    const planTrialDays = entitlementNumber(terms.values, 'trial_days');
+    // Owner 2026-10-05: the plan's trial_days; billing.trial_days only
+    // when the plan leaves it unset.
+    const planTrialDays = await this.pricing.trialDaysFor(planRow);
+    const eligible = await this.attorneyTrialEligible(user.sub, planTrialDays);
     // Owner 2026-10-02: an optional promo code — a coupon on the session,
     // or free days added to the trial. Redeemed when the checkout is paid.
     const promo = req.promoCode
@@ -687,7 +688,7 @@ export class SubscriptionsService {
       customerId,
       priceId,
       paymentMethodId: si.paymentMethodId,
-      trialDays: eligible ? TRIAL_DAYS : null,
+      trialDays: eligible ? await this.pricing.defaultTrialDays() : null,
       metadata: { userId: user.sub },
     });
     const now = new Date();
@@ -773,6 +774,7 @@ export class SubscriptionsService {
         seatCents: amounts.seat,
         yearlyCents: amounts.yearly,
         maxSeats: await this.pricing.maxSeats(user.sub),
+        trialDays: await this.pricing.defaultTrialDays(),
       },
     };
   }
@@ -902,7 +904,13 @@ export class SubscriptionsService {
   }
 
   /** §1.1: "только один раз на адвоката". */
-  private async attorneyTrialEligible(userId: string): Promise<boolean> {
+  private async attorneyTrialEligible(
+    userId: string,
+    days?: number,
+  ): Promise<boolean> {
+    // Owner 2026-10-05: 0 trial days (the plan's, else Деньги → Цены)
+    // means no trial.
+    if ((days ?? (await this.pricing.defaultTrialDays())) === 0) return false;
     const used = await this.prisma.subscription.findFirst({
       where: { user_id: userId, trial_started_at: { not: null } },
       select: { id: true },

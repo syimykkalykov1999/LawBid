@@ -425,7 +425,12 @@ describe('Bulk moderation + broadcast states (e2e)', () => {
     await api()
       .post('/api/v1/admin/content/bulk')
       .set(admin.auth)
-      .send({ action: 'remove', type: 'post', ids: [post], reason: 'short' })
+      .send({
+        action: 'remove',
+        type: 'post',
+        ids: [post],
+        reason: 'x'.repeat(501),
+      })
       .expect(400);
     await api()
       .post('/api/v1/admin/content/bulk')
@@ -452,18 +457,18 @@ describe('Bulk moderation + broadcast states (e2e)', () => {
       .post('/api/v1/admin/content/bulk')
       .set(viewer.auth)
       .send({ action: 'hide', type: 'post', ids: [post], reason: REASON })
-      .expect(403);
+      .expect(404);
     await api()
       .post('/api/v1/admin/media/videos/bulk-takedown')
       .set(viewer.auth)
       .send({ ids: [post], reason: REASON })
-      .expect(403);
+      .expect(404);
     const verifier = await adminSession(base, prisma, 'verifier');
     await api()
       .post('/api/v1/admin/content/bulk')
       .set(verifier.auth)
       .send({ action: 'hide', type: 'post', ids: [post], reason: REASON })
-      .expect(403);
+      .expect(404);
   });
 
   it('broadcasts reach any chosen set of states (and one state still works)', async () => {

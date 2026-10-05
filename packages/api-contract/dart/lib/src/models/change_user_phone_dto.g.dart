@@ -9,7 +9,7 @@ part of 'change_user_phone_dto.dart';
 ChangeUserPhoneDto _$ChangeUserPhoneDtoFromJson(Map<String, dynamic> json) =>
     ChangeUserPhoneDto(
       phone: json['phone'] as String,
-      reason: json['reason'] as String,
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$ChangeUserPhoneDtoToJson(ChangeUserPhoneDto instance) =>

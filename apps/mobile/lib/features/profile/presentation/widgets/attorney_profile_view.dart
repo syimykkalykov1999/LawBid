@@ -30,6 +30,8 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
@@ -711,10 +713,17 @@ class _AboutSection extends ConsumerWidget {
         // the Reviews tab.
         if (bio != null && bio.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            bio,
-            style:
-                typography.bodySmall.copyWith(color: colors.text, height: 1.4),
+          // Owner 2026-10-05: «Перевести» (profiles zone).
+          TranslatableText(
+            kind: TranslatableKind.profile,
+            id: profile.id,
+            text: bio,
+            enabled: !profile.isSelf,
+            builder: (context, text) => Text(
+              text,
+              style: typography.bodySmall
+                  .copyWith(color: colors.text, height: 1.4),
+            ),
           ),
         ],
       ],

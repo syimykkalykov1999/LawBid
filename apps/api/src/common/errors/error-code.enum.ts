@@ -164,6 +164,9 @@ export enum ErrorCode {
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',
+  // 400 (owner 2026-10-05): an admin action without a reason in a section
+  // where the owner made it required (never for the super admin).
+  REASON_REQUIRED = 'REASON_REQUIRED',
   // 401: the pre-auth ticket (between email code and TOTP) is missing,
   // expired, already used or burned after too many wrong codes.
   ADMIN_TICKET_INVALID = 'ADMIN_TICKET_INVALID',

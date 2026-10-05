@@ -8,10 +8,7 @@ part 'admin_client_badge_bulk_reject_dto.g.dart';
 
 @JsonSerializable()
 class AdminClientBadgeBulkRejectDto {
-  const AdminClientBadgeBulkRejectDto({
-    required this.reason,
-    required this.ids,
-  });
+  const AdminClientBadgeBulkRejectDto({required this.ids, this.reason = ''});
 
   factory AdminClientBadgeBulkRejectDto.fromJson(Map<String, Object?> json) =>
       _$AdminClientBadgeBulkRejectDtoFromJson(json);

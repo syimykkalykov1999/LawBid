@@ -5,10 +5,12 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_case_action_dto.dart';
 import '../models/admin_case_card_envelope.dart';
 import '../models/admin_case_row_list_envelope.dart';
 import '../models/admin_case_status.dart';
+import '../models/admin_cases_bulk_dto.dart';
 import '../models/admin_contact_issue_card_envelope.dart';
 import '../models/admin_contact_issue_list_envelope.dart';
 import '../models/admin_dispute_card_envelope.dart';
@@ -84,6 +86,13 @@ abstract class AdminCasesClient {
   @GET('/admin/cases/{id}')
   Future<AdminCaseCardEnvelope> getAdminCase({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-04: hide / close / archive / restore up to 500 cases; one reason, audited and told per case
+  @POST('/admin/cases/bulk')
+  Future<AdminBulkResultEnvelope> bulkAdminCases({
+    @Body() required AdminCasesBulkDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

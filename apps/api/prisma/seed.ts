@@ -287,6 +287,12 @@ async function seedFeatureFlags(): Promise<void> {
       description: 'Translate button under chat messages (Google Translate)',
     },
     {
+      key: 'payroll_stripe_payouts',
+      enabled: false,
+      description:
+        'Salaries paid out through Stripe Connect (employees link a bank account or card)',
+    },
+    {
       key: 'auto_bar_check',
       // Retired 2026-10-05: bar lookups are switched on per state in Admin →
       // Ключи и сервисы → "Реестры адвокатов по штатам"; not read any more.

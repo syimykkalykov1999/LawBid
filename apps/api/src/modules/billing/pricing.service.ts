@@ -14,10 +14,17 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import {
+  type Audience,
+  sanitizeEntitlements,
+} from '../plans/entitlement-catalog';
+import { PlansService } from '../plans/plans.service';
+import {
   ASSISTANT_SEAT_PRICE_CENTS,
   PAYMENT_PROVIDER,
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_PRICE_CENTS,
+  TRIAL_DAYS,
+  TRIAL_DAYS_MAX,
   YEARLY_PRICE_CENTS,
 } from './billing.constants';
 import { refreshProvider } from './dynamic-payment.provider';
@@ -96,6 +103,7 @@ export class PricingService {
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly entitlements?: EntitlementsService,
+    @Optional() private readonly plans?: PlansService,
   ) {}
 
   /** The active row of every kind that has one (legacy kinds and plans). */
@@ -142,6 +150,41 @@ export class PricingService {
           this.entitlements,
         )
       : maxAssistantSeats(this.settings);
+  }
+
+  /** Owner 2026-10-05: the plan's own trial_days decides; the admin
+   * setting `billing.trial_days` is only the fallback for an attorney
+   * plan that leaves it unset (client plans: no trial unless set). */
+  async trialDaysFor(
+    plan: { audience: string; entitlements: unknown } | null,
+  ): Promise<number> {
+    if (!plan) return this.trialDays();
+    const own = sanitizeEntitlements(
+      plan.audience as Audience,
+      plan.entitlements,
+    ).trial_days;
+    if (typeof own === 'number') return own;
+    return plan.audience === 'attorney' ? this.trialDays() : 0;
+  }
+
+  /** Trial days of the attorney's default monthly plan — what legacy
+   * flows (no plan picked yet) show and use. */
+  async defaultTrialDays(): Promise<number> {
+    const plan = this.plans
+      ? await this.plans.defaultFor('attorney', 'month')
+      : null;
+    return this.trialDaysFor(plan);
+  }
+
+  /** Fallback trial days: the admin setting `billing.trial_days`
+   * (0 = no trial), used when a plan does not set its own. */
+  async trialDays(): Promise<number> {
+    const raw = this.settings
+      ? await this.settings.number('billing.trial_days')
+      : TRIAL_DAYS;
+    return Number.isFinite(raw)
+      ? Math.min(TRIAL_DAYS_MAX, Math.max(0, Math.floor(raw)))
+      : TRIAL_DAYS;
   }
 
   /** The amounts used while the admin has set none. */

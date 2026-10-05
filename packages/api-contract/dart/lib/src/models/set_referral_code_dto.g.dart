@@ -10,7 +10,7 @@ SetReferralCodeDto _$SetReferralCodeDtoFromJson(Map<String, dynamic> json) =>
     SetReferralCodeDto(
       userId: json['userId'] as String,
       code: json['code'] as String,
-      reason: json['reason'] as String,
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$SetReferralCodeDtoToJson(SetReferralCodeDto instance) =>

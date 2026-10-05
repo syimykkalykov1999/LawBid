@@ -11,7 +11,7 @@ class SetReferralCodeDto {
   const SetReferralCodeDto({
     required this.userId,
     required this.code,
-    required this.reason,
+    this.reason = '',
   });
 
   factory SetReferralCodeDto.fromJson(Map<String, Object?> json) =>

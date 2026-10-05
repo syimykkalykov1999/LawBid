@@ -49,6 +49,7 @@ import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { useMe } from "@/lib/hooks";
+import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
 import {
   CLIENT_RULE,
   COMMISSION_STATUS,
@@ -392,6 +393,8 @@ function JoinDecision({ id }: { id: string }) {
 }
 
 function CreatePartnerCard({ onDone }: { onDone: () => void }) {
+  // Owner 2026-10-05: a reason only where «Обязательная причина» says so.
+  const reasonNeeded = useReasonRequired("money");
   const qc = useQueryClient();
   const toast = useToast();
   const settings = useQuery({
@@ -416,7 +419,7 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
     (rates.attorney === "" || textToCents(rates.attorney) !== null) &&
     (rates.client === "" || textToCents(rates.client) !== null) &&
     (rates.base === "" || textToCents(rates.base) !== null);
-  const valid = !!picked && codeOk && ratesOk && reason.trim().length >= 10;
+  const valid = !!picked && codeOk && ratesOk && (!reasonNeeded || reason.trim().length >= REASON_MIN);
 
   const create = useMutation({
     mutationFn: async () =>
@@ -482,7 +485,7 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
         <Field label="Заметка" htmlFor="np-note" hint="условия договорённости, контакты">
           <Textarea id="np-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
         </Field>
-        <Field label="Причина для журнала" htmlFor="np-reason" hint="не меньше 10 символов">
+        <Field label="Причина для журнала" htmlFor="np-reason" hint={reasonNeeded ? `не меньше ${REASON_MIN} символов` : "необязательно"}>
           <Textarea id="np-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} />
         </Field>
       </div>

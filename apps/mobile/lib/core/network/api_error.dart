@@ -164,6 +164,7 @@ abstract final class ApiErrorCodes {
   // Request limits, admin panel, moderation, flags, legal (docs/06)
   static const payloadTooLarge = 'PAYLOAD_TOO_LARGE';
   static const justificationRequired = 'JUSTIFICATION_REQUIRED';
+  static const reasonRequired = 'REASON_REQUIRED';
   static const adminTicketInvalid = 'ADMIN_TICKET_INVALID';
   static const adminTotpInvalid = 'ADMIN_TOTP_INVALID';
   static const adminRecoveryCodeInvalid = 'ADMIN_RECOVERY_CODE_INVALID';
@@ -349,6 +350,7 @@ abstract final class ApiErrorCodes {
     webhookSignatureInvalid,
     payloadTooLarge,
     justificationRequired,
+    reasonRequired,
     adminTicketInvalid,
     adminTotpInvalid,
     adminRecoveryCodeInvalid,

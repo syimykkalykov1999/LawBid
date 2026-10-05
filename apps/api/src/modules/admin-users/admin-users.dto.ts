@@ -1,9 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsIn,
+  IsISO8601,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -42,6 +45,33 @@ export class AdminUsersQueryDto {
   @IsIn(['active', 'suspended', 'deletion_pending', 'deleted'])
   status?: 'active' | 'suspended' | 'deletion_pending' | 'deleted';
 
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-04: clients of this state and attorneys licensed in it.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @Matches(/^[A-Z]{2}$/)
+  stateCode?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Registered at or after (inclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Registered before (exclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
   @IsString()
@@ -69,25 +99,49 @@ export class AdminUserIdParamDto {
 }
 
 export class WarnUserDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
     maxLength: SANCTION_TEXT_MAX,
     description:
       'Internal reason (audit + moderation_actions); the user gets the moderation_notice template.',
   })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SANCTION_TEXT_MAX)
-  reason!: string;
+  reason = '';
 }
 
 export class SuspendUserDto {
-  @ApiProperty({ maxLength: SANCTION_TEXT_MAX })
+  @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SANCTION_TEXT_MAX)
-  reason!: string;
+  reason = '';
+}
+
+export const USERS_BULK_ACTIONS = ['suspend', 'restore', 'logout'] as const;
+
+/** Owner 2026-10-04: one action for up to 500 users, one reason for all. */
+export class AdminUsersBulkDto {
+  @ApiProperty({ enum: USERS_BULK_ACTIONS, enumName: 'AdminUsersBulkAction' })
+  @IsIn(USERS_BULK_ACTIONS)
+  action!: (typeof USERS_BULK_ACTIONS)[number];
+
+  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 500 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @IsUUID('all', { each: true })
+  ids!: string[];
+
+  @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(SANCTION_TEXT_MAX)
+  reason = '';
 }
 
 // ---- responses ----------------------------------------------------------
@@ -258,12 +312,12 @@ export class ChangeUserPhoneDto {
   @Matches(/^\+[1-9]\d{7,14}$/)
   phone!: string;
 
-  @ApiProperty({ maxLength: SANCTION_TEXT_MAX })
+  @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SANCTION_TEXT_MAX)
-  reason!: string;
+  reason = '';
 }
 
 export class PhoneChangedDto {

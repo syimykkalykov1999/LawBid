@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, PencilSimple, Tag, UsersThree } from '@phosphor-icons/react';
+import { ArrowRight, Gift, PencilSimple, Tag, UsersThree, type Icon } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useState } from 'react';
@@ -78,7 +78,26 @@ export default function PricesPage() {
               <PriceCard key={it.kind} it={it} i={i} canWrite={canWrite} onEdit={() => setEditing(it)} />
             ))}
           </div>
-          <SeatLimitCard canWrite={canWrite} />
+          <NumberSettingCard
+            canWrite={canWrite}
+            settingKey={TRIAL_KEY}
+            icon={Gift}
+            title="Пробный период по умолчанию — используется, если в плане не задано"
+            text="Число дней берётся из плана (Деньги → Планы → «Пробных дней»). Это значение — запасное для плана адвоката, где дни не заданы; 0 — без пробного периода. Действует для новых подписок, у кого пробный период уже идёт, дата окончания не меняется. Продлить одному адвокату можно в его карточке подписки. Приложение и сайт показывают это число сами."
+            label="Дней"
+            min={0}
+            saved={(n) => (n === 0 ? 'Пробный период выключен' : `Пробный период: ${n} дн.`)}
+          />
+          <NumberSettingCard
+            canWrite={canWrite}
+            settingKey={SEAT_KEY}
+            icon={UsersThree}
+            title="Сколько помощников может добавить адвокат"
+            text="На месячном тарифе это предел мест, которые можно докупить; годовой Prime включает все места. Уже добавленные помощники остаются."
+            label="Мест"
+            min={1}
+            saved={(n) => `Лимит помощников: ${n}`}
+          />
           <SeatRequests canWrite={canWrite} />
           <History data={data} />
         </>
@@ -131,7 +150,7 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
   const cents = dollarsToCents(amount);
   const amountOk = cents != null && cents >= 100 && cents <= 10_000_000;
   const changed = cents !== it.amountCents;
-  const noteOk = !move || note.trim().length >= 10;
+  const noteOk = true;
   const ok = amountOk && noteOk && (changed || move);
 
   const save = useMutation({
@@ -193,7 +212,7 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
           </div>
           <Switch checked={move} onChange={setMove} disabled={it.subscribers === 0} label="Перевести подписчиков" />
         </div>
-        <Field label={move ? 'Причина (обязательно)' : 'Заметка'} htmlFor="price-note" hint={move && !noteOk ? 'не меньше 10 символов' : 'попадёт в журнал аудита'}>
+        <Field label={move ? 'Причина (необязательно)' : 'Заметка (необязательно)'} htmlFor="price-note" hint="попадёт в журнал аудита">
           <Textarea id="price-note" rows={2} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Например: стартовая цена на запуск" />
         </Field>
         <div className="flex justify-end gap-2 border-t border-line pt-4">
@@ -210,41 +229,60 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
 }
 
 const SEAT_KEY = 'billing.max_assistant_seats';
+const TRIAL_KEY = 'billing.trial_days';
 
-/** Owner 2026-10-05: how many assistants an attorney may add. */
-function SeatLimitCard({ canWrite }: { canWrite: boolean }) {
+/** Owner 2026-10-05: one whole-number setting edited right on Цены (seat
+ * limit, free trial days); the API validates the range and audits it. */
+function NumberSettingCard({
+  canWrite,
+  settingKey,
+  icon: IconCmp,
+  title,
+  text,
+  label,
+  min,
+  saved,
+}: {
+  canWrite: boolean;
+  settingKey: string;
+  icon: Icon;
+  title: string;
+  text: string;
+  label: string;
+  min: number;
+  saved: (n: number) => string;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   const q = useQuery({
     queryKey: ['config'],
     queryFn: async () => (await api.GET('/admin/config')).data!.data,
   });
-  const entry = q.data?.find((e) => e.key === SEAT_KEY);
-  const current = typeof entry?.value === 'number' ? entry.value : null;
+  const entry = q.data?.find((e) => e.key === settingKey);
+  const current = typeof entry?.value === 'number' ? entry.value : typeof entry?.defaultValue === 'number' ? entry.defaultValue : null;
   const max = entry?.max ?? 50;
   const [draft, setDraft] = useState<string | null>(null);
   const value = draft ?? (current != null ? String(current) : '');
   const n = Number(value);
-  const ok = Number.isInteger(n) && n >= 1 && n <= max && n !== current;
+  const ok = value.trim() !== '' && Number.isInteger(n) && n >= min && n <= max && n !== current;
   const save = useMutation({
-    mutationFn: () => api.PUT('/admin/config/{key}', { params: { path: { key: SEAT_KEY } }, body: { value: n } as never }),
+    mutationFn: () => api.PUT('/admin/config/{key}', { params: { path: { key: settingKey } }, body: { value: n } as never }),
     onSuccess: () => {
-      toast.success(`Лимит помощников: ${n}`);
+      toast.success(saved(n));
       setDraft(null);
       void qc.invalidateQueries({ queryKey: ['config'] });
     },
     onError: (e) => toast.error(e),
   });
   if (!entry) return null;
+  const id = `setting-${settingKey.replace(/\W/g, '-')}`;
   return (
     <Card className="mt-4 flex flex-wrap items-end justify-between gap-4 p-5">
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm font-medium text-heading">
-          <UsersThree size={16} /> Сколько помощников может добавить адвокат
+          <IconCmp size={16} /> {title}
         </div>
-        <div className="mt-0.5 text-xs text-muted">
-          На месячном тарифе это предел мест, которые можно докупить; годовой Prime включает все места. Уже добавленные помощники остаются.
-        </div>
+        <div className="mt-0.5 max-w-2xl text-xs text-muted">{text}</div>
       </div>
       <form
         className="flex items-end gap-2"
@@ -253,8 +291,8 @@ function SeatLimitCard({ canWrite }: { canWrite: boolean }) {
           if (ok) save.mutate();
         }}
       >
-        <Field label="Мест" htmlFor="seat-limit" hint={`от 1 до ${max}`}>
-          <Input id="seat-limit" inputMode="numeric" className="w-24 text-lg" value={value} disabled={!canWrite} onChange={(e) => setDraft(e.target.value)} />
+        <Field label={label} htmlFor={id} hint={`от ${min} до ${max}`}>
+          <Input id={id} inputMode="numeric" className="w-24 text-lg" value={value} disabled={!canWrite} onChange={(e) => setDraft(e.target.value)} />
         </Field>
         {canWrite ? (
           <Button type="submit" variant="gold" loading={save.isPending} disabled={!ok || save.isPending}>

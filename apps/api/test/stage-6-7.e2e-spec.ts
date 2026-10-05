@@ -512,7 +512,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     });
   });
 
-  it('admin: support views, finance extends by N days with a reason (audited), moderator is 403', async () => {
+  it('admin: support views, finance extends by N days with a reason (audited), moderator is 404', async () => {
     const a = await attorney();
     const { row } = await subscribe(a, `fp_${randomUUID().slice(0, 8)}`);
     // Money is closed to every admin but the super admin, whatever the
@@ -523,11 +523,11 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(moderator.auth)
-      .expect(403);
+      .expect(404);
     await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(support.auth)
-      .expect(403);
+      .expect(404);
     const view = await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(finance.auth)
@@ -540,7 +540,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       .post(`/api/v1/admin/subscriptions/${a.id}/extend`)
       .set(support.auth)
       .send({ days: 5, reason: 'x' })
-      .expect(403);
+      .expect(404);
     const before = row!.trial_ends_at!.getTime();
     const ext = await api()
       .post(`/api/v1/admin/subscriptions/${a.id}/extend`)

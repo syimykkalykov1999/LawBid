@@ -13,8 +13,8 @@ class CreateBanDto {
   const CreateBanDto({
     required this.kind,
     required this.value,
-    required this.reason,
     this.days,
+    this.reason = '',
   });
 
   factory CreateBanDto.fromJson(Map<String, Object?> json) =>

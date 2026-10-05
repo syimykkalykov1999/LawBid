@@ -14,9 +14,13 @@ class IntegrationVersionDto {
     required this.id,
     required this.version,
     required this.status,
+    required this.slot,
+    required this.priority,
+    required this.enabled,
     required this.masked,
     required this.fingerprint,
     required this.createdAt,
+    this.label,
     this.activatedAt,
     this.lastTestAt,
     this.lastTestOk,
@@ -29,6 +33,10 @@ class IntegrationVersionDto {
   final String id;
   final num version;
   final IntegrationVersionDtoStatus status;
+  final String slot;
+  final String? label;
+  final num priority;
+  final bool enabled;
 
   /// Public values in full; secrets as ••••last4.
   final Map<String, String> masked;

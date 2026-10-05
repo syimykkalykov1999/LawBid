@@ -131,7 +131,7 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
     await api()
       .get('/api/v1/admin/feature-flags')
       .set(finance.auth)
-      .expect(403);
+      .expect(404);
 
     const list = await api()
       .get('/api/v1/admin/feature-flags')

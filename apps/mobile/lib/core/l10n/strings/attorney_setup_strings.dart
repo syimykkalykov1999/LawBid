@@ -18,10 +18,14 @@ const attorneySetupRu = <String, String>{
       'По ним мы подбираем кейсы и уведомления. Изменить можно в любой момент в профиле.',
   'onboarding.attorney.practices.save': 'Сохранить и продолжить',
   'onboarding.attorney.practices.pickOne': 'Выберите хотя бы одну практику',
-  'subscription.offer.trial.title': '7 дней бесплатно',
+  'subscription.offer.trial.title': '{days} бесплатно',
   'subscription.offer.trial.body':
-      'Отклики на кейсы и чаты с клиентами сразу. Карта нужна при старте; первое списание {price} в месяц через 7 дней, если не отмените.',
-  'subscription.offer.trial.cta': 'Начать 7 дней бесплатно',
+      'Отклики на кейсы и чаты с клиентами сразу. Карта нужна при старте; первое списание {price} в месяц через {days}, если не отмените.',
+  'subscription.offer.trial.cta': 'Начать {days} бесплатно',
+  'subscription.trial.days.one': '{count} день',
+  'subscription.trial.days.few': '{count} дня',
+  'subscription.trial.days.many': '{count} дней',
+  'subscription.trial.days.other': '{count} дня',
   'subscription.offer.paid.title': 'Оформите подписку',
   'subscription.offer.paid.body':
       'Пробный период закончился. Подписка {price} в месяц открывает отклики и чаты с клиентами.',
@@ -60,10 +64,12 @@ const attorneySetupEn = <String, String>{
       'We match cases and alerts to them. You can change them any time in your profile.',
   'onboarding.attorney.practices.save': 'Save and continue',
   'onboarding.attorney.practices.pickOne': 'Pick at least one practice area',
-  'subscription.offer.trial.title': '7 days free',
+  'subscription.offer.trial.title': '{days} free',
   'subscription.offer.trial.body':
-      'Bid on cases and chat with clients right away. A card is needed to start; the first charge of {price} a month comes in 7 days unless you cancel.',
-  'subscription.offer.trial.cta': 'Start 7 days free',
+      'Bid on cases and chat with clients right away. A card is needed to start; the first charge of {price} a month comes in {days} unless you cancel.',
+  'subscription.offer.trial.cta': 'Start {days} free',
+  'subscription.trial.days.one': '{count} day',
+  'subscription.trial.days.other': '{count} days',
   'subscription.offer.paid.title': 'Subscribe to continue',
   'subscription.offer.paid.body':
       'Your free trial has ended. A {price} a month subscription unlocks bids and client chats.',

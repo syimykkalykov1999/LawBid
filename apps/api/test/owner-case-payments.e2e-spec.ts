@@ -864,18 +864,19 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     await api()
       .get('/api/v1/admin/export/case_payments')
       .set(support.auth)
-      .expect(403);
+      .expect(404);
     // Money is a super-admin-only area (owner 2026-10-02): closed in the API
-    // for every other role, not only hidden in the panel.
+    // for every other role, not only hidden in the panel; a hidden section
+    // answers 404 (owner 2026-10-05).
     await api()
       .get('/api/v1/admin/case-payments')
       .set(support.auth)
-      .expect(403);
+      .expect(404);
     await api()
       .put('/api/v1/admin/case-payments/settings')
       .set(support.auth)
       .send(body)
-      .expect(403);
+      .expect(404);
   });
 
   it('who covers the Stripe fee is a setting: client / attorney / split; the platform never pays', async () => {

@@ -46,6 +46,7 @@ import 'clients/document_templates_client.dart';
 import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
 import 'clients/billing_client.dart';
+import 'clients/admin_payroll_client.dart';
 import 'clients/support_client.dart';
 import 'clients/admin_support_client.dart';
 import 'clients/admin_email_templates_client.dart';
@@ -74,6 +75,7 @@ import 'clients/admin_case_payments_client.dart';
 import 'clients/client_badge_client.dart';
 import 'clients/admin_client_badge_client.dart';
 import 'clients/chat_client.dart';
+import 'clients/translations_client.dart';
 import 'clients/calls_client.dart';
 import 'clients/notifications_client.dart';
 import 'clients/reviews_client.dart';
@@ -131,6 +133,7 @@ class LawbidApi {
   AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
   BillingClient? _billing;
+  AdminPayrollClient? _adminPayroll;
   SupportClient? _support;
   AdminSupportClient? _adminSupport;
   AdminEmailTemplatesClient? _adminEmailTemplates;
@@ -159,6 +162,7 @@ class LawbidApi {
   ClientBadgeClient? _clientBadge;
   AdminClientBadgeClient? _adminClientBadge;
   ChatClient? _chat;
+  TranslationsClient? _translations;
   CallsClient? _calls;
   NotificationsClient? _notifications;
   ReviewsClient? _reviews;
@@ -281,6 +285,9 @@ class LawbidApi {
   BillingClient get billing =>
       _billing ??= BillingClient(_dio, baseUrl: _baseUrl);
 
+  AdminPayrollClient get adminPayroll =>
+      _adminPayroll ??= AdminPayrollClient(_dio, baseUrl: _baseUrl);
+
   SupportClient get support =>
       _support ??= SupportClient(_dio, baseUrl: _baseUrl);
 
@@ -360,6 +367,9 @@ class LawbidApi {
       _adminClientBadge ??= AdminClientBadgeClient(_dio, baseUrl: _baseUrl);
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
+
+  TranslationsClient get translations =>
+      _translations ??= TranslationsClient(_dio, baseUrl: _baseUrl);
 
   CallsClient get calls => _calls ??= CallsClient(_dio, baseUrl: _baseUrl);
 
