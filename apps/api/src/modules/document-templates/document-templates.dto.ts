@@ -120,6 +120,12 @@ export class DocumentTemplateDto {
   @ApiProperty({
     type: String,
     nullable: true,
+    description: 'English name of the practice area (fallback).',
+  })
+  practiceAreaName!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
     description: 'Two-letter state; null = every state.',
   })
   state!: string | null;

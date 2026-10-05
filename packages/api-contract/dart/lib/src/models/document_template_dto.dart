@@ -19,6 +19,7 @@ class DocumentTemplateDto {
     required this.sizeBytes,
     required this.practiceAreaId,
     required this.practiceAreaKey,
+    required this.practiceAreaName,
     required this.state,
     required this.language,
     required this.audience,
@@ -39,6 +40,9 @@ class DocumentTemplateDto {
 
   /// i18n key of the practice area name.
   final String? practiceAreaKey;
+
+  /// English name of the practice area (fallback).
+  final String? practiceAreaName;
 
   /// Two-letter state; null = every state.
   final String? state;

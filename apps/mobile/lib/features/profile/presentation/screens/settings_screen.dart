@@ -15,6 +15,7 @@ import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
@@ -115,6 +116,14 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.caseHistory'),
             onTap: () => context.push(AppRoutes.caseHistory),
           ),
+          // Owner 2026-10-05: the document templates library.
+          if (ref.watch(templatesEnabledProvider))
+            AppListRow(
+              icon: AppIcons.descriptionOutlined,
+              label: t.t('templates.title'),
+              subtitle: t.t('templates.hint'),
+              onTap: () => context.push(AppRoutes.templates),
+            ),
         ],
       ),
       AppListSection(

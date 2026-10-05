@@ -64716,6 +64716,11 @@
             "nullable": true,
             "description": "i18n key of the practice area name."
           },
+          "practiceAreaName": {
+            "type": "string",
+            "nullable": true,
+            "description": "English name of the practice area (fallback)."
+          },
           "state": {
             "type": "string",
             "nullable": true,
@@ -64748,6 +64753,7 @@
           "sizeBytes",
           "practiceAreaId",
           "practiceAreaKey",
+          "practiceAreaName",
           "state",
           "language",
           "audience",
@@ -64887,6 +64893,11 @@
             "nullable": true,
             "description": "i18n key of the practice area name."
           },
+          "practiceAreaName": {
+            "type": "string",
+            "nullable": true,
+            "description": "English name of the practice area (fallback)."
+          },
           "state": {
             "type": "string",
             "nullable": true,
@@ -64930,6 +64941,7 @@
           "sizeBytes",
           "practiceAreaId",
           "practiceAreaKey",
+          "practiceAreaName",
           "state",
           "language",
           "audience",

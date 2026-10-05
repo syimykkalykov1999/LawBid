@@ -14,6 +14,9 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/templates/application/templates_providers.dart';
+import 'package:lawbid/features/templates/domain/doc_template.dart';
+import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 
 /// Owner 2026-10-05: the client's own case file — the same "4 of 6" the
 /// attorneys see, who sees what, and (while the case is open) a button to
@@ -54,6 +57,30 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       for (final f in (result?.files ?? const <PlatformFile>[]).take(_left))
         if (f.bytes != null) f.bytes!,
     ]);
+  }
+
+  /// Owner 2026-10-05: a document template — the server copies it into
+  /// the client's own case file (nothing is uploaded from the phone).
+  Future<void> _fromTemplate() async {
+    final tpl = await pickTemplate(context);
+    if (tpl == null || !mounted) return;
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      final id = await ref
+          .read(templatesRepositoryProvider)
+          .copy(tpl.id, TemplateTarget.kase);
+      await ref.read(casesRepositoryProvider).setCaseFiles(widget.kase.id, [
+        ...widget.kase.photos.map((p) => p.fileId),
+        id,
+      ]);
+      ref.invalidate(ownerCaseProvider(widget.kase.id));
+      if (mounted) showAppSnackBar(context, t.t('cases.dossier.filesSaved'));
+    } on Object {
+      if (mounted) showAppSnackBar(context, t.t('cases.dossier.filesFailed'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// Uploads [files] (antivirus-checked case files) and saves the case's
@@ -100,6 +127,12 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
         label: t.t('cases.files.add'),
         onTap: _pickDocuments,
       ),
+      if (ref.read(templatesEnabledProvider))
+        ActionSheetItem(
+          icon: AppIcons.descriptionOutlined,
+          label: t.t('cases.files.fromTemplate'),
+          onTap: _fromTemplate,
+        ),
     ]);
   }
 

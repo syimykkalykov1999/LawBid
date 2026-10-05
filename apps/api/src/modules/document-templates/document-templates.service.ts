@@ -453,6 +453,7 @@ function publicDto(t: Row): DocumentTemplateDto {
     sizeBytes: Number(t.file.size_bytes),
     practiceAreaId: t.practice_area_id,
     practiceAreaKey: t.practice_area?.i18n_key ?? null,
+    practiceAreaName: t.practice_area?.name_en ?? null,
     state: t.state,
     language: t.language,
     audience: t.audience,
