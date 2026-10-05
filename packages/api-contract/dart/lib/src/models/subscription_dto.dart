@@ -36,6 +36,8 @@ class SubscriptionDto {
   final bool isActive;
   final int priceCents;
   final SubscriptionPlan plan;
+
+  /// Every assistant seat the attorney has: the plan's included seats + the extra bought (owner 2026-10-05).
   final int assistantSeats;
   final DateTime? trialEndsAt;
   final DateTime? currentPeriodEnd;

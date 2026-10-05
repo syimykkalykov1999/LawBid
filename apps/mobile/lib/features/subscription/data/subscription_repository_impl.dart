@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/plans/data/plan_mappers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -49,6 +50,10 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
           maxSeats: d.prices.maxSeats,
           trialDays: d.prices.trialDays,
         ),
+        plan: d.plan == null ? null : PlanMappers.plan(d.plan!),
+        plans: PlanMappers.plans(d.plans),
+        entitlements: PlanMappers.entitlements(d.entitlements),
+        seats: PlanMappers.seats(d.seats),
       );
 
   static PaymentRecord _payment(api.PaymentDto p) => PaymentRecord(
@@ -93,15 +98,21 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
     String? promoCode,
+    String? planCode,
   }) async {
     final d = (await guardApiCall(
       () => _api.createCheckout(
         body: api.CheckoutRequestDto(
           promoCode: promoCode,
+          planCode: planCode,
           plan: plan == SubscriptionPlan.yearly
               ? api.SubscriptionPlan.yearly
               : api.SubscriptionPlan.monthly,
-          assistantSeats: plan == SubscriptionPlan.yearly ? 0 : assistantSeats,
+          // Legacy yearly Prime has every seat; a plan of the plan
+          // builder takes the extra seats as chosen.
+          assistantSeats: planCode == null && plan == SubscriptionPlan.yearly
+              ? 0
+              : assistantSeats,
           assistantPhones: assistantPhones.isEmpty ? null : assistantPhones,
         ),
       ),

@@ -46,7 +46,7 @@ export class PricingController {
       seatCents: a.seat,
       yearlyCents: a.yearly,
       maxSeats: await this.pricing.maxSeats(),
-      trialDays: await this.pricing.trialDays(),
+      trialDays: await this.pricing.defaultTrialDays(),
       clientBadgeCents: a.client_badge,
     };
   }

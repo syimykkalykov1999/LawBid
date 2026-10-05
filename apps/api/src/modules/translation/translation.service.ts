@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -13,6 +14,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AppConfigService } from '../feature-flags/services/app-config.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
@@ -50,6 +52,8 @@ export class TranslationService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
     @Optional() private readonly appConfig?: AppConfigService,
+    // Owner 2026-10-05 (plan builder): translation is a plan term.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** The Google key when [zone] may be translated, else null. */
@@ -70,6 +74,15 @@ export class TranslationService {
     text: string,
     target: string,
   ): Promise<TextTranslation> {
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'chat_translate'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include translation.',
+      });
+    }
     const key = await this.apiKey(zone);
     if (!key) throw translationUnavailable();
     // The text's hash is part of the key: an edited post is re-translated.
@@ -82,7 +95,17 @@ export class TranslationService {
     const quotaKey = `tr:quota:${user.sub}:${day}`;
     const used = await this.redis.incr(quotaKey);
     if (used === 1) await this.redis.expire(quotaKey, 26 * 3600);
-    if (used > DAILY_TRANSLATIONS) {
+    const planQuota = this.entitlements
+      ? await this.entitlements.limit(user.sub, 'translations_per_day')
+      : null;
+    // null/undefined = the app default; 0 = unlimited on this plan.
+    const quota =
+      planQuota == null
+        ? DAILY_TRANSLATIONS
+        : planQuota === 0
+          ? null
+          : planQuota;
+    if (quota !== null && used > quota) {
       throw new HttpException(
         {
           code: ErrorCode.RATE_LIMITED,

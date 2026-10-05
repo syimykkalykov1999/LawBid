@@ -123,6 +123,17 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.self_attestation_auto_approve': true,
 } as const;
 
+// Owner 2026-10-05 (automation principle, docs/AUTOMATION_PRINCIPLE.md):
+// every manual admin step except checking an attorney's documents has an
+// "auto" switch, on by default. A client's badge request is approved the
+// moment the documents are uploaded and scanned; the admin can still
+// revoke it. Undecided review appeals stay as decided on 2026-10-01
+// (Google-style, no automatic removal) but the switch now lives here.
+export const OWNER_AUTOMATION_SETTINGS = {
+  'verification.client_badge_auto_approve': true,
+  'reviews.auto_remove_undecided_appeals': false,
+} as const;
+
 // Owner 2026-10-05: a client offers a case to a chosen attorney. An
 // unanswered invite expires after `invites.expiry_days`; at most
 // `invites.max_pending_per_case` attorneys wait on one case, and a client
@@ -179,6 +190,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/plans/domain/plan_models.dart';
 
 /// docs/06 §1.3 `subscription_status`. [unknown] guards against a status
 /// a newer server may add.
@@ -152,10 +153,38 @@ class SubscriptionOverview {
     this.prices = const PlanPrices(),
     this.subscription,
     this.contractGrant,
+    this.plan,
+    this.plans = const [],
+    this.entitlements = PlanEntitlements.none,
+    this.seats,
   });
 
   /// Owner 2026-10-02: free under contract (isActive is true then).
   final ContractGrant? contractGrant;
+
+  /// Owner 2026-10-05 (plan builder): the plan the attorney is on (null
+  /// = none / a legacy subscription without a plan).
+  final PlanOffer? plan;
+
+  /// Every plan for sale; empty on a server without the plan builder —
+  /// the picker then falls back to the monthly / yearly tiers.
+  final List<PlanOffer> plans;
+
+  /// The entitlements that stand right now (baseline ← plan).
+  final PlanEntitlements entitlements;
+
+  /// Assistant seats: included by the plan, bought extra, total, cap.
+  final SeatSummary? seats;
+
+  /// The plan among [plans] the attorney is on, by code.
+  PlanOffer? get currentPlan {
+    final code = plan?.code;
+    if (code == null) return plan;
+    for (final p in plans) {
+      if (p.code == code) return p;
+    }
+    return plan;
+  }
 
   final SubscriptionInfo? subscription;
   final PlanPrices prices;

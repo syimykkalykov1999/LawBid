@@ -70,6 +70,12 @@ export class ClientBadgeStateDto {
   })
   canSubscribe!: boolean;
 
+  @ApiProperty({
+    description:
+      "Owner 2026-10-05: the client's plan includes the badge — no separate payment; the badge shows once the documents are approved.",
+  })
+  includedInPlan!: boolean;
+
   @ApiPropertyOptional({ type: ClientBadgeSubscriptionDto, nullable: true })
   subscription!: ClientBadgeSubscriptionDto | null;
 

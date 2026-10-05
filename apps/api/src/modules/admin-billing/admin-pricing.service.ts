@@ -83,12 +83,12 @@ export class AdminPricingService {
 
   async set(
     admin: AdminActor,
-    kind: PlanKind,
+    kind: string,
     amountCents: number,
     note?: string,
   ): Promise<AdminSetPlanPriceResultDto> {
     const before = (await this.pricing.activeRows()).get(kind) ?? null;
-    const beforeCents = await this.pricing.amount(kind);
+    const beforeCents = await this.pricing.amountOf(kind);
     let row: PlanPrice | null = null;
     if (beforeCents !== amountCents || !before) {
       row = await withTxRetry(this.prisma, async (tx) => {

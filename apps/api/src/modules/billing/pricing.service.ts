@@ -12,6 +12,12 @@ import { maxAssistantSeats, getAssistantLimit } from './seat-limit';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EntitlementsService } from '../plans/entitlements.service';
+import {
+  type Audience,
+  sanitizeEntitlements,
+} from '../plans/entitlement-catalog';
+import { PlansService } from '../plans/plans.service';
 import {
   ASSISTANT_SEAT_PRICE_CENTS,
   PAYMENT_PROVIDER,
@@ -33,6 +39,13 @@ export const PLAN_KINDS = [
 export type PlanKind = (typeof PLAN_KINDS)[number];
 
 export type PlanAmounts = Record<PlanKind, number>;
+
+/** Owner 2026-10-05 (plan builder): a plan's own price row is keyed by
+ * its code, its extra-seat price by `seat.<code>`. */
+export const planPriceKind = (planCode: string): string => planCode;
+export const seatPriceKind = (planCode: string): string => `seat.${planCode}`;
+export const isLegacyKind = (kind: string): kind is PlanKind =>
+  (PLAN_KINDS as readonly string[]).includes(kind);
 
 /** What each plan is called on Stripe (product names) and billed by. */
 export const PLAN_META: Record<
@@ -81,7 +94,7 @@ const CACHE_MS = 5_000;
 @Injectable()
 export class PricingService {
   private readonly logger = new Logger(PricingService.name);
-  private cache: { at: number; rows: Map<PlanKind, PlanPrice> } | null = null;
+  private cache: { at: number; rows: Map<string, PlanPrice> } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -89,10 +102,12 @@ export class PricingService {
     private readonly config: ConfigService,
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
+    @Optional() private readonly plans?: PlansService,
   ) {}
 
-  /** The active row of every kind that has one. */
-  async activeRows(): Promise<Map<PlanKind, PlanPrice>> {
+  /** The active row of every kind that has one (legacy kinds and plans). */
+  async activeRows(): Promise<Map<string, PlanPrice>> {
     if (this.cache && Date.now() - this.cache.at < CACHE_MS) {
       return this.cache.rows;
     }
@@ -100,10 +115,9 @@ export class PricingService {
       where: { active: true },
       orderBy: { created_at: 'desc' },
     });
-    const rows = new Map<PlanKind, PlanPrice>();
+    const rows = new Map<string, PlanPrice>();
     for (const r of list) {
-      const kind = r.kind as PlanKind;
-      if (!rows.has(kind)) rows.set(kind, r);
+      if (!rows.has(r.kind)) rows.set(r.kind, r);
     }
     this.cache = { at: Date.now(), rows };
     return rows;
@@ -129,12 +143,41 @@ export class PricingService {
    * [attorneyId], that attorney's own limit when an admin set one. */
   maxSeats(attorneyId?: string): Promise<number> {
     return attorneyId
-      ? getAssistantLimit(this.prisma, attorneyId, this.settings)
+      ? getAssistantLimit(
+          this.prisma,
+          attorneyId,
+          this.settings,
+          this.entitlements,
+        )
       : maxAssistantSeats(this.settings);
   }
 
-  /** Owner 2026-10-05: free trial days for new subscriptions, the admin
-   * setting `billing.trial_days` (0 = no trial). */
+  /** Owner 2026-10-05: the plan's own trial_days decides; the admin
+   * setting `billing.trial_days` is only the fallback for an attorney
+   * plan that leaves it unset (client plans: no trial unless set). */
+  async trialDaysFor(
+    plan: { audience: string; entitlements: unknown } | null,
+  ): Promise<number> {
+    if (!plan) return this.trialDays();
+    const own = sanitizeEntitlements(
+      plan.audience as Audience,
+      plan.entitlements,
+    ).trial_days;
+    if (typeof own === 'number') return own;
+    return plan.audience === 'attorney' ? this.trialDays() : 0;
+  }
+
+  /** Trial days of the attorney's default monthly plan — what legacy
+   * flows (no plan picked yet) show and use. */
+  async defaultTrialDays(): Promise<number> {
+    const plan = this.plans
+      ? await this.plans.defaultFor('attorney', 'month')
+      : null;
+    return this.trialDaysFor(plan);
+  }
+
+  /** Fallback trial days: the admin setting `billing.trial_days`
+   * (0 = no trial), used when a plan does not set its own. */
   async trialDays(): Promise<number> {
     const raw = this.settings
       ? await this.settings.number('billing.trial_days')
@@ -160,20 +203,29 @@ export class PricingService {
     return (await this.amounts())[kind];
   }
 
+  /** Owner 2026-10-05: the amount of ANY kind — a legacy kind (admin value
+   * or built-in default) or a plan's row; null when a plan has no price
+   * row yet. */
+  async amountOf(kind: string): Promise<number | null> {
+    if (isLegacyKind(kind)) return this.amount(kind);
+    const row = (await this.activeRows()).get(kind);
+    return row?.amount_cents ?? null;
+  }
+
   currency(): string {
     return SUBSCRIPTION_CURRENCY;
   }
 
   /** The Stripe price for new purchases of [kind], or undefined (→ 503). */
-  async priceId(kind: PlanKind): Promise<string | undefined> {
+  async priceId(kind: string): Promise<string | undefined> {
     await refreshProvider(this.provider);
     const row = (await this.activeRows()).get(kind);
     if (row) return this.ensureStripePrice(row);
-    return this.legacyPriceId(kind);
+    return isLegacyKind(kind) ? this.legacyPriceId(kind) : undefined;
   }
 
   /** [priceId] or a 503 PAYMENTS_NOT_CONFIGURED. */
-  async requirePriceId(kind: PlanKind): Promise<string> {
+  async requirePriceId(kind: string): Promise<string> {
     const id = await this.priceId(kind);
     if (!id) {
       throw new ServiceUnavailableException({
@@ -186,14 +238,14 @@ export class PricingService {
   }
 
   /** Every price id [kind] ever had in the current mode (old ones too). */
-  async knownPriceIds(kind: PlanKind): Promise<string[]> {
+  async knownPriceIds(kind: string): Promise<string[]> {
     await refreshProvider(this.provider);
     const mode = this.mode();
     const rows = await this.prisma.planPrice.findMany({ where: { kind } });
     const ids = rows
       .map((r) => jsonMap(r.stripe_price_ids)[mode])
       .filter((v): v is string => !!v);
-    const legacy = await this.legacyPriceId(kind);
+    const legacy = isLegacyKind(kind) ? await this.legacyPriceId(kind) : null;
     if (legacy) ids.push(legacy);
     return [...new Set(ids)];
   }
@@ -206,22 +258,27 @@ export class PricingService {
 
   /** The row's Stripe price for the current mode, created when missing. */
   async ensureStripePrice(row: PlanPrice): Promise<string | undefined> {
-    const kind = row.kind as PlanKind;
+    const kind = row.kind;
+    const legacyKind = isLegacyKind(kind);
     const mode = this.mode();
     const ids = jsonMap(row.stripe_price_ids);
     if (ids[mode]) return ids[mode];
-    if (!this.provider.createPrice) return this.legacyPriceId(kind);
+    if (!this.provider.createPrice) {
+      return legacyKind ? this.legacyPriceId(kind) : undefined;
+    }
     const products = jsonMap(row.stripe_product_ids);
     const productId = products[mode] ?? (await this.productIdFor(kind, mode));
-    const legacy = productId ? undefined : await this.legacyPriceId(kind);
+    const legacy =
+      productId || !legacyKind ? undefined : await this.legacyPriceId(kind);
+    const meta = await this.metaFor(kind);
     const created = await this.provider.createPrice({
       productId,
       productFromPriceId:
         legacy && !legacy.startsWith('price_fake') ? legacy : null,
-      productName: PLAN_META[kind].product,
+      productName: meta.product,
       amountCents: row.amount_cents,
       currency: row.currency,
-      interval: PLAN_META[kind].interval,
+      interval: meta.interval,
       idempotencyKey: `plan-price:${row.id}:${mode}`,
       metadata: { kind, planPriceId: row.id },
     });
@@ -239,9 +296,34 @@ export class PricingService {
     return created.priceId;
   }
 
+  /** Stripe product name + billing interval of [kind]: built in for the
+   * legacy kinds, from the plans table for a plan's (or its seat's) row. */
+  async metaFor(
+    kind: string,
+  ): Promise<{ product: string; interval: 'month' | 'year' }> {
+    if (isLegacyKind(kind)) return PLAN_META[kind];
+    const seat = kind.startsWith('seat.');
+    const code = seat ? kind.slice('seat.'.length) : kind;
+    const plan = await this.prisma.plan.findUnique({
+      where: { code },
+      select: { name: true, interval: true },
+    });
+    const name =
+      (plan && typeof plan.name === 'object' && plan.name !== null
+        ? ((plan.name as Record<string, unknown>).en as string | undefined)
+        : undefined) ?? code;
+    if (seat) {
+      return { product: `LawBid Assistant seat — ${name}`, interval: 'month' };
+    }
+    return {
+      product: `LawBid — ${name}`,
+      interval: plan?.interval === 'year' ? 'year' : 'month',
+    };
+  }
+
   /** The product an earlier price of [kind] used in [mode], if any. */
   private async productIdFor(
-    kind: PlanKind,
+    kind: string,
     mode: PriceMode,
   ): Promise<string | null> {
     const rows = await this.prisma.planPrice.findMany({

@@ -3,6 +3,8 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminBillingController } from './admin-billing.controller';
+import { AdminPlansController } from './admin-plans.controller';
+import { AdminPlansService } from './admin-plans.service';
 import { AdminPricingController } from './admin-pricing.controller';
 import { AdminPricingService } from './admin-pricing.service';
 import { BillingOverviewService } from './billing-overview.service';
@@ -29,6 +31,8 @@ import { SubscriptionAdminService } from './subscription-admin.service';
     AdminBillingController,
     BillingPromoController,
     AdminPricingController,
+    // Owner 2026-10-05: the plan builder.
+    AdminPlansController,
     SeatLimitRequestsController,
     AdminSeatLimitRequestsController,
     SubscriptionAdminController,
@@ -39,6 +43,7 @@ import { SubscriptionAdminService } from './subscription-admin.service';
     RefundsService,
     BillingOverviewService,
     AdminPricingService,
+    AdminPlansService,
     SeatLimitRequestsService,
     SubscriptionAdminService,
   ],

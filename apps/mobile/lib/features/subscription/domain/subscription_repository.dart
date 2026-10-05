@@ -10,11 +10,14 @@ abstract interface class SubscriptionRepository {
   /// browser) — the store-compliant, cheapest way to pay.
   /// OQ-048: [plan], [assistantSeats] (monthly) and the phones of
   /// assistants who join without a code.
+  /// Owner 2026-10-05: [planCode] picks a plan of the plan builder;
+  /// [assistantSeats] are then the EXTRA seats beyond the included ones.
   Future<WebCheckout> checkout({
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
     String? promoCode,
+    String? planCode,
   });
 
   /// Owner 2026-10-02: is [code] usable for [plan]?
