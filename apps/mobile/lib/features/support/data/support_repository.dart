@@ -26,7 +26,7 @@ class SupportRepository {
   }
 
   Future<SupportInfo> info() async {
-    final d = (await guardApiCall(() => _api.getSupportInfo())).data;
+    final d = (await guardApiCall(_api.getSupportInfo)).data;
     return SupportInfo(
       open: d.open,
       expectedReplyMinutes: d.expectedReplyMinutes.round(),
