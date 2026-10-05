@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
@@ -74,6 +76,10 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   late final _docs = PostDocumentsController(ref.read(socialActionsProvider))
     ..addListener(_refresh);
   double? _progress;
+
+  /// Owner 2026-10-05: true while the video is re-encoded on the phone.
+  bool _compressing = false;
+  VideoCompressor? _compressor;
   bool _publishing = false;
   CancelToken? _cancel;
   String? _assetId;
@@ -97,6 +103,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   @override
   void dispose() {
     _cancel?.cancel();
+    if (_compressing) _compressor?.cancel().ignore();
     _preview?.removeListener(_loopInCut);
     _preview?.dispose();
     _docs.dispose();
@@ -285,8 +292,10 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
     });
     _cancel = CancelToken();
     try {
+      final video = await _compressed(file, cut);
+      if (!mounted || (_cancel?.isCancelled ?? true)) return;
       final upload = await repo.createUpload(
-        sizeBytes: await file.length(),
+        sizeBytes: await video.length(),
         durationSec: cut.sourceSec,
         title: _title.text.trim().isEmpty ? null : _title.text.trim(),
         trimStartMs: cut.trimmed ? cut.startMs : null,
@@ -295,7 +304,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       );
       _assetId = upload.videoAssetId;
       await repo.upload(
-        file,
+        video,
         upload,
         cancel: _cancel,
         onProgress: (v) {
@@ -338,6 +347,41 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
         showAppSnackBar(context, errorText(t, e));
       }
     }
+  }
+
+  /// Owner 2026-10-05: up to Full HD (admin: media.video_max_height) on
+  /// the phone first — smaller upload, no visible loss; the original is
+  /// kept when re-encoding fails or would not make it smaller.
+  Future<File> _compressed(File file, ReelCut cut) async {
+    final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final size = _preview?.value.size ?? Size.zero;
+    final need = needsVideoCompression(
+      shortSide: math.min(size.width, size.height).round(),
+      bytes: await file.length(),
+      durationMs: cut.totalMs,
+      limits: limits,
+    );
+    if (!need || !mounted) return file;
+    setState(() {
+      _compressing = true;
+      _progress = 0;
+    });
+    final compressor = ref.read(videoCompressorProvider);
+    _compressor = compressor;
+    final out = await compressor.compress(
+      file,
+      limits: limits,
+      onProgress: (p) {
+        if (mounted) setState(() => _progress = p);
+      },
+    );
+    if (mounted) {
+      setState(() {
+        _compressing = false;
+        _progress = 0;
+      });
+    }
+    return out ?? file;
   }
 
   /// Owner 2026-10-05: the part of the video the reel plays, and its cover.
@@ -552,6 +596,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
           semanticLabel: t.t('common.close'),
           onPressed: () {
             _cancel?.cancel();
+            if (_compressing) _compressor?.cancel().ignore();
             Navigator.of(context).maybePop();
           },
         ),
@@ -692,7 +737,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                     const SizedBox(height: AppSpacing.lg),
                     Text(
                       t.t(
-                        'reels.uploading',
+                        _compressing ? 'reels.compressing' : 'reels.uploading',
                         {'percent': '${(_progress! * 100).round()}'},
                       ),
                       style: type.bodySmall.copyWith(color: colors.text),
