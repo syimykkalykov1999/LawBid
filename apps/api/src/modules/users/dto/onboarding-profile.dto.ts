@@ -75,7 +75,9 @@ export class OnboardingProfileDto {
   @IsOptional()
   @Transform(upper)
   @IsString()
-  @Matches(/^[A-Z]{2}$/, { message: 'stateCode must be a 2-letter code' })
+  @Matches(/^[A-Z0-9]{2}$/, {
+    message: 'stateCode must be a 2-character state code',
+  })
   stateCode?: string;
 
   /** Client preferred_languages / attorney languages — ISO 639-1. */
@@ -120,9 +122,9 @@ export class OnboardingProfileDto {
   @IsArray()
   @ArrayMaxSize(MAX_STATES)
   @ArrayUnique()
-  @Matches(/^[A-Z]{2}$/, {
+  @Matches(/^[A-Z0-9]{2}$/, {
     each: true,
-    message: 'licensedStates must contain 2-letter codes',
+    message: 'licensedStates must contain 2-character state codes',
   })
   licensedStates?: string[];
 }

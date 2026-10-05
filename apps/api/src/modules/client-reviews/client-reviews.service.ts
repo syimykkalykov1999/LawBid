@@ -1,3 +1,4 @@
+import { type CountryScope, userInScope } from '../countries/country-scope';
 import type { Prisma } from '@prisma/client';
 import {
   ConflictException,
@@ -427,11 +428,14 @@ export class ClientReviewsService {
   async listAppeals(
     status: 'pending' | 'accepted' | 'rejected' | 'auto_removed' = 'pending',
     cursor?: string,
+    countries: CountryScope = null,
   ): Promise<{ items: AdminReviewAppealDto[]; nextCursor: string | null }> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const rows = await this.prisma.clientReviewAppeal.findMany({
       where: {
         status,
+        // Owner 2026-10-05: moderators of one country see its appeals.
+        ...(countries ? { appellant: userInScope(countries) } : {}),
         ...(c
           ? {
               OR: [

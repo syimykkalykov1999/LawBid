@@ -276,7 +276,7 @@ export class CreateBroadcastDto {
     description: 'Only this state (older clients; prefer stateCodes).',
   })
   @IsOptional()
-  @Matches(/^[A-Z]{2}$/)
+  @Matches(/^[A-Z0-9]{2}$/)
   stateCode?: string;
 
   @ApiPropertyOptional({
@@ -289,7 +289,7 @@ export class CreateBroadcastDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(60)
-  @Matches(/^[A-Z]{2}$/, { each: true })
+  @Matches(/^[A-Z0-9]{2}$/, { each: true })
   stateCodes?: string[];
 }
 

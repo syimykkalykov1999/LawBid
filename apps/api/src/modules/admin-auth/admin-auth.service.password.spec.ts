@@ -19,6 +19,7 @@ async function build(
     admin_profile: { admin_role: opts.role ?? 'super_admin' },
   };
   const prisma = {
+    country: { findMany: jest.fn().mockResolvedValue([]) },
     adminCredential: {
       findUnique: jest.fn().mockImplementation(({ where }) => {
         if (where.login === 'boss')

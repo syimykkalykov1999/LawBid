@@ -30,7 +30,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   url.search = req.nextUrl.search;
   const headers = new Headers();
   headers.set('authorization', `Bearer ${token}`);
-  for (const h of ['content-type', 'x-justification', 'idempotency-key', 'accept']) {
+  for (const h of ['content-type', 'x-justification', 'idempotency-key', 'accept', 'x-admin-country']) {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }

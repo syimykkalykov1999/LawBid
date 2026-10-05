@@ -413,7 +413,9 @@ async function main() {
         const [{ n: after }] = await check.$queryRawUnsafe(
           `SELECT count(*)::INT AS n FROM "${table}"`,
         );
-        if (Number(after) !== n) {
+        // A migration may add reference rows (2026-10-05: Canadian and
+        // Mexican regions join `states`); only a loss is a failure.
+        if (Number(after) < n) {
           fail(`seeded rows lost in ${table}: ${n} before, ${after} after`);
         }
       }

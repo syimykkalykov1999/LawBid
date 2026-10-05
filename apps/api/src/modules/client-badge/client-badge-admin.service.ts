@@ -1,4 +1,9 @@
 import {
+  assertUserInScope,
+  type CountryScope,
+  userInScope,
+} from '../countries/country-scope';
+import {
   ConflictException,
   Inject,
   Injectable,
@@ -62,10 +67,13 @@ export class ClientBadgeAdminService {
     cursor: string | undefined,
     subStatus?: string,
     q?: string,
+    countries: CountryScope = null,
   ): Promise<{ items: AdminClientBadgeRowDto[]; nextCursor: string | null }> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const rows = (await this.prisma.clientVerification.findMany({
       where: {
+        // Owner 2026-10-05: staff of one country see only its clients.
+        ...(countries ? { AND: [{ user: userInScope(countries) }] } : {}),
         ...(status ? { status } : {}),
         ...(subStatus ? { sub_status: subStatus } : {}),
         ...(q
@@ -118,8 +126,12 @@ export class ClientBadgeAdminService {
     };
   }
 
-  async get(id: string): Promise<AdminClientBadgeDto> {
+  async get(
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<AdminClientBadgeDto> {
     const r = await this.load(id);
+    await assertUserInScope(this.prisma, r.user_id, countries);
     const fileIds = r.document_file_ids as string[];
     const documents = await Promise.all(
       fileIds.map(async (fileId) => ({

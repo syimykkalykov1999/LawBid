@@ -30,6 +30,8 @@ abstract class AdminUsersClient {
   ///
   /// [stateCode] - Owner 2026-10-04: clients of this state and attorneys licensed in it.
   ///
+  /// [countryCode] - Owner 2026-10-05: people of this country only.
+  ///
   /// [from] - Registered at or after (inclusive).
   ///
   /// [to] - Registered before (exclusive).
@@ -42,6 +44,7 @@ abstract class AdminUsersClient {
     @Query('role') Role? role,
     @Query('status') Status? status,
     @Query('stateCode') String? stateCode,
+    @Query('countryCode') String? countryCode,
     @Query('from') DateTime? from,
     @Query('to') DateTime? to,
     @Query('cursor') String? cursor,

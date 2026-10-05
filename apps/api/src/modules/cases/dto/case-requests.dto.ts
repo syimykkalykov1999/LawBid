@@ -41,7 +41,7 @@ export const MAX_ADDITIONAL_STATES = 2;
 export const MY_CASES_PAGE_DEFAULT = 20;
 export const MY_CASES_PAGE_MAX = 50;
 
-const STATE_CODE_RE = /^[A-Z]{2}$/;
+const STATE_CODE_RE = /^[A-Z0-9]{2}$/;
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -86,7 +86,7 @@ export class CreateCaseDto {
   @MaxLength(DESCRIPTION_MAX)
   description!: string;
 
-  @ApiProperty({ pattern: '^[A-Z]{2}$', example: 'NY' })
+  @ApiProperty({ pattern: '^[A-Z0-9]{2}$', example: 'NY' })
   @IsString()
   @Matches(STATE_CODE_RE)
   primaryStateCode!: string;
@@ -229,7 +229,7 @@ export class UpdateCaseDto {
   @IsUUID('all')
   practiceAreaId?: string;
 
-  @ApiPropertyOptional({ pattern: '^[A-Z]{2}$', example: 'NY' })
+  @ApiPropertyOptional({ pattern: '^[A-Z0-9]{2}$', example: 'NY' })
   @IsOptional()
   @IsString()
   @Matches(STATE_CODE_RE)

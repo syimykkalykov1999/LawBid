@@ -82,7 +82,7 @@ export class TemplatesQueryDto {
   })
   @IsOptional()
   @Transform(upper)
-  @Matches(/^[A-Z]{2}$/)
+  @Matches(/^[A-Z0-9]{2}$/)
   state?: string;
 
   @ApiPropertyOptional({ example: 'en' })
@@ -235,7 +235,7 @@ class TemplateFieldsDto {
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @Transform(upper)
-  @Matches(/^[A-Z]{2}$/)
+  @Matches(/^[A-Z0-9]{2}$/)
   state?: string | null;
 
   @ApiPropertyOptional({ example: 'en' })

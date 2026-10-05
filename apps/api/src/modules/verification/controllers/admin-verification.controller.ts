@@ -69,9 +69,10 @@ export class AdminVerificationController {
   @ApiEnvelopeResponse(VerificationQueueItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
   listVerificationQueue(
+    @CurrentAdmin() admin: AdminActor,
     @Query() query: VerificationQueueQueryDto,
   ): Promise<VerificationQueuePage> {
-    return this.admin.queue(query);
+    return this.admin.queue(query, admin.countries);
   }
 
   @Get('requests/:id')
@@ -79,9 +80,10 @@ export class AdminVerificationController {
   @ApiEnvelopeResponse(AdminVerificationRequestDto)
   @ApiErrors(REVIEW_ERRORS)
   getVerificationCard(
+    @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminRequestIdParamDto,
   ): Promise<AdminVerificationRequestDto> {
-    return this.admin.card(params.id);
+    return this.admin.card(params.id, admin.countries);
   }
 
   @Post('documents/:documentId/url')

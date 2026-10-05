@@ -1,3 +1,4 @@
+import { type CountryScope, userInScope } from '../countries/country-scope';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -236,12 +237,16 @@ export class AdminTrustService {
     status?: BadgeStatus | null;
     q?: string | null;
     limit?: number;
+    countries?: CountryScope;
   }): Promise<TrustAttorneyListItemDto[]> {
     const snaps = await this.trust.list(opts);
     if (snaps.length === 0) return [];
     const [rows, admins] = await Promise.all([
       this.prisma.attorneyProfile.findMany({
-        where: { user_id: { in: snaps.map((s) => s.attorneyId) } },
+        where: {
+          user_id: { in: snaps.map((s) => s.attorneyId) },
+          user: userInScope(opts.countries),
+        },
         select: {
           user_id: true,
           username: true,
@@ -344,11 +349,15 @@ export class AdminTrustService {
   async queue(opts: {
     reason?: string | null;
     q?: string | null;
+    countries?: CountryScope;
   }): Promise<TrustQueueItemDto[]> {
     const snaps = await this.trust.queue(opts);
     if (snaps.length === 0) return [];
     const rows = await this.prisma.attorneyProfile.findMany({
-      where: { user_id: { in: snaps.map((s) => s.attorneyId) } },
+      where: {
+        user_id: { in: snaps.map((s) => s.attorneyId) },
+        user: userInScope(opts.countries),
+      },
       select: {
         user_id: true,
         username: true,
@@ -620,9 +629,12 @@ export class AdminTrustService {
     return items.sort((a, b) => a.heldSince.localeCompare(b.heldSince));
   }
 
-  async card(attorneyId: string): Promise<AdminTrustCardDto> {
-    const row = await this.prisma.attorneyProfile.findUnique({
-      where: { user_id: attorneyId },
+  async card(
+    attorneyId: string,
+    countries: CountryScope = null,
+  ): Promise<AdminTrustCardDto> {
+    const row = await this.prisma.attorneyProfile.findFirst({
+      where: { user_id: attorneyId, user: userInScope(countries) },
       select: {
         user_id: true,
         username: true,

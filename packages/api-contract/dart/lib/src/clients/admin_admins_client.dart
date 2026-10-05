@@ -11,6 +11,7 @@ import '../models/admin_role_template_envelope.dart';
 import '../models/admin_role_template_list_envelope.dart';
 import '../models/create_admin_dto.dart';
 import '../models/save_admin_role_template_dto.dart';
+import '../models/set_admin_countries_dto.dart';
 import '../models/set_admin_credentials_dto.dart';
 import '../models/set_admin_permissions_dto.dart';
 import '../models/set_admin_role_dto.dart';
@@ -75,6 +76,14 @@ abstract class AdminAdminsClient {
   Future<AdminAccountEnvelope> setAdminPermissions({
     @Path('id') required String id,
     @Body() required SetAdminPermissionsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Countries an employee works with (owner 2026-10-05): their lists, queues and workspace show only people, cases and tickets of these countries. Empty = every country.
+  @PUT('/admin/admins/{id}/countries')
+  Future<AdminAccountEnvelope> setAdminCountries({
+    @Path('id') required String id,
+    @Body() required SetAdminCountriesDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

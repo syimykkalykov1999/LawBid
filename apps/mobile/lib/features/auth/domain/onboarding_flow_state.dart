@@ -32,6 +32,10 @@ abstract class OnboardingFlowState with _$OnboardingFlowState {
     @Default(false) bool isSubmitting,
     String? errorMessage,
 
+    /// Owner 2026-10-05: the number belongs to a country LawBid is not
+    /// open in yet (ISO code) — the phone screen offers the waiting list.
+    String? closedCountry,
+
     /// A code that arrived by itself — Android SMS Retriever (§10.2 D) —
     /// shown prefilled on the code
     /// screen while the flow verifies it. Null for a typed code.

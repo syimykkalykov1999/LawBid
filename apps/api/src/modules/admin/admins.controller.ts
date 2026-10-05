@@ -28,6 +28,7 @@ import {
   AdminAccountDto,
   AdminIdParamDto,
   CreateAdminDto,
+  SetAdminCountriesDto,
   SetAdminCredentialsDto,
   SetAdminPermissionsDto,
   SetAdminRoleDto,
@@ -108,6 +109,21 @@ export class AdminsController {
       dto.permissions,
       dto.canManageAdmins,
     );
+  }
+
+  @Put(':id/countries')
+  @ApiOperation({
+    summary:
+      'Countries an employee works with (owner 2026-10-05): their lists, queues and workspace show only people, cases and tickets of these countries. Empty = every country.',
+  })
+  @ApiEnvelopeResponse(AdminAccountDto)
+  @ApiErrors(TARGET_ERRORS)
+  setAdminCountries(
+    @CurrentAdmin() actor: AdminActor,
+    @Param() params: AdminIdParamDto,
+    @Body() dto: SetAdminCountriesDto,
+  ): Promise<AdminAccountDto> {
+    return this.admins.setCountries(actor, params.id, dto.countries);
   }
 
   @Put(':id/credentials')

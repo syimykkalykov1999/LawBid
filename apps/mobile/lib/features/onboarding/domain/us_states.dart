@@ -1,3 +1,11 @@
+import 'package:lawbid/features/onboarding/domain/region_catalog.dart';
+
+export 'package:lawbid/features/onboarding/domain/region_catalog.dart';
+
+/// Owner 2026-10-05: the regions people pick (profile, cases, licenses,
+/// filters) are those of every switched-on country, not only the USA.
+List<UsState> get kRegions => RegionCatalog.regions;
+
 /// 50 states + DC (docs/01_FOUNDATION_AUTH.md §11 Шаг 3A "штат проживания
 /// (список 50+DC)"). A local copy of apps/api/src/common/reference-data/
 /// us-states.ts: there is no public `/states` endpoint yet (docs/02

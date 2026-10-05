@@ -32,6 +32,7 @@ function ticket(over: Partial<SupportTicket> = {}): SupportTicket {
     resolved_by: null,
     sla_due_at: null,
     sla_breached_at: null,
+    country_code: 'US',
     ...over,
   };
 }

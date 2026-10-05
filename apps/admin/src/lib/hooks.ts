@@ -18,6 +18,10 @@ export interface Me {
   securityQuestion: string | null;
   /** Owner 2026-10-05: sections where this admin must write a reason. */
   reasonRequiredAreas?: string[];
+  /** Owner 2026-10-05: countries this admin works in (empty = all). */
+  countries?: string[];
+  /** Country tabs to pick from in the top bar. */
+  countryTabs?: { code: string; name: string }[];
 }
 
 export function useMe() {
