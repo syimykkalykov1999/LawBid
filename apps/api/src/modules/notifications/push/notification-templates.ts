@@ -272,6 +272,62 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Продвижение вашего дела завершилось.',
     },
   },
+  // Owner 2026-10-05: client → attorney payments through the platform.
+  case_payment_received: {
+    group: 'cases',
+    en: {
+      title: 'Payment received',
+      body: 'A client paid you through LawBid. The money goes to your Stripe account.',
+    },
+    ru: {
+      title: 'Оплата получена',
+      body: 'Клиент оплатил вам через LawBid. Деньги поступят на ваш счёт Stripe.',
+    },
+  },
+  case_payment_sent: {
+    group: 'cases',
+    en: {
+      title: 'Payment sent',
+      body: 'Your payment to the attorney went through. The receipt is in the case.',
+    },
+    ru: {
+      title: 'Оплата отправлена',
+      body: 'Ваш платёж адвокату прошёл. Чек — в карточке дела.',
+    },
+  },
+  case_payment_refunded: {
+    group: 'cases',
+    en: {
+      title: 'Refund issued',
+      body: 'The attorney refunded part or all of your payment.',
+    },
+    ru: {
+      title: 'Возврат оформлен',
+      body: 'Адвокат вернул вам часть или всю сумму платежа.',
+    },
+  },
+  case_payment_disputed: {
+    group: 'cases',
+    en: {
+      title: 'Payment disputed',
+      body: 'A client disputed a payment with their bank. Respond in your Stripe dashboard.',
+    },
+    ru: {
+      title: 'Платёж оспорен',
+      body: 'Клиент оспорил платёж через банк. Ответьте в панели Stripe.',
+    },
+  },
+  payout_account_status: {
+    group: 'system',
+    en: {
+      title: 'Payout account',
+      body: 'The status of your payout account changed. Check Settings → Receiving payments.',
+    },
+    ru: {
+      title: 'Счёт для выплат',
+      body: 'Статус вашего счёта для выплат изменился. Проверьте Настройки → Приём оплат.',
+    },
+  },
   admin_broadcast: {
     group: 'system',
     en: { title: 'LawBid', body: 'A message from the LawBid team.' },

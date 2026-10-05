@@ -3,6 +3,10 @@ import {
   type PaymentProvider,
   type ProviderCharge,
   type ProviderCheckoutSession,
+  type ProviderConnectAccount,
+  type ProviderConnectedCharge,
+  type ProviderConnectedCheckout,
+  type ProviderConnectedCheckoutInput,
   type ProviderCoupon,
   type ProviderCouponInput,
   type ProviderEvent,
@@ -402,6 +406,7 @@ export class FakePaymentProvider implements PaymentProvider {
   constructWebhookEvent(
     rawBody: Buffer,
     signature: string | undefined,
+    options: { connect?: boolean } = {},
   ): ProviderEvent {
     if (signature !== 'fake')
       throw new WebhookSignatureError('Expected Stripe-Signature: fake');
@@ -426,6 +431,9 @@ export class FakePaymentProvider implements PaymentProvider {
       throw new WebhookSignatureError('Malformed event');
     }
     this.absorb(object);
+    // Owner 2026-10-05: a Connect event names its connected account.
+    const account = (parsed as { account?: string }).account;
+    if (options.connect && account) object._account = account;
     return {
       id: parsed.id,
       type: parsed.type,
@@ -436,6 +444,209 @@ export class FakePaymentProvider implements PaymentProvider {
 
   dashboardUrl(): null {
     return null;
+  }
+
+  // ---- Stripe Connect (owner 2026-10-05) ----------------------------------
+
+  readonly connectAccounts = new Map<
+    string,
+    ProviderConnectAccount & { userId: string }
+  >();
+  readonly connectedCheckouts = new Map<
+    string,
+    ProviderConnectedCheckout & {
+      successUrl: string;
+      applicationFeeCents: number;
+    }
+  >();
+  readonly connectedCharges = new Map<
+    string,
+    ProviderConnectedCharge & { accountId: string }
+  >();
+  readonly connectedRefunds = new Map<
+    string,
+    {
+      accountId: string;
+      paymentIntentId: string;
+      amountCents: number;
+      refundApplicationFee: boolean;
+    }
+  >();
+
+  createConnectAccount(input: {
+    userId: string;
+    email: string | null;
+    country: string;
+  }): Promise<string> {
+    const id = `acct_fake_${randomUUID().slice(0, 12)}`;
+    this.connectAccounts.set(id, {
+      id,
+      userId: input.userId,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      requirementsDue: ['external_account', 'individual.verification.document'],
+      disabledReason: null,
+      country: input.country,
+    });
+    return Promise.resolve(id);
+  }
+
+  createAccountOnboardingLink(input: {
+    accountId: string;
+    refreshUrl: string;
+    returnUrl: string;
+  }): Promise<string> {
+    if (!this.connectAccounts.has(input.accountId))
+      throw new Error('no such connected account');
+    return Promise.resolve(
+      `${this.checkoutBaseUrl}/connect/${input.accountId}?return=${encodeURIComponent(input.returnUrl)}`,
+    );
+  }
+
+  createAccountLoginLink(accountId: string): Promise<string> {
+    if (!this.connectAccounts.has(accountId))
+      throw new Error('no such connected account');
+    return Promise.resolve(`https://connect.stripe.com/fake/${accountId}`);
+  }
+
+  retrieveConnectAccount(
+    accountId: string,
+  ): Promise<ProviderConnectAccount | null> {
+    const a = this.connectAccounts.get(accountId);
+    if (!a) return Promise.resolve(null);
+    const { userId: _u, ...rest } = a;
+    void _u;
+    return Promise.resolve(rest);
+  }
+
+  /** What finishing Stripe's onboarding does (dev page / e2e). */
+  completeConnectOnboarding(accountId: string): void {
+    const a = this.connectAccounts.get(accountId);
+    if (!a) throw new Error('no such connected account');
+    this.connectAccounts.set(accountId, {
+      ...a,
+      chargesEnabled: true,
+      payoutsEnabled: true,
+      detailsSubmitted: true,
+      requirementsDue: [],
+      disabledReason: null,
+    });
+  }
+
+  createConnectedCheckout(
+    input: ProviderConnectedCheckoutInput,
+  ): Promise<{ id: string; url: string }> {
+    if (!this.connectAccounts.has(input.accountId))
+      throw new Error('no such connected account');
+    const id = `cs_fake_${randomUUID().slice(0, 12)}`;
+    const url = `${this.checkoutBaseUrl}/${id}`;
+    this.connectedCheckouts.set(id, {
+      id,
+      accountId: input.accountId,
+      url,
+      status: 'open',
+      paymentStatus: 'unpaid',
+      paymentIntentId: null,
+      chargeId: null,
+      receiptUrl: null,
+      amountTotalCents: input.amountCents,
+      metadata: input.metadata,
+      successUrl: input.successUrl,
+      applicationFeeCents: input.applicationFeeCents,
+    });
+    return Promise.resolve({ id, url });
+  }
+
+  retrieveConnectedCheckout(
+    accountId: string,
+    sessionId: string,
+  ): Promise<ProviderConnectedCheckout | null> {
+    const s = this.connectedCheckouts.get(sessionId);
+    if (!s || s.accountId !== accountId) return Promise.resolve(null);
+    const { successUrl: _u, applicationFeeCents: _f, ...rest } = s;
+    void _u;
+    void _f;
+    return Promise.resolve(rest);
+  }
+
+  /** Dev checkout page: a connected checkout by its id alone. */
+  connectedCheckoutById(sessionId: string): ProviderConnectedCheckout | null {
+    const s = this.connectedCheckouts.get(sessionId);
+    if (!s) return null;
+    const { successUrl: _u, applicationFeeCents: _f, ...rest } = s;
+    void _u;
+    void _f;
+    return rest;
+  }
+
+  /** Paying a connected checkout on the dev page / in e2e: a payment
+   * intent, a charge with a receipt, the session complete. Returns the
+   * success URL. */
+  payConnectedCheckout(sessionId: string): string {
+    const s = this.connectedCheckouts.get(sessionId);
+    if (!s) throw new Error('no such connected checkout');
+    if (s.status === 'complete') return s.successUrl;
+    const pi = `pi_fake_${randomUUID().slice(0, 12)}`;
+    const ch = `ch_fake_${randomUUID().slice(0, 12)}`;
+    this.connectedCharges.set(ch, {
+      id: ch,
+      accountId: s.accountId,
+      paymentIntentId: pi,
+      amountCents: s.amountTotalCents ?? 0,
+      amountRefundedCents: 0,
+      refunded: false,
+      receiptUrl: `https://pay.stripe.com/receipts/fake/${ch}`,
+      disputed: false,
+      disputeStatus: null,
+    });
+    this.connectedCheckouts.set(sessionId, {
+      ...s,
+      status: 'complete',
+      paymentStatus: 'paid',
+      paymentIntentId: pi,
+      chargeId: ch,
+      receiptUrl: `https://pay.stripe.com/receipts/fake/${ch}`,
+    });
+    return s.successUrl;
+  }
+
+  refundConnected(input: {
+    accountId: string;
+    paymentIntentId: string;
+    amountCents: number;
+    refundApplicationFee: boolean;
+    idempotencyKey: string;
+  }): Promise<ProviderRefund> {
+    const id = `re_fake_${randomUUID().slice(0, 12)}`;
+    this.connectedRefunds.set(id, {
+      accountId: input.accountId,
+      paymentIntentId: input.paymentIntentId,
+      amountCents: input.amountCents,
+      refundApplicationFee: input.refundApplicationFee,
+    });
+    for (const [chId, ch] of this.connectedCharges) {
+      if (ch.paymentIntentId === input.paymentIntentId) {
+        const refunded = ch.amountRefundedCents + input.amountCents;
+        this.connectedCharges.set(chId, {
+          ...ch,
+          amountRefundedCents: refunded,
+          refunded: refunded >= ch.amountCents,
+        });
+      }
+    }
+    return Promise.resolve({ id, status: 'succeeded', failureReason: null });
+  }
+
+  retrieveConnectedCharge(
+    accountId: string,
+    chargeId: string,
+  ): Promise<ProviderConnectedCharge | null> {
+    const ch = this.connectedCharges.get(chargeId);
+    if (!ch || ch.accountId !== accountId) return Promise.resolve(null);
+    const { accountId: _a, ...rest } = ch;
+    void _a;
+    return Promise.resolve(rest);
   }
 
   /** Upsert an event's object unless a newer version is already stored. */
@@ -506,7 +717,47 @@ export class FakePaymentProvider implements PaymentProvider {
       object.object === 'checkout.session' &&
       object.status === 'complete'
     ) {
-      this.completeOneTime(id);
+      if (this.connectedCheckouts.has(id)) this.payConnectedCheckout(id);
+      else this.completeOneTime(id);
+    } else if (object.object === 'account') {
+      // Owner 2026-10-05: `account.updated` of a connected account.
+      const cur = this.connectAccounts.get(id);
+      if (cur) {
+        this.connectAccounts.set(id, {
+          ...cur,
+          chargesEnabled:
+            (object.charges_enabled as boolean | undefined) ??
+            cur.chargesEnabled,
+          payoutsEnabled:
+            (object.payouts_enabled as boolean | undefined) ??
+            cur.payoutsEnabled,
+          detailsSubmitted:
+            (object.details_submitted as boolean | undefined) ??
+            cur.detailsSubmitted,
+          requirementsDue:
+            (object.requirements as { currently_due?: string[] } | undefined)
+              ?.currently_due ?? cur.requirementsDue,
+          disabledReason:
+            ((object.requirements as { disabled_reason?: string } | undefined)
+              ?.disabled_reason as string | null | undefined) ??
+            cur.disabledReason,
+        });
+      }
+    } else if (object.object === 'dispute') {
+      const chId = object.charge as string | undefined;
+      const ch = chId ? this.connectedCharges.get(chId) : undefined;
+      if (ch) {
+        const status =
+          (object.status as string | undefined) ?? 'needs_response';
+        this.connectedCharges.set(ch.id, {
+          ...ch,
+          disputed: true,
+          disputeStatus: status,
+          ...(status === 'lost'
+            ? { refunded: true, amountRefundedCents: ch.amountCents }
+            : {}),
+        });
+      }
     } else if (object.object === 'charge') {
       this.charges.set(id, {
         id,

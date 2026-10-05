@@ -3,6 +3,10 @@ import {
   type PaymentProvider,
   type ProviderCharge,
   type ProviderCheckoutSession,
+  type ProviderConnectAccount,
+  type ProviderConnectedCharge,
+  type ProviderConnectedCheckout,
+  type ProviderConnectedCheckoutInput,
   type ProviderCoupon,
   type ProviderCouponInput,
   type ProviderEvent,
@@ -33,6 +37,9 @@ export class StripePaymentProvider implements PaymentProvider {
   constructor(
     secretKey: string,
     private readonly webhookSecret: string | undefined,
+    /** Owner 2026-10-05: the Connect endpoint's own signing secret
+     * (events of connected accounts); falls back to [webhookSecret]. */
+    private readonly connectWebhookSecret?: string,
   ) {
     this.stripe = new Stripe(secretKey, {
       typescript: true,
@@ -468,29 +475,250 @@ export class StripePaymentProvider implements PaymentProvider {
   constructWebhookEvent(
     rawBody: Buffer,
     signature: string | undefined,
+    options: { connect?: boolean } = {},
   ): ProviderEvent {
-    if (!this.webhookSecret || !signature) {
+    const secret = options.connect
+      ? (this.connectWebhookSecret ?? this.webhookSecret)
+      : this.webhookSecret;
+    if (!secret || !signature) {
       throw new WebhookSignatureError('Webhook secret or signature missing');
     }
     let event: Stripe.Event;
     try {
-      event = this.stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        this.webhookSecret,
-      );
+      event = this.stripe.webhooks.constructEvent(rawBody, signature, secret);
     } catch (e) {
       throw new WebhookSignatureError(
         e instanceof Error ? e.message : 'Invalid signature',
       );
     }
     const object = event.data.object as unknown as ProviderEvent['object'];
-    return { id: event.id, type: event.type, created: event.created, object };
+    // A Connect event names the connected account it happened on.
+    const account = (event as { account?: string }).account;
+    return {
+      id: event.id,
+      type: event.type,
+      created: event.created,
+      object: account ? { ...object, _account: account } : object,
+    };
+  }
+
+  // ---- Stripe Connect (owner 2026-10-05) ----------------------------------
+
+  async createConnectAccount(input: {
+    userId: string;
+    email: string | null;
+    country: string;
+  }): Promise<string> {
+    const acc = await this.stripe.accounts.create(
+      {
+        type: 'express',
+        country: input.country,
+        ...(input.email ? { email: input.email } : {}),
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+        business_type: 'individual',
+        business_profile: {
+          mcc: '8111', // legal services
+          product_description: 'Legal services booked through LawBid',
+        },
+        metadata: { userId: input.userId },
+      },
+      { idempotencyKey: `connect-account:${input.userId}` },
+    );
+    return acc.id;
+  }
+
+  async createAccountOnboardingLink(input: {
+    accountId: string;
+    refreshUrl: string;
+    returnUrl: string;
+  }): Promise<string> {
+    const link = await this.stripe.accountLinks.create({
+      account: input.accountId,
+      refresh_url: input.refreshUrl,
+      return_url: input.returnUrl,
+      type: 'account_onboarding',
+    });
+    return link.url;
+  }
+
+  async createAccountLoginLink(accountId: string): Promise<string> {
+    const link = await this.stripe.accounts.createLoginLink(accountId);
+    return link.url;
+  }
+
+  async retrieveConnectAccount(
+    accountId: string,
+  ): Promise<ProviderConnectAccount | null> {
+    try {
+      return mapConnectAccount(await this.stripe.accounts.retrieve(accountId));
+    } catch (e) {
+      if (isNotFound(e)) return null;
+      throw e;
+    }
+  }
+
+  async createConnectedCheckout(
+    input: ProviderConnectedCheckoutInput,
+  ): Promise<{ id: string; url: string }> {
+    const s = await this.stripe.checkout.sessions.create(
+      {
+        mode: 'payment',
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'usd',
+              unit_amount: input.amountCents,
+              product_data: { name: input.description },
+            },
+          },
+        ],
+        ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
+        metadata: input.metadata,
+        payment_intent_data: {
+          metadata: input.metadata,
+          ...(input.applicationFeeCents > 0
+            ? { application_fee_amount: input.applicationFeeCents }
+            : {}),
+        },
+        client_reference_id: input.metadata.userId,
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+      },
+      {
+        stripeAccount: input.accountId,
+        ...(input.idempotencyKey
+          ? { idempotencyKey: input.idempotencyKey }
+          : {}),
+      },
+    );
+    return { id: s.id, url: s.url ?? '' };
+  }
+
+  async retrieveConnectedCheckout(
+    accountId: string,
+    sessionId: string,
+  ): Promise<ProviderConnectedCheckout | null> {
+    try {
+      const s = await this.stripe.checkout.sessions.retrieve(
+        sessionId,
+        { expand: ['payment_intent.latest_charge'] },
+        { stripeAccount: accountId },
+      );
+      const pi = typeof s.payment_intent === 'string' ? null : s.payment_intent;
+      const charge =
+        pi && typeof pi.latest_charge !== 'string' ? pi.latest_charge : null;
+      return {
+        id: s.id,
+        accountId,
+        url: s.url ?? null,
+        status: (s.status ?? 'open') as ProviderConnectedCheckout['status'],
+        paymentStatus: s.payment_status ?? null,
+        paymentIntentId:
+          typeof s.payment_intent === 'string'
+            ? s.payment_intent
+            : (pi?.id ?? null),
+        chargeId:
+          charge?.id ??
+          (typeof pi?.latest_charge === 'string' ? pi.latest_charge : null),
+        receiptUrl: charge?.receipt_url ?? null,
+        amountTotalCents: s.amount_total ?? null,
+        metadata: s.metadata ?? {},
+      };
+    } catch (e) {
+      if (isNotFound(e)) return null;
+      throw e;
+    }
+  }
+
+  async refundConnected(input: {
+    accountId: string;
+    paymentIntentId: string;
+    amountCents: number;
+    refundApplicationFee: boolean;
+    idempotencyKey: string;
+    metadata: Record<string, string>;
+  }): Promise<ProviderRefund> {
+    const r = await this.stripe.refunds.create(
+      {
+        payment_intent: input.paymentIntentId,
+        amount: input.amountCents,
+        refund_application_fee: input.refundApplicationFee,
+        metadata: input.metadata,
+      },
+      { stripeAccount: input.accountId, idempotencyKey: input.idempotencyKey },
+    );
+    return {
+      id: r.id,
+      status:
+        r.status === 'succeeded'
+          ? 'succeeded'
+          : r.status === 'failed' || r.status === 'canceled'
+            ? 'failed'
+            : 'pending',
+      failureReason: r.failure_reason ?? null,
+    };
+  }
+
+  async retrieveConnectedCharge(
+    accountId: string,
+    chargeId: string,
+  ): Promise<ProviderConnectedCharge | null> {
+    try {
+      // `dispute` is not on the Charge type of this SDK version; the
+      // open dispute (if any) is listed by charge instead.
+      const ch = await this.stripe.charges.retrieve(chargeId, undefined, {
+        stripeAccount: accountId,
+      });
+      const dispute = ch.disputed
+        ? ((
+            await this.stripe.disputes.list(
+              { charge: chargeId, limit: 1 },
+              { stripeAccount: accountId },
+            )
+          ).data[0] ?? null)
+        : null;
+      return {
+        id: ch.id,
+        paymentIntentId:
+          typeof ch.payment_intent === 'string'
+            ? ch.payment_intent
+            : (ch.payment_intent?.id ?? null),
+        amountCents: ch.amount,
+        amountRefundedCents: ch.amount_refunded,
+        refunded: ch.refunded,
+        receiptUrl: ch.receipt_url ?? null,
+        disputed: ch.disputed,
+        disputeStatus: dispute?.status ?? null,
+      };
+    } catch (e) {
+      if (isNotFound(e)) return null;
+      throw e;
+    }
   }
 
   dashboardUrl(subscriptionId: string): string {
     return `https://dashboard.stripe.com/${this.live ? '' : 'test/'}subscriptions/${subscriptionId}`;
   }
+}
+
+function mapConnectAccount(a: Stripe.Account): ProviderConnectAccount {
+  const due = [
+    ...(a.requirements?.currently_due ?? []),
+    ...(a.requirements?.past_due ?? []),
+  ];
+  return {
+    id: a.id,
+    chargesEnabled: Boolean(a.charges_enabled),
+    payoutsEnabled: Boolean(a.payouts_enabled),
+    detailsSubmitted: Boolean(a.details_submitted),
+    requirementsDue: [...new Set(due)],
+    disabledReason: a.requirements?.disabled_reason ?? null,
+    country: a.country ?? null,
+  };
 }
 
 function isNotFound(e: unknown): boolean {

@@ -5,6 +5,7 @@ import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ClientBadgeCoreModule } from '../client-badge/client-badge.module';
+import { CasePaymentsCoreModule } from '../case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -52,6 +53,8 @@ export class BillingModule {
         // paid case promotions (checkout webhook, fake checkout page).
         ReferralsCoreModule,
         PromotionsCoreModule,
+        // Owner 2026-10-05: client → attorney payments (Connect webhooks).
+        CasePaymentsCoreModule,
         ClientBadgeCoreModule,
         // Only the controllers need the auth guards and the admin audit log;
         // the worker must stay bootable without AppModule's global modules.

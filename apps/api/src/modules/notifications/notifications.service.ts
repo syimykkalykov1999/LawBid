@@ -50,6 +50,12 @@ export const NOTIFICATION_CATEGORY: Record<
   referral_reward: 'system',
   promotion_started: 'cases',
   promotion_ended: 'cases',
+  // Owner 2026-10-05: client → attorney payments.
+  case_payment_received: 'cases',
+  case_payment_sent: 'cases',
+  case_payment_refunded: 'cases',
+  case_payment_disputed: 'cases',
+  payout_account_status: 'system',
   new_case: 'new_cases',
   comment_reply: 'social',
   comment_like: 'social',

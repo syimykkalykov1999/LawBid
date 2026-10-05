@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-101 tables.
+104 tables.
 
 ```mermaid
 erDiagram
@@ -1152,6 +1152,64 @@ erDiagram
     String note "nullable"
     String created_by "nullable"
     DateTime created_at
+  }
+  payout_accounts {
+    String user_id PK
+    String provider
+    String stripe_account_id UK
+    String status
+    Boolean charges_enabled
+    Boolean payouts_enabled
+    Boolean details_submitted
+    String disabled_reason "nullable"
+    String country "nullable"
+    DateTime last_synced_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_payments {
+    String id PK
+    String case_id
+    String bid_id "nullable"
+    String client_id
+    String attorney_id
+    String kind
+    String status
+    Int amount_cents
+    Int platform_fee_cents
+    Int processing_fee_cents
+    Int client_total_cents
+    Int attorney_net_cents
+    String fee_type
+    String fee_payer
+    String currency
+    String note "nullable"
+    String stripe_account_id "nullable"
+    String stripe_checkout_id UK "nullable"
+    String stripe_payment_intent_id UK "nullable"
+    String stripe_charge_id "nullable"
+    String receipt_url "nullable"
+    Int refunded_cents
+    String dispute_status "nullable"
+    DateTime disputed_at "nullable"
+    DateTime paid_at "nullable"
+    String canceled_reason "nullable"
+    String failure_code "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_payment_refunds {
+    String id PK
+    String payment_id
+    Int amount_cents
+    String reason
+    String initiated_by_type
+    String initiated_by "nullable"
+    String stripe_refund_id UK "nullable"
+    String status
+    String failure_reason "nullable"
+    DateTime created_at
+    DateTime updated_at
   }
   users }o--o| files : "avatar_file_id"
   files }o--|| users : "owner_user_id"

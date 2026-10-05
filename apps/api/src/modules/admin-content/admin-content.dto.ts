@@ -312,6 +312,7 @@ export const EXPORT_ENTITIES = [
   'cases',
   'bids',
   'payments',
+  'case_payments',
   'posts',
   'teams',
 ] as const;

@@ -154,6 +154,9 @@ export interface PaymentProvider {
   constructWebhookEvent(
     rawBody: Buffer,
     signature: string | undefined,
+    /** Owner 2026-10-05: `connect` = the Connect endpoint (its own
+     * signing secret; events carry the connected account). */
+    options?: { connect?: boolean },
   ): ProviderEvent;
   /** Stripe Dashboard link for the admin panel (null for the fake). */
   dashboardUrl(subscriptionId: string): string | null;
@@ -192,6 +195,101 @@ export interface PaymentProvider {
   createOneTimeCheckout?(
     input: ProviderOneTimeCheckoutInput,
   ): Promise<{ id: string; url: string }>;
+
+  // ---- Stripe Connect (owner 2026-10-05: client → attorney payments) ----
+
+  /** An Express connected account for an attorney (the money lands on
+   * the attorney's own balance; the platform keeps only its fee). */
+  createConnectAccount?(input: {
+    userId: string;
+    email: string | null;
+    country: string;
+  }): Promise<string>;
+  /** Stripe-hosted onboarding (KYC, bank account); short-lived URL. */
+  createAccountOnboardingLink?(input: {
+    accountId: string;
+    refreshUrl: string;
+    returnUrl: string;
+  }): Promise<string>;
+  /** The Express dashboard (payouts, balance) — short-lived URL. */
+  createAccountLoginLink?(accountId: string): Promise<string>;
+  retrieveConnectAccount?(
+    accountId: string,
+  ): Promise<ProviderConnectAccount | null>;
+  /** A hosted checkout charged on the connected account (direct charge)
+   * with the platform's `application_fee_amount`. */
+  createConnectedCheckout?(
+    input: ProviderConnectedCheckoutInput,
+  ): Promise<{ id: string; url: string }>;
+  retrieveConnectedCheckout?(
+    accountId: string,
+    sessionId: string,
+  ): Promise<ProviderConnectedCheckout | null>;
+  /** Refund part or all of a connected-account charge; the platform fee
+   * is given back pro rata when [refundApplicationFee]. */
+  refundConnected?(input: {
+    accountId: string;
+    paymentIntentId: string;
+    amountCents: number;
+    refundApplicationFee: boolean;
+    idempotencyKey: string;
+    metadata: Record<string, string>;
+  }): Promise<ProviderRefund>;
+  /** The charge behind a connected payment (receipt, refunds, dispute). */
+  retrieveConnectedCharge?(
+    accountId: string,
+    chargeId: string,
+  ): Promise<ProviderConnectedCharge | null>;
+}
+
+export interface ProviderConnectAccount {
+  id: string;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
+  /** Stripe `requirements.currently_due` (+ past_due). */
+  requirementsDue: string[];
+  disabledReason: string | null;
+  country: string | null;
+}
+
+export interface ProviderConnectedCheckoutInput {
+  accountId: string;
+  customerEmail?: string | null;
+  /** What the client pays. */
+  amountCents: number;
+  /** The platform's share, moved to the platform balance by Stripe. */
+  applicationFeeCents: number;
+  description: string;
+  metadata: Record<string, string>;
+  successUrl: string;
+  cancelUrl: string;
+  idempotencyKey?: string;
+}
+
+export interface ProviderConnectedCheckout {
+  id: string;
+  accountId: string;
+  url: string | null;
+  status: 'open' | 'complete' | 'expired';
+  paymentStatus: string | null;
+  paymentIntentId: string | null;
+  chargeId: string | null;
+  receiptUrl: string | null;
+  amountTotalCents: number | null;
+  metadata: Record<string, string>;
+}
+
+export interface ProviderConnectedCharge {
+  id: string;
+  paymentIntentId: string | null;
+  amountCents: number;
+  amountRefundedCents: number;
+  refunded: boolean;
+  receiptUrl: string | null;
+  disputed: boolean;
+  /** Stripe dispute status when disputed (needs_response, won, lost…). */
+  disputeStatus: string | null;
 }
 
 export interface ProviderOneTimeCheckoutInput {

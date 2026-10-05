@@ -30,6 +30,7 @@ import { AccountAnonymizationService } from '../modules/privacy/account-anonymiz
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import type { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import type { PromotionsService } from '../modules/promotions/promotions.service';
 
 jest.mock('bullmq', () => {
@@ -150,6 +151,9 @@ function processor() {
       {
         expire: jest.fn(() => Promise.resolve({ finished: 0, abandoned: 0 })),
       } as unknown as PromotionsService,
+      {
+        expire: jest.fn(() => Promise.resolve({ abandoned: 0 })),
+      } as unknown as CasePaymentsService,
     ),
   };
 }
@@ -176,8 +180,9 @@ describe('JobsRunner', () => {
     // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
-    // + monthly licenses.registry-recheck.
-    expect(upserts).toHaveLength(26);
+    // + monthly licenses.registry-recheck; owner 2026-10-05: +
+    // case-payments.expire every 10 min.
+    expect(upserts).toHaveLength(27);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
