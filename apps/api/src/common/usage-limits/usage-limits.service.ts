@@ -1,6 +1,13 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import type { AppSettingKey } from '../app-settings/app-settings.defaults';
+import type { EntitlementKey } from '../../modules/plans/entitlement-catalog';
+import { EntitlementsService } from '../../modules/plans/entitlements.service';
 import { ErrorCode } from '../errors/error-code.enum';
 import { RateLimitService } from '../../modules/auth/services/rate-limit.service';
 
@@ -49,16 +56,29 @@ export const USAGE_LIMITS: Record<
  * docs/05 §13: "Превышение: 429 RATE_LIMITED с локализованным текстом".
  * Fixed window per (action, user) in Redis (one atomic EVAL).
  */
+/** Owner 2026-10-05 (plan builder): limits a plan may raise or lift. */
+const PLAN_LIMITS: Partial<Record<LimitedAction, EntitlementKey>> = {
+  post_create: 'posts_per_day',
+  video_upload: 'videos_per_day',
+};
+
 @Injectable()
 export class UsageLimitsService {
   constructor(
     private readonly limiter: RateLimitService,
     private readonly settings: AppSettingsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   async consume(action: LimitedAction, userId: string): Promise<void> {
     const rule = USAGE_LIMITS[action];
-    const limit = await this.settings.number(rule.setting);
+    let limit = await this.settings.number(rule.setting);
+    const planKey = PLAN_LIMITS[action];
+    if (planKey && this.entitlements) {
+      const own = await this.entitlements.limit(userId, planKey);
+      if (own === 0) return; // the plan lifts the limit
+      if (own != null && own > 0) limit = own;
+    }
     const result = await this.limiter.consumeFixedWindow(
       ['usage', action, userId],
       limit,

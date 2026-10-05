@@ -17,7 +17,7 @@ const row = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function setup(current: ReturnType<typeof row> | null) {
+function setup(current: ReturnType<typeof row> | null, autoApprove = true) {
   let stored = current;
   const prisma = {
     user: {
@@ -26,7 +26,7 @@ function setup(current: ReturnType<typeof row> | null) {
     clientVerification: {
       findUnique: jest.fn().mockImplementation(() => Promise.resolve(stored)),
       upsert: jest.fn().mockImplementation(({ create }) => {
-        stored = row({ ...create, status: 'pending' });
+        stored = row({ ...create });
         return Promise.resolve(stored);
       }),
       update: jest.fn().mockImplementation(({ data }) => {
@@ -37,7 +37,10 @@ function setup(current: ReturnType<typeof row> | null) {
   };
   const notifications = { emit: jest.fn().mockResolvedValue(undefined) };
   const files = { assertAttachable: jest.fn().mockResolvedValue({}) };
-  const settings = { number: jest.fn().mockResolvedValue(1000) };
+  const settings = {
+    number: jest.fn().mockResolvedValue(1000),
+    boolean: jest.fn().mockResolvedValue(autoApprove),
+  };
   const service = new ClientBadgeService(
     prisma as never,
     { get: jest.fn() } as never,
@@ -60,12 +63,20 @@ describe('ClientBadgeService', () => {
     });
   });
 
-  it('submit: attaches the files and queues a pending request', async () => {
-    const { service, files } = setup(null);
+  it('submit: attaches the files and approves at once (automation principle)', async () => {
+    const { service, files, notifications } = setup(null);
     const s = await service.submit('u1', {
       fileIds: ['a', 'a', 'b'],
     });
     expect(files.assertAttachable).toHaveBeenCalledTimes(2);
+    expect(s.status).toBe('approved');
+    expect(s.canSubscribe).toBe(true);
+    expect(notifications.emit).toHaveBeenCalledTimes(1);
+  });
+
+  it('submit: with the auto switch off the request waits in the queue', async () => {
+    const { service } = setup(null, false);
+    const s = await service.submit('u1', { fileIds: ['a'] });
     expect(s.status).toBe('pending');
   });
 

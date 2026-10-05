@@ -13,6 +13,8 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/plans/domain/plan_models.dart';
+import 'package:lawbid/features/plans/presentation/plan_features.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
@@ -139,6 +141,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
               assistantSeats: c.seats,
               assistantPhones: c.phones,
               promoCode: c.promoCode,
+              planCode: c.planCode,
             );
     if (!mounted) return;
     switch (outcome) {
@@ -367,6 +370,18 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
           (s.assistantSeats > 0 || (grant?.assistantSeats ?? 0) > 0))
         section(const AssistantSeatsSection()),
       if (s != null && !statusFirst) statusCard(s),
+      // Owner 2026-10-05 (plan builder): the plan the attorney is on, what
+      // it includes and the assistant seats (included / extra / total).
+      if (o.plan != null && (o.isActive || grant != null))
+        section(
+          CurrentPlanCard(
+            t: t,
+            formats: formats,
+            plan: o.plan!,
+            entitlements: o.entitlements,
+            seats: o.seats,
+          ),
+        ),
       if (showCta)
         section(
           PlanPicker(
@@ -396,6 +411,122 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         ),
       ),
     ];
+  }
+}
+
+/// Owner 2026-10-05 (plan builder): «Ваш план» — the plan's name, the
+/// entitlement lines that stand right now and the seat summary.
+class CurrentPlanCard extends StatelessWidget {
+  const CurrentPlanCard({
+    required this.t,
+    required this.formats,
+    required this.plan,
+    required this.entitlements,
+    this.seats,
+    super.key,
+  });
+
+  final Translator t;
+  final L10nFormats formats;
+  final PlanOffer plan;
+  final PlanEntitlements entitlements;
+  final SeatSummary? seats;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final lines = PlanFeatures.entitlementLines(
+      t,
+      formats,
+      entitlements,
+      audience: plan.audience,
+      extraSeatCents: plan.extraSeatCents ?? 0,
+      trialDays: 0,
+      currency: plan.currency,
+    );
+    final s = seats;
+    return AppCard(
+      key: const ValueKey('current-plan'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  t.t('plan.current.title'),
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: FitText(
+                  plan.name.resolve(formats.locale),
+                  alignment: AlignmentDirectional.centerEnd,
+                  style: type.body.copyWith(
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (s != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              t.t('plan.seats.summary', {
+                'total': formats.number(s.total),
+                'included': formats.number(s.included),
+                'extra': formats.number(s.extra),
+              }),
+              key: const ValueKey('seats-summary'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+            if (s.max > 0)
+              Text(
+                t.t('plan.seats.summary.max', {'max': formats.number(s.max)}),
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+          ],
+          if (lines.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              t.t('plan.current.includes'),
+              style: type.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            for (final f in lines)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: AppIcon(
+                        AppIcons.checkRounded,
+                        size: 16,
+                        color: colors.goldDark,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        f,
+                        style: type.bodySmall.copyWith(color: colors.text),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
   }
 }
 

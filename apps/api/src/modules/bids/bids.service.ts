@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
@@ -18,6 +19,7 @@ import {
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
@@ -42,6 +44,8 @@ export class BidsService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly caseAccess: CaseAccessPolicy,
     private readonly chat: ChatSystemMessages,
+    // Owner 2026-10-05: the plan's terms (offers in any state, offer limit).
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** POST /cases/:caseId/bids (§5.1). One active-or-ever bid per attorney
@@ -70,9 +74,22 @@ export class BidsService {
       { userId: user.sub, role: 'attorney' },
       caseId,
     );
-    // Owner 2026-09-30 / 2026-10-04: an attorney may bid on ANY open case —
-    // any state, any practice (incl. "Not sure"). A mismatch never blocks;
-    // the bid is marked and the client sees it before accepting.
+    // Owner 2026-10-04: any open case can be viewed; an offer outside the
+    // states of a verified licence needs the plan's "offers in any state"
+    // (owner 2026-10-05, plan builder — on by default).
+    if (
+      access.kind === 'attorney_browser' &&
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'bids_any_state'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.LICENSE_STATE_REQUIRED,
+        message:
+          'You can send an offer only in states where you hold a verified licence.',
+      });
+    }
+    // Owner 2026-09-30: bids outside the attorney's practices are allowed
+    // and marked (the client is warned).
     const outsidePractice = access.kind !== 'owner' && !access.inPractice;
     const outsideLicensedStates =
       access.kind !== 'owner' && !access.inLicensedState;
@@ -82,6 +99,23 @@ export class BidsService {
         code: ErrorCode.SUBSCRIPTION_REQUIRED,
         message: 'An active subscription or trial is required to bid.',
       });
+    }
+    // Owner 2026-10-05 (plan builder): the plan may cap open offers.
+    const maxActive = await this.entitlements?.limit(
+      user.sub,
+      'max_active_bids',
+    );
+    if (maxActive && maxActive > 0) {
+      const open = await this.prisma.bid.count({
+        where: { attorney_id: user.sub, status: 'active' },
+      });
+      if (open >= maxActive) {
+        throw new ConflictException({
+          code: ErrorCode.BID_LIMIT_REACHED,
+          message: 'Your plan allows no more open offers at once.',
+          details: { limit: maxActive, open },
+        });
+      }
     }
 
     try {

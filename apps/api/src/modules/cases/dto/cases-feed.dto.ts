@@ -295,6 +295,11 @@ export class CaseFeedItemDto {
   @ApiProperty({ description: 'Promoted by its client right now.' })
   promoted!: boolean;
 
+  @ApiProperty({
+    description:
+      "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).",
+  })
+  priorityClient!: boolean;
   /** Owner 2026-10-05: how complete the case is (counts only). */
   @ApiProperty({ type: CaseDossierDto })
   dossier!: CaseDossierDto;
