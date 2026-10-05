@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
+import { EntitlementsService } from '../src/modules/plans/entitlements.service';
 import { adminSession, type AdminSession } from './support/admin-login';
 
 /**
@@ -220,6 +221,33 @@ describe('Document templates (e2e, owner 2026-10-05)', () => {
       .set(client.auth)
       .expect(200);
     const other = await user('attorney');
+    // Owner 2026-10-05 (plan builder): without a paid plan an attorney
+    // browses (the template shows locked) but cannot download or attach.
+    const listed = await api()
+      .get('/api/v1/document-templates')
+      .query({ q: `Contract ${tag}` })
+      .set(other.auth)
+      .expect(200);
+    expect(listed.body.data[0]).toMatchObject({ id: t.id, locked: true });
+    const refused = await api()
+      .post(`/api/v1/document-templates/${t.id as string}/copy`)
+      .set(other.auth)
+      .send({ target: 'chat_attachment' })
+      .expect(403);
+    expect(refused.body.error.code).toBe('ENTITLEMENT_REQUIRED');
+    await api()
+      .post(`/api/v1/document-templates/${t.id as string}/download`)
+      .set(other.auth)
+      .expect(403);
+    await prisma.subscription.create({
+      data: { user_id: other.id, status: 'active', price_cents: 9900 },
+    });
+    await app.get(EntitlementsService).invalidateUser(other.id);
+    const unlocked = await api()
+      .get(`/api/v1/document-templates/${t.id as string}`)
+      .set(other.auth)
+      .expect(200);
+    expect(unlocked.body.data.locked).toBe(false);
     const copy = await api()
       .post(`/api/v1/document-templates/${t.id as string}/copy`)
       .set(other.auth)

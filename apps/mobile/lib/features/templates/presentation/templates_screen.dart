@@ -12,6 +12,8 @@ import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show docLook, fileSizeLabel;
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
+import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:share_plus/share_plus.dart';
@@ -93,6 +95,10 @@ class _TemplatesScreenState extends ConsumerState<TemplatesScreen> {
   }
 
   void _open(DocTemplate tpl) {
+    if (widget.picker && tpl.locked) {
+      unawaited(openPlanOffer(context, ref, PaywallReason.templates));
+      return;
+    }
     if (widget.picker) {
       Navigator.of(context).pop(tpl);
       return;
@@ -285,7 +291,10 @@ class TemplateCard extends ConsumerWidget {
     final look = docLook(_ext(template));
     return Semantics(
       button: true,
-      label: t.t('templates.open', {'title': template.title}),
+      label: [
+        t.t('templates.open', {'title': template.title}),
+        if (template.locked) t.t('templates.locked'),
+      ].join('. '),
       excludeSemantics: true,
       child: AppCard(
         onTap: onTap,
@@ -346,6 +355,14 @@ class TemplateCard extends ConsumerWidget {
                 ],
               ),
             ),
+            if (template.locked) ...[
+              const SizedBox(width: AppSpacing.sm),
+              AppIcon(
+                AppIcons.lockOutlineRounded,
+                color: colors.textSecondary,
+                size: 20,
+              ),
+            ],
           ],
         ),
       ),
@@ -380,10 +397,13 @@ class _TemplateSheetState extends ConsumerState<TemplateSheet> {
     try {
       await job();
     } on Object catch (e) {
-      if (mounted) {
-        final t = ref.read(translatorProvider);
-        showAppSnackBar(context, errorText(t, e));
+      if (!mounted) return;
+      if (isPlanRequired(e)) {
+        unawaited(openPlanOffer(context, ref, PaywallReason.templates));
+        return;
       }
+      final t = ref.read(translatorProvider);
+      showAppSnackBar(context, errorText(t, e));
     } finally {
       if (mounted) setState(() => _busy = null);
     }
@@ -457,33 +477,64 @@ class _TemplateSheetState extends ConsumerState<TemplateSheet> {
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                label: t.t('templates.download'),
-                icon: AppIcons.downloadRounded,
-                isLoading: _busy == 'download',
-                onPressed: _busy == null ? _download : null,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Builder(
-                builder: (b) => AppButton(
-                  label: t.t('templates.share'),
-                  icon: AppIcons.iosShareRounded,
-                  variant: AppButtonVariant.secondary,
-                  isLoading: _busy == 'share',
-                  onPressed: _busy == null
-                      ? () {
-                          final box = b.findRenderObject() as RenderBox?;
-                          unawaited(
-                            _share(
-                              box == null
-                                  ? null
-                                  : box.localToGlobal(Offset.zero) & box.size,
-                            ),
-                          );
-                        }
-                      : null,
+              if (tpl.locked) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppIcon(
+                      AppIcons.lockOutlineRounded,
+                      color: colors.gold,
+                      size: 20,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        t.t('templates.lockedHint'),
+                        style: type.body.copyWith(color: colors.text),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: AppSpacing.md),
+                AppButton(
+                  label: t.t('templates.seePlans'),
+                  icon: AppIcons.lockOpenRounded,
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    unawaited(
+                      openPlanOffer(context, ref, PaywallReason.templates),
+                    );
+                  },
+                ),
+              ] else ...[
+                AppButton(
+                  label: t.t('templates.download'),
+                  icon: AppIcons.downloadRounded,
+                  isLoading: _busy == 'download',
+                  onPressed: _busy == null ? _download : null,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Builder(
+                  builder: (b) => AppButton(
+                    label: t.t('templates.share'),
+                    icon: AppIcons.iosShareRounded,
+                    variant: AppButtonVariant.secondary,
+                    isLoading: _busy == 'share',
+                    onPressed: _busy == null
+                        ? () {
+                            final box = b.findRenderObject() as RenderBox?;
+                            unawaited(
+                              _share(
+                                box == null
+                                    ? null
+                                    : box.localToGlobal(Offset.zero) & box.size,
+                              ),
+                            );
+                          }
+                        : null,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

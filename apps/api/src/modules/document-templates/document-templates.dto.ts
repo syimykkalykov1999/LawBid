@@ -134,6 +134,11 @@ export class DocumentTemplateDto {
   audience!: TemplateAudience;
   @ApiProperty() downloadCount!: number;
   @ApiProperty({ format: 'date-time' }) updatedAt!: string;
+  @ApiProperty({
+    description:
+      "True when the user's plan does not include document templates: the template can be browsed but not downloaded or attached.",
+  })
+  locked!: boolean;
 }
 
 export class TemplateDownloadDto {

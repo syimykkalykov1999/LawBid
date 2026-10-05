@@ -13,6 +13,7 @@ class DocTemplate {
     required this.language,
     required this.lawyersOnly,
     required this.downloadCount,
+    this.locked = false,
     this.practiceKey,
     this.practiceName,
     this.state,
@@ -36,6 +37,10 @@ class DocTemplate {
   final String language;
   final bool lawyersOnly;
   final int downloadCount;
+
+  /// Owner 2026-10-05 (plan builder): the user's plan does not include
+  /// templates — browsing works, downloading and attaching open the plans.
+  final bool locked;
 
   bool get isPdf => mime == 'application/pdf';
 }

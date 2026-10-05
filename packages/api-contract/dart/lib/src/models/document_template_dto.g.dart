@@ -22,6 +22,7 @@ DocumentTemplateDto _$DocumentTemplateDtoFromJson(Map<String, dynamic> json) =>
       audience: TemplateAudience.fromJson(json['audience'] as String),
       downloadCount: json['downloadCount'] as num,
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      locked: json['locked'] as bool,
     );
 
 Map<String, dynamic> _$DocumentTemplateDtoToJson(
@@ -41,4 +42,5 @@ Map<String, dynamic> _$DocumentTemplateDtoToJson(
   'audience': instance.audience.toJson(),
   'downloadCount': instance.downloadCount,
   'updatedAt': instance.updatedAt.toIso8601String(),
+  'locked': instance.locked,
 };

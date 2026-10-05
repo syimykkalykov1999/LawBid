@@ -30,3 +30,12 @@ ALTER TABLE document_templates ADD CONSTRAINT document_templates_practice_area_i
 INSERT INTO feature_flags (key, enabled, rollout_percent, description, updated_at)
 VALUES ('document_templates', true, 100, 'Document templates library (Content → Document templates; app → Templates)', now())
 ON CONFLICT (key) DO NOTHING;
+
+-- Plan builder entitlement `document_templates`: paid plans and the terms
+-- frozen on paid subscriptions get it (the attorney baseline does not).
+UPDATE plans SET entitlements = entitlements || '{"document_templates": true}'::JSONB
+WHERE kind = 'paid' AND NOT (entitlements ? 'document_templates');
+UPDATE subscriptions SET entitlements = entitlements || '{"document_templates": true}'::JSONB
+WHERE entitlements IS NOT NULL AND NOT (entitlements ? 'document_templates');
+UPDATE client_subscriptions SET entitlements = entitlements || '{"document_templates": true}'::JSONB
+WHERE entitlements IS NOT NULL AND NOT (entitlements ? 'document_templates');

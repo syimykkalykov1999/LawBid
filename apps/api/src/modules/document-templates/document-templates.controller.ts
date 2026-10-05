@@ -77,7 +77,7 @@ export class DocumentTemplatesController {
   @ApiEnvelopeResponse(TemplateDownloadDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
-    403: [E.FEATURE_DISABLED],
+    403: [E.FEATURE_DISABLED, E.ENTITLEMENT_REQUIRED],
     404: [E.NOT_FOUND],
   })
   downloadDocumentTemplate(
@@ -95,7 +95,7 @@ export class DocumentTemplatesController {
   @ApiEnvelopeResponse(FileDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.FILE_TYPE_NOT_ALLOWED, E.FILE_TOO_LARGE],
-    403: [E.FEATURE_DISABLED],
+    403: [E.FEATURE_DISABLED, E.ENTITLEMENT_REQUIRED],
     404: [E.NOT_FOUND],
     429: [E.RATE_LIMITED],
     503: [E.FILE_STORAGE_UNAVAILABLE],

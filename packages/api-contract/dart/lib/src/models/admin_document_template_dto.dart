@@ -25,6 +25,7 @@ class AdminDocumentTemplateDto {
     required this.audience,
     required this.downloadCount,
     required this.updatedAt,
+    required this.locked,
     required this.fileId,
     required this.published,
     required this.createdAt,
@@ -53,6 +54,9 @@ class AdminDocumentTemplateDto {
   final TemplateAudience audience;
   final num downloadCount;
   final DateTime updatedAt;
+
+  /// True when the user's plan does not include document templates: the template can be browsed but not downloaded or attached.
+  final bool locked;
   final String fileId;
   final bool published;
   final DateTime createdAt;

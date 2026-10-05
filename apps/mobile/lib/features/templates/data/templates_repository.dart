@@ -92,4 +92,5 @@ DocTemplate templateOf(api.DocumentTemplateDto d) => DocTemplate(
       language: d.language,
       lawyersOnly: d.audience == api.TemplateAudience.lawyers,
       downloadCount: d.downloadCount.toInt(),
+      locked: d.locked,
     );

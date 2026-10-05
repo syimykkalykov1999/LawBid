@@ -50,6 +50,8 @@ export class PlanEntitlementsDto {
   @ApiPropertyOptional({ type: Boolean, nullable: true })
   video_calls?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
+  document_templates?: number | boolean | null;
+  @ApiPropertyOptional({ type: Boolean, nullable: true })
   chat_translate?: number | boolean | null;
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   translations_per_day?: number | boolean | null;

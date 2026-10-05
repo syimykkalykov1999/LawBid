@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -13,7 +14,9 @@ import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
@@ -76,8 +79,13 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       ]);
       ref.invalidate(ownerCaseProvider(widget.kase.id));
       if (mounted) showAppSnackBar(context, t.t('cases.dossier.filesSaved'));
-    } on Object {
-      if (mounted) showAppSnackBar(context, t.t('cases.dossier.filesFailed'));
+    } on Object catch (e) {
+      if (!mounted) return;
+      if (isPlanRequired(e)) {
+        unawaited(openPlanOffer(context, ref, PaywallReason.templates));
+      } else {
+        showAppSnackBar(context, t.t('cases.dossier.filesFailed'));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

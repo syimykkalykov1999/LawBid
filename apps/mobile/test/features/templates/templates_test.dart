@@ -8,12 +8,17 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/client_plan/client_plan_routes.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
+import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/data/templates_repository.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';
@@ -37,6 +42,20 @@ const _lease = DocTemplate(
   lawyersOnly: false,
   downloadCount: 42,
   state: 'IL',
+);
+
+const _lockedLease = DocTemplate(
+  id: 't3',
+  title: 'Residential lease agreement for Illinois apartments and houses '
+      '(month-to-month or fixed term)',
+  description: 'Fill in the names, the address, rent and the deposit.',
+  fileName: 'Residential lease.pdf',
+  mime: 'application/pdf',
+  sizeBytes: 182000,
+  language: 'en',
+  lawyersOnly: false,
+  downloadCount: 42,
+  locked: true,
 );
 
 const _retainer = DocTemplate(
@@ -170,6 +189,38 @@ void main() {
     expect(picked?.id, 't2');
   });
 
+  testWidgets(
+      'a template outside the plan shows a lock and offers the plans '
+      'instead of Download', (tester) async {
+    await pump(tester, const TemplatesScreen(), items: const [_lockedLease]);
+    expect(
+      find.bySemanticsLabel(RegExp('Входит в платный план')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byType(TemplateCard));
+    await tester.pumpAndSettle();
+    expect(find.text('Посмотреть планы'), findsOneWidget);
+    expect(find.text('Скачать'), findsNothing);
+    expect(find.text('Поделиться'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('plans open where the role buys them', () {
+    expect(
+      planOfferPath(UserRole.client, PaywallReason.templates),
+      ClientPlanRoutes.clientPlan,
+    );
+    expect(
+      planOfferPath(UserRole.attorney, PaywallReason.videoCall),
+      AppRoutes.subscriptionRequiredFor('videoCall'),
+    );
+    expect(
+      planOfferPath(UserRole.assistant, PaywallReason.templates),
+      AppRoutes.subscriptionRequiredFor('templates'),
+    );
+    expect(PaywallReason.parse('videoCall'), PaywallReason.videoCall);
+  });
+
   testWidgets('nothing found shows the empty state', (tester) async {
     await pump(tester, const TemplatesScreen(), items: const []);
     expect(find.text('Шаблонов нет'), findsOneWidget);
@@ -193,6 +244,20 @@ void main() {
       testWidgets('the template sheet', (tester) async {
         await pump(tester, const TemplatesScreen(), t: t, dir: dir);
         await tester.tap(find.byType(TemplateCard).first);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a locked template and its sheet', (tester) async {
+        await pump(
+          tester,
+          const TemplatesScreen(),
+          items: const [_lockedLease],
+          t: t,
+          dir: dir,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.byType(TemplateCard));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       });

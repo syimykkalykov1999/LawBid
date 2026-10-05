@@ -30642,7 +30642,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FEATURE_DISABLED",
+            "description": "Forbidden: FEATURE_DISABLED, ENTITLEMENT_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -30759,7 +30759,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FEATURE_DISABLED",
+            "description": "Forbidden: FEATURE_DISABLED, ENTITLEMENT_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -59487,6 +59487,10 @@
             "type": "boolean",
             "nullable": true
           },
+          "document_templates": {
+            "type": "boolean",
+            "nullable": true
+          },
           "chat_translate": {
             "type": "boolean",
             "nullable": true
@@ -60063,6 +60067,7 @@
           "priority_search",
           "calls",
           "video_calls",
+          "document_templates",
           "chat_translate",
           "translations_per_day",
           "video_posts",
@@ -68429,6 +68434,10 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "True when the user's plan does not include document templates: the template can be browsed but not downloaded or attached."
           }
         },
         "required": [
@@ -68445,7 +68454,8 @@
           "language",
           "audience",
           "downloadCount",
-          "updatedAt"
+          "updatedAt",
+          "locked"
         ]
       },
       "TemplateSort": {
@@ -68607,6 +68617,10 @@
             "type": "string",
             "format": "date-time"
           },
+          "locked": {
+            "type": "boolean",
+            "description": "True when the user's plan does not include document templates: the template can be browsed but not downloaded or attached."
+          },
           "fileId": {
             "type": "string",
             "format": "uuid"
@@ -68634,6 +68648,7 @@
           "audience",
           "downloadCount",
           "updatedAt",
+          "locked",
           "fileId",
           "published",
           "createdAt"

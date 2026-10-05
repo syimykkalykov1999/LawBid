@@ -18,6 +18,7 @@ import { US_STATES } from '../../common/reference-data/us-states';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -74,6 +75,7 @@ export class DocumentTemplatesService {
     private readonly flags: FeatureFlagsService,
     private readonly audit: AuditLogService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   // --- app -----------------------------------------------------------------------
@@ -91,18 +93,21 @@ export class DocumentTemplatesService {
       ],
     };
     const page = await this.page(where, q);
-    return { ...page, items: page.items.map(publicDto) };
+    const locked = !(await this.included(user));
+    return { ...page, items: page.items.map((t) => publicDto(t, locked)) };
   }
 
   async get(user: RequestUser, id: string): Promise<DocumentTemplateDto> {
     await this.assertEnabled();
-    return publicDto(await this.visible(user, id));
+    const t = await this.visible(user, id);
+    return publicDto(t, !(await this.included(user)));
   }
 
   /** A short signed link; one count per user per template per day. */
   async download(user: RequestUser, id: string): Promise<TemplateDownloadDto> {
     await this.assertEnabled();
     const t = await this.visible(user, id);
+    await this.assertIncluded(user);
     const url = await this.files.documentTemplateUrl(t.file_id, t.file_name);
     if (!url) throw notFound();
     await this.count(user.sub, t.id);
@@ -122,6 +127,7 @@ export class DocumentTemplatesService {
   ): Promise<FileDto> {
     await this.assertEnabled();
     const t = await this.visible(user, id);
+    await this.assertIncluded(user);
     const file = await this.files.copyForUser(t.file_id, user.sub, target);
     await this.count(user.sub, t.id);
     return file;
@@ -310,6 +316,22 @@ export class DocumentTemplatesService {
     }
   }
 
+  /** Owner 2026-10-05 (plan builder): the plan's "document templates"
+   * term. Browsing stays open (the app shows a lock and the plans);
+   * downloading and attaching need it. */
+  private async included(user: RequestUser): Promise<boolean> {
+    return this.entitlements.has(user.sub, 'document_templates');
+  }
+
+  private async assertIncluded(user: RequestUser): Promise<void> {
+    if (!(await this.included(user))) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include document templates.',
+      });
+    }
+  }
+
   private async visible(user: RequestUser, id: string): Promise<Row> {
     const t = await this.prisma.documentTemplate.findFirst({
       where: { id, is_published: true, deleted_at: null },
@@ -443,7 +465,7 @@ function filters(q: TemplatesQueryDto): Prisma.DocumentTemplateWhereInput[] {
   return and;
 }
 
-function publicDto(t: Row): DocumentTemplateDto {
+function publicDto(t: Row, locked = false): DocumentTemplateDto {
   return {
     id: t.id,
     title: t.title,
@@ -459,6 +481,7 @@ function publicDto(t: Row): DocumentTemplateDto {
     audience: t.audience,
     downloadCount: Math.max(0, t.download_count),
     updatedAt: t.updated_at.toISOString(),
+    locked,
   };
 }
 
