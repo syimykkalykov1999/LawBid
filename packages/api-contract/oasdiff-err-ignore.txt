@@ -1,3 +1,19 @@
 POST /admin/auth/login/verify the response property `data/ticket` became nullable for the status `200`
 GET /admin/dashboard the response property `data/subscriptions/revenueEstimateCents` became nullable for the status `200`
 GET /admin/dashboard the response property `data/subscriptions/revenueEstimateUsd` became nullable for the status `200`
+PATCH /admin/teams/members/{memberId}/duties the response property `data/members/items/phone` became nullable for the status `200`
+PATCH /admin/teams/members/{memberId}/duties the response property `data/members/items/phone` became optional for the status `200`
+POST /admin/teams/members/{memberId}/remove the response property `data/members/items/phone` became nullable for the status `200`
+POST /admin/teams/members/{memberId}/remove the response property `data/members/items/phone` became optional for the status `200`
+GET /admin/teams/{id} the response property `data/members/items/phone` became nullable for the status `200`
+GET /admin/teams/{id} the response property `data/members/items/phone` became optional for the status `200`
+POST /assistants/join/request-code api path removed without deprecation
+POST /assistants/join/verify api path removed without deprecation
+GET /team the response property `data/members/items/phone` became nullable for the status `200`
+GET /team the response property `data/members/items/phone` became optional for the status `200`
+POST /team the response property `data/members/items/phone` became nullable for the status `200`
+POST /team the response property `data/members/items/phone` became optional for the status `200`
+DELETE /team/{id} the response property `data/members/items/phone` became nullable for the status `200`
+DELETE /team/{id} the response property `data/members/items/phone` became optional for the status `200`
+PATCH /team/{id} the response property `data/members/items/phone` became nullable for the status `200`
+PATCH /team/{id} the response property `data/members/items/phone` became optional for the status `200`
