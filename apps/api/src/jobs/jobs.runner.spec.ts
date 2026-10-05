@@ -31,6 +31,7 @@ import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.servic
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 import type { PromotionsService } from '../modules/promotions/promotions.service';
+import type { PartnersService } from '../modules/partners/partners.service';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -150,6 +151,11 @@ function processor() {
       {
         expire: jest.fn(() => Promise.resolve({ finished: 0, abandoned: 0 })),
       } as unknown as PromotionsService,
+      {
+        sweep: jest.fn(() =>
+          Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
+        ),
+      } as unknown as PartnersService,
     ),
   };
 }
@@ -176,8 +182,9 @@ describe('JobsRunner', () => {
     // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
-    // + monthly licenses.registry-recheck.
-    expect(upserts).toHaveLength(26);
+    // + monthly licenses.registry-recheck; owner 2026-10-05: + daily
+    // partners.sweep.
+    expect(upserts).toHaveLength(27);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

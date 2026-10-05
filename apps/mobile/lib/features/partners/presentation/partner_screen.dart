@@ -1,0 +1,419 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/partners/application/partners_providers.dart';
+import 'package:lawbid/features/partners/domain/partner_models.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
+
+/// Owner 2026-10-05 — Settings → Partner program: the partner's link, their
+/// rates, who joined by the link (name, type, status), earnings held / to
+/// be paid / paid, and every accrual.
+class PartnerScreen extends ConsumerWidget {
+  const PartnerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final async = ref.watch(partnerMeProvider);
+
+    // " (until 19 Oct)" after a held commission's status; empty otherwise.
+    String holdText(PartnerCommission c) {
+      if (c.status != 'held' || c.holdUntil == null) return '';
+      final until = t.t('partner.holdUntil', {'date': f.date(c.holdUntil!)});
+      return ' ($until)';
+    }
+
+    String roleText(ReferredUser r) => t.t(
+          r.isAttorney
+              ? 'partner.referred.attorney'
+              : 'partner.referred.client',
+        );
+
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        title: Text(t.t('partner.title')),
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: async.when(
+          loading: () =>
+              Center(child: CircularProgressIndicator(color: colors.gold)),
+          error: (e, _) => AppErrorState(
+            message: errorText(t, e),
+            retryLabel: t.t('error.retry'),
+            onRetry: () => ref.invalidate(partnerMeProvider),
+          ),
+          data: (me) {
+            if (!me.isPartner) {
+              return AppEmptyState(
+                icon: AppIcons.handshakeOutlined,
+                title: t.t('partner.off.title'),
+                message: t.t('partner.off.message'),
+              );
+            }
+            return RefreshIndicator(
+              color: colors.gold,
+              onRefresh: () => ref.refresh(partnerMeProvider.future),
+              child: ListView(
+                padding: const EdgeInsets.all(AppSpacing.screenSide),
+                children: [
+                  if (me.title.isNotEmpty) ...[
+                    Text(
+                      me.title,
+                      style: type.titleMedium.copyWith(color: colors.text),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                  ],
+                  if (me.summary.isNotEmpty)
+                    Text(
+                      me.summary,
+                      style:
+                          type.body.copyWith(color: colors.text, height: 1.4),
+                    ),
+                  if (me.status == 'paused' || me.status == 'ended') ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _Notice(text: t.t('partner.status.${me.status}')),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  _LinkCard(me: me, t: t),
+                  const SizedBox(height: AppSpacing.lg),
+                  _Totals(totals: me.totals, t: t, f: f),
+                  const SizedBox(height: AppSpacing.lg),
+                  _Rates(rates: me.rates, t: t, f: f),
+                  const SizedBox(height: AppSpacing.xl),
+                  Text(
+                    t.t('partner.referred.title'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    me.referred.isEmpty
+                        ? t.t('partner.referred.empty')
+                        : t.t('partner.referred.count', {
+                            'count': '${me.totals.referredCount}',
+                            'qualified': '${me.totals.qualifiedCount}',
+                          }),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                  for (final r in me.referred)
+                    ListTile(
+                      key: ValueKey('partner-referred-${r.id}'),
+                      contentPadding: EdgeInsets.zero,
+                      leading: AppIcon(
+                        r.isAttorney
+                            ? AppIcons.gavelRounded
+                            : AppIcons.personOutlineRounded,
+                        color: colors.goldDark,
+                      ),
+                      title: Text(
+                        r.name ?? t.t('partner.referred.anonymous'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.body.copyWith(color: colors.text),
+                      ),
+                      subtitle: Text(
+                        '${roleText(r)}'
+                        ' · ${f.date(r.joinedAt)}'
+                        ' · ${t.t('partner.referred.status.${r.status}')}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      trailing: r.amountCents > 0
+                          ? Text(
+                              f.currencyFromCents(r.amountCents),
+                              style: type.body.copyWith(
+                                color: r.status == 'reversed'
+                                    ? colors.textSecondary
+                                    : colors.goldDark,
+                                decoration: r.status == 'reversed'
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            )
+                          : null,
+                    ),
+                  const SizedBox(height: AppSpacing.xl),
+                  Text(
+                    t.t('partner.commissions.title'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  if (me.commissions.isEmpty)
+                    Text(
+                      t.t('partner.commissions.empty'),
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
+                  for (final c in me.commissions)
+                    ListTile(
+                      key: ValueKey('partner-commission-${c.id}'),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        c.note != null &&
+                                c.note!.isNotEmpty &&
+                                c.kind == CommissionKind.adjustment
+                            ? c.note!
+                            : t.t('partner.kind.${c.kind.wire}'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.body.copyWith(color: colors.text),
+                      ),
+                      subtitle: Text(
+                        '${f.date(c.createdAt)} · '
+                        '${t.t('partner.cstatus.${c.status}')}'
+                        '${holdText(c)}'
+                        '${c.paidAt != null ? ' · ${f.date(c.paidAt!)}' : ''}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      trailing: Text(
+                        '${c.amountCents < 0 ? '−' : ''}'
+                        '${f.currencyFromCents(c.amountCents.abs())}',
+                        style: type.body.copyWith(
+                          color: switch (c.status) {
+                            'reversed' => colors.textSecondary,
+                            _ when c.amountCents < 0 => colors.danger,
+                            'paid' => colors.text,
+                            _ => colors.goldDark,
+                          },
+                          decoration: c.status == 'reversed'
+                              ? TextDecoration.lineThrough
+                              : null,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _Notice extends StatelessWidget {
+  const _Notice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+      ),
+      child: Text(text, style: type.bodySmall.copyWith(color: colors.text)),
+    );
+  }
+}
+
+class _LinkCard extends StatelessWidget {
+  const _LinkCard({required this.me, required this.t});
+
+  final PartnerMe me;
+  final Translator t;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: colors.goldTint,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.goldStroke),
+      ),
+      child: Column(
+        children: [
+          Text(
+            t.t('partner.yourLink'),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          SelectableText(
+            me.code,
+            style: type.titleLarge.copyWith(
+              color: colors.goldDark,
+              letterSpacing: 3,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            me.shareUrl,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: t.t('partner.copy'),
+                  variant: AppButtonVariant.secondary,
+                  icon: AppIcons.linkRounded,
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: me.shareUrl));
+                    if (context.mounted) {
+                      showAppSnackBar(context, t.t('partner.copied'));
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: AppButton(
+                  label: t.t('partner.share'),
+                  icon: AppIcons.shareNetworkOutlined,
+                  onPressed: () => showShareSheet(
+                    context,
+                    t: t,
+                    link: me.shareUrl,
+                    text: t.t('partner.shareText', {'code': me.code}),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Totals extends StatelessWidget {
+  const _Totals({required this.totals, required this.t, required this.f});
+
+  final PartnerTotals totals;
+  final Translator t;
+  final L10nFormats f;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    Widget cell(String label, int cents, {bool accent = false}) => Expanded(
+          child: Column(
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  f.currencyFromCents(cents),
+                  style: type.titleMedium.copyWith(
+                    color: accent ? colors.goldDark : colors.text,
+                  ),
+                ),
+              ),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+            ],
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          cell(t.t('partner.totals.held'), totals.heldCents),
+          cell(
+            t.t('partner.totals.approved'),
+            totals.approvedCents,
+            accent: true,
+          ),
+          cell(t.t('partner.totals.paid'), totals.paidCents),
+          cell(t.t('partner.totals.month'), totals.thisMonthCents),
+        ],
+      ),
+    );
+  }
+}
+
+class _Rates extends StatelessWidget {
+  const _Rates({required this.rates, required this.t, required this.f});
+
+  final PartnerRates rates;
+  final Translator t;
+  final L10nFormats f;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    Widget row(String label, int cents) => Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.xs),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: type.bodySmall.copyWith(color: colors.text),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                f.currencyFromCents(cents),
+                style: type.bodySmall.copyWith(color: colors.goldDark),
+              ),
+            ],
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          t.t('partner.rates.title'),
+          style: type.titleMedium.copyWith(color: colors.text),
+        ),
+        if (rates.attorneyRateCents > 0)
+          row(t.t('partner.rates.attorney'), rates.attorneyRateCents),
+        if (rates.clientRateCents > 0)
+          row(
+            t.t('partner.rates.client.${rates.clientRule}'),
+            rates.clientRateCents,
+          ),
+        if (rates.monthlyBaseCents > 0)
+          row(t.t('partner.rates.monthly'), rates.monthlyBaseCents),
+        if (rates.holdDays > 0) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('partner.rates.hold', {'days': '${rates.holdDays}'}),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
+      ],
+    );
+  }
+}

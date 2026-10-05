@@ -7,6 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ClientBadgeCoreModule } from '../client-badge/client-badge.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
+import { PartnersCoreModule } from '../partners/partners.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminSubscriptionsController } from './admin-subscriptions.controller';
 import {
@@ -51,6 +52,7 @@ export class BillingModule {
         // Owner 2026-10-02: referral qualification on a paid invoice and
         // paid case promotions (checkout webhook, fake checkout page).
         ReferralsCoreModule,
+        PartnersCoreModule,
         PromotionsCoreModule,
         ClientBadgeCoreModule,
         // Only the controllers need the auth guards and the admin audit log;

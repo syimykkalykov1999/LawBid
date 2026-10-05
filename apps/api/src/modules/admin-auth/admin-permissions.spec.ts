@@ -41,6 +41,7 @@ describe('admin permissions', () => {
       '/api/v1/admin/subscriptions',
       '/api/v1/admin/promotions',
       '/api/v1/admin/referrals',
+      '/api/v1/admin/partners',
       '/api/v1/admin/integrations',
       '/api/v1/admin/admins',
       '/api/v1/admin/audit-log',
