@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -21,6 +22,7 @@ import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -257,6 +259,7 @@ void main() {
     Translator t = const StaticTranslatorRu(),
     TextDirection dir = TextDirection.ltr,
     List<Override> extra = const [],
+    FakeSocialRepository? social,
   }) async {
     useNarrowPhone(tester);
     await tester.pumpWidget(
@@ -265,7 +268,11 @@ void main() {
         theme: AppTheme.light(),
         size: narrowPhone,
         disableAnimations: true,
-        overrides: uxOverrides(translator: t, extra: [...base, ...extra]),
+        overrides: uxOverrides(
+          translator: t,
+          social: social,
+          extra: [...base, ...extra],
+        ),
       ),
     );
     await tester.pump();
@@ -300,6 +307,134 @@ void main() {
     expect(find.text('Notes.docx'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'owner 2026-10-05: «Подписаться» next to the name, follows, blue check',
+      (tester) async {
+    final social = FakeSocialRepository();
+    await pump(
+      tester,
+      ReelsScreen(initial: [_reel()]),
+      social: social,
+      extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
+    );
+    final follow = find.byType(ReelFollowButton);
+    expect(follow, findsOneWidget);
+    expect(find.text('Подписаться'), findsOneWidget);
+    // On the author's line, right after the name.
+    final name = tester.getRect(find.text('Saul Goodman'));
+    final pill = tester.getRect(follow);
+    expect((pill.center.dy - name.center.dy).abs(), lessThan(12));
+    expect(pill.left, greaterThan(name.right));
+    // Attorneys wear the blue check, as on the feed card.
+    final check = tester.widget<VerifiedCheck>(find.byType(VerifiedCheck));
+    expect(check.gold, isFalse);
+
+    await tester.tap(follow);
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pump();
+    expect(social.followCalls, [('att-1', true)]);
+    expect(find.text('Вы подписаны'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('no «Подписаться» on your own reel', (tester) async {
+    final r = _reel();
+    final mine = Post(
+      id: r.id,
+      author: r.author,
+      title: r.title,
+      body: r.body,
+      media: r.media,
+      tags: r.tags,
+      likeCount: r.likeCount,
+      commentCount: r.commentCount,
+      likedByMe: false,
+      savedByMe: false,
+      isMine: true,
+      createdAt: r.createdAt,
+      video: r.video,
+    );
+    await pump(
+      tester,
+      ReelsScreen(initial: [mine]),
+      extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
+    );
+    expect(find.byType(ReelFollowButton), findsNothing);
+  });
+
+  testWidgets('anything opened over the reel pauses it; back, it plays on',
+      (tester) async {
+    await pump(
+      tester,
+      ReelsScreen(initial: [_reel()]),
+      extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
+    );
+    bool paused() => tester.widget<ReelVideo>(find.byType(ReelVideo)).paused;
+    expect(paused(), isFalse);
+    // The "⋯" menu (a sheet on top of the reel).
+    await tester.tap(
+      find.bySemanticsLabel(const StaticTranslatorRu().t('post.menu')),
+    );
+    // Single taps wait out the double-tap-to-like window.
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('post-menu-report')), findsOneWidget);
+    expect(
+      tester
+          .widget<ReelVideo>(find.byType(ReelVideo, skipOffstage: false))
+          .paused,
+      isTrue,
+    );
+    Navigator.of(tester.element(find.byKey(const ValueKey('post-menu-report'))))
+        .pop();
+    await tester.pumpAndSettle();
+    expect(paused(), isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Android: «Читать» and the actions sit above the system bar',
+    (tester) async {
+      useNarrowPhone(tester);
+      const bar = 48.0;
+      await tester.pumpWidget(
+        uxApp(
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                padding: const EdgeInsets.only(top: 24, bottom: bar),
+                viewPadding: const EdgeInsets.only(top: 24, bottom: bar),
+              ),
+              child: SystemNavBand(child: ReelsScreen(initial: [_reel()])),
+            ),
+          ),
+          theme: AppTheme.light(),
+          size: narrowPhone,
+          disableAnimations: true,
+          overrides: uxOverrides(
+            translator: const StaticTranslatorRu(),
+            extra: [
+              ...base,
+              reelsRepositoryProvider.overrideWithValue(_Reels(const [])),
+            ],
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      final limit = narrowPhone.height - bar;
+      expect(
+        tester.getRect(find.byType(ReelMoreButton)).bottom,
+        lessThanOrEqualTo(limit - 8),
+      );
+      expect(
+        tester.getRect(find.byType(LinearProgressIndicator)).bottom,
+        lessThanOrEqualTo(limit),
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
 
   final locales = <String, (Translator, TextDirection)>{
     'longest of all languages': (LongestTranslator(), TextDirection.ltr),
