@@ -2,6 +2,7 @@ import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import type { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -533,7 +534,7 @@ describe('Key sets + payroll (e2e)', () => {
       delete rest.trial_days;
       await prisma.plan.update({
         where: { id: monthly.id },
-        data: { entitlements: rest },
+        data: { entitlements: rest as Prisma.InputJsonObject },
       });
       expect(await trialDays()).toBe(14);
       await set(0).expect(200);
@@ -550,7 +551,7 @@ describe('Key sets + payroll (e2e)', () => {
     } finally {
       await prisma.plan.update({
         where: { id: monthly.id },
-        data: { entitlements: own },
+        data: { entitlements: own as Prisma.InputJsonObject },
       });
       plans.invalidate();
       await set(7).expect(200);

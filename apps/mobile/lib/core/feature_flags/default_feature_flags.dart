@@ -31,6 +31,8 @@ const Map<String, bool> defaultFeatureFlags = {
   'translate_profiles': false,
   // Owner 2026-10-05: on only with TURN configured (bootstrap gate).
   'video_calls': false,
+  // Owner 2026-10-05: the document templates library (on).
+  'document_templates': true,
   'phone_login': true,
   'email_login': true,
   'apple_login': true,

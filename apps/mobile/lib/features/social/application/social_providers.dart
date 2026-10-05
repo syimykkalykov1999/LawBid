@@ -445,21 +445,6 @@ final followListProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
-class MyFollowingNotifier extends PagedNotifier<AttorneyRow> {
-  @override
-  Future<CursorPage<AttorneyRow>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).myFollowing(cursor: cursor);
-
-  @override
-  Object idOf(AttorneyRow item) => item.id;
-}
-
-final myFollowingProvider = AsyncNotifierProvider.autoDispose<
-    MyFollowingNotifier, PaginatedList<AttorneyRow>>(
-  MyFollowingNotifier.new,
-  retry: _noRetry,
-);
-
 class SuggestionsNotifier extends PagedNotifier<AttorneyRow> {
   @override
   Future<CursorPage<AttorneyRow>> fetch(String? cursor) =>
@@ -543,6 +528,12 @@ class SocialActions {
   Future<Object?> deletePost(Post post) => _guard('del:${post.id}', () async {
         await _repo.deletePost(post.id);
         _ref.read(deletedPostsProvider.notifier).add(post.id);
+        // The author's profile grids and post counters follow at once.
+        _ref
+          ..invalidate(attorneyPostsProvider(post.author.id))
+          ..invalidate(attorneyNewsProvider(post.author.id))
+          ..invalidate(publicAttorneyProfileProvider)
+          ..invalidate(publicClientProfileProvider);
       });
 
   /// Owner 2026-09-30: title, text and qualification.
@@ -585,7 +576,6 @@ class SocialActions {
           ..invalidate(publicAttorneyProfileProvider)
           ..invalidate(publicClientProfileProvider)
           ..invalidate(followListProvider)
-          ..invalidate(myFollowingProvider)
           ..invalidate(suggestionsProvider);
       });
 

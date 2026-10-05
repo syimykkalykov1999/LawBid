@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -54,6 +55,8 @@ export class TranslationService {
     @Optional() private readonly appConfig?: AppConfigService,
     // Owner 2026-10-05 (plan builder): translation is a plan term.
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Audit 2026-10-05: the global budget guard for paid providers.
+    @Optional() private readonly costGuard?: CostGuardService,
   ) {}
 
   /** The Google key when [zone] may be translated, else null. */
@@ -99,8 +102,7 @@ export class TranslationService {
 
     const day = new Date().toISOString().slice(0, 10);
     const quotaKey = `tr:quota:${user.sub}:${day}`;
-    const used = await this.redis.incr(quotaKey);
-    if (used === 1) await this.redis.expire(quotaKey, 26 * 3600);
+    const used = Number((await this.redis.get(quotaKey)) ?? 0);
     const planQuota = this.entitlements
       ? await this.entitlements.limit(user.sub, 'translations_per_day')
       : null;
@@ -111,7 +113,7 @@ export class TranslationService {
         : planQuota === 0
           ? null
           : planQuota;
-    if (quota !== null && used > quota) {
+    if (quota !== null && used >= quota) {
       throw new HttpException(
         {
           code: ErrorCode.RATE_LIMITED,
@@ -121,7 +123,12 @@ export class TranslationService {
       );
     }
 
+    await this.costGuard?.consume('translate');
     const out = await this.callGoogle(key, text, target, zone, hash);
+    // Counted only after a successful call: a Google error costs no quota.
+    if ((await this.redis.incr(quotaKey)) === 1) {
+      await this.redis.expire(quotaKey, 26 * 3600);
+    }
     await this.redis.set(cacheKey, JSON.stringify(out), 'EX', CACHE_TTL_S);
     return out;
   }

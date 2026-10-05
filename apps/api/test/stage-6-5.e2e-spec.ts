@@ -298,7 +298,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
       await prisma.notification.count({
         where: {
           user_id: { in: [c2.id, a.id] },
-          type: 'case_updated',
+          type: 'dispute_resolved',
           payload: { path: ['disputeId'], equals: d2.id },
         },
       }),

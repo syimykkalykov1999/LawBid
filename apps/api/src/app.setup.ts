@@ -6,6 +6,8 @@ import * as Sentry from '@sentry/nestjs';
 import express from 'express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
+import { AppSettingsService } from './common/app-settings/app-settings.service';
+import { CorsPolicy } from './common/cors/cors-policy';
 import type { AppEnv } from './config/env.schema';
 import { buildOpenApiDocument } from './openapi/openapi.config';
 
@@ -79,27 +81,37 @@ export function configureApp(
     }),
   );
 
-  // docs/06 §4.1 (stage 6.1): CORS only for the admin panel. The mobile
-  // app never sends an Origin, so it is unaffected; any other origin gets
-  // no CORS headers (the browser refuses the response).
+  // docs/06 §4.1 (stage 6.1): CORS for the admin panel (`ADMIN_ORIGINS`,
+  // with credentials) and the future client web app (`web.allowed_origins`
+  // in app_config, no credentials) — see CorsPolicy. The mobile app never
+  // sends an Origin, so it is unaffected; any other origin gets no CORS
+  // headers (the browser refuses the response).
   const adminOrigins = config
     .get<string>('ADMIN_ORIGINS', '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
-  app.enableCors({
-    origin: adminOrigins.length === 0 ? false : adminOrigins,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: [
-      'Authorization',
-      'Content-Type',
-      'Idempotency-Key',
-      'X-Justification',
-      'X-Request-Id',
-    ],
-    maxAge: 600,
-  });
+  const settings = app.get(AppSettingsService, { strict: false });
+  const cors = new CorsPolicy(adminOrigins, nodeEnv, () =>
+    settings.stringList('web.allowed_origins'),
+  );
+  app.enableCors(
+    cors.delegate({
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      allowedHeaders: [
+        'Authorization',
+        'Content-Type',
+        'Accept-Language',
+        'Idempotency-Key',
+        'X-Justification',
+        'X-Request-Id',
+        'X-Device-Id',
+        'X-Platform',
+        'X-App-Version',
+      ],
+      maxAge: 600,
+    }),
+  );
 
   // docs/06 §4.1: request body cap. `rawBody: true` (main.ts) keeps the
   // Stripe webhook's raw bytes; the cap applies to it as well — Stripe

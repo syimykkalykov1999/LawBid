@@ -67,6 +67,7 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   overview: 'content',
   content: 'content',
   'practice-areas': 'content',
+  'document-templates': 'content',
   media: 'media',
   bids: 'cases',
   cases: 'cases',

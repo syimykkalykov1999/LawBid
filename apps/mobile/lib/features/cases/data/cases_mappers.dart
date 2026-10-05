@@ -68,6 +68,7 @@ abstract final class CasesMappers {
         acceptedBid: c.acceptedBid == null ? null : listedBid(c.acceptedBid!),
         conversationId: c.conversationId,
         photos: c.photos.map(casePhoto).toList(growable: false),
+        stalePromptSentAt: _dateOrNull(c.stalePromptSentAt),
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
       );
@@ -139,6 +140,8 @@ abstract final class CasesMappers {
         createdAt: b.createdAt.toLocal(),
         decidedAt: b.decidedAt?.toLocal(),
         offers: b.offers.map(offer).toList(growable: false),
+        // Audit 2026-10-04: the lawyer header when opened without a row.
+        attorney: b.attorney == null ? null : attorney(b.attorney!),
         outsidePractice: b.outsidePractice,
         outsideLicensedStates: b.outsideLicensedStates,
       );
@@ -202,6 +205,7 @@ abstract final class CasesMappers {
         inMyPractice: c.inMyPractice,
         inMyLicensedStates: c.inMyLicensedStates,
         bidAllowed: c.bidAllowed,
+        acceptedBidIsMine: c.acceptedBidIsMine,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
         dossier: dossier(c.dossier),

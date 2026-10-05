@@ -21,6 +21,8 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
+import 'package:lawbid/features/templates/application/templates_providers.dart';
+import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
@@ -522,6 +524,68 @@ class ChatThread extends Notifier<ChatThreadState> {
     await _uploadAttachment(local);
   }
 
+  /// Owner 2026-10-05: a document template — a local bubble, then the
+  /// server's own copy is sent (no upload from the phone); Retry repeats.
+  Future<void> sendTemplate(DocTemplate tpl, {String? caption}) async {
+    final owner = ref.read(currentUserIdProvider);
+    if (owner == null) return;
+    final cmid = newClientMessageId();
+    final local = ChatMessage(
+      id: 'local:$cmid',
+      conversationId: id,
+      senderId: owner,
+      kind: MessageKind.attachment,
+      body: caption?.trim() ?? '',
+      clientMessageId: cmid,
+      createdAt: DateTime.now(),
+      delivery: DeliveryState.sending,
+      attachment: ChatAttachment(
+        fileId: '',
+        name: tpl.fileName,
+        isImage: false,
+        mime: tpl.mime,
+        sizeBytes: tpl.sizeBytes,
+      ),
+    );
+    _templateOf[cmid] = tpl.id;
+    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    await _sendTemplateCopy(local);
+  }
+
+  /// Local template bubbles → the template they send (for Retry).
+  final _templateOf = <String, String>{};
+
+  Future<void> _sendTemplateCopy(ChatMessage local) async {
+    final cmid = local.clientMessageId!;
+    try {
+      final fileId = await ref
+          .read(templatesRepositoryProvider)
+          .copy(_templateOf[cmid]!, TemplateTarget.chat);
+      final sent = await _repo.sendAttachment(
+        id,
+        cmid,
+        fileId: fileId,
+        fileName: local.attachment!.name,
+        caption: local.body.isEmpty ? null : local.body,
+      );
+      if (!ref.mounted) return;
+      _templateOf.remove(cmid);
+      state = state.copyWith(
+        voiceOutbox:
+            state.voiceOutbox.where((m) => m.clientMessageId != cmid).toList(),
+      );
+      unawaited(ref.read(appSoundsProvider).messageOut());
+      _merge([sent]);
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.subscriptionRequired) {
+        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
+      }
+      _markVoice(local, DeliveryState.failed, e.code);
+    } on Object {
+      _markVoice(local, DeliveryState.failed, null);
+    }
+  }
+
   /// Owner 2026-10-01: a sticker — shown at once, sent in the background,
   /// Retry on failure like a voice note.
   Future<void> sendSticker(ChatSticker sticker) async {
@@ -650,6 +714,12 @@ class ChatThread extends Notifier<ChatThreadState> {
       await _sendSticker(local.copyWith(delivery: DeliveryState.sending));
       return;
     }
+    if (local.kind == MessageKind.attachment &&
+        _templateOf.containsKey(local.clientMessageId)) {
+      _markVoice(local, DeliveryState.sending, null);
+      await _sendTemplateCopy(local.copyWith(delivery: DeliveryState.sending));
+      return;
+    }
     if (local.kind == MessageKind.attachment) {
       _markVoice(local, DeliveryState.sending, null);
       await _uploadAttachment(local.copyWith(delivery: DeliveryState.sending));
@@ -749,7 +819,12 @@ class ChatThread extends Notifier<ChatThreadState> {
       id,
       muted ? DateTime.now().add(const Duration(days: 3650)) : null,
     );
-    if (ref.mounted) state = state.copyWith(conversation: updated);
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    // Audit 2026-10-04: the lists show the mute mark at once.
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
   }
 
   void _onOutbox(List<OutboxRow> rows) {
@@ -831,6 +906,7 @@ class ChatThread extends Notifier<ChatThreadState> {
                 caseTitle: c.caseTitle,
                 status: c.status,
                 contactsUnlocked: c.contactsUnlocked,
+                blocked: c.blocked,
                 counterpart: c.counterpart,
                 lastMessage: c.lastMessage,
                 lastMessageAt: c.lastMessageAt,

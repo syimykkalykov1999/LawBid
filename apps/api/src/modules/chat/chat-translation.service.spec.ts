@@ -58,18 +58,21 @@ function setup(opts: {
   const appConfig = {
     getConfig: jest.fn().mockResolvedValue(opts.config ?? {}),
   };
+  const costGuard = { consume: jest.fn().mockResolvedValue(undefined) };
   const engine = new TranslationService(
     secrets as unknown as SecretsService,
     flags as unknown as FeatureFlagsService,
     redis as never,
     logger as unknown as PinoLogger,
     appConfig as unknown as AppConfigService,
+    undefined,
+    costGuard as never,
   );
   const service = new ChatTranslationService(
     prisma as unknown as PrismaService,
     engine,
   );
-  return { service, redis, store, prisma };
+  return { service, redis, store, prisma, costGuard };
 }
 
 function googleAnswers(text: string, source = 'en') {
@@ -107,6 +110,19 @@ describe('ChatTranslationService', () => {
       target: string;
     };
     expect(body).toMatchObject({ q: 'Hello', target: 'ru' });
+    // Only the uncached call is metered.
+    expect(s.costGuard.consume).toHaveBeenCalledTimes(1);
+    expect(s.costGuard.consume).toHaveBeenCalledWith('translate');
+  });
+
+  it('does not call Google when the global translate budget is spent', async () => {
+    const s = setup({});
+    const fetch = googleAnswers('x');
+    s.costGuard.consume.mockRejectedValue(new Error('budget'));
+    await expect(s.service.translate(user, 'c1', 'm1', 'ru')).rejects.toThrow(
+      'budget',
+    );
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('is unavailable while the flag, the zone or the key is off', async () => {
@@ -154,5 +170,7 @@ describe('ChatTranslationService', () => {
     ).rejects.toMatchObject({
       response: { code: ErrorCode.TRANSLATION_UNAVAILABLE },
     });
+    // A failed call does not use up the person's daily quota.
+    expect(s.redis.incr).not.toHaveBeenCalled();
   });
 });

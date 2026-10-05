@@ -91,7 +91,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'files.',
   'video.max_',
   'posts.attachments_',
-  'media.photo_',
+  'media.',
   'stickers.',
   'translate.',
 ] as const;

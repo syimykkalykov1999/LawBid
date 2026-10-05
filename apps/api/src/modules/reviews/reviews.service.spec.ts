@@ -42,6 +42,8 @@ function setup() {
       update: jest.fn(),
     },
     report: { findFirst: jest.fn(), create: jest.fn() },
+    reviewHelpfulVote: { deleteMany: jest.fn() },
+    auditLog: { findFirst: jest.fn(() => Promise.resolve(null)) },
     $queryRaw: jest.fn(() =>
       Promise.resolve([{ rating_avg: '4.50', rating_count: 2n }]),
     ),
@@ -172,6 +174,36 @@ describe('ReviewsService.create (docs/03 §7.1)', () => {
     );
   });
 
+  it("revives the case's review its author deleted", async () => {
+    const { tx, service } = setup();
+    tx.case.findUnique.mockResolvedValue(closedCase);
+    tx.review.findUnique.mockResolvedValue({ id: 'r0', status: 'removed' });
+    tx.review.update.mockResolvedValue(review({ id: 'r0' }));
+    const dto = await service.create(CLIENT, 'case-1', { rating: 4 });
+    expect(dto.status).toBe('published');
+    expect(tx.review.create).not.toHaveBeenCalled();
+    expect(tx.review.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'r0' },
+        data: expect.objectContaining({ status: 'published', rating: 4 }),
+      }),
+    );
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1); // rating recalculated
+  });
+
+  it('keeps a review removed by moderation removed', async () => {
+    const { tx, service } = setup();
+    tx.case.findUnique.mockResolvedValue(closedCase);
+    tx.review.findUnique.mockResolvedValue({ id: 'r0', status: 'removed' });
+    tx.auditLog.findFirst.mockResolvedValue({
+      after: { status: 'removed' },
+    } as never);
+    expect(await codeOf(service.create(CLIENT, 'case-1', { rating: 4 }))).toBe(
+      'REVIEW_ALREADY_EXISTS',
+    );
+    expect(tx.review.update).not.toHaveBeenCalled();
+  });
+
   it('maps a concurrent unique violation to REVIEW_ALREADY_EXISTS', async () => {
     const { tx, service } = setup();
     tx.case.findUnique.mockResolvedValue(closedCase);
@@ -240,6 +272,11 @@ describe('ReviewsService.getForCase (own review for editing, §7.2)', () => {
       await codeOf(service.getForCase({ ...CLIENT, sub: 'other' }, 'case-1')),
     ).toBe('NOT_FOUND');
     prisma.review.findUnique.mockResolvedValue(null);
+    expect(await codeOf(service.getForCase(CLIENT, 'case-1'))).toBe(
+      'NOT_FOUND',
+    );
+    // A deleted review is absent (the client can write a new one).
+    prisma.review.findUnique.mockResolvedValue(withCase({ status: 'removed' }));
     expect(await codeOf(service.getForCase(CLIENT, 'case-1'))).toBe(
       'NOT_FOUND',
     );
@@ -462,6 +499,20 @@ describe('ReviewsService.requestReview (§7.3, for file 04)', () => {
         type: 'review_requested',
         recipientId: 'client-1',
         payload: { caseId: 'c1', attorneyId: 'att-1', reminder: false },
+      },
+      undefined,
+    );
+    // ...and the attorney, to review the client.
+    expect(notifications.emit).toHaveBeenCalledWith(
+      {
+        type: 'review_requested',
+        recipientId: 'att-1',
+        payload: {
+          caseId: 'c1',
+          clientId: 'client-1',
+          clientReview: true,
+          reminder: false,
+        },
       },
       undefined,
     );

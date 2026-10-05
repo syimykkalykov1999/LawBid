@@ -37,6 +37,7 @@ class CaseDetailForAttorneyDto {
     required this.priorityClient,
     required this.dossier,
     required this.description,
+    required this.acceptedBidIsMine,
     required this.photos,
     required this.photosCount,
     required this.inMyPractice,
@@ -100,6 +101,9 @@ class CaseDetailForAttorneyDto {
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
   final String? ownBidId;
+
+  /// True when this attorney's bid is the case's accepted one (the hired lawyer: open the work screen).
+  final bool acceptedBidIsMine;
 
   /// Owner 2026-10-02: who marked "Done" first while the case waits for the other side (null otherwise).
   final CaseDetailForAttorneyDtoCompletionRequestedBy? completionRequestedBy;

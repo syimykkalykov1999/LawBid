@@ -39,6 +39,7 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
       autoCloseAt: json['autoCloseAt'] as String?,
       closedAt: json['closedAt'] as String?,
       deletedAt: json['deletedAt'] as String?,
+      stalePromptSentAt: json['stalePromptSentAt'] as String?,
       acceptedBid: json['acceptedBid'] == null
           ? null
           : CaseBidItemDto.fromJson(
@@ -71,6 +72,7 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'autoCloseAt': ?instance.autoCloseAt,
       'closedAt': ?instance.closedAt,
       'deletedAt': ?instance.deletedAt,
+      'stalePromptSentAt': ?instance.stalePromptSentAt,
       'acceptedBid': ?instance.acceptedBid?.toJson(),
       'conversationId': ?instance.conversationId,
       'photos': instance.photos.map((e) => e.toJson()).toList(),

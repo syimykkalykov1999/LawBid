@@ -42,6 +42,8 @@ import 'clients/clients_client.dart';
 import 'clients/blocks_client.dart';
 import 'clients/admin_content_client.dart';
 import 'clients/admin_media_client.dart';
+import 'clients/document_templates_client.dart';
+import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
 import 'clients/billing_client.dart';
 import 'clients/admin_payroll_client.dart';
@@ -124,6 +126,8 @@ class LawbidApi {
   BlocksClient? _blocks;
   AdminContentClient? _adminContent;
   AdminMediaClient? _adminMedia;
+  DocumentTemplatesClient? _documentTemplates;
+  AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
   BillingClient? _billing;
   AdminPayrollClient? _adminPayroll;
@@ -259,6 +263,15 @@ class LawbidApi {
 
   AdminMediaClient get adminMedia =>
       _adminMedia ??= AdminMediaClient(_dio, baseUrl: _baseUrl);
+
+  DocumentTemplatesClient get documentTemplates =>
+      _documentTemplates ??= DocumentTemplatesClient(_dio, baseUrl: _baseUrl);
+
+  AdminDocumentTemplatesClient get adminDocumentTemplates =>
+      _adminDocumentTemplates ??= AdminDocumentTemplatesClient(
+        _dio,
+        baseUrl: _baseUrl,
+      );
 
   AdminBillingClient get adminBilling =>
       _adminBilling ??= AdminBillingClient(_dio, baseUrl: _baseUrl);

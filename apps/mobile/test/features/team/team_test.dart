@@ -511,6 +511,34 @@ void main() {
       expect(update, endsWith(':true'));
     });
 
+    testWidgets('audit 2026-10-04: liability is asked once per edit',
+        (tester) async {
+      await repo.addAssistant(name: 'Sam');
+      await pump(tester, const TeamScreen());
+      await tester.tap(find.text('Sam').first);
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('duty-calls')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.byKey(const ValueKey('duty-calls')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('liability-check')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('liability-check')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('liability-accept')));
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('duty-files')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.byKey(const ValueKey('duty-files')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('liability-check')), findsNothing);
+    });
+
     testWidgets('requests: approve publishes, reject asks for a note',
         (tester) async {
       repo.requestList = [makeRequest('r1'), makeRequest('r2')];

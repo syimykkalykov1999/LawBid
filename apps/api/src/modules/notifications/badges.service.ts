@@ -182,6 +182,8 @@ export class BadgesService {
       JOIN conversations c ON c.id = cp.conversation_id
       LEFT JOIN messages lr ON lr.id = cp.last_read_message_id
       WHERE cp.user_id = ${userId}::UUID
+        -- A chat I hid doesn't count (a new message unhides it).
+        AND cp.hidden_at IS NULL
         -- Message requests sent to me (pending or declined) never count:
         -- the same rule as the "All" folder (OQ-043).
         AND (c.request_status::STRING IN ('none', 'accepted')

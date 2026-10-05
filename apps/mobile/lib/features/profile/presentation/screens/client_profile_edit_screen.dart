@@ -177,7 +177,9 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       // The method goes through contact-preferences so "none" can clear it.
       await repo.updateContactPreferences(method: _method, note: _note.text);
       if (!mounted) return;
-      ref.invalidate(clientProfileProvider);
+      ref
+        ..invalidate(clientProfileProvider)
+        ..invalidate(publicClientProfileProvider);
       await ref.read(currentUserControllerProvider.notifier).load();
       if (!mounted) return;
       showAppSnackBar(context, t.t('profile.edit.saved'));

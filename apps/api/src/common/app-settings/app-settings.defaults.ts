@@ -99,6 +99,13 @@ export const OWNER_MEDIA_SETTINGS = {
   'media.photo_max_px': 2048,
   'media.photo_quality': 85,
   'media.avatar_max_px': 1024,
+  // Owner 2026-10-05: reels are re-encoded on the phone before upload —
+  // at most this height (1080 = Full HD, no visible loss on a phone),
+  // 0 = upload as recorded. Frame rate cap keeps files small.
+  'media.video_max_height': 1080,
+  'media.video_frame_rate': 30,
+  // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
+  'files.document_template_max_size_mb': 10,
 } as const;
 
 // Owner 2026-10-02: support tickets — per-user limits (429 RATE_LIMITED).
@@ -122,6 +129,16 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.require_identity': false,
   'verification.self_attestation_auto_approve': true,
 } as const;
+
+// Future web client (a client form on lawbid.dev sharing this API): the
+// browser origins allowed to call the API cross-origin (CORS). Localhost
+// origins are added on top outside production (src/common/cors).
+export const OWNER_WEB_SETTINGS = {
+  'web.allowed_origins': [
+    'https://lawbid.dev',
+    'https://www.lawbid.dev',
+  ] as string[],
+};
 
 // Owner 2026-10-05 (automation principle, docs/AUTOMATION_PRINCIPLE.md):
 // every manual admin step except checking an attorney's documents has an
@@ -190,6 +207,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_WEB_SETTINGS,
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
