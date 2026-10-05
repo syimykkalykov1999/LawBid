@@ -53,3 +53,6 @@ node_modules
 
 # Dev stand-in for Bunny (tools/fake-bunny.mjs)
 apps/api/.fake-bunny/
+
+# Redis snapshots written by a local redis-server
+dump.rdb
