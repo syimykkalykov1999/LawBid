@@ -15,6 +15,7 @@ import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
+import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
@@ -158,8 +159,11 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('plan.client.hint'),
               onTap: () => context.push(ClientPlanRoutes.clientPlan),
             ),
-          // Owner 2026-10-05: promoted posts / cases (reach, clicks, stop).
-          if (!ref.watch(isAssistantProvider))
+          // Owner 2026-10-05: promoted posts / cases (reach, clicks, stop) —
+          // once there is one; the first starts from «Продвигать».
+          if (!ref.watch(isAssistantProvider) &&
+              (ref.watch(myPromotionsProvider).value?.items.isNotEmpty ??
+                  false))
             AppListRow(
               icon: AppIcons.campaignOutlined,
               label: t.t('promote.mine.title'),
