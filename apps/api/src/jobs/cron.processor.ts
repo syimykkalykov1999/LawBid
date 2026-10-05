@@ -39,6 +39,7 @@ import { AccountAnonymizationService } from '../modules/privacy/account-anonymiz
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
+import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 import { OutreachRetentionService } from '../modules/outreach/outreach-retention.service';
 
@@ -78,6 +79,7 @@ export class CronProcessor {
     private readonly partners: PartnersService,
     private readonly caseDeadlineReminder: CaseDeadlineReminderJob,
     private readonly trust: AttorneyTrustService,
+    private readonly fraud: ClientFraudService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
     // Owner 2026-10-05 (legal): `outreach.retention`.
@@ -162,6 +164,8 @@ export class CronProcessor {
         return this.caseDeadlineReminder.run();
       case CRON_JOBS.trustRecompute:
         return this.trust.recomputeAll();
+      case CRON_JOBS.fraudSweep:
+        return this.fraud.sweep();
       case CRON_JOBS.supportSweep:
         return this.supportDesk?.sweep();
       case CRON_JOBS.rewardsAward:

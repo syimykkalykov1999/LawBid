@@ -49,6 +49,8 @@ abstract final class ApiErrorCodes {
   static const reauthInvalid = 'REAUTH_INVALID';
   static const deviceAttestationRequired = 'DEVICE_ATTESTATION_REQUIRED';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
+  // Owner 2026-10-05 (client fraud): limited while staff check the account.
+  static const accountRestricted = 'ACCOUNT_RESTRICTED';
   static const accountDeleted = 'ACCOUNT_DELETED';
 
   // Onboarding (docs/01 §11, stage 1.7)
@@ -271,6 +273,7 @@ abstract final class ApiErrorCodes {
     reauthInvalid,
     deviceAttestationRequired,
     accountSuspended,
+    accountRestricted,
     accountDeleted,
     clientContactsIncomplete,
     onboardingIncomplete,

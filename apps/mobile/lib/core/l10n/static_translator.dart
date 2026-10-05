@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
+import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
@@ -1122,6 +1123,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...caseDossierRu,
         ...trustRu,
         ...legalRu,
+        ...clientFraudRu,
       };
 }
 
@@ -2501,5 +2503,6 @@ class StaticTranslatorEn extends _MapTranslator {
         ...caseDossierEn,
         ...trustEn,
         ...legalEn,
+        ...clientFraudEn,
       };
 }

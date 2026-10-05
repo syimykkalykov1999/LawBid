@@ -208,6 +208,7 @@ const _keys = <String, String>{
   ApiErrorCodes.roleAlreadySet: 'error.api.ROLE_ALREADY_SET',
   ApiErrorCodes.i18nLanguageNotFound: 'error.api.I18N_LANGUAGE_NOT_FOUND',
   ApiErrorCodes.accountSuspended: 'error.api.ACCOUNT_SUSPENDED',
+  ApiErrorCodes.accountRestricted: 'error.api.ACCOUNT_RESTRICTED',
   ApiErrorCodes.accountDeleted: 'error.api.ACCOUNT_DELETED',
   ApiErrorCodes.authProviderDisabled: 'error.api.AUTH_PROVIDER_DISABLED',
   ApiErrorCodes.deviceAttestationRequired:

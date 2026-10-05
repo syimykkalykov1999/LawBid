@@ -343,10 +343,15 @@ export class AuthController {
 
   private meta(req: Request): RequestMeta {
     const deviceId = req.header('x-device-id')?.trim();
+    const deviceKey = req.header('x-device-key')?.trim();
     return {
       ip: req.ip,
       userAgent: req.header('user-agent'),
       deviceId: deviceId && deviceId.length <= 255 ? deviceId : undefined,
+      deviceKey:
+        deviceKey && deviceKey.length >= 8 && deviceKey.length <= 128
+          ? deviceKey
+          : undefined,
     };
   }
 }

@@ -39,6 +39,7 @@ import type { CasePaymentsService } from '../modules/case-payments/case-payments
 import type { PromotionsService } from '../modules/promotions/promotions.service';
 import type { PartnersService } from '../modules/partners/partners.service';
 import type { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
+import type { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -175,6 +176,11 @@ function processor() {
           Promise.resolve({ attorneys: 0, changed: 0 }),
         ),
       } as unknown as AttorneyTrustService,
+      {
+        sweep: jest.fn(() =>
+          Promise.resolve({ rescored: 0, propagated: 0, purged: 0 }),
+        ),
+      } as unknown as ClientFraudService,
     ),
   };
 }
@@ -209,8 +215,9 @@ describe('JobsRunner', () => {
     // Owner 2026-10-05: + daily cases.deadline-reminder,
     // + support.sweep every 5 min and the daily rewards.award.
     // Owner 2026-10-05 zero maintenance: + ops.guard every minute,
-    // hourly ops.cost-check and ops.backup-check, + daily outreach.retention (legal).
-    expect(upserts).toHaveLength(39);
+    // hourly ops.cost-check and ops.backup-check, + nightly fraud.sweep
+    // (repeat accounts), + daily outreach.retention (legal).
+    expect(upserts).toHaveLength(40);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

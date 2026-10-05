@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 
 const _kDeviceIdKey = 'network.device_id';
@@ -44,6 +45,9 @@ class HeadersInterceptor extends Interceptor {
     options.headers['X-App-Version'] = appVersion;
     options.headers['Accept-Language'] = _languageTag(_ref);
     options.headers['X-Device-Id'] = resolveDeviceId(_ref);
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): see DeviceKey.
+    final deviceKey = DeviceKey.current;
+    if (deviceKey != null) options.headers['X-Device-Key'] = deviceKey;
     handler.next(options);
   }
 

@@ -1,0 +1,21 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'fraud_stats_envelope.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+FraudStatsEnvelope _$FraudStatsEnvelopeFromJson(Map<String, dynamic> json) =>
+    FraudStatsEnvelope(
+      data: FraudStatsDto.fromJson(json['data'] as Map<String, dynamic>),
+      meta: json['meta'] == null
+          ? null
+          : ResponseMetaDto.fromJson(json['meta'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$FraudStatsEnvelopeToJson(FraudStatsEnvelope instance) =>
+    <String, dynamic>{
+      'data': instance.data.toJson(),
+      'meta': ?instance.meta?.toJson(),
+    };

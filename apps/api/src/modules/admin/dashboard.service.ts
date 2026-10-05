@@ -62,6 +62,8 @@ export class DashboardService {
       seatLimitRequests,
       live,
       revenueByPlan,
+      fraudQueue,
+      fraudBlocked7d,
     ] = await Promise.all([
       p.user.count({
         where: { role: 'client', created_at: { gte: since24h } },
@@ -99,6 +101,16 @@ export class DashboardService {
         where: payingSubscriptionWhere(now),
         _sum: { price_cents: true },
       }),
+      // Owner 2026-10-05 (client fraud): Галочки → «Борьба с мошенниками».
+      p.clientFraudProfile.count({
+        where: { status: { in: ['review', 'restricted'] } },
+      }),
+      p.clientFraudEvent.count({
+        where: {
+          kind: { in: ['sign_in_blocked', 'auto_banned', 'linked_banned'] },
+          created_at: { gte: since7d },
+        },
+      }),
     ]);
     const revenueCents = monthlyRevenueCents(
       revenueByPlan.map((r) => ({
@@ -129,6 +141,8 @@ export class DashboardService {
       openDisputes,
       openContactIssues,
       seatLimitRequests,
+      fraudQueue,
+      fraudBlocked7d,
       computedAt: now.toISOString(),
     };
   }

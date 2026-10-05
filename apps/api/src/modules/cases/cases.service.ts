@@ -8,6 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { mineCaseWhere } from './mine/mine-filters';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import type { Case, CaseState, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -283,6 +284,9 @@ export class CasesService {
     @Optional() private readonly entitlements?: EntitlementsService,
     // Owner 2026-10-05: urgency thresholds (admin settings).
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
+    // publish; the case text is a repeat-account signal.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -292,6 +296,7 @@ export class CasesService {
     meta: RequestMeta,
   ): Promise<CaseDto> {
     await this.assertClientReady(user.sub);
+    await this.fraud?.assertNotRestricted(user.sub);
     await this.assertUnderCaseLimit(user.sub);
 
     assertNoContactInfo({
@@ -386,6 +391,11 @@ export class CasesService {
     } catch {
       // Referral bookkeeping never breaks case creation.
     }
+    // Never throws; awaited so it does not outlive the request.
+    await this.fraud?.onCaseCreated(
+      user.sub,
+      `${dto.title}\n${dto.description}`,
+    );
 
     return toCaseDto(
       {
