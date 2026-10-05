@@ -132,58 +132,80 @@ export class PostsService {
       dto.attachments ?? [],
     );
     const tags = extractHashtags(dto.body);
-    const post = await withTxRetry(this.prisma, async (tx) => {
-      const created = await tx.post
-        .create({
-          data: {
-            author_id: user.sub,
-            title: dto.title,
-            practice_area_id: practice?.id ?? null,
-            kind,
-            body: dto.body,
-            status,
-            video_asset_id: video?.id ?? null,
-            location_name: dto.location?.name ?? null,
-            location_lat: dto.location?.lat ?? null,
-            location_lng: dto.location?.lng ?? null,
-            comments_enabled: dto.commentsEnabled ?? true,
-          },
-        })
-        .catch((e: unknown) => {
-          if ((e as { code?: string }).code === 'P2002') {
-            throw new ConflictException({
-              code: ErrorCode.FILE_NOT_ATTACHABLE,
-              message: 'This video is already used in another post.',
-            });
-          }
-          throw e;
-        });
-      if (files.length > 0) {
-        await tx.postMedia.createMany({
-          data: files.map((f, i) => ({
-            post_id: created.id,
-            file_id: f.id,
-            media_type: 'image' as const,
-            position: i,
-            width: f.width,
-            height: f.height,
-          })),
-        });
+    const createPost = (st: ContentStatus) =>
+      withTxRetry(this.prisma, async (tx) => {
+        const created = await tx.post
+          .create({
+            data: {
+              author_id: user.sub,
+              title: dto.title,
+              practice_area_id: practice?.id ?? null,
+              kind,
+              body: dto.body,
+              status: st,
+              video_asset_id: video?.id ?? null,
+              location_name: dto.location?.name ?? null,
+              location_lat: dto.location?.lat ?? null,
+              location_lng: dto.location?.lng ?? null,
+              comments_enabled: dto.commentsEnabled ?? true,
+            },
+          })
+          .catch((e: unknown) => {
+            if ((e as { code?: string }).code === 'P2002') {
+              throw new ConflictException({
+                code: ErrorCode.FILE_NOT_ATTACHABLE,
+                message: 'This video is already used in another post.',
+              });
+            }
+            throw e;
+          });
+        if (files.length > 0) {
+          await tx.postMedia.createMany({
+            data: files.map((f, i) => ({
+              post_id: created.id,
+              file_id: f.id,
+              media_type: 'image' as const,
+              position: i,
+              width: f.width,
+              height: f.height,
+            })),
+          });
+        }
+        if (attachments.length > 0) {
+          await tx.postAttachment.createMany({
+            data: attachments.map((a, i) => ({
+              post_id: created.id,
+              file_id: a.fileId,
+              file_name: a.fileName,
+              position: i,
+            })),
+          });
+        }
+        await this.writeTags(tx, created.id, tags);
+        return created;
+      });
+    let post;
+    let finalStatus = status;
+    try {
+      post = await createPost(status);
+    } catch (e) {
+      // A database whose `processing` value is stuck half-added (a damaged
+      // restore; never on a database built by the migrations): the reel is
+      // published at once and its player shows "processing" until the
+      // video is ready.
+      if (
+        status === 'processing' &&
+        /enum value .*processing.* not yet public|not yet public/i.test(
+          String((e as Error)?.message),
+        )
+      ) {
+        finalStatus = 'published';
+        post = await createPost('published');
+      } else {
+        throw e;
       }
-      if (attachments.length > 0) {
-        await tx.postAttachment.createMany({
-          data: attachments.map((a, i) => ({
-            post_id: created.id,
-            file_id: a.fileId,
-            file_name: a.fileName,
-            position: i,
-          })),
-        });
-      }
-      await this.writeTags(tx, created.id, tags);
-      return created;
-    });
-    if (status === 'published') await this.afterPublish(post.id);
+    }
+    if (finalStatus === 'published') await this.afterPublish(post.id);
     return (await this.presenter.present([post], user.sub))[0];
   }
 
