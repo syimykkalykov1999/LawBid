@@ -12,6 +12,9 @@ CreateBroadcastDto _$CreateBroadcastDtoFromJson(Map<String, dynamic> json) =>
       body: json['body'] as String,
       audience: BroadcastAudience.fromJson(json['audience'] as String),
       stateCode: json['stateCode'] as String?,
+      stateCodes: (json['stateCodes'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$CreateBroadcastDtoToJson(CreateBroadcastDto instance) =>
@@ -20,4 +23,5 @@ Map<String, dynamic> _$CreateBroadcastDtoToJson(CreateBroadcastDto instance) =>
       'body': instance.body,
       'audience': instance.audience.toJson(),
       'stateCode': ?instance.stateCode,
+      'stateCodes': ?instance.stateCodes,
     };

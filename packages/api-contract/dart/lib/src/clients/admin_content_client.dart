@@ -7,6 +7,8 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_bid_row_list_envelope.dart';
 import '../models/admin_bid_status.dart';
+import '../models/admin_bulk_content_dto.dart';
+import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_client_review_row_list_envelope.dart';
 import '../models/admin_comment_row_list_envelope.dart';
 import '../models/admin_comment_thread.dart';
@@ -43,11 +45,20 @@ abstract class AdminContentClient {
   ///
   /// [q] - Search text.
   ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
+  ///
   /// [media] - Only posts that carry a video (the former "reels").
   @GET('/admin/content/posts')
   Future<AdminPostRowListEnvelope> listAdminPosts({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Query('kind') AdminPostKind? kind,
     @Query('media') Media? media,
     @Extras() Map<String, dynamic>? extras,
@@ -64,10 +75,19 @@ abstract class AdminContentClient {
   /// Post or case comments, newest first.
   ///
   /// [q] - Search text.
+  ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
   @GET('/admin/content/comments')
   Future<AdminCommentRowListEnvelope> listAdminComments({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Query('thread') AdminCommentThread? thread,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -83,10 +103,19 @@ abstract class AdminContentClient {
   /// Reviews of attorneys, newest first.
   ///
   /// [q] - Search text.
+  ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
   @GET('/admin/content/reviews')
   Future<AdminReviewRowListEnvelope> listAdminReviews({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -132,10 +161,19 @@ abstract class AdminContentClient {
   /// Reviews of clients, newest first.
   ///
   /// [q] - Search text.
+  ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
   @GET('/admin/content/client-reviews')
   Future<AdminClientReviewRowListEnvelope> listAdminClientReviews({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Query('status') AdminReviewStatus? status,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -153,6 +191,13 @@ abstract class AdminContentClient {
   Future<void> restoreAdminClientReview({
     @Path('id') required String id,
     @Body() required AdminReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove, hide or restore many posts / comments / reviews with one reason (authors notified; one audit row per batch)
+  @POST('/admin/content/bulk')
+  Future<AdminBulkResultEnvelope> bulkAdminContent({
+    @Body() required AdminBulkContentDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -13,7 +13,9 @@ class AdminReviewRowDto {
   const AdminReviewRowDto({
     required this.id,
     required this.rating,
+    required this.attorneyId,
     required this.attorneyName,
+    required this.clientId,
     required this.clientName,
     required this.status,
     required this.createdAt,
@@ -27,7 +29,11 @@ class AdminReviewRowDto {
   final String id;
   final int rating;
   final String? body;
+  final String attorneyId;
   final String attorneyName;
+
+  /// The review's author.
+  final String clientId;
   final String clientName;
 
   /// null = an open review (no shared case, owner 2026-10-01).

@@ -15,6 +15,7 @@ class CreateBroadcastDto {
     required this.body,
     required this.audience,
     this.stateCode,
+    this.stateCodes,
   });
 
   factory CreateBroadcastDto.fromJson(Map<String, Object?> json) =>
@@ -24,8 +25,11 @@ class CreateBroadcastDto {
   final String body;
   final BroadcastAudience audience;
 
-  /// Only this state.
+  /// Only this state (older clients; prefer stateCodes).
   final String? stateCode;
+
+  /// Owner 2026-10-04: only these states (empty or missing = every state). Wins over stateCode.
+  final List<String>? stateCodes;
 
   Map<String, Object?> toJson() => _$CreateBroadcastDtoToJson(this);
 }
