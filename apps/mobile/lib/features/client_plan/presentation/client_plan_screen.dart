@@ -401,7 +401,7 @@ class ClientPlanPicker extends StatelessWidget {
     ];
     final offers = [
       for (final p in plans)
-        if (p.purchasable) p
+        if (p.purchasable) p,
     ];
     final selected = _selected(offers, current?.code);
     final waiting = state.phase == ClientCheckoutPhase.awaitingPayment;

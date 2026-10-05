@@ -99,7 +99,7 @@ class _PlanPickerState extends State<PlanPicker> {
   /// Plans of the plan builder that can be bought; empty → legacy tiers.
   List<PlanOffer> get _offers => [
         for (final p in widget.overview.plans)
-          if (p.purchasable) p
+          if (p.purchasable) p,
       ];
   bool get _dynamic => _offers.isNotEmpty;
 
