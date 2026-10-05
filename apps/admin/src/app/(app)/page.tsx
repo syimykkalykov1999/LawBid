@@ -64,6 +64,7 @@ export default function DashboardPage() {
         { href: '/moderation', label: 'Жалобы', value: d.openReports, icon: Flag },
         { href: '/cases?tab=disputes', label: 'Споры по кейсам', value: d.openDisputes, icon: Gavel },
         { href: '/cases?tab=contact', label: '«Не могу связаться»', value: d.openContactIssues, icon: Phone },
+        { href: '/prices', label: 'Заявки на лимит помощников', value: d.seatLimitRequests, icon: UsersThree },
         ...(sq.data ? [{ href: '/support', label: 'Обращения в поддержку', value: sq.data.attention ?? sq.data.unreadByAdmin, hint: sq.data.openUnassigned ? `без ответственного: ${sq.data.openUnassigned}` : undefined, icon: Lifebuoy }] : []),
       ].filter((x) => !me || canOpen(me, x.href.split('?')[0]))
     : [];

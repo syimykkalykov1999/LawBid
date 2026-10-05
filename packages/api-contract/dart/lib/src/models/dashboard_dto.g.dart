@@ -22,6 +22,7 @@ DashboardDto _$DashboardDtoFromJson(Map<String, dynamic> json) => DashboardDto(
   openReports: (json['openReports'] as num).toInt(),
   openDisputes: (json['openDisputes'] as num).toInt(),
   openContactIssues: (json['openContactIssues'] as num).toInt(),
+  seatLimitRequests: (json['seatLimitRequests'] as num).toInt(),
   computedAt: DateTime.parse(json['computedAt'] as String),
 );
 
@@ -36,5 +37,6 @@ Map<String, dynamic> _$DashboardDtoToJson(DashboardDto instance) =>
       'openReports': instance.openReports,
       'openDisputes': instance.openDisputes,
       'openContactIssues': instance.openContactIssues,
+      'seatLimitRequests': instance.seatLimitRequests,
       'computedAt': instance.computedAt.toIso8601String(),
     };

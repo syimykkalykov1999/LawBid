@@ -22,6 +22,7 @@ class DashboardDto {
     required this.openReports,
     required this.openDisputes,
     required this.openContactIssues,
+    required this.seatLimitRequests,
     required this.computedAt,
   });
 
@@ -39,6 +40,9 @@ class DashboardDto {
   final int openReports;
   final int openDisputes;
   final int openContactIssues;
+
+  /// Owner 2026-10-05: requests for more assistant seats.
+  final int seatLimitRequests;
 
   /// When the numbers were computed (cached ≤ 60 s).
   final DateTime computedAt;

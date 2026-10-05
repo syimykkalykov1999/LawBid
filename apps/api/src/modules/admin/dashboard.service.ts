@@ -59,6 +59,7 @@ export class DashboardService {
       openReports,
       openDisputes,
       openContactIssues,
+      seatLimitRequests,
       live,
       revenueByPlan,
     ] = await Promise.all([
@@ -90,6 +91,7 @@ export class DashboardService {
       p.report.count({ where: { status: 'open' } }),
       p.caseDispute.count({ where: { status: 'open' } }),
       p.contactIssueReport.count({ where: { status: 'open' } }),
+      p.seatLimitRequest.count({ where: { status: 'pending' } }),
       // Audit 2026-10-02: the same "live" rule as the overview and the gate.
       p.subscription.count({ where: liveSubscriptionWhere(now) }),
       p.subscription.groupBy({
@@ -126,6 +128,7 @@ export class DashboardService {
       openReports,
       openDisputes,
       openContactIssues,
+      seatLimitRequests,
       computedAt: now.toISOString(),
     };
   }

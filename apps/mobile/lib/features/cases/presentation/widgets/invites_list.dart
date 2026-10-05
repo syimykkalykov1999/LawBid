@@ -9,6 +9,10 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/invites_providers.dart';
 import 'package:lawbid/features/cases/domain/case_invite.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/subscription/application/subscription_providers.dart';
+import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Owner 2026-10-05: the attorney's invites from clients waiting for an
 /// answer — reply with a bid (prefilled with the client's budget), open
@@ -92,6 +96,18 @@ class _InviteCardState extends ConsumerState<InviteCard> {
 
   Future<void> _answer() async {
     final i = widget.invite;
+    // Like the case's bid button: no subscription → the offer first.
+    if (ref.read(currentUserRoleProvider) == UserRole.attorney) {
+      final overview = await ref
+          .read(subscriptionOverviewProvider.future)
+          .then<SubscriptionOverview?>((o) => o, onError: (Object _) => null);
+      if (!mounted) return;
+      if (overview != null && !overview.isActive) {
+        await context.push(AppRoutes.subscriptionRequiredFor('bid'));
+        return;
+      }
+    }
+    if (!mounted) return;
     await context.push(AppRoutes.placeBid(i.caseId), extra: i.budgetCents);
     // A sent bid marks the invite accepted on the server.
     if (mounted) ref.invalidate(pendingInvitesProvider);

@@ -16366,6 +16366,124 @@
         ]
       }
     },
+    "/admin/teams/{id}/seat-limit": {
+      "patch": {
+        "operationId": "setAdminTeamSeatLimit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The attorney user id.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminSeatLimitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTeamEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set the attorney's own assistant limit (null = global)",
+        "tags": [
+          "admin-teams"
+        ]
+      }
+    },
     "/admin/teams/members/{memberId}/duties": {
       "patch": {
         "operationId": "setAdminTeamMemberDuties",
@@ -48673,6 +48791,10 @@
           "openContactIssues": {
             "type": "integer"
           },
+          "seatLimitRequests": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: requests for more assistant seats."
+          },
           "computedAt": {
             "type": "string",
             "format": "date-time",
@@ -48689,6 +48811,7 @@
           "openReports",
           "openDisputes",
           "openContactIssues",
+          "seatLimitRequests",
           "computedAt"
         ]
       },
@@ -54938,6 +55061,14 @@
           },
           "openTasks": {
             "type": "integer"
+          },
+          "seatLimit": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: how many assistants this attorney may add."
+          },
+          "seatLimitPersonal": {
+            "type": "boolean",
+            "description": "An admin set a personal limit."
           }
         },
         "required": [
@@ -54948,7 +55079,9 @@
           "active",
           "invited",
           "pendingRequests",
-          "openTasks"
+          "openTasks",
+          "seatLimit",
+          "seatLimitPersonal"
         ]
       },
       "AdminTeamRowListEnvelope": {
@@ -55005,6 +55138,14 @@
           "openTasks": {
             "type": "integer"
           },
+          "seatLimit": {
+            "type": "integer",
+            "description": "Owner 2026-10-05: how many assistants this attorney may add."
+          },
+          "seatLimitPersonal": {
+            "type": "boolean",
+            "description": "An admin set a personal limit."
+          },
           "members": {
             "type": "array",
             "items": {
@@ -55028,6 +55169,8 @@
           "invited",
           "pendingRequests",
           "openTasks",
+          "seatLimit",
+          "seatLimitPersonal",
           "members",
           "activity"
         ]
@@ -55056,6 +55199,20 @@
         },
         "required": [
           "reason"
+        ]
+      },
+      "AdminSeatLimitDto": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "limit"
         ]
       },
       "AdminMemberDutiesDto": {

@@ -344,6 +344,7 @@ export 'models/admin_team_row_list_envelope.dart';
 export 'models/admin_team_dto.dart';
 export 'models/admin_team_envelope.dart';
 export 'models/admin_remove_member_dto.dart';
+export 'models/admin_seat_limit_dto.dart';
 export 'models/admin_member_duties_dto.dart';
 export 'models/post_location_dto.dart';
 export 'models/post_kind.dart';
