@@ -30,6 +30,7 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       isSaved: json['isSaved'] as bool,
       promoted: json['promoted'] as bool,
       priorityClient: json['priorityClient'] as bool,
+      dossier: CaseDossierDto.fromJson(json['dossier'] as Map<String, dynamic>),
       city: json['city'] as String?,
       coverKey: json['coverKey'] as String?,
       urgency: json['urgency'] == null
@@ -60,4 +61,5 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'isSaved': instance.isSaved,
       'promoted': instance.promoted,
       'priorityClient': instance.priorityClient,
+      'dossier': instance.dossier.toJson(),
     };

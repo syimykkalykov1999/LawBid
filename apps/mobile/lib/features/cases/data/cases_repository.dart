@@ -77,6 +77,10 @@ abstract interface class CasesRepository {
   /// §3.5 edit: only changed fields are sent — practice area and states
   /// only when they changed (the server refuses those once bids exist).
   Future<void> updateCase(OwnerCase original, CaseDraft draft);
+
+  /// Owner 2026-10-05: the full set of the case's photos and documents
+  /// (display order) — the client completes the dossier after publishing.
+  Future<void> setCaseFiles(String caseId, List<String> fileIds);
   Future<CursorPage<CaseSummary>> myCases(
     MyCasesFilter filter, {
     String? cursor,
@@ -237,6 +241,16 @@ class ApiCasesRepository implements CasesRepository {
                   ? api.CaseUrgency.fromJson(draft.urgency!)
                   : null,
         ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> setCaseFiles(String caseId, List<String> fileIds) async {
+    await guardApiCall(
+      () => _cases.updateCase(
+        id: caseId,
+        body: api.UpdateCaseDto(photoFileIds: fileIds),
       ),
     );
   }

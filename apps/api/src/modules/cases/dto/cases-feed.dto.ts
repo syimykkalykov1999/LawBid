@@ -198,6 +198,28 @@ export class CaseBudgetDto {
 }
 
 /**
+ * Owner 2026-10-05: what the client has put into the case, so an attorney
+ * can judge it before bidding. Counts and lengths only — the files
+ * themselves still open to the accepted attorney alone (OQ-031).
+ */
+export class CaseDossierDto {
+  @ApiProperty({ type: 'integer', description: 'Attached photos (image/*).' })
+  imagesCount!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Attached documents (PDF, Word…).',
+  })
+  documentsCount!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Length of the full description, in characters.',
+  })
+  descriptionLength!: number;
+}
+
+/**
  * A case card in the attorney feed (docs/04 §4.2). Never carries any
  * client field (name/photo/phone/email) — the client is not part of this
  * representation at all, by construction, not by filtering.
@@ -278,6 +300,9 @@ export class CaseFeedItemDto {
       "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).",
   })
   priorityClient!: boolean;
+  /** Owner 2026-10-05: how complete the case is (counts only). */
+  @ApiProperty({ type: CaseDossierDto })
+  dossier!: CaseDossierDto;
 }
 
 /** GET /cases/:id for an attorney (docs/04 §4.3): the feed item plus the

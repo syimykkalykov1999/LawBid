@@ -163,6 +163,13 @@ abstract final class CasesMappers {
         priorityClient: c.priorityClient,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        dossier: dossier(c.dossier),
+      );
+
+  static CaseDossier dossier(api.CaseDossierDto d) => CaseDossier(
+        imagesCount: d.imagesCount,
+        documentsCount: d.documentsCount,
+        descriptionLength: d.descriptionLength,
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -193,6 +200,7 @@ abstract final class CasesMappers {
         bidAllowed: c.bidAllowed,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        dossier: dossier(c.dossier),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

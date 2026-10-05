@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_facts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -239,6 +240,12 @@ class FeedCaseCard extends StatelessWidget {
           : CaseFormat.money(formats, item.budget.amountCents!),
     );
     final urgency = CaseKeyFacts.urgencyLabel(t, item.urgency);
+    final dossier = CaseDossierScore.of(item);
+    final dossierLabel = [
+      '${t.t('cases.dossier.title')} ${dossier.score(t)}',
+      dossier.files(t),
+      if (item.status == CaseStatus.open) t.t('cases.dossier.ruleShort'),
+    ].join(', ');
     Widget stats() => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -263,6 +270,7 @@ class FeedCaseCard extends StatelessWidget {
       place,
       urgency,
       budget,
+      dossierLabel,
       t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
       if (item.hasOwnBid) t.t('cases.card.youBid'),
     ].join(', ');
@@ -381,6 +389,10 @@ class FeedCaseCard extends StatelessWidget {
                       ],
                       const SizedBox(height: AppSpacing.md),
                       facts,
+                      // Owner 2026-10-05: how complete the case is and
+                      // when its files open.
+                      const SizedBox(height: AppSpacing.md),
+                      CaseDossierStrip(kase: item, t: t),
                       const SizedBox(height: AppSpacing.sm),
                       Row(
                         children: [
@@ -632,6 +644,7 @@ class FeedCaseCard extends StatelessWidget {
         place,
         urgency,
         budget,
+        dossierLabel,
         t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
         if (item.hasOwnBid) t.t('cases.card.youBid'),
       ].join(', '),
@@ -729,6 +742,8 @@ class FeedCaseCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.md),
                     inlineFacts(),
                     const SizedBox(height: AppSpacing.md),
+                    CaseDossierStrip(kase: item, t: t),
+                    const SizedBox(height: AppSpacing.sm),
                     Align(alignment: Alignment.centerRight, child: stats()),
                   ],
                 ),

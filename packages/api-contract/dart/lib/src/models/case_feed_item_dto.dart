@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_budget_dto.dart';
+import 'case_dossier_dto.dart';
 import 'case_practice_area_dto.dart';
 import 'case_status.dart';
 import 'case_urgency.dart';
@@ -32,6 +33,7 @@ class CaseFeedItemDto {
     required this.isSaved,
     required this.promoted,
     required this.priorityClient,
+    required this.dossier,
     this.city,
     this.coverKey,
     this.urgency,
@@ -81,6 +83,9 @@ class CaseFeedItemDto {
 
   /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
   final bool priorityClient;
+
+  /// Owner 2026-10-05: how complete the case is (counts only).
+  final CaseDossierDto dossier;
 
   Map<String, Object?> toJson() => _$CaseFeedItemDtoToJson(this);
 }
