@@ -19,8 +19,16 @@ export function useNavCounts(me: Me | undefined): Partial<Record<CountKey, numbe
     refetchInterval: 60_000,
     enabled: can(me, 'support'),
   }).data;
+  // Owner 2026-10-05: «Борьба с мошенниками» — attorneys waiting for a person.
+  const trust = useQuery({
+    queryKey: ['trust-stats'],
+    queryFn: async () => (await api.GET('/admin/trust/stats')).data!.data,
+    refetchInterval: 60_000,
+    enabled: can(me, 'verification'),
+  }).data;
   return {
     verification: dash?.verification.queueSize,
+    trust: trust?.inQueue,
     reports: dash?.openReports,
     support: support ? support.unreadByAdmin : undefined,
   };

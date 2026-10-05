@@ -161,6 +161,9 @@ export enum ErrorCode {
   LICENSE_ALREADY_ADDED = 'LICENSE_ALREADY_ADDED',
   // 403: a suspended attorney can't create or change verification requests.
   ATTORNEY_SUSPENDED = 'ATTORNEY_SUSPENDED',
+  // 403: this bar number (or the contacts of a blocked account) was rejected
+  // or blocked before; registration with it is refused — contact support.
+  BAR_NUMBER_BLOCKED = 'BAR_NUMBER_BLOCKED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',
@@ -325,6 +328,11 @@ export enum ErrorCode {
   VIDEO_NOT_READY = 'VIDEO_NOT_READY',
   COMMENTS_DISABLED = 'COMMENTS_DISABLED',
   LICENSE_STATE_REQUIRED = 'LICENSE_STATE_REQUIRED',
+  // Owner 2026-10-05 (attorney trust levels): 403 — the action needs a
+  // higher trust level (details: required, current, gate).
+  TRUST_LEVEL_REQUIRED = 'TRUST_LEVEL_REQUIRED',
+  // 403 — payments / bids are paused until a verifier looks (details: hold).
+  ATTORNEY_ON_HOLD = 'ATTORNEY_ON_HOLD',
   // Owner 2026-10-04: 503 — chat translation is off, has no key or failed.
   TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.

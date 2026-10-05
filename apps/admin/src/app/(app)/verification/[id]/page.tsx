@@ -8,6 +8,7 @@ import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { TrustPanel } from '@/components/trust/trust-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
@@ -324,6 +325,10 @@ export default function VerificationCardPage() {
         </Card>
         </FadeIn>
       </div>
+      {/* Owner 2026-10-05: the attorney's trust level, holds and the verifier's actions. */}
+      <FadeIn i={2} className="mt-4">
+        <TrustPanel attorneyId={r.attorney.id} />
+      </FadeIn>
       <section>
         <SectionTitle>Лицензии</SectionTitle>
         <Table>

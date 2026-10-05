@@ -36,6 +36,22 @@ String apiErrorText(Translator t, ApiException error) {
       return t.t('error.api.PHONE_TYPE_NOT_ALLOWED');
     }
   }
+  // Owner 2026-10-05: attorney trust — name the requirements the gate is
+  // missing ({gate, missing: [registry|identity|documents], current}).
+  if (error.code == ApiErrorCodes.trustLevelRequired) {
+    final missing = error.details?['missing'];
+    if (missing is List && missing.isNotEmpty) {
+      const known = {'registry', 'identity', 'documents'};
+      final names = [
+        for (final m in missing)
+          if (m is String && known.contains(m)) t.t('trust.req.$m'),
+      ];
+      if (names.isNotEmpty) {
+        return t.t(key, {'missing': names.join(', ')});
+      }
+    }
+    return t.t('error.api.TRUST_LEVEL_REQUIRED.plain');
+  }
   return t.t(key);
 }
 
@@ -151,6 +167,9 @@ const _keys = <String, String>{
   ApiErrorCodes.callNotAllowed: 'call.notAllowed',
   ApiErrorCodes.callInProgress: 'call.inProgress',
   ApiErrorCodes.bidAttorneyInactive: 'error.api.BID_ATTORNEY_INACTIVE',
+  ApiErrorCodes.trustLevelRequired: 'error.api.TRUST_LEVEL_REQUIRED',
+  ApiErrorCodes.attorneyOnHold: 'error.api.ATTORNEY_ON_HOLD',
+  ApiErrorCodes.barNumberBlocked: 'error.api.BAR_NUMBER_BLOCKED',
   ApiErrorCodes.contactsLocked: 'error.api.CONTACTS_LOCKED',
   ApiErrorCodes.contactIssueAlreadyOpen: 'error.api.CONTACT_ISSUE_ALREADY_OPEN',
   ApiErrorCodes.contactIssueInvalidState:

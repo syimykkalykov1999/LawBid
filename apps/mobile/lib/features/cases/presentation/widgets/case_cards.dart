@@ -11,6 +11,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 
 /// Shared card shell for docs/04 lists: surface, hairline border, soft
 /// shadow, 16 radius, press feedback (AppCard) and a single semantic label.
@@ -1183,6 +1184,14 @@ class AttorneyLine extends StatelessWidget {
                       color: colors.info,
                     ),
                   ],
+                  // Owner 2026-10-05: trust level (docs/ATTORNEY_TRUST.md).
+                  const SizedBox(width: AppSpacing.sm),
+                  Flexible(
+                    child: TrustLevelChip(
+                      level: attorney.trustLevel,
+                      attorneyId: attorney.id,
+                    ),
+                  ),
                 ],
               ),
               Row(

@@ -4,6 +4,7 @@ import {
   type ProviderCharge,
   type ProviderCheckoutSession,
   type ProviderConnectAccount,
+  type ProviderConnectPerson,
   type ProviderConnectedCharge,
   type ProviderConnectedCheckout,
   type ProviderConnectedCheckoutInput,
@@ -556,11 +557,38 @@ export class StripePaymentProvider implements PaymentProvider {
     accountId: string,
   ): Promise<ProviderConnectAccount | null> {
     try {
-      return mapConnectAccount(await this.stripe.accounts.retrieve(accountId));
+      const account = await this.stripe.accounts.retrieve(accountId);
+      const mapped = mapConnectAccount(account);
+      // Company accounts: the representative and owners are Persons, not
+      // fields of the account (the trust check compares them with the
+      // attorney, never the company name).
+      if (account.business_type && account.business_type !== 'individual') {
+        const persons = await this.stripe.accounts.listPersons(accountId, {
+          limit: 20,
+        });
+        mapped.people = persons.data.map(mapPerson);
+      }
+      return mapped;
     } catch (e) {
       if (isNotFound(e)) return null;
       throw e;
     }
+  }
+
+  async updateConnectPayoutDelay(
+    accountId: string,
+    days: number | null,
+  ): Promise<void> {
+    await this.stripe.accounts.update(accountId, {
+      settings: {
+        payouts: {
+          schedule:
+            days === null
+              ? { interval: 'daily', delay_days: 'minimum' }
+              : { interval: 'daily', delay_days: days },
+        },
+      },
+    });
   }
 
   async createConnectedCheckout(
@@ -751,6 +779,29 @@ function mapConnectAccount(a: Stripe.Account): ProviderConnectAccount {
     requirementsDue: [...new Set(due)],
     disabledReason: a.requirements?.disabled_reason ?? null,
     country: a.country ?? null,
+    businessType: a.business_type ?? null,
+    legalFirstName: a.individual?.first_name ?? null,
+    legalLastName: a.individual?.last_name ?? null,
+    companyName: a.company?.name ?? null,
+    companyUrl: a.business_profile?.url ?? null,
+  };
+}
+
+function mapPerson(p: Stripe.Person): ProviderConnectPerson {
+  const r = p.relationship;
+  const role = r?.representative
+    ? 'representative'
+    : r?.owner
+      ? 'owner'
+      : r?.executive
+        ? 'executive'
+        : r?.director
+          ? 'director'
+          : null;
+  return {
+    firstName: p.first_name ?? null,
+    lastName: p.last_name ?? null,
+    role,
   };
 }
 

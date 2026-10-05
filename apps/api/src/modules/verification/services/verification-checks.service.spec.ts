@@ -4,6 +4,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import type { VerificationProviderSelector } from '../providers/verification-provider.selector';
+import type { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import {
   registryFlagFor,
   SELF_ATTESTED_NOTE,
@@ -89,6 +90,7 @@ function setup(opts: {
       prisma,
       selector,
       { emit } as unknown as NotificationsService,
+      { recompute: jest.fn() } as unknown as AttorneyTrustService,
       logger,
     ),
     checkCreate,
@@ -240,10 +242,12 @@ describe('VerificationChecksService (docs/03 §2.4)', () => {
         }),
       );
       expect(s.lookup).toHaveBeenCalledTimes(1);
-      expect(s.licenseUpdate).toHaveBeenCalledWith({
-        where: { id: 'l1' },
-        data: { registry_flag: null, registry_flagged_at: null },
-      });
+      expect(s.licenseUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'l1' },
+          data: { registry_flag: null, registry_flagged_at: null },
+        }),
+      );
     });
 
     it('a registry difference flags the license, never rejects', async () => {
@@ -254,13 +258,15 @@ describe('VerificationChecksService (docs/03 §2.4)', () => {
       });
       await s.service.approveSelfAttested('r1');
       expect(s.licenseUpdateMany).toHaveBeenCalled();
-      expect(s.licenseUpdate).toHaveBeenCalledWith({
-        where: { id: 'l1' },
-        data: {
-          registry_flag: 'not_found',
-          registry_flagged_at: expect.any(Date) as unknown,
-        },
-      });
+      expect(s.licenseUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'l1' },
+          data: {
+            registry_flag: 'not_found',
+            registry_flagged_at: expect.any(Date) as unknown,
+          },
+        }),
+      );
     });
 
     it('a state without a registry: approved, nothing looked up', async () => {

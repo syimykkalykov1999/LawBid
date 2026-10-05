@@ -216,6 +216,12 @@ export interface PaymentProvider {
   retrieveConnectAccount?(
     accountId: string,
   ): Promise<ProviderConnectAccount | null>;
+  /** Owner 2026-10-05 (anti-fraud): hold the attorney's payouts for
+   * [days] until the trust check clears them (`null` = Stripe default). */
+  updateConnectPayoutDelay?(
+    accountId: string,
+    days: number | null,
+  ): Promise<void>;
   /** A hosted checkout charged on the connected account (direct charge)
    * with the platform's `application_fee_amount`. */
   createConnectedCheckout?(
@@ -259,6 +265,25 @@ export interface ProviderConnectAccount {
   requirementsDue: string[];
   disabledReason: string | null;
   country: string | null;
+  // Owner 2026-10-05 (anti-fraud): who stands behind the account, for the
+  // trust check of the legal name against the profile and the bar registry.
+  /** `business_type`: individual | company | non_profit | government_entity. */
+  businessType?: string | null;
+  /** individual accounts: `individual.first_name` / `last_name`. */
+  legalFirstName?: string | null;
+  legalLastName?: string | null;
+  /** company accounts: `company.name` and `business_profile.url`. */
+  companyName?: string | null;
+  companyUrl?: string | null;
+  /** company accounts: representative + owners / executives. */
+  people?: ProviderConnectPerson[];
+}
+
+export interface ProviderConnectPerson {
+  firstName: string | null;
+  lastName: string | null;
+  /** representative | owner | executive | director. */
+  role: string | null;
 }
 
 export interface ProviderConnectedCheckoutInput {

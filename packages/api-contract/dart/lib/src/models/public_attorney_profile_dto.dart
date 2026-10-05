@@ -25,6 +25,7 @@ class PublicAttorneyProfileDto {
     required this.avatarUrl256,
     required this.languages,
     required this.verifiedBadge,
+    required this.trustLevel,
     required this.licensedStates,
     required this.practiceAreas,
     required this.rating,
@@ -57,6 +58,9 @@ class PublicAttorneyProfileDto {
 
   /// Blue check (docs/03 §6.3).
   final bool verifiedBadge;
+
+  /// Owner 2026-10-05: what LawBid checked — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both (GET /trust/attorneys/:id for details).
+  final int trustLevel;
 
   /// States of verified licenses only.
   final List<StateRefDto> licensedStates;

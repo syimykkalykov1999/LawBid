@@ -111,6 +111,7 @@ const ASYNC_METHODS = new Set([
   'createAccountOnboardingLink',
   'createAccountLoginLink',
   'retrieveConnectAccount',
+  'updateConnectPayoutDelay',
   'createConnectedCheckout',
   'retrieveConnectedCheckout',
   'refundConnected',

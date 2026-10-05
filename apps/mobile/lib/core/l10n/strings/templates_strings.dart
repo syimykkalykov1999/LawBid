@@ -26,7 +26,8 @@ const templatesRu = <String, String>{
   'cases.files.fromTemplate': 'Из шаблонов',
   // Owner 2026-10-05 (plan builder): templates and video calls by plan.
   'templates.locked': 'Входит в платный план',
-  'templates.lockedHint': 'Скачивание и прикрепление шаблонов входят в платный план. Смотреть каталог можно и без него.',
+  'templates.lockedHint':
+      'Скачивание и прикрепление шаблонов входят в платный план. Смотреть каталог можно и без него.',
   'templates.seePlans': 'Посмотреть планы',
   'paywall.templates.title': 'Шаблоны документов — в платном плане',
   'paywall.videoCall.title': 'Видеозвонки — в платном плане',
@@ -55,7 +56,8 @@ const templatesEn = <String, String>{
   'cases.files.fromTemplate': 'From templates',
   // Owner 2026-10-05 (plan builder): templates and video calls by plan.
   'templates.locked': 'Included in a paid plan',
-  'templates.lockedHint': 'Downloading and attaching templates come with a paid plan. You can browse the library without one.',
+  'templates.lockedHint':
+      'Downloading and attaching templates come with a paid plan. You can browse the library without one.',
   'templates.seePlans': 'See plans',
   'paywall.templates.title': 'Document templates come with a paid plan',
   'paywall.videoCall.title': 'Video calls come with a paid plan',

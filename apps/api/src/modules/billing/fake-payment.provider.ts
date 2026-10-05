@@ -521,6 +521,20 @@ export class FakePaymentProvider implements PaymentProvider {
     return Promise.resolve(rest);
   }
 
+  /** Owner 2026-10-05 (anti-fraud): payout delays asked of "Stripe". */
+  readonly payoutDelays = new Map<string, number | null>();
+
+  updateConnectPayoutDelay(
+    accountId: string,
+    days: number | null,
+  ): Promise<void> {
+    if (!this.connectAccounts.has(accountId)) {
+      return Promise.reject(new Error('no such connected account'));
+    }
+    this.payoutDelays.set(accountId, days);
+    return Promise.resolve();
+  }
+
   /** What finishing Stripe's onboarding does (dev page / e2e). */
   completeConnectOnboarding(accountId: string): void {
     const a = this.connectAccounts.get(accountId);

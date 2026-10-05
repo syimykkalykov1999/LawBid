@@ -68,6 +68,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: partner commissions past their hold → approved,
    * monthly base accrued. */
   partnersSweep: 'partners.sweep',
+  /** Owner 2026-10-05: nightly safety net — attorney trust levels follow
+   * the facts (registry flags, Stripe, decisions) even if a hook was missed. */
+  trustRecompute: 'trust.recompute',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -121,6 +124,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 15:00 UTC ≈ 08:00 Pacific / 11:00 Eastern: a morning reminder.
   { name: CRON_JOBS.casePaymentsRemind, pattern: '0 15 * * *' },
   { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
+  { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

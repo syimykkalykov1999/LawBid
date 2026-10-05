@@ -219,6 +219,15 @@ export class OwnAttorneyProfileDto {
   })
   verifiedBadge!: boolean;
 
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description:
+      'Owner 2026-10-05: trust level — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both.',
+  })
+  trustLevel!: number;
+
   /** OQ-029: the current name is far from the verified one, so the blue
    * check is hidden until it is changed back (own profile only). */
   @ApiProperty()
@@ -291,6 +300,15 @@ export class PublicAttorneyProfileDto {
 
   @ApiProperty({ description: 'Blue check (docs/03 §6.3).' })
   verifiedBadge!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description:
+      'Owner 2026-10-05: what LawBid checked — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both (GET /trust/attorneys/:id for details).',
+  })
+  trustLevel!: number;
 
   @ApiProperty({
     type: [StateRefDto],

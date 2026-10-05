@@ -17,6 +17,7 @@ interface NyRegistrationRow {
   last_name?: string;
   year_admitted?: string;
   status?: string;
+  company_name?: string;
 }
 
 /** Status of an attorney in good standing in the dataset. */
@@ -61,6 +62,7 @@ export class NyOpenDataAdapter implements StateBarAdapter {
           .filter(Boolean)
           .join(' '),
         admitted: row.year_admitted,
+        firm: row.company_name,
         raw: row,
       },
       ACTIVE_STATUSES,

@@ -1069,6 +1069,7 @@ export class ChatService {
                 username: true,
                 verification_status: true,
                 name_mismatch: true,
+                trust_badge: true,
               },
             },
             client_profile: { select: { username: true } },
@@ -1166,9 +1167,7 @@ export class ChatService {
               : other.avatar_file_id
                 ? (avatars.get(other.avatar_file_id)?.url256 ?? null)
                 : null,
-          verifiedBadge:
-            other?.attorney_profile?.verification_status === 'verified' &&
-            !other.attorney_profile.name_mismatch,
+          verifiedBadge: other?.attorney_profile?.trust_badge ?? false,
           ...(() => {
             const p = hidden || seenHidden ? undefined : presence.get(otherId);
             return {

@@ -21,6 +21,8 @@ import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/assistant_activity_list.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
@@ -105,6 +107,11 @@ String? notificationRoute({
       }
       return postId == null ? null : SocialRoutes.post(postId);
     case 'verification_update':
+      // Owner 2026-10-05: trust level changes / holds open the attorney's
+      // own trust screen.
+      if (isTrustNotificationKind(s('kind'))) {
+        return attorney ? TrustRoutes.me : AppRoutes.verification;
+      }
       // Owner 2026-10-02: a client's gold badge request.
       return s('kind') == 'client_badge'
           ? AppRoutes.clientBadge
@@ -166,6 +173,25 @@ String? notificationRoute({
   return null;
 }
 
+/// `verification_update` payload kinds of the trust module (apps/api
+/// attorney-trust.constants.ts TRUST_NOTIFICATION_KIND).
+const trustNotificationKinds = <String>{
+  'trust_level_up',
+  'trust_payments_paused',
+  'trust_payments_resumed',
+  'trust_bids_paused',
+  'trust_hold_lifted',
+  'trust_documents_requested',
+  'trust_auto_suspended',
+  'trust_firm_link_required',
+  'trust_firm_link_confirmed',
+  'trust_cleared',
+  'trust_requirements_changed',
+};
+
+bool isTrustNotificationKind(String? kind) =>
+    kind != null && trustNotificationKinds.contains(kind);
+
 /// A payload flag; push data carries every value as a string.
 bool _flag(Object? v) => v == true || v == 'true';
 
@@ -187,6 +213,27 @@ String notificationText(Translator t, AppNotification n) {
                   ? 'notif.list.cbadge.rejected'
                   : 'notif.list.cbadge.off',
     );
+  }
+  // Owner 2026-10-05: attorney trust levels — `notif.verification.<kind>`.
+  if (n.type == 'verification_update') {
+    final kind = n.payload['kind'];
+    if (kind is String && isTrustNotificationKind(kind)) {
+      final base = t.t('notif.verification.$kind');
+      // Staff asked for documents: say which (template) and their note.
+      if (kind == 'trust_documents_requested') {
+        final template = n.payload['template'];
+        final note = n.payload['note'];
+        final hasNote = note is String && note.trim().isNotEmpty;
+        final detail = template == 'custom' && !hasNote
+            ? t.t('trust.docs.custom.noNote')
+            : t.t(
+                documentRequestTextKey(template is String ? template : null),
+                {'note': hasNote ? note.trim() : ''},
+              );
+        return '$base $detail';
+      }
+      return base;
+    }
   }
   if (n.type == 'review_received' && _flag(n.payload['reply'])) {
     return t.t(
