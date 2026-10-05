@@ -57,12 +57,13 @@ describe('Case urgency: levels and dates (e2e, owner 2026-10-05)', () => {
       create: { code: 'NJ', name: 'New Jersey', is_active: true },
       update: {},
     });
+    const leaf = 'e2e_urg_leaf';
     const area = await prisma.practiceArea.upsert({
-      where: { code: 'e2e_urg_leaf' },
+      where: { code: leaf },
       create: {
-        code: 'e2e_urg_leaf',
+        code: leaf,
         name_en: 'E2E urgency',
-        i18n_key: 'practice.e2e_urg_leaf',
+        i18n_key: `practice.${leaf}`,
         sort: 1,
       },
       update: {},
