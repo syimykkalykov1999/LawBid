@@ -80,6 +80,12 @@ export const CRON_JOBS = {
   trustRecompute: 'trust.recompute',
   /** Owner 2026-10-05 (legal): stale unconverted outreach leads deleted. */
   outreachRetention: 'outreach.retention',
+  /** Owner 2026-10-05 (storage like Telegram): unused files and abandoned
+   * uploads removed; old technical logs trimmed; a daily usage snapshot
+   * with the growth alert. */
+  storageCleanup: 'storage.gc',
+  storageRetention: 'storage.retention',
+  storageSnapshot: 'storage.snapshot',
   /** Owner 2026-10-05: client fraud — re-score the queue, propagate fresh
    * blocks to linked accounts, delete old hashes (retention). */
   fraudSweep: 'fraud.sweep',
@@ -149,6 +155,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },
   { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
   { name: CRON_JOBS.outreachRetention, pattern: '25 3 * * *' },
+  { name: CRON_JOBS.storageCleanup, pattern: '17 * * * *' },
+  { name: CRON_JOBS.storageRetention, pattern: '35 4 * * *' },
+  { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },
   { name: CRON_JOBS.fraudSweep, pattern: '55 3 * * *' },
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },

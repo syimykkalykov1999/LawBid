@@ -409,7 +409,8 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       const done = await settled(auth, f.fileId);
       expect(done).toMatchObject({
         scanStatus: 'clean',
-        mime: 'image/jpeg',
+        // storage.image_format (default webp, owner 2026-10-05).
+        mime: 'image/webp',
         width: 1024,
         height: 1024,
       });
@@ -435,7 +436,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       expect(me.avatarFileId).toBe(f.fileId);
       const img = await fetch(me.avatarUrl);
       expect(img.status).toBe(200);
-      expect(img.headers.get('content-type')).toBe('image/jpeg');
+      expect(img.headers.get('content-type')).toBe('image/webp');
 
       await api()
         .patch('/api/v1/users/me')
@@ -524,7 +525,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       const view = await publicProfile();
       const main = await fetch(view.avatarUrl!);
       expect(main.status).toBe(200);
-      expect(main.headers.get('content-type')).toBe('image/jpeg');
+      expect(main.headers.get('content-type')).toBe('image/webp');
       const small = await fetch(view.avatarUrl256!);
       expect(small.status).toBe(200);
       const meta = await sharp(
@@ -607,7 +608,12 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       await confirm(auth, avatar.fileId);
       await settled(auth, avatar.fileId);
       const endpoint = process.env.S3_ENDPOINT!;
-      for (const f of [doc, avatar]) {
+      for (const u of [doc, avatar]) {
+        // The row's key: identical bytes uploaded earlier share one object.
+        const row = await prisma.file.findUniqueOrThrow({
+          where: { id: u.fileId },
+        });
+        const f = { bucket: row.s3_bucket, key: row.s3_key };
         expect(await storage.head(f.bucket, f.key)).not.toBeNull();
         const res = await fetch(`${endpoint}/${f.bucket}/${f.key}`);
         expect(res.status).toBe(403);

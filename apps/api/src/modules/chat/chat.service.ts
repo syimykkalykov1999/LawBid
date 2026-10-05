@@ -39,6 +39,7 @@ import {
   type MessagePage,
   type SendMessageDto,
   ChatFolderCountsDto,
+  type ChatStorageDto,
   type ConversationFolderName,
   OrganizeConversationDto,
 } from './chat.dto';
@@ -320,6 +321,35 @@ export class ChatService {
     return dto;
   }
 
+  /** Owner 2026-10-05: counts and bytes of the files in a chat. */
+  async storage(user: RequestUser, id: string): Promise<ChatStorageDto> {
+    await this.load(user, id);
+    const [rows, usage] = await Promise.all([
+      this.prisma.$queryRaw<{ kind: string; n: bigint }[]>`
+        SELECT CASE
+                 WHEN m.type = 'voice' THEN 'voice'
+                 WHEN f.mime LIKE 'image/%' THEN 'photo'
+                 ELSE 'document'
+               END AS kind,
+               count(*)::INT8 AS n
+        FROM messages m JOIN files f ON f.id = m.file_id
+        WHERE m.conversation_id = ${id}::UUID
+          AND m.deleted_at IS NULL
+          AND f.deleted_at IS NULL
+        GROUP BY 1`,
+      this.files.chatUsage(id),
+    ]);
+    const count = (k: string) =>
+      Number(rows.find((r) => r.kind === k)?.n ?? 0n);
+    return {
+      photos: count('photo'),
+      documents: count('document'),
+      voice: count('voice'),
+      usedBytes: usage.usedBytes,
+      quotaBytes: usage.quotaBytes,
+    };
+  }
+
   async messages(
     user: RequestUser,
     id: string,
@@ -538,6 +568,8 @@ export class ChatService {
           message: 'This file was already sent.',
         });
       }
+      // Owner 2026-10-05: a chat holds at most storage.chat_quota_mb.
+      await this.files.assertChatRoom(id, dto.fileId!);
     }
     if (sticker) await this.stickers.useForMessage(user.sub, dto.stickerId!);
     if (voice) {

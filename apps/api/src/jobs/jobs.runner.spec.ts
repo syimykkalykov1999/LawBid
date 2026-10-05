@@ -215,9 +215,11 @@ describe('JobsRunner', () => {
     // Owner 2026-10-05: + daily cases.deadline-reminder,
     // + support.sweep every 5 min and the daily rewards.award.
     // Owner 2026-10-05 zero maintenance: + ops.guard every minute,
-    // hourly ops.cost-check and ops.backup-check, + nightly fraud.sweep
-    // (repeat accounts), + daily outreach.retention (legal).
-    expect(upserts).toHaveLength(40);
+    // hourly ops.cost-check and ops.backup-check.
+    // + nightly fraud.sweep (repeat accounts).
+    // + hourly storage.gc, nightly storage.retention and storage.snapshot
+    // (storage like Telegram), + daily outreach.retention (legal).
+    expect(upserts).toHaveLength(43);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

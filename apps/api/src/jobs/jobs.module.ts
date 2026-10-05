@@ -5,6 +5,8 @@ import { PartnersCoreModule } from '../modules/partners/partners.module';
 import { OutreachRetentionModule } from '../modules/outreach/outreach.module';
 import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
+import { StorageCoreModule } from '../modules/storage/storage.module';
+import { FileReleaseService } from '../modules/files/storage/file-release.service';
 import { DynamicModule, Module } from '@nestjs/common';
 import { DISPOSABLE_DOMAINS_FETCHER, JOBS_OPTIONS } from './jobs.constants';
 import { JobsRunner, type JobsModuleOptions } from './jobs.runner';
@@ -80,6 +82,9 @@ export class JobsModule {
         VerificationModule,
         // Owner 2026-10-05 (legal): `outreach.retention`.
         OutreachRetentionModule,
+        // Owner 2026-10-05: `storage.gc`, `storage.retention`,
+        // `storage.snapshot`.
+        StorageCoreModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },
@@ -110,6 +115,7 @@ export class JobsModule {
         TaskRemindersJob,
         TaskArchivePurgeJob,
         S3StorageService,
+        FileReleaseService,
         CronProcessor,
         JobsRunner,
       ],

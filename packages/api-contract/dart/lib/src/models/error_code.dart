@@ -142,6 +142,10 @@ enum ErrorCode {
   fileNotAttachable('FILE_NOT_ATTACHABLE'),
   @JsonValue('FILE_STORAGE_UNAVAILABLE')
   fileStorageUnavailable('FILE_STORAGE_UNAVAILABLE'),
+  @JsonValue('STORAGE_QUOTA_EXCEEDED')
+  storageQuotaExceeded('STORAGE_QUOTA_EXCEEDED'),
+  @JsonValue('CHAT_STORAGE_FULL')
+  chatStorageFull('CHAT_STORAGE_FULL'),
   @JsonValue('VERIFICATION_ALREADY_PENDING')
   verificationAlreadyPending('VERIFICATION_ALREADY_PENDING'),
   @JsonValue('VERIFICATION_SUBMISSION_LIMIT')

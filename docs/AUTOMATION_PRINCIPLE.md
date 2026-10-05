@@ -30,6 +30,10 @@ is automatic by default.
 | Content hidden after N reports | `moderation.auto_hide_reports` | 3 |
 | Client suspended after N confirmed contact reports | `contacts.suspend_after_confirmed_reports` | 3 |
 | Referral rewards | automatic (`qualify` → `tryReward`) | on |
+| Identical files stored once (dedup) | `storage.dedup` | on |
+| Unused files and abandoned uploads removed (hourly) | `storage.auto_cleanup` | on |
+| Old technical logs removed (nightly) | `storage.auto_retention` | on |
+| Photos stored as WebP | `storage.image_format` | webp |
 
 Steps that stay manual by nature: refunds, data (privacy) requests, support
 tickets, content takedowns, disputes. Each already has a queue in the admin.

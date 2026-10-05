@@ -136,6 +136,12 @@ export enum ErrorCode {
   FILE_NOT_ATTACHABLE = 'FILE_NOT_ATTACHABLE',
   // 503: file storage (S3) is not configured or not reachable.
   FILE_STORAGE_UNAVAILABLE = 'FILE_STORAGE_UNAVAILABLE',
+  // Owner 2026-10-05: 400 — the user's files would exceed their storage
+  // cap (details.quotaBytes, details.usedBytes).
+  STORAGE_QUOTA_EXCEEDED = 'STORAGE_QUOTA_EXCEEDED',
+  // Owner 2026-10-05: 400 — this chat already holds storage.chat_quota_mb
+  // of files (details.quotaBytes, details.usedBytes).
+  CHAT_STORAGE_FULL = 'CHAT_STORAGE_FULL',
   // Verification (docs/03_VERIFICATION_PROFILES.md §2, stages 3.3–3.4)
   // 409: the attorney already has a draft/submitted/in_review/
   // needs_more_info request (§2.3: one at a time).
