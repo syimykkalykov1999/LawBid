@@ -162,6 +162,8 @@ enum ErrorCode {
   attorneySuspended('ATTORNEY_SUSPENDED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
+  @JsonValue('REASON_REQUIRED')
+  reasonRequired('REASON_REQUIRED'),
   @JsonValue('ADMIN_TICKET_INVALID')
   adminTicketInvalid('ADMIN_TICKET_INVALID'),
   @JsonValue('ADMIN_TOTP_INVALID')

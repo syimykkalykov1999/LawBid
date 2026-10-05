@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Label, Select, Textarea } from '@/components/ui/input';
+import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
 export interface ReasonOptions {
   title: string;
@@ -21,6 +22,9 @@ export interface ReasonOptions {
   /** Text is needed even though it is labelled «Причина»: a message to
    * a person, or the X-Justification for viewing personal data. */
   required?: boolean;
+  /** Section of the action when it differs from the page's (e.g. a money
+   * action on a user's card): decides whether staff must give a reason. */
+  area?: string;
 }
 
 export type ReasonResult = { text: string; choice?: string } | null;
@@ -62,14 +66,18 @@ function ReasonDialog({
   opts: ReasonOptions;
   onClose: (r: ReasonResult) => void;
 }) {
-  const min = opts.min ?? 10;
+  const isReason = !opts.label || opts.label.startsWith('Причина');
+  // Owner 2026-10-05: the owner never has to give a reason; staff do in the
+  // sections the owner switched on (Администраторы → «Обязательная причина»).
+  const policy = useReasonRequired(opts.area);
+  const min = opts.required ? (opts.min ?? 10) : isReason ? REASON_MIN : (opts.min ?? 10);
   const max = opts.max ?? 500;
   const [text, setText] = useState('');
   const [choice, setChoice] = useState(opts.choices?.[0]?.value ?? '');
   const trimmed = text.trim();
   // Owner 2026-10-05: an admin never has to write a reason for an action;
   // it is optional and stored empty when left blank.
-  const optional = opts.optionalText || (!opts.required && (!opts.label || opts.label.startsWith('Причина')));
+  const optional = opts.optionalText || (!opts.required && isReason && !policy);
   const ok = (optional || trimmed.length >= min) && trimmed.length <= max;
 
   return (

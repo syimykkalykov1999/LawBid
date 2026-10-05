@@ -3,6 +3,7 @@ import { moved, slotName } from '@/components/integrations/integration-card';
 import { fieldNameFrom } from '@/components/integrations/custom-service-dialog';
 import { centsToInput, currentPeriod, parseDollars, stripeFee, toCsv, totalsByCurrency, totalsText } from './payroll';
 import { can, canOpen } from './rbac';
+import { reasonRequired } from './reason-policy';
 
 describe('payroll helpers', () => {
   it('reads dollar amounts the way people type them', () => {
@@ -74,5 +75,15 @@ describe('trusted deputy (owner 2026-10-05)', () => {
     expect(canOpen(plain, '/payroll')).toBe(true);
     expect(canOpen(plain, '/payments')).toBe(false);
     expect(canOpen(plain, '/users')).toBe(false);
+  });
+});
+
+describe('reason policy', () => {
+  it('never asks the owner; asks staff only in switched-on sections', () => {
+    const areas = ['money', 'moderation'];
+    expect(reasonRequired({ role: 'super_admin', reasonRequiredAreas: areas }, 'money')).toBe(false);
+    expect(reasonRequired({ role: 'finance', reasonRequiredAreas: areas }, 'money')).toBe(true);
+    expect(reasonRequired({ role: 'finance', reasonRequiredAreas: areas }, 'content')).toBe(false);
+    expect(reasonRequired({ role: 'support', reasonRequiredAreas: [] }, 'money')).toBe(false);
   });
 });

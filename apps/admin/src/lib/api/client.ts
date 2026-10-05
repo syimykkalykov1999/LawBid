@@ -102,6 +102,7 @@ export const ERROR_TEXT: Record<string, string> = {
   ADMIN_STEP_UP_REQUIRED: 'Подтвердите действие кодом из аутентификатора.',
   FORBIDDEN: 'Недостаточно прав.',
   PAYMENTS_NOT_CONFIGURED: 'Stripe не отвечает или ключ не подходит: проверьте ключ Stripe в Система → Ключи и сервисы. Остальное сохранено.',
+  REASON_REQUIRED: 'Напишите причину: в этом разделе она обязательна.',
   JUSTIFICATION_REQUIRED: 'Укажите причину просмотра (не короче 10 символов).',
   VALIDATION_ERROR: 'Проверьте введённые данные.',
   RATE_LIMITED: 'Слишком много запросов. Попробуйте позже.',

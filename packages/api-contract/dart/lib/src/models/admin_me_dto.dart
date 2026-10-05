@@ -23,6 +23,7 @@ class AdminMeDto {
     required this.hasSecurityQuestion,
     required this.canManageAdmins,
     required this.securityQuestion,
+    required this.reasonRequiredAreas,
   });
 
   factory AdminMeDto.fromJson(Map<String, Object?> json) =>
@@ -49,6 +50,9 @@ class AdminMeDto {
   /// May create and manage other admins (the super admin always can).
   final bool canManageAdmins;
   final String? securityQuestion;
+
+  /// Sections where this admin must write a reason (always empty for the super admin).
+  final List<String> reasonRequiredAreas;
 
   Map<String, Object?> toJson() => _$AdminMeDtoToJson(this);
 }

@@ -533,4 +533,62 @@ describe('Key sets + payroll (e2e)', () => {
       await set(7).expect(200);
     }
   });
+
+  it('reason: never for the owner, per section for other admins', async () => {
+    const owner = await adminSession(base, prisma, 'super_admin');
+    const finance = await adminSession(base, prisma, 'finance');
+    const rPeriod = `${period}-r`;
+    const add = async (name: string) =>
+      (
+        (
+          await api()
+            .post('/api/v1/admin/payroll/employees')
+            .set(finance.auth)
+            .send({ name, amountCents: 1_000 })
+            .expect(201)
+        ).body as { data: { id: string } }
+      ).data.id;
+    const a = await add(`Reason A ${period}`);
+    const b = await add(`Reason B ${period}`);
+    await api()
+      .post('/api/v1/admin/payroll/payouts/bulk')
+      .set(finance.auth)
+      .send({ employeeIds: [a, b], period: rPeriod })
+      .expect(200);
+    const rows = await prisma.payrollPayout.findMany({
+      where: { period: rPeriod },
+    });
+    const cancel = (who: AdminSession, id: string, reason: string) =>
+      api()
+        .post(`/api/v1/admin/payroll/payouts/${id}/cancel`)
+        .set(who.auth)
+        .send({ reason });
+
+    // Payroll is in the default list: a staff admin must write one…
+    const denied = await cancel(finance, rows[0].id, '').expect(400);
+    expect(denied.body.error.code).toBe('REASON_REQUIRED');
+    // …the owner never has to.
+    await cancel(owner, rows[0].id, '').expect(200);
+
+    // The owner switches payroll off the list: staff may leave it empty.
+    const setAreas = (value: string[]) =>
+      api()
+        .put('/api/v1/admin/config/admin.reason_required_areas')
+        .set(owner.auth)
+        .send({ value });
+    await setAreas(['nonsense']).expect(400);
+    try {
+      await setAreas(['money', 'moderation']).expect(200);
+      const me = await api()
+        .get('/api/v1/admin/auth/me')
+        .set(finance.auth)
+        .expect(200);
+      expect(me.body.data.reasonRequiredAreas).toEqual(['money', 'moderation']);
+      await cancel(finance, rows[1].id, '').expect(200);
+    } finally {
+      await setAreas(['money', 'payroll', 'moderation', 'sanctions']).expect(
+        200,
+      );
+    }
+  });
 });

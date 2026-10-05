@@ -33,8 +33,11 @@ import {
   VIEW_AUDITED_AREAS,
 } from './admin-permissions';
 import { AdminSessionService } from './admin-session.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 
 export const JUSTIFICATION_MIN = 10;
+/** Owner 2026-10-05: a required action reason (see assertReason). */
+export const REASON_MIN = 3;
 export const JUSTIFICATION_MAX = 500;
 
 /**
@@ -57,6 +60,7 @@ export class AdminAuthGuard implements CanActivate {
     private readonly sessions: AdminSessionService,
     private readonly prisma: PrismaService,
     @Optional() private readonly audit?: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -142,6 +146,7 @@ export class AdminAuthGuard implements CanActivate {
       }
       // Owner 2026-10-05: who looked at money is visible in the audit log.
       const area = routeArea(path);
+      await this.assertReason(area, req.method, req.body);
       if (
         area &&
         VIEW_AUDITED_AREAS.has(area) &&
@@ -174,6 +179,29 @@ export class AdminAuthGuard implements CanActivate {
       `${req.method} ${(req.originalUrl || req.url).split('?')[0]}`,
     );
     return true;
+  }
+
+  /** Owner 2026-10-05: the owner never has to give a reason; other
+   * admins must in the sections switched on in «Обязательная причина»
+   * (a write whose body carries `reason`). */
+  private async assertReason(
+    area: string | null,
+    method: string,
+    body: unknown,
+  ): Promise<void> {
+    if (!area || !this.settings || levelForMethod(method) === 'view') return;
+    if (!body || typeof body !== 'object' || !('reason' in body)) return;
+    const reason = (body as { reason?: unknown }).reason;
+    if (typeof reason === 'string' && reason.trim().length >= REASON_MIN) {
+      return;
+    }
+    const areas = await this.settings.stringList('admin.reason_required_areas');
+    if (!areas.includes(area)) return;
+    throw new BadRequestException({
+      code: ErrorCode.REASON_REQUIRED,
+      message: `A reason (at least ${REASON_MIN} characters) is required in this section.`,
+      details: { field: 'reason' },
+    });
   }
 
   /** One audit row per action + admin + route per minute (a page

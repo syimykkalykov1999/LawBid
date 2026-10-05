@@ -50240,6 +50240,7 @@
           "LICENSE_ALREADY_ADDED",
           "ATTORNEY_SUSPENDED",
           "JUSTIFICATION_REQUIRED",
+          "REASON_REQUIRED",
           "ADMIN_TICKET_INVALID",
           "ADMIN_TOTP_INVALID",
           "ADMIN_RECOVERY_CODE_INVALID",
@@ -51050,6 +51051,13 @@
           "securityQuestion": {
             "type": "string",
             "nullable": true
+          },
+          "reasonRequiredAreas": {
+            "description": "Sections where this admin must write a reason (always empty for the super admin).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -51063,7 +51071,8 @@
           "permissions",
           "hasSecurityQuestion",
           "canManageAdmins",
-          "securityQuestion"
+          "securityQuestion",
+          "reasonRequiredAreas"
         ]
       },
       "AdminSessionDto": {

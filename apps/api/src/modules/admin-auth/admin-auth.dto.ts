@@ -209,6 +209,13 @@ export class AdminMeDto {
 
   @ApiProperty({ type: String, nullable: true })
   securityQuestion!: string | null;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Sections where this admin must write a reason (always empty for the super admin).',
+  })
+  reasonRequiredAreas!: string[];
 }
 
 export class AdminSessionDto {

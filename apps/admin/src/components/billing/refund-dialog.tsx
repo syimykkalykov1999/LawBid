@@ -11,6 +11,7 @@ import { api } from '@/lib/api/client';
 import { usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 import { type AdminPayment, dollarsToCents, userName } from './shared';
+import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
 /** "Вернуть деньги": partial or full refund through Stripe. */
 export function RefundDialog({ payment, onClose }: { payment: AdminPayment | null; onClose: () => void }) {
@@ -25,7 +26,8 @@ function RefundForm({ payment, onClose }: { payment: AdminPayment; onClose: () =
   const [key] = useState(() => crypto.randomUUID());
   const cents = dollarsToCents(amount);
   const tooMuch = cents != null && cents > payment.refundableCents;
-  const ok = cents != null && !tooMuch;
+  const needReason = useReasonRequired('money');
+  const ok = cents != null && !tooMuch && (!needReason || reason.trim().length >= REASON_MIN);
 
   const refund = useMutation({
     mutationFn: async () =>
@@ -74,7 +76,7 @@ function RefundForm({ payment, onClose }: { payment: AdminPayment; onClose: () =
         >
           <Input id="refund-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
-        <Field label="Причина" htmlFor="refund-reason" hint="необязательно, пишется в журнал аудита">
+        <Field label="Причина" htmlFor="refund-reason" hint={needReason ? `обязательно, не короче ${REASON_MIN} символов` : 'необязательно, пишется в журнал аудита'}>
           <Textarea id="refund-reason" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <div className="flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm text-warning">

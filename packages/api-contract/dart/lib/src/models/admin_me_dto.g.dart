@@ -22,6 +22,9 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
   hasSecurityQuestion: json['hasSecurityQuestion'] as bool,
   canManageAdmins: json['canManageAdmins'] as bool,
   securityQuestion: json['securityQuestion'] as String?,
+  reasonRequiredAreas: (json['reasonRequiredAreas'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$AdminMeDtoToJson(
@@ -38,4 +41,5 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'hasSecurityQuestion': instance.hasSecurityQuestion,
   'canManageAdmins': instance.canManageAdmins,
   'securityQuestion': ?instance.securityQuestion,
+  'reasonRequiredAreas': instance.reasonRequiredAreas,
 };

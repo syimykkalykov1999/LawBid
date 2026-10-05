@@ -133,6 +133,18 @@ export const OWNER_TRIAL_SETTINGS = {
   'billing.trial_days': 7,
 } as const;
 
+// Owner 2026-10-05: sections where admins other than the super admin must
+// write a reason for an action (the owner never has to). Set in
+// Администраторы → «Обязательная причина».
+export const OWNER_REASON_SETTINGS = {
+  'admin.reason_required_areas': [
+    'money',
+    'payroll',
+    'moderation',
+    'sanctions',
+  ],
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -146,6 +158,7 @@ export const APP_SETTINGS = {
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
+  ...OWNER_REASON_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

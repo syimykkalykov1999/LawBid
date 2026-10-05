@@ -13,6 +13,7 @@ import { api } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
+import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
 type When = components['schemas']['AdminSubscriptionCancelWhen'];
 type Refund = components['schemas']['AdminSubscriptionCancelRefund'];
@@ -66,6 +67,7 @@ export function SubscriptionActions({
         title: 'Вернуть подписку',
         description: 'Отмена в конце периода снимается, подписка продлится как обычно. Адвокат получит уведомление.',
         label: 'Причина',
+        area: 'money',
         confirm: 'Вернуть',
       });
       if (!a) return null;
@@ -131,7 +133,8 @@ function CancelDialog({
   const [when, setWhen] = useState<When>(defaultWhen);
   const [refund, setRefund] = useState<Refund>('none');
   const [reason, setReason] = useState('');
-  const ok = true;
+  const needReason = useReasonRequired('money');
+  const ok = !needReason || reason.trim().length >= REASON_MIN;
 
   const cancel = useMutation({
     mutationFn: async () => {
@@ -173,7 +176,7 @@ function CancelDialog({
             </Select>
           </Field>
         ) : null}
-        <Field label="Причина" htmlFor="cancel-reason" hint="необязательно, пишется в журнал аудита">
+        <Field label="Причина" htmlFor="cancel-reason" hint={needReason ? `обязательно, не короче ${REASON_MIN} символов` : 'необязательно, пишется в журнал аудита'}>
           <Textarea id="cancel-reason" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <p data-testid="cancel-summary" className="flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm text-warning">

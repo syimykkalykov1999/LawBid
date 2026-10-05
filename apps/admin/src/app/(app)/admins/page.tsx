@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Input, Label, Select } from '@/components/ui/input';
+import { ReasonPolicyCard } from '@/components/reason-policy-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
@@ -232,6 +233,7 @@ export default function AdminsPage() {
           Создать
         </Button>
       </form>
+      {isSuper ? <ReasonPolicyCard /> : null}
       <TemplatesCard
         templates={templates.data ?? []}
         loading={templates.isPending}
