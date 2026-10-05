@@ -1,5 +1,7 @@
 # api-p95 — p95 latency above target for 10 minutes
 
+> **Для владельца:** Ничего не делать: сервер добавляет мощность сам. Повторяется каждый день — попросите Claude поднять потолок. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 Targets (docs/06 §9.4): reads p95 < 300 ms, writes < 600 ms (alarm at 600 ms).
 
 **Check.**

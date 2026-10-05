@@ -1,5 +1,7 @@
 # journal-integrity — CRITICAL: case_journal hash chain broken
 
+> **Для владельца:** Ничего не удаляйте и сразу напишите Claude «журнал кейсов». Все письма и кнопки: [OWNER.md](OWNER.md).
+
 The daily `journal.chain-verify` job (docs/06 §5.3) found a row whose hash
 or link does not match (`case_journal hash chain broken`, Sentry fatal).
 The journal is append-only for the app role; a break means direct DB

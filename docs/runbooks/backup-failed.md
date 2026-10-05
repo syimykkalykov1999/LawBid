@@ -1,5 +1,7 @@
 # Backup failed
 
+> **Для владельца:** Бэкапы делает CockroachDB Cloud. Откройте Cloud Console → Backups; ошибка — их поддержка или Claude «бэкап». Все письма и кнопки: [OWNER.md](OWNER.md).
+
 CockroachDB Cloud runs the managed backups (daily full, hourly
 incremental, PITR — docs/06 §6.4) and alerts by email on failure (Cloud
 Console → Alerts, subscribed with the ops address). S3 documents are

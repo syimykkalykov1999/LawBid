@@ -1,5 +1,7 @@
 # api-cpu / worker-cpu — CPU > 85 % for 10 minutes
 
+> **Для владельца:** Сервер растёт сам до потолка. Не запускается 10 минут — Rollback production. Упирается каждый день — поднять потолок. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 Autoscaling targets 60 % CPU (docs/06 §6.3). Sustained 85 % means the
 service is at `*_max_tasks` or scaling is slower than the load.
 

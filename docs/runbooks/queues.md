@@ -1,5 +1,7 @@
 # queue-backlog — oldest waiting job older than 5 minutes
 
+> **Для владельца:** Админка → Система → Здоровье системы → «Перезапустить фоновые задачи», если не прошло за 15 минут. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 Metric from the `ops.queue-metrics` job (worker log → `QueueWaiting`,
 `QueueOldestAgeSeconds` per queue). Queues: `cron`, `push`, `files`,
 `stripe-webhooks`, `stripe-webhooks-dlq`, `subscriptions`,

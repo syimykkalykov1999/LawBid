@@ -32,3 +32,6 @@ redis_replicas  = 0                 # 1 → 0 (no failover replica)
 
 nat_per_az          = false # one NAT gateway instead of one per AZ (≈ $33 saved)
 interface_endpoints = []    # AWS API traffic goes through the NAT (≈ $73 saved)
+
+# --- money (zero maintenance) ----------------------------------------------
+monthly_budget_usd = 200 # e-mails at $100 / $160 / $200; at $200 the server stays at the minimum until the next month

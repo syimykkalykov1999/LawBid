@@ -22,7 +22,8 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
-    super();
+    const datasourceUrl = withPoolDefaults(process.env.DATABASE_URL);
+    super(datasourceUrl ? { datasourceUrl } : undefined);
     // WARNING: do not add instance fields to this class. The constructor
     // returns the $extends proxy below, so per-instance state set here is
     // lost for every consumer; only prototype methods survive.
@@ -38,4 +39,35 @@ export class PrismaService
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
   }
+}
+
+/**
+ * Owner 2026-10-05 zero maintenance: bounded connection pool and timeouts
+ * so a traffic spike or a slow database queues requests for a few seconds
+ * and then fails them, instead of opening connections without limit and
+ * hanging (each API/worker task holds at most DB_POOL_SIZE connections,
+ * default 10). Values already in the URL win. Statement timeouts are set
+ * on the database roles (infra/cockroach/role-settings.sql).
+ */
+export function withPoolDefaults(
+  raw: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (!raw) return undefined;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return raw;
+  }
+  const pool = Number(env.DB_POOL_SIZE);
+  const defaults: Record<string, string> = {
+    connection_limit: String(Number.isInteger(pool) && pool > 0 ? pool : 10),
+    pool_timeout: '10',
+    connect_timeout: '10',
+  };
+  for (const [k, v] of Object.entries(defaults)) {
+    if (!url.searchParams.has(k)) url.searchParams.set(k, v);
+  }
+  return url.toString();
 }

@@ -39,6 +39,10 @@ export const PROVIDER_RU: Record<string, { label: string; description: string; w
       'Если сменить бакеты, файлы из старых бакетов станут недоступны — меняйте только ключи, если файлы не переносили.',
   },
   sentry: { label: 'Sentry (отчёты об ошибках)', description: 'Отчёты о сбоях и ошибках сервера.' },
+  cockroach_cloud: {
+    label: 'CockroachDB Cloud (проверка бэкапов)',
+    description: 'Ключ только для чтения от облака базы данных: сервер каждый час проверяет, что свежий бэкап есть.',
+  },
 };
 
 const FIELD_BY_NAME: Record<string, string> = {
@@ -80,6 +84,8 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'bunny_stream.apiKey': 'API-ключ библиотеки',
   'google_translate.apiKey': 'API-ключ (Cloud Translation API)',
   'ses.accessKeyId': 'ID ключа доступа AWS (только без роли сервера)',
+  'cockroach_cloud.apiKey': 'API-ключ (сервисный аккаунт, только чтение)',
+  'cockroach_cloud.clusterId': 'ID кластера',
   'storage.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
   'storage.secretAccessKey': 'Секретный ключ доступа',
 };
