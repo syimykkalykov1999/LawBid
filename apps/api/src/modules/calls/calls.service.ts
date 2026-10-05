@@ -20,6 +20,7 @@ import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PushQueueService } from '../notifications/push/push-queue.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
@@ -86,6 +87,7 @@ export class CallsService {
     private readonly realtime: RealtimePublisher,
     private readonly flags: FeatureFlagsService,
     @Optional() private readonly secrets?: SecretsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
   }
@@ -106,6 +108,18 @@ export class CallsService {
     dto: StartCallDto = {},
   ): Promise<CallDto> {
     const video = dto.video === true;
+    // Owner 2026-10-05 (plan builder): the plan's "video calls" term is
+    // checked first; the global flag and TURN keys come next.
+    if (
+      video &&
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'video_calls'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include video calls.',
+      });
+    }
     if (video && !(await this.videoConfig()).available) {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
@@ -141,6 +155,16 @@ export class CallsService {
     // OQ-028: except the chat of a case in progress.
     if (!(await caseWorkOngoing(this.prisma, conv))) {
       await this.blocks.assertNotBlocked(user.sub, callee);
+    }
+    // Plan term (owner 2026-10-05): the admin can switch calls off per plan.
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'calls'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include calls.',
+      });
     }
     await this.assertSubscription(conv);
     await this.limits.consume('message', user.sub);

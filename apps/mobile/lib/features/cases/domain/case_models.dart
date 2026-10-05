@@ -377,6 +377,7 @@ class FeedCase {
     this.inMyLicensedStates = true,
     this.bidAllowed = true,
     this.promoted = false,
+    this.priorityClient = false,
     this.completionRequestedBy,
     this.acceptedBidIsMine = false,
     this.coverKey,
@@ -400,6 +401,10 @@ class FeedCase {
 
   /// Owner 2026-10-02: a paid promotion keeps this case near the top.
   final bool promoted;
+
+  /// Owner 2026-10-05 (plan builder): the client's plan puts the case
+  /// first in the feed (shown with a small «Приоритет» mark).
+  final bool priorityClient;
 
   /// `client` / `attorney`: who marked "Done" first (waiting for the other).
   final String? completionRequestedBy;
@@ -474,6 +479,7 @@ class FeedCase {
         shareCount: shareCount,
         inMyPractice: inMyPractice,
         promoted: promoted,
+        priorityClient: priorityClient,
         completionRequestedBy: completionRequestedBy,
         coverKey: coverKey,
         urgency: urgency,

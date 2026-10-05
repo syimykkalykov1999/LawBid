@@ -166,6 +166,7 @@ abstract final class CasesMappers {
         commentCount: c.commentCount,
         shareCount: c.shareCount,
         promoted: c.promoted,
+        priorityClient: c.priorityClient,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
         dossier: dossier(c.dossier),

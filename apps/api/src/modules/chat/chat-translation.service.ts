@@ -1,15 +1,18 @@
 import { createHash } from 'node:crypto';
 import {
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -47,6 +50,8 @@ export class ChatTranslationService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
     private readonly costGuard: CostGuardService,
+    // Owner 2026-10-05 (plan builder): translation is a plan term.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** The Google key when the feature is on and configured, else null. */
@@ -62,6 +67,15 @@ export class ChatTranslationService {
     messageId: string,
     target: string,
   ): Promise<MessageTranslation> {
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'chat_translate'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include translation.',
+      });
+    }
     const key = await this.apiKey();
     if (!key) throw unavailable();
     const m = await this.prisma.message.findFirst({
@@ -87,7 +101,17 @@ export class ChatTranslationService {
     const day = new Date().toISOString().slice(0, 10);
     const quotaKey = `chat:tr:quota:${user.sub}:${day}`;
     const used = Number((await this.redis.get(quotaKey)) ?? 0);
-    if (used >= DAILY_TRANSLATIONS) {
+    const planQuota = this.entitlements
+      ? await this.entitlements.limit(user.sub, 'translations_per_day')
+      : null;
+    // null/undefined = the app default; 0 = unlimited on this plan.
+    const quota =
+      planQuota == null
+        ? DAILY_TRANSLATIONS
+        : planQuota === 0
+          ? null
+          : planQuota;
+    if (quota !== null && used >= quota) {
       throw new HttpException(
         {
           code: ErrorCode.RATE_LIMITED,

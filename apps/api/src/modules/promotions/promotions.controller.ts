@@ -49,7 +49,7 @@ export class PromotionsController {
   @Get('promotions/quote')
   @ApiOperation({ summary: 'Price of promoting a case for N days' })
   @ApiEnvelopeResponse(PromotionQuoteDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ENTITLEMENT_REQUIRED] })
   getPromotionQuote(
     @CurrentUser() user: RequestUser,
     @Query() q: PromotionQuoteQueryDto,
@@ -86,7 +86,7 @@ export class PromotionsController {
   @ApiEnvelopeResponse(CreatePromotionResultDto, { status: 201 })
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.PROMO_CODE_INVALID, E.IDEMPOTENCY_KEY_REQUIRED],
-    403: [E.FEATURE_DISABLED],
+    403: [E.FEATURE_DISABLED, E.ENTITLEMENT_REQUIRED],
     404: [E.CASE_NOT_FOUND],
     409: [
       E.CASE_INVALID_STATE,

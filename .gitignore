@@ -54,5 +54,5 @@ node_modules
 # Dev stand-in for Bunny (tools/fake-bunny.mjs)
 apps/api/.fake-bunny/
 
-# Redis snapshots
+# Redis dumps (a stray redis-server writes dump.rdb into its working folder)
 dump.rdb

@@ -34,7 +34,47 @@ Map<String, dynamic> _me({Map<String, dynamic>? subscription}) => {
         'yearlyCents': 959000,
         'maxSeats': 6,
       },
+      // Owner 2026-10-05 (plan builder): the plan, the plans for sale, the
+      // entitlements and the seat summary come with the row.
+      'plan': subscription == null ? null : _teamPlan,
+      'plans': [_teamPlan],
+      'entitlements': subscription == null
+          ? <String, dynamic>{}
+          : _teamPlan['entitlements'],
+      'seats': subscription == null
+          ? null
+          : {'included': 1, 'extra': 2, 'total': 3, 'max': 5},
     };
+
+const _teamPlan = <String, dynamic>{
+  'id': '7a1b4e52-1c1e-4f1c-9a4a-6b7d2f0c1e11',
+  'code': 'team',
+  'audience': 'attorney',
+  'kind': 'paid',
+  'name': {'en': 'Team', 'ru': 'Команда'},
+  'tagline': {'en': 'For firms'},
+  'description': <String, dynamic>{},
+  'interval': 'month',
+  'currency': 'usd',
+  'amountCents': 59900,
+  'extraSeatCents': 10000,
+  'entitlements': {
+    'included_seats': 1,
+    'max_seats': 5,
+    'extra_seat_price_cents': 10000,
+    'bids_any_state': true,
+    'max_active_bids': 0,
+    'priority_search': true,
+    'calls': true,
+    'chat_translate': false,
+    'trial_days': 14,
+  },
+  'highlights': [
+    {'en': 'Best for firms', 'ru': 'Для фирм'},
+  ],
+  'isDefault': true,
+  'trialDays': 14,
+};
 
 void main() {
   late FakeHttpAdapter adapter;
@@ -85,6 +125,13 @@ void main() {
     expect(o.subscription!.assistantSeats, 2);
     expect(o.prices.yearlyCents, 959000);
     expect(o.prices.monthlyTotal(2), 59900);
+    // Owner 2026-10-05 (plan builder).
+    expect(o.plan?.code, 'team');
+    expect(o.plans.single.name.resolve('ru'), 'Команда');
+    expect(o.plans.single.extraSeatsAllowed, 4);
+    expect(o.entitlements.prioritySearch, isTrue);
+    expect(o.entitlements.maxActiveBids, 0);
+    expect(o.seats?.total, 3);
   });
 
   test('OQ-048: checkout sends the plan, seats and phones', () async {

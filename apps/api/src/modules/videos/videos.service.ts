@@ -4,12 +4,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { VideoAsset, VideoAssetStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -92,6 +94,7 @@ export class VideosService {
     private readonly settings: AppSettingsService,
     private readonly limits: UsageLimitsService,
     private readonly costGuard: CostGuardService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** The flag is on and every Bunny key is set. */
@@ -121,6 +124,16 @@ export class VideosService {
     dto: CreateVideoUploadDto,
   ): Promise<VideoUploadDto> {
     await this.assertAvailable();
+    // Owner 2026-10-05 (plan builder): video posts are a plan term.
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(userId, 'video_posts'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include video posts.',
+      });
+    }
     const maxSec = await this.settings.number('video.max_duration_sec');
     const maxMb = await this.settings.number('video.max_size_mb');
     const sourceSec = await this.sourceLimitSec(maxSec);

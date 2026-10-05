@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { ReportReason } from '@prisma/client';
 import { ModerationService } from '../moderation/moderation.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -37,9 +38,6 @@ const PAGE = 20;
 /** Owner 2026-09-30: an appeal nobody decided removes the review then. */
 export const REVIEW_APPEAL_AUTO_REMOVE_DAYS = 30;
 
-/** Owner 2026-10-01: Google-style — no automatic removal. */
-const AUTO_REMOVE_UNDECIDED_APPEALS = false;
-
 /** Audit 2026-10-04: like client → attorney reviews, only once the case
  * is closed. */
 const REVIEWABLE = ['closed'] as const;
@@ -61,6 +59,7 @@ export class ClientReviewsService {
     private readonly notifications: NotificationsService,
     // Optional: the worker wires this service without the moderation module.
     @Optional() private readonly moderation?: ModerationService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async upsert(
@@ -555,7 +554,11 @@ export class ClientReviewsService {
    * Owner 2026-10-01 (Google-style): nothing is removed automatically any
    * more — reviews are removed by their author or by moderation. */
   async sweepAppeals(now = new Date()): Promise<number> {
-    if (!AUTO_REMOVE_UNDECIDED_APPEALS) return 0;
+    // Owner 2026-10-05: an admin switch (default off, as decided 2026-10-01).
+    const auto = this.settings
+      ? await this.settings.boolean('reviews.auto_remove_undecided_appeals')
+      : false;
+    if (!auto) return 0;
     const due = await this.prisma.clientReviewAppeal.findMany({
       where: { status: 'pending', auto_remove_at: { lte: now } },
       select: {
