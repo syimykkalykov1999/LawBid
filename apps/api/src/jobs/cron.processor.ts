@@ -24,12 +24,17 @@ import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import {
+  TaskArchivePurgeJob,
+  TaskRemindersJob,
+} from './handlers/tasks-planner.jobs';
 import { CallsService } from '../modules/calls/calls.service';
 import { PostVideosService } from '../modules/posts/post-videos.service';
 import { ClientReviewsService } from '../modules/client-reviews/client-reviews.service';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
+import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
@@ -62,8 +67,11 @@ export class CronProcessor {
     private readonly clientReviews: ClientReviewsService,
     private readonly postVideos: PostVideosService,
     private readonly promotions: PromotionsService,
+    private readonly taskReminders: TaskRemindersJob,
+    private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
+    private readonly trust: AttorneyTrustService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
   ) {}
@@ -122,12 +130,18 @@ export class CronProcessor {
         return this.postVideos.sweep();
       case CRON_JOBS.promotionsExpire:
         return this.promotions.expire();
+      case CRON_JOBS.taskReminders:
+        return this.taskReminders.run();
+      case CRON_JOBS.taskArchivePurge:
+        return this.taskArchivePurge.run();
       case CRON_JOBS.casePaymentsExpire:
         return this.casePayments.expire();
       case CRON_JOBS.casePaymentsRemind:
         return this.casePayments.remind();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.trustRecompute:
+        return this.trust.recomputeAll();
       case CRON_JOBS.supportSweep:
         return this.supportDesk?.sweep();
       case CRON_JOBS.rewardsAward:

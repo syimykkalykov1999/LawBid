@@ -355,6 +355,7 @@ export class CommentsService {
               username: true,
               verification_status: true,
               name_mismatch: true,
+              trust_badge: true,
               licenses: {
                 where: { license_status: 'verified' },
                 select: { id: true },
@@ -401,10 +402,7 @@ export class CommentsService {
                 [a.first_name, a.last_name].filter(Boolean).join(' ') ||
                 `@${prof?.username ?? ''}`,
               avatarUrl: avatar.get(r.author_id) ?? null,
-              verifiedBadge:
-                prof?.verification_status === 'verified' &&
-                !prof.name_mismatch &&
-                (prof.licenses.length ?? 0) > 0,
+              verifiedBadge: prof?.trust_badge ?? false,
             }
           : {
               kind: 'client' as const,

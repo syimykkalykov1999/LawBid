@@ -16,9 +16,29 @@ TaskItem makeTask(
   bool canDelete = true,
   String? note,
   List<TaskStep> steps = const [],
+  List<TaskPlace> places = const [],
+  TaskPriority priority = TaskPriority.normal,
+  DateTime? archivedAt,
+  DateTime? purgeAt,
+  bool keepForever = false,
+  String? assigneeName,
+  String? caseId,
+  String? caseTitle,
+  bool canComplete = true,
 }) =>
     TaskItem(
       steps: steps,
+      places: places,
+      people: const [TaskPerson(name: 'John Brown', phone: '+13125550199')],
+      priority: priority,
+      archivedAt: archivedAt,
+      purgeAt: purgeAt,
+      keepForever: keepForever,
+      assigneeName: assigneeName,
+      assigneeMembershipId: assigneeName == null ? null : 'm-$assigneeName',
+      caseId: caseId,
+      caseTitle: caseTitle,
+      canComplete: canComplete,
       id: id,
       kind: kind,
       title: 'Task $id',
@@ -214,6 +234,7 @@ class FakeTeamRepository implements TeamRepository {
 
   @override
   Future<TaskItem> createTask(TaskDraft draft) async {
+    lastDraft = draft;
     calls.add('create:${draft.kind.name}:${draft.title}');
     if (draft.steps.isNotEmpty) {
       calls.add('steps:${draft.steps.map((s) => s.title).join('|')}');
@@ -283,6 +304,45 @@ class FakeTeamRepository implements TeamRepository {
     // ignore: prefer_if_elements_to_conditional_expressions
     active = [for (final x in active) x.id == id ? t : x];
     return t;
+  }
+
+  @override
+  Future<TaskItem> moveTask(String id, DateTime dueAt) async {
+    calls.add('move:$id');
+    return [...active, ...done].firstWhere((t) => t.id == id);
+  }
+
+  TaskDraft? lastDraft;
+  List<TaskPlaceSuggestion> placeList = [];
+  List<TaskPersonSuggestion> peopleList = [];
+
+  @override
+  Future<List<TaskPlaceSuggestion>> taskPlaces() async => placeList;
+
+  @override
+  Future<List<TaskPersonSuggestion>> taskPeople([String? q]) async =>
+      peopleList;
+
+  @override
+  Future<({int affected, int skipped})> bulkTasks(
+    List<String> ids,
+    TaskBulkAction action, {
+    TaskStatus? status,
+    TaskPriority? priority,
+    String? assigneeMembershipId,
+  }) async {
+    calls.add('bulk:${action.name}:${ids.join(',')}');
+    if (action == TaskBulkAction.delete) {
+      active = [
+        for (final x in active)
+          if (!ids.contains(x.id)) x,
+      ];
+      done = [
+        for (final x in done)
+          if (!ids.contains(x.id)) x,
+      ];
+    }
+    return (affected: ids.length, skipped: 0);
   }
 
   @override

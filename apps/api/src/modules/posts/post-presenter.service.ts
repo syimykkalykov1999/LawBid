@@ -71,6 +71,7 @@ export class PostPresenter {
               username: true,
               verification_status: true,
               name_mismatch: true,
+              trust_badge: true,
               licenses: {
                 where: { license_status: 'verified' },
                 select: { id: true },
@@ -203,8 +204,7 @@ export class PostPresenter {
           // paid gold badge only.
           verifiedBadge: isClient
             ? goldClients.has(p.author_id)
-            : prof?.verification_status === 'verified' &&
-              (prof.licenses.length ?? 0) > 0,
+            : (prof?.trust_badge ?? false),
           isFollowing: followed.has(p.author_id),
         },
         title: p.title ?? null,

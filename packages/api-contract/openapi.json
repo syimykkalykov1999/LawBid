@@ -16311,6 +16311,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
             "content": {
@@ -16323,6 +16333,16 @@
           },
           "403": {
             "description": "Forbidden: ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
             "content": {
               "application/json": {
                 "schema": {
@@ -16389,8 +16409,76 @@
             "name": "view",
             "required": false,
             "in": "query",
+            "description": "`done` and `archive` both list the archive.",
             "schema": {
               "$ref": "#/components/schemas/TasksView"
+            }
+          },
+          {
+            "name": "caseId",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: planner filters.",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "assignee",
+            "required": false,
+            "in": "query",
+            "description": "An assistant membership id, `me` or `none`.",
+            "schema": {
+              "pattern": "^(me|none|[0-9a-fA-F-]{36})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "dueFrom",
+            "required": false,
+            "in": "query",
+            "description": "Due from.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "dueTo",
+            "required": false,
+            "in": "query",
+            "description": "Due before.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "overdue",
+            "required": false,
+            "in": "query",
+            "description": "Only the ones past their time.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search the text.",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TasksSort"
             }
           },
           {
@@ -16484,6 +16572,247 @@
           }
         ],
         "summary": "The attorney's tasks (calendar order)",
+        "tags": [
+          "assistants"
+        ]
+      }
+    },
+    "/tasks/places": {
+      "get": {
+        "operationId": "taskPlaces",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPlaceSuggestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Addresses already used in this planner",
+        "tags": [
+          "assistants"
+        ]
+      }
+    },
+    "/tasks/people": {
+      "get": {
+        "operationId": "taskPeople",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPersonSuggestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "People to add to a task (team, chats, contacts, attorneys)",
+        "tags": [
+          "assistants"
+        ]
+      }
+    },
+    "/tasks/bulk": {
+      "post": {
+        "operationId": "bulkTasks",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkTasksDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkTasksResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Many tasks at once: delete, archive, return, keep forever, assign, status, priority",
         "tags": [
           "assistants"
         ]
@@ -60125,6 +60454,3369 @@
         ]
       }
     },
+    "/trust/me/firm-email": {
+      "post": {
+        "operationId": "requestFirmEmailCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmEmailRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmEmailResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send a code to my address at the firm (firm link)",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/trust/me/firm-email/confirm": {
+      "post": {
+        "operationId": "confirmFirmEmailCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmEmailConfirmDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmEmailResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Confirm the firm e-mail code",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/trust/me": {
+      "get": {
+        "operationId": "getMyTrust",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnTrustEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My trust level, gates and next steps (attorney)",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/trust/attorneys/{attorneyId}": {
+      "get": {
+        "operationId": "getAttorneyTrust",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTrustEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "An attorney's trust level: what LawBid checked (any signed-in user)",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/admin/trust/settings": {
+      "get": {
+        "operationId": "getTrustSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "What to require and the automatic actions",
+        "tags": [
+          "admin-trust"
+        ]
+      },
+      "put": {
+        "operationId": "updateTrustSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change what to require and the automatic actions",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/stats": {
+      "get": {
+        "operationId": "getTrustStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustStatsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Attorneys per level, holds, complaints",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/holds": {
+      "get": {
+        "operationId": "listTrustHolds",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustHoldListItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Attorneys whose payments or bids are paused",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}": {
+      "get": {
+        "operationId": "getTrustCard",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One attorney's trust card with history",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/confirm-license": {
+      "post": {
+        "operationId": "confirmTrustLicense",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verifier confirmed the license on the state bar's page",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/unconfirm-license": {
+      "post": {
+        "operationId": "unconfirmTrustLicense",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Withdraw the staff confirmation of the license",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/confirm-documents": {
+      "post": {
+        "operationId": "confirmTrustDocuments",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verifier checked bar card + ID + selfie",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/confirm-firm-link": {
+      "post": {
+        "operationId": "confirmTrustFirmLink",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verifier saw the firm's letter: the attorney works for the Stripe company",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/settings/preset": {
+      "post": {
+        "operationId": "applyTrustPreset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustPresetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Apply a preset: off («Выключить всё»), soft, standard, strict, all («Включить всё»)",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys": {
+      "get": {
+        "operationId": "trustAttorneys",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "not_verified",
+                "self_declared",
+                "registry_matched",
+                "pending_review",
+                "documents_requested",
+                "cleared",
+                "rejected",
+                "suspended"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustAttorneyListItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "«Галочки → Адвокаты»: every attorney with their badge status",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/status": {
+      "post": {
+        "operationId": "setTrustStatus",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustSetStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set the badge status by hand (reason required, audited)",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/queue": {
+      "get": {
+        "operationId": "trustQueue",
+        "parameters": [
+          {
+            "name": "reason",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "documents",
+                "firm_link",
+                "name_mismatch",
+                "duplicate_claim",
+                "registry_flag",
+                "complaint"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustQueueItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Staff queue: attorneys waiting for a person, oldest first",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/staff-decisions": {
+      "get": {
+        "operationId": "staffDecisions",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffDecisionStatsListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Who approved whom: decisions per admin, speed, what came after",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/cleared-by": {
+      "get": {
+        "operationId": "clearedBy",
+        "parameters": [
+          {
+            "name": "adminId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearedByItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Attorneys one admin cleared, and what happened since",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/clear": {
+      "post": {
+        "operationId": "clearTrust",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Подтвердить: staff vouch; badge and payments open for good",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/unclear": {
+      "post": {
+        "operationId": "unclearTrust",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Withdraw the staff clearance",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/request-documents": {
+      "post": {
+        "operationId": "requestTrustDocuments",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Запросить ещё: ask for documents from a template",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/reject": {
+      "post": {
+        "operationId": "rejectTrust",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustNoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Отклонить: suspend the account, withdraw bids",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/bulk": {
+      "post": {
+        "operationId": "bulkTrust",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkTrustDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkTrustResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Clear / request documents / reject / release many",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/hold": {
+      "post": {
+        "operationId": "holdTrust",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustHoldDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Pause payments and/or bids",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/release": {
+      "post": {
+        "operationId": "releaseTrust",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustReleaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Lift holds after review",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/attorneys/{attorneyId}/recompute": {
+      "post": {
+        "operationId": "recomputeTrust",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTrustCardEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Recompute the level from the facts",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/blocked-bar-numbers": {
+      "get": {
+        "operationId": "blockedBarNumbers",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "unblocked"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Bar numbers that cannot register again: reason, who blocked, attempts",
+        "tags": [
+          "admin-trust"
+        ]
+      },
+      "post": {
+        "operationId": "blockBarNumber",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockBarNumberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Block a bar number by hand (reason required)",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/blocked-bar-numbers/{id}": {
+      "get": {
+        "operationId": "blockedBarNumber",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One blocked bar number with its history",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/blocked-bar-numbers/{id}/unblock": {
+      "post": {
+        "operationId": "unblockBarNumber",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnblockBarNumberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Lift the block (the person explained / proved); reason required",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/recompute-all": {
+      "post": {
+        "operationId": "recomputeAllTrust",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecomputeAllResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Recompute every attorney (after a settings change)",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
     "/cases/{caseId}/review": {
       "post": {
         "operationId": "create",
@@ -61534,6 +65226,7 @@
           "LICENSE_ALREADY_REGISTERED",
           "LICENSE_ALREADY_ADDED",
           "ATTORNEY_SUSPENDED",
+          "BAR_NUMBER_BLOCKED",
           "JUSTIFICATION_REQUIRED",
           "REASON_REQUIRED",
           "ADMIN_TICKET_INVALID",
@@ -61601,6 +65294,8 @@
           "VIDEO_NOT_READY",
           "COMMENTS_DISABLED",
           "LICENSE_STATE_REQUIRED",
+          "TRUST_LEVEL_REQUIRED",
+          "ATTORNEY_ON_HOLD",
           "TRANSLATION_UNAVAILABLE",
           "STICKER_LIMIT_REACHED",
           "SUPPORT_TICKET_CLOSED",
@@ -64710,7 +68405,8 @@
             "enum": [
               "name_mismatch",
               "not_found",
-              "not_active"
+              "not_active",
+              "duplicate_claim"
             ],
             "type": "string",
             "description": "Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified)."
@@ -66014,6 +69710,12 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3)."
           },
+          "trustLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Owner 2026-10-05: trust level (what LawBid checked)."
+          },
           "licensedStates": {
             "description": "Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.",
             "type": "array",
@@ -66032,6 +69734,7 @@
           "lastName",
           "avatarUrl256",
           "verifiedBadge",
+          "trustLevel",
           "licensedStates",
           "rating"
         ]
@@ -70102,6 +73805,93 @@
           "status"
         ]
       },
+      "TaskPlaceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "TaskPersonDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "userRole": {
+            "nullable": true,
+            "enum": [
+              "attorney",
+              "client",
+              "assistant"
+            ],
+            "type": "string",
+            "description": "Who the app person is (null: an outside contact)."
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "TaskPriority": {
+        "type": "string",
+        "enum": [
+          "low",
+          "normal",
+          "high",
+          "urgent"
+        ]
+      },
+      "TaskRepeat": {
+        "type": "string",
+        "enum": [
+          "none",
+          "daily",
+          "weekdays",
+          "weekly",
+          "monthly",
+          "yearly"
+        ]
+      },
       "TaskDto": {
         "type": "object",
         "properties": {
@@ -70192,6 +73982,78 @@
             "items": {
               "$ref": "#/components/schemas/TaskStepDto"
             }
+          },
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceDto"
+            }
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonDto"
+            }
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "repeat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskRepeat"
+              }
+            ]
+          },
+          "repeatUntil": {
+            "type": "string",
+            "nullable": true
+          },
+          "remindBeforeMin": {
+            "type": "number",
+            "nullable": true
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "assigneeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "assignedToMe": {
+            "type": "boolean",
+            "description": "Assigned to the assistant looking at it."
+          },
+          "conversationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "keepForever": {
+            "type": "boolean"
+          },
+          "purgeAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "When the archive cleanup removes it (null: never)."
+          },
+          "canComplete": {
+            "type": "boolean",
+            "description": "The viewer may check it off."
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "The viewer may edit it."
           }
         },
         "required": [
@@ -70202,8 +74064,65 @@
           "status",
           "canDelete",
           "createdAt",
-          "steps"
+          "steps",
+          "places",
+          "people",
+          "priority",
+          "repeat",
+          "assignedToMe",
+          "keepForever",
+          "canComplete",
+          "canEdit"
         ]
+      },
+      "TaskPlaceInputDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "What the place is (\"Court\", \"Client's home\")."
+          },
+          "address": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "TaskPersonInputDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A person in the app."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Required for an outside contact; app people get theirs."
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "\"Witness\", \"Judge\"…"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^(\\+[1-9]\\d{7,14})?$",
+            "example": "+13125550123"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        }
       },
       "TaskStepInputDto": {
         "type": "object",
@@ -70249,6 +74168,59 @@
       "CreateTaskDto": {
         "type": "object",
         "properties": {
+          "places": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceInputDto"
+            }
+          },
+          "people": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonInputDto"
+            }
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "repeat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskRepeat"
+              }
+            ]
+          },
+          "repeatUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Repeat until."
+          },
+          "remindBeforeMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20160,
+            "description": "Reminder this many minutes before the time (0 = at it)."
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Assign to an assistant of the team."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The chat it is about."
+          },
+          "keepForever": {
+            "type": "boolean",
+            "description": "Never removed from the archive."
+          },
           "kind": {
             "allOf": [
               {
@@ -70332,7 +74304,17 @@
         "enum": [
           "active",
           "done",
-          "all"
+          "all",
+          "archive"
+        ]
+      },
+      "TasksSort": {
+        "type": "string",
+        "enum": [
+          "due",
+          "priority",
+          "created",
+          "updated"
         ]
       },
       "TaskListEnvelope": {
@@ -70343,6 +74325,198 @@
             "items": {
               "$ref": "#/components/schemas/TaskDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TaskPlaceSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "uses": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "address",
+          "uses"
+        ]
+      },
+      "TaskPlaceSuggestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceSuggestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TaskPersonSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "membershipId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "An assistant of this team: the membership to assign."
+          },
+          "source": {
+            "enum": [
+              "assistant",
+              "client",
+              "attorney",
+              "contact"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "source",
+          "name"
+        ]
+      },
+      "TaskPersonSuggestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonSuggestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BulkTasksResultDto": {
+        "type": "object",
+        "properties": {
+          "affected": {
+            "type": "number",
+            "description": "Tasks changed."
+          },
+          "skipped": {
+            "type": "number",
+            "description": "Tasks left as they were (not yours to change, or already so)."
+          }
+        },
+        "required": [
+          "affected",
+          "skipped"
+        ]
+      },
+      "TaskBulkAction": {
+        "type": "string",
+        "enum": [
+          "delete",
+          "archive",
+          "unarchive",
+          "keep",
+          "unkeep",
+          "assign",
+          "unassign",
+          "status",
+          "priority"
+        ]
+      },
+      "BulkTasksDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "action": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskBulkAction"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "open",
+              "taken",
+              "done",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "ids",
+          "action"
+        ]
+      },
+      "BulkTasksResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkTasksResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -70382,6 +74556,59 @@
       "UpdateTaskDto": {
         "type": "object",
         "properties": {
+          "places": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPlaceInputDto"
+            }
+          },
+          "people": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskPersonInputDto"
+            }
+          },
+          "priority": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskPriority"
+              }
+            ]
+          },
+          "repeat": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TaskRepeat"
+              }
+            ]
+          },
+          "repeatUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Repeat until."
+          },
+          "remindBeforeMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20160,
+            "description": "Reminder this many minutes before the time (0 = at it)."
+          },
+          "assigneeMembershipId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Assign to an assistant of the team."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The chat it is about."
+          },
+          "keepForever": {
+            "type": "boolean",
+            "description": "Never removed from the archive."
+          },
           "kind": {
             "allOf": [
               {
@@ -70415,6 +74642,19 @@
           "clearCaseId": {
             "type": "boolean",
             "description": "Unlink the case."
+          },
+          "clearRemind": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05: no reminder / no assignee / no chat / no end."
+          },
+          "clearAssignee": {
+            "type": "boolean"
+          },
+          "clearConversation": {
+            "type": "boolean"
+          },
+          "clearRepeatUntil": {
+            "type": "boolean"
           },
           "location": {
             "type": "string",
@@ -74975,6 +79215,12 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3): verified status and at least one verified license."
           },
+          "trustLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Owner 2026-10-05: trust level — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both."
+          },
           "nameMismatch": {
             "type": "boolean",
             "description": "OQ-029: the current name is far from the verified one, so the blue\ncheck is hidden until it is changed back (own profile only)."
@@ -75014,6 +79260,7 @@
           "languages",
           "verificationStatus",
           "verifiedBadge",
+          "trustLevel",
           "nameMismatch",
           "usernameChangedAt",
           "usernameNextChangeAt",
@@ -75440,6 +79687,12 @@
             "type": "boolean",
             "description": "Blue check (docs/03 §6.3)."
           },
+          "trustLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Owner 2026-10-05: what LawBid checked — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both (GET /trust/attorneys/:id for details)."
+          },
           "licensedStates": {
             "description": "States of verified licenses only.",
             "type": "array",
@@ -75488,6 +79741,7 @@
           "avatarUrl256",
           "languages",
           "verifiedBadge",
+          "trustLevel",
           "licensedStates",
           "practiceAreas",
           "rating",
@@ -84427,7 +88681,8 @@
           "profanity",
           "harassment",
           "hate_speech",
-          "personal_info"
+          "personal_info",
+          "fraud"
         ]
       },
       "ReportReviewDto": {
@@ -84756,6 +89011,12 @@
           "verifiedBadge": {
             "type": "boolean"
           },
+          "trustLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Trust level."
+          },
           "rating": {
             "$ref": "#/components/schemas/RatingDto"
           },
@@ -84782,6 +89043,7 @@
           "id",
           "username",
           "verifiedBadge",
+          "trustLevel",
           "rating",
           "states",
           "practiceI18nKeys",
@@ -92671,6 +96933,1968 @@
         },
         "required": [
           "token"
+        ]
+      },
+      "FirmEmailResultDto": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "domain"
+        ]
+      },
+      "FirmEmailRequestDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "description": "Your address at the firm (not a free mailbox)."
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "FirmEmailResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FirmEmailResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "FirmEmailConfirmDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 6
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "TrustSignalsDto": {
+        "type": "object",
+        "properties": {
+          "selfAttested": {
+            "type": "boolean",
+            "description": "Sworn statement accepted, licenses verified."
+          },
+          "licenseConfirmed": {
+            "type": "boolean",
+            "description": "The bar number was confirmed by the state registry or a verifier."
+          },
+          "licenseConfirmedBy": {
+            "nullable": true,
+            "enum": [
+              "registry",
+              "staff"
+            ],
+            "type": "string"
+          },
+          "documentsVerified": {
+            "type": "boolean",
+            "description": "A verifier checked bar card + ID + selfie."
+          },
+          "stripeKyc": {
+            "type": "boolean",
+            "description": "Stripe Connect KYC finished."
+          },
+          "stripeIdentity": {
+            "type": "boolean",
+            "description": "Stripe KYC finished AND its legal name matches the profile / registry."
+          },
+          "identityConfirmed": {
+            "type": "boolean",
+            "description": "Documents verified or Stripe identity."
+          },
+          "nameCheck": {
+            "enum": [
+              "match",
+              "mismatch",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "firmLinkConfirmed": {
+            "type": "boolean",
+            "description": "Company account: the link to the firm is shown."
+          }
+        },
+        "required": [
+          "selfAttested",
+          "licenseConfirmed",
+          "licenseConfirmedBy",
+          "documentsVerified",
+          "stripeKyc",
+          "stripeIdentity",
+          "identityConfirmed",
+          "nameCheck",
+          "firmLinkConfirmed"
+        ]
+      },
+      "RegistryLinkDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string"
+          },
+          "stateName": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Where to check the bar number yourself."
+          }
+        },
+        "required": [
+          "stateCode",
+          "stateName",
+          "url"
+        ]
+      },
+      "TrustGateDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "nullable": true,
+            "enum": [
+              "requirements",
+              "hold",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "registry",
+                "identity",
+                "documents"
+              ]
+            },
+            "description": "Enabled requirements the attorney has not met yet."
+          },
+          "current": {
+            "type": "integer"
+          },
+          "hold": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hold code when paused."
+          }
+        },
+        "required": [
+          "ok",
+          "reason",
+          "missing",
+          "current",
+          "hold"
+        ]
+      },
+      "TrustRequirementsDto": {
+        "type": "object",
+        "properties": {
+          "registry": {
+            "type": "boolean",
+            "description": "Bar number matched the state registry."
+          },
+          "identity": {
+            "type": "boolean",
+            "description": "Stripe KYC with the attorney as the verified person, or firm link."
+          },
+          "documents": {
+            "type": "boolean",
+            "description": "Staff checked ID + selfie + bar card."
+          }
+        },
+        "required": [
+          "registry",
+          "identity",
+          "documents"
+        ]
+      },
+      "FirmLinkDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pending",
+              "confirmed"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "registry",
+              "email",
+              "staff"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "emailDomain": {
+            "type": "string",
+            "nullable": true,
+            "description": "Firm e-mail domain the attorney confirmed."
+          }
+        },
+        "required": [
+          "status",
+          "source",
+          "at",
+          "emailDomain"
+        ]
+      },
+      "OwnTrustDto": {
+        "type": "object",
+        "properties": {
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "badge": {
+            "type": "boolean",
+            "description": "The blue check is shown."
+          },
+          "cleared": {
+            "type": "boolean",
+            "description": "Every requirement the owner switched on is met (or staff confirmed): the badge and payments are open."
+          },
+          "signals": {
+            "$ref": "#/components/schemas/TrustSignalsDto"
+          },
+          "acceptsPayments": {
+            "type": "boolean",
+            "description": "Client money can be sent through LawBid to this attorney."
+          },
+          "canBid": {
+            "type": "boolean",
+            "description": "Bids and chat are open."
+          },
+          "registryLinks": {
+            "description": "One per licensed state.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryLinkDto"
+            }
+          },
+          "bidsGate": {
+            "$ref": "#/components/schemas/TrustGateDto"
+          },
+          "paymentsGate": {
+            "$ref": "#/components/schemas/TrustGateDto"
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/TrustRequirementsDto"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "registry",
+                "identity",
+                "documents"
+              ]
+            },
+            "description": "Requirements still missing for the badge and payments."
+          },
+          "staffStatus": {
+            "type": "string",
+            "enum": [
+              "self_declared",
+              "needs_staff",
+              "cleared",
+              "suspended"
+            ]
+          },
+          "documentsRequested": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "id_selfie",
+              "bar_card",
+              "firm_letter",
+              "custom"
+            ],
+            "description": "Staff asked for more documents (template)."
+          },
+          "payoutDelayDays": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Stripe payout delay LawBid applies at this level, days."
+          },
+          "nextSteps": {
+            "description": "What raises the level next: hold_review | registry_check | stripe_kyc | fix_name | firm_link | documents.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firmLink": {
+            "$ref": "#/components/schemas/FirmLinkDto"
+          },
+          "stripeBusinessType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Stripe business type when known."
+          }
+        },
+        "required": [
+          "attorneyId",
+          "level",
+          "badge",
+          "cleared",
+          "signals",
+          "acceptsPayments",
+          "canBid",
+          "registryLinks",
+          "bidsGate",
+          "paymentsGate",
+          "requirements",
+          "missing",
+          "staffStatus",
+          "documentsRequested",
+          "payoutDelayDays",
+          "nextSteps",
+          "firmLink",
+          "stripeBusinessType"
+        ]
+      },
+      "OwnTrustEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OwnTrustDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PublicTrustDto": {
+        "type": "object",
+        "properties": {
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "badge": {
+            "type": "boolean",
+            "description": "The blue check is shown."
+          },
+          "cleared": {
+            "type": "boolean",
+            "description": "Every requirement the owner switched on is met (or staff confirmed): the badge and payments are open."
+          },
+          "signals": {
+            "$ref": "#/components/schemas/TrustSignalsDto"
+          },
+          "acceptsPayments": {
+            "type": "boolean",
+            "description": "Client money can be sent through LawBid to this attorney."
+          },
+          "canBid": {
+            "type": "boolean",
+            "description": "Bids and chat are open."
+          },
+          "registryLinks": {
+            "description": "One per licensed state.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryLinkDto"
+            }
+          }
+        },
+        "required": [
+          "attorneyId",
+          "level",
+          "badge",
+          "cleared",
+          "signals",
+          "acceptsPayments",
+          "canBid",
+          "registryLinks"
+        ]
+      },
+      "PublicTrustEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublicTrustDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TrustSettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Master switch. Off = self-attested attorneys get the badge and payments at once; no holds, no queue."
+          },
+          "manualReview": {
+            "type": "boolean",
+            "description": "Staff review. Off = automatic checks only; the documents requirement is ignored and the queue is paused, not lost."
+          },
+          "requireRegistry": {
+            "type": "boolean",
+            "description": "Require the bar number to match the state registry (or staff)."
+          },
+          "requireIdentity": {
+            "type": "boolean",
+            "description": "Require Stripe KYC with the attorney as the verified person (or a firm link)."
+          },
+          "requireDocuments": {
+            "type": "boolean",
+            "description": "Require staff-checked ID + selfie + bar card."
+          },
+          "bidsRequireCleared": {
+            "type": "boolean",
+            "description": "Bids too wait until the attorney is cleared."
+          },
+          "payoutDelayDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "autoHoldOnComplaint": {
+            "type": "boolean"
+          },
+          "complaintsToSuspend": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "complaintWindowDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "autoHoldOnNameMismatch": {
+            "type": "boolean"
+          },
+          "flagDuplicateClaims": {
+            "type": "boolean"
+          },
+          "firmLinkAutoRegistry": {
+            "type": "boolean",
+            "description": "Firm link counts when the registry firm equals the Stripe company."
+          },
+          "firmLinkAutoEmail": {
+            "type": "boolean",
+            "description": "Firm link counts after a code to an e-mail on the firm domain."
+          },
+          "blockOnReject": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05 07:00: a rejection or a suspension also blocks the bar number for new accounts."
+          },
+          "blockContacts": {
+            "type": "boolean",
+            "description": "A block also refuses the e-mail and phone that were on the blocked account."
+          }
+        },
+        "required": [
+          "enabled",
+          "manualReview",
+          "requireRegistry",
+          "requireIdentity",
+          "requireDocuments",
+          "bidsRequireCleared",
+          "payoutDelayDays",
+          "autoHoldOnComplaint",
+          "complaintsToSuspend",
+          "complaintWindowDays",
+          "autoHoldOnNameMismatch",
+          "flagDuplicateClaims",
+          "firmLinkAutoRegistry",
+          "firmLinkAutoEmail",
+          "blockOnReject",
+          "blockContacts"
+        ]
+      },
+      "TrustSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TrustSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TrustLevelCountDto": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "integer"
+          },
+          "attorneys": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "level",
+          "attorneys"
+        ]
+      },
+      "TrustStatusCountDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "not_verified",
+              "self_declared",
+              "registry_matched",
+              "pending_review",
+              "documents_requested",
+              "cleared",
+              "rejected",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "attorneys": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "attorneys"
+        ]
+      },
+      "TrustStatsDto": {
+        "type": "object",
+        "properties": {
+          "byLevel": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrustLevelCountDto"
+            }
+          },
+          "held": {
+            "type": "integer",
+            "description": "Attorneys with any hold."
+          },
+          "withBadge": {
+            "type": "integer"
+          },
+          "verified": {
+            "type": "integer",
+            "description": "Verified attorneys in all."
+          },
+          "complaints30d": {
+            "type": "integer",
+            "description": "Complaints in the last 30 days."
+          },
+          "cleared": {
+            "type": "integer",
+            "description": "Attorneys cleared (badge and payments open)."
+          },
+          "inQueue": {
+            "type": "integer",
+            "description": "Waiting for a person in the staff queue."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Master switch `trust.enabled`."
+          },
+          "manualReview": {
+            "type": "boolean",
+            "description": "Staff review `trust.manual_review`; false = queue paused."
+          },
+          "byStatus": {
+            "description": "Attorneys per badge status, same order as the enum.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrustStatusCountDto"
+            }
+          },
+          "blockedBarNumbers": {
+            "type": "integer",
+            "description": "Bar numbers on the block list right now (owner 07:00)."
+          }
+        },
+        "required": [
+          "byLevel",
+          "held",
+          "withBadge",
+          "verified",
+          "complaints30d",
+          "cleared",
+          "inQueue",
+          "enabled",
+          "manualReview",
+          "byStatus",
+          "blockedBarNumbers"
+        ]
+      },
+      "TrustStatsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TrustStatsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminTrustAttorneyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string"
+          },
+          "verificationStatus": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName",
+          "username",
+          "verificationStatus"
+        ]
+      },
+      "TrustHoldsDto": {
+        "type": "object",
+        "properties": {
+          "payments": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "bids": {
+            "type": "string",
+            "nullable": true
+          },
+          "bidsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "payments",
+          "paymentsAt",
+          "bids",
+          "bidsAt",
+          "note"
+        ]
+      },
+      "TrustHoldListItemDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "holds": {
+            "$ref": "#/components/schemas/TrustHoldsDto"
+          },
+          "complaintsTotal": {
+            "type": "integer"
+          },
+          "heldSince": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Oldest hold."
+          }
+        },
+        "required": [
+          "attorney",
+          "level",
+          "holds",
+          "complaintsTotal",
+          "heldSince"
+        ]
+      },
+      "TrustHoldListItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrustHoldListItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffAdminDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role"
+        ]
+      },
+      "BarLookupDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string"
+          },
+          "stateName": {
+            "type": "string"
+          },
+          "barNumber": {
+            "type": "string"
+          },
+          "licenseStatus": {
+            "type": "string",
+            "description": "pending / verified / rejected …"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "prefilled": {
+            "type": "boolean",
+            "description": "True: the page opens straight on this number. False: a search page, paste the number."
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "This number is on the block list right now."
+          }
+        },
+        "required": [
+          "stateCode",
+          "stateName",
+          "barNumber",
+          "licenseStatus",
+          "url",
+          "prefilled",
+          "blocked"
+        ]
+      },
+      "TrustEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "fromLevel": {
+            "type": "integer",
+            "nullable": true
+          },
+          "toLevel": {
+            "type": "integer",
+            "nullable": true
+          },
+          "actorType": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "fromLevel",
+          "toLevel",
+          "actorType",
+          "actorId",
+          "details",
+          "createdAt"
+        ]
+      },
+      "AdminTrustCardDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "badgeStatus": {
+            "enum": [
+              "not_verified",
+              "self_declared",
+              "registry_matched",
+              "pending_review",
+              "documents_requested",
+              "cleared",
+              "rejected",
+              "suspended"
+            ],
+            "type": "string",
+            "description": "The badge as the admin manages it (owner 2026-10-05)."
+          },
+          "badge": {
+            "type": "boolean"
+          },
+          "signals": {
+            "$ref": "#/components/schemas/TrustSignalsDto"
+          },
+          "holds": {
+            "$ref": "#/components/schemas/TrustHoldsDto"
+          },
+          "bidsGate": {
+            "$ref": "#/components/schemas/TrustGateDto"
+          },
+          "paymentsGate": {
+            "$ref": "#/components/schemas/TrustGateDto"
+          },
+          "cleared": {
+            "type": "boolean"
+          },
+          "clearedBy": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "auto",
+              "staff"
+            ]
+          },
+          "staffClearedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "staffClearedBy": {
+            "nullable": true,
+            "description": "Who pressed «Подтвердить» (stays after a suspension).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "staffStatus": {
+            "type": "string",
+            "enum": [
+              "self_declared",
+              "needs_staff",
+              "cleared",
+              "suspended"
+            ]
+          },
+          "queueReasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "documents",
+                "firm_link",
+                "name_mismatch",
+                "duplicate_claim",
+                "registry_flag",
+                "complaint"
+              ]
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "registry",
+                "identity",
+                "documents"
+              ]
+            }
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/TrustRequirementsDto"
+          },
+          "documentsRequestedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "documentsRequestedTemplate": {
+            "type": "string",
+            "nullable": true
+          },
+          "stripeLegalName": {
+            "type": "string",
+            "nullable": true
+          },
+          "stripeBusinessType": {
+            "type": "string",
+            "nullable": true,
+            "description": "individual | company | …"
+          },
+          "stripeCompanyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "stripeCompanyDomain": {
+            "type": "string",
+            "nullable": true
+          },
+          "stripeRepresentative": {
+            "type": "string",
+            "nullable": true,
+            "description": "Representative / owner compared with the profile."
+          },
+          "firmLink": {
+            "$ref": "#/components/schemas/FirmLinkDto"
+          },
+          "firmLinkNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutDelayDays": {
+            "type": "integer",
+            "nullable": true
+          },
+          "complaintsTotal": {
+            "type": "integer"
+          },
+          "duplicateClaims": {
+            "type": "integer"
+          },
+          "registryLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryLinkDto"
+            }
+          },
+          "lookups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarLookupDto"
+            }
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "One of the licenses is on the block list (owner 07:00)."
+          },
+          "latestRequestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Latest verification request (its card)."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrustEventDto"
+            }
+          }
+        },
+        "required": [
+          "attorney",
+          "level",
+          "badgeStatus",
+          "badge",
+          "signals",
+          "holds",
+          "bidsGate",
+          "paymentsGate",
+          "cleared",
+          "clearedBy",
+          "staffClearedAt",
+          "staffClearedBy",
+          "staffStatus",
+          "queueReasons",
+          "missing",
+          "requirements",
+          "documentsRequestedAt",
+          "documentsRequestedTemplate",
+          "stripeLegalName",
+          "stripeBusinessType",
+          "stripeCompanyName",
+          "stripeCompanyDomain",
+          "stripeRepresentative",
+          "firmLink",
+          "firmLinkNote",
+          "payoutDelayDays",
+          "complaintsTotal",
+          "duplicateClaims",
+          "registryLinks",
+          "lookups",
+          "blocked",
+          "latestRequestId",
+          "events"
+        ]
+      },
+      "AdminTrustCardEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminTrustCardDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TrustNoteDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "TrustPresetDto": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "enum": [
+              "off",
+              "soft",
+              "standard",
+              "strict",
+              "all"
+            ],
+            "type": "string",
+            "description": "off = «Выключить всё»; soft / standard / strict; all = «Включить всё»."
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      },
+      "TrustAttorneyListItemDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "badgeStatus": {
+            "enum": [
+              "not_verified",
+              "self_declared",
+              "registry_matched",
+              "pending_review",
+              "documents_requested",
+              "cleared",
+              "rejected",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "badge": {
+            "type": "boolean",
+            "description": "Blue check shown in the app right now."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "registry",
+                "identity",
+                "documents"
+              ]
+            }
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "documents",
+                "firm_link",
+                "name_mismatch",
+                "duplicate_claim",
+                "registry_flag",
+                "complaint"
+              ]
+            }
+          },
+          "holds": {
+            "$ref": "#/components/schemas/TrustHoldsDto"
+          },
+          "staffClearedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "staffClearedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "documentsRequestedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "complaintsTotal": {
+            "type": "integer"
+          },
+          "lookups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarLookupDto"
+            }
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "One of the licenses is on the block list."
+          }
+        },
+        "required": [
+          "attorney",
+          "level",
+          "badgeStatus",
+          "badge",
+          "missing",
+          "reasons",
+          "holds",
+          "staffClearedAt",
+          "staffClearedBy",
+          "documentsRequestedAt",
+          "complaintsTotal",
+          "lookups",
+          "blocked"
+        ]
+      },
+      "TrustAttorneyListItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrustAttorneyListItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TrustSetStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "cleared",
+              "self_declared",
+              "documents_requested",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "status",
+          "note"
+        ]
+      },
+      "TrustQueueItemDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "documents",
+                "firm_link",
+                "name_mismatch",
+                "duplicate_claim",
+                "registry_flag",
+                "complaint"
+              ]
+            }
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "registry",
+                "identity",
+                "documents"
+              ]
+            }
+          },
+          "signals": {
+            "$ref": "#/components/schemas/TrustSignalsDto"
+          },
+          "holds": {
+            "$ref": "#/components/schemas/TrustHoldsDto"
+          },
+          "stripeBusinessType": {
+            "type": "string",
+            "nullable": true
+          },
+          "stripeRepresentative": {
+            "type": "string",
+            "nullable": true
+          },
+          "stripeCompanyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "registryLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryLinkDto"
+            }
+          },
+          "lookups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarLookupDto"
+            }
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "One of the licenses is on the block list."
+          },
+          "requestId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Open the documents on this verification request."
+          },
+          "documentsCount": {
+            "type": "integer",
+            "description": "Documents on that request."
+          },
+          "documentsRequestedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "waitingSince": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "badgeStatus": {
+            "enum": [
+              "not_verified",
+              "self_declared",
+              "registry_matched",
+              "pending_review",
+              "documents_requested",
+              "cleared",
+              "rejected",
+              "suspended"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "attorney",
+          "level",
+          "reasons",
+          "missing",
+          "signals",
+          "holds",
+          "stripeBusinessType",
+          "stripeRepresentative",
+          "stripeCompanyName",
+          "registryLinks",
+          "lookups",
+          "blocked",
+          "requestId",
+          "documentsCount",
+          "documentsRequestedAt",
+          "waitingSince",
+          "badgeStatus"
+        ]
+      },
+      "TrustQueueItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrustQueueItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffDecisionStatsDto": {
+        "type": "object",
+        "properties": {
+          "admin": {
+            "$ref": "#/components/schemas/StaffAdminDto"
+          },
+          "cleared": {
+            "type": "integer",
+            "description": "«Подтвердить» pressed."
+          },
+          "uncleared": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "integer",
+            "description": "«Отклонить» pressed."
+          },
+          "documentsRequested": {
+            "type": "integer"
+          },
+          "released": {
+            "type": "integer",
+            "description": "Holds lifted."
+          },
+          "fastDecisions": {
+            "type": "integer",
+            "description": "Decisions under a minute after the previous one."
+          },
+          "medianSecondsBetween": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Median seconds between consecutive decisions in a sitting."
+          },
+          "laterComplaints": {
+            "type": "integer",
+            "description": "Attorneys they cleared who drew a complaint afterwards."
+          },
+          "laterSuspended": {
+            "type": "integer",
+            "description": "Attorneys they cleared who were suspended afterwards."
+          },
+          "firstDecisionAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastDecisionAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "admin",
+          "cleared",
+          "uncleared",
+          "rejected",
+          "documentsRequested",
+          "released",
+          "fastDecisions",
+          "medianSecondsBetween",
+          "laterComplaints",
+          "laterSuspended",
+          "firstDecisionAt",
+          "lastDecisionAt"
+        ]
+      },
+      "StaffDecisionStatsListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffDecisionStatsDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ClearedByItemDto": {
+        "type": "object",
+        "properties": {
+          "attorney": {
+            "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "clearedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "complaintsAfter": {
+            "type": "integer"
+          },
+          "suspendedAfter": {
+            "type": "boolean"
+          },
+          "documentsSeen": {
+            "description": "Document types on the request they saw.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "attorney",
+          "level",
+          "clearedAt",
+          "complaintsAfter",
+          "suspendedAfter",
+          "documentsSeen"
+        ]
+      },
+      "ClearedByItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClearedByItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DocumentRequestDto": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "enum": [
+              "id_selfie",
+              "bar_card",
+              "firm_letter",
+              "custom"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "template"
+        ]
+      },
+      "BulkTrustResultDto": {
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "done",
+          "failed"
+        ]
+      },
+      "BulkTrustDto": {
+        "type": "object",
+        "properties": {
+          "attorneyIds": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "action": {
+            "enum": [
+              "clear",
+              "request_documents",
+              "reject",
+              "release"
+            ],
+            "type": "string"
+          },
+          "template": {
+            "enum": [
+              "id_selfie",
+              "bar_card",
+              "firm_letter",
+              "custom"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "attorneyIds",
+          "action"
+        ]
+      },
+      "BulkTrustResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BulkTrustResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TrustHoldDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "payments": {
+            "type": "boolean",
+            "description": "Pause / resume receiving payments."
+          },
+          "bids": {
+            "type": "boolean",
+            "description": "Pause / resume new bids."
+          }
+        },
+        "required": [
+          "payments",
+          "bids"
+        ]
+      },
+      "TrustReleaseDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "payments": {
+            "type": "boolean",
+            "description": "Resume payments (default true)."
+          },
+          "bids": {
+            "type": "boolean",
+            "description": "Resume bids (default true)."
+          }
+        }
+      },
+      "BarNumberBlockEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "blocked",
+              "unblocked",
+              "attempt"
+            ]
+          },
+          "actorType": {
+            "type": "string",
+            "description": "admin / system / attorney"
+          },
+          "actor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "actorType",
+          "actor",
+          "reason",
+          "details",
+          "createdAt"
+        ]
+      },
+      "BarNumberBlockDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stateCode": {
+            "type": "string"
+          },
+          "barNumber": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "staff_reject",
+              "verification_reject",
+              "suspend",
+              "manual"
+            ]
+          },
+          "attorney": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+              }
+            ]
+          },
+          "blockedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "blockedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "blockContacts": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Masked."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Masked."
+          },
+          "unblockedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "unblockedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "unblockReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "attempts": {
+            "type": "integer",
+            "description": "How many times someone tried to register it again."
+          },
+          "lastAttemptAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lookupUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarNumberBlockEventDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "stateCode",
+          "barNumber",
+          "active",
+          "reason",
+          "source",
+          "attorney",
+          "blockedBy",
+          "blockedAt",
+          "blockContacts",
+          "email",
+          "phone",
+          "unblockedAt",
+          "unblockedBy",
+          "unblockReason",
+          "attempts",
+          "lastAttemptAt",
+          "lookupUrl",
+          "events"
+        ]
+      },
+      "BarNumberBlockListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarNumberBlockDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BlockBarNumberDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2,
+            "example": "CA"
+          },
+          "barNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "blockContacts": {
+            "type": "boolean",
+            "description": "Also block the e-mail / phone of the current holder."
+          }
+        },
+        "required": [
+          "stateCode",
+          "barNumber",
+          "reason"
+        ]
+      },
+      "BarNumberBlockEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BarNumberBlockDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UnblockBarNumberDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500,
+            "description": "Why the block is lifted (what the person explained / proved)."
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "RecomputeAllResultDto": {
+        "type": "object",
+        "properties": {
+          "attorneys": {
+            "type": "integer"
+          },
+          "changed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attorneys",
+          "changed"
+        ]
+      },
+      "RecomputeAllResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecomputeAllResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "ReviewAuthorRole": {

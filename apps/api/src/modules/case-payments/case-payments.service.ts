@@ -25,6 +25,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
 import type {
   PaymentProvider,
@@ -212,6 +213,9 @@ export class CasePaymentsService {
     @Optional() private readonly chatSystem?: ChatSystemMessages,
     // Owner 2026-10-05 (plan builder): the plan term `platform_payments`.
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-05 (anti-fraud): the trust gate — holds, suspension
+    // and the owner's requirements close payments to an attorney.
+    @Optional() private readonly trust?: AttorneyTrustService,
   ) {}
 
   // ---- settings -------------------------------------------------------------
@@ -332,6 +336,14 @@ export class CasePaymentsService {
     return this.entitlements.has(attorneyId, 'platform_payments');
   }
 
+  /** The anti-fraud gate: `false` while the attorney is on hold,
+   * suspended, or has not met the owner's enabled requirements. */
+  async trustOpen(attorneyId: string): Promise<boolean> {
+    if (!attorneyId) return false;
+    if (!this.trust) return true;
+    return (await this.trust.paymentsGate(attorneyId)).ok;
+  }
+
   // ---- payout account (attorney) ---------------------------------------------
 
   async payoutAccount(user: RequestUser): Promise<PayoutAccountDto> {
@@ -344,6 +356,14 @@ export class CasePaymentsService {
       row && row.status !== 'active' && this.provider?.retrieveConnectAccount
         ? await this.syncAccount(row.stripe_account_id).catch(() => row)
         : row;
+    // The trust state may have changed since Stripe last called (a
+    // verifier cleared the attorney): refresh the payout delay here too.
+    if (fresh && fresh.status === 'active') {
+      await this.syncPayoutDelay(user.sub, fresh.stripe_account_id).catch(
+        (e: Error) =>
+          this.logger.warn(`payout delay sync failed: ${e.message}`),
+      );
+    }
     return this.presentPayoutAccount(
       fresh,
       await this.enabled(),
@@ -443,7 +463,57 @@ export class CasePaymentsService {
     if (status !== row.status && status !== 'onboarding') {
       await this.notify(row.user_id, 'payout_account_status', { status });
     }
+    await this.syncTrust(row.user_id, accountId, remote);
     return updated;
+  }
+
+  /** Owner 2026-10-05 (anti-fraud): tell the trust service who stands
+   * behind the Stripe account (legal name / company representative), then
+   * ask Stripe for the payout delay the attorney's trust state calls for.
+   * Never fails the account sync. */
+  private async syncTrust(
+    attorneyId: string,
+    accountId: string,
+    remote: ProviderConnectAccount,
+  ): Promise<void> {
+    if (!this.trust) return;
+    try {
+      await this.trust.onStripeAccount(attorneyId, {
+        chargesEnabled: remote.chargesEnabled,
+        detailsSubmitted: remote.detailsSubmitted,
+        businessType: remote.businessType,
+        legalFirstName: remote.legalFirstName,
+        legalLastName: remote.legalLastName,
+        companyName: remote.companyName,
+        companyUrl: remote.companyUrl,
+        people: remote.people,
+      });
+      await this.syncPayoutDelay(attorneyId, accountId);
+    } catch (e) {
+      this.logger.warn(
+        `trust sync for ${accountId} failed: ${(e as Error).message}`,
+      );
+    }
+  }
+
+  /** Applies the trust service's payout delay to the connected account
+   * when it differs from what Stripe was last told. */
+  async syncPayoutDelay(attorneyId: string, accountId: string): Promise<void> {
+    if (!this.trust || !this.provider?.updateConnectPayoutDelay) return;
+    const desired = await this.trust.desiredPayoutDelayDays(attorneyId);
+    const synced = await this.prisma.attorneyTrust.findUnique({
+      where: { attorney_id: attorneyId },
+      select: { payout_delay_days: true, payout_delay_synced_at: true },
+    });
+    const current = synced?.payout_delay_synced_at
+      ? synced.payout_delay_days
+      : undefined;
+    // Nothing to do: Stripe already has it, or the default was never changed.
+    if (current === desired || (current === undefined && desired === null)) {
+      return;
+    }
+    await this.provider.updateConnectPayoutDelay(accountId, desired);
+    await this.trust.markPayoutDelaySynced(attorneyId, desired);
   }
 
   // ---- case payments -----------------------------------------------------------
@@ -487,16 +557,25 @@ export class CasePaymentsService {
     const refundedCents = rows.reduce((sum, r) => sum + r.refunded_cents, 0);
     const remainingCents =
       bidAmountCents === null ? null : Math.max(0, bidAmountCents - paidCents);
-    const entitled = await this.attorneyEntitled(attorneyId ?? '');
+    const [entitled, trusted] = await Promise.all([
+      this.attorneyEntitled(attorneyId ?? ''),
+      this.trustOpen(attorneyId ?? ''),
+    ]);
     const payable = PAYABLE_CASE_STATUSES.has(kase.status);
     const canPay =
-      enabled && side === 'client' && attorneyReady && payable && entitled;
+      enabled &&
+      side === 'client' &&
+      attorneyReady &&
+      payable &&
+      entitled &&
+      trusted;
     const canRequest =
       enabled &&
       side === 'attorney' &&
       attorneyReady &&
       payable &&
       entitled &&
+      trusted &&
       s.allowInvoices;
     const requests = await this.prisma.paymentRequest.findMany({
       where: { case_id: caseId },
@@ -551,6 +630,7 @@ export class CasePaymentsService {
       });
     }
     if (!(await this.attorneyEntitled(attorneyId))) throw disabled();
+    await this.trust?.assertCanAcceptPayments(attorneyId);
     const account = await this.prisma.payoutAccount.findUnique({
       where: { user_id: attorneyId },
     });
@@ -1119,6 +1199,7 @@ export class CasePaymentsService {
       });
     }
     if (!(await this.attorneyEntitled(attorneyId))) throw notEntitled();
+    await this.trust?.assertCanAcceptPayments(attorneyId);
     const s = await this.settings();
     if (!s.allowInvoices) throw disabled();
     const invalid = (message: string, field = 'items') =>

@@ -12,6 +12,11 @@ import {
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
+import {
+  BLOCK_SOURCE,
+  BarNumberBlocksService,
+} from '../../attorney-trust/bar-number-blocks.service';
 import { AuditLogService } from '../../admin-access/audit-log.service';
 import { BidStateMachine } from '../../bids/domain/bid-state-machine';
 import { CaseJournalService } from '../../journal/case-journal.service';
@@ -42,6 +47,7 @@ import {
   LICENSE_RECHECK_NOTE_PREFIX,
   OPEN_REQUEST_STATUSES,
   VERIFICATION_NOTIFICATION_KIND as KIND,
+  IDENTITY_DOC_TYPES,
 } from '../verification.constants';
 import { stateBarLookupUrl } from '../state-bar-links';
 import {
@@ -98,6 +104,8 @@ export class VerificationAdminService {
     private readonly rateLimit: RateLimitService,
     private readonly bidMachine: BidStateMachine,
     private readonly journal: CaseJournalService,
+    private readonly trust: AttorneyTrustService,
+    private readonly blocks: BarNumberBlocksService,
   ) {}
 
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
@@ -383,6 +391,11 @@ export class VerificationAdminService {
         },
         tx,
       );
+      await this.trust.recompute(
+        req.attorney_id,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
     });
     return this.card(requestId);
   }
@@ -443,6 +456,35 @@ export class VerificationAdminService {
         requestId: req.id,
         partial,
       });
+      // Owner 2026-10-05 (trust levels): a verifier who approved a request
+      // carrying an identity document and a selfie has checked the
+      // documents — identity confirmed by staff.
+      const docs = await tx.verificationDocument.findMany({
+        where: { request_id: req.id },
+        select: { doc_type: true },
+      });
+      const types = new Set<string>(docs.map((d) => d.doc_type));
+      const identity = IDENTITY_DOC_TYPES.some((t) => types.has(t));
+      const actor = { type: 'admin' as const, id: admin.id, ip: admin.ip };
+      if (identity && types.has('selfie')) {
+        await this.trust.confirmDocuments(
+          req.attorney_id,
+          actor,
+          `request ${req.id}`,
+          tx,
+        );
+      }
+      // Owner 2026-10-05 05:53: a verifier who approved the request by hand
+      // has vouched for the attorney — the same «Подтвердить» as in the
+      // anti-fraud queue: badge and payments open, no re-checks except
+      // complaints, and the decision (who, when, what they saw) is recorded.
+      // The attorney already got the `approved` notice.
+      await this.trust.clearByStaff(
+        req.attorney_id,
+        actor,
+        `request ${req.id}`,
+        { tx, notify: false },
+      );
     });
     return this.card(requestId);
   }
@@ -525,6 +567,11 @@ export class VerificationAdminService {
           data: { verification_status: 'unverified' },
         });
       }
+      await this.trust.recompute(
+        req.attorney_id,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       await this.audit.record(
         {
           adminId: admin.id,
@@ -546,6 +593,17 @@ export class VerificationAdminService {
         requestId: req.id,
         rejectionCode: dto.rejectionCode,
       });
+      // Owner 2026-10-05 07:00: the rejected bar numbers stay blocked for
+      // re-registration until staff unblock them (`trust.block_on_reject`).
+      if (await this.blocks.blockOnReject()) {
+        await this.blocks.blockAttorney(
+          req.attorney_id,
+          { type: 'admin', id: admin.id, ip: admin.ip },
+          dto.comment || `Verification rejected: ${dto.rejectionCode}`,
+          BLOCK_SOURCE.verificationReject,
+          tx,
+        );
+      }
     });
     return this.card(requestId);
   }
@@ -730,6 +788,10 @@ export class VerificationAdminService {
       after: { flag: null },
       ip: admin.ip,
     });
+    await this.trust.recompute(license.attorney_id, {
+      type: 'admin',
+      id: admin.id,
+    });
     return licenseDto(updated);
   }
 
@@ -908,6 +970,22 @@ export class VerificationAdminService {
         tx,
       );
       await this.notify(tx, attorneyId, { kind: KIND.suspended });
+      await this.trust.recompute(
+        attorneyId,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
+      // Owner 2026-10-05 07:00: a blocked account's bar numbers cannot be
+      // registered again under a new account (`trust.block_on_reject`).
+      if (await this.blocks.blockOnReject()) {
+        await this.blocks.blockAttorney(
+          attorneyId,
+          { type: 'admin', id: admin.id, ip: admin.ip },
+          reason,
+          BLOCK_SOURCE.suspend,
+          tx,
+        );
+      }
       return {
         attorneyId,
         verificationStatus: 'suspended',
@@ -977,6 +1055,11 @@ export class VerificationAdminService {
         tx,
       );
       await this.notify(tx, attorneyId, { kind: KIND.restored });
+      await this.trust.recompute(
+        attorneyId,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       return { attorneyId, verificationStatus: restored, withdrawnBids: 0 };
     }
   }

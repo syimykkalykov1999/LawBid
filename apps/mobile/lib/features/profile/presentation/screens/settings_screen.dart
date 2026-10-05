@@ -22,6 +22,7 @@ import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
@@ -91,6 +92,17 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.workspacePremiumOutlined,
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
+            ),
+          // Owner 2026-10-05: attorney trust levels — what LawBid checked,
+          // what raises the level, holds (docs/ATTORNEY_TRUST.md).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-trust'),
+              icon: AppIcons.verifiedUserOutlined,
+              label: t.t('trust.me.title'),
+              subtitle: t.t('trust.me.hint'),
+              onTap: () => context.push(TrustRoutes.me),
             ),
           // Owner 2026-10-01: assistants' access lives in Settings too —
           // the Team screen (seats, every access switch, removal).

@@ -51,6 +51,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
+  out['trust.payout_delay_days'] = {
+    ...out['trust.payout_delay_days'],
+    description:
+      'Stripe payout delay (days) for attorneys not yet cleared; 0 = Stripe default (2).',
+    min: 0,
+    max: 30,
+  };
+  out['trust.complaints_to_suspend'] = {
+    ...out['trust.complaints_to_suspend'],
+    min: 1,
+    max: 20,
+  };
+  out['trust.complaint_window_days'] = {
+    ...out['trust.complaint_window_days'],
+    min: 1,
+    max: 3650,
+  };
   out['billing.trial_days'] = {
     ...out['billing.trial_days'],
     description:

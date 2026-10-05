@@ -21,6 +21,8 @@ import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/assistant_activity_list.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
@@ -105,6 +107,11 @@ String? notificationRoute({
       }
       return postId == null ? null : SocialRoutes.post(postId);
     case 'verification_update':
+      // Owner 2026-10-05: trust level changes / holds open the attorney's
+      // own trust screen.
+      if (isTrustNotificationKind(s('kind'))) {
+        return attorney ? TrustRoutes.me : AppRoutes.verification;
+      }
       // Owner 2026-10-02: a client's gold badge request.
       return s('kind') == 'client_badge'
           ? AppRoutes.clientBadge
@@ -156,9 +163,34 @@ String? notificationRoute({
       return TeamRoutes.team;
     case 'assistant_task' || 'assistant_result':
       return AppRoutes.mine;
+    // Owner 2026-10-05: the planner — a reminder or a task given to me
+    // opens the planner; "removed soon" opens the archive.
+    case 'task_reminder' || 'task_assigned':
+      return AppRoutes.mine;
+    case 'task_purge_soon':
+      return TeamRoutes.tasksArchive;
   }
   return null;
 }
+
+/// `verification_update` payload kinds of the trust module (apps/api
+/// attorney-trust.constants.ts TRUST_NOTIFICATION_KIND).
+const trustNotificationKinds = <String>{
+  'trust_level_up',
+  'trust_payments_paused',
+  'trust_payments_resumed',
+  'trust_bids_paused',
+  'trust_hold_lifted',
+  'trust_documents_requested',
+  'trust_auto_suspended',
+  'trust_firm_link_required',
+  'trust_firm_link_confirmed',
+  'trust_cleared',
+  'trust_requirements_changed',
+};
+
+bool isTrustNotificationKind(String? kind) =>
+    kind != null && trustNotificationKinds.contains(kind);
 
 /// A payload flag; push data carries every value as a string.
 bool _flag(Object? v) => v == true || v == 'true';
@@ -181,6 +213,27 @@ String notificationText(Translator t, AppNotification n) {
                   ? 'notif.list.cbadge.rejected'
                   : 'notif.list.cbadge.off',
     );
+  }
+  // Owner 2026-10-05: attorney trust levels — `notif.verification.<kind>`.
+  if (n.type == 'verification_update') {
+    final kind = n.payload['kind'];
+    if (kind is String && isTrustNotificationKind(kind)) {
+      final base = t.t('notif.verification.$kind');
+      // Staff asked for documents: say which (template) and their note.
+      if (kind == 'trust_documents_requested') {
+        final template = n.payload['template'];
+        final note = n.payload['note'];
+        final hasNote = note is String && note.trim().isNotEmpty;
+        final detail = template == 'custom' && !hasNote
+            ? t.t('trust.docs.custom.noNote')
+            : t.t(
+                documentRequestTextKey(template is String ? template : null),
+                {'note': hasNote ? note.trim() : ''},
+              );
+        return '$base $detail';
+      }
+      return base;
+    }
   }
   if (n.type == 'review_received' && _flag(n.payload['reply'])) {
     return t.t(
@@ -209,6 +262,13 @@ String notificationText(Translator t, AppNotification n) {
       if (title is String) title,
       if (body is String) body,
     ].join(' — ');
+  }
+  // Owner 2026-10-05: "N finished tasks will be removed in D days".
+  if (n.type == 'task_purge_soon') {
+    return t.t('notif.list.task_purge_soon', {
+      'count': '${n.payload['count'] ?? ''}',
+      'days': '${n.payload['days'] ?? ''}',
+    });
   }
   // Audit 2026-10-02: a moderation notice shows the moderator's reason.
   if (n.type == 'moderation_notice') {
@@ -266,7 +326,9 @@ IconData _icon(AppNotification n) => switch (n.type) {
         AppIcons.scheduleRounded,
       'case_payment_disputed' => AppIcons.errorOutlineRounded,
       'payout_account_status' => AppIcons.accountBalanceOutlined,
-      'assistant_task' => AppIcons.eventNoteRounded,
+      'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
+      'task_reminder' => AppIcons.notificationsActiveOutlined,
+      'task_purge_soon' => AppIcons.inventory2Outlined,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       _ => switch (n.category) {
           NotifCategory.bids => AppIcons.gavelRounded,

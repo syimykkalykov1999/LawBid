@@ -327,6 +327,149 @@ class TaskFile {
   bool get isImage => mime?.startsWith('image/') ?? false;
 }
 
+/// Owner 2026-10-05: how urgent a task is (sorting, the card's mark).
+enum TaskPriority {
+  low,
+  normal,
+  high,
+  urgent;
+
+  String get wire => name;
+
+  static TaskPriority parse(String? raw) =>
+      values.firstWhere((p) => p.name == raw, orElse: () => normal);
+}
+
+/// Owner 2026-10-05: a repeating task — the next one appears when this one
+/// is finished.
+enum TaskRepeat {
+  none,
+  daily,
+  weekdays,
+  weekly,
+  monthly,
+  yearly;
+
+  String get wire => name;
+
+  static TaskRepeat parse(String? raw) =>
+      values.firstWhere((r) => r.name == raw, orElse: () => none);
+}
+
+/// Owner 2026-10-05: one address on a task — opens in Google / Apple Maps
+/// by a plain link (no maps API, nothing paid).
+@immutable
+class TaskPlace {
+  const TaskPlace({required this.address, this.id, this.label});
+
+  final String? id;
+  final String address;
+
+  /// What the place is ("Court", "Client's home").
+  final String? label;
+}
+
+/// Owner 2026-10-05: one person on a task — someone from the app (the
+/// chat opens) or an outside contact (call, write).
+@immutable
+class TaskPerson {
+  const TaskPerson({
+    required this.name,
+    this.id,
+    this.userId,
+    this.userRole,
+    this.avatarUrl,
+    this.role,
+    this.phone,
+    this.email,
+  });
+
+  final String? id;
+  final String? userId;
+
+  /// `attorney` / `client` / `assistant` for app people.
+  final String? userRole;
+  final String? avatarUrl;
+  final String name;
+
+  /// What the person is to the task ("Witness", "Judge").
+  final String? role;
+  final String? phone;
+  final String? email;
+
+  bool get inApp => userId != null;
+}
+
+/// Where a suggested person comes from (`GET /tasks/people`).
+enum TaskPersonSource { assistant, client, attorney, contact }
+
+/// A person the planner can add: the team, chats, contacts used before,
+/// attorneys found by name.
+@immutable
+class TaskPersonSuggestion {
+  const TaskPersonSuggestion({
+    required this.source,
+    required this.name,
+    this.userId,
+    this.membershipId,
+    this.avatarUrl,
+    this.role,
+    this.phone,
+    this.email,
+  });
+
+  final TaskPersonSource source;
+  final String name;
+  final String? userId;
+
+  /// An assistant of the team — the id a task is assigned with.
+  final String? membershipId;
+  final String? avatarUrl;
+  final String? role;
+  final String? phone;
+  final String? email;
+
+  TaskPerson toPerson() => TaskPerson(
+        name: name,
+        userId: userId,
+        userRole: switch (source) {
+          TaskPersonSource.assistant => 'assistant',
+          TaskPersonSource.client => 'client',
+          TaskPersonSource.attorney => 'attorney',
+          TaskPersonSource.contact => null,
+        },
+        avatarUrl: avatarUrl,
+        role: role,
+        phone: phone,
+        email: email,
+      );
+}
+
+/// An address used before in this planner (`GET /tasks/places`).
+@immutable
+class TaskPlaceSuggestion {
+  const TaskPlaceSuggestion({required this.address, this.label, this.uses = 1});
+
+  final String address;
+  final String? label;
+  final int uses;
+}
+
+/// Owner 2026-10-05: one action on many selected tasks.
+enum TaskBulkAction {
+  delete,
+  archive,
+  unarchive,
+  keep,
+  unkeep,
+  assign,
+  unassign,
+  status,
+  priority;
+
+  String get wire => name;
+}
+
 /// Owner 2026-10-01: one checklist step inside a task (5 calls, 6
 /// meetings, several addresses — one card, checked off step by step).
 @immutable
@@ -413,6 +556,21 @@ class TaskItem {
     this.canDelete = true,
     this.doneAt,
     this.steps = const [],
+    this.places = const [],
+    this.people = const [],
+    this.priority = TaskPriority.normal,
+    this.repeat = TaskRepeat.none,
+    this.repeatUntil,
+    this.remindBeforeMin,
+    this.assigneeMembershipId,
+    this.assigneeName,
+    this.assignedToMe = false,
+    this.conversationId,
+    this.archivedAt,
+    this.keepForever = false,
+    this.purgeAt,
+    this.canComplete = true,
+    this.canEdit = true,
   });
 
   final String id;
@@ -441,6 +599,80 @@ class TaskItem {
 
   /// Owner 2026-10-01: the checklist (empty = a single-step task).
   final List<TaskStep> steps;
+
+  /// Owner 2026-10-05: every address and every person of the task.
+  final List<TaskPlace> places;
+  final List<TaskPerson> people;
+  final TaskPriority priority;
+  final TaskRepeat repeat;
+  final DateTime? repeatUntil;
+
+  /// Reminder this many minutes before the time; null = none.
+  final int? remindBeforeMin;
+
+  /// The assistant the task is assigned to.
+  final String? assigneeMembershipId;
+  final String? assigneeName;
+  final bool assignedToMe;
+
+  /// The chat the task is about.
+  final String? conversationId;
+
+  /// In the archive since (finished tasks); null = in the planner.
+  final DateTime? archivedAt;
+
+  /// Never removed by the yearly archive cleanup.
+  final bool keepForever;
+
+  /// When the archive cleanup removes it (null = never).
+  final DateTime? purgeAt;
+
+  /// The viewer may check it off (the attorney, the assigned assistant).
+  final bool canComplete;
+
+  /// The viewer may edit it (the attorney, an assistant with the duty).
+  final bool canEdit;
+
+  bool get archived => archivedAt != null || !status.active;
+
+  /// The same task with another checklist (a checkmark set locally).
+  TaskItem withSteps(List<TaskStep> steps) => TaskItem(
+        id: id,
+        kind: kind,
+        title: title,
+        status: status,
+        createdAt: createdAt,
+        notes: notes,
+        dueAt: dueAt,
+        location: location,
+        caseId: caseId,
+        caseTitle: caseTitle,
+        contactName: contactName,
+        contactPhone: contactPhone,
+        contactEmail: contactEmail,
+        files: files,
+        outcomeNote: outcomeNote,
+        rescheduledTo: rescheduledTo,
+        createdByName: createdByName,
+        canDelete: canDelete,
+        doneAt: doneAt,
+        steps: steps,
+        places: places,
+        people: people,
+        priority: priority,
+        repeat: repeat,
+        repeatUntil: repeatUntil,
+        remindBeforeMin: remindBeforeMin,
+        assigneeMembershipId: assigneeMembershipId,
+        assigneeName: assigneeName,
+        assignedToMe: assignedToMe,
+        conversationId: conversationId,
+        archivedAt: archivedAt,
+        keepForever: keepForever,
+        purgeAt: purgeAt,
+        canComplete: canComplete,
+        canEdit: canEdit,
+      );
 
   int get checkedSteps => steps.where((s) => s.checked).length;
 
@@ -477,6 +709,15 @@ class TaskDraft {
     this.contactEmail,
     this.fileIds = const [],
     this.steps = const [],
+    this.places = const [],
+    this.people = const [],
+    this.priority = TaskPriority.normal,
+    this.repeat = TaskRepeat.none,
+    this.repeatUntil,
+    this.remindBeforeMin,
+    this.assigneeMembershipId,
+    this.conversationId,
+    this.keepForever = false,
   });
 
   final TaskKind kind;
@@ -490,6 +731,19 @@ class TaskDraft {
   final String? contactEmail;
   final List<String> fileIds;
   final List<TaskStepDraft> steps;
+
+  /// Owner 2026-10-05: the planner fields (lists replace the task's).
+  final List<TaskPlace> places;
+  final List<TaskPerson> people;
+  final TaskPriority priority;
+  final TaskRepeat repeat;
+  final DateTime? repeatUntil;
+
+  /// Null = no reminder.
+  final int? remindBeforeMin;
+  final String? assigneeMembershipId;
+  final String? conversationId;
+  final bool keepForever;
 }
 
 /// A bid an assistant prepared (`/cases/:id/bid-draft`).

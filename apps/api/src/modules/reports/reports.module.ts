@@ -32,6 +32,7 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -87,6 +88,7 @@ export class ReportsService {
     private readonly limits: UsageLimitsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly moderation: ModerationService,
+    private readonly trust: AttorneyTrustService,
   ) {}
 
   async create(userId: string, dto: CreateReportDto): Promise<void> {
@@ -121,6 +123,11 @@ export class ReportsService {
     });
     // docs/06 §3.3: the third distinct reporter hides the object.
     await this.moderation.autoHideIfThreshold(dto.targetType, dto.targetId);
+    // Owner 2026-10-05 (trust levels): a client's fraud / impersonation
+    // report on an attorney pauses their payments and bids for review.
+    if (dto.targetType === 'user') {
+      await this.trust.onComplaint(userId, dto.targetId, dto.reason);
+    }
   }
 }
 

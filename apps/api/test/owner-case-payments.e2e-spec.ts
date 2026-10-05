@@ -104,18 +104,43 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
 
   /** A verified attorney; [subscribed] = an active subscription, whose
    * default plan carries the `platform_payments` term (plan builder). */
-  async function attorney(subscribed = true) {
+  /** A verified attorney with an NJ license; [cleared] = a verifier
+   * vouched (anti-fraud trust gate open), as after «Подтвердить». */
+  async function attorney(subscribed = true, cleared = true) {
     const username = `att_${randomUUID().slice(0, 8)}`;
     const u = await prisma.user.create({
       data: {
         role: 'attorney',
         email: `${username}@lawbid-e2e.test`,
+        first_name: 'Kim',
+        last_name: 'Wexler',
         attorney_profile: {
           create: {
             username,
             username_lower: username,
             languages: ['en'],
             verification_status: 'verified',
+            trust_level: cleared ? 1 : 0,
+            trust_badge: cleared,
+            licenses: {
+              create: {
+                state_code: 'NJ',
+                bar_number: `P-${randomUUID().slice(0, 12)}`,
+                license_status: 'verified',
+                verified_at: new Date(),
+              },
+            },
+            ...(cleared
+              ? {
+                  trust: {
+                    create: {
+                      level: 1,
+                      staff_cleared_at: new Date(),
+                      staff_cleared_note: 'e2e fixture',
+                    },
+                  },
+                }
+              : {}),
           },
         },
         ...(subscribed
@@ -356,6 +381,78 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     const res = await pay(cli, c.id, { kind: 'bid' });
     expect(res.status).toBe(409);
     expect((res.body as Body).error?.code).toBe('PAYOUT_ACCOUNT_NOT_READY');
+  });
+
+  it('anti-fraud trust gate: not cleared → payouts delayed and no payments (TRUST_LEVEL_REQUIRED); cleared → open; a hold closes them (ATTORNEY_ON_HOLD); release reopens', async () => {
+    const att = await attorney(true, false);
+    const cli = await client();
+    const c = await caseInProgress(cli, att);
+    const accountId = await onboard(att);
+    // Stripe was told to hold the money (trust.payout_delay_days = 7).
+    expect(fake.payoutDelays.get(accountId)).toBe(7);
+    let state = await api()
+      .get(`/api/v1/cases/${c.id}/payments`)
+      .set(cli.auth)
+      .expect(200);
+    expect((state.body as Body).data).toMatchObject({
+      attorneyReady: true,
+      canPay: false,
+    });
+    let res = await pay(cli, c.id, { kind: 'bid' });
+    expect(res.status).toBe(403);
+    expect((res.body as Body).error?.code).toBe('TRUST_LEVEL_REQUIRED');
+    expect((res.body as Body).error?.details).toMatchObject({
+      gate: 'payments',
+    });
+
+    // A verifier vouches («Подтвердить»): payments open, the delay goes.
+    const verifier = await adminSession(baseUrl, prisma, 'verifier');
+    await api()
+      .post(`/api/v1/admin/trust/attorneys/${att.id}/clear`)
+      .set(verifier.auth)
+      .send({ note: 'Called the attorney; the account is hers' })
+      .expect(200);
+    await api().get('/api/v1/payout-account').set(att.auth).expect(200);
+    expect(fake.payoutDelays.get(accountId)).toBeNull();
+    state = await api()
+      .get(`/api/v1/cases/${c.id}/payments`)
+      .set(cli.auth)
+      .expect(200);
+    expect((state.body as Body).data).toMatchObject({ canPay: true });
+
+    // A hold (complaint under review) pauses payments; release reopens.
+    await api()
+      .post(`/api/v1/admin/trust/attorneys/${att.id}/hold`)
+      .set(verifier.auth)
+      .send({ payments: true, bids: false, note: 'Client complaint' })
+      .expect(200);
+    state = await api()
+      .get(`/api/v1/cases/${c.id}/payments`)
+      .set(cli.auth)
+      .expect(200);
+    expect((state.body as Body).data).toMatchObject({ canPay: false });
+    res = await pay(cli, c.id, { kind: 'bid' });
+    expect(res.status).toBe(403);
+    expect((res.body as Body).error?.code).toBe('ATTORNEY_ON_HOLD');
+    const invoice = await api()
+      .post(`/api/v1/cases/${c.id}/payment-requests`)
+      .set(att.auth)
+      .send({
+        description: 'Filing fee',
+        items: [{ amountCents: 10_000 }],
+      });
+    expect(invoice.status).toBe(403);
+    expect((invoice.body as Body).error?.code).toBe('ATTORNEY_ON_HOLD');
+    await api()
+      .post(`/api/v1/admin/trust/attorneys/${att.id}/release`)
+      .set(verifier.auth)
+      .send({ payments: true, bids: false, note: 'Reviewed: not fraud' })
+      .expect(200);
+    state = await api()
+      .get(`/api/v1/cases/${c.id}/payments`)
+      .set(cli.auth)
+      .expect(200);
+    expect((state.body as Body).data).toMatchObject({ canPay: true });
   });
 
   it('client pays the bid: money goes to the attorney, platform fee is the admin setting, both sides see it', async () => {

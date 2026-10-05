@@ -11,13 +11,18 @@ import '../models/assistant_me_envelope.dart';
 import '../models/assistant_request_envelope.dart';
 import '../models/assistant_request_list_envelope.dart';
 import '../models/assistant_request_status.dart';
+import '../models/bulk_tasks_dto.dart';
+import '../models/bulk_tasks_result_envelope.dart';
 import '../models/create_assistant_request_dto.dart';
 import '../models/create_task_dto.dart';
 import '../models/decide_request_dto.dart';
 import '../models/join_code_dto.dart';
 import '../models/task_envelope.dart';
 import '../models/task_list_envelope.dart';
+import '../models/task_person_suggestion_list_envelope.dart';
+import '../models/task_place_suggestion_list_envelope.dart';
 import '../models/task_step_input_dto.dart';
+import '../models/tasks_sort.dart';
 import '../models/tasks_view.dart';
 import '../models/team_envelope.dart';
 import '../models/update_assistant_dto.dart';
@@ -131,15 +136,56 @@ abstract class AssistantsClient {
 
   /// The attorney's tasks (calendar order).
   ///
+  /// [view] - `done` and `archive` both list the archive.
+  ///
+  /// [caseId] - Owner 2026-10-05: planner filters.
+  ///
+  /// [assignee] - An assistant membership id, `me` or `none`.
+  ///
+  /// [dueFrom] - Due from.
+  ///
+  /// [dueTo] - Due before.
+  ///
+  /// [overdue] - Only the ones past their time.
+  ///
+  /// [q] - Search the text.
+  ///
   /// [mine] - Assistant: only the tasks they set (their Results).
   ///
   /// [from] - From this day (YYYY-MM-DD).
   @GET('/tasks')
   Future<TaskListEnvelope> listTasks({
     @Query('view') TasksView? view,
+    @Query('caseId') String? caseId,
+    @Query('assignee') String? assignee,
+    @Query('dueFrom') DateTime? dueFrom,
+    @Query('dueTo') DateTime? dueTo,
+    @Query('overdue') bool? overdue,
+    @Query('q') String? q,
+    @Query('sort') TasksSort? sort,
     @Query('mine') bool? mine,
     @Query('from') DateTime? from,
     @Query('to') DateTime? to,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Addresses already used in this planner
+  @GET('/tasks/places')
+  Future<TaskPlaceSuggestionListEnvelope> taskPlaces({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// People to add to a task (team, chats, contacts, attorneys)
+  @GET('/tasks/people')
+  Future<TaskPersonSuggestionListEnvelope> taskPeople({
+    @Query('q') String? q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Many tasks at once: delete, archive, return, keep forever, assign, status, priority
+  @POST('/tasks/bulk')
+  Future<BulkTasksResultEnvelope> bulkTasks({
+    @Body() required BulkTasksDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

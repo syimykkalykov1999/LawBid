@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-125 tables.
+131 tables.
 
 ```mermaid
 erDiagram
@@ -215,6 +215,8 @@ erDiagram
     DateTime updated_at
     Boolean new_case_alerts_custom
     Int assistant_seat_limit "nullable"
+    Int trust_level
+    Boolean trust_badge
   }
   attorney_licenses {
     String id PK
@@ -874,21 +876,48 @@ erDiagram
     String id PK
     String attorney_id FK
     String created_by_membership_id FK "nullable"
+    String assignee_membership_id FK "nullable"
     enum_AttorneyTaskKind kind
     String title
     String notes "nullable"
     DateTime due_at "nullable"
-    String location "nullable"
     String case_id FK "nullable"
-    String contact_name "nullable"
-    String contact_phone "nullable"
-    String contact_email "nullable"
+    String conversation_id "nullable"
     enum_AttorneyTaskStatus status
+    enum_AttorneyTaskPriority priority
+    enum_AttorneyTaskRepeat repeat
+    DateTime repeat_until "nullable"
+    DateTime repeated_at "nullable"
+    Int remind_before_min "nullable"
+    DateTime remind_at "nullable"
+    DateTime reminded_at "nullable"
     String outcome_note "nullable"
     DateTime rescheduled_to "nullable"
     DateTime done_at "nullable"
+    DateTime archived_at "nullable"
+    Boolean keep_forever
+    Int purge_notice_days "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  attorney_task_places {
+    String id PK
+    String task_id FK
+    Int position
+    String label "nullable"
+    String address
+    DateTime created_at
+  }
+  attorney_task_people {
+    String id PK
+    String task_id FK
+    Int position
+    String user_id FK "nullable"
+    String role "nullable"
+    String name
+    String phone "nullable"
+    String email "nullable"
+    DateTime created_at
   }
   attorney_task_steps {
     String id PK
@@ -989,6 +1018,90 @@ erDiagram
     String updated_by "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  attorney_trust {
+    String attorney_id PK,FK
+    Int level
+    DateTime license_confirmed_at "nullable"
+    String license_confirmed_by "nullable"
+    String license_confirmed_note "nullable"
+    DateTime documents_verified_at "nullable"
+    String documents_verified_by "nullable"
+    DateTime stripe_kyc_at "nullable"
+    Boolean stripe_charges_enabled
+    String stripe_legal_name "nullable"
+    String stripe_business_type "nullable"
+    String stripe_company_name "nullable"
+    String stripe_company_domain "nullable"
+    String stripe_representative "nullable"
+    String name_check
+    DateTime name_checked_at "nullable"
+    String firm_link_status
+    String firm_link_source "nullable"
+    DateTime firm_link_at "nullable"
+    String firm_link_note "nullable"
+    String firm_email_domain "nullable"
+    DateTime firm_email_verified_at "nullable"
+    DateTime staff_cleared_at "nullable"
+    String staff_cleared_by "nullable"
+    String staff_cleared_note "nullable"
+    DateTime documents_requested_at "nullable"
+    String documents_requested_template "nullable"
+    String payments_hold "nullable"
+    DateTime payments_hold_at "nullable"
+    String bids_hold "nullable"
+    DateTime bids_hold_at "nullable"
+    String hold_note "nullable"
+    Int complaints_total
+    Int duplicate_claims
+    Int payout_delay_days "nullable"
+    DateTime payout_delay_synced_at "nullable"
+    DateTime computed_at
+    DateTime created_at
+    DateTime updated_at
+  }
+  attorney_trust_events {
+    String id PK
+    String attorney_id FK
+    String kind
+    Int from_level "nullable"
+    Int to_level "nullable"
+    String actor_type
+    String actor_id "nullable"
+    Json details
+    DateTime created_at
+  }
+  bar_number_blocks {
+    String id PK
+    String state_code
+    String bar_number
+    String bar_key
+    Boolean active
+    String reason
+    String source
+    String attorney_id "nullable"
+    String blocked_by "nullable"
+    DateTime blocked_at
+    Boolean block_contacts
+    String email_lower "nullable"
+    String phone_e164 "nullable"
+    DateTime unblocked_at "nullable"
+    String unblocked_by "nullable"
+    String unblock_reason "nullable"
+    Int attempts
+    DateTime last_attempt_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  bar_number_block_events {
+    String id PK
+    String block_id FK
+    String kind
+    String actor_type
+    String actor_id "nullable"
+    String reason "nullable"
+    Json details
+    DateTime created_at
   }
   integration_custom_providers {
     String id PK
@@ -1694,7 +1807,11 @@ erDiagram
   assistant_requests }o--|| assistant_memberships : "membership_id"
   attorney_tasks }o--|| users : "attorney_id"
   attorney_tasks }o--o| assistant_memberships : "created_by_membership_id"
+  attorney_tasks }o--o| assistant_memberships : "assignee_membership_id"
   attorney_tasks }o--o| cases : "case_id"
+  attorney_task_places }o--|| attorney_tasks : "task_id"
+  attorney_task_people }o--|| attorney_tasks : "task_id"
+  attorney_task_people }o--o| users : "user_id"
   attorney_task_steps }o--|| attorney_tasks : "task_id"
   bid_drafts }o--|| users : "attorney_id"
   bid_drafts }o--|| cases : "case_id"
@@ -1705,6 +1822,9 @@ erDiagram
   assistant_liability_acceptances }o--|| assistant_memberships : "membership_id"
   integration_credentials }o--o| users : "created_by"
   state_bar_registries |o--|| states : "state_code"
+  attorney_trust |o--|| attorney_profiles : "attorney_id"
+  attorney_trust_events }o--|| attorney_profiles : "attorney_id"
+  bar_number_block_events }o--|| bar_number_blocks : "block_id"
   video_assets }o--|| users : "owner_user_id"
   partner_commissions }o--|| partners : "partner_id"
   outreach_leads }o--o| partners : "partner_id"

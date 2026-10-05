@@ -17,7 +17,7 @@ export type AdminRole =
 export const ROLE_LABEL: Record<AdminRole, string> = {
   super_admin: 'Супер-админ',
   moderator: 'Модератор',
-  verifier: 'Верификатор',
+  verifier: 'Проверка',
   support: 'Поддержка',
   finance: 'Финансы',
 };
@@ -29,7 +29,7 @@ export type Permissions = Partial<Record<string, AccessLevel>>;
 export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: string }[] = [
   { key: 'dashboard', label: 'Дашборд', hint: 'цифры и очереди (без денег)' },
   { key: 'users', label: 'Пользователи', hint: 'поиск, карточки; управление = санкции' },
-  { key: 'verification', label: 'Верификация', hint: 'лицензии адвокатов и галочки клиентов' },
+  { key: 'verification', label: 'Верификация и проверка', hint: 'лицензии адвокатов, борьба с мошенниками (очередь проверки), галочки клиентов' },
   { key: 'moderation', label: 'Жалобы и обжалования', hint: 'очередь модерации' },
   { key: 'content', label: 'Посты и отзывы', hint: 'публикации, комментарии, отзывы, квалификации' },
   { key: 'media', label: 'Рилсы и стикеры', hint: 'видео и наборы стикеров' },
@@ -88,7 +88,7 @@ export function covers(outer: Permissions, inner: Permissions): boolean {
 }
 
 /** Sidebar badge sources (see shell/use-nav-counts). */
-export type CountKey = 'verification' | 'reports' | 'support' | 'appeals';
+export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust';
 
 /** An area key, `everyone` for the personal workspace, `super` for
  * sections only the super admin opens,
@@ -146,6 +146,7 @@ export const GROUPS: readonly SectionGroup[] = [
     icon: 'seal-check',
     items: [
       { href: '/verification', label: 'Адвокаты', icon: 'seal-check', area: 'verification', count: 'verification', hint: 'лицензии и галочки адвокатов' },
+      { href: '/verification/trust', label: 'Борьба с мошенниками', icon: 'shield-check', area: 'verification', count: 'trust', hint: 'что требовать от адвокатов и очередь проверки' },
       { href: '/client-badges', label: 'Клиенты', icon: 'shield-check', area: 'verification', hint: 'платная золотая галочка' },
     ],
   },

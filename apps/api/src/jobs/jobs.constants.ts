@@ -57,6 +57,10 @@ export const CRON_JOBS = {
   videosSweep: 'videos.sweep',
   /** Owner 2026-10-02: ended case promotions → finished; unpaid → canceled. */
   promotionsExpire: 'promotions.expire',
+  /** Owner 2026-10-05: planner reminders (push at a task's remind_at). */
+  taskReminders: 'tasks.reminders',
+  /** Owner 2026-10-05: archived tasks past the retention → removed. */
+  taskArchivePurge: 'tasks.archive-purge',
   /** Owner 2026-10-05: client → attorney checkouts never finished → canceled. */
   casePaymentsExpire: 'case-payments.expire',
   /** Owner 2026-10-05: payment-request reminders (due soon / overdue). */
@@ -69,6 +73,9 @@ export const CRON_JOBS = {
   supportSweep: 'support.sweep',
   /** Owner 2026-10-05: «Лучший сотрудник» of the finished period. */
   rewardsAward: 'rewards.award',
+  /** Owner 2026-10-05: nightly safety net — attorney trust levels follow
+   * the facts (registry flags, Stripe, decisions) even if a hook was missed. */
+  trustRecompute: 'trust.recompute',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -115,6 +122,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.reviewAppealsSweep, pattern: '40 * * * *' },
   { name: CRON_JOBS.videosSweep, pattern: '*/5 * * * *' },
   { name: CRON_JOBS.promotionsExpire, pattern: '2-57/5 * * * *' },
+  { name: CRON_JOBS.taskReminders, pattern: '* * * * *' },
+  // 16:20 UTC: notices arrive in the US daytime.
+  { name: CRON_JOBS.taskArchivePurge, pattern: '20 16 * * *' },
   { name: CRON_JOBS.casePaymentsExpire, pattern: '7-57/10 * * * *' },
   // 15:00 UTC ≈ 08:00 Pacific / 11:00 Eastern: a morning reminder.
   { name: CRON_JOBS.casePaymentsRemind, pattern: '0 15 * * *' },
@@ -122,6 +132,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.supportSweep, pattern: '1-56/5 * * * *' },
   // 14:30 UTC ≈ 07:30 Pacific: the day after a period ends.
   { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },
+  { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

@@ -50,6 +50,10 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { PlansCoreModule } from './modules/plans/plans.module';
 import { AppSettingsModule } from './common/app-settings/app-settings.module';
 import { VerificationModule } from './modules/verification/verification.module';
+import {
+  AttorneyTrustCoreModule,
+  AttorneyTrustModule,
+} from './modules/attorney-trust/attorney-trust.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -255,6 +259,10 @@ const isDev =
     // Global NotificationsService.emit() seam (delivery: docs/05).
     NotificationsModule,
     VerificationModule,
+    // Owner 2026-10-05: attorney trust levels (gates for bids, payments,
+    // the blue check).
+    AttorneyTrustCoreModule,
+    AttorneyTrustModule,
     FilesModule,
     ProfilesModule,
     ReviewsModule,

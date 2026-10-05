@@ -19,6 +19,7 @@ import {
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
@@ -87,6 +88,7 @@ export class BidsService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly caseAccess: CaseAccessPolicy,
     private readonly chat: ChatSystemMessages,
+    private readonly trust: AttorneyTrustService,
     // Owner 2026-10-05: the plan's terms (offers in any state, offer limit).
     @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
@@ -144,6 +146,9 @@ export class BidsService {
         message: 'An active subscription or trial is required to bid.',
       });
     }
+    // Owner 2026-10-05 (anti-fraud): the bid gate — `trust.bids_require_cleared`
+    // and no hold (a client's fraud complaint) / suspension.
+    await this.trust.assertCanBid(user.sub);
     // Owner 2026-10-05 (plan builder): the plan may cap open offers.
     const maxActive = await this.entitlements?.limit(
       user.sub,

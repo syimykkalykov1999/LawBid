@@ -130,6 +130,14 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.self_attestation_auto_approve': true,
 } as const;
 
+// Owner 2026-10-05: the planner's archive — finished tasks are kept this
+// many days (files with them), then removed automatically unless kept
+// forever; notices go out 30 and 7 days before. Off = never removed.
+export const OWNER_TASKS_SETTINGS = {
+  'tasks.archive_retention_days': 365,
+  'tasks.archive_auto_purge': true,
+} as const;
+
 // Future web client (a client form on lawbid.dev sharing this API): the
 // browser origins allowed to call the API cross-origin (CORS). Localhost
 // origins are added on top outside production (src/common/cors).
@@ -165,6 +173,63 @@ export const OWNER_INVITE_SETTINGS = {
 // admin (was a fixed 6). The yearly plan covers this many seats.
 export const OWNER_SEAT_SETTINGS = {
   'billing.max_assistant_seats': 10,
+} as const;
+
+// Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
+// level is computed (0 self-attested, 1 license confirmed, 2 identity
+// confirmed, 3 both); these say which level each gate needs and what
+// happens automatically. A hold (complaint, name mismatch) closes the
+// payment / bid gates whatever the level.
+export const OWNER_TRUST_SETTINGS = {
+  /** Owner 2026-10-05 06:07: the master switch. Off = the pre-trust mode:
+   * self-attested attorneys get the badge and payments at once, no holds,
+   * no queue. Everything below only counts while this is on. */
+  'trust.enabled': true,
+  /** Staff review on/off. Off = automatic checks only: the documents
+   * requirement is ignored and the queue is paused (kept, not lost). */
+  'trust.manual_review': true,
+  /** Owner 2026-10-05 («Борьба с мошенниками»): what an attorney must pass
+   * before the badge and in-app payments open. Each is a switch; whatever
+   * can be checked automatically is, the rest lands in the staff queue, and
+   * a staff "Подтвердить" clears everything at once (no re-checks after). */
+  /** The bar number matched the state registry (or staff confirmed it). */
+  'trust.require_registry': true,
+  /** Stripe KYC passed and the legal name (or the company's representative /
+   * owner) is the attorney, or the firm link is confirmed. */
+  'trust.require_identity': true,
+  /** Staff checked a government ID + selfie + bar card. */
+  'trust.require_documents': false,
+  /** Bids too wait for the requirements (default: bids are open to every
+   * self-attested attorney, only money and the badge wait). */
+  'trust.bids_require_cleared': false,
+  /** Stripe payout delay (days) asked for attorneys not yet cleared; 0 =
+   * Stripe's default. */
+  'trust.payout_delay_days': 7,
+  /** A client's fraud / impersonation report → payments and new bids are
+   * paused until a verifier looks. */
+  'trust.auto_hold_on_complaint': true,
+  /** Distinct clients reporting within the window → profile suspended. */
+  'trust.complaints_to_suspend': 2,
+  'trust.complaint_window_days': 90,
+  /** Stripe's legal name differs from the profile / registry name →
+   * payments paused and documents requested. */
+  'trust.auto_hold_on_name_mismatch': true,
+  /** Someone tries to register an already-registered bar number → the
+   * holder's license is flagged for a registry check. */
+  'trust.flag_duplicate_claims': true,
+  /** Stripe company account where the attorney is neither representative
+   * nor owner: the link to the firm counts automatically when the firm in
+   * the state registry equals the Stripe company name, or when the
+   * attorney confirms an e-mail on the firm's website domain. Off = a
+   * verifier checks a letter on the firm's letterhead. */
+  'trust.firm_link_auto_registry': true,
+  'trust.firm_link_auto_email': true,
+  /** Owner 2026-10-05 07:00: a staff «Отклонить» (and an admin suspension)
+   * blocks the attorney's bar numbers: they cannot register again under
+   * another name or account until staff unblock them. */
+  'trust.block_on_reject': true,
+  /** A block also refuses the e-mail and phone of the blocked account. */
+  'trust.block_contacts': false,
 } as const;
 
 // Owner 2026-10-05: the free trial length, set in Деньги → Цены (0 = no
@@ -236,10 +301,12 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
+  ...OWNER_TRUST_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,
   ...OWNER_TRANSLATE_SETTINGS,
