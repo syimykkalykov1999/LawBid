@@ -69,4 +69,6 @@ export const REASON_RU: Record<string, string> = {
   not_active: 'Лицензия в реестре не действует',
   provider_error: 'Реестр не ответил',
   no_adapter_for_state: 'У штата нет автопроверки',
+  // Owner 2026-10-05: trust levels — someone else registered this bar number.
+  duplicate_claim: 'Номер уже заявлен другим адвокатом',
 };

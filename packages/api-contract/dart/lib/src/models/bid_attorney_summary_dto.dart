@@ -17,6 +17,7 @@ class BidAttorneySummaryDto {
     required this.lastName,
     required this.avatarUrl256,
     required this.verifiedBadge,
+    required this.trustLevel,
     required this.licensedStates,
     required this.rating,
   });
@@ -34,6 +35,9 @@ class BidAttorneySummaryDto {
 
   /// Blue check (docs/03 §6.3).
   final bool verifiedBadge;
+
+  /// Owner 2026-10-05: trust level (what LawBid checked).
+  final int trustLevel;
 
   /// Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.
   final List<String> licensedStates;

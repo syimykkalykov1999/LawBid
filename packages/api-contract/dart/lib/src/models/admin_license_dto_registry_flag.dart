@@ -13,6 +13,8 @@ enum AdminLicenseDtoRegistryFlag {
   notFound('not_found'),
   @JsonValue('not_active')
   notActive('not_active'),
+  @JsonValue('duplicate_claim')
+  duplicateClaim('duplicate_claim'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

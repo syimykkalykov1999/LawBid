@@ -8,9 +8,9 @@ part of 'admin_partner_pay_dto.dart';
 
 AdminPartnerPayDto _$AdminPartnerPayDtoFromJson(Map<String, dynamic> json) =>
     AdminPartnerPayDto(
-      reason: json['reason'] as String,
       payoutRef: json['payoutRef'] as String?,
       period: json['period'] as String?,
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$AdminPartnerPayDtoToJson(AdminPartnerPayDto instance) =>

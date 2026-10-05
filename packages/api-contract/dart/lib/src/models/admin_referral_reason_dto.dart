@@ -8,7 +8,7 @@ part 'admin_referral_reason_dto.g.dart';
 
 @JsonSerializable()
 class AdminReferralReasonDto {
-  const AdminReferralReasonDto({required this.reason});
+  const AdminReferralReasonDto({this.reason = ''});
 
   factory AdminReferralReasonDto.fromJson(Map<String, Object?> json) =>
       _$AdminReferralReasonDtoFromJson(json);

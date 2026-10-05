@@ -31,9 +31,31 @@ export class StripeWebhookController {
     @Req() req: Request & { rawBody?: Buffer },
     @Headers('stripe-signature') signature?: string,
   ): Promise<{ received: true; queued: boolean }> {
+    return this.receive(req, signature, false);
+  }
+
+  /** Owner 2026-10-05: the Connect endpoint (events of attorneys'
+   * connected accounts: onboarding, client payments, disputes). Stripe
+   * signs it with its own secret. */
+  @Public()
+  @Post('stripe/connect')
+  @HttpCode(HttpStatus.OK)
+  @ApiExcludeEndpoint()
+  async stripeConnect(
+    @Req() req: Request & { rawBody?: Buffer },
+    @Headers('stripe-signature') signature?: string,
+  ): Promise<{ received: true; queued: boolean }> {
+    return this.receive(req, signature, true);
+  }
+
+  private async receive(
+    req: Request & { rawBody?: Buffer },
+    signature: string | undefined,
+    connect: boolean,
+  ): Promise<{ received: true; queued: boolean }> {
     const raw = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}));
     try {
-      const queued = await this.intake.receive(raw, signature);
+      const queued = await this.intake.receive(raw, signature, { connect });
       return { received: true, queued };
     } catch (e) {
       if (e instanceof WebhookSignatureError) {

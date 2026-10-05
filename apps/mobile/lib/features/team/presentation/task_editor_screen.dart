@@ -14,6 +14,7 @@ import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_kind_form.dart';
+import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 
@@ -22,9 +23,22 @@ import 'package:lawbid/features/team/presentation/task_widgets.dart';
 /// deadline, documents, print, visit, other), when, where, who, which
 /// case, details and documents.
 class TaskEditorScreen extends ConsumerStatefulWidget {
-  const TaskEditorScreen({this.initialKind, this.existing, super.key});
+  const TaskEditorScreen({
+    this.initialKind,
+    this.existing,
+    this.initialCase,
+    this.initialChat,
+    this.initialPeople = const [],
+    super.key,
+  });
 
   final TaskKind? initialKind;
+
+  /// Owner 2026-10-05: "+ Task" from a case / a chat — the task comes
+  /// already linked (and with the chat's person on it).
+  final ({String id, String title})? initialCase;
+  final ({String id, String title})? initialChat;
+  final List<TaskPerson> initialPeople;
 
   /// Owner 2026-10-01: edit this task (null = a new one).
   final TaskItem? existing;
@@ -43,19 +57,37 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   /// fields of the chosen kind open after a tap (editing: open at once).
   late bool _picked = widget.existing != null || widget.initialKind != null;
   late final _title = TextEditingController(text: widget.existing?.title);
-  late final _location = TextEditingController(text: widget.existing?.location);
-  late final _contactName =
-      TextEditingController(text: widget.existing?.contactName);
-  late final _contactPhone =
-      TextEditingController(text: widget.existing?.contactPhone);
-  late final _contactEmail =
-      TextEditingController(text: widget.existing?.contactEmail);
   late final _notes = TextEditingController(text: widget.existing?.notes);
   late DateTime? _due = widget.existing?.dueAt?.toLocal();
 
+  /// Owner 2026-10-05: every address and every person of the task.
+  late final List<TaskPlace> _places = [...?widget.existing?.places];
+  late final List<TaskPerson> _people = [
+    ...?widget.existing?.people,
+    if (widget.existing == null) ...widget.initialPeople,
+  ];
+  late TaskPriority _priority =
+      widget.existing?.priority ?? TaskPriority.normal;
+  late TaskRepeat _repeat = widget.existing?.repeat ?? TaskRepeat.none;
+  late DateTime? _repeatUntil = widget.existing?.repeatUntil?.toLocal();
+
+  /// Minutes before the time; a new task reminds at the time itself.
+  late int? _remind =
+      widget.existing == null ? 0 : widget.existing!.remindBeforeMin;
+  late ({String id, String name})? _assignee =
+      widget.existing?.assigneeMembershipId == null
+          ? null
+          : (
+              id: widget.existing!.assigneeMembershipId!,
+              name: widget.existing!.assigneeName ?? '',
+            );
+  late String? _chatId =
+      widget.existing?.conversationId ?? widget.initialChat?.id;
+  late final String? _chatTitle = widget.initialChat?.title;
+
   /// The linked case: the attorney's work in progress, a client's own.
   late ({String id, String title})? _case = widget.existing?.caseId == null
-      ? null
+      ? widget.initialCase
       : (
           id: widget.existing!.caseId!,
           title: widget.existing!.caseTitle ?? '',
@@ -76,10 +108,6 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   void dispose() {
     _scroll.dispose();
     _title.dispose();
-    _location.dispose();
-    _contactName.dispose();
-    _contactPhone.dispose();
-    _contactEmail.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -203,31 +231,30 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
       return;
     }
     if (_uploading > 0) return;
-    final form = TaskKindForm.of(_kind);
-    if (form.email &&
-        _contactEmail.text.trim().isNotEmpty &&
-        !_emailRe.hasMatch(_contactEmail.text.trim())) {
-      return;
-    }
-    final phone = form.phone ? normalizeTaskPhone(_contactPhone.text) : '';
-    if (phone == null) return;
     setState(() => _saving = true);
     try {
+      final timed = _due != null;
       final draft = TaskDraft(
         kind: _kind,
         title: _title.text.trim(),
         notes: _clean(_notes),
         dueAt: _due,
-        location: form.where != null ? _clean(_location) : null,
         caseId: _case?.id,
-        contactName: form.contact != null ? _clean(_contactName) : null,
-        contactPhone: phone.isEmpty ? null : phone,
-        contactEmail: form.email ? _clean(_contactEmail) : null,
         fileIds: [
           for (final f in _files)
             if (f.fileId != null) f.fileId!,
         ],
         steps: List.of(_steps),
+        places: List.of(_places),
+        people: List.of(_people),
+        priority: _priority,
+        // A repeat and a reminder need a time.
+        repeat: timed ? _repeat : TaskRepeat.none,
+        repeatUntil: timed && _repeat != TaskRepeat.none ? _repeatUntil : null,
+        remindBeforeMin: timed ? _remind : null,
+        assigneeMembershipId: _assignee?.id,
+        conversationId: _chatId,
+        keepForever: widget.existing?.keepForever ?? false,
       );
       final existing = widget.existing;
       if (existing == null) {
@@ -235,10 +262,8 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
       } else {
         await ref.read(teamRepositoryProvider).updateTask(existing.id, draft);
       }
-      ref.invalidate(tasksProvider((done: false, mine: false)));
-      // ignore: cascade_invocations
-      ref.invalidate(tasksProvider((done: false, mine: true)));
-      ref.invalidate(tasksProvider((done: true, mine: false)));
+      invalidateAllTasks(ref);
+      ref.invalidate(taskPlacesProvider);
       if (!mounted) return;
       // ignore: unawaited_futures
       HapticFeedback.mediumImpact();
@@ -252,14 +277,176 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
     }
   }
 
+  Future<void> _addPlace([int? index]) async {
+    FocusScope.of(context).unfocus();
+    final p = await showPlaceEditor(
+      context,
+      initial: index == null ? null : _places[index],
+      taken: {for (final x in _places) x.address.toLowerCase()},
+    );
+    if (p == null || !mounted) return;
+    setState(() => index == null ? _places.add(p) : _places[index] = p);
+  }
+
+  Future<void> _addPeople() async {
+    FocusScope.of(context).unfocus();
+    final picked = await showPeoplePicker(
+      context,
+      takenUserIds: {
+        for (final p in _people)
+          if (p.userId != null) p.userId!,
+      },
+    );
+    if (picked == null || picked.isEmpty || !mounted) return;
+    setState(() => _people.addAll(picked));
+  }
+
+  Future<void> _editPerson(int index) async {
+    final p = await showContactEditor(context, initial: _people[index]);
+    if (p != null && mounted) setState(() => _people[index] = p);
+  }
+
+  Future<void> _pickRemind(Translator t) async {
+    final i = await showChoiceSheet(
+      context,
+      title: t.t('tasks.remind.title'),
+      labels: [for (final m in taskRemindChoices) taskRemindLabel(t, m)],
+      selected: taskRemindChoices.indexOf(_remind),
+      keyPrefix: 'remind',
+    );
+    if (i != null && mounted) setState(() => _remind = taskRemindChoices[i]);
+  }
+
+  Future<void> _pickRepeat(Translator t) async {
+    final i = await showChoiceSheet(
+      context,
+      title: t.t('tasks.repeat.title'),
+      labels: [for (final r in TaskRepeat.values) taskRepeatLabel(t, r)],
+      selected: _repeat.index,
+      keyPrefix: 'repeat',
+    );
+    if (i != null && mounted) {
+      setState(() => _repeat = TaskRepeat.values[i]);
+    }
+  }
+
+  /// Owner 2026-10-05: who does it — the attorney or one of the team.
+  Future<void> _pickAssignee(Translator t) async {
+    final assistant = ref.read(isAssistantProvider);
+    final team = [
+      for (final s in await ref.read(taskPeopleProvider('').future))
+        if (s.source == TaskPersonSource.assistant && s.membershipId != null)
+          (id: s.membershipId!, name: s.name),
+    ];
+    if (!mounted) return;
+    final i = await showChoiceSheet(
+      context,
+      title: t.t('tasks.assignee.title'),
+      labels: [
+        t.t(assistant ? 'tasks.assignee.attorney' : 'tasks.assignee.me'),
+        for (final a in team) a.name,
+      ],
+      selected: _assignee == null
+          ? 0
+          : 1 + team.indexWhere((a) => a.id == _assignee!.id),
+      keyPrefix: 'assignee',
+    );
+    if (i == null || !mounted) return;
+    setState(() => _assignee = i == 0 ? null : team[i - 1]);
+  }
+
+  /// A section title with its "+ Add" on the right; the button never moves
+  /// or wraps, a long label shrinks into an ellipsis.
+  Widget _sectionHead(
+    String title,
+    String add,
+    TextStyle label,
+    Key key,
+    VoidCallback onAdd,
+  ) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: label,
+          ),
+        ),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 190),
+          child: TextButton.icon(
+            key: key,
+            onPressed: onAdd,
+            icon: AppIcon(AppIcons.addRounded, color: colors.goldDark),
+            label: Text(
+              add,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: colors.goldDark),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// The kind's own fields: what, when, where, who, case, details.
   List<Widget> _fields(Translator t, L10nFormats formats, TextStyle label) {
     final f = TaskKindForm.of(_kind);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final canAssign = ref.watch(canDoProvider(AssistantDuty.tasks)) &&
+        ref.watch(actsAsAttorneyProvider);
     String k(String key) => t.t('tasks.f.$key');
-    final phoneBad = _tried && normalizeTaskPhone(_contactPhone.text) == null;
-    final emailBad = _tried &&
-        _contactEmail.text.trim().isNotEmpty &&
-        !_emailRe.hasMatch(_contactEmail.text.trim());
+    final places = [
+      _sectionHead(
+        k(f.where ?? 'place'),
+        t.t('tasks.place.add'),
+        label,
+        const ValueKey('task-place-add'),
+        _addPlace,
+      ),
+      for (final (i, p) in _places.indexed)
+        _EditorItem(
+          key: ValueKey('task-place-$i'),
+          leading: AppIcon(AppIcons.placeOutlined, color: colors.goldDark),
+          title: p.label ?? p.address,
+          subtitle: p.label == null ? null : p.address,
+          removeLabel: t.t('common.delete'),
+          onTap: () => _addPlace(i),
+          onRemove: () => setState(() => _places.removeAt(i)),
+        ),
+      const SizedBox(height: AppSpacing.sm),
+    ];
+    final people = [
+      _sectionHead(
+        k(f.contact ?? 'people'),
+        t.t('tasks.people.addShort'),
+        label,
+        const ValueKey('task-person-add'),
+        _addPeople,
+      ),
+      for (final (i, p) in _people.indexed)
+        _EditorItem(
+          key: ValueKey('task-person-$i'),
+          leading: TaskPersonAvatar(name: p.name, avatarUrl: p.avatarUrl),
+          title: p.name,
+          subtitle: [
+            p.role,
+            if (p.inApp && p.role == null)
+              t.t('tasks.people.inApp.${p.userRole ?? 'attorney'}'),
+            p.phone,
+            p.email,
+          ].whereType<String>().where((x) => x.isNotEmpty).join(' · '),
+          removeLabel: t.t('common.delete'),
+          onTap: () => _editPerson(i),
+          onRemove: () => setState(() => _people.removeAt(i)),
+        ),
+      const SizedBox(height: AppSpacing.sm),
+    ];
     return [
       AppTextField(
         key: const ValueKey('task-title'),
@@ -278,80 +465,141 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
       const SizedBox(height: AppSpacing.sm),
       AppCard(
         padding: EdgeInsets.zero,
-        child: AppListRow(
-          key: const ValueKey('task-when'),
-          icon: AppIcons.eventOutlined,
-          label:
-              _due == null ? t.t('tasks.field.date') : formats.dateTime(_due!),
-          trailingText: _due == null ? null : '✕',
-          onTap: () async {
-            if (_due != null) {
-              setState(() => _due = null);
-              return;
-            }
-            final picked = await pickDateTime(context);
-            if (picked != null) setState(() => _due = picked);
-          },
+        child: Column(
+          children: [
+            AppListRow(
+              key: const ValueKey('task-when'),
+              icon: AppIcons.eventOutlined,
+              label: _due == null
+                  ? t.t('tasks.field.date')
+                  : formats.dateTime(_due!),
+              trailingText: _due == null ? null : '✕',
+              onTap: () async {
+                if (_due != null) {
+                  setState(() => _due = null);
+                  return;
+                }
+                final picked = await pickDateTime(context);
+                if (picked != null) setState(() => _due = picked);
+              },
+            ),
+            // Owner 2026-10-05: a reminder and a repeat need a time.
+            if (_due != null) ...[
+              AppListRow(
+                key: const ValueKey('task-remind'),
+                icon: _remind == null
+                    ? AppIcons.notificationsOffOutlined
+                    : AppIcons.notificationsActiveOutlined,
+                label: taskRemindLabel(t, _remind),
+                onTap: () => _pickRemind(t),
+              ),
+              AppListRow(
+                key: const ValueKey('task-repeat'),
+                icon: AppIcons.eventRepeatRounded,
+                label: taskRepeatLabel(t, _repeat),
+                onTap: () => _pickRepeat(t),
+              ),
+              if (_repeat != TaskRepeat.none)
+                AppListRow(
+                  key: const ValueKey('task-repeat-until'),
+                  icon: AppIcons.eventAvailableOutlined,
+                  label: _repeatUntil == null
+                      ? t.t('tasks.repeat.forever')
+                      : t.t('tasks.repeat.until', {
+                          'date': formats.dateLong(_repeatUntil!),
+                        }),
+                  trailingText: _repeatUntil == null ? null : '✕',
+                  onTap: () async {
+                    if (_repeatUntil != null) {
+                      setState(() => _repeatUntil = null);
+                      return;
+                    }
+                    final now = DateTime.now();
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: _due!.isAfter(now) ? _due! : now,
+                      firstDate: now,
+                      lastDate: DateTime(now.year + 10),
+                    );
+                    if (d != null && mounted) {
+                      setState(
+                        () => _repeatUntil =
+                            DateTime(d.year, d.month, d.day, 23, 59),
+                      );
+                    }
+                  },
+                ),
+            ],
+          ],
         ),
       ),
-      if (f.where != null) ...[
-        const SizedBox(height: AppSpacing.lg),
-        AppTextField(
-          key: const ValueKey('task-location'),
-          controller: _location,
-          label: k(f.where!),
-          leading: const AppIcon(AppIcons.placeOutlined),
-          maxLength: 300,
-        ),
-      ],
-      if (f.contact != null) ...[
-        const SizedBox(height: AppSpacing.md),
-        AppTextField(
-          key: const ValueKey('task-contact-name'),
-          controller: _contactName,
-          label: k(f.contact!),
-          leading: const AppIcon(AppIcons.personOutlineRounded),
-          textCapitalization: TextCapitalization.words,
-          maxLength: 120,
-        ),
-      ],
-      if (f.phone) ...[
-        const SizedBox(height: AppSpacing.sm),
-        AppTextField(
-          key: const ValueKey('task-contact-phone'),
-          controller: _contactPhone,
-          label: t.t('tasks.field.contactPhone'),
-          leading: const AppIcon(AppIcons.phoneOutlined),
-          errorText: phoneBad ? t.t('tasks.field.phoneInvalid') : null,
-          keyboardType: TextInputType.phone,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[+0-9 ()\-]')),
+      const SizedBox(height: AppSpacing.md),
+      // Owner 2026-10-05: how urgent — one row, the chips shrink their
+      // words instead of wrapping.
+      Text(t.t('tasks.priority.title'), style: label),
+      const SizedBox(height: AppSpacing.sm),
+      Row(
+        children: [
+          for (final (i, p) in TaskPriority.values.indexed) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: AppChip(
+                key: ValueKey('task-priority-${p.wire}'),
+                label: taskPriorityLabel(t, p),
+                fitLabel: true,
+                selected: _priority == p,
+                onTap: () => setState(() => _priority = p),
+              ),
+            ),
           ],
-          maxLength: 32,
-        ),
+        ],
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      // The kind decides what comes first: a visit — where, a call — who.
+      if (f.where != null || f.contact == null) ...[
+        ...places,
+        ...people,
+      ] else ...[
+        ...people,
+        ...places,
       ],
-      if (f.email) ...[
+      if (f.caseLink || canAssign || _chatId != null) ...[
         const SizedBox(height: AppSpacing.sm),
-        AppTextField(
-          key: const ValueKey('task-contact-email'),
-          controller: _contactEmail,
-          label: k('email'),
-          leading: const AppIcon(AppIcons.mailOutlineRounded),
-          keyboardType: TextInputType.emailAddress,
-          errorText: emailBad ? t.t('tasks.emailInvalid') : null,
-          maxLength: 254,
-        ),
-      ],
-      if (f.caseLink) ...[
-        const SizedBox(height: AppSpacing.md),
         AppCard(
           padding: EdgeInsets.zero,
-          child: AppListRow(
-            key: const ValueKey('task-case'),
-            icon: AppIcons.workOutlineRounded,
-            label: _case?.title ?? t.t('tasks.field.casePick'),
-            subtitle: _case == null ? null : t.t('tasks.field.case'),
-            onTap: _pickCase,
+          child: Column(
+            children: [
+              if (f.caseLink)
+                AppListRow(
+                  key: const ValueKey('task-case'),
+                  icon: AppIcons.workOutlineRounded,
+                  label: _case?.title ?? t.t('tasks.field.casePick'),
+                  subtitle: _case == null ? null : t.t('tasks.field.case'),
+                  onTap: _pickCase,
+                ),
+              if (_chatId != null)
+                AppListRow(
+                  key: const ValueKey('task-chat'),
+                  icon: AppIcons.chatBubbleOutlineRounded,
+                  label: _chatTitle ?? t.t('tasks.chat.linked'),
+                  subtitle: t.t('tasks.chat.title'),
+                  trailingText: '✕',
+                  onTap: () => setState(() => _chatId = null),
+                ),
+              if (canAssign)
+                AppListRow(
+                  key: const ValueKey('task-assignee'),
+                  icon: AppIcons.personAddAlt1Rounded,
+                  label: _assignee?.name ??
+                      t.t(
+                        ref.watch(isAssistantProvider)
+                            ? 'tasks.assignee.attorney'
+                            : 'tasks.assignee.me',
+                      ),
+                  subtitle: t.t('tasks.assignee.title'),
+                  onTap: () => _pickAssignee(t),
+                ),
+            ],
           ),
         ),
       ],
@@ -364,6 +612,11 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
         maxLength: 2000,
         textCapitalization: TextCapitalization.sentences,
       ),
+      if (_places.isEmpty && _people.isEmpty)
+        Text(
+          t.t('tasks.editor.tip'),
+          style: typography.caption.copyWith(color: colors.textSecondary),
+        ),
       const SizedBox(height: AppSpacing.md),
     ];
   }
@@ -613,6 +866,89 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   }
 }
 
+/// One address / person in the editor: tap edits, ✕ removes.
+class _EditorItem extends StatelessWidget {
+  const _EditorItem({
+    required this.leading,
+    required this.title,
+    required this.removeLabel,
+    required this.onTap,
+    required this.onRemove,
+    this.subtitle,
+    super.key,
+  });
+
+  final Widget leading;
+  final String title;
+  final String? subtitle;
+  final String removeLabel;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Material(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.field),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadii.field),
+          child: Container(
+            padding: const EdgeInsetsDirectional.only(
+              start: AppSpacing.md,
+              top: AppSpacing.xs,
+              bottom: AppSpacing.xs,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadii.field),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.body.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (subtitle?.isNotEmpty ?? false)
+                        Text(
+                          subtitle!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: typography.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                    ],
+                  ),
+                ),
+                AppIconButton(
+                  icon: const AppIcon(AppIcons.closeRounded),
+                  semanticLabel: removeLabel,
+                  onPressed: onRemove,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The chosen kind, collapsed to one line with "Change".
 class _PickedKind extends StatelessWidget {
   const _PickedKind({
@@ -738,8 +1074,6 @@ class _KindTile extends StatelessWidget {
     );
   }
 }
-
-final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
 /// Audit 2026-10-01: "312 555 0123" / "(312) 555-0123" / "1 312…" →
 /// +13125550123 (a US number); null when it isn't a phone number.

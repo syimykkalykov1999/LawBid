@@ -48,12 +48,12 @@ export class AdminStickerParamDto extends AdminMediaIdParamDto {
 }
 
 export class AdminMediaReasonDto {
-  @ApiProperty({ minLength: 10, maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 // --- videos (reels) -------------------------------------------------------------

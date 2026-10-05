@@ -196,6 +196,8 @@ export interface RegistryRecord {
   last: unknown;
   full: unknown;
   admitted: unknown;
+  /** Owner 2026-10-05 (trust levels): the firm / employer on record. */
+  firm?: unknown;
   raw: unknown;
 }
 
@@ -242,6 +244,7 @@ export function outcomeFor(
     str(record.full) ??
     ([str(record.first), str(record.last)].filter(Boolean).join(' ') || null);
   details.admittedAt = str(record.admitted);
+  details.firm = str(record.firm);
   details.raw = rawSnippet(record.raw);
   if (!active) {
     return { result: 'fail', details: { ...details, reason: 'not_active' } };

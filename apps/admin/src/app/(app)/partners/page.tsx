@@ -25,12 +25,14 @@ import {
   CLIENT_RULES,
   COMMISSION_STATUSES,
   downloadCommissionsCsv,
+  JOIN_MODES,
   PersonCell,
   RateFields,
   textToCents,
   UserPicker,
   type ClientRule,
   type CommissionStatus,
+  type JoinMode,
   type PartnerStatus,
   type Picked,
 } from "@/components/partners/shared";
@@ -47,9 +49,11 @@ import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { useMe } from "@/lib/hooks";
+import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
 import {
   CLIENT_RULE,
   COMMISSION_STATUS,
+  JOIN_MODE,
   PARTNER_STATUS,
   StatusPill,
   usd,
@@ -129,7 +133,7 @@ export default function PartnersPage() {
               icon={Handshake}
               title="Партнёров"
               value={stats.data.partners}
-              hint={`активных: ${stats.data.active}`}
+              hint={`активных: ${stats.data.active}${stats.data.pending > 0 ? ` · заявок: ${stats.data.pending}` : ""}`}
             />
             <Kpi
               i={1}
@@ -234,6 +238,7 @@ function PartnersList({
           onChange={setStatus}
           items={[
             { value: "all" as StatusTab, label: "Все" },
+            { value: "pending" as StatusTab, label: "Заявки" },
             { value: "active" as StatusTab, label: PARTNER_STATUS.active },
             { value: "paused" as StatusTab, label: PARTNER_STATUS.paused },
             { value: "ended" as StatusTab, label: PARTNER_STATUS.ended },
@@ -325,6 +330,9 @@ function PartnersList({
                   <Td>
                     <StatusPill map={PARTNER_STATUS} value={p.status} />
                     <div className="mt-1 text-xs text-faint">{formatDateTime(p.createdAt)}</div>
+                    {p.status === "pending" && canWrite ? (
+                      <JoinDecision id={p.id} />
+                    ) : null}
                   </Td>
                 </tr>
               ))
@@ -337,7 +345,56 @@ function PartnersList({
   );
 }
 
+/** Owner 2026-10-05: a self-enrolment request — approve (the link starts
+ * working, the person is told) or decline (ended; told as well). */
+function JoinDecision({ id }: { id: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const decide = useMutation({
+    mutationFn: async (status: "active" | "ended") =>
+      (
+        await api.PATCH("/admin/partners/{id}", {
+          params: { path: { id } },
+          body: {
+            status,
+            reason:
+              status === "active"
+                ? "Заявка на участие одобрена из админки"
+                : "Заявка на участие отклонена из админки",
+          },
+        })
+      ).data!.data,
+    onSuccess: (_, status) => {
+      toast.success(status === "active" ? "Партнёр подключён" : "Заявка отклонена");
+      void qc.invalidateQueries({ queryKey: ["partners"] });
+      void qc.invalidateQueries({ queryKey: ["partners-stats"] });
+    },
+    onError: (e) => toast.error(growthError(e)),
+  });
+  return (
+    <div className="mt-2 flex gap-1.5">
+      <Button
+        size="sm"
+        disabled={decide.isPending}
+        onClick={() => decide.mutate("active")}
+      >
+        Одобрить
+      </Button>
+      <Button
+        size="sm"
+        variant="danger-soft"
+        disabled={decide.isPending}
+        onClick={() => decide.mutate("ended")}
+      >
+        Отклонить
+      </Button>
+    </div>
+  );
+}
+
 function CreatePartnerCard({ onDone }: { onDone: () => void }) {
+  // Owner 2026-10-05: a reason only where «Обязательная причина» says so.
+  const reasonNeeded = useReasonRequired("money");
   const qc = useQueryClient();
   const toast = useToast();
   const settings = useQuery({
@@ -362,7 +419,7 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
     (rates.attorney === "" || textToCents(rates.attorney) !== null) &&
     (rates.client === "" || textToCents(rates.client) !== null) &&
     (rates.base === "" || textToCents(rates.base) !== null);
-  const valid = !!picked && codeOk && ratesOk && reason.trim().length >= 10;
+  const valid = !!picked && codeOk && ratesOk && (!reasonNeeded || reason.trim().length >= REASON_MIN);
 
   const create = useMutation({
     mutationFn: async () =>
@@ -428,7 +485,7 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
         <Field label="Заметка" htmlFor="np-note" hint="условия договорённости, контакты">
           <Textarea id="np-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
         </Field>
-        <Field label="Причина для журнала" htmlFor="np-reason" hint="не меньше 10 символов">
+        <Field label="Причина для журнала" htmlFor="np-reason" hint={reasonNeeded ? `не меньше ${REASON_MIN} символов` : "необязательно"}>
           <Textarea id="np-reason" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={300} />
         </Field>
       </div>
@@ -534,6 +591,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const qc = useQueryClient();
   const toast = useToast();
   const [enabled, setEnabled] = useState(initial.enabled);
+  const [joinMode, setJoinMode] = useState<JoinMode>(initial.joinMode ?? "open");
   const [attorney, setAttorney] = useState(centsToText(initial.attorneyRateCents));
   const [client, setClient] = useState(centsToText(initial.clientRateCents));
   const [rule, setRule] = useState<ClientRule>(initial.clientRule);
@@ -550,6 +608,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         await api.PUT("/admin/partners/settings", {
           body: {
             enabled,
+            joinMode,
             attorneyRateCents: attorneyCents ?? 0,
             clientRateCents: clientCents ?? 0,
             clientRule: rule,
@@ -608,6 +667,32 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           </p>
         </div>
         <Switch checked={enabled} onChange={setEnabled} disabled={!canEdit} label={enabled ? "Включена" : "Выключена"} />
+      </div>
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-4 rounded-[var(--radius-md)] border border-line-strong bg-surface-2 p-3">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-heading">Подключение из приложения</p>
+          <p className="mt-1 text-sm text-muted">
+            Адвокаты и клиенты видят раздел «Партнёрская программа» в настройках
+            и берут ссылку сами по ставкам по умолчанию. «По заявке» — заявка
+            ждёт одобрения здесь (вкладка «Заявки»), ссылка заработает после
+            него. «Только админ» — партнёров добавляете только вы; уже
+            подключённые продолжают работать.
+          </p>
+        </div>
+        <Field label="Режим" htmlFor="ps-join">
+          <Select
+            id="ps-join"
+            value={joinMode}
+            disabled={!canEdit || !enabled}
+            onChange={(e) => setJoinMode(e.target.value as JoinMode)}
+          >
+            {JOIN_MODES.map((m) => (
+              <option key={m} value={m}>
+                {JOIN_MODE[m]}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="За адвоката, $" htmlFor="ps-att" hint="первый оплаченный счёт подписки">

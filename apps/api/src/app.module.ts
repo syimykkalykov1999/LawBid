@@ -30,11 +30,14 @@ import { PresenceModule } from './modules/presence/presence.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
+import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { PartnersModule } from './modules/partners/partners.module';
+import { OutreachModule } from './modules/outreach/outreach.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
 import { NotificationsApiModule } from './modules/notifications/notifications-api.module';
@@ -47,6 +50,10 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { PlansCoreModule } from './modules/plans/plans.module';
 import { AppSettingsModule } from './common/app-settings/app-settings.module';
 import { VerificationModule } from './modules/verification/verification.module';
+import {
+  AttorneyTrustCoreModule,
+  AttorneyTrustModule,
+} from './modules/attorney-trust/attorney-trust.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -65,6 +72,7 @@ import { AdminContentModule } from './modules/admin-content/admin-content.module
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
+import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { SupportModule } from './modules/support/support.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
@@ -112,6 +120,16 @@ export const pinoHttpOptions: PinoHttpOptions = {
       // Device attestation blobs (DeviceAttestationGuard) — opaque,
       // large, and replayable within their validity window.
       'req.headers["x-device-attestation"]',
+      // Owner 2026-10-05: keys, passwords and tokens never reach the logs.
+      'req.body.values',
+      'req.body.password',
+      'req.body.currentPassword',
+      'req.body.newPassword',
+      'req.body.totp',
+      'req.body.token',
+      'req.body.secret',
+      'req.body.apiKey',
+      'req.headers["stripe-signature"]',
     ],
     censor: '[REDACTED]',
   },
@@ -180,6 +198,7 @@ const isDev =
     AdminMediaModule,
     DocumentTemplatesModule,
     AdminBillingModule,
+    AdminPayrollModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,
     AdminEmailTemplatesModule,
@@ -213,12 +232,16 @@ const isDev =
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,
     PartnersModule,
+    OutreachModule,
     PromotionsModule,
+    // Owner 2026-10-05: client → attorney payments via Stripe Connect.
+    CasePaymentsModule,
     ClientBadgeModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,
     RealtimeGatewayModule,
     ChatModule,
+    TranslationModule,
     CallsModule,
     MentionsModule,
     // docs/05 §9-§10 notifications REST, badges, push tokens.
@@ -231,6 +254,10 @@ const isDev =
     // Global NotificationsService.emit() seam (delivery: docs/05).
     NotificationsModule,
     VerificationModule,
+    // Owner 2026-10-05: attorney trust levels (gates for bids, payments,
+    // the blue check).
+    AttorneyTrustCoreModule,
+    AttorneyTrustModule,
     FilesModule,
     ProfilesModule,
     ReviewsModule,

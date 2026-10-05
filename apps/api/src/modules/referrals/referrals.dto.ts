@@ -330,12 +330,12 @@ export class AdminReferralStatsDto {
 }
 
 export class AdminReferralReasonDto {
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 }
 
 export class ReferralSettingsDto {
@@ -439,10 +439,10 @@ export class SetReferralCodeDto {
   })
   code!: string;
 
-  @ApiProperty({ minLength: 10, maxLength: 300 })
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @MinLength(10)
   @MaxLength(300)
-  reason!: string;
+  reason = '';
 }

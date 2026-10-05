@@ -24,6 +24,10 @@ export const ADMIN_AREAS = [
   'teams',
   'exports',
   'sanctions',
+  'outreach',
+  // Owner 2026-10-05: staff salaries (finance admin); the super admin and
+  // the deputy who manages admins always have it.
+  'payroll',
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number];
 
@@ -43,6 +47,13 @@ export type SuperOnlyArea = (typeof SUPER_ONLY_AREAS)[number];
 
 type RouteArea = AdminArea | SuperOnlyArea | 'auth' | 'unknown';
 
+/** Sections whose every view is written to the audit log (who looked at
+ * money). Exports are audited by the export endpoint itself. */
+export const VIEW_AUDITED_AREAS: ReadonlySet<RouteArea> = new Set([
+  'money',
+  'payroll',
+]);
+
 /** First path segment after `/admin/` → area. Unknown segments map to
  * `unknown`, which only the super admin reaches, so a new controller is
  * closed by default. */
@@ -52,6 +63,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   users: 'users',
   verification: 'verification',
   'client-badges': 'verification',
+  // Owner 2026-10-05: attorney trust levels.
+  trust: 'verification',
   moderation: 'moderation',
   'review-appeals': 'moderation',
   overview: 'content',
@@ -78,11 +91,14 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   promotions: 'money',
   referrals: 'money',
   partners: 'money',
+  'case-payments': 'money', // client → attorney payments (Stripe Connect)
   integrations: 'keys',
   admins: 'admins',
   'audit-log': 'audit',
   sessions: 'sessions',
   sanctions: 'sanctions',
+  outreach: 'outreach',
+  payroll: 'payroll',
 };
 
 /** `/api/v1/admin/users/123?x=1` → `users`; null when not an admin route. */
@@ -190,6 +206,13 @@ export function canAccess(
   // Admin management: only an admin the super admin gave that right; the
   // service narrows it further (what they may grant or touch).
   if (area === 'admins') return manageAdmins;
+  // Owner 2026-10-05: the trusted deputy (the admin who manages admins)
+  // reads every section — money, audit, sessions included — but never the
+  // keys, runs payroll alongside the super admin, and changes other
+  // sections only where a toggle says so.
+  if (manageAdmins && area === 'payroll') return true;
+  if (manageAdmins && area !== 'keys' && levelForMethod(method) === 'view')
+    return true;
   if (isSuperOnlyArea(area)) return false;
   return grants(perms, area, levelForMethod(method));
 }
@@ -211,7 +234,12 @@ export function defaultPermissionsForRole(role: AdminRole): AdminPermissions {
     case 'support':
       return { dashboard: 'view', support: 'manage', users: 'view' };
     case 'finance':
-      return { dashboard: 'view', support: 'view', users: 'view' };
+      return {
+        dashboard: 'view',
+        support: 'view',
+        users: 'view',
+        payroll: 'manage',
+      };
     default:
       return {};
   }

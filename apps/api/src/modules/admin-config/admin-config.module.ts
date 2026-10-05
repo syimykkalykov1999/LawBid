@@ -10,5 +10,8 @@ import { AdminConfigService } from './admin-config.service';
   imports: [AdminAccessModule, FeatureFlagsModule],
   controllers: [AdminConfigController],
   providers: [AdminConfigService],
+  // Owner 2026-10-05: the trust-levels page edits its `trust.*` keys
+  // through the same validated, audited path.
+  exports: [AdminConfigService],
 })
 export class AdminConfigModule {}

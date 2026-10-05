@@ -7,11 +7,14 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
+import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
+import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
@@ -19,6 +22,7 @@ import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
@@ -89,6 +93,17 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
             ),
+          // Owner 2026-10-05: attorney trust levels — what LawBid checked,
+          // what raises the level, holds (docs/ATTORNEY_TRUST.md).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-trust'),
+              icon: AppIcons.verifiedUserOutlined,
+              label: t.t('trust.me.title'),
+              subtitle: t.t('trust.me.hint'),
+              onTap: () => context.push(TrustRoutes.me),
+            ),
           // Owner 2026-10-01: assistants' access lives in Settings too —
           // the Team screen (seats, every access switch, removal).
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
@@ -99,6 +114,30 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('settings.assistants'),
               subtitle: t.t('settings.assistants.hint'),
               onTap: () => context.push(TeamRoutes.team),
+            ),
+          // Owner 2026-10-05: client → attorney payments through the
+          // platform (flag payments_in_app).
+          if (ref.watch(casePaymentsFlagProvider) &&
+              ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-payouts'),
+              icon: AppIcons.accountBalanceOutlined,
+              label: t.t('cpay.payout.title'),
+              subtitle: t.t('cpay.payout.hint'),
+              onTap: () => context.push(CasePaymentsRoutes.payoutAccount),
+            ),
+          if (ref.watch(casePaymentsFlagProvider))
+            AppListRow(
+              key: const ValueKey('settings-case-payments'),
+              icon: AppIcons.paymentsOutlined,
+              label: t.t('cpay.history.title'),
+              subtitle: t.t(
+                ref.watch(currentUserRoleProvider) == UserRole.attorney
+                    ? 'cpay.history.hintAttorney'
+                    : 'cpay.history.hint',
+              ),
+              onTap: () => context.push(CasePaymentsRoutes.history),
             ),
           // Owner 2026-10-02: clients can earn the gold badge (paid).
           if (ref.watch(currentUserRoleProvider) == UserRole.client)
@@ -127,13 +166,17 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('referral.hint'),
               onTap: () => context.push(AppRoutes.referral),
             ),
-          // Owner 2026-10-05: partner program (partners only).
-          if (ref.watch(partnerMeProvider).value?.isPartner ?? false)
+          // Owner 2026-10-05: partner program — partners and, while the
+          // owner allows self-enrolment, everyone who may join. Hidden when
+          // the program is switched off.
+          if (ref.watch(partnerMeProvider).value case final PartnerMe pm
+              when pm.enabled && (pm.isPartner || pm.canJoin))
             AppListRow(
               key: const ValueKey('settings-partner'),
               icon: AppIcons.handshakeOutlined,
               label: t.t('partner.title'),
-              subtitle: t.t('partner.hint'),
+              subtitle:
+                  t.t(pm.isPartner ? 'partner.hint' : 'partner.join.hint'),
               onTap: () => context.push(AppRoutes.partner),
             ),
           AppListRow(

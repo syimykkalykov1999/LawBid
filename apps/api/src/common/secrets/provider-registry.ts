@@ -111,9 +111,9 @@ export const PROVIDERS: ProviderDefinition[] = [
   },
   {
     id: 'google_translate',
-    label: 'Google Translate (chat translation)',
+    label: 'Google Translate',
     description:
-      'The "Translate" button under chat messages. Also turn on the chat_translate flag.',
+      'The "Translate" button in chats, the feed, cases and bids, reviews and profiles. Where it works is set on this card (all zones or chosen ones); the chat_translate flag turns it on.',
     fields: [
       {
         name: 'apiKey',
@@ -152,6 +152,16 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /^whsec_[A-Za-z0-9]{10,}$/,
         env: 'STRIPE_WEBHOOK_SECRET',
+      },
+      {
+        name: 'connectWebhookSecret',
+        // Owner 2026-10-05: client → attorney payments (Stripe Connect):
+        // the "Connect" webhook endpoint has its own signing secret.
+        label: 'Connect webhook signing secret (client → attorney payments)',
+        secret: true,
+        required: false,
+        pattern: /^whsec_[A-Za-z0-9]{10,}$/,
+        env: 'STRIPE_CONNECT_WEBHOOK_SECRET',
       },
       {
         name: 'priceId',

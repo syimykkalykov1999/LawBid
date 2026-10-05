@@ -46,6 +46,7 @@ import 'clients/document_templates_client.dart';
 import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
 import 'clients/billing_client.dart';
+import 'clients/admin_payroll_client.dart';
 import 'clients/support_client.dart';
 import 'clients/admin_support_client.dart';
 import 'clients/admin_email_templates_client.dart';
@@ -66,13 +67,19 @@ import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
 import 'clients/partners_client.dart';
 import 'clients/admin_partners_client.dart';
+import 'clients/admin_outreach_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
+import 'clients/case_payments_client.dart';
+import 'clients/admin_case_payments_client.dart';
 import 'clients/client_badge_client.dart';
 import 'clients/admin_client_badge_client.dart';
 import 'clients/chat_client.dart';
+import 'clients/translations_client.dart';
 import 'clients/calls_client.dart';
 import 'clients/notifications_client.dart';
+import 'clients/trust_client.dart';
+import 'clients/admin_trust_client.dart';
 import 'clients/reviews_client.dart';
 
 /// LawBid API `v0.1.0`.
@@ -128,6 +135,7 @@ class LawbidApi {
   AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
   BillingClient? _billing;
+  AdminPayrollClient? _adminPayroll;
   SupportClient? _support;
   AdminSupportClient? _adminSupport;
   AdminEmailTemplatesClient? _adminEmailTemplates;
@@ -148,13 +156,19 @@ class LawbidApi {
   AdminReferralsClient? _adminReferrals;
   PartnersClient? _partners;
   AdminPartnersClient? _adminPartners;
+  AdminOutreachClient? _adminOutreach;
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
+  CasePaymentsClient? _casePayments;
+  AdminCasePaymentsClient? _adminCasePayments;
   ClientBadgeClient? _clientBadge;
   AdminClientBadgeClient? _adminClientBadge;
   ChatClient? _chat;
+  TranslationsClient? _translations;
   CallsClient? _calls;
   NotificationsClient? _notifications;
+  TrustClient? _trust;
+  AdminTrustClient? _adminTrust;
   ReviewsClient? _reviews;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
@@ -275,6 +289,9 @@ class LawbidApi {
   BillingClient get billing =>
       _billing ??= BillingClient(_dio, baseUrl: _baseUrl);
 
+  AdminPayrollClient get adminPayroll =>
+      _adminPayroll ??= AdminPayrollClient(_dio, baseUrl: _baseUrl);
+
   SupportClient get support =>
       _support ??= SupportClient(_dio, baseUrl: _baseUrl);
 
@@ -332,11 +349,20 @@ class LawbidApi {
   AdminPartnersClient get adminPartners =>
       _adminPartners ??= AdminPartnersClient(_dio, baseUrl: _baseUrl);
 
+  AdminOutreachClient get adminOutreach =>
+      _adminOutreach ??= AdminOutreachClient(_dio, baseUrl: _baseUrl);
+
   PromotionsClient get promotions =>
       _promotions ??= PromotionsClient(_dio, baseUrl: _baseUrl);
 
   AdminPromotionsClient get adminPromotions =>
       _adminPromotions ??= AdminPromotionsClient(_dio, baseUrl: _baseUrl);
+
+  CasePaymentsClient get casePayments =>
+      _casePayments ??= CasePaymentsClient(_dio, baseUrl: _baseUrl);
+
+  AdminCasePaymentsClient get adminCasePayments =>
+      _adminCasePayments ??= AdminCasePaymentsClient(_dio, baseUrl: _baseUrl);
 
   ClientBadgeClient get clientBadge =>
       _clientBadge ??= ClientBadgeClient(_dio, baseUrl: _baseUrl);
@@ -346,10 +372,18 @@ class LawbidApi {
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
 
+  TranslationsClient get translations =>
+      _translations ??= TranslationsClient(_dio, baseUrl: _baseUrl);
+
   CallsClient get calls => _calls ??= CallsClient(_dio, baseUrl: _baseUrl);
 
   NotificationsClient get notifications =>
       _notifications ??= NotificationsClient(_dio, baseUrl: _baseUrl);
+
+  TrustClient get trust => _trust ??= TrustClient(_dio, baseUrl: _baseUrl);
+
+  AdminTrustClient get adminTrust =>
+      _adminTrust ??= AdminTrustClient(_dio, baseUrl: _baseUrl);
 
   ReviewsClient get reviews =>
       _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);

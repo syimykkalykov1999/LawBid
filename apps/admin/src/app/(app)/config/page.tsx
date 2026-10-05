@@ -29,6 +29,23 @@ const KEY_TEXT: Record<string, string> = {
   'verification.max_submissions_30d': 'Сколько заявок на верификацию адвокат может подать за 30 дней.',
   'verification.signed_url_ttl_sec': 'Сколько секунд живёт ссылка на документ верификации.',
   'verification.license_expiry_notify_days': 'За сколько дней напоминать об окончании лицензии.',
+  // Owner 2026-10-05: «Борьба с мошенниками» — what to require of an attorney; удобнее править в «Верификация → Борьба с мошенниками».
+  'trust.enabled': 'Главный выключатель защиты от мошенников. Выключено — адвокаты с присягой получают галочку и приём оплат сразу, холды ничего не закрывают, очередь пуста.',
+  'trust.manual_review': 'Ручная проверка сотрудниками. Выключено — только автоматические проверки: очередь на паузе (записи сохраняются), требование документов не действует.',
+  'trust.require_registry': 'Требовать, чтобы номер лицензии совпал с реестром штата (или подтвердил сотрудник) — для галочки и приёма денег.',
+  'trust.require_identity': 'Требовать Stripe KYC на самого адвоката (имя совпало) или подтверждённую связь с фирмой — для галочки и приёма денег.',
+  'trust.require_documents': 'Требовать проверку документов сотрудником (удостоверение, селфи, карточка адвоката) — для галочки и приёма денег.',
+  'trust.bids_require_cleared': 'Ставки и чат с клиентом тоже ждут, пока адвокат пройдёт требования; выключено — открыты сразу.',
+  'trust.payout_delay_days': 'Задержка выплат Stripe в днях, пока адвокат не подтверждён; 0 — стандартный график Stripe.',
+  'trust.auto_hold_on_complaint': 'Жалоба клиента «мошенничество» или «самозванец» сразу ставит холд на платежи и ставки и отправляет адвоката в очередь.',
+  'trust.complaints_to_suspend': 'Столько разных клиентов пожаловались за окно — профиль адвоката приостанавливается до разбора.',
+  'trust.complaint_window_days': 'Окно в днях, за которое считаются жалобы для автоприостановки.',
+  'trust.auto_hold_on_name_mismatch': 'Имя из Stripe KYC не совпало с профилем и реестром — платежи на холд, адвокат в очереди.',
+  'trust.flag_duplicate_claims': 'Кто-то регистрируется с уже занятым номером лицензии — владелец номера попадает в очередь на сверку с реестром.',
+  'trust.firm_link_auto_registry': 'Stripe-аккаунт компании: связь адвоката с фирмой засчитывается сама, если фирма в реестре штата совпала с названием компании в Stripe.',
+  'trust.firm_link_auto_email': 'Stripe-аккаунт компании: связь с фирмой засчитывается сама после подтверждения e-mail на домене сайта компании.',
+  'trust.block_on_reject': 'Отклонение или приостановка адвоката блокирует его номер лицензии: этот номер нельзя зарегистрировать снова под другим именем или новым аккаунтом (вкладка «Заблокированные номера»).',
+  'trust.block_contacts': 'Вместе с номером лицензии в блок-лист попадают e-mail и телефон отклонённого аккаунта — с них тоже не зарегистрироваться.',
   'profile.username_change_cooldown_days': 'Как часто можно менять @username (дней).',
   'profile.reserved_usernames': 'Запрещённые @username.',
   'review.edit_window_days': 'Сколько дней отзыв можно редактировать.',
@@ -46,6 +63,18 @@ const KEY_TEXT: Record<string, string> = {
   'media.video_frame_rate': 'Видео: кадров в секунду после сжатия (24–60)',
   'files.document_template_max_size_mb': 'Максимальный размер шаблона документа (PDF, Word), МБ.',
   'media.avatar_max_px': 'Фото профиля: длинная сторона после сжатия, px',
+  'translate.scope': 'Где работает переводчик: all = везде, zones = только в разделах ниже, где стоит true. Удобнее менять в «Ключи и сервисы» → Google Translate.',
+  'translate.chat': 'Перевод в чатах (при «только выбранные»).',
+  'translate.posts': 'Перевод постов и комментариев в ленте (при «только выбранные»).',
+  'translate.cases': 'Перевод описания кейса и текста ставки (при «только выбранные»).',
+  'translate.reviews': 'Перевод отзывов (при «только выбранные»).',
+  'translate.profiles': 'Перевод «О себе» в профиле адвоката (при «только выбранные»).',
+  'payroll.stripe_fee_percent':
+    'Зарплаты через Stripe: процент Stripe с каждой выплаты. Вычитается из выплаты сотрудника, не с вашего счёта.',
+  'payroll.stripe_fee_fixed_cents':
+    'Зарплаты через Stripe: фиксированная часть комиссии за выплату, в центах (25 = $0.25). Платит сотрудник.',
+  'payroll.stripe_monthly_fee_cents':
+    'Зарплаты через Stripe: плата Stripe за активный счёт в месяц, в центах (200 = $2). Вычитается из первой выплаты месяца.',
   'contacts.suspend_after_confirmed_reports': 'После скольких подтверждённых «Не могу связаться» клиент приостанавливается.',
   'rate_limit.post_create_per_day': 'Публикаций в день на пользователя.',
   'rate_limit.comment_per_hour': 'Комментариев в час.',
@@ -75,6 +104,9 @@ const KEY_TEXT: Record<string, string> = {
   'stickers.max_per_pack': 'Стикеров в наборе.',
   'stickers.max_installed': 'Установленных наборов на пользователя.',
   'stickers.recent_max': 'Сколько недавних стикеров помнить.',
+  'tasks.archive_retention_days':
+    'Сколько дней хранить выполненные задачи в архиве (вместе с файлами). За 30 и 7 дней до удаления владельцу приходит уведомление; задачи «Сохранить навсегда» не удаляются.',
+  'tasks.archive_auto_purge': 'Автоматически очищать архив задач по сроку (выключено — архив хранится всегда).',
   'sms.allowed_country_codes': 'Страны (ISO, 2 буквы), куда можно слать SMS-коды.',
   min_app_version_ios: 'Минимальная версия iOS-приложения; старее — обязательное обновление.',
   min_app_version_android: 'Минимальная версия Android-приложения; старее — обязательное обновление.',
@@ -86,8 +118,17 @@ function keyText(e: { key: string; description: string | null }): string | null 
   if (KEY_TEXT[e.key]) return KEY_TEXT[e.key];
   const budget = /^budget\.(\w+)\.(per_minute_max|daily_max|monthly_max)$/.exec(e.key);
   if (budget) {
-    const what: Record<string, string> = { sms: 'SMS', email: 'писем', id_check: 'проверок документов', storage: 'хранилища' };
-    const per: Record<string, string> = { per_minute_max: 'в минуту', daily_max: 'в день', monthly_max: 'в месяц' };
+    const what: Record<string, string> = {
+      sms: 'SMS',
+      email: 'писем',
+      id_check: 'проверок документов',
+      storage: 'хранилища',
+    };
+    const per: Record<string, string> = {
+      per_minute_max: 'в минуту',
+      daily_max: 'в день',
+      monthly_max: 'в месяц',
+    };
     return `Лимит расходов: ${what[budget[1]] ?? budget[1]} ${per[budget[2]]}; 0 — отключить.`;
   }
   return e.description;
@@ -152,7 +193,10 @@ export default function ConfigPage() {
   const save = useMutation({
     mutationFn: (v: { key: string; value: unknown }) =>
       // The contract types `value` as an opaque object; any JSON value is valid here.
-      api.PUT('/admin/config/{key}', { params: { path: { key: v.key } }, body: { value: v.value } as never }),
+      api.PUT('/admin/config/{key}', {
+        params: { path: { key: v.key } },
+        body: { value: v.value } as never,
+      }),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
       setDrafts((d) => {

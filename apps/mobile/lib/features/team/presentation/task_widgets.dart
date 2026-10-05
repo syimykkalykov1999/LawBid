@@ -94,8 +94,17 @@ class TaskRow extends StatelessWidget {
     this.onCheck,
     this.onStepCheck,
     this.onMarkTap,
+    this.onLongPress,
+    this.selected,
     super.key,
   });
+
+  /// Owner 2026-10-05: a long press starts choosing several tasks.
+  final VoidCallback? onLongPress;
+
+  /// Null = not choosing; true / false = picked or not (a gold ring and a
+  /// check on the card).
+  final bool? selected;
 
   /// The status mark is a button (owner 2026-10-01): done ⇄ open again, so
   /// a checkmark set by mistake can be taken back. Null = display only.
@@ -142,22 +151,40 @@ class TaskRow extends StatelessWidget {
             ],
           ),
         );
-    final contact = [task.contactName, task.contactPhone]
-        .whereType<String>()
-        .where((x) => x.isNotEmpty)
-        .join(' · ');
+    String more(int n) => n > 1 ? ' +${n - 1}' : '';
+    final place = task.places.isEmpty
+        ? null
+        : '${task.places.first.label ?? task.places.first.address}'
+            '${more(task.places.length)}';
+    final person = task.people.isEmpty
+        ? null
+        : '${[
+            task.people.first.name,
+            task.people.first.phone,
+          ].whereType<String>().where((x) => x.isNotEmpty).join(' · ')}'
+            '${more(task.people.length)}';
+    final picked = selected ?? false;
+    final urgent = task.priority == TaskPriority.high ||
+        task.priority == TaskPriority.urgent;
     return Semantics(
       container: true,
       button: true,
       label: '${taskKindLabel(t, task.kind)}. ${task.title}. '
           '${steps.isEmpty ? '' : '${task.checkedSteps}/${steps.length}. '}'
           '${taskStatusLabel(t, task.status)}',
+      selected: selected,
       child: GestureDetector(
         onDoubleTap: onCheck == null
             ? null
             : () {
                 HapticFeedback.mediumImpact();
                 onCheck!();
+              },
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                HapticFeedback.mediumImpact();
+                onLongPress!();
               },
         child: AppPressable(
           onTap: onTap,
@@ -173,9 +200,12 @@ class TaskRow extends StatelessWidget {
                 AppSpacing.md,
               ),
               decoration: BoxDecoration(
-                color: colors.surface,
+                color: picked ? colors.goldTint : colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.card),
-                border: Border.all(color: colors.border),
+                border: Border.all(
+                  color: picked ? colors.gold : colors.border,
+                  width: picked ? 1.6 : 1,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: colors.shadow,
@@ -189,7 +219,10 @@ class TaskRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      TaskKindMedallion(kind: task.kind),
+                      if (selected != null)
+                        _PickCircle(picked: picked)
+                      else
+                        TaskKindMedallion(kind: task.kind),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
@@ -205,9 +238,13 @@ class TaskRow extends StatelessWidget {
                                 letterSpacing: 1.1,
                               ),
                             ),
-                            if (overdue)
+                            if (overdue || urgent)
                               Text(
-                                t.t('tasks.overdue'),
+                                [
+                                  if (overdue) t.t('tasks.overdue'),
+                                  if (urgent)
+                                    t.t('tasks.priority.${task.priority.wire}'),
+                                ].join(' · '),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: typography.caption.copyWith(
@@ -218,6 +255,24 @@ class TaskRow extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (task.repeat != TaskRepeat.none)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 4),
+                          child: AppIcon(
+                            AppIcons.eventRepeatRounded,
+                            size: 16,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      if (task.keepForever)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 4),
+                          child: AppIcon(
+                            AppIcons.bookmarkRounded,
+                            size: 16,
+                            color: colors.goldDark,
+                          ),
+                        ),
                       if (due != null)
                         Text(
                           formats.time(due),
@@ -286,14 +341,10 @@ class TaskRow extends StatelessWidget {
                           ),
                         ),
                       ),
-                  ] else ...[
-                    if (task.location?.isNotEmpty ?? false)
-                      line(AppIcons.placeOutlined, task.location!),
-                    if (contact.isNotEmpty)
-                      line(AppIcons.personOutlineRounded, contact),
-                    if (task.contactEmail?.isNotEmpty ?? false)
-                      line(AppIcons.mailOutlineRounded, task.contactEmail!),
                   ],
+                  if (place != null) line(AppIcons.placeOutlined, place),
+                  if (person != null)
+                    line(AppIcons.personOutlineRounded, person),
                   if (task.caseTitle?.isNotEmpty ?? false)
                     line(AppIcons.workOutlineRounded, task.caseTitle!),
                   if (task.outcomeNote?.isNotEmpty ?? false) ...[
@@ -339,9 +390,18 @@ class TaskRow extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          task.createdByName == null
-                              ? t.t('tasks.byMe')
-                              : t.t('tasks.by', {'name': task.createdByName!}),
+                          task.assigneeName != null
+                              ? t.t('tasks.assignee.to', {
+                                  'name': task.assignedToMe
+                                      ? t.t('tasks.assignee.you')
+                                      : task.assigneeName!,
+                                })
+                              : task.createdByName == null
+                                  ? t.t('tasks.byMe')
+                                  : t.t(
+                                      'tasks.by',
+                                      {'name': task.createdByName!},
+                                    ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: typography.caption
@@ -380,6 +440,38 @@ class TaskRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A picked / not picked circle in place of the medallion while choosing.
+class _PickCircle extends StatelessWidget {
+  const _PickCircle({required this.picked});
+
+  final bool picked;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return AnimatedContainer(
+      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: picked ? colors.gold : Colors.transparent,
+        border: Border.all(
+          color: picked ? colors.gold : colors.goldDark.withValues(alpha: 0.7),
+          width: 1.8,
+        ),
+      ),
+      child: picked
+          ? const AppIcon(
+              AppIcons.checkRounded,
+              size: 22,
+              color: AppColorsLight.navy,
+            )
+          : null,
     );
   }
 }
@@ -445,7 +537,7 @@ class TaskProgress extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        Flexible(
+        AppTrailingCap(
           child: Text(
             label,
             maxLines: 1,

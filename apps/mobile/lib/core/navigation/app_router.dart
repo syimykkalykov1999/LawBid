@@ -11,6 +11,7 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart';
@@ -55,6 +56,7 @@ import 'package:lawbid/features/support/presentation/support_ticket_screen.dart'
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -381,10 +383,14 @@ GoRouter appRouter(Ref ref) {
       ...chatRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
       ...subscriptionRoutes(_rootNavigatorKey),
+      // Owner 2026-10-05: payouts, case payments, Stripe return pages.
+      ...casePaymentsRoutes(_rootNavigatorKey),
       // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
       ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.
       ...teamRoutes(_rootNavigatorKey),
+      // Owner 2026-10-05: the attorney's own trust level.
+      ...trustRoutes(_rootNavigatorKey),
     ],
   );
 }

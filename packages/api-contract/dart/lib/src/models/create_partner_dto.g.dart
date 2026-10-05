@@ -9,7 +9,7 @@ part of 'create_partner_dto.dart';
 CreatePartnerDto _$CreatePartnerDtoFromJson(Map<String, dynamic> json) =>
     CreatePartnerDto(
       userId: json['userId'] as String,
-      reason: json['reason'] as String,
+      reason: json['reason'] as String? ?? '',
       label: json['label'] as String?,
       note: json['note'] as String?,
       attorneyRateCents: (json['attorneyRateCents'] as num?)?.toInt(),

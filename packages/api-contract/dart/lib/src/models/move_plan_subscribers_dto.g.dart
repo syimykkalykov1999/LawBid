@@ -8,7 +8,7 @@ part of 'move_plan_subscribers_dto.dart';
 
 MovePlanSubscribersDto _$MovePlanSubscribersDtoFromJson(
   Map<String, dynamic> json,
-) => MovePlanSubscribersDto(reason: json['reason'] as String);
+) => MovePlanSubscribersDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$MovePlanSubscribersDtoToJson(
   MovePlanSubscribersDto instance,

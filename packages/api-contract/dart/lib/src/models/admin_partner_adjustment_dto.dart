@@ -11,7 +11,7 @@ class AdminPartnerAdjustmentDto {
   const AdminPartnerAdjustmentDto({
     required this.amountCents,
     required this.note,
-    required this.reason,
+    this.reason = '',
   });
 
   factory AdminPartnerAdjustmentDto.fromJson(Map<String, Object?> json) =>

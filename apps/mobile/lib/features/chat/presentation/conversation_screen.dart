@@ -20,6 +20,7 @@ import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart';
+import 'package:lawbid/features/case_payments/presentation/chat_payment_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
@@ -35,6 +36,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 
@@ -208,6 +210,34 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => ChatFilesScreen(conversationId: c.id),
+                    ),
+                  );
+                },
+              ),
+            // Owner 2026-10-05: a task about this chat — linked to it (and
+            // its case), with this person already on it.
+            if (ref.read(actsAsAttorneyProvider) &&
+                ref.read(canDoProvider(AssistantDuty.tasks)))
+              AppListRow(
+                key: const ValueKey('chat-new-task'),
+                icon: AppIcons.eventNoteOutlined,
+                label: t.t('tasks.fromChat'),
+                onTap: () {
+                  Navigator.of(sheet).pop();
+                  final name = c.counterpart.displayName ??
+                      (c.counterpart.username == null
+                          ? null
+                          : '@${c.counterpart.username}');
+                  context.push(
+                    TeamRoutes.newTaskFor(
+                      chatId: c.id,
+                      chatTitle: name,
+                      caseId: c.caseId,
+                      caseTitle: c.caseTitle,
+                      personId: c.counterpart.id,
+                      personName: name,
+                      personRole:
+                          c.counterpart.isAttorney ? 'attorney' : 'client',
                     ),
                   );
                 },
@@ -403,6 +433,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     )
                                   else if (!c.contactsUnlocked)
                                     const _MaskingHint(),
+                                  // Owner 2026-10-05: pay / invoice from
+                                  // the chat in two taps.
+                                  if (c.caseId != null && c.contactsUnlocked)
+                                    ChatPaymentBar(caseId: c.caseId!),
                                   _Composer(
                                     controller: _text,
                                     onSend: _send,
@@ -632,7 +666,7 @@ class _MessageList extends ConsumerWidget {
           children: [
             if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
             if (m.kind == MessageKind.system)
-              _SystemMessage(text: t.t('chat.system.${m.body}'))
+              _SystemMessage(text: systemLineText(t, m.body, formats: f))
             else if (m.kind == MessageKind.call && m.callLog != null)
               CallLogEntry(
                 message: m,

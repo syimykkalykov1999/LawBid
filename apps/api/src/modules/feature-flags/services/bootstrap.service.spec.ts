@@ -82,7 +82,17 @@ describe('BootstrapService.build', () => {
     const { service, prisma } = build();
     const result = await service.build();
 
-    expect(result.flags).toEqual({ apple_login: true, video_posts: false });
+    expect(result.flags).toEqual({
+      apple_login: true,
+      video_posts: false,
+      // Owner 2026-10-05: one flag per translation zone, off without the
+      // translator flag and the Google key.
+      chat_translate: false,
+      translate_posts: false,
+      translate_cases: false,
+      translate_reviews: false,
+      translate_profiles: false,
+    });
     expect(result.app_config).toEqual({ min_app_version_ios: '0.1.0' });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });

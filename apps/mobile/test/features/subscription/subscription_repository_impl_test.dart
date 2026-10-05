@@ -33,6 +33,7 @@ Map<String, dynamic> _me({Map<String, dynamic>? subscription}) => {
         'seatCents': 10000,
         'yearlyCents': 959000,
         'maxSeats': 6,
+        'trialDays': 7,
       },
       // Owner 2026-10-05 (plan builder): the plan, the plans for sale, the
       // entitlements and the seat summary come with the row.

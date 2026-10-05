@@ -171,6 +171,7 @@ describe('BidsService.create over an earlier bid row', () => {
         ),
       } as never,
       {} as never,
+      { assertCanBid: jest.fn(() => Promise.resolve()) } as never,
     );
     return { service, tx };
   }

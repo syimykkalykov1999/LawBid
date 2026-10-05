@@ -8,9 +8,9 @@ part of 'create_refund_dto.dart';
 
 CreateRefundDto _$CreateRefundDtoFromJson(Map<String, dynamic> json) =>
     CreateRefundDto(
-      reason: json['reason'] as String,
       paymentId: json['paymentId'] as String,
       amountCents: (json['amountCents'] as num).toInt(),
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$CreateRefundDtoToJson(CreateRefundDto instance) =>

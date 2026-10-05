@@ -31,7 +31,8 @@ const caseUrgencyRu = <String, String>{
   'cases.deadline.inDays.other': 'Через {count} дня',
   'cases.deadline.required': 'Выберите дату или другой вариант срочности',
   'cases.deadline.editTitle': 'Срочность и дата',
-  'cases.deadline.otherSideTold': 'Другая сторона получит уведомление об изменении.',
+  'cases.deadline.otherSideTold':
+      'Другая сторона получит уведомление об изменении.',
   'cases.deadline.save': 'Сохранить',
   'cases.deadline.saved': 'Срочность обновлена',
   'search.filter.urgency': 'Срочность',
@@ -40,13 +41,15 @@ const caseUrgencyRu = <String, String>{
   'search.filter.urgency.very_urgent': 'Очень срочные',
   'search.filter.hasDeadline': 'Только с датой (суд, срок подачи)',
   'notif.newCases.urgentOnly': 'Только срочные дела',
-  'notif.newCases.urgentOnly.hint': 'Присылать только срочные и очень срочные, включая дела с близкой датой',
+  'notif.newCases.urgentOnly.hint':
+      'Присылать только срочные и очень срочные, включая дела с близкой датой',
   'notif.list.case_deadline_soon.one': 'До даты по делу остался {count} день',
   'notif.list.case_deadline_soon.few': 'До даты по делу осталось {count} дня',
   'notif.list.case_deadline_soon.many': 'До даты по делу осталось {count} дней',
   'notif.list.case_deadline_soon.other': 'До даты по делу осталось {count} дня',
   'notif.list.case_deadline_today': 'Сегодня дата по делу',
-  'notif.list.case_deadline_passed': 'Дата по делу прошла — обновите её или закройте дело',
+  'notif.list.case_deadline_passed':
+      'Дата по делу прошла — обновите её или закройте дело',
   'notif.list.case_deadline_changed': 'Изменилась дата по делу',
   'notif.list.new_urgent_case': 'Новое срочное дело для вас',
 };
@@ -61,7 +64,8 @@ const caseUrgencyEn = <String, String>{
   'cases.urgency.hint.soon': 'Need an attorney within a week',
   'cases.urgency.hint.urgent': 'Need an attorney in the next few days',
   'cases.urgency.hint.very_urgent': 'Need an attorney today or tomorrow',
-  'cases.urgency.hint.by_date': 'Court hearing, filing deadline, meeting: set the date',
+  'cases.urgency.hint.by_date':
+      'Court hearing, filing deadline, meeting: set the date',
   'cases.deadline.pick': 'Choose a date',
   'cases.deadline.date': 'Date',
   'cases.deadline.change': 'Change',
@@ -79,7 +83,8 @@ const caseUrgencyEn = <String, String>{
   'cases.deadline.inDays.other': 'In {count} days',
   'cases.deadline.required': 'Choose a date or another urgency option',
   'cases.deadline.editTitle': 'Urgency and date',
-  'cases.deadline.otherSideTold': 'The other side will be notified of the change.',
+  'cases.deadline.otherSideTold':
+      'The other side will be notified of the change.',
   'cases.deadline.save': 'Save',
   'cases.deadline.saved': 'Urgency updated',
   'search.filter.urgency': 'Urgency',
@@ -88,13 +93,16 @@ const caseUrgencyEn = <String, String>{
   'search.filter.urgency.very_urgent': 'Very urgent',
   'search.filter.hasDeadline': 'Only with a date (court, filing deadline)',
   'notif.newCases.urgentOnly': 'Urgent cases only',
-  'notif.newCases.urgentOnly.hint': 'Only urgent and very urgent cases, including cases with a near date',
+  'notif.newCases.urgentOnly.hint':
+      'Only urgent and very urgent cases, including cases with a near date',
   'notif.list.case_deadline_soon.one': '{count} day left until the case date',
   'notif.list.case_deadline_soon.few': '{count} days left until the case date',
   'notif.list.case_deadline_soon.many': '{count} days left until the case date',
-  'notif.list.case_deadline_soon.other': '{count} days left until the case date',
+  'notif.list.case_deadline_soon.other':
+      '{count} days left until the case date',
   'notif.list.case_deadline_today': 'The case date is today',
-  'notif.list.case_deadline_passed': 'The case date has passed: update it or close the case',
+  'notif.list.case_deadline_passed':
+      'The case date has passed: update it or close the case',
   'notif.list.case_deadline_changed': 'The case date changed',
   'notif.list.new_urgent_case': 'A new urgent case for you',
 };

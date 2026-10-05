@@ -72,6 +72,12 @@ export const PAID_FLAGS: Record<
     integration: 'google_translate',
     keys: ['GOOGLE_TRANSLATE_API_KEY'],
   },
+  payroll_stripe_payouts: {
+    integration: 'stripe',
+    keys: ['STRIPE_SECRET_KEY'],
+  },
+  // Owner 2026-10-05: client → attorney payments (Stripe Connect).
+  payments_in_app: { integration: 'stripe', keys: ['STRIPE_SECRET_KEY'] },
   // Owner 2026-10-05: video calls go through our TURN (bandwidth billed).
   video_calls: {
     integration: 'turn',

@@ -12,6 +12,12 @@ import {
   videoCallAvailability,
 } from '../../calls/video-call-provider';
 import { SecretsService } from '../../../common/secrets/secrets.service';
+import {
+  TRANSLATE_FLAG,
+  TRANSLATE_ZONES,
+  zoneAllowed,
+  zoneFlag,
+} from '../../translation/translation-zones';
 
 /** `GET /config/bootstrap`'s response shape (docs/01_FOUNDATION_AUTH.md
  * §15, "Этап 1.8": "эндпоинт GET /config/bootstrap (флаги, min-версия,
@@ -87,6 +93,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'posts.attachments_',
   'media.',
   'stickers.',
+  'translate.',
 ] as const;
 
 @Injectable()
@@ -120,14 +127,22 @@ export class BootstrapService {
     return { ...flags, video_posts: ready };
   }
 
-  /** Owner 2026-10-04: the chat "Translate" button shows only while
-   * `chat_translate` is on AND the Google key is saved. */
+  /** Owner 2026-10-04/05: a "Translate" button shows only while the
+   * translator is on (`chat_translate`), the Google key is saved and its
+   * zone is allowed (Ключи и сервисы → Google Translate). One flag per
+   * zone: `chat_translate` for chats, `translate_<zone>` for the rest. */
   private async withTranslateGate(
     flags: Record<string, boolean>,
+    appConfig: Record<string, unknown>,
   ): Promise<Record<string, boolean>> {
-    if (!flags.chat_translate) return flags;
-    const f = (await this.secrets?.get('google_translate'))?.fields ?? {};
-    return { ...flags, chat_translate: !!f.apiKey };
+    const on =
+      !!flags[TRANSLATE_FLAG] &&
+      !!(await this.secrets?.get('google_translate'))?.fields.apiKey;
+    const out = { ...flags };
+    for (const zone of TRANSLATE_ZONES) {
+      out[zoneFlag(zone)] = on && zoneAllowed(appConfig, zone);
+    }
+    return out;
   }
 
   /** Owner 2026-10-05: the "Видеозвонок" button shows only while
@@ -157,7 +172,10 @@ export class BootstrapService {
 
     return {
       flags: await this.withVideoCallsGate(
-        await this.withTranslateGate(await this.withVideoGate(flags)),
+        await this.withTranslateGate(
+          await this.withVideoGate(flags),
+          appConfig,
+        ),
       ),
       // Audit 2026-10-02: only what the app needs — never the moderation
       // term lists, budgets or reserved names (this endpoint is public).

@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
@@ -20,6 +21,8 @@ import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/assistant_activity_list.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
@@ -42,8 +45,7 @@ String? notificationRoute({
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);
     // Audit 2026-10-04: the hired attorney lands on the work card, not on
     // the bid / public case card (which loop into each other).
-    case 'offer_accepted' || 'bid_accepted'
-        when attorney && caseId != null:
+    case 'offer_accepted' || 'bid_accepted' when attorney && caseId != null:
       return AppRoutes.workCase(caseId);
     case 'bid_received' ||
           'offer_countered' ||
@@ -113,6 +115,11 @@ String? notificationRoute({
       }
       return postId == null ? null : SocialRoutes.post(postId);
     case 'verification_update':
+      // Owner 2026-10-05: trust level changes / holds open the attorney's
+      // own trust screen.
+      if (isTrustNotificationKind(s('kind'))) {
+        return attorney ? TrustRoutes.me : AppRoutes.verification;
+      }
       // Owner 2026-10-02: a client's gold badge request.
       return s('kind') == 'client_badge'
           ? AppRoutes.clientBadge
@@ -123,11 +130,30 @@ String? notificationRoute({
       return ticketId == null ? null : AppRoutes.supportTicket(ticketId);
     case 'referral_reward':
       return AppRoutes.referral;
-    case 'partner_commission' || 'partner_payout':
+    case 'partner_commission' ||
+          'partner_payout' ||
+          'partner_approved' ||
+          'partner_declined':
       return AppRoutes.partner;
     case 'promotion_started' || 'promotion_ended':
       if (caseId == null) return null;
       return AppRoutes.myCase(caseId);
+    // Owner 2026-10-05: client → attorney payments.
+    case 'case_payment_received' || 'case_payment_disputed':
+      if (caseId == null) return CasePaymentsRoutes.history;
+      return AppRoutes.workCase(caseId);
+    case 'case_payment_sent' ||
+          'case_payment_refunded' ||
+          'payment_request_created' ||
+          'payment_request_due' ||
+          'payment_request_overdue' ||
+          'payment_request_canceled' ||
+          'payment_fee_countered' ||
+          'payment_fee_agreed':
+      if (caseId == null) return CasePaymentsRoutes.history;
+      return AppRoutes.myCase(caseId);
+    case 'payout_account_status':
+      return CasePaymentsRoutes.payoutAccount;
     case 'subscription_trial_ending' ||
           'subscription_payment_failed' ||
           'subscription_status':
@@ -145,9 +171,34 @@ String? notificationRoute({
       return TeamRoutes.team;
     case 'assistant_task' || 'assistant_result':
       return AppRoutes.mine;
+    // Owner 2026-10-05: the planner — a reminder or a task given to me
+    // opens the planner; "removed soon" opens the archive.
+    case 'task_reminder' || 'task_assigned':
+      return AppRoutes.mine;
+    case 'task_purge_soon':
+      return TeamRoutes.tasksArchive;
   }
   return null;
 }
+
+/// `verification_update` payload kinds of the trust module (apps/api
+/// attorney-trust.constants.ts TRUST_NOTIFICATION_KIND).
+const trustNotificationKinds = <String>{
+  'trust_level_up',
+  'trust_payments_paused',
+  'trust_payments_resumed',
+  'trust_bids_paused',
+  'trust_hold_lifted',
+  'trust_documents_requested',
+  'trust_auto_suspended',
+  'trust_firm_link_required',
+  'trust_firm_link_confirmed',
+  'trust_cleared',
+  'trust_requirements_changed',
+};
+
+bool isTrustNotificationKind(String? kind) =>
+    kind != null && trustNotificationKinds.contains(kind);
 
 /// A payload flag; push data carries every value as a string.
 bool _flag(Object? v) => v == true || v == 'true';
@@ -170,6 +221,27 @@ String notificationText(Translator t, AppNotification n) {
                   ? 'notif.list.cbadge.rejected'
                   : 'notif.list.cbadge.off',
     );
+  }
+  // Owner 2026-10-05: attorney trust levels — `notif.verification.<kind>`.
+  if (n.type == 'verification_update') {
+    final kind = n.payload['kind'];
+    if (kind is String && isTrustNotificationKind(kind)) {
+      final base = t.t('notif.verification.$kind');
+      // Staff asked for documents: say which (template) and their note.
+      if (kind == 'trust_documents_requested') {
+        final template = n.payload['template'];
+        final note = n.payload['note'];
+        final hasNote = note is String && note.trim().isNotEmpty;
+        final detail = template == 'custom' && !hasNote
+            ? t.t('trust.docs.custom.noNote')
+            : t.t(
+                documentRequestTextKey(template is String ? template : null),
+                {'note': hasNote ? note.trim() : ''},
+              );
+        return '$base $detail';
+      }
+      return base;
+    }
   }
   if (n.type == 'review_received' && _flag(n.payload['reply'])) {
     return t.t(
@@ -205,6 +277,13 @@ String notificationText(Translator t, AppNotification n) {
     return days is num
         ? t.plural('notif.list.case_deadline_soon', days)
         : t.t('notif.list.case_deadline_today', {'name': ''});
+  }
+  // Owner 2026-10-05: "N finished tasks will be removed in D days".
+  if (n.type == 'task_purge_soon') {
+    return t.t('notif.list.task_purge_soon', {
+      'count': '${n.payload['count'] ?? ''}',
+      'days': '${n.payload['days'] ?? ''}',
+    });
   }
   // Audit 2026-10-02: a moderation notice shows the moderator's reason.
   if (n.type == 'moderation_notice') {
@@ -242,9 +321,29 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'assistant_request' => AppIcons.factCheckRounded,
       'admin_broadcast' => AppIcons.campaignRounded,
       'referral_reward' => AppIcons.starRounded,
-      'partner_commission' || 'partner_payout' => AppIcons.handshakeOutlined,
+      'partner_commission' ||
+      'partner_payout' ||
+      'partner_approved' ||
+      'partner_declined' =>
+        AppIcons.handshakeOutlined,
       'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
-      'assistant_task' => AppIcons.eventNoteRounded,
+      'case_payment_received' ||
+      'case_payment_sent' ||
+      'case_payment_refunded' ||
+      'payment_request_created' ||
+      'payment_request_canceled' =>
+        AppIcons.paymentsOutlined,
+      'payment_fee_countered' ||
+      'payment_fee_agreed' =>
+        AppIcons.handshakeOutlined,
+      'payment_request_due' ||
+      'payment_request_overdue' =>
+        AppIcons.scheduleRounded,
+      'case_payment_disputed' => AppIcons.errorOutlineRounded,
+      'payout_account_status' => AppIcons.accountBalanceOutlined,
+      'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
+      'task_reminder' => AppIcons.notificationsActiveOutlined,
+      'task_purge_soon' => AppIcons.inventory2Outlined,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
       'case_deadline_soon' ||
       'case_deadline_today' ||

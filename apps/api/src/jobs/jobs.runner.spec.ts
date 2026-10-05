@@ -4,6 +4,10 @@ import type { PinoLogger } from 'nestjs-pino';
 import { Queue, Worker } from 'bullmq';
 import { JobsRunner, CRON_JOB_TEMPLATE_OPTS } from './jobs.runner';
 import { CronProcessor } from './cron.processor';
+import type {
+  TaskArchivePurgeJob,
+  TaskRemindersJob,
+} from './handlers/tasks-planner.jobs';
 import { CRON_JOBS, CRON_QUEUE, CRON_SCHEDULES } from './jobs.constants';
 import type { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import type { OtpCleanupJob } from './handlers/otp-cleanup.job';
@@ -31,8 +35,10 @@ import { AccountAnonymizationService } from '../modules/privacy/account-anonymiz
 import { ExportsCleanupService } from '../modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../modules/privacy/journal-integrity.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import type { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import type { PromotionsService } from '../modules/promotions/promotions.service';
 import type { PartnersService } from '../modules/partners/partners.service';
+import type { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 
 jest.mock('bullmq', () => {
   const queue = {
@@ -153,12 +159,22 @@ function processor() {
       {
         expire: jest.fn(() => Promise.resolve({ finished: 0, abandoned: 0 })),
       } as unknown as PromotionsService,
+      { run: jest.fn() } as unknown as TaskRemindersJob,
+      { run: jest.fn() } as unknown as TaskArchivePurgeJob,
+      {
+        expire: jest.fn(() => Promise.resolve({ abandoned: 0 })),
+      } as unknown as CasePaymentsService,
       {
         sweep: jest.fn(() =>
           Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
         ),
       } as unknown as PartnersService,
       deadline as unknown as CaseDeadlineReminderJob,
+      {
+        recomputeAll: jest.fn(() =>
+          Promise.resolve({ attorneys: 0, changed: 0 }),
+        ),
+      } as unknown as AttorneyTrustService,
     ),
   };
 }
@@ -185,9 +201,13 @@ describe('JobsRunner', () => {
     // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
     // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
-    // + monthly licenses.registry-recheck; owner 2026-10-05: + daily
-    // partners.sweep, + daily cases.deadline-reminder.
-    expect(upserts).toHaveLength(28);
+    // + monthly licenses.registry-recheck; owner 2026-10-05: + the
+    // planner's reminders (every minute) and archive cleanup (daily),
+    // + daily partners.sweep, case-payments.expire every 10 min and the
+    // daily case-payments.remind.
+    // Owner 2026-10-05: + nightly trust.recompute (anti-fraud).
+    // Owner 2026-10-05: + daily cases.deadline-reminder.
+    expect(upserts).toHaveLength(33);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

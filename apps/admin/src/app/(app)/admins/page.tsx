@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Input, Label, Select } from '@/components/ui/input';
+import { ReasonPolicyCard } from '@/components/reason-policy-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
@@ -181,7 +182,7 @@ export default function AdminsPage() {
         subtitle={
           isSuper
             ? 'Создание сотрудников, права по разделам, логин и пароль, отключение, удаление. Регистрации нет: аккаунты заводите вы или те, кому вы дали право управлять админами. Деньги и ключи сервисов обычным админам недоступны никогда.'
-            : 'Вы можете принимать сотрудников, выдавать им доступ в рамках своего, задавать логин и пароль, отключать и удалять. Деньги, ключи, журнал аудита и сессии недоступны, а право управлять админами выдаёт только супер-админ.'
+            : 'Вы можете принимать сотрудников, выдавать им доступ в рамках своего, задавать логин и пароль, отключать и удалять. Деньги, журнал аудита и сессии вы видите только для просмотра, ключи сервисов недоступны, а право заместителя выдаёт только супер-админ.'
         }
       />
       <form
@@ -224,7 +225,7 @@ export default function AdminsPage() {
               checked={manager}
               onChange={(e) => setManager(e.target.checked)}
             />
-            Может управлять админами
+            Доверенный заместитель
           </label>
         ) : null}
         <Button type="submit" loading={create.isPending}>
@@ -232,6 +233,7 @@ export default function AdminsPage() {
           Создать
         </Button>
       </form>
+      {isSuper ? <ReasonPolicyCard /> : null}
       <TemplatesCard
         templates={templates.data ?? []}
         loading={templates.isPending}
@@ -312,7 +314,7 @@ export default function AdminsPage() {
                           ? `${Object.keys(a.permissions).length} разд.`
                           : 'нет разделов'}
                       </Badge>
-                      {a.canManageAdmins ? <Badge tone="gold">управляет админами</Badge> : null}
+                      {a.canManageAdmins ? <Badge tone="gold">заместитель</Badge> : null}
                     </div>
                   )}
                 </Td>
@@ -582,10 +584,11 @@ function RightsForm({
             onChange={(e) => setManager(e.target.checked)}
           />
           <span>
-            <span className="text-ink">Может управлять админами</span>
+            <span className="text-ink">Доверенный заместитель</span>
             <span className="block text-xs text-faint">
-              Принимает и увольняет сотрудников, задаёт им логин и пароль, выдаёт доступ только в рамках своего. Деньги,
-              ключи, аудит и сессии ему недоступны, и сам он этого права никому не даёт.
+              Видит все разделы, включая деньги, журнал аудита и сессии (только просмотр), ведёт зарплаты, принимает и
+              увольняет сотрудников и выдаёт доступ в рамках своего. Меняет данные только в разделах, где у него
+              «управлять». Ключи сервисов и ваш пароль ему недоступны, и это право он никому не даёт.
             </span>
           </span>
         </label>
@@ -767,7 +770,7 @@ function TemplatesCard({
         <div>
           <h2 className="text-sm font-medium text-heading">Шаблоны прав</h2>
           <p className="text-xs text-faint">
-            Готовые наборы («Верификатор», «Поддержка»…): выбираете при создании админа или в его правах и при желании
+            Готовые наборы («Проверка», «Поддержка»…): выбираете при создании админа или в его правах и при желании
             правите вручную. Шаблон не может дать больше, чем есть у вас.
           </p>
         </div>

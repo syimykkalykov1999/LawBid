@@ -14,7 +14,11 @@ import 'package:lawbid/shared/domain/user_role.dart';
 enum AssistantGate { notAssistant, loading, active, notJoined }
 
 /// Routes an assistant never uses (the attorney's billing / verification).
-const _assistantBlocked = ['/profile/settings/subscription', '/verification'];
+const _assistantBlocked = [
+  '/profile/settings/subscription',
+  '/verification',
+  '/trust/me',
+];
 const _assistantJoin = '/assistant/join';
 
 /// Everything the guard decides on — a plain value so the redirect table

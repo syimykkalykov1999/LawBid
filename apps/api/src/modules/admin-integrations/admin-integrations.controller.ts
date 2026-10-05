@@ -8,9 +8,11 @@ import {
   HttpException,
   HttpStatus,
   Param,
+  Patch,
   Post,
+  Put,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -28,6 +30,12 @@ import {
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   ActivateIntegrationDto,
+  CreateCustomIntegrationDto,
+  CustomIntegrationCreatedDto,
+  ReorderIntegrationSlotsDto,
+  SlotBodyDto,
+  SlotParamDto,
+  UpdateIntegrationSlotDto,
   CreateIntegrationVersionDto,
   IntegrationsOverviewDto,
   IntegrationVersionDto,
@@ -95,6 +103,7 @@ export class AdminIntegrationsController {
       p.provider,
       stringValues(dto.values),
       admin.id,
+      { slot: dto.slot, label: dto.label },
     );
     await this.log(admin, 'integration.create_version', p.provider, v);
     return v;
@@ -143,13 +152,16 @@ export class AdminIntegrationsController {
   @Post(':provider/rollback')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Back to the previous version (needs step-up)' })
+  // The body is optional: older clients send none (slot "main").
+  @ApiBody({ type: SlotBodyDto, required: false })
   @ApiEnvelopeResponse(IntegrationVersionDto)
   async rollbackIntegration(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ProviderParamDto,
+    @Body() dto: SlotBodyDto = {},
   ): Promise<IntegrationVersionDto> {
     await this.guard(admin);
-    const v = await this.secrets.rollback(p.provider);
+    const v = await this.secrets.rollback(p.provider, dto?.slot);
     await this.log(admin, 'integration.rollback', p.provider, v);
     return v;
   }
@@ -171,8 +183,98 @@ export class AdminIntegrationsController {
       });
     }
     await this.guard(admin);
-    await this.secrets.remove(p.provider);
-    await this.log(admin, 'integration.delete', p.provider, null);
+    await this.secrets.remove(p.provider, dto.slot);
+    await this.log(
+      admin,
+      'integration.delete',
+      p.provider,
+      dto.slot ? { slot: dto.slot } : null,
+    );
+  }
+
+  @Patch(':provider/slots/:slot')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-05: rename or switch a key set on/off (needs step-up)',
+  })
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.NOT_FOUND] })
+  async updateIntegrationSlot(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: SlotParamDto,
+    @Body() dto: UpdateIntegrationSlotDto,
+  ): Promise<void> {
+    await this.guard(admin);
+    await this.secrets.updateSlot(p.provider, p.slot, dto);
+    await this.log(admin, 'integration.update_slot', p.provider, {
+      slot: p.slot,
+      ...dto,
+    });
+  }
+
+  @Put(':provider/order')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-05: the order the API tries the key sets in (needs step-up)',
+  })
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async reorderIntegrationSlots(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: ProviderParamDto,
+    @Body() dto: ReorderIntegrationSlotsDto,
+  ): Promise<void> {
+    await this.guard(admin);
+    await this.secrets.reorder(p.provider, dto.slots);
+    await this.log(admin, 'integration.reorder', p.provider, {
+      slots: dto.slots.join(','),
+    });
+  }
+
+  @Post('custom')
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-05: add a service with its own key fields, no code change (needs step-up)',
+  })
+  @ApiEnvelopeResponse(CustomIntegrationCreatedDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.INTEGRATION_CONFLICT],
+  })
+  async createCustomIntegration(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: CreateCustomIntegrationDto,
+  ): Promise<CustomIntegrationCreatedDto> {
+    await this.guard(admin);
+    const provider = await this.secrets.createCustom(dto, admin.id);
+    await this.log(admin, 'integration.custom_create', provider, {
+      label: dto.label,
+      fields: dto.fields.map((f) => f.name).join(','),
+    });
+    return { provider };
+  }
+
+  @Delete('custom/:provider')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Owner 2026-10-05: delete a service added from the admin',
+  })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  async deleteCustomIntegration(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: ProviderParamDto,
+    @Body() dto: RemoveIntegrationDto,
+  ): Promise<void> {
+    if (dto.confirm !== p.provider) {
+      throw new BadRequestException({
+        code: E.VALIDATION_ERROR,
+        message: 'Type the integration id to confirm.',
+      });
+    }
+    await this.guard(admin);
+    await this.secrets.deleteCustom(p.provider);
+    await this.log(admin, 'integration.custom_delete', p.provider, null);
   }
 
   @Post('reencrypt')

@@ -14,6 +14,8 @@ enum ExportEntity {
   bids('bids'),
   @JsonValue('payments')
   payments('payments'),
+  @JsonValue('case_payments')
+  casePayments('case_payments'),
   @JsonValue('posts')
   posts('posts'),
   @JsonValue('teams')

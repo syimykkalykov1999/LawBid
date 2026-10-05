@@ -74,6 +74,26 @@ abstract interface class TeamRepository {
   Future<TaskItem> updateTask(String id, TaskDraft draft);
   Future<void> deleteTask(String id);
 
+  /// Owner 2026-10-05: "postpone" — the task gets a new time (and a new
+  /// reminder); nothing else changes.
+  Future<TaskItem> moveTask(String id, DateTime dueAt);
+
+  /// Owner 2026-10-05: addresses used before (suggestions in the editor).
+  Future<List<TaskPlaceSuggestion>> taskPlaces();
+
+  /// People to add: the team, chats, contacts used before; [q] (2+
+  /// letters) also finds attorneys by name.
+  Future<List<TaskPersonSuggestion>> taskPeople([String? q]);
+
+  /// One action on many tasks; tasks the viewer may not touch are skipped.
+  Future<({int affected, int skipped})> bulkTasks(
+    List<String> ids,
+    TaskBulkAction action, {
+    TaskStatus? status,
+    TaskPriority? priority,
+    String? assigneeMembershipId,
+  });
+
   // Owner 2026-10-01: a task's checklist steps.
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step);
 
@@ -209,6 +229,36 @@ class ApiTeamRepository implements TeamRepository {
         canDelete: t.canDelete,
         createdAt: _date(t.createdAt) ?? DateTime.now(),
         doneAt: _date(t.doneAt),
+        places: [
+          for (final p in t.places)
+            TaskPlace(id: p.id, address: p.address, label: p.label),
+        ],
+        people: [
+          for (final p in t.people)
+            TaskPerson(
+              id: p.id,
+              userId: p.userId,
+              userRole: p.userRole?.json,
+              avatarUrl: p.avatarUrl,
+              name: p.name,
+              role: p.role,
+              phone: p.phone,
+              email: p.email,
+            ),
+        ],
+        priority: TaskPriority.parse(t.priority.json),
+        repeat: TaskRepeat.parse(t.repeat.json),
+        repeatUntil: _date(t.repeatUntil),
+        remindBeforeMin: t.remindBeforeMin?.toInt(),
+        assigneeMembershipId: t.assigneeMembershipId,
+        assigneeName: t.assigneeName,
+        assignedToMe: t.assignedToMe,
+        conversationId: t.conversationId,
+        archivedAt: _date(t.archivedAt),
+        keepForever: t.keepForever,
+        purgeAt: _date(t.purgeAt),
+        canComplete: t.canComplete,
+        canEdit: t.canEdit,
         steps: [
           for (final s in t.steps)
             TaskStep(
@@ -239,6 +289,22 @@ class ApiTeamRepository implements TeamRepository {
         contactPhone: s.contactPhone,
         contactEmail: s.contactEmail,
       );
+
+  static List<api.TaskPlaceInputDto> _placesInput(TaskDraft d) => [
+        for (final p in d.places)
+          api.TaskPlaceInputDto(address: p.address, label: p.label),
+      ];
+
+  static List<api.TaskPersonInputDto> _peopleInput(TaskDraft d) => [
+        for (final p in d.people)
+          api.TaskPersonInputDto(
+            userId: p.userId,
+            name: p.name,
+            role: p.role,
+            phone: p.phone,
+            email: p.email,
+          ),
+      ];
 
   static BidDraft _draft(api.BidDraftDto d) => BidDraft(
         caseId: d.caseId,
@@ -405,7 +471,7 @@ class ApiTeamRepository implements TeamRepository {
   Future<List<TaskItem>> tasks({bool done = false, bool mine = false}) async {
     final env = await guardApiCall(
       () => _api.listTasks(
-        view: done ? api.TasksView.done : api.TasksView.active,
+        view: done ? api.TasksView.archive : api.TasksView.active,
         mine: mine ? true : null,
       ),
     );
@@ -425,11 +491,16 @@ class ApiTeamRepository implements TeamRepository {
               title: d.title,
               notes: d.notes,
               dueAt: d.dueAt?.toUtc(),
-              location: d.location,
               caseId: d.caseId,
-              contactName: d.contactName,
-              contactPhone: d.contactPhone,
-              contactEmail: d.contactEmail,
+              places: _placesInput(d),
+              people: _peopleInput(d),
+              priority: api.TaskPriority.fromJson(d.priority.wire),
+              repeat: api.TaskRepeat.fromJson(d.repeat.wire),
+              repeatUntil: d.repeatUntil?.toUtc(),
+              remindBeforeMin: d.remindBeforeMin,
+              assigneeMembershipId: d.assigneeMembershipId,
+              conversationId: d.conversationId,
+              keepForever: d.keepForever ? true : null,
               fileIds: d.fileIds.isEmpty ? null : d.fileIds,
               steps: d.steps.isEmpty
                   ? null
@@ -473,13 +544,22 @@ class ApiTeamRepository implements TeamRepository {
               notes: d.notes ?? '',
               dueAt: d.dueAt?.toUtc(),
               clearDueAt: d.dueAt == null ? true : null,
-              location: d.location ?? '',
-              contactName: d.contactName ?? '',
-              contactPhone: d.contactPhone ?? '',
-              contactEmail: d.contactEmail ?? '',
               fileIds: d.fileIds,
               caseId: d.caseId,
               clearCaseId: d.caseId == null ? true : null,
+              places: _placesInput(d),
+              people: _peopleInput(d),
+              priority: api.TaskPriority.fromJson(d.priority.wire),
+              repeat: api.TaskRepeat.fromJson(d.repeat.wire),
+              repeatUntil: d.repeatUntil?.toUtc(),
+              clearRepeatUntil: d.repeatUntil == null ? true : null,
+              remindBeforeMin: d.remindBeforeMin,
+              clearRemind: d.remindBeforeMin == null ? true : null,
+              assigneeMembershipId: d.assigneeMembershipId,
+              clearAssignee: d.assigneeMembershipId == null ? true : null,
+              conversationId: d.conversationId,
+              clearConversation: d.conversationId == null ? true : null,
+              keepForever: d.keepForever,
             ),
           ),
         ))
@@ -489,6 +569,83 @@ class ApiTeamRepository implements TeamRepository {
   @override
   Future<void> deleteTask(String id) =>
       guardApiCall(() => _api.deleteTask(id: id));
+
+  @override
+  Future<TaskItem> moveTask(String id, DateTime dueAt) async => _task(
+        (await guardApiCall(
+          () => _api.updateTask(
+            id: id,
+            body: api.UpdateTaskDto(dueAt: dueAt.toUtc()),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<List<TaskPlaceSuggestion>> taskPlaces() async {
+    final env = await guardApiCall(_api.taskPlaces);
+    return [
+      for (final p in env.data)
+        TaskPlaceSuggestion(
+          address: p.address,
+          label: p.label,
+          uses: p.uses.toInt(),
+        ),
+    ];
+  }
+
+  @override
+  Future<List<TaskPersonSuggestion>> taskPeople([String? q]) async {
+    final query = q?.trim();
+    final env = await guardApiCall(
+      () => _api.taskPeople(q: query == null || query.isEmpty ? null : query),
+    );
+    return [
+      for (final p in env.data)
+        TaskPersonSuggestion(
+          source: TaskPersonSource.values.firstWhere(
+            (s) => s.name == p.source.json,
+            orElse: () => TaskPersonSource.contact,
+          ),
+          name: p.name,
+          userId: p.userId,
+          membershipId: p.membershipId,
+          avatarUrl: p.avatarUrl,
+          role: p.role,
+          phone: p.phone,
+          email: p.email,
+        ),
+    ];
+  }
+
+  @override
+  Future<({int affected, int skipped})> bulkTasks(
+    List<String> ids,
+    TaskBulkAction action, {
+    TaskStatus? status,
+    TaskPriority? priority,
+    String? assigneeMembershipId,
+  }) async {
+    final env = await guardApiCall(
+      () => _api.bulkTasks(
+        body: api.BulkTasksDto(
+          ids: ids,
+          action: api.TaskBulkAction.fromJson(action.wire),
+          status: status == null
+              ? null
+              : api.BulkTasksDtoStatus.fromJson(status.wire),
+          priority: priority == null
+              ? null
+              : api.TaskPriority.fromJson(priority.wire),
+          assigneeMembershipId: assigneeMembershipId,
+        ),
+      ),
+    );
+    return (
+      affected: env.data.affected.toInt(),
+      skipped: env.data.skipped.toInt(),
+    );
+  }
 
   @override
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step) async =>

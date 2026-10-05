@@ -15,6 +15,7 @@ BidAttorneySummaryDto _$BidAttorneySummaryDtoFromJson(
   lastName: json['lastName'] as String?,
   avatarUrl256: json['avatarUrl256'] as String?,
   verifiedBadge: json['verifiedBadge'] as bool,
+  trustLevel: (json['trustLevel'] as num).toInt(),
   licensedStates: (json['licensedStates'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
@@ -30,6 +31,7 @@ Map<String, dynamic> _$BidAttorneySummaryDtoToJson(
   'lastName': ?instance.lastName,
   'avatarUrl256': ?instance.avatarUrl256,
   'verifiedBadge': instance.verifiedBadge,
+  'trustLevel': instance.trustLevel,
   'licensedStates': instance.licensedStates,
   'rating': instance.rating.toJson(),
 };

@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -23,6 +24,7 @@ import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.da
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
 /// accepted attorney, and the bids (§5.2) with sorting.
@@ -405,11 +407,17 @@ class _OwnerCaseBody extends ConsumerWidget {
                 conversationId: c.conversationId,
               ),
             ),
+          // Owner 2026-10-05: pay the attorney through the platform.
+          if (c.acceptedBid != null)
+            CasePaymentsCard(caseId: c.id, asAttorney: false),
           // Owner 2026-10-05: the client's case file and adding files.
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.md),
             child: OwnerCaseDossier(kase: c),
           ),
+          // Owner 2026-10-05: the client's own planner tasks on this case.
+          if (c.status != CaseStatus.archived)
+            CaseTasksSection(caseId: c.id, caseTitle: c.title),
           DetailSection(
             title: t.t('cases.detail.description'),
             child: Text(

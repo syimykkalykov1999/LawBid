@@ -161,9 +161,15 @@ export enum ErrorCode {
   LICENSE_ALREADY_ADDED = 'LICENSE_ALREADY_ADDED',
   // 403: a suspended attorney can't create or change verification requests.
   ATTORNEY_SUSPENDED = 'ATTORNEY_SUSPENDED',
+  // 403: this bar number (or the contacts of a blocked account) was rejected
+  // or blocked before; registration with it is refused — contact support.
+  BAR_NUMBER_BLOCKED = 'BAR_NUMBER_BLOCKED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',
+  // 400 (owner 2026-10-05): an admin action without a reason in a section
+  // where the owner made it required (never for the super admin).
+  REASON_REQUIRED = 'REASON_REQUIRED',
   // 401: the pre-auth ticket (between email code and TOTP) is missing,
   // expired, already used or burned after too many wrong codes.
   ADMIN_TICKET_INVALID = 'ADMIN_TICKET_INVALID',
@@ -322,6 +328,11 @@ export enum ErrorCode {
   VIDEO_NOT_READY = 'VIDEO_NOT_READY',
   COMMENTS_DISABLED = 'COMMENTS_DISABLED',
   LICENSE_STATE_REQUIRED = 'LICENSE_STATE_REQUIRED',
+  // Owner 2026-10-05 (attorney trust levels): 403 — the action needs a
+  // higher trust level (details: required, current, gate).
+  TRUST_LEVEL_REQUIRED = 'TRUST_LEVEL_REQUIRED',
+  // 403 — payments / bids are paused until a verifier looks (details: hold).
+  ATTORNEY_ON_HOLD = 'ATTORNEY_ON_HOLD',
   // Owner 2026-10-04: 503 — chat translation is off, has no key or failed.
   TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.
@@ -341,6 +352,17 @@ export enum ErrorCode {
   PROMOTION_ALREADY_ACTIVE = 'PROMOTION_ALREADY_ACTIVE',
   // 409: promotion action not valid for its current status.
   PROMOTION_INVALID_STATE = 'PROMOTION_INVALID_STATE',
+  // Owner 2026-10-05 client → attorney payments (Stripe Connect):
+  // 409 the attorney has not finished Stripe onboarding yet.
+  PAYOUT_ACCOUNT_NOT_READY = 'PAYOUT_ACCOUNT_NOT_READY',
+  // 409: payment action not valid for its current status.
+  PAYMENT_INVALID_STATE = 'PAYMENT_INVALID_STATE',
+  // 400: amount outside the admin's min/max, over the remaining balance
+  // or a kind that needs an amount came without one.
+  PAYMENT_AMOUNT_INVALID = 'PAYMENT_AMOUNT_INVALID',
+  // Owner 2026-10-05: 409 — who covers Stripe's fee on an invoice is agreed
+  // like a bid; no more counter-offers after the admin's round cap.
+  PAYMENT_FEE_MAX_ROUNDS_REACHED = 'PAYMENT_FEE_MAX_ROUNDS_REACHED',
   // Owner 2026-10-02: 400 — promo code unknown, expired, used up or not
   // valid for this purchase.
   PROMO_CODE_INVALID = 'PROMO_CODE_INVALID',
@@ -372,4 +394,10 @@ export enum ErrorCode {
   PLAN_IN_USE = 'PLAN_IN_USE',
   // 403: the plan does not include this feature (video calls, templates).
   ENTITLEMENT_REQUIRED = 'ENTITLEMENT_REQUIRED',
+  // Owner 2026-10-05 — outreach (Привлечение). 400: the CSV/registry
+  // import is unusable; 409: lead unsubscribed / no email / status change
+  // not valid; 429: the partner's daily email limit is spent.
+  OUTREACH_IMPORT_INVALID = 'OUTREACH_IMPORT_INVALID',
+  OUTREACH_INVALID_STATE = 'OUTREACH_INVALID_STATE',
+  OUTREACH_EMAIL_LIMIT = 'OUTREACH_EMAIL_LIMIT',
 }

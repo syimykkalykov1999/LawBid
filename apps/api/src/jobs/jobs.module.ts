@@ -1,4 +1,5 @@
 import { PostsModule } from '../modules/posts/posts.module';
+import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
 import { PartnersCoreModule } from '../modules/partners/partners.module';
 import { DynamicModule, Module } from '@nestjs/common';
@@ -28,6 +29,11 @@ import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import {
+  TaskArchivePurgeJob,
+  TaskRemindersJob,
+} from './handlers/tasks-planner.jobs';
+import { S3StorageService } from '../modules/files/storage/s3-storage.service';
 import { CallsModule } from '../modules/calls/calls.module';
 import { ClientReviewsCoreModule } from '../modules/client-reviews/client-reviews.module';
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
@@ -59,6 +65,8 @@ export class JobsModule {
         PostsModule,
         // Owner 2026-10-02: `promotions.expire`.
         PromotionsCoreModule,
+        // Owner 2026-10-05: `case-payments.expire`.
+        CasePaymentsCoreModule,
         // Owner 2026-10-05: `partners.sweep`.
         PartnersCoreModule,
         // Owner 2026-10-04: `licenses.registry-recheck`.
@@ -88,6 +96,10 @@ export class JobsModule {
         TrendingTagsJob,
         NotificationsRetentionJob,
         OpsMetricsJob,
+        // Owner 2026-10-05: the planner's reminders and archive cleanup.
+        TaskRemindersJob,
+        TaskArchivePurgeJob,
+        S3StorageService,
         CronProcessor,
         JobsRunner,
       ],
@@ -100,6 +112,8 @@ export class JobsModule {
         RatingReconcileJob,
         LicenseExpiryJob,
         BidSubscriptionLapseJob,
+        TaskRemindersJob,
+        TaskArchivePurgeJob,
       ],
     };
   }

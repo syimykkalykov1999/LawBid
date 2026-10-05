@@ -460,7 +460,7 @@ class CurrentPlanCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Flexible(
+              AppTrailingCap(
                 child: FitText(
                   plan.name.resolve(formats.locale),
                   alignment: AlignmentDirectional.centerEnd,

@@ -363,8 +363,13 @@ export class AdminContentController {
     @Headers('x-justification') justificationHeader: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
-    // Owner 2026-10-02: payments are money; only the super admin exports them.
-    if (p.entity === 'payments' && admin.adminRole !== 'super_admin') {
+    // Owner 2026-10-02: payments are money; only the super admin (and,
+    // 2026-10-05, the trusted deputy, who reads money) exports them.
+    if (
+      (p.entity === 'payments' || p.entity === 'case_payments') &&
+      admin.adminRole !== 'super_admin' &&
+      !admin.manageAdmins
+    ) {
       throw new ForbiddenException({
         code: E.FORBIDDEN,
         message: 'Payments are available to the super admin only.',
@@ -372,8 +377,9 @@ export class AdminContentController {
     }
     // Audit 2026-10-02: the users CSV holds contacts — same rule as
     // GET /admin/users/:id/contacts.
+    // Owner 2026-10-05: optional for the owner.
     const justification =
-      p.entity === 'users'
+      p.entity === 'users' && admin.adminRole !== 'super_admin'
         ? readJustification(justificationHeader)
         : decodeJustification(justificationHeader) || null;
     const csv = await this.content.exportCsv(p.entity);

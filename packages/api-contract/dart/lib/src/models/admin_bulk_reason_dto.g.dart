@@ -8,8 +8,8 @@ part of 'admin_bulk_reason_dto.dart';
 
 AdminBulkReasonDto _$AdminBulkReasonDtoFromJson(Map<String, dynamic> json) =>
     AdminBulkReasonDto(
-      reason: json['reason'] as String,
       ids: (json['ids'] as List<dynamic>).map((e) => e as String).toList(),
+      reason: json['reason'] as String? ?? '',
     );
 
 Map<String, dynamic> _$AdminBulkReasonDtoToJson(AdminBulkReasonDto instance) =>

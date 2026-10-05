@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/strings/audit_chat_strings.dart';
 import 'package:lawbid/core/l10n/strings/audit_social_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
@@ -17,7 +18,9 @@ import 'package:lawbid/core/l10n/strings/partner_strings.dart';
 import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
+import 'package:lawbid/core/l10n/strings/tasks_planner_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
+import 'package:lawbid/core/l10n/strings/trust_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
 /// Stage-1.5-originated stopgap [Translator], now bilingual (owner request,
@@ -1098,11 +1101,14 @@ class StaticTranslatorRu extends _MapTranslator {
         ...templatesRu,
         ...caseCoverRu,
         ...caseUrgencyRu,
+        ...tasksPlannerRu,
+        ...casePaymentsRu,
         ...planRu,
         ...attorneySetupRu,
         ...assistantCodeRu,
         ...inviteRu,
         ...caseDossierRu,
+        ...trustRu,
       };
 }
 
@@ -2462,10 +2468,13 @@ class StaticTranslatorEn extends _MapTranslator {
         ...templatesEn,
         ...caseCoverEn,
         ...caseUrgencyEn,
+        ...tasksPlannerEn,
+        ...casePaymentsEn,
         ...planEn,
         ...attorneySetupEn,
         ...assistantCodeEn,
         ...inviteEn,
         ...caseDossierEn,
+        ...trustEn,
       };
 }

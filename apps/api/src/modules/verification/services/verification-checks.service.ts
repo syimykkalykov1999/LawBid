@@ -9,6 +9,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import {
   IDENTITY_DOC_TYPES,
@@ -49,6 +50,7 @@ export class VerificationChecksService {
     private readonly prisma: PrismaService,
     private readonly selector: VerificationProviderSelector,
     private readonly notifications: NotificationsService,
+    private readonly trust: AttorneyTrustService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(VerificationChecksService.name);
@@ -178,6 +180,16 @@ export class VerificationChecksService {
       );
     });
     this.logger.info({ requestId, note }, 'Verification request auto-approved');
+    await this.trustRecompute(requestId);
+  }
+
+  /** Owner 2026-10-05: the trust level follows every verification change. */
+  private async trustRecompute(requestId: string): Promise<void> {
+    const req = await this.prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+      select: { attorney_id: true },
+    });
+    if (req) await this.trust.recompute(req.attorney_id);
   }
 
   /**
@@ -233,13 +245,16 @@ export class VerificationChecksService {
   ): Promise<string | null | undefined> {
     const flag = registryFlagFor(outcome);
     if (flag === undefined) return undefined;
-    await this.prisma.attorneyLicense.update({
+    const updated = await this.prisma.attorneyLicense.update({
       where: { id: licenseId },
       data: {
         registry_flag: flag,
         registry_flagged_at: flag ? now : null,
       },
+      select: { attorney_id: true },
     });
+    // Owner 2026-10-05: a registry match / flag moves the trust level.
+    await this.trust.recompute(updated.attorney_id);
     return flag;
   }
 

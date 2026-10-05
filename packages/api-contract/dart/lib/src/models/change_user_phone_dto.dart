@@ -8,7 +8,7 @@ part 'change_user_phone_dto.g.dart';
 
 @JsonSerializable()
 class ChangeUserPhoneDto {
-  const ChangeUserPhoneDto({required this.phone, required this.reason});
+  const ChangeUserPhoneDto({required this.phone, this.reason = ''});
 
   factory ChangeUserPhoneDto.fromJson(Map<String, Object?> json) =>
       _$ChangeUserPhoneDtoFromJson(json);

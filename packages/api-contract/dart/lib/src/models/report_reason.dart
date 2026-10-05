@@ -30,6 +30,8 @@ enum ReportReason {
   hateSpeech('hate_speech'),
   @JsonValue('personal_info')
   personalInfo('personal_info'),
+  @JsonValue('fraud')
+  fraud('fraud'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

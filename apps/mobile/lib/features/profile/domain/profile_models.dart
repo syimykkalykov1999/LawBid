@@ -125,6 +125,7 @@ class PublicAttorneyProfile {
     required this.verifiedBadge,
     required this.rating,
     required this.isSelf,
+    this.trustLevel = 0,
     this.firstName,
     this.lastName,
     this.bio,
@@ -153,6 +154,9 @@ class PublicAttorneyProfile {
 
   /// Blue check (docs/03 §6.3), decided by the server.
   final bool verifiedBadge;
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
   final List<StateRef> licensedStates;
   final List<SelectedPractice> practices;
   final RatingInfo rating;
@@ -184,6 +188,7 @@ class OwnAttorneyProfile {
     required this.username,
     required this.verification,
     required this.verifiedBadge,
+    this.trustLevel = 0,
     this.nameMismatch = false,
     this.firstName,
     this.lastName,
@@ -207,6 +212,9 @@ class OwnAttorneyProfile {
   final List<String> languages;
   final AttorneyVerification verification;
   final bool verifiedBadge;
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
 
   /// OQ-029: the name drifted from the verified one; the blue check is
   /// hidden until it matches again or the new name is confirmed.

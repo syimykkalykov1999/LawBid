@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_trailing_cap.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 /// Tappable settings-style row (UI modernization pass, 2026-09-27):
@@ -149,9 +150,11 @@ class _AppListRowState extends State<AppListRow> {
               ),
               if (widget.trailingText != null) ...[
                 const SizedBox(width: AppSpacing.sm),
-                // Shares the row with the label (at most half of it) so a
-                // long value can't squeeze the label away.
-                Flexible(
+                // Natural width at the end edge, capped so a long value
+                // ellipsizes instead of squeezing the label. (A Flexible
+                // here gave the label only half the row and pulled the
+                // value and chevron to the middle.)
+                AppTrailingCap(
                   child: Text(
                     widget.trailingText!,
                     maxLines: 1,

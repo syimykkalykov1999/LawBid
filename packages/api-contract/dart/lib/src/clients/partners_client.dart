@@ -18,4 +18,10 @@ abstract class PartnersClient {
   Future<PartnerMeEnvelope> getMyPartnerDashboard({
     @Extras() Map<String, dynamic>? extras,
   });
+
+  /// Become a partner myself (program and self-enrolment on); returns the dashboard with my link
+  @POST('/partners/me/join')
+  Future<PartnerMeEnvelope> joinPartnerProgram({
+    @Extras() Map<String, dynamic>? extras,
+  });
 }

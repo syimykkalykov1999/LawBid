@@ -225,40 +225,42 @@ Future<void> showReportSheet(
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide,
-                  AppSpacing.md,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.screenSide,
+                    AppSpacing.md,
+                  ),
+                  child: Text(t.t('report.title'), style: type.titleMedium),
                 ),
-                child: Text(t.t('report.title'), style: type.titleMedium),
-              ),
-              for (final reason in ReportReason.values)
-                AppListRow(
-                  label: t.t('report.reason.${reason.name}'),
-                  showChevron: false,
-                  onTap: () async {
-                    Navigator.of(sheet).pop();
-                    final error = await ref
-                        .read(socialActionsProvider)
-                        .report(target, id, reason);
-                    if (context.mounted) {
-                      showAppSnackBar(
-                        context,
-                        error == null
-                            ? t.t('report.sent')
-                            : errorText(t, error),
-                      );
-                    }
-                  },
-                ),
-            ],
+                for (final reason in ReportReason.values)
+                  AppListRow(
+                    label: t.t('report.reason.${reason.name}'),
+                    showChevron: false,
+                    onTap: () async {
+                      Navigator.of(sheet).pop();
+                      final error = await ref
+                          .read(socialActionsProvider)
+                          .report(target, id, reason);
+                      if (context.mounted) {
+                        showAppSnackBar(
+                          context,
+                          error == null
+                              ? t.t('report.sent')
+                              : errorText(t, error),
+                        );
+                      }
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
       );

@@ -14,6 +14,7 @@ class AttorneyListItemDto {
     required this.id,
     required this.username,
     required this.verifiedBadge,
+    required this.trustLevel,
     required this.rating,
     required this.states,
     required this.practiceI18nKeys,
@@ -32,6 +33,9 @@ class AttorneyListItemDto {
   final String? lastName;
   final String? avatarUrl;
   final bool verifiedBadge;
+
+  /// Trust level.
+  final int trustLevel;
   final RatingDto rating;
 
   /// Verified license state codes.

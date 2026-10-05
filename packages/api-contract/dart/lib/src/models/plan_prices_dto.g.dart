@@ -12,6 +12,7 @@ PlanPricesDto _$PlanPricesDtoFromJson(Map<String, dynamic> json) =>
       seatCents: (json['seatCents'] as num).toInt(),
       yearlyCents: (json['yearlyCents'] as num).toInt(),
       maxSeats: (json['maxSeats'] as num).toInt(),
+      trialDays: (json['trialDays'] as num).toInt(),
     );
 
 Map<String, dynamic> _$PlanPricesDtoToJson(PlanPricesDto instance) =>
@@ -20,4 +21,5 @@ Map<String, dynamic> _$PlanPricesDtoToJson(PlanPricesDto instance) =>
       'seatCents': instance.seatCents,
       'yearlyCents': instance.yearlyCents,
       'maxSeats': instance.maxSeats,
+      'trialDays': instance.trialDays,
     };

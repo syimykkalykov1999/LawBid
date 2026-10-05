@@ -212,6 +212,45 @@ export const PAYMENT_STATUS: Record<string, string> = {
   refunded: 'возвращён',
 };
 
+/** Owner 2026-10-05: client → attorney payments through the platform. */
+export const CASE_PAYMENT_STATUS: Record<string, string> = {
+  pending_payment: 'ожидает оплаты',
+  succeeded: 'оплачен',
+  failed: 'ошибка',
+  canceled: 'отменён',
+  refunded: 'возвращён',
+  partially_refunded: 'частичный возврат',
+  disputed: 'оспорен',
+};
+
+export const CASE_PAYMENT_KIND: Record<string, string> = {
+  bid: 'ставка целиком',
+  deposit: 'аванс',
+  balance: 'остаток',
+  custom: 'своя сумма',
+};
+
+export const PAYOUT_ACCOUNT_STATUS: Record<string, string> = {
+  pending: 'создан',
+  onboarding: 'заполняет данные',
+  active: 'активен',
+  restricted: 'нужны документы',
+  disabled: 'отключён Stripe',
+};
+
+export const PAYMENT_FEE_TYPE: Record<string, string> = {
+  none: 'нет (платформа ничего не берёт)',
+  fixed: 'фиксированная плата за платёж',
+};
+
+export const PAYMENT_FEE_PAYER: Record<string, string> = {
+  client: 'клиент, сверх суммы',
+  attorney: 'адвокат, из суммы',
+};
+export const PROCESSING_FEE_PAYER = { client: 'клиент (сверх суммы)', attorney: 'адвокат (из суммы)', split: 'пополам' } as const;
+export const PAYMENT_REQUEST_STATUS = { open: 'Открыт', paid: 'Оплачен', canceled: 'Отозван', expired: 'Истёк' } as const;
+export const FEE_PAYER_STATUS = { proposed: 'предложено', countered: 'встречное', agreed: 'согласовано' } as const;
+
 export const REPORT_STATUS: Record<string, string> = {
   open: 'открыта',
   actioned: 'приняты меры',
@@ -293,9 +332,15 @@ export const REFERRAL_STATUS: Record<string, string> = {
 
 /** Owner 2026-10-05: partner program. */
 export const PARTNER_STATUS: Record<string, string> = {
+  pending: 'заявка',
   active: 'активен',
   paused: 'на паузе',
   ended: 'завершён',
+};
+export const JOIN_MODE: Record<string, string> = {
+  open: 'Открыто: ссылка сразу',
+  approval: 'По заявке: одобряет админ',
+  closed: 'Только админ',
 };
 export const COMMISSION_STATUS: Record<string, string> = {
   held: 'на проверке',
@@ -315,6 +360,36 @@ export const REFERRED_STATUS: Record<string, string> = {
   paid: 'выплачено',
   reversed: 'отменено',
 };
+export const LEAD_STATUS: Record<string, string> = {
+  new: 'новый',
+  working: 'в работе',
+  contacted: 'связались',
+  replied: 'ответил',
+  registered: 'зарегистрировался',
+  paid: 'оплатил',
+  lost: 'отказ',
+};
+export const LEAD_KIND: Record<string, string> = { attorney: 'адвокат', client: 'клиент' };
+export const LEAD_SOURCE: Record<string, string> = { manual: 'вручную', csv: 'CSV', ny_registry: 'реестр NY' };
+export const CALL_OUTCOME: Record<string, string> = {
+  no_answer: 'не ответил',
+  voicemail: 'голосовая почта',
+  talked: 'поговорили',
+  interested: 'заинтересован',
+  not_interested: 'не интересно',
+  callback: 'перезвонить',
+  wrong_number: 'неверный номер',
+};
+export const OUTREACH_ACTIVITY: Record<string, string> = {
+  call: 'звонок',
+  email: 'письмо',
+  note: 'заметка',
+  status: 'статус',
+  assign: 'назначение',
+  system: 'система',
+};
+export const TEMPLATE_KIND: Record<string, string> = { any: 'для всех', attorney: 'адвокатам', client: 'клиентам' };
+
 export const CLIENT_RULE: Record<string, string> = {
   case_published: 'опубликовал кейс',
   bid_accepted: 'нанял адвоката (принял отклик)',
@@ -360,6 +435,8 @@ export function toneFor(status: string | null | undefined): Tone {
     case 'paused':
     case 'past_due':
     case 'needs_more_info':
+    case 'onboarding':
+    case 'restricted':
     case 'open':
     case 'pending_payment':
     case 'manual_review':
@@ -371,6 +448,8 @@ export function toneFor(status: string | null | undefined): Tone {
     case 'removed':
     case 'failed':
     case 'fail':
+    case 'partially_refunded':
+      return 'warning';
     case 'canceled':
     case 'expired':
     case 'deleted':

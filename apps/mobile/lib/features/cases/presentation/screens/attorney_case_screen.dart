@@ -27,6 +27,8 @@ import 'package:lawbid/features/subscription/application/subscription_providers.
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Opens the subscription call-to-action when the server answers
@@ -283,9 +285,15 @@ class _Body extends ConsumerWidget {
         ),
         DetailSection(
           title: t.t('cases.detail.description'),
-          child: Text(
-            c.description ?? '',
-            style: typography.body.copyWith(color: colors.text),
+          // Owner 2026-10-05: «Перевести» (cases zone).
+          child: TranslatableText(
+            kind: TranslatableKind.caseDescription,
+            id: c.id,
+            text: c.description ?? '',
+            builder: (context, text) => Text(
+              text,
+              style: typography.body.copyWith(color: colors.text),
+            ),
           ),
         ),
         // OQ-031: photos once this attorney's bid is accepted; before

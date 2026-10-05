@@ -961,6 +961,7 @@ abstract final class SocialMappers {
         lastName: d.lastName,
         avatarUrl: d.avatarUrl,
         verified: d.verifiedBadge,
+        trustLevel: d.trustLevel,
         ratingAvg: d.rating.avg.toDouble(),
         ratingCount: d.rating.count.toInt(),
         states: d.states,

@@ -160,8 +160,12 @@ enum ErrorCode {
   licenseAlreadyAdded('LICENSE_ALREADY_ADDED'),
   @JsonValue('ATTORNEY_SUSPENDED')
   attorneySuspended('ATTORNEY_SUSPENDED'),
+  @JsonValue('BAR_NUMBER_BLOCKED')
+  barNumberBlocked('BAR_NUMBER_BLOCKED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
+  @JsonValue('REASON_REQUIRED')
+  reasonRequired('REASON_REQUIRED'),
   @JsonValue('ADMIN_TICKET_INVALID')
   adminTicketInvalid('ADMIN_TICKET_INVALID'),
   @JsonValue('ADMIN_TOTP_INVALID')
@@ -294,6 +298,10 @@ enum ErrorCode {
   commentsDisabled('COMMENTS_DISABLED'),
   @JsonValue('LICENSE_STATE_REQUIRED')
   licenseStateRequired('LICENSE_STATE_REQUIRED'),
+  @JsonValue('TRUST_LEVEL_REQUIRED')
+  trustLevelRequired('TRUST_LEVEL_REQUIRED'),
+  @JsonValue('ATTORNEY_ON_HOLD')
+  attorneyOnHold('ATTORNEY_ON_HOLD'),
   @JsonValue('TRANSLATION_UNAVAILABLE')
   translationUnavailable('TRANSLATION_UNAVAILABLE'),
   @JsonValue('STICKER_LIMIT_REACHED')
@@ -312,6 +320,14 @@ enum ErrorCode {
   promotionAlreadyActive('PROMOTION_ALREADY_ACTIVE'),
   @JsonValue('PROMOTION_INVALID_STATE')
   promotionInvalidState('PROMOTION_INVALID_STATE'),
+  @JsonValue('PAYOUT_ACCOUNT_NOT_READY')
+  payoutAccountNotReady('PAYOUT_ACCOUNT_NOT_READY'),
+  @JsonValue('PAYMENT_INVALID_STATE')
+  paymentInvalidState('PAYMENT_INVALID_STATE'),
+  @JsonValue('PAYMENT_AMOUNT_INVALID')
+  paymentAmountInvalid('PAYMENT_AMOUNT_INVALID'),
+  @JsonValue('PAYMENT_FEE_MAX_ROUNDS_REACHED')
+  paymentFeeMaxRoundsReached('PAYMENT_FEE_MAX_ROUNDS_REACHED'),
   @JsonValue('PROMO_CODE_INVALID')
   promoCodeInvalid('PROMO_CODE_INVALID'),
   @JsonValue('PROMO_CODE_EXISTS')
@@ -342,6 +358,12 @@ enum ErrorCode {
   planInUse('PLAN_IN_USE'),
   @JsonValue('ENTITLEMENT_REQUIRED')
   entitlementRequired('ENTITLEMENT_REQUIRED'),
+  @JsonValue('OUTREACH_IMPORT_INVALID')
+  outreachImportInvalid('OUTREACH_IMPORT_INVALID'),
+  @JsonValue('OUTREACH_INVALID_STATE')
+  outreachInvalidState('OUTREACH_INVALID_STATE'),
+  @JsonValue('OUTREACH_EMAIL_LIMIT')
+  outreachEmailLimit('OUTREACH_EMAIL_LIMIT'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
