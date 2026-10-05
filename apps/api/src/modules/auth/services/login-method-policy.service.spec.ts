@@ -18,12 +18,12 @@ describe('LoginMethodPolicy.assertPlatformAllowed', () => {
     expect(isEnabled).not.toHaveBeenCalled();
   });
 
-  it('refuses web with FEATURE_DISABLED while web_client is off (default off)', async () => {
+  it('refuses web with FEATURE_DISABLED once web_client is switched off', async () => {
     const { p, isEnabled } = policy(false);
     await expect(p.assertPlatformAllowed('web')).rejects.toMatchObject({
       response: { code: ErrorCode.FEATURE_DISABLED },
     });
-    expect(isEnabled).toHaveBeenCalledWith('web_client', false);
+    expect(isEnabled).toHaveBeenCalledWith('web_client', true);
   });
 
   it('allows web once web_client is on', async () => {

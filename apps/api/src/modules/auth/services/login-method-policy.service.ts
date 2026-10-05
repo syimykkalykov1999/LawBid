@@ -40,13 +40,14 @@ export class LoginMethodPolicy {
     });
   }
 
-  /** Flag `web_client` (seeded off): a sign-in or sign-up from the web
-   * client (deviceInfo.platform = 'web') is refused until the owner turns
-   * the web client on. Unlike the method flags, a missing row counts as
-   * off — the web client is opt-in. */
+  /** Flag `web_client` (seeded on, owner 2026-10-05): a kill switch for
+   * sign-ins and sign-ups from the web client (deviceInfo.platform = 'web').
+   * Website sign-in already exists (one phone + one website per account),
+   * so a missing row counts as on; switching it off refuses web sign-ins
+   * and ends web sessions on their next refresh. */
   async assertPlatformAllowed(platform: string | undefined): Promise<void> {
     if (platform !== 'web') return;
-    if (await this.flags.isEnabled(WEB_CLIENT_FLAG, false)) return;
+    if (await this.flags.isEnabled(WEB_CLIENT_FLAG, true)) return;
     throw new ForbiddenException({
       code: ErrorCode.FEATURE_DISABLED,
       message: 'Signing in from the web is not available yet.',
