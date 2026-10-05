@@ -40,6 +40,8 @@ void main() {
         overrides: uxOverrides(
           extra: [
             teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
             if (assistant) isAssistantProvider.overrideWithValue(true),
           ],
         ),
@@ -190,6 +192,8 @@ void main() {
         overrides: uxOverrides(
           extra: [
             teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
           ],
         ),
       ),
@@ -280,6 +284,8 @@ void main() {
           overrides: uxOverrides(
             extra: [
               teamRepositoryProvider.overrideWithValue(repo),
+              seatLimitRepositoryProvider
+                  .overrideWithValue(FakeSeatLimitRepository()),
             ],
           ),
         ),
@@ -407,6 +413,8 @@ void main() {
           overrides: uxOverrides(
             extra: [
               teamRepositoryProvider.overrideWithValue(repo),
+              seatLimitRepositoryProvider
+                  .overrideWithValue(FakeSeatLimitRepository()),
             ],
           ),
         ),

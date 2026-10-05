@@ -37,6 +37,8 @@ void main() {
         extra: [
           subscriptionRepositoryProvider.overrideWithValue(repo),
           teamRepositoryProvider.overrideWithValue(team),
+          seatLimitRepositoryProvider
+              .overrideWithValue(FakeSeatLimitRepository()),
           cardCollectorProvider.overrideWithValue(collector),
           subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
           checkoutPollIntervalProvider.overrideWithValue(Duration.zero),

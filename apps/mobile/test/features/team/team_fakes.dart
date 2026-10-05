@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:lawbid/features/team/data/seat_limit_repository.dart';
 import 'package:lawbid/features/team/data/team_repository.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -367,4 +368,14 @@ class FakeTeamRepository implements TeamRepository {
 
   @override
   Future<void> deleteBidDraft(String caseId) async {}
+}
+
+/// Owner 2026-10-05: the default limit, no request.
+class FakeSeatLimitRepository implements SeatLimitRepository {
+  @override
+  Future<SeatLimitState> state() async =>
+      const SeatLimitState(limit: 10, isPersonal: false);
+
+  @override
+  Future<void> request({required int seats, String? note}) async {}
 }

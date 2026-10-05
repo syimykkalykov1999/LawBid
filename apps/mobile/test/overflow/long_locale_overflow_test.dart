@@ -244,7 +244,11 @@ void main() {
           const Scaffold(body: TasksTab()),
           t,
           dir,
-          extra: [teamRepositoryProvider.overrideWithValue(repo)],
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
+          ],
         );
         expect(tester.takeException(), isNull);
         // Owner 2026-10-05: nothing moves to another line; the chips and
@@ -281,7 +285,11 @@ void main() {
           ),
           t,
           dir,
-          extra: [teamRepositoryProvider.overrideWithValue(repo)],
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
+          ],
         );
         expect(find.byKey(const ValueKey('assistant-seats')), findsOneWidget);
         expect(tester.takeException(), isNull);
@@ -290,7 +298,11 @@ void main() {
           const AssistantCodeScreen(),
           t,
           dir,
-          extra: [teamRepositoryProvider.overrideWithValue(repo)],
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
+          ],
         );
         expect(find.byType(AssistantCodeScreen), findsOneWidget);
         expect(tester.takeException(), isNull);
