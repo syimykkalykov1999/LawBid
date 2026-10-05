@@ -1008,6 +1008,7 @@ model State {
 
   primary_for_cases CaseState[]
   cases_primary     Case[]      @relation("CasePrimaryState")
+  bar_registry      StateBarRegistry?
 
   @@map("states")
 }
@@ -1131,12 +1132,18 @@ model AttorneyLicense {
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
   rejection_code    String?
   rejection_note    String?
+  /// Owner 2026-10-05: the state registry disagreed with a self-attested
+  /// license (name_mismatch / not_found / not_active). The license stays
+  /// verified; the flag puts it on the admin's "registry" list.
+  registry_flag       String?
+  registry_flagged_at DateTime?       @db.Timestamptz
   created_at        DateTime        @default(now()) @db.Timestamptz
   updated_at        DateTime        @updatedAt @db.Timestamptz
 
   // One license can't be attached to two accounts (§4.C, §5.1).
   @@unique([state_code, bar_number])
   @@index([attorney_id])
+  @@index([registry_flag])
   @@index([state_code, license_status])
   // Nightly license-expiry job (docs/03 §9, stage 4.1 migration).
   @@index([license_status, expires_at])
@@ -2618,6 +2625,30 @@ model IntegrationCredential {
 
   @@unique([provider, version])
   @@map("integration_credentials")
+}
+
+/// Owner 2026-10-05: how a state's attorney registry is checked
+/// automatically. `adapter` is manual | ny_open_data | socrata |
+/// generic_rest; `config` holds the non-secret settings (URL template,
+/// field paths…), `secret_enc` the API key (AES-256-GCM envelope, AAD
+/// "bar_registry:<state>"). A state without a row, disabled or `manual`
+/// is checked by a verifier through the bar's lookup link.
+model StateBarRegistry {
+  state_code       String    @id @db.Char(2)
+  state            State     @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  adapter          String    @default("manual")
+  enabled          Boolean   @default(false)
+  config           Json      @default("{}")
+  secret_enc       String?
+  secret_masked    String?
+  test_bar_number  String?
+  last_test_at     DateTime? @db.Timestamptz
+  last_test_result Json?
+  updated_by       String?   @db.Uuid
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@map("state_bar_registries")
 }
 
 /// Owner 2026-10-01: Bunny Stream video of a post.

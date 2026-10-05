@@ -1,5 +1,6 @@
 import type { SecretsService } from '../../../../common/secrets/secrets.service';
-import { NyOpenDataAdapter, normalizeName } from './ny-open-data.adapter';
+import { NyOpenDataAdapter } from './ny-open-data.adapter';
+import { normalizeName } from './registry-http';
 
 const input = {
   stateCode: 'NY',
@@ -12,7 +13,11 @@ function adapter(rows: unknown[] | Error, token?: string) {
   const fetchMock = jest.fn<Promise<unknown>, [string, RequestInit?]>(() =>
     rows instanceof Error
       ? Promise.reject(rows)
-      : Promise.resolve({ ok: true, json: () => Promise.resolve(rows) }),
+      : Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify(rows)),
+        }),
   );
   global.fetch = fetchMock as unknown as typeof fetch;
   const secrets = {
@@ -46,6 +51,27 @@ describe('NyOpenDataAdapter (owner 2026-10-04)', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain(
       'registration_number=6366132',
     );
+  });
+
+  it('keeps a short copy of the registry record', async () => {
+    const { ny } = adapter([row]);
+    const out = await ny.lookup(input);
+    expect(String(out.details.raw)).toContain(
+      '"registration_number":"6366132"',
+    );
+  });
+
+  it("the NY row's token wins over the old integration key", async () => {
+    const { ny, fetchMock } = adapter([row], 'oldtoken12345');
+    await ny.lookup(input, {
+      stateCode: 'NY',
+      adapter: 'ny_open_data',
+      config: {},
+      secret: 'rowtoken12345',
+    });
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      headers: { 'X-App-Token': 'rowtoken12345' },
+    });
   });
 
   it('sends the optional app token', async () => {
