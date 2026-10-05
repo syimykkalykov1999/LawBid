@@ -16,6 +16,7 @@ class PlanEntitlementsDto {
     this.maxActiveBids,
     this.prioritySearch,
     this.calls,
+    this.videoCalls,
     this.chatTranslate,
     this.translationsPerDay,
     this.videoPosts,
@@ -45,6 +46,8 @@ class PlanEntitlementsDto {
   @JsonKey(name: 'priority_search')
   final bool? prioritySearch;
   final bool? calls;
+  @JsonKey(name: 'video_calls')
+  final bool? videoCalls;
   @JsonKey(name: 'chat_translate')
   final bool? chatTranslate;
   @JsonKey(name: 'translations_per_day')

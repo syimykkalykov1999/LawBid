@@ -15,6 +15,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -41,6 +42,14 @@ import { VideosService } from '../videos/videos.service';
 import { extractHashtags } from './hashtags';
 import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
 
+/** A display/download name without path parts or control characters. */
+export function safeFileName(name: string): string {
+  const base = name.split(/[\\/]/).pop() ?? '';
+  // eslint-disable-next-line no-control-regex
+  const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  return (clean || 'document').slice(0, 120);
+}
+
 export function postNotFound(): NotFoundException {
   return new NotFoundException({
     code: ErrorCode.POST_NOT_FOUND,
@@ -65,6 +74,7 @@ export class PostsService {
     private readonly moderation: ContentModerationHook,
     private readonly videos: VideosService,
     private readonly notifications: NotificationsService,
+    private readonly settings: AppSettingsService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
   ) {}
 
@@ -83,7 +93,7 @@ export class PostsService {
       ? await this.practiceByCode(dto.practiceCode)
       : null;
     const video = dto.videoAssetId
-      ? await this.attachableVideo(user.sub, dto.videoAssetId, dto)
+      ? await this.attachableVideo(user.sub, dto.videoAssetId)
       : null;
     await this.limits.consume('post_create', user.sub);
     const verdict = await this.moderate(
@@ -117,6 +127,10 @@ export class PostsService {
         });
       }
     }
+    const attachments = await this.attachableDocuments(
+      user.sub,
+      dto.attachments ?? [],
+    );
     const tags = extractHashtags(dto.body);
     const post = await withTxRetry(this.prisma, async (tx) => {
       const created = await tx.post
@@ -153,6 +167,16 @@ export class PostsService {
             position: i,
             width: f.width,
             height: f.height,
+          })),
+        });
+      }
+      if (attachments.length > 0) {
+        await tx.postAttachment.createMany({
+          data: attachments.map((a, i) => ({
+            post_id: created.id,
+            file_id: a.fileId,
+            file_name: a.fileName,
+            position: i,
           })),
         });
       }
@@ -205,20 +229,59 @@ export class PostsService {
     });
   }
 
-  /** Own, unused, still usable — else a clear error. */
-  private async attachableVideo(
+  /**
+   * Owner 2026-10-05: documents of a post — own, `post_attachment`,
+   * antivirus-clean, not in another post, together under
+   * `posts.attachments_max_total_mb`.
+   */
+  private async attachableDocuments(
     userId: string,
-    assetId: string,
-    dto: CreatePostDto,
-  ) {
-    await this.videos.assertAvailable();
-    if ((dto.mediaFileIds ?? []).length > 0) {
+    input: { fileId: string; fileName: string }[],
+  ): Promise<{ fileId: string; fileName: string }[]> {
+    if (input.length === 0) return [];
+    const ids = input.map((a) => a.fileId);
+    if (new Set(ids).size !== ids.length) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
-        message: 'A post has either photos or a video.',
-        details: { field: 'videoAssetId' },
+        message: 'The same document is attached twice.',
+        details: { field: 'attachments' },
       });
     }
+    let total = 0;
+    for (const id of ids) {
+      const f = await this.files.assertAttachable(userId, id, [
+        'post_attachment',
+      ]);
+      total += Number(f.size_bytes);
+    }
+    const maxMb = await this.settings.number('posts.attachments_max_total_mb');
+    if (total > maxMb * 1024 * 1024) {
+      throw new BadRequestException({
+        code: ErrorCode.FILE_TOO_LARGE,
+        message: `Documents of one post are up to ${maxMb} MB together.`,
+        details: { maxTotalMb: maxMb },
+      });
+    }
+    const used = await this.prisma.postAttachment.findFirst({
+      where: { file_id: { in: ids } },
+      select: { file_id: true },
+    });
+    if (used) {
+      throw new ConflictException({
+        code: ErrorCode.FILE_NOT_ATTACHABLE,
+        message: 'This document is already used in another post.',
+        details: { fileId: used.file_id },
+      });
+    }
+    return input.map((a) => ({
+      fileId: a.fileId,
+      fileName: safeFileName(a.fileName),
+    }));
+  }
+
+  /** Own, unused, still usable — else a clear error. */
+  private async attachableVideo(userId: string, assetId: string) {
+    await this.videos.assertAvailable();
     const asset = await this.prisma.videoAsset.findFirst({
       where: { id: assetId, owner_user_id: userId, deleted_at: null },
     });

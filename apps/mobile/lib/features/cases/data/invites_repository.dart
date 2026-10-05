@@ -3,6 +3,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/cases/data/cases_mappers.dart';
 import 'package:lawbid/features/cases/domain/case_invite.dart';
+import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-05: client → attorney case invites.
@@ -105,5 +106,13 @@ class ApiInvitesRepository implements InvitesRepository {
         caseStateCodes: d.caseStateCodes,
         attorney:
             d.attorney == null ? null : CasesMappers.attorney(d.attorney!),
+        caseCity: d.caseCity,
+        caseUrgency:
+            d.caseUrgency == api.CaseUrgency.$unknown ? null : d.caseUrgency,
+        caseBudget: CaseBudget(
+          mode: d.caseBudget.mode,
+          amountCents: d.caseBudget.amountCents,
+        ),
+        caseDossier: CasesMappers.dossier(d.caseDossier),
       );
 }

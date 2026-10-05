@@ -17,6 +17,7 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -66,6 +67,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             : splitPostBody(widget.editing!.body).$2),
   );
   final _photos = <_Photo>[];
+
+  /// Owner 2026-10-05: PDF / Word / text readers download.
+  late final _docs = PostDocumentsController(ref.read(socialActionsProvider))
+    ..addListener(_onDocs);
   late String? _practice = widget.editing?.practice?.code;
   late bool _news = widget.editing?.isNews ?? widget.news;
   bool _publishing = false;
@@ -73,8 +78,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   bool get _editing => widget.editing != null;
 
+  void _onDocs() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _docs.dispose();
     _title.dispose();
     _text.dispose();
     super.dispose();
@@ -102,12 +112,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   Future<void> _pick() async {
     final left = kPostMaxPhotos - _photos.length;
     if (left <= 0) return;
+    final limits = postPhotoLimits(ref);
     final List<XFile> picked;
     if (_videoAllowed) {
       picked = await ImagePicker().pickMultipleMedia(
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 90,
+        maxWidth: limits.maxPx,
+        maxHeight: limits.maxPx,
+        imageQuality: limits.quality,
         limit: left,
       );
       final video = picked.where(_isVideo).firstOrNull;
@@ -123,9 +134,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       }
     } else {
       picked = await ImagePicker().pickMultiImage(
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 90,
+        maxWidth: limits.maxPx,
+        maxHeight: limits.maxPx,
+        imageQuality: limits.quality,
         limit: left,
       );
     }
@@ -175,7 +186,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   bool get _ready =>
       _title.text.trim().isNotEmpty &&
       _text.text.trim().isNotEmpty &&
-      _photos.every((p) => p.fileId != null);
+      _photos.every((p) => p.fileId != null) &&
+      _docs.ready;
 
   Future<void> _publish() async {
     final t = ref.read(translatorProvider);
@@ -207,6 +219,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             if (_practice != null) 'practiceCode': _practice,
             'kind': _news ? 'news' : 'post',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
+            if (_docs.items.isNotEmpty)
+              'attachments': [
+                for (final d in _docs.refs)
+                  {'fileId': d.fileId, 'fileName': d.fileName},
+              ],
           },
         );
         if (!mounted) return;
@@ -223,6 +240,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               practiceCode: _practice,
               isNews: _news,
               mediaFileIds: [for (final p in _photos) p.fileId!],
+              attachments: _docs.refs,
             ),
           );
       if (!mounted) return;
@@ -432,6 +450,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         ),
                       ),
                     ],
+                    const SizedBox(height: AppSpacing.lg),
+                    PostDocumentsEditor(
+                      controller: _docs,
+                      enabled: !_publishing,
+                    ),
                   ],
                   const SizedBox(height: AppSpacing.xl),
                   const PostDisclaimer(),

@@ -9,6 +9,7 @@ import { BidsService } from '../bids/bids.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { PartnersService } from '../partners/partners.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
 import type {
@@ -47,6 +48,8 @@ export class SubscriptionSyncService {
     @Optional() private readonly clientBadges?: ClientBadgeService,
     // Owner 2026-10-05: a client's plan.
     @Optional() private readonly clientPlans?: ClientPlansService,
+    // Owner 2026-10-05: partner commissions reversed on refunds.
+    @Optional() private readonly partners?: PartnersService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -292,10 +295,19 @@ export class SubscriptionSyncService {
   private async onRefund(chargeId: string): Promise<void> {
     const charge = await this.provider.retrieveCharge(chargeId);
     if (!charge?.paymentIntentId || !charge.refunded) return;
+    const refunded = await this.prisma.payment.findMany({
+      where: { stripe_payment_intent_id: charge.paymentIntentId },
+      select: { user_id: true },
+    });
     await this.prisma.payment.updateMany({
       where: { stripe_payment_intent_id: charge.paymentIntentId },
       data: { status: 'refunded' },
     });
+    // Owner 2026-10-05: a refunded subscription payment takes back the
+    // partner's commission for that attorney (never breaks billing).
+    for (const userId of new Set(refunded.map((p) => p.user_id))) {
+      await this.partners?.reverseForReferredUser(userId, 'payment_refunded');
+    }
   }
 
   private async byCustomer(

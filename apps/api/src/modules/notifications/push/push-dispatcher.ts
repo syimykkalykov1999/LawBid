@@ -129,6 +129,7 @@ export class PushDispatcher
       select: {
         status: true,
         conversation_id: true,
+        video: true,
         callee: { select: { status: true, ui_language: true } },
         caller: {
           select: { first_name: true, last_name: true },
@@ -148,8 +149,12 @@ export class PushDispatcher
       {
         userId: data.recipientId,
         title: name,
-        body:
-          call.callee.ui_language === 'ru'
+        // Owner 2026-10-05: video calls say so.
+        body: call.video
+          ? call.callee.ui_language === 'ru'
+            ? '📹 Входящий видеозвонок'
+            : '📹 Incoming video call'
+          : call.callee.ui_language === 'ru'
             ? '📞 Входящий звонок'
             : '📞 Incoming call',
         data: {
@@ -158,6 +163,7 @@ export class PushDispatcher
           conversationId: call.conversation_id,
           callerName: name,
           ...(silent ? { silent: '1' } : {}),
+          ...(call.video ? { video: '1' } : {}),
         },
         call: true,
       },

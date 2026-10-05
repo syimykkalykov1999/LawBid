@@ -17,6 +17,7 @@ abstract final class PlanMappers {
           maxActiveBids: d.maxActiveBids,
           prioritySearch: d.prioritySearch,
           calls: d.calls,
+          videoCalls: d.videoCalls,
           chatTranslate: d.chatTranslate,
           translationsPerDay: d.translationsPerDay,
           videoPosts: d.videoPosts,

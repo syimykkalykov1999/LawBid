@@ -6,6 +6,11 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AppConfigService } from './app-config.service';
+import {
+  VIDEO_CALLS_FLAG,
+  WebRtcVideoProvider,
+  videoCallAvailability,
+} from '../../calls/video-call-provider';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 
 /** `GET /config/bootstrap`'s response shape (docs/01_FOUNDATION_AUTH.md
@@ -79,6 +84,8 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'soft_update_version_',
   'files.',
   'video.max_',
+  'posts.attachments_',
+  'media.photo_',
   'stickers.',
 ] as const;
 
@@ -123,6 +130,19 @@ export class BootstrapService {
     return { ...flags, chat_translate: !!f.apiKey };
   }
 
+  /** Owner 2026-10-05: the "Видеозвонок" button shows only while
+   * `video_calls` is on AND the video provider (WebRTC + TURN) is set. */
+  private async withVideoCallsGate(
+    flags: Record<string, boolean>,
+  ): Promise<Record<string, boolean>> {
+    if (!flags[VIDEO_CALLS_FLAG]) return flags;
+    const a = await videoCallAvailability(
+      true,
+      new WebRtcVideoProvider(this.secrets, this.config),
+    );
+    return { ...flags, [VIDEO_CALLS_FLAG]: a.available };
+  }
+
   async build(): Promise<BootstrapResponse> {
     const [flags, appConfig, content] = await Promise.all([
       this.flags.getFlags(),
@@ -136,7 +156,9 @@ export class BootstrapService {
     );
 
     return {
-      flags: await this.withTranslateGate(await this.withVideoGate(flags)),
+      flags: await this.withVideoCallsGate(
+        await this.withTranslateGate(await this.withVideoGate(flags)),
+      ),
       // Audit 2026-10-02: only what the app needs — never the moderation
       // term lists, budgets or reserved names (this endpoint is public).
       app_config: Object.fromEntries(

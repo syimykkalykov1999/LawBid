@@ -48,6 +48,7 @@ class PlanEntitlements {
     this.maxActiveBids,
     this.prioritySearch,
     this.calls,
+    this.videoCalls,
     this.chatTranslate,
     this.translationsPerDay,
     this.videoPosts,
@@ -69,6 +70,7 @@ class PlanEntitlements {
   final int? maxActiveBids;
   final bool? prioritySearch;
   final bool? calls;
+  final bool? videoCalls;
   final bool? chatTranslate;
   final int? translationsPerDay;
   final bool? videoPosts;

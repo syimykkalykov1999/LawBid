@@ -128,6 +128,7 @@ abstract final class PlanFeatures {
       }
     }
     if (e.calls ?? false) out.add(t.t('plan.f.calls'));
+    if (e.videoCalls ?? false) out.add(t.t('plan.f.videoCalls'));
     if (e.chatTranslate ?? false) {
       out.add(t.t('plan.f.chatTranslate'));
       final tr = e.translationsPerDay;

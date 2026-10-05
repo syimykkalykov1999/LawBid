@@ -15,10 +15,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
 import type { PaymentProvider } from '../billing/payment-provider';
+import { PartnersService } from '../partners/partners.service';
 import {
   generateReferralCode,
   normalizeReferralCode,
   REFERRAL_CODE_PATTERN,
+  referralShareUrl,
 } from './referral-code.util';
 import type {
   ApplyReferralResultDto,
@@ -42,7 +44,6 @@ import {
 
 const DAY_MS = 86_400_000;
 const CODE_ATTEMPTS = 6;
-const DEEP_LINK_BASE = 'lawbid://referral';
 
 type Db = Prisma.TransactionClient | PrismaService;
 
@@ -97,6 +98,7 @@ export class ReferralsService {
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
     @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly partners?: PartnersService,
   ) {}
 
   // ---- settings ---------------------------------------------------------
@@ -138,10 +140,7 @@ export class ReferralsService {
   }
 
   shareUrl(code: string): string {
-    const base = this.config.get<string>('APP_LINK_BASE_URL');
-    return base
-      ? `${base.replace(/\/+$/, '')}/r/${code}`
-      : `${DEEP_LINK_BASE}/${code}`;
+    return referralShareUrl(this.config.get<string>('APP_LINK_BASE_URL'), code);
   }
 
   // ---- app --------------------------------------------------------------
@@ -225,18 +224,27 @@ export class ReferralsService {
     rawCode: string,
   ): Promise<ApplyReferralResultDto> {
     const settings = await this.settings();
-    if (!settings.enabled) {
-      throw new ForbiddenException({
-        code: ErrorCode.FEATURE_DISABLED,
-        message: 'The referral program is not available right now.',
-      });
-    }
     const code = normalizeReferralCode(rawCode);
     const invalid = new NotFoundException({
       code: ErrorCode.REFERRAL_CODE_INVALID,
       message: 'This referral code does not exist.',
     });
     if (!REFERRAL_CODE_PATTERN.test(code)) throw invalid;
+    // Owner 2026-10-05: a partner's code works even while the friends'
+    // referral program is switched off (the partner is paid by the owner;
+    // the referee then gets no referral reward).
+    const codeOwner = await this.prisma.referralCode.findUnique({
+      where: { code },
+    });
+    const partner = codeOwner
+      ? await this.partners?.activePartnerOf(codeOwner.user_id)
+      : null;
+    if (!settings.enabled && !partner) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'The referral program is not available right now.',
+      });
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -258,9 +266,7 @@ export class ReferralsService {
         `A referral code can be entered only within ${settings.applyWindowDays} days of sign-up.`,
       );
     }
-    const owner = await this.prisma.referralCode.findUnique({
-      where: { code },
-    });
+    const owner = codeOwner;
     if (!owner) throw invalid;
     if (owner.user_id === userId) {
       throw notAllowed('self', 'You cannot use your own referral code.');
@@ -279,7 +285,10 @@ export class ReferralsService {
     if (already) {
       throw notAllowed('already_referred', 'You have already used a code.');
     }
-    const referrerRole = asRole(referrer?.role);
+    // A partner may be any account (an assistant, a blogger without a
+    // role yet): their row says `partner` where a friend's says the role.
+    const referrerRole: ReferralRole | 'partner' | null =
+      asRole(referrer?.role) ?? (partner ? 'partner' : null);
     if (
       !referrer ||
       !referrerRole ||
@@ -303,8 +312,16 @@ export class ReferralsService {
       throw notAllowed('mutual', 'You invited this person yourself.');
     }
 
-    const referrerReward = rewardFor(settings, 'referrer', referrerRole);
-    const refereeReward = rewardFor(settings, 'referee', refereeRole);
+    // Rewards of the friends' program only while it is on; a partner is
+    // paid through partner commissions, never a referral reward.
+    const none: ReferralRewardSnapshot = { type: 'promotion_days', value: 0 };
+    const referrerReward =
+      settings.enabled && referrerRole !== 'partner'
+        ? rewardFor(settings, 'referrer', referrerRole)
+        : none;
+    const refereeReward = settings.enabled
+      ? rewardFor(settings, 'referee', refereeRole)
+      : none;
     let created: Referral;
     try {
       created = await this.prisma.referral.create({
@@ -333,6 +350,9 @@ export class ReferralsService {
         userId,
         QUALIFYING_EVENT_FOR_ROLE[refereeRole],
       );
+    }
+    if (refereeRole === 'client' && (await this.hasAcceptedBid(userId))) {
+      await this.onQualifyingEvent(userId, 'bid_accepted');
     }
     const after = await this.prisma.referral.findUnique({
       where: { id: created.id },
@@ -376,6 +396,9 @@ export class ReferralsService {
         });
         for (const w of waiting) await this.tryReward(w.id);
       }
+      // Owner 2026-10-05: the partner program accrues on the same events
+      // (plus bid_accepted); it never throws either.
+      await this.partners?.onQualifyingEvent(userId, kind);
     } catch (e) {
       this.logger.warn(
         { userId, kind, err: String(e) },
@@ -485,6 +508,15 @@ export class ReferralsService {
       );
       return false;
     }
+  }
+
+  /** The client already hired someone (partner rule `bid_accepted`). */
+  private async hasAcceptedBid(userId: string): Promise<boolean> {
+    return (
+      (await this.prisma.case.count({
+        where: { client_id: userId, accepted_bid_id: { not: null } },
+      })) > 0
+    );
   }
 
   private async hasQualifyingAction(

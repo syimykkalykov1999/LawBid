@@ -452,6 +452,26 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     await api().post(`/api/v1/calls/${ok.body.data.id}/end`).set(a.auth);
   });
 
+  it('video calls: off on the plan → 403 ENTITLEMENT_REQUIRED before the flag check', async () => {
+    const c = await user('client');
+    const a = await user('attorney');
+    const conv = await conversation(c.id, a.id);
+    await setTerm('attorney_monthly', 'video_calls', false);
+    const denied = await api()
+      .post(`/api/v1/conversations/${conv}/calls`)
+      .set(a.auth)
+      .send({ video: true });
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe('ENTITLEMENT_REQUIRED');
+    await setTerm('attorney_monthly', 'video_calls', true);
+    const next = await api()
+      .post(`/api/v1/conversations/${conv}/calls`)
+      .set(a.auth)
+      .send({ video: true });
+    // The plan no longer blocks; the global flag / TURN keys decide next.
+    expect(next.body.error?.code).not.toBe('ENTITLEMENT_REQUIRED');
+  });
+
   it('chat translation: a client without the term gets 403 before anything else', async () => {
     const c = await user('client');
     const a = await user('attorney');

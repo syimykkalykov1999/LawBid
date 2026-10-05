@@ -37,6 +37,7 @@ export const ENTITLEMENT_KEYS = [
   'max_active_bids',
   'priority_search',
   'calls',
+  'video_calls',
   'chat_translate',
   'translations_per_day',
   'video_posts',
@@ -139,6 +140,17 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     description: {
       en: 'Can start voice calls from a chat once contacts are unlocked.',
       ru: 'Может звонить из чата после открытия контактов.',
+    },
+  },
+  {
+    key: 'video_calls',
+    type: 'boolean',
+    audiences: ['attorney', 'client'],
+    group: 'features',
+    label: { en: 'Video calls', ru: 'Видеозвонки' },
+    description: {
+      en: 'Can start video calls from a chat (needs the global video_calls flag and TURN keys).',
+      ru: 'Может начать видеозвонок из чата (нужен общий флаг video_calls и ключи TURN).',
     },
   },
   {
@@ -301,6 +313,7 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     max_active_bids: 0,
     priority_search: false,
     calls: true,
+    video_calls: true,
     chat_translate: true,
     translations_per_day: null,
     video_posts: true,
@@ -311,6 +324,7 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
   },
   client: {
     calls: true,
+    video_calls: true,
     chat_translate: true,
     translations_per_day: null,
     video_posts: true,

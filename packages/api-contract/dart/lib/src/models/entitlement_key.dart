@@ -20,6 +20,8 @@ enum EntitlementKey {
   prioritySearch('priority_search'),
   @JsonValue('calls')
   calls('calls'),
+  @JsonValue('video_calls')
+  videoCalls('video_calls'),
   @JsonValue('chat_translate')
   chatTranslate('chat_translate'),
   @JsonValue('translations_per_day')

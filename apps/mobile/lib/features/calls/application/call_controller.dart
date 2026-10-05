@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -48,7 +49,13 @@ class CallSession {
     this.connectedAt,
     this.outcome,
     this.errorCode,
+    this.video = false,
+    this.cameraOn = true,
   });
+
+  /// Owner 2026-10-05: a video call; [cameraOn] = our camera is sending.
+  final bool video;
+  final bool cameraOn;
 
   final CallPhase phase;
   final AppCall? call;
@@ -76,6 +83,7 @@ class CallSession {
     DateTime? connectedAt,
     CallStatus? outcome,
     String? errorCode,
+    bool? cameraOn,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -86,6 +94,8 @@ class CallSession {
         connectedAt: connectedAt ?? this.connectedAt,
         outcome: outcome ?? this.outcome,
         errorCode: errorCode ?? this.errorCode,
+        video: video,
+        cameraOn: cameraOn ?? this.cameraOn,
       );
 }
 
@@ -146,6 +156,9 @@ class CallController extends Notifier<CallSession> {
 
   CallsRepository get _repo => ref.read(callsRepositoryProvider);
 
+  /// The live media — the call screen shows its video streams.
+  CallMedia? get media => _media;
+
   @override
   CallSession build() {
     _events?.cancel();
@@ -160,13 +173,23 @@ class CallController extends Notifier<CallSession> {
 
   // --- Outgoing ------------------------------------------------------------
 
-  /// Calls the other member of [conversationId].
-  Future<void> call(String conversationId, {CallPeer? peer}) async {
+  /// Calls the other member of [conversationId]; [video] = a video call
+  /// (owner 2026-10-05).
+  Future<void> call(
+    String conversationId, {
+    CallPeer? peer,
+    bool video = false,
+  }) async {
     if (state.busy) return;
     _reset();
-    state = CallSession(phase: CallPhase.outgoing, peer: peer);
+    state = CallSession(
+      phase: CallPhase.outgoing,
+      peer: peer,
+      video: video,
+      speaker: video,
+    );
     try {
-      final call = await _repo.start(conversationId);
+      final call = await _repo.start(conversationId, video: video);
       if (!ref.mounted) return;
       if (call.status == CallStatus.busy) {
         _finish(call.status, call: call);
@@ -176,7 +199,7 @@ class CallController extends Notifier<CallSession> {
       // OQ-044: the caller hears ringback tones while it rings there.
       unawaited(ref.read(appSoundsProvider).startRingback());
       // Mic + connection ready while it rings: pick-up connects faster.
-      await _openMedia(call.id);
+      await _openMedia(call.id, video: call.video);
       _ringTimer = Timer(kCallRingTimeout, () {
         if (state.phase == CallPhase.outgoing) {
           unawaited(hangUp(reason: CallEndReason.noAnswer));
@@ -201,7 +224,7 @@ class CallController extends Notifier<CallSession> {
     state = state.copyWith(phase: CallPhase.connecting);
     unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
     try {
-      await _openMedia(call.id);
+      await _openMedia(call.id, video: call.video);
       final accepted = await _repo.accept(call.id);
       if (!ref.mounted) return;
       state = state.copyWith(call: accepted);
@@ -254,6 +277,27 @@ class CallController extends Notifier<CallSession> {
     state = state.copyWith(muted: muted);
   }
 
+  /// Video calls: camera on / off (the other side sees our avatar).
+  Future<void> toggleCamera() async {
+    if (!state.video) return;
+    final on = !state.cameraOn;
+    state = state.copyWith(cameraOn: on);
+    try {
+      await _media?.setCameraOn(on);
+    } on Object {
+      // No camera: keep the flag for the UI.
+    }
+  }
+
+  Future<void> switchCamera() async {
+    if (!state.video) return;
+    try {
+      await _media?.switchCamera();
+    } on Object {
+      // A single camera.
+    }
+  }
+
   Future<void> toggleSpeaker() async {
     final on = !state.speaker;
     state = state.copyWith(speaker: on);
@@ -284,7 +328,13 @@ class CallController extends Notifier<CallSession> {
 
   void _ring(AppCall call, {bool showSystemUi = true}) {
     _reset();
-    state = CallSession(phase: CallPhase.incoming, call: call, peer: call.peer);
+    state = CallSession(
+      phase: CallPhase.incoming,
+      call: call,
+      peer: call.peer,
+      video: call.video,
+      speaker: call.video,
+    );
     // Owner 2026-10-02: "Calls" off in Settings → the call still comes
     // (the in-app screen), but without the ringing system UI or a buzz.
     if (isCategoryMuted(ref, NotifCategory.calls)) return;
@@ -302,13 +352,14 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
-  Future<void> _openMedia(String callId) async {
+  Future<void> _openMedia(String callId, {bool video = false}) async {
     if (_mediaOpen) return;
     final servers = await _repo.iceServers();
     final media = ref.read(callMediaFactoryProvider)();
     _media = media;
     await media.open(
       servers,
+      video: video,
       onSignal: (s) => ref.read(callSignalSenderProvider)(callId, s),
       onState: (s) {
         if (!ref.mounted) return;
@@ -476,6 +527,12 @@ class CallController extends Notifier<CallSession> {
     _linger?.cancel();
   }
 }
+
+/// Owner 2026-10-05: video calls are on (the bootstrap turns the flag off
+/// while TURN is not configured, so the button never leads nowhere).
+final videoCallsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('video_calls'),
+);
 
 final callControllerProvider =
     NotifierProvider<CallController, CallSession>(CallController.new);

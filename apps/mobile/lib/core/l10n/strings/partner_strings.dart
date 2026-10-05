@@ -1,0 +1,117 @@
+// ignore_for_file: lines_longer_than_80_chars
+// Owner 2026-10-05: partner program (Settings → Partner program) —
+// compiled-in strings merged into StaticTranslatorRu/En.
+
+const partnerRu = <String, String>{
+  'partner.title': 'Партнёрская программа',
+  'partner.hint': 'Ваша ссылка, кто присоединился и заработок',
+  'partner.yourLink': 'Ваша партнёрская ссылка',
+  'partner.copy': 'Скопировать',
+  'partner.copied': 'Ссылка скопирована',
+  'partner.share': 'Поделиться',
+  'partner.shareText': 'Присоединяйся к LawBid по моей ссылке! Код {code}',
+  'partner.status.paused':
+      'Программа для вас приостановлена: новые начисления не идут, уже начисленное будет выплачено.',
+  'partner.status.ended':
+      'Ваше участие в программе завершено. Начисленное ранее будет выплачено.',
+  'partner.rates.title': 'Ваши ставки',
+  'partner.rates.attorney': 'За адвоката, который купил подписку',
+  'partner.rates.client.bid_accepted': 'За клиента, который нанял адвоката',
+  'partner.rates.client.case_published': 'За клиента, который опубликовал кейс',
+  'partner.rates.monthly': 'Фиксированно в месяц',
+  'partner.rates.hold':
+      'Начисление проверяется {days} дн., затем идёт к выплате.',
+  'partner.totals.held': 'На проверке',
+  'partner.totals.approved': 'К выплате',
+  'partner.totals.paid': 'Выплачено',
+  'partner.totals.month': 'За этот месяц',
+  'partner.referred.title': 'Присоединились по вашей ссылке',
+  'partner.referred.count': '{count} чел., выполнили условие: {qualified}',
+  'partner.referred.empty':
+      'Пока никого. Поделитесь ссылкой — здесь появятся все, кто зарегистрируется по ней.',
+  'partner.referred.attorney': 'Адвокат',
+  'partner.referred.client': 'Клиент',
+  'partner.referred.anonymous': 'Пользователь',
+  'partner.referred.status.joined': 'присоединился',
+  'partner.referred.status.qualified': 'условие выполнено',
+  'partner.referred.status.paid': 'выплачено',
+  'partner.referred.status.reversed': 'отменено',
+  'partner.commissions.title': 'Начисления',
+  'partner.commissions.empty':
+      'Начислений пока нет. Они появятся, когда приглашённый адвокат оплатит подписку или клиент наймёт адвоката.',
+  'partner.kind.attorney_subscription': 'Адвокат купил подписку',
+  'partner.kind.client_qualified': 'Клиент нанял адвоката',
+  'partner.kind.monthly_base': 'Месячная ставка',
+  'partner.kind.adjustment': 'Корректировка',
+  'partner.cstatus.held': 'на проверке',
+  'partner.cstatus.approved': 'к выплате',
+  'partner.cstatus.paid': 'выплачено',
+  'partner.cstatus.reversed': 'отменено',
+  'partner.holdUntil': 'до {date}',
+  'partner.off.title': 'Вы не участник программы',
+  'partner.off.message':
+      'Партнёров подключает команда LawBid. Напишите в поддержку, если хотите приводить адвокатов и клиентов за вознаграждение.',
+  'notif.system.partner_commission.title': 'Партнёрское начисление',
+  'notif.system.partner_commission.body':
+      'Приглашённый вами выполнил условие. Вознаграждение начислено.',
+  'notif.system.partner_payout.title': 'Партнёрская выплата',
+  'notif.system.partner_payout.body':
+      'Ваше партнёрское вознаграждение выплачено. Подробности в приложении.',
+};
+
+const partnerEn = <String, String>{
+  'partner.title': 'Partner program',
+  'partner.hint': 'Your link, who joined and your earnings',
+  'partner.yourLink': 'Your partner link',
+  'partner.copy': 'Copy',
+  'partner.copied': 'Link copied',
+  'partner.share': 'Share',
+  'partner.shareText': 'Join me on LawBid with my link! Code {code}',
+  'partner.status.paused':
+      'The program is paused for you: nothing new accrues, what was accrued will be paid.',
+  'partner.status.ended':
+      'Your participation has ended. Earlier accruals will be paid.',
+  'partner.rates.title': 'Your rates',
+  'partner.rates.attorney': 'Per attorney who buys a subscription',
+  'partner.rates.client.bid_accepted': 'Per client who hires an attorney',
+  'partner.rates.client.case_published': 'Per client who publishes a case',
+  'partner.rates.monthly': 'Fixed per month',
+  'partner.rates.hold':
+      'An accrual is checked for {days} days, then goes to payout.',
+  'partner.totals.held': 'In check',
+  'partner.totals.approved': 'To be paid',
+  'partner.totals.paid': 'Paid',
+  'partner.totals.month': 'This month',
+  'partner.referred.title': 'Joined by your link',
+  'partner.referred.count': '{count} people, qualified: {qualified}',
+  'partner.referred.empty':
+      'Nobody yet. Share your link — everyone who signs up with it will appear here.',
+  'partner.referred.attorney': 'Attorney',
+  'partner.referred.client': 'Client',
+  'partner.referred.anonymous': 'User',
+  'partner.referred.status.joined': 'joined',
+  'partner.referred.status.qualified': 'qualified',
+  'partner.referred.status.paid': 'paid',
+  'partner.referred.status.reversed': 'reversed',
+  'partner.commissions.title': 'Earnings',
+  'partner.commissions.empty':
+      'No earnings yet. They appear when an attorney you brought pays for a subscription or a client hires an attorney.',
+  'partner.kind.attorney_subscription': 'Attorney bought a subscription',
+  'partner.kind.client_qualified': 'Client hired an attorney',
+  'partner.kind.monthly_base': 'Monthly base',
+  'partner.kind.adjustment': 'Adjustment',
+  'partner.cstatus.held': 'in check',
+  'partner.cstatus.approved': 'to be paid',
+  'partner.cstatus.paid': 'paid',
+  'partner.cstatus.reversed': 'reversed',
+  'partner.holdUntil': 'until {date}',
+  'partner.off.title': 'You are not in the program',
+  'partner.off.message':
+      'The LawBid team enrolls partners. Contact support if you would like to bring attorneys and clients for a reward.',
+  'notif.system.partner_commission.title': 'Partner earnings',
+  'notif.system.partner_commission.body':
+      'Someone you brought to LawBid qualified. Your commission is accrued.',
+  'notif.system.partner_payout.title': 'Partner payout',
+  'notif.system.partner_payout.body':
+      'Your partner earnings were paid out. See the details in the app.',
+};

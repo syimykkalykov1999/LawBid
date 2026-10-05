@@ -212,6 +212,8 @@ abstract final class ApiErrorCodes {
   static const planCodeExists = 'PLAN_CODE_EXISTS';
   static const planInUse = 'PLAN_IN_USE';
   static const entitlementRequired = 'ENTITLEMENT_REQUIRED';
+  // Owner 2026-10-05: partner program.
+  static const partnerInvalidState = 'PARTNER_INVALID_STATE';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -381,6 +383,7 @@ abstract final class ApiErrorCodes {
     planCodeExists,
     planInUse,
     entitlementRequired,
+    partnerInvalidState,
   ];
 }
 
