@@ -558,11 +558,6 @@ export class VerificationAdminService {
         },
       });
       await syncProfileStatus(tx, req.attorney_id, 'rejected', now);
-      await this.trust.recompute(
-        req.attorney_id,
-        { type: 'admin', id: admin.id },
-        tx,
-      );
       const verifiedLeft = await tx.attorneyLicense.count({
         where: { attorney_id: req.attorney_id, license_status: 'verified' },
       });
@@ -572,6 +567,11 @@ export class VerificationAdminService {
           data: { verification_status: 'unverified' },
         });
       }
+      await this.trust.recompute(
+        req.attorney_id,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       await this.audit.record(
         {
           adminId: admin.id,

@@ -243,13 +243,14 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       .set(admin.auth)
       .send({ note: REASON })
       .expect(200);
-    // Documents alone do not prove the person at the keyboard is the
-    // attorney paid through Stripe: identity is still required.
+    // Documents reach level 2 (identity), but alone they do not prove the
+    // person paid through Stripe is the attorney: the `identity`
+    // requirement (Stripe KYC name) is still missing → not cleared.
     const card1 = await api()
       .get(`/api/v1/admin/trust/attorneys/${a.id}`)
       .set(admin.auth)
       .expect(200);
-    expect(card1.body.data.level).toBe(1);
+    expect(card1.body.data.level).toBe(2);
     expect(card1.body.data.cleared).toBe(false);
     expect(card1.body.data.signals.documentsVerified).toBe(true);
 
@@ -764,7 +765,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     const a = await attorney(); // self-attested only: nothing matched
     const before = await api().get('/api/v1/trust/me').set(a.auth).expect(200);
     expect(before.body.data.cleared).toBe(false);
-    expect(before.body.data.gates.payments.ok).toBe(false);
+    expect(before.body.data.paymentsGate.ok).toBe(false);
 
     // Master switch off: the pre-trust mode — badge and payments at once.
     const off = await api()
@@ -780,7 +781,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       badge: true,
       missing: [],
     });
-    expect(open.body.data.gates.payments.ok).toBe(true);
+    expect(open.body.data.paymentsGate.ok).toBe(true);
     const stats = await api()
       .get('/api/v1/admin/trust/stats')
       .set(admin.auth)
@@ -812,7 +813,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       'identity',
       'documents',
     ]);
-    expect(strict.body.data.gates.bids.ok).toBe(false);
+    expect(strict.body.data.bidsGate.ok).toBe(false);
     expect(
       await prisma.notification.count({
         where: {

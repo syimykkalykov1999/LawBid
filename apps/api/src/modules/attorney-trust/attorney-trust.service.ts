@@ -243,6 +243,9 @@ export class AttorneyTrustService {
       select: PROFILE_SELECT,
     });
     if (!row) return null;
+    // Never computed yet (a fresh profile): compute and store it first so
+    // the public card and the gates do not read a stale level 0.
+    if (!row.trust) return this.recompute(attorneyId);
     return this.snapshotOf(row);
   }
 
@@ -829,8 +832,15 @@ export class AttorneyTrustService {
       select: { reporter_id: true },
       distinct: ['reporter_id'],
     });
-    const distinct = new Set(reporters.map((r) => r.reporter_id));
-    distinct.add(reporterId);
+    // Only complaints from people who really dealt with the attorney count
+    // towards suspension (a stranger's report is recorded but ignored).
+    const distinct = new Set<string>([reporterId]);
+    for (const r of reporters) {
+      if (distinct.has(r.reporter_id)) continue;
+      if (await this.dealtWith(r.reporter_id, attorneyId)) {
+        distinct.add(r.reporter_id);
+      }
+    }
     const actor: TrustActor = { type: TRUST_ACTOR.client, id: reporterId };
     await withTxRetry(this.prisma, async (tx) => {
       await this.ensureRow(tx, attorneyId);

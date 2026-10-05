@@ -1,9 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AttorneyTrustService } from '../../modules/attorney-trust/attorney-trust.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { emitOnce } from './reminder-claim';
@@ -76,6 +77,9 @@ export class LicenseExpiryJob {
     private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-05 (anti-fraud): the badge and the gates follow the
+    // verification status, so an expired last license takes them away.
+    @Optional() private readonly trust?: AttorneyTrustService,
   ) {
     this.logger.setContext(LicenseExpiryJob.name);
   }
@@ -149,6 +153,7 @@ export class LicenseExpiryJob {
           });
           if (downgraded.count === 0) return;
           result.unverifiedProfiles += 1;
+          await this.trust?.recompute(license.attorney_id, undefined, tx);
           await this.notifications.emit(
             {
               recipientId: license.attorney_id,
