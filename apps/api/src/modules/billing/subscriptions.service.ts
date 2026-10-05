@@ -30,7 +30,16 @@ import {
   TRIAL_REMINDER_JOB,
   SEATS_HARD_CAP,
 } from './billing.constants';
-import { type PlanAmounts, PricingService } from './pricing.service';
+import {
+  type PlanAmounts,
+  PricingService,
+  seatPriceKind,
+} from './pricing.service';
+import type { Plan, Prisma as PrismaNs } from '@prisma/client';
+import { entitlementNumber } from '../plans/entitlement-catalog';
+import { EntitlementsService } from '../plans/entitlements.service';
+import { presentPlan } from '../plans/plans.controller';
+import { PlansService } from '../plans/plans.service';
 import { DEFAULT_DUTIES } from '../assistants/assistant-duties';
 import {
   checkPromo,
@@ -76,6 +85,9 @@ export class SubscriptionsService {
     private readonly sync: SubscriptionSyncService,
     config: ConfigService,
     private readonly pricing: PricingService,
+    // Owner 2026-10-05 (plan builder).
+    private readonly plans: PlansService,
+    private readonly entitlements: EntitlementsService,
     @Optional() private readonly referrals?: ReferralsService,
   ) {
     this.portalReturnUrl =
@@ -123,28 +135,52 @@ export class SubscriptionsService {
     req: CheckoutRequestDto = {},
   ): Promise<CheckoutSessionDto> {
     const attorney = await this.verifiedAttorney(user);
-    const priceId = await this.assertConfigured();
-    const plan = req.plan ?? 'monthly';
-    const maxSeats = await this.pricing.maxSeats(user.sub);
-    const seats = plan === 'yearly' ? maxSeats : (req.assistantSeats ?? 0);
-    assertSeatsWithin(seats, maxSeats);
+    // Owner 2026-10-05 (plan builder): the plan chosen in the app; the
+    // legacy `plan` field picks the audience's default of that interval.
+    const planRow = await this.planFor(req);
+    const plan: 'monthly' | 'yearly' =
+      planRow.interval === 'year' ? 'yearly' : 'monthly';
+    const terms = await this.entitlements.forPlan(
+      planRow,
+      req.assistantSeats ?? 0,
+      user.sub,
+    );
+    if ((req.assistantSeats ?? 0) > terms.seats.extra) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This plan does not allow that many extra assistants.',
+        details: {
+          field: 'assistantSeats',
+          max: terms.seats.max - terms.seats.included,
+        },
+      });
+    }
+    const seats = terms.seats.extra;
     const phones = [...new Set(req.assistantPhones ?? [])];
-    if (phones.length > seats) {
+    if (phones.length > terms.seats.total) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'More assistant phones than seats.',
-        details: { field: 'assistantPhones', max: seats },
+        details: { field: 'assistantPhones', max: terms.seats.total },
       });
     }
-    const lineItems =
-      plan === 'yearly'
-        ? [{ priceId: await this.requirePrice('yearly'), quantity: 1 }]
-        : [
-            { priceId, quantity: 1 },
-            ...(seats > 0
-              ? [{ priceId: await this.requirePrice('seat'), quantity: seats }]
-              : []),
-          ];
+    const planKind = planRow.price_kind ?? plan;
+    const priceId = await this.pricing.requirePriceId(planKind);
+    const seatKind =
+      typeof terms.values.extra_seat_price_cents === 'number'
+        ? seatPriceKind(planRow.code)
+        : 'seat';
+    const lineItems = [
+      { priceId, quantity: 1 },
+      ...(seats > 0
+        ? [
+            {
+              priceId: await this.pricing.requirePriceId(seatKind),
+              quantity: seats,
+            },
+          ]
+        : []),
+    ];
     const existing = await this.prisma.subscription.findUnique({
       where: { user_id: user.sub },
     });
@@ -155,19 +191,33 @@ export class SubscriptionsService {
       });
     }
     const customerId = await this.customerId(user.sub, attorney.email);
-    const amounts = await this.pricing.amounts();
+    const planAmount =
+      (await this.pricing.amountOf(planKind)) ??
+      (await this.pricing.amount(plan));
+    const seatAmount =
+      seats > 0
+        ? ((await this.pricing.amountOf(seatKind)) ??
+          (await this.pricing.amount('seat')))
+        : 0;
+    const priceCents = planAmount + seats * seatAmount;
+    const snapshot = this.plans.entitlementsOf(
+      planRow,
+    ) as PrismaNs.InputJsonObject;
     // A row keyed to the customer, so the provider's webhooks find it.
     if (!existing) {
       await this.prisma.subscription.create({
         data: {
           user_id: user.sub,
           status: 'incomplete',
-          price_cents: amounts.monthly,
+          price_cents: priceCents,
+          plan,
+          plan_id: planRow.id,
+          entitlements: snapshot,
         },
       });
     }
     const eligible = await this.attorneyTrialEligible(user.sub);
-    const priceCents = planCents(amounts, plan, seats);
+    const planTrialDays = entitlementNumber(terms.values, 'trial_days');
     // Owner 2026-10-02: an optional promo code — a coupon on the session,
     // or free days added to the trial. Redeemed when the checkout is paid.
     const promo = req.promoCode
@@ -183,7 +233,7 @@ export class SubscriptionsService {
       : await this.referralCoupon(user.sub);
     const promoDays =
       promo?.discount_type === 'free_days' ? (promo.free_days ?? 0) : 0;
-    const trialDays = (eligible ? TRIAL_DAYS : 0) + promoDays;
+    const trialDays = (eligible ? planTrialDays : 0) + promoDays;
     const base = this.checkoutReturnBase;
     const session = await this.provider.createCheckoutSession({
       customerId,
@@ -194,6 +244,8 @@ export class SubscriptionsService {
       metadata: {
         userId: user.sub,
         plan,
+        planId: planRow.id,
+        planCode: planRow.code,
         seats: String(seats),
         // Owner 2026-10-03: the amount the attorney saw, so the row keeps
         // it even if the admin changes the price before the webhook.
@@ -216,7 +268,7 @@ export class SubscriptionsService {
       sessionId: session.id,
       trialEligible: eligible,
       priceCents,
-      trialDays: TRIAL_DAYS,
+      trialDays: planTrialDays,
       ...(promo
         ? {
             promo: {
@@ -307,15 +359,37 @@ export class SubscriptionsService {
     });
     const trialing = remote.status === 'trialing';
     const plan = session.metadata.plan === 'yearly' ? 'yearly' : 'monthly';
-    const seats = Math.min(
-      SEATS_HARD_CAP,
-      Math.max(0, Number(session.metadata.seats ?? 0) || 0),
-    );
+    // Owner 2026-10-05: the plan bought, its terms frozen on the row.
+    const planRow = session.metadata.planId
+      ? await this.plans.byId(session.metadata.planId).catch(() => null)
+      : null;
+    const seats = planRow
+      ? Math.max(
+          0,
+          Math.min(SEATS_HARD_CAP, Number(session.metadata.seats ?? 0) || 0),
+        )
+      : Math.min(
+          SEATS_HARD_CAP,
+          Math.max(0, Number(session.metadata.seats ?? 0) || 0),
+        );
     const quoted = Number(session.metadata.priceCents);
     const priceCents =
       Number.isFinite(quoted) && quoted > 0
         ? quoted
         : planCents(await this.pricing.amounts(), plan, seats);
+    const planTerms = planRow ? this.plans.entitlementsOf(planRow) : null;
+    const planFields =
+      planRow && planTerms
+        ? {
+            plan_id: planRow.id,
+            entitlements: planTerms as PrismaNs.InputJsonObject,
+          }
+        : {};
+    // Every seat the attorney has: the plan's included ones + the extra
+    // bought (a legacy row stores the total in `seats`).
+    const totalSeats = planTerms
+      ? entitlementNumber(planTerms, 'included_seats') + seats
+      : seats;
     await this.prisma.subscription.upsert({
       where: { user_id: owner },
       create: {
@@ -327,11 +401,13 @@ export class SubscriptionsService {
         assistant_seats: seats,
         trial_started_at: trialing ? new Date() : null,
         card_fingerprint: fingerprint,
+        ...planFields,
       },
       update: {
         price_cents: priceCents,
         plan,
         assistant_seats: seats,
+        ...planFields,
         stripe_subscription_id: remote.id,
         trial_started_at: trialing
           ? (existing?.trial_started_at ?? new Date())
@@ -349,7 +425,7 @@ export class SubscriptionsService {
     const phones = (session.metadata.phones ?? '')
       .split(',')
       .filter((p) => /^\+[1-9][0-9]{7,14}$/.test(p))
-      .slice(0, seats);
+      .slice(0, totalSeats);
     for (const phone of phones) {
       // Audit 2026-10-01: the webhook and the app's call run at once —
       // check + create in one serializable transaction (no duplicates).
@@ -456,16 +532,28 @@ export class SubscriptionsService {
         message: 'Already on the yearly plan.',
       });
     }
+    // Owner 2026-10-05: the audience's default yearly plan, terms frozen.
+    const yearly = await this.plans.defaultFor('attorney', 'year');
+    const yearlyKind = yearly?.price_kind ?? 'yearly';
     await this.provider.switchToYearly(
       row.stripe_subscription_id,
-      await this.requirePrice('yearly'),
+      await this.pricing.requirePriceId(yearlyKind),
     );
     await this.prisma.subscription.update({
       where: { id: row.id },
       data: {
         plan: 'yearly',
-        assistant_seats: await this.pricing.maxSeats(user.sub),
-        price_cents: await this.pricing.amount('yearly'),
+        // With a plan the included seats come from it; none bought extra.
+        assistant_seats: yearly ? 0 : await this.pricing.maxSeats(user.sub),
+        price_cents:
+          (await this.pricing.amountOf(yearlyKind)) ??
+          (await this.pricing.amount('yearly')),
+        ...(yearly
+          ? {
+              plan_id: yearly.id,
+              entitlements: this.plans.entitlementsOf(yearly),
+            }
+          : {}),
       },
     });
     await this.access.invalidate(user.sub);
@@ -487,32 +575,56 @@ export class SubscriptionsService {
         message: 'No active subscription.',
       });
     }
-    if (row.plan === 'yearly') {
+    // Owner 2026-10-05 (plan builder): [seats] = extra seats on top of the
+    // plan's included ones; the plan says how many may be bought.
+    const current = await this.entitlements.forUser(user.sub);
+    const mine = current.seats ?? { included: 0, extra: 0, total: 0, max: 0 };
+    const maxExtra = Math.max(0, mine.max - mine.included);
+    if (maxExtra === 0) {
       throw new ConflictException({
         code: ErrorCode.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
-        message: 'The yearly plan already includes every assistant seat.',
+        message: `Your plan already includes ${mine.included} assistants; no extra seats can be added.`,
+        details: { included: mine.included },
       });
     }
-    assertSeatsWithin(seats, await this.pricing.maxSeats(user.sub));
+    if (seats > maxExtra) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Your plan does not allow that many extra assistants.',
+        details: { field: 'seats', max: maxExtra },
+      });
+    }
     const live = await this.prisma.assistantMembership.count({
       where: { attorney_id: user.sub, status: { not: 'removed' } },
     });
-    if (seats < live) {
+    if (mine.included + seats < live) {
       throw new ConflictException({
         code: ErrorCode.ASSISTANT_SEATS_IN_USE,
         message: 'Remove assistants before lowering the number of seats.',
         details: { inUse: live },
       });
     }
+    const seatKind =
+      typeof current.values.extra_seat_price_cents === 'number' &&
+      current.planCode
+        ? seatPriceKind(current.planCode)
+        : 'seat';
     await this.provider.setSeatQuantity(
       row.stripe_subscription_id,
-      await this.requirePrice('seat'),
+      await this.pricing.requirePriceId(seatKind),
       seats,
-      await this.pricing.knownPriceIds('seat'),
+      [
+        ...(await this.pricing.knownPriceIds(seatKind)),
+        ...(seatKind === 'seat'
+          ? []
+          : await this.pricing.knownPriceIds('seat')),
+      ],
     );
     // Owner 2026-10-03: seats added or removed at today's seat price; the
     // attorney's own plan amount stays what they bought.
-    const seatCents = await this.pricing.amount('seat');
+    const seatCents =
+      (await this.pricing.amountOf(seatKind)) ??
+      (await this.pricing.amount('seat'));
     const base = Math.max(0, row.price_cents - row.assistant_seats * seatCents);
     await this.prisma.subscription.update({
       where: { id: row.id },
@@ -521,6 +633,7 @@ export class SubscriptionsService {
         price_cents: base + seats * seatCents,
       },
     });
+    await this.entitlements.invalidateUser(user.sub);
     return this.me(user);
   }
 
@@ -627,7 +740,23 @@ export class SubscriptionsService {
     // Owner 2026-10-02: a free subscription under a contract counts.
     const isActive = SubscriptionAccessService.rowIsActive(row) || !!grant;
     const amounts = await this.pricing.amounts();
+    // Owner 2026-10-05 (plan builder).
+    const [resolved, forSale] = await Promise.all([
+      this.entitlements.forUser(user.sub),
+      this.plans.purchasable('attorney'),
+    ]);
+    const currentPlan = resolved.planId
+      ? await this.plans.byId(resolved.planId).catch(() => null)
+      : null;
     return {
+      plan: currentPlan
+        ? await presentPlan(currentPlan, this.plans, this.pricing)
+        : null,
+      plans: await Promise.all(
+        forSale.map((p) => presentPlan(p, this.plans, this.pricing)),
+      ),
+      entitlements: resolved.values,
+      seats: resolved.seats,
       subscription: row ? presentSubscription(row) : null,
       contractGrant: grant
         ? {
@@ -823,21 +952,27 @@ export class SubscriptionsService {
     return { email: u.email };
   }
 
-  /** Seat / yearly price id (Billing → Prices in the admin, else the key
-   * store / env, else fake ids), or 503 when a live Stripe has none. */
-  private async requirePrice(kind: 'seat' | 'yearly'): Promise<string> {
-    const priceId = await this.pricing.priceId(kind);
-    if (!priceId) {
-      throw new ServiceUnavailableException({
-        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
-        message:
-          kind === 'seat'
-            ? 'Stripe price for assistant seats is not set.'
-            : 'Stripe price for the yearly plan is not set.',
-        details: { price: kind },
+  /** Owner 2026-10-05: the plan a checkout buys — by code, else the
+   * audience's default of the requested interval. */
+  private async planFor(req: CheckoutRequestDto): Promise<Plan> {
+    const plan = req.planCode
+      ? await this.plans.byCode(req.planCode)
+      : await this.plans.defaultFor(
+          'attorney',
+          req.plan === 'yearly' ? 'year' : 'month',
+        );
+    if (
+      !plan ||
+      plan.audience !== 'attorney' ||
+      plan.kind !== 'paid' ||
+      plan.status !== 'active'
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.PLAN_NOT_AVAILABLE,
+        message: 'This plan is not for sale.',
       });
     }
-    return priceId;
+    return plan;
   }
 
   private async assertConfigured(): Promise<string> {
@@ -863,6 +998,13 @@ export function planCents(
     : amounts.monthly + seats * amounts.seat;
 }
 
+function includedSeatsOf(s: Subscription): number {
+  const snap = s.entitlements;
+  if (!snap || typeof snap !== 'object' || Array.isArray(snap)) return 0;
+  const v = (snap as Record<string, unknown>).included_seats;
+  return typeof v === 'number' && v > 0 ? Math.floor(v) : 0;
+}
+
 export function presentSubscription(s: Subscription): SubscriptionDto {
   return {
     id: s.id,
@@ -870,7 +1012,10 @@ export function presentSubscription(s: Subscription): SubscriptionDto {
     isActive: SubscriptionAccessService.rowIsActive(s),
     priceCents: s.price_cents,
     plan: s.plan,
-    assistantSeats: s.assistant_seats,
+    // Owner 2026-10-05 (plan builder): every seat the attorney has — the
+    // plan's included ones (frozen on the row) + the extra bought. A row
+    // from before plans stores the total in assistant_seats already.
+    assistantSeats: includedSeatsOf(s) + s.assistant_seats,
     trialEndsAt: s.trial_ends_at?.toISOString() ?? null,
     currentPeriodEnd: s.current_period_end?.toISOString() ?? null,
     cancelAtPeriodEnd: s.cancel_at_period_end,
@@ -890,15 +1035,4 @@ export function presentPayment(p: Payment): PaymentDto {
     failureCode: p.failure_code,
     createdAt: p.created_at.toISOString(),
   };
-}
-
-/** Owner 2026-10-05: at most the admin's seat limit. */
-function assertSeatsWithin(seats: number, maxSeats: number): void {
-  if (seats > maxSeats) {
-    throw new BadRequestException({
-      code: ErrorCode.VALIDATION_ERROR,
-      message: `At most ${maxSeats} assistant seats.`,
-      details: { field: 'assistantSeats', max: maxSeats },
-    });
-  }
 }

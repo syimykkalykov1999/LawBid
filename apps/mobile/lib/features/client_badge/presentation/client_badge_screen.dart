@@ -222,28 +222,54 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
           ],
         );
       }
+      // Owner 2026-10-05 (plan builder): the plan covers the badge — no
+      // buy button, the badge comes with the approval.
+      Widget includedCard() => card([
+            Row(
+              children: [
+                AppIcon(AppIcons.verifiedRounded, color: colors.gold, size: 28),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    t.t('plan.badge.included'),
+                    key: const ValueKey('cbadge-included-in-plan'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              t.t('plan.badge.included.hint'),
+              style: type.body.copyWith(color: colors.textSecondary),
+            ),
+          ]);
       if (s.canSubscribe) {
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.screenSide),
           children: [
-            card([
-              Text(
-                t.t('cbadge.approved.title'),
-                style: type.titleMedium.copyWith(color: colors.text),
+            if (s.includedInPlan)
+              includedCard()
+            else ...[
+              card([
+                Text(
+                  t.t('cbadge.approved.title'),
+                  style: type.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  t.t('cbadge.approved.text', {'price': price}),
+                  style: type.body.copyWith(color: colors.textSecondary),
+                ),
+              ]),
+              const SizedBox(height: AppSpacing.lg),
+              AppButton(
+                label: t.t('cbadge.pay', {'price': price}),
+                icon: AppIcons.verifiedRounded,
+                isLoading: _busy,
+                onPressed: _pay,
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                t.t('cbadge.approved.text', {'price': price}),
-                style: type.body.copyWith(color: colors.textSecondary),
-              ),
-            ]),
-            const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: t.t('cbadge.pay', {'price': price}),
-              icon: AppIcons.verifiedRounded,
-              isLoading: _busy,
-              onPressed: _pay,
-            ),
+            ],
           ],
         );
       }
@@ -335,10 +361,13 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               onPressed: _busy ? null : _add,
             ),
           const SizedBox(height: AppSpacing.lg),
-          Text(
-            t.t('cbadge.price', {'price': price}),
-            style: type.bodySmall.copyWith(color: colors.textSecondary),
-          ),
+          if (s.includedInPlan)
+            includedCard()
+          else
+            Text(
+              t.t('cbadge.price', {'price': price}),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: _progress == null

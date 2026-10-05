@@ -19,6 +19,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { S3StorageService } from './storage/s3-storage.service';
@@ -79,6 +80,7 @@ export class FilesService {
     private readonly logger: PinoLogger,
     private readonly flags: FeatureFlagsService,
     @Optional() private readonly secrets?: SecretsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -94,6 +96,17 @@ export class FilesService {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
         message: 'Video posts are not available yet.',
+      });
+    }
+    // Owner 2026-10-05 (plan builder): video posts are a plan term.
+    if (
+      dto.purpose === 'post_video' &&
+      this.entitlements &&
+      !(await this.entitlements.has(userId, 'video_posts'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include video posts.',
       });
     }
     const rule = PURPOSE_RULES[dto.purpose];

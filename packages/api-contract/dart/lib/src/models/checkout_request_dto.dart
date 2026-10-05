@@ -11,6 +11,7 @@ part 'checkout_request_dto.g.dart';
 @JsonSerializable()
 class CheckoutRequestDto {
   const CheckoutRequestDto({
+    this.planCode,
     this.assistantPhones,
     this.promoCode,
     this.plan = SubscriptionPlan.monthly,
@@ -21,6 +22,11 @@ class CheckoutRequestDto {
       _$CheckoutRequestDtoFromJson(json);
 
   final SubscriptionPlan plan;
+
+  /// Owner 2026-10-05: the plan to buy (code from GET /plans or /subscriptions/me). Default: the audience's default plan of `plan`'s interval.
+  final String? planCode;
+
+  /// Extra assistant seats on top of the ones the plan includes.
   final int assistantSeats;
   final List<String>? assistantPhones;
 

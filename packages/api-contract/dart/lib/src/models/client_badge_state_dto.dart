@@ -18,6 +18,7 @@ class ClientBadgeStateDto {
     required this.currency,
     required this.canSubmit,
     required this.canSubscribe,
+    required this.includedInPlan,
     this.subscription,
     this.submittedAt,
     this.rejectReason,
@@ -42,6 +43,9 @@ class ClientBadgeStateDto {
 
   /// Approved and not paid: the checkout can start.
   final bool canSubscribe;
+
+  /// Owner 2026-10-05: the client's plan includes the badge — no separate payment; the badge shows once the documents are approved.
+  final bool includedInPlan;
   final ClientBadgeSubscriptionDto? subscription;
   final String? submittedAt;
   final String? rejectReason;
