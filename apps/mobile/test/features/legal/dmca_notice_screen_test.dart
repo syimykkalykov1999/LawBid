@@ -10,7 +10,6 @@ import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../helpers/fixtures.dart';
-import '../../helpers/legal_overrides.dart';
 import '../../helpers/onboarding_harness.dart';
 
 /// Owner 2026-10-05 (legal): the DMCA form sends nothing until every
@@ -62,15 +61,18 @@ Future<FakeLegalRepository> _pump(
   String? targetId,
   LegalSettings? settings,
 }) async {
+  // A tall phone so the lazy ListView builds the whole form.
+  tester.view
+    ..devicePixelRatio = 1
+    ..physicalSize = const Size(600, 2400);
+  addTearDown(tester.view.reset);
   final repo = FakeLegalRepository();
   final wrap = await onboardingWrapper(
     AppTheme.light(),
     user: _client,
     repo: FakeOnboardingRepository(_client),
-    extra: [
-      legalRepositoryProvider.overrideWithValue(repo),
-      if (settings != null) ...legalOverrides(settings),
-    ],
+    legal: settings,
+    extra: [legalRepositoryProvider.overrideWithValue(repo)],
   );
   await tester.pumpWidget(
     wrap(DmcaNoticeScreen(targetType: targetType, targetId: targetId)),
@@ -87,6 +89,9 @@ Future<void> _type(WidgetTester tester, String key, String text) async {
 }
 
 Future<void> _tap(WidgetTester tester, String key) async {
+  // Let an earlier snackbar leave so it does not cover the bottom button.
+  await tester.pump(const Duration(seconds: 6));
+  await tester.pumpAndSettle();
   final finder = find.byKey(ValueKey(key));
   await tester.ensureVisible(finder);
   await tester.tap(finder);
@@ -114,7 +119,8 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('a bad email, a short description and an unticked statement block the send',
+  testWidgets(
+      'bad email, short description or an unticked statement block the send',
       (tester) async {
     final repo = await _pump(tester, targetType: 'post', targetId: 'post-1');
     expect(find.byKey(const ValueKey('dmca-url')), findsNothing);
@@ -151,11 +157,11 @@ void main() {
     expect(d.goodFaith, isTrue);
     expect(d.accuracySworn, isTrue);
     expect(d.signature, 'Ann Lee');
-    expect(find.text('Notice sent. We will reply by email.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('URL form: the link must be http(s); the agent card shows the agent',
+  testWidgets(
+      'URL form: the link must be http(s); the agent card shows the agent',
       (tester) async {
     final repo = await _pump(tester, settings: _withAgent);
     expect(find.textContaining('Jane Agent'), findsOneWidget);

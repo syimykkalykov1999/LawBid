@@ -232,6 +232,11 @@ abstract final class ApiErrorCodes {
   static const outreachImportInvalid = 'OUTREACH_IMPORT_INVALID';
   static const outreachInvalidState = 'OUTREACH_INVALID_STATE';
   static const outreachEmailLimit = 'OUTREACH_EMAIL_LIMIT';
+  // Owner 2026-10-05 (legal): TCPA/DNC call blocks, consumer leads off.
+  static const outreachContactBlocked = 'OUTREACH_CONTACT_BLOCKED';
+  static const outreachClientsDisabled = 'OUTREACH_CLIENTS_DISABLED';
+  // Owner 2026-10-05 (legal): DMCA notice in the wrong status.
+  static const dmcaInvalidState = 'DMCA_INVALID_STATE';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -414,6 +419,9 @@ abstract final class ApiErrorCodes {
     outreachImportInvalid,
     outreachInvalidState,
     outreachEmailLimit,
+    outreachContactBlocked,
+    outreachClientsDisabled,
+    dmcaInvalidState,
   ];
 }
 

@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_catalog_provider.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/legal/domain/legal_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/onboarding/data/onboarding_repository.dart';
@@ -161,6 +162,7 @@ Future<Widget Function(Widget)> onboardingWrapper(
   CurrentUserState? userState,
   double textScale = 1,
   List<Override> extra = const [],
+  LegalSettings? legal,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
@@ -183,7 +185,7 @@ Future<Widget Function(Widget)> onboardingWrapper(
           // docs/05: screens that show posts/follows never hit the network.
           ...socialOverrides(),
           // Owner 2026-10-05 (legal): disclaimers come from the fallback.
-          ...legalOverrides(),
+          ...legalOverrides(legal),
           ...extra,
         ],
         child: MaterialApp(
