@@ -1136,6 +1136,53 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  outreach_leads {
+    String id PK
+    String kind
+    String first_name "nullable"
+    String last_name "nullable"
+    String company "nullable"
+    String state_code "nullable"
+    String city "nullable"
+    String practice "nullable"
+    String phone UK "nullable"
+    String email UK "nullable"
+    String source
+    String source_ref "nullable"
+    String status
+    String partner_id FK "nullable"
+    String converted_user_id "nullable"
+    String unsubscribe_token UK
+    DateTime unsubscribed_at "nullable"
+    DateTime last_activity_at "nullable"
+    DateTime next_action_at "nullable"
+    String note "nullable"
+    String created_by
+    DateTime created_at
+    DateTime updated_at
+  }
+  outreach_activities {
+    String id PK
+    String lead_id FK
+    String partner_id "nullable"
+    String actor_admin_id "nullable"
+    String kind
+    String outcome "nullable"
+    String body "nullable"
+    Json meta "nullable"
+    DateTime created_at
+  }
+  outreach_templates {
+    String id PK
+    String name
+    String kind
+    String subject
+    String body
+    Boolean active
+    String created_by
+    DateTime created_at
+    DateTime updated_at
+  }
   case_promotions {
     String id PK
     String case_id
@@ -1406,6 +1453,8 @@ erDiagram
   state_bar_registries |o--|| states : "state_code"
   video_assets }o--|| users : "owner_user_id"
   partner_commissions }o--|| partners : "partner_id"
+  outreach_leads }o--o| partners : "partner_id"
+  outreach_activities }o--|| outreach_leads : "lead_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"
   stickers |o--|| files : "file_id"

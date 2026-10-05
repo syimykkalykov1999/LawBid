@@ -361,4 +361,10 @@ export enum ErrorCode {
   CONTENT_INVALID_STATE = 'CONTENT_INVALID_STATE',
   // 409: an official sticker pack with this short name exists.
   STICKER_PACK_NAME_TAKEN = 'STICKER_PACK_NAME_TAKEN',
+  // Owner 2026-10-05 — outreach (Привлечение). 400: the CSV/registry
+  // import is unusable; 409: lead unsubscribed / no email / status change
+  // not valid; 429: the partner's daily email limit is spent.
+  OUTREACH_IMPORT_INVALID = 'OUTREACH_IMPORT_INVALID',
+  OUTREACH_INVALID_STATE = 'OUTREACH_INVALID_STATE',
+  OUTREACH_EMAIL_LIMIT = 'OUTREACH_EMAIL_LIMIT',
 }

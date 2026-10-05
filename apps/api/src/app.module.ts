@@ -32,6 +32,7 @@ import { AdminIntegrationsModule } from './modules/admin-integrations/admin-inte
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { PartnersModule } from './modules/partners/partners.module';
+import { OutreachModule } from './modules/outreach/outreach.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -199,6 +200,7 @@ const isDev =
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,
     PartnersModule,
+    OutreachModule,
     PromotionsModule,
     ClientBadgeModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
