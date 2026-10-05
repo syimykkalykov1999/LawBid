@@ -6,8 +6,6 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart'
-    show PracticePhoto;
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
@@ -17,6 +15,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
@@ -689,7 +688,6 @@ class ProfilePostsGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final deleted = ref.watch(deletedPostsProvider);
     final value = ref.watch(_provider);
     return value.when(
@@ -743,91 +741,45 @@ class ProfilePostsGrid extends ConsumerWidget {
                   label: t.t('post.open'),
                   child: AppPressable(
                     onTap: () => context.push(SocialRoutes.post(p.id)),
-                    child: p.media.isEmpty && p.practice != null
-                        // Owner 2026-09-30: no photos — our art of the
-                        // post's qualification under its title.
-                        ? Stack(
+                    // Owner 2026-10-05: photos as before; a reel shows
+                    // its frame; a text-only post is a text cover.
+                    child: p.media.isEmpty && p.video?.thumbnailUrl == null
+                        ? PostTextCover(
+                            post: p,
+                            density: PostCoverDensity.compact,
+                          )
+                        : Stack(
                             fit: StackFit.expand,
                             children: [
-                              PracticePhoto(
-                                categoryCode: p.practice!.categoryCode,
-                                practiceCode: p.practice!.code,
-                              ),
-                              const DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    stops: [0.35, 1],
-                                    colors: [
-                                      Color(0x00000000),
-                                      Color(0xCC0A1A3F),
-                                    ],
-                                  ),
+                              CachedNetworkImage(
+                                imageUrl: p.media.isNotEmpty
+                                    ? p.media.first.previewUrl
+                                    : p.video!.thumbnailUrl!,
+                                cacheKey: p.media.isNotEmpty
+                                    ? '${p.media.first.fileId}:320'
+                                    : p.video!.thumbnailUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) =>
+                                    ColoredBox(color: colors.skeletonBase),
+                                errorWidget: (_, __, ___) => PostTextCover(
+                                  post: p,
+                                  density: PostCoverDensity.compact,
                                 ),
                               ),
-                              Positioned(
-                                left: 6,
-                                right: 6,
-                                bottom: 6,
-                                child: Text(
-                                  p.title ?? splitPostBody(p.body).$1,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.caption.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              if (p.isNews)
-                                const Positioned(
+                              if (p.media.length > 1 || p.video != null)
+                                Positioned(
                                   top: 6,
                                   right: 6,
                                   child: AppIcon(
-                                    AppIcons.newspaperRounded,
+                                    p.video != null
+                                        ? AppIcons.playArrowRounded
+                                        : AppIcons.collectionsRounded,
                                     size: 16,
                                     color: Colors.white,
                                   ),
                                 ),
                             ],
-                          )
-                        : p.media.isEmpty
-                            ? Container(
-                                color: colors.goldTint,
-                                padding: const EdgeInsets.all(AppSpacing.sm),
-                                child: Text(
-                                  p.title ?? p.body,
-                                  maxLines: 5,
-                                  overflow: TextOverflow.ellipsis,
-                                  style:
-                                      type.caption.copyWith(color: colors.text),
-                                ),
-                              )
-                            : Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  CachedNetworkImage(
-                                    imageUrl: p.media.first.previewUrl,
-                                    cacheKey: '${p.media.first.fileId}:320',
-                                    fit: BoxFit.cover,
-                                    placeholder: (_, __) =>
-                                        ColoredBox(color: colors.skeletonBase),
-                                    errorWidget: (_, __, ___) =>
-                                        ColoredBox(color: colors.skeletonBase),
-                                  ),
-                                  if (p.media.length > 1)
-                                    const Positioned(
-                                      top: 6,
-                                      right: 6,
-                                      child: AppIcon(
-                                        AppIcons.collectionsRounded,
-                                        size: 16,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                ],
-                              ),
+                          ),
                   ),
                 );
               },

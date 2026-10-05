@@ -10,8 +10,7 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
-    show splitPostBody, topicCategory, topicLabel;
+import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -152,29 +151,67 @@ class SearchPostTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final (title, _) = splitPostBody(post.body);
-    final category = post.tags
-        .map(topicCategory)
-        .firstWhere((c) => c != null, orElse: () => null);
-    final practice = post.tags.isEmpty ? null : topicLabel(post.tags.first);
-    final picture = post.media.isNotEmpty
-        ? CachedNetworkImage(
-            imageUrl: post.media.first.previewUrl,
-            cacheKey: '${post.media.first.fileId}:320',
-            fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => PracticePhoto(categoryCode: category),
+    final (title, _) = PostTextCover.titleAndRest(post);
+    final practice = PostTextCover.practiceOf(ref, post);
+    final kindLabel = t.t(post.isNews ? 'post.kind.news' : 'search.kind.post');
+    final kind = [kindLabel, if (practice != null) practice.$1].join(' · ');
+    void open() => context.push(SocialRoutes.post(post.id));
+    final semantic = '$kind. $title. ${post.author.displayName}';
+    final thumb = post.media.isNotEmpty
+        ? (
+            url: post.media.first.previewUrl,
+            key: '${post.media.first.fileId}:320'
           )
-        : PracticePhoto(categoryCode: category);
-    final kind =
-        [t.t('search.kind.post'), if (practice != null) practice].join(' · ');
+        : post.video?.thumbnailUrl != null
+            ? (url: post.video!.thumbnailUrl!, key: post.video!.thumbnailUrl!)
+            : null;
+    // Owner 2026-10-05: no photo or video frame — the text cover (title
+    // first, practice chip only when chosen, the author at the bottom).
+    Widget cover() => PostTextCover(post: post, kindLabel: kindLabel);
+    if (thumb == null) {
+      return Semantics(
+        button: true,
+        label: semantic,
+        excludeSemantics: true,
+        child: AppPressable(
+          onTap: open,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            child: cover(),
+          ),
+        ),
+      );
+    }
+    final image = CachedNetworkImage(
+      imageUrl: thumb.url,
+      cacheKey: thumb.key,
+      fit: BoxFit.cover,
+      errorWidget: (_, __, ___) => cover(),
+    );
     return SearchTileFrame(
-      picture: picture,
-      kindIcon: AppIcons.articleRounded,
+      picture: post.video == null
+          ? image
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                image,
+                const Center(
+                  child: AppIcon(
+                    AppIcons.playArrowRounded,
+                    size: 40,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+      kindIcon: post.video != null
+          ? AppIcons.playArrowRounded
+          : AppIcons.articleRounded,
       kindLabel: kind,
       title: title,
       footer: post.author.displayName,
-      semanticLabel: '$kind. $title. ${post.author.displayName}',
-      onTap: () => context.push(SocialRoutes.post(post.id)),
+      semanticLabel: semantic,
+      onTap: open,
     );
   }
 }

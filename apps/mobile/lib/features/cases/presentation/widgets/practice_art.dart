@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -210,21 +212,47 @@ class PracticePhoto extends StatelessWidget {
       (c) => c != null && kPracticeArtAssets.contains(c),
       orElse: () => null,
     );
-    final panel = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.navy, colors.navy.withValues(alpha: 0.85)],
+    // Owner 2026-10-05: without a photo, a calm brand pattern with a
+    // small gold medallion — no giant glyph on flat navy.
+    final panel = Stack(
+      fit: StackFit.expand,
+      children: [
+        BrandPattern(seed: seed),
+        LayoutBuilder(
+          builder: (context, box) {
+            final side = box.biggest.shortestSide.isFinite
+                ? box.biggest.shortestSide
+                : 160.0;
+            final disc = math.min<double>(math.max(side * 0.3, 28), 64);
+            return Center(
+              child: Container(
+                width: disc,
+                height: disc,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      colors.gold.withValues(alpha: 0.22),
+                      colors.gold.withValues(alpha: 0.04),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: colors.gold.withValues(alpha: 0.8),
+                    width: 1.2,
+                  ),
+                ),
+                child: Center(
+                  child: AppIcon(
+                    practiceGlyph(categoryCode),
+                    size: disc * 0.48,
+                    color: colors.goldLight,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-      child: Center(
-        child: AppIcon(
-          practiceGlyph(categoryCode),
-          size: 72,
-          color: colors.goldLight,
-        ),
-      ),
+      ],
     );
     return ExcludeSemantics(
       child: artKey == null ? panel : _variant(artKey, panel),
