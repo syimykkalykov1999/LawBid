@@ -201,6 +201,28 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'Case closed', body: 'The case is closed.' },
     ru: { title: 'Кейс закрыт', body: 'Кейс закрыт.' },
   },
+  case_disputed: {
+    group: 'cases',
+    en: {
+      title: 'Completion disputed',
+      body: 'The other side disputed completion. Support will review the case.',
+    },
+    ru: {
+      title: 'Завершение оспорено',
+      body: 'Другая сторона оспорила завершение. Поддержка рассмотрит кейс.',
+    },
+  },
+  dispute_resolved: {
+    group: 'cases',
+    en: {
+      title: 'Dispute resolved',
+      body: 'Support decided the dispute. The case is back in progress.',
+    },
+    ru: {
+      title: 'Спор решён',
+      body: 'Поддержка рассмотрела спор. Кейс снова в работе.',
+    },
+  },
   contact_issue_update: {
     group: 'cases',
     en: {
@@ -390,6 +412,32 @@ export const NOTIFICATION_TEMPLATES: Partial<
     group: 'cases',
     en: { title: 'New comment', body: 'Someone commented on your case.' },
     ru: { title: 'Новый комментарий', body: 'Ваш кейс прокомментировали.' },
+  },
+  review_requested: {
+    group: 'cases',
+    en: {
+      title: 'Leave a review',
+      body: 'The case is closed. Tell others how it went.',
+    },
+    ru: {
+      title: 'Оставьте отзыв',
+      body: 'Кейс закрыт. Расскажите, как всё прошло.',
+    },
+  },
+  review_received: {
+    group: 'cases',
+    en: { title: 'New review', body: 'You received a new review.' },
+    ru: { title: 'Новый отзыв', body: 'Вам оставили новый отзыв.' },
+  },
+  post_like: {
+    group: 'social',
+    en: { title: 'New like', body: 'Someone liked your post.' },
+    ru: { title: 'Новый лайк', body: 'Ваш пост понравился.' },
+  },
+  comment_like: {
+    group: 'social',
+    en: { title: 'New like', body: 'Someone liked your comment.' },
+    ru: { title: 'Новый лайк', body: 'Ваш комментарий понравился.' },
   },
   comment_reply: {
     group: 'social',

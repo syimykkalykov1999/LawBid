@@ -37,7 +37,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
   Future<void> _close() async {
     final t = ref.read(translatorProvider);
     final state = ref.read(createCaseControllerProvider);
-    if (state.draft.isEmpty) {
+    if (state.draft.isEmpty && state.photos.isEmpty) {
       await _c.finishEditing(keepDraft: false);
       if (mounted) Navigator.of(context).pop();
       return;
@@ -148,7 +148,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                 ],
               ),
             ),
-            if (state.restoredDraft && d.step == 0)
+            if (state.restoredDraft)
               _DraftBanner(t: t, onStartOver: _c.startOver),
             Expanded(
               child: !state.loaded

@@ -19,7 +19,7 @@ part 'case_detail_for_attorney_dto.g.dart';
 @JsonSerializable()
 class CaseDetailForAttorneyDto {
   const CaseDetailForAttorneyDto({
-    required this.id,
+    required this.createdAt,
     required this.title,
     required this.excerpt,
     required this.practiceArea,
@@ -27,31 +27,32 @@ class CaseDetailForAttorneyDto {
     required this.additionalStateCodes,
     required this.status,
     required this.budget,
+    required this.id,
     required this.viewCount,
     required this.bidsCount,
-    required this.createdAt,
+    required this.isSaved,
     required this.isNew,
     required this.hasOwnBid,
     required this.commentCount,
     required this.shareCount,
-    required this.isSaved,
+    required this.bidAllowed,
     required this.promoted,
     required this.priorityClient,
     required this.dossier,
     required this.description,
-    required this.photos,
-    required this.photosCount,
-    required this.inMyPractice,
     required this.inMyLicensedStates,
-    required this.bidAllowed,
-    this.city,
-    this.coverKey,
-    this.urgency,
-    this.urgencyLevel,
-    this.deadlineAt,
-    this.deadlineKind,
+    required this.photos,
+    required this.acceptedBidIsMine,
+    required this.inMyPractice,
+    required this.photosCount,
     this.ownBidId,
+    this.deadlineKind,
     this.completionRequestedBy,
+    this.deadlineAt,
+    this.urgency,
+    this.coverKey,
+    this.city,
+    this.urgencyLevel,
   });
 
   factory CaseDetailForAttorneyDto.fromJson(Map<String, Object?> json) =>
@@ -116,6 +117,9 @@ class CaseDetailForAttorneyDto {
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
   final String? ownBidId;
+
+  /// True when this attorney's bid is the case's accepted one (the hired lawyer: open the work screen).
+  final bool acceptedBidIsMine;
 
   /// Owner 2026-10-02: who marked "Done" first while the case waits for the other side (null otherwise).
   final CaseDetailForAttorneyDtoCompletionRequestedBy? completionRequestedBy;

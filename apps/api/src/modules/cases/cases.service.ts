@@ -227,6 +227,7 @@ function toCaseDto(
     autoCloseAt: kase.auto_close_at?.toISOString() ?? null,
     closedAt: kase.closed_at?.toISOString() ?? null,
     deletedAt: kase.deleted_at?.toISOString() ?? null,
+    stalePromptSentAt: kase.stale_prompt_sent_at?.toISOString() ?? null,
   };
 }
 
@@ -988,6 +989,8 @@ export class CasesService {
           tx,
         );
       }
+      // OQ-048: assistants' bid drafts for this case can't be sent now.
+      await tx.bidDraft.deleteMany({ where: { case_id: caseId } });
       // docs/04 §9: pre-acceptance chats become read-only ("Кейс закрыт").
       chat.push(
         ...(await this.chat.post(

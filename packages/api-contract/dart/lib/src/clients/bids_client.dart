@@ -25,13 +25,6 @@ abstract class BidsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Bid details and full negotiation history
-  @GET('/bids/{id}')
-  Future<BidEnvelope> getBid({
-    @Path('id') required String id,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
   /// Withdraw a bid (attorney, while active)
   @POST('/bids/{id}/withdraw')
   Future<BidEnvelope> withdraw({
@@ -79,6 +72,13 @@ abstract class BidsClient {
   /// Discard the bid draft
   @DELETE('/cases/{id}/bid-draft')
   Future<void> deleteBidDraft({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bid details, full negotiation history and the attorney summary
+  @GET('/bids/{id}')
+  Future<BidEnvelope> getBid({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

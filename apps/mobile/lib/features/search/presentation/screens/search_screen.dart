@@ -570,10 +570,18 @@ class _BeforeTyping extends ConsumerWidget {
     return RefreshIndicator(
       color: colors.gold,
       onRefresh: () async {
+        // What this screen shows: the explore grids, topics, suggested
+        // lawyers, my cases and the "based on your last search" rows.
         ref
           ..invalidate(trendingTagsProvider)
-          ..invalidate(latestPostsProvider(''))
-          ..invalidate(suggestionsProvider);
+          ..invalidate(exploreCasesProvider)
+          ..invalidate(explorePostsProvider)
+          ..invalidate(suggestionsProvider)
+          ..invalidate(myCasesProvider)
+          ..invalidate(peopleSearchProvider)
+          ..invalidate(caseSearchProvider)
+          ..invalidate(postSearchProvider)
+          ..invalidate(tagSearchProvider);
       },
       child: CustomScrollView(
         slivers: [

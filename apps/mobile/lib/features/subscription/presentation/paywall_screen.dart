@@ -14,6 +14,9 @@ enum PaywallReason {
   bid,
   chat,
   contacts,
+  // Owner 2026-10-05 (plan builder): features a plan switches on.
+  templates,
+  videoCall,
   generic;
 
   static PaywallReason parse(String? raw) => values.firstWhere(
@@ -50,6 +53,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       PaywallReason.bid => t.t('paywall.bid.title'),
       PaywallReason.chat => t.t('paywall.chat.title'),
       PaywallReason.contacts => t.t('paywall.contacts.title'),
+      PaywallReason.templates => t.t('paywall.templates.title'),
+      PaywallReason.videoCall => t.t('paywall.videoCall.title'),
       PaywallReason.generic => null,
     };
     // Became active (e.g. paid on another device): nothing to sell.

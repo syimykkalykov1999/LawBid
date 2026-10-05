@@ -15,6 +15,26 @@ abstract final class CaseLimits {
   static const budgetMaxDollars = 10000000;
 }
 
+/// Audit 2026-10-04: an uploaded wizard photo or document kept in the
+/// local draft so a reopened draft still carries it. [name] is set for a
+/// document (PDF / Word); null = a photo.
+@immutable
+class CaseDraftFile {
+  const CaseDraftFile({required this.fileId, this.name});
+
+  final String fileId;
+  final String? name;
+
+  Map<String, Object?> toJson() => {'fileId': fileId, 'name': name};
+
+  @override
+  bool operator ==(Object other) =>
+      other is CaseDraftFile && other.fileId == fileId && other.name == name;
+
+  @override
+  int get hashCode => Object.hash(fileId, name);
+}
+
 /// Owner 2026-10-04: what the urgency control shows (and sends) until the
 /// client picks.
 const String kDefaultCaseUrgency = 'flexible';
@@ -35,6 +55,7 @@ class CaseDraft {
     this.budgetIsAmount = false,
     this.budgetDollars,
     this.step = 0,
+    this.files = const [],
     this.practiceCode,
     this.coverKey,
     this.urgency,
@@ -72,13 +93,17 @@ class CaseDraft {
   final int? budgetDollars;
   final int step;
 
+  /// Uploaded photos / documents (their file ids), in wizard order.
+  final List<CaseDraftFile> files;
+
   bool get isEmpty =>
       practiceAreaId == null &&
       title.trim().isEmpty &&
       description.trim().isEmpty &&
       city.trim().isEmpty &&
       additionalStateCodes.isEmpty &&
-      budgetDollars == null;
+      budgetDollars == null &&
+      files.isEmpty;
 
   bool get practiceValid => practiceAreaId != null;
 
@@ -117,6 +142,7 @@ class CaseDraft {
     int? budgetDollars,
     bool clearBudgetDollars = false,
     int? step,
+    List<CaseDraftFile>? files,
     String? practiceCode,
     String? coverKey,
     bool clearCoverKey = false,
@@ -138,6 +164,7 @@ class CaseDraft {
         budgetDollars:
             clearBudgetDollars ? null : (budgetDollars ?? this.budgetDollars),
         step: step ?? this.step,
+        files: files ?? this.files,
         practiceCode: practiceCode ?? this.practiceCode,
         coverKey: clearCoverKey ? null : (coverKey ?? this.coverKey),
         urgency: urgency ?? this.urgency,
@@ -158,6 +185,7 @@ class CaseDraft {
         'budgetIsAmount': budgetIsAmount,
         'budgetDollars': budgetDollars,
         'step': step,
+        'files': [for (final f in files) f.toJson()],
         'practiceCode': practiceCode,
         'coverKey': coverKey,
         'urgency': urgency,
@@ -186,6 +214,14 @@ class CaseDraft {
         budgetIsAmount: (m['budgetIsAmount'] as bool?) ?? false,
         budgetDollars: m['budgetDollars'] as int?,
         step: (m['step'] as int?) ?? 0,
+        files: [
+          for (final f in (m['files'] as List<dynamic>? ?? []))
+            if (f is Map && f['fileId'] is String)
+              CaseDraftFile(
+                fileId: f['fileId'] as String,
+                name: f['name'] as String?,
+              ),
+        ],
         practiceCode: m['practiceCode'] as String?,
         coverKey: m['coverKey'] as String?,
         urgency: m['urgency'] as String?,

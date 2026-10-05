@@ -165,10 +165,15 @@ class OwnerCase {
     this.acceptedBid,
     this.conversationId,
     this.photos = const [],
+    this.stalePromptSentAt,
     this.coverKey,
     this.urgency,
     this.urgencyDetail,
   });
+
+  /// Audit 2026-10-04: when the "still relevant?" prompt went out for this
+  /// open case (null = not asked); the owner can answer on the case.
+  final DateTime? stalePromptSentAt;
 
   /// OQ-031: the case photos (the owner always sees them).
   final List<CasePhoto> photos;
@@ -388,11 +393,16 @@ class FeedCase {
     this.promoted = false,
     this.priorityClient = false,
     this.completionRequestedBy,
+    this.acceptedBidIsMine = false,
     this.coverKey,
     this.urgency,
     this.urgencyDetail,
     this.dossier = CaseDossier.empty,
   });
+
+  /// Audit 2026-10-04 (detail only): this attorney's bid is the accepted
+  /// one — the case belongs on the work screen.
+  final bool acceptedBidIsMine;
 
   /// Owner 2026-10-05: files and filled-in details (counts only).
   final CaseDossier dossier;
@@ -496,6 +506,7 @@ class FeedCase {
         urgency: urgency,
         urgencyDetail: urgencyDetail,
         bidAllowed: bidAllowed,
+        acceptedBidIsMine: acceptedBidIsMine,
         dossier: dossier,
       );
 }

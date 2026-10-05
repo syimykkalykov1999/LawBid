@@ -37,6 +37,34 @@ Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
   if (shared) await ref.read(socialActionsProvider).recordShare(post);
 }
 
+/// Opens a person's public profile; your own goes to the Profile tab
+/// instead of a second copy of it on the stack.
+void openProfile(
+  BuildContext context,
+  WidgetRef ref, {
+  required String id,
+  required String username,
+  bool isClient = false,
+}) {
+  if (id == ref.read(currentUserIdProvider)) {
+    context.go(AppRoutes.profile);
+    return;
+  }
+  context.push(
+    isClient ? AppRoutes.client(username) : AppRoutes.lawyer(username),
+  );
+}
+
+/// [openProfile] for a post's author.
+void openAuthorProfile(BuildContext context, WidgetRef ref, PostAuthor a) =>
+    openProfile(
+      context,
+      ref,
+      id: a.id,
+      username: a.username,
+      isClient: a.isClient,
+    );
+
 /// Reloads every post list after a block (the blocked person's posts go).
 void refreshPostLists(WidgetRef ref) {
   ref
@@ -117,12 +145,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                 showChevron: false,
                 onTap: () {
                   Navigator.of(sheet).pop();
-                  final a = post.author;
-                  context.push(
-                    a.isClient
-                        ? AppRoutes.client(a.username)
-                        : AppRoutes.lawyer(a.username),
-                  );
+                  openAuthorProfile(context, ref, post.author);
                 },
               ),
               if (following)

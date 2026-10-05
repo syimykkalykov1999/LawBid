@@ -1,16 +1,15 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// A practice name by its i18n key; a readable fallback while the key is
@@ -38,7 +37,8 @@ class AttorneyTile extends ConsumerWidget {
     final me = ref.watch(currentUserIdProvider);
     final practices = row.practiceKeys.map((k) => practiceLabel(t, k));
     return AppPressable(
-      onTap: () => context.push(AppRoutes.lawyer(row.username)),
+      onTap: () =>
+          openProfile(context, ref, id: row.id, username: row.username),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.screenSide,
@@ -148,7 +148,13 @@ class ClientTile extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return AppPressable(
-      onTap: () => context.push(AppRoutes.client(row.username)),
+      onTap: () => openProfile(
+        context,
+        ref,
+        id: row.id,
+        username: row.username,
+        isClient: true,
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.screenSide,

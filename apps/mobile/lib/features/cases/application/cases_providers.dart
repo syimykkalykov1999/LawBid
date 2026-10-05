@@ -152,6 +152,9 @@ class ExploreCasesNotifier extends PagedNotifier<FeedCase> {
             practiceCategory: key.practiceCategory,
             state: key.state,
             extras: key.extras,
+            // Audit 2026-10-04: "All" here matches the feed's "All" —
+            // every open case, not just the licensed states.
+            mineOnly: false,
           );
 
   @override
@@ -257,9 +260,29 @@ class MineBidsNotifier extends PagedNotifier<MyBid> {
   final MineBidsKey key;
 
   @override
-  Future<CursorPage<MyBid>> fetch(String? cursor) => ref
-      .read(casesRepositoryProvider)
-      .myBids(key.filter, cursor: cursor, search: key.search);
+  Future<CursorPage<MyBid>> fetch(String? cursor) async {
+    final repo = ref.read(casesRepositoryProvider);
+    if (key.filter != MyBidsFilter.finished) {
+      return repo.myBids(key.filter, cursor: cursor, search: key.search);
+    }
+    // Audit 2026-10-04: "Finished" leaves out accepted bids — those cases
+    // are already under "In progress" / "Completed". A page of only
+    // accepted bids reads on so the grid never shows a false empty.
+    var next = cursor;
+    while (true) {
+      final page =
+          await repo.myBids(key.filter, cursor: next, search: key.search);
+      final items = [
+        for (final b in page.items)
+          if (b.bid.status != BidStatus.accepted) b,
+      ];
+      final more = page.nextCursor;
+      if (items.isNotEmpty || more == null || more.isEmpty) {
+        return CursorPage(items: items, nextCursor: more);
+      }
+      next = more;
+    }
+  }
 
   @override
   Object idOf(MyBid item) => item.bid.id;
