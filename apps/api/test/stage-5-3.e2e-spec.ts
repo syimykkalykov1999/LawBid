@@ -6,7 +6,10 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import type Redis from 'ioredis';
 import { FeedRecoJob } from '../src/modules/feed/feed-reco.job';
+import { RECO_CURRENT_KEY } from '../src/modules/feed/feed.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 /**
  * docs/05 §16 stage 5.3 acceptance: a user without follows gets
@@ -148,5 +151,62 @@ describe('Feed (e2e, docs/05 §2.2, stage 5.3)', () => {
     const p = await feed(reader.auth);
     expect(p.ids.length).toBeGreaterThan(0);
     expect(p.ids).toEqual(expect.arrayContaining(top));
+  });
+
+  const pageAll = async (auth: Record<string, string>) => {
+    const all: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 500; page++) {
+      const p = await feed(auth, cursor);
+      if (page === 0) expect(p.ids.length).toBeGreaterThan(0);
+      all.push(...p.ids);
+      cursor = p.next ?? undefined;
+      if (!cursor) break;
+    }
+    return all;
+  };
+
+  it('"All" shows every post to a new account that follows nobody, also without a recommendation snapshot', async () => {
+    const author = await user('attorney');
+    const blocked = await user('attorney');
+    // No likes and older than the 14-day recommendation window.
+    const old = await prisma.post.create({
+      data: {
+        author_id: author.id,
+        body: 'An older post',
+        created_at: new Date(Date.now() - 30 * 24 * 3600 * 1000),
+      },
+    });
+    const fresh = await posts(author.id, 2);
+    const hidden = await posts(blocked.id, 1);
+    const reader = await user('client');
+    await prisma.userBlock.create({
+      data: { blocker_id: reader.id, blocked_id: blocked.id },
+    });
+    // The recommendation job has not run yet (fresh install, Redis reset).
+    await app.get<Redis>(REDIS_CLIENT).del(RECO_CURRENT_KEY);
+
+    const all = await pageAll(reader.auth);
+    expect(new Set(all).size).toBe(all.length);
+    expect(all).toEqual(expect.arrayContaining([...fresh, old.id]));
+    expect(all.some((id) => hidden.includes(id))).toBe(false);
+  });
+
+  it('after recommendations run out, older posts follow without repeats', async () => {
+    const author = await user('attorney');
+    const top = await posts(author.id, 2, 1000);
+    const old = await prisma.post.create({
+      data: {
+        author_id: author.id,
+        body: 'Outside the recommendation window',
+        created_at: new Date(Date.now() - 20 * 24 * 3600 * 1000),
+      },
+    });
+    await app.get(FeedRecoJob).run();
+    const reader = await user('client');
+
+    const all = await pageAll(reader.auth);
+    expect(new Set(all).size).toBe(all.length);
+    expect(all).toEqual(expect.arrayContaining([...top, old.id]));
   });
 });
