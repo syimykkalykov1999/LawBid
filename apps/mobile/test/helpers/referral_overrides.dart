@@ -1,3 +1,5 @@
+import 'package:lawbid/features/partners/application/partners_providers.dart';
+import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
 
@@ -17,5 +19,35 @@ final referralOffOverride = referralMeProvider.overrideWith(
     applyWindowDays: 0,
     canApply: false,
     inviterReward: Reward(type: RewardType.unknown, value: 0),
+  ),
+);
+
+/// Settings also asks whether the user is a partner; tests get "not a
+/// partner" so no request (and no retry timer) is left behind.
+final partnerOffOverride = partnerMeProvider.overrideWith(
+  (ref) async => const PartnerMe(
+    isPartner: false,
+    status: null,
+    code: '',
+    shareUrl: '',
+    rates: PartnerRates(
+      attorneyRateCents: 0,
+      clientRateCents: 0,
+      monthlyBaseCents: 0,
+      clientRule: '',
+      holdDays: 0,
+    ),
+    totals: PartnerTotals(
+      heldCents: 0,
+      approvedCents: 0,
+      paidCents: 0,
+      thisMonthCents: 0,
+      referredCount: 0,
+      qualifiedCount: 0,
+    ),
+    referred: [],
+    commissions: [],
+    title: '',
+    summary: '',
   ),
 );

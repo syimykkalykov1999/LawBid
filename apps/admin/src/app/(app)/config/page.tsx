@@ -16,6 +16,10 @@ import { formatDateTime } from '@/lib/utils';
 
 /** Russian explanations for the known keys (most server descriptions are null or English). */
 const KEY_TEXT: Record<string, string> = {
+  'billing.max_assistant_seats': 'Сколько помощников может добавить адвокат (годовой тариф включает все).',
+  'invites.expiry_days': 'Через сколько дней истекает приглашение клиента («Предложить дело»), если адвокат не ответил.',
+  'invites.max_pending_per_case': 'Сколько адвокатов одновременно могут ждать ответа по одному делу.',
+  'invites.max_per_day': 'Сколько приглашений клиент может отправить за день.',
   'verification.max_submissions_30d': 'Сколько заявок на верификацию адвокат может подать за 30 дней.',
   'verification.signed_url_ttl_sec': 'Сколько секунд живёт ссылка на документ верификации.',
   'verification.license_expiry_notify_days': 'За сколько дней напоминать об окончании лицензии.',
@@ -27,6 +31,12 @@ const KEY_TEXT: Record<string, string> = {
   'files.avatar_max_size_mb': 'Максимальный размер аватара, МБ.',
   'files.chat_max_size_mb': 'Максимальный размер файла в чате, МБ.',
   'files.sticker_max_size_mb': 'Максимальный размер стикера, МБ.',
+  'files.post_attachment_max_size_mb': 'Максимальный размер документа в посте или рилсе (PDF, Word, текст), МБ.',
+  'posts.attachments_max_total_mb': 'Все документы одного поста вместе, МБ.',
+  'video.max_source_duration_sec': 'Длина исходного видео, из которого автор вырезает рилс, сек.',
+  'media.photo_max_px': 'Фото (посты, рилсы, дела, отзывы): длинная сторона после сжатия на телефоне, px',
+  'media.photo_quality': 'Фото: качество JPEG после сжатия на телефоне (50–100)',
+  'media.avatar_max_px': 'Фото профиля: длинная сторона после сжатия, px',
   'contacts.suspend_after_confirmed_reports': 'После скольких подтверждённых «Не могу связаться» клиент приостанавливается.',
   'rate_limit.post_create_per_day': 'Публикаций в день на пользователя.',
   'rate_limit.comment_per_hour': 'Комментариев в час.',

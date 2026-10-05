@@ -346,11 +346,9 @@ export function missingRequirements(
   if (!consentsGranted) missing.push('consents');
   if (user.role === null) missing.push('role');
   if (!user.first_name || !user.last_name) missing.push('name');
-  if (
-    user.role === 'client' ||
-    user.role === 'attorney' ||
-    user.role === 'assistant'
-  ) {
+  // Owner 2026-10-04: an assistant comes in with the attorney's one-time
+  // code (no SMS), so no phone is required of them.
+  if (user.role === 'client' || user.role === 'attorney') {
     if (user.phone_verified_at === null) missing.push('phone_verified');
   }
   if (user.role === 'client' && user.email_verified_at === null) {

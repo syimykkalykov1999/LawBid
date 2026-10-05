@@ -8,14 +8,13 @@ import 'package:retrofit/retrofit.dart';
 import '../models/activity_list_envelope.dart';
 import '../models/add_assistant_dto.dart';
 import '../models/assistant_me_envelope.dart';
-import '../models/assistant_phone_dto.dart';
 import '../models/assistant_request_envelope.dart';
 import '../models/assistant_request_list_envelope.dart';
 import '../models/assistant_request_status.dart';
 import '../models/create_assistant_request_dto.dart';
 import '../models/create_task_dto.dart';
 import '../models/decide_request_dto.dart';
-import '../models/join_verify_dto.dart';
+import '../models/join_code_dto.dart';
 import '../models/task_envelope.dart';
 import '../models/task_list_envelope.dart';
 import '../models/task_step_input_dto.dart';
@@ -44,17 +43,10 @@ abstract class AssistantsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Send a join code to the attorney's phone
-  @POST('/assistants/join/request-code')
-  Future<void> requestAssistantCode({
-    @Body() required AssistantPhoneDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Join with the code the attorney received
-  @POST('/assistants/join/verify')
-  Future<AssistantMeEnvelope> verifyAssistantCode({
-    @Body() required JoinVerifyDto body,
+  /// Join with the attorney's one-time code
+  @POST('/assistants/join/code')
+  Future<AssistantMeEnvelope> joinWithCode({
+    @Body() required JoinCodeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -62,10 +54,17 @@ abstract class AssistantsClient {
   @GET('/team')
   Future<TeamEnvelope> getTeam({@Extras() Map<String, dynamic>? extras});
 
-  /// Add an assistant by phone (joins without a code)
+  /// Add an assistant: takes a seat and gives it a one-time code
   @POST('/team')
   Future<TeamEnvelope> addAssistant({
     @Body() required AddAssistantDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A new one-time code for this seat (the old one stops working; for a joined assistant it signs them in on a new phone)
+  @POST('/team/{id}/code')
+  Future<TeamEnvelope> regenerateAssistantCode({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

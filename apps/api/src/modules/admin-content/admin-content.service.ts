@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -6,6 +6,8 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { maxAssistantSeats } from '../billing/seat-limit';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   type ContentAction,
@@ -105,6 +107,7 @@ export class AdminContentService {
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
     private readonly fanout: BroadcastFanoutRunner,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** Audit 2026-10-01: the admin's content actions go through the
@@ -171,6 +174,7 @@ export class AdminContentService {
       include: {
         author: { select: { first_name: true, last_name: true } },
         practice_area: { select: { name_en: true } },
+        _count: { select: { attachments: true, media: true } },
       },
     });
     return page(rows, (p) => ({
@@ -186,6 +190,8 @@ export class AdminContentService {
       comments: p.comment_count,
       deleted: p.deleted_at !== null,
       hasVideo: p.video_asset_id !== null,
+      attachments: p._count.attachments,
+      photos: p._count.media,
       createdAt: p.created_at.toISOString(),
     }));
   }
@@ -794,7 +800,8 @@ export class AdminContentService {
       where: { ...live, user_id: { in: [...byUser.keys()] } },
       select: { user_id: true, plan: true, assistant_seats: true },
     });
-    const paid = new Map(subs.map((x) => [x.user_id, paidSeats(x)]));
+    const maxSeats = await maxAssistantSeats(this.settings);
+    const paid = new Map(subs.map((x) => [x.user_id, paidSeats(x, maxSeats)]));
     let extra = 0;
     for (const [userId, g] of byUser) {
       const p = paid.get(userId) ?? 0;

@@ -86,6 +86,19 @@ export const OWNER_MEDIA_SETTINGS = {
   'rate_limit.sticker_pack_create_per_day': 5,
   'rate_limit.sticker_add_per_hour': 60,
   'files.sticker_max_size_mb': 1,
+  // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
+  // played part stays ≤ video.max_duration_sec.
+  'video.max_source_duration_sec': 180,
+  // Owner 2026-10-05: documents in posts / reels — small on purpose.
+  'files.post_attachment_max_size_mb': 10,
+  'posts.attachments_max_total_mb': 30,
+  // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by
+  // their own size) are shrunk on the phone before upload — longest side,
+  // JPEG quality — no visible loss, small files. Videos are re-encoded by
+  // Bunny for viewers.
+  'media.photo_max_px': 2048,
+  'media.photo_quality': 85,
+  'media.avatar_max_px': 1024,
 } as const;
 
 // Owner 2026-10-02: support tickets — per-user limits (429 RATE_LIMITED).
@@ -120,6 +133,22 @@ export const OWNER_WEB_SETTINGS = {
   ] as string[],
 };
 
+// Owner 2026-10-05: a client offers a case to a chosen attorney. An
+// unanswered invite expires after `invites.expiry_days`; at most
+// `invites.max_pending_per_case` attorneys wait on one case, and a client
+// sends at most `invites.max_per_day` invites a day.
+export const OWNER_INVITE_SETTINGS = {
+  'invites.expiry_days': 7,
+  'invites.max_pending_per_case': 10,
+  'invites.max_per_day': 30,
+} as const;
+
+// Owner 2026-10-05: how many assistants an attorney may add, set in the
+// admin (was a fixed 6). The yearly plan covers this many seats.
+export const OWNER_SEAT_SETTINGS = {
+  'billing.max_assistant_seats': 10,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -131,6 +160,8 @@ export const APP_SETTINGS = {
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...OWNER_WEB_SETTINGS,
+  ...OWNER_INVITE_SETTINGS,
+  ...OWNER_SEAT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

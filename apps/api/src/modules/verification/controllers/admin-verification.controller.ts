@@ -32,7 +32,10 @@ import {
   DocumentUrlDto,
   LicenseDecisionDto,
   LicenseRecheckDto,
+  RegistryCheckDto,
+  RegistryFlagItemDto,
   RejectRequestDto,
+  AdminLicenseDto,
   RequestInfoDto,
   SuspendAttorneyDto,
   VerificationQueueItemDto,
@@ -194,6 +197,43 @@ export class AdminVerificationController {
     @Param() params: AdminLicenseIdParamDto,
   ): Promise<LicenseRecheckDto> {
     return this.admin.recheck(admin, params.licenseId);
+  }
+
+  @Get('registry-flags')
+  @ApiOperation({
+    summary: 'Verified licenses the state registry disagreed with',
+  })
+  @ApiEnvelopeResponse(RegistryFlagItemDto, { isArray: true })
+  @ApiErrors({ 403: [E.FORBIDDEN] })
+  listRegistryFlags(): Promise<RegistryFlagItemDto[]> {
+    return this.admin.registryFlags();
+  }
+
+  @Post('licenses/:licenseId/registry-check')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Look the license up in its state's registry now (no status change)",
+  })
+  @ApiEnvelopeResponse(RegistryCheckDto)
+  @ApiErrors(REVIEW_ERRORS)
+  checkLicenseInRegistry(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminLicenseIdParamDto,
+  ): Promise<RegistryCheckDto> {
+    return this.admin.registryCheck(admin, params.licenseId);
+  }
+
+  @Post('licenses/:licenseId/registry-flag/clear')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Keep the license; remove its registry flag' })
+  @ApiEnvelopeResponse(AdminLicenseDto)
+  @ApiErrors(REVIEW_ERRORS)
+  clearRegistryFlag(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminLicenseIdParamDto,
+  ): Promise<AdminLicenseDto> {
+    return this.admin.clearRegistryFlag(admin, params.licenseId);
   }
 
   @Post('attorneys/:attorneyId/suspend')

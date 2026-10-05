@@ -34,6 +34,7 @@ class CaseDraftFile {
   @override
   int get hashCode => Object.hash(fileId, name);
 }
+
 /// Owner 2026-10-04: what the urgency control shows (and sends) until the
 /// client picks.
 const String kDefaultCaseUrgency = 'flexible';

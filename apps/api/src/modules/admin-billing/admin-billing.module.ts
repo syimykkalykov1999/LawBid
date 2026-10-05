@@ -10,6 +10,11 @@ import { BillingPromoController } from './billing-promo.controller';
 import { ContractGrantsService } from './contract-grants.service';
 import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
+import {
+  AdminSeatLimitRequestsController,
+  SeatLimitRequestsController,
+} from './seat-limit-requests.controller';
+import { SeatLimitRequestsService } from './seat-limit-requests.service';
 
 /**
  * Owner 2026-10-02: admin billing tools (contract grants, promo codes,
@@ -22,6 +27,8 @@ import { RefundsService } from './refunds.service';
     AdminBillingController,
     BillingPromoController,
     AdminPricingController,
+    SeatLimitRequestsController,
+    AdminSeatLimitRequestsController,
   ],
   providers: [
     ContractGrantsService,
@@ -29,6 +36,7 @@ import { RefundsService } from './refunds.service';
     RefundsService,
     BillingOverviewService,
     AdminPricingService,
+    SeatLimitRequestsService,
   ],
 })
 export class AdminBillingModule {}

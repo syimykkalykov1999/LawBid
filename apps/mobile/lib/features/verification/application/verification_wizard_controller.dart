@@ -87,8 +87,13 @@ class WizardState {
   /// An answer to `needs_more_info` (no intro, only additions).
   bool get isSupplement => request.status == RequestStatus.needsMoreInfo;
 
+  /// Owner 2026-10-05 (audit): with no ID and no bar card required the
+  /// license is confirmed by the sworn statement alone, so there is no
+  /// intro screen and the last button says "Confirm".
+  bool get attestationOnly => !identityRequired && !barDocumentRequired;
+
   List<WizardStep> get steps => [
-        if (!isSupplement) WizardStep.intro,
+        if (!isSupplement && !attestationOnly) WizardStep.intro,
         WizardStep.licenses,
         if (identityRequired) ...[WizardStep.identity, WizardStep.selfie],
         WizardStep.review,
@@ -169,7 +174,11 @@ WizardStep resumeStep(
   bool barDocumentRequired = true,
 }) {
   if (r.status == RequestStatus.needsMoreInfo) return WizardStep.review;
-  if (r.pendingLicenses.isEmpty && r.documents.isEmpty) return WizardStep.intro;
+  if (r.pendingLicenses.isEmpty && r.documents.isEmpty) {
+    return identityRequired || barDocumentRequired
+        ? WizardStep.intro
+        : WizardStep.licenses;
+  }
   if (!r.licensesReady(barDocumentRequired: barDocumentRequired)) {
     return WizardStep.licenses;
   }

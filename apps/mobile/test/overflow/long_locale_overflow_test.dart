@@ -7,6 +7,12 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart';
+import 'package:lawbid/features/cases/application/invites_providers.dart';
+import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
+import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
+import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
@@ -16,10 +22,15 @@ import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/cases/cases_fakes.dart';
+import '../features/cases/invites_test.dart'
+    show FakeInvitesRepository, invite, summary;
 import '../features/social/social_fakes.dart';
 import '../features/team/team_fakes.dart';
 import '../helpers/long_locale.dart';
@@ -75,6 +86,7 @@ void main() {
     base = [
       sharedPreferencesProvider.overrideWithValue(prefs),
       referralOffOverride,
+      partnerOffOverride,
     ];
   });
 
@@ -85,6 +97,7 @@ void main() {
     TextDirection dir, {
     List<Override> extra = const [],
     ThemeData? theme,
+    FakeCasesRepository? cases,
   }) async {
     useNarrowPhone(tester);
     await tester.pumpWidget(
@@ -96,6 +109,7 @@ void main() {
         overrides: uxOverrides(
           translator: t,
           social: _SuggestingSocial(),
+          cases: cases,
           extra: [...base, ...extra],
         ),
       ),
@@ -231,7 +245,11 @@ void main() {
           const Scaffold(body: TasksTab()),
           t,
           dir,
-          extra: [teamRepositoryProvider.overrideWithValue(repo)],
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
+          ],
         );
         expect(tester.takeException(), isNull);
         // Owner 2026-10-05: nothing moves to another line; the chips and
@@ -244,6 +262,109 @@ void main() {
             reason: '$k and "Add a task" share one row',
           );
         }
+      });
+
+      testWidgets('assistant codes: seats section, code card, sign-in',
+          (tester) async {
+        final repo = FakeTeamRepository();
+        final team = await repo.addAssistant(name: 'Alexandra Montgomery-Kim');
+        repo.teamInfo = TeamInfo(
+          members: team.members,
+          seats: 6,
+          used: 1,
+          plan: team.plan,
+        );
+        await pump(
+          tester,
+          Scaffold(
+            body: ListView(
+              children: [
+                const AssistantSeatsSection(),
+                AssistantCodeCard(member: team.members.single),
+              ],
+            ),
+          ),
+          t,
+          dir,
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
+          ],
+        );
+        expect(find.byKey(const ValueKey('assistant-seats')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await pump(
+          tester,
+          const AssistantCodeScreen(),
+          t,
+          dir,
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
+          ],
+        );
+        expect(find.byType(AssistantCodeScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('case invites: offer sheet, attorney card, client list',
+          (tester) async {
+        final invites = FakeInvitesRepository(
+          items: [
+            invite(
+              attorney: const BidAttorney(
+                id: 'att-1',
+                username: 'alexandra_montgomery',
+                firstName: 'Alexandra',
+                lastName: 'Montgomery-Kim',
+                avatarUrl: null,
+                verifiedBadge: true,
+                ratingAvg: 4.9,
+                ratingCount: 120,
+              ),
+            ),
+          ],
+        );
+        final extra = [invitesRepositoryProvider.overrideWithValue(invites)];
+        final cases = FakeCasesRepository(myCasesItems: [summary()]);
+        await pump(
+          tester,
+          const Scaffold(
+            body: OfferCaseSheet(
+              attorneyId: 'att-1',
+              attorneyName: 'Alexandra Montgomery-Kim',
+              licensedStateCodes: {'NY'},
+              practiceIds: {},
+            ),
+          ),
+          t,
+          dir,
+          extra: extra,
+          cases: cases,
+        );
+        await tester.tap(find.byKey(const ValueKey('offer-case-case-1')));
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        await pump(
+          tester,
+          const Scaffold(
+            body: Column(
+              children: [
+                Expanded(child: InvitesList()),
+                CaseInvitesSection(caseId: 'case-1'),
+              ],
+            ),
+          ),
+          t,
+          dir,
+          extra: extra,
+          cases: cases,
+        );
+        expect(find.byKey(const ValueKey('invite-inv-1')), findsOneWidget);
+        expect(find.byKey(const ValueKey('case-invites')), findsOneWidget);
+        expect(tester.takeException(), isNull);
       });
 
       final screens = <String, Widget>{

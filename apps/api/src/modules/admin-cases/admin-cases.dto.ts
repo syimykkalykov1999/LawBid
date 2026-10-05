@@ -1,3 +1,4 @@
+import { DOSSIER_ITEMS } from '../cases/domain/case-dossier';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -255,6 +256,17 @@ export class AdminCaseRowDto {
   @ApiProperty({ type: 'integer' }) openReports!: number;
   @ApiProperty({ description: 'A paid / granted promotion is running.' })
   promoted!: boolean;
+  /** Owner 2026-10-05: the case dossier ("4 of 6"). */
+  @ApiProperty({ type: 'integer' }) imagesCount!: number;
+  @ApiProperty({ type: 'integer' }) documentsCount!: number;
+  @ApiProperty({ type: 'integer', description: 'Filled-in items, 0–6.' })
+  dossierScore!: number;
+  @ApiProperty({
+    type: [String],
+    enum: DOSSIER_ITEMS,
+    description: 'Dossier items the client has not filled in.',
+  })
+  dossierMissing!: string[];
   @ApiProperty({ format: 'date-time' }) lastActivityAt!: string;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
@@ -275,6 +287,24 @@ export class AdminCaseBidDto {
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
+/** Owner 2026-10-05: a client → attorney case invite. */
+export class AdminCaseInviteDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) attorneyId!: string;
+  @ApiProperty() attorneyName!: string;
+  @ApiProperty({
+    description: 'pending / accepted / declined / cancelled / expired / closed',
+  })
+  status!: string;
+  @ApiProperty({ type: 'integer', nullable: true })
+  budgetCents!: number | null;
+  @ApiProperty({ type: String, nullable: true }) declineReason!: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  bidId!: string | null;
+  @ApiProperty({ format: 'date-time' }) expiresAt!: string;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
 export class AdminCaseCardDto extends AdminCaseRowDto {
   @ApiProperty() description!: string;
   @ApiProperty({ type: String, nullable: true }) city!: string | null;
@@ -287,6 +317,11 @@ export class AdminCaseCardDto extends AdminCaseRowDto {
   acceptedBidId!: string | null;
   @ApiProperty({ type: [AdminCaseBidDto], description: 'Newest first (≤100).' })
   bids!: AdminCaseBidDto[];
+  @ApiProperty({
+    type: [AdminCaseInviteDto],
+    description: 'Owner 2026-10-05: invites the client sent, newest first.',
+  })
+  invites!: AdminCaseInviteDto[];
   @ApiProperty({
     type: [AdminJournalEntryDto],
     description: 'case_journal, newest first (last 50).',

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-101 tables.
+107 tables.
 
 ```mermaid
 erDiagram
@@ -214,6 +214,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     Boolean new_case_alerts_custom
+    Int assistant_seat_limit "nullable"
   }
   attorney_licenses {
     String id PK
@@ -227,6 +228,8 @@ erDiagram
     Json auto_check_result "nullable"
     String rejection_code "nullable"
     String rejection_note "nullable"
+    String registry_flag "nullable"
+    DateTime registry_flagged_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -330,6 +333,7 @@ erDiagram
     Int round_count
     enum_PartyRole turn
     Boolean outside_practice
+    Boolean outside_licensed_states
     DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
@@ -453,6 +457,14 @@ erDiagram
     Int height "nullable"
     DateTime created_at
   }
+  post_attachments {
+    String id PK
+    String post_id FK
+    String file_id FK,UK
+    String file_name
+    Int position
+    DateTime created_at
+  }
   tags {
     String id PK
     String tag_lower UK
@@ -539,6 +551,7 @@ erDiagram
     DateTime ended_at "nullable"
     Int duration_sec "nullable"
     String end_reason "nullable"
+    Boolean video
     DateTime created_at
     DateTime updated_at
   }
@@ -822,9 +835,12 @@ erDiagram
     String id PK
     String attorney_id FK
     String assistant_user_id FK "nullable"
-    String phone_e164
+    String phone_e164 "nullable"
     String display_name "nullable"
     enum_AssistantStatus status
+    String join_code_hash UK "nullable"
+    String join_code_enc "nullable"
+    DateTime join_code_expires_at "nullable"
     enum_AssistantApproval approval
     DateTime created_at
     DateTime joined_at "nullable"
@@ -899,6 +915,23 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  case_invites {
+    String id PK
+    String case_id FK
+    String client_id FK
+    String attorney_id FK
+    String status
+    String message "nullable"
+    Int budget_cents "nullable"
+    String decline_reason "nullable"
+    Boolean outside_practice
+    Boolean outside_licensed_states
+    String bid_id "nullable"
+    DateTime expires_at
+    DateTime decided_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   admin_broadcasts {
     String id PK
     String admin_id
@@ -937,6 +970,20 @@ erDiagram
     Boolean last_test_ok "nullable"
     String last_test_error "nullable"
   }
+  state_bar_registries {
+    String state_code PK,FK
+    String adapter
+    Boolean enabled
+    Json config
+    String secret_enc "nullable"
+    String secret_masked "nullable"
+    String test_bar_number "nullable"
+    DateTime last_test_at "nullable"
+    Json last_test_result "nullable"
+    String updated_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   video_assets {
     String id PK
     String owner_user_id FK
@@ -949,6 +996,9 @@ erDiagram
     Int height "nullable"
     BigInt storage_bytes "nullable"
     String failure_reason "nullable"
+    Int trim_start_ms "nullable"
+    Int trim_end_ms "nullable"
+    Int cover_time_ms "nullable"
     DateTime upload_expires_at
     DateTime created_at
     DateTime ready_at "nullable"
@@ -968,6 +1018,19 @@ erDiagram
     DateTime revoked_at "nullable"
     String revoked_by "nullable"
     String revoke_reason "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  seat_limit_requests {
+    String id PK
+    String attorney_id
+    Int requested_seats
+    String note "nullable"
+    String status
+    Int granted_seats "nullable"
+    String decision_note "nullable"
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1031,6 +1094,45 @@ erDiagram
     DateTime qualified_at "nullable"
     DateTime rewarded_at "nullable"
     String rejected_reason "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  partners {
+    String id PK
+    String user_id UK
+    String status
+    String label "nullable"
+    String note "nullable"
+    Int attorney_rate_cents "nullable"
+    Int client_rate_cents "nullable"
+    Int monthly_base_cents
+    String client_rule "nullable"
+    Int hold_days "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime ended_at "nullable"
+  }
+  partner_commissions {
+    String id PK
+    String partner_id FK
+    String partner_user_id
+    String referral_id "nullable"
+    String referred_user_id "nullable"
+    String kind
+    Int amount_cents
+    String status
+    String event_ref UK
+    String period
+    DateTime hold_until "nullable"
+    DateTime approved_at "nullable"
+    String approved_by "nullable"
+    DateTime paid_at "nullable"
+    String paid_by "nullable"
+    String payout_ref "nullable"
+    DateTime reversed_at "nullable"
+    String reversed_reason "nullable"
+    String note "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1217,6 +1319,8 @@ erDiagram
   case_photos }o--|| files : "file_id"
   post_media }o--|| posts : "post_id"
   post_media }o--|| files : "file_id"
+  post_attachments }o--|| posts : "post_id"
+  post_attachments |o--|| files : "file_id"
   post_tags }o--|| posts : "post_id"
   post_tags }o--|| tags : "tag_id"
   comments }o--|| posts : "post_id"
@@ -1293,10 +1397,15 @@ erDiagram
   attorney_task_steps }o--|| attorney_tasks : "task_id"
   bid_drafts }o--|| users : "attorney_id"
   bid_drafts }o--|| cases : "case_id"
+  case_invites }o--|| cases : "case_id"
+  case_invites }o--|| users : "client_id"
+  case_invites }o--|| users : "attorney_id"
   assistant_liability_acceptances }o--|| users : "attorney_id"
   assistant_liability_acceptances }o--|| assistant_memberships : "membership_id"
   integration_credentials }o--o| users : "created_by"
+  state_bar_registries |o--|| states : "state_code"
   video_assets }o--|| users : "owner_user_id"
+  partner_commissions }o--|| partners : "partner_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"
   stickers |o--|| files : "file_id"

@@ -15,6 +15,8 @@ AdminTeamDto _$AdminTeamDtoFromJson(Map<String, dynamic> json) => AdminTeamDto(
   invited: (json['invited'] as num).toInt(),
   pendingRequests: (json['pendingRequests'] as num).toInt(),
   openTasks: (json['openTasks'] as num).toInt(),
+  seatLimit: (json['seatLimit'] as num).toInt(),
+  seatLimitPersonal: json['seatLimitPersonal'] as bool,
   members: (json['members'] as List<dynamic>)
       .map((e) => AssistantMemberDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -35,6 +37,8 @@ Map<String, dynamic> _$AdminTeamDtoToJson(AdminTeamDto instance) =>
       'invited': instance.invited,
       'pendingRequests': instance.pendingRequests,
       'openTasks': instance.openTasks,
+      'seatLimit': instance.seatLimit,
+      'seatLimitPersonal': instance.seatLimitPersonal,
       'members': instance.members.map((e) => e.toJson()).toList(),
       'activity': instance.activity.map((e) => e.toJson()).toList(),
     };

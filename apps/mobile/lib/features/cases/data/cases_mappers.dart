@@ -90,6 +90,7 @@ abstract final class CasesMappers {
         verifiedBadge: a.verifiedBadge,
         ratingAvg: a.rating.avg.toDouble(),
         ratingCount: a.rating.count.toInt(),
+        licensedStates: a.licensedStates,
       );
 
   static BidOffer offer(api.BidOfferDto o) => BidOffer(
@@ -120,6 +121,7 @@ abstract final class CasesMappers {
         decidedAt: b.decidedAt?.toLocal(),
         attorney: attorney(b.attorney),
         outsidePractice: b.outsidePractice,
+        outsideLicensedStates: b.outsideLicensedStates,
       );
 
   static CaseBid bid(api.BidDto b) => CaseBid(
@@ -141,6 +143,7 @@ abstract final class CasesMappers {
         // Audit 2026-10-04: the lawyer header when opened without a row.
         attorney: b.attorney == null ? null : attorney(b.attorney!),
         outsidePractice: b.outsidePractice,
+        outsideLicensedStates: b.outsideLicensedStates,
       );
 
   static FeedCase feedCase(api.CaseFeedItemDto c) => FeedCase(
@@ -165,6 +168,13 @@ abstract final class CasesMappers {
         promoted: c.promoted,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        dossier: dossier(c.dossier),
+      );
+
+  static CaseDossier dossier(api.CaseDossierDto d) => CaseDossier(
+        imagesCount: d.imagesCount,
+        documentsCount: d.documentsCount,
+        descriptionLength: d.descriptionLength,
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -192,10 +202,12 @@ abstract final class CasesMappers {
         commentCount: c.commentCount,
         shareCount: c.shareCount,
         inMyPractice: c.inMyPractice,
+        inMyLicensedStates: c.inMyLicensedStates,
         bidAllowed: c.bidAllowed,
         acceptedBidIsMine: c.acceptedBidIsMine,
         coverKey: c.coverKey,
         urgency: _urgency(c.urgency),
+        dossier: dossier(c.dossier),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(

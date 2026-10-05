@@ -9,17 +9,26 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:video_player/video_player.dart';
 
 /// Owner 2026-10-01 — "+" → Reel: pick or record a vertical video, add a
 /// title and a caption, publish. The file goes straight to Bunny (with a
 /// progress bar, resumable); the reel appears in the feeds once Bunny has
 /// encoded it — the author gets a notification.
+///
+/// Owner 2026-10-05: like Instagram — a longer video (up to
+/// `video.max_source_duration_sec`) is cut to the part the reel plays (≤
+/// `video.max_duration_sec`), the author picks the cover frame, and adds
+/// what opens with "Смотреть" under the reel: up to 9 photos and up to 9
+/// documents (PDF, Word, text).
 class CreateReelScreen extends ConsumerStatefulWidget {
   const CreateReelScreen({
     this.initialFile,
@@ -43,6 +52,22 @@ class CreateReelScreen extends ConsumerStatefulWidget {
 /// from the admin panel (bootstrap app_config).
 const _kDefaultMaxSeconds = 90;
 
+/// `video.max_source_duration_sec`: the longest video a reel is cut from.
+const _kDefaultSourceSeconds = 180;
+
+/// A photo of the reel's inner page, uploaded right after it is picked.
+class _Photo {
+  _Photo(this.bytes);
+
+  final Uint8List bytes;
+  final key = UniqueKey();
+  double progress = 0;
+  String? fileId;
+  Object? error;
+
+  bool get uploading => fileId == null && error == null;
+}
+
 class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   late final _title = TextEditingController(text: widget.initialTitle);
   late final _text = TextEditingController(text: widget.initialText);
@@ -50,7 +75,13 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   bool _comments = true;
   File? _file;
   VideoPlayerController? _preview;
-  int _seconds = 0;
+  ReelCut? _cut;
+
+  /// The preview stands on the cover frame while it is being chosen.
+  bool _choosingCover = false;
+  final _photos = <_Photo>[];
+  late final _docs = PostDocumentsController(ref.read(socialActionsProvider))
+    ..addListener(_refresh);
   double? _progress;
   bool _publishing = false;
   CancelToken? _cancel;
@@ -75,7 +106,9 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   @override
   void dispose() {
     _cancel?.cancel();
+    _preview?.removeListener(_loopInCut);
     _preview?.dispose();
+    _docs.dispose();
     _title.dispose();
     _text.dispose();
     _place.dispose();
@@ -86,9 +119,16 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       .read(featureFlagsControllerProvider)
       .configInt('video.max_duration_sec', _kDefaultMaxSeconds);
 
+  int get _kSourceSeconds => ref
+      .read(featureFlagsControllerProvider)
+      .configInt('video.max_source_duration_sec', _kDefaultSourceSeconds)
+      .clamp(_kMaxSeconds, 3600);
+
   Future<void> _pick(ImageSource source) async {
     final x = await ImagePicker().pickVideo(
       source: source,
+      // Recording stops at the reel's length; from the gallery a longer
+      // video is cut below.
       maxDuration: Duration(seconds: _kMaxSeconds),
     );
     if (x == null) return;
@@ -105,13 +145,16 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       if (mounted) showAppSnackBar(context, t.t('reels.badFile'));
       return;
     }
-    final secs = (c.value.duration.inMilliseconds / 1000).ceil();
-    if (secs > _kMaxSeconds) {
+    final totalMs = c.value.duration.inMilliseconds;
+    if (totalMs <= 0 || (totalMs / 1000).ceil() > _kSourceSeconds) {
       await c.dispose();
       if (mounted) {
         showAppSnackBar(
           context,
-          t.t('reels.tooLong', {'max': '$_kMaxSeconds'}),
+          t.t(
+            totalMs <= 0 ? 'reels.badFile' : 'reels.tooLong',
+            {'max': '$_kSourceSeconds'},
+          ),
         );
       }
       return;
@@ -119,19 +162,131 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
     await c.setLooping(true);
     await c.setVolume(0);
     await c.play();
-    await _preview?.dispose();
-    if (!mounted) return;
+    final old = _preview;
+    old?.removeListener(_loopInCut);
+    await old?.dispose();
+    if (!mounted) {
+      await c.dispose();
+      return;
+    }
+    c.addListener(_loopInCut);
     setState(() {
       _file = file;
       _preview = c;
-      _seconds = secs;
+      _cut = ReelCut.initial(totalMs, _kMaxSeconds * 1000);
+      _choosingCover = false;
     });
   }
+
+  /// The preview plays only the chosen part, round and round.
+  void _loopInCut() {
+    final c = _preview;
+    final cut = _cut;
+    if (c == null || cut == null || _choosingCover || !c.value.isPlaying) {
+      return;
+    }
+    final pos = c.value.position.inMilliseconds;
+    if (pos >= cut.endMs || pos < cut.startMs - 250) {
+      c.seekTo(Duration(milliseconds: cut.startMs));
+    }
+  }
+
+  void _setRange(RangeValues v) {
+    final cut = _cut;
+    if (cut == null) return;
+    final next = cut.withRange(
+      (v.start * 1000).round(),
+      (v.end * 1000).round(),
+      _kMaxSeconds * 1000,
+    );
+    final startMoved = next.startMs != cut.startMs;
+    setState(() {
+      _cut = next;
+      _choosingCover = false;
+    });
+    final c = _preview;
+    if (c == null) return;
+    c.seekTo(
+      Duration(milliseconds: startMoved ? next.startMs : next.endMs - 300),
+    );
+    if (!c.value.isPlaying) c.play();
+  }
+
+  void _setCover(double seconds) {
+    final cut = _cut;
+    final c = _preview;
+    if (cut == null || c == null) return;
+    final next = cut.withCover((seconds * 1000).round());
+    setState(() {
+      _cut = next;
+      _choosingCover = true;
+    });
+    c
+      ..pause()
+      ..seekTo(Duration(milliseconds: next.coverMs));
+  }
+
+  void _togglePreview() {
+    final c = _preview;
+    final cut = _cut;
+    if (c == null || cut == null) return;
+    if (c.value.isPlaying) {
+      c.pause();
+    } else {
+      setState(() => _choosingCover = false);
+      c
+        ..seekTo(Duration(milliseconds: cut.startMs))
+        ..play();
+    }
+    setState(() {});
+  }
+
+  Future<void> _pickPhotos() async {
+    final left = kPostMaxPhotos - _photos.length;
+    if (left <= 0) return;
+    final limits = postPhotoLimits(ref);
+    final picked = await ImagePicker().pickMultiImage(
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
+      imageQuality: limits.quality,
+      limit: left,
+    );
+    for (final f in picked.take(left)) {
+      final photo = _Photo(await f.readAsBytes());
+      if (!mounted) return;
+      setState(() => _photos.add(photo));
+      // ignore: unawaited_futures
+      _uploadPhoto(photo);
+    }
+  }
+
+  Future<void> _uploadPhoto(_Photo photo) async {
+    setState(() {
+      photo
+        ..error = null
+        ..progress = 0;
+    });
+    try {
+      final id = await ref.read(socialActionsProvider).uploadPhoto(
+        photo.bytes,
+        onProgress: (p) {
+          if (mounted) setState(() => photo.progress = p);
+        },
+      );
+      if (mounted) setState(() => photo.fileId = id);
+    } on Object catch (e) {
+      if (mounted) setState(() => photo.error = e);
+    }
+  }
+
+  bool get _insideReady =>
+      _photos.every((p) => p.fileId != null) && _docs.ready;
 
   Future<void> _publish() async {
     final t = ref.read(translatorProvider);
     final file = _file;
-    if (file == null) return;
+    final cut = _cut;
+    if (file == null || cut == null || !_insideReady) return;
     final repo = ref.read(reelsRepositoryProvider);
     setState(() {
       _publishing = true;
@@ -141,8 +296,11 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
     try {
       final upload = await repo.createUpload(
         sizeBytes: await file.length(),
-        durationSec: _seconds,
+        durationSec: cut.sourceSec,
         title: _title.text.trim().isEmpty ? null : _title.text.trim(),
+        trimStartMs: cut.trimmed ? cut.startMs : null,
+        trimEndMs: cut.trimmed ? cut.endMs : null,
+        coverTimeMs: cut.coverMs,
       );
       _assetId = upload.videoAssetId;
       await repo.upload(
@@ -164,6 +322,8 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                   ? _text.text.trim()
                   : _title.text.trim(),
               videoAssetId: upload.videoAssetId,
+              mediaFileIds: [for (final p in _photos) p.fileId!],
+              attachments: _docs.refs,
               locationName:
                   _place.text.trim().isEmpty ? null : _place.text.trim(),
               commentsEnabled: _comments,
@@ -188,6 +348,175 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       }
     }
   }
+
+  /// Owner 2026-10-05: the part of the video the reel plays, and its cover.
+  List<Widget> _cutSection(
+    Translator t,
+    AppColorTokens colors,
+    AppTypographyTokens type,
+    ReelCut cut,
+  ) {
+    final totalSec = cut.totalMs / 1000;
+    return [
+      const SizedBox(height: AppSpacing.lg),
+      Row(
+        children: [
+          AppIcon(AppIcons.contentCutRounded, size: 20, color: colors.text),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(t.t('reels.trim.title'), style: type.titleMedium),
+          ),
+          Text(
+            t.t('reels.trim.range', {
+              'start': formatCutTime(cut.startMs),
+              'end': formatCutTime(cut.endMs),
+            }),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
+      ),
+      RangeSlider(
+        values: RangeValues(cut.startMs / 1000, cut.endMs / 1000),
+        max: totalSec,
+        activeColor: colors.gold,
+        inactiveColor: colors.border,
+        labels: RangeLabels(
+          formatCutTime(cut.startMs),
+          formatCutTime(cut.endMs),
+        ),
+        semanticFormatterCallback: (v) => formatCutTime((v * 1000).round()),
+        onChanged: _publishing ? null : _setRange,
+      ),
+      Text(
+        t.t('reels.trim.hint', {
+          'max': '$_kMaxSeconds',
+          'source': '$_kSourceSeconds',
+        }),
+        style: type.caption.copyWith(color: colors.textSecondary),
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      Row(
+        children: [
+          AppIcon(AppIcons.imageOutlined, size: 20, color: colors.text),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(t.t('reels.cover.title'), style: type.titleMedium),
+          ),
+          Text(
+            formatCutTime(cut.coverMs),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
+      ),
+      Slider(
+        value: cut.coverMs / 1000,
+        min: cut.startMs / 1000,
+        max: cut.endMs / 1000,
+        activeColor: colors.gold,
+        inactiveColor: colors.border,
+        label: formatCutTime(cut.coverMs),
+        semanticFormatterCallback: (v) => formatCutTime((v * 1000).round()),
+        onChanged: _publishing ? null : _setCover,
+      ),
+      Text(
+        t.t('reels.cover.hint'),
+        style: type.caption.copyWith(color: colors.textSecondary),
+      ),
+    ];
+  }
+
+  /// Owner 2026-10-05: what opens with "Смотреть" under the reel.
+  List<Widget> _insideSection(
+    Translator t,
+    AppColorTokens colors,
+    AppTypographyTokens type,
+  ) =>
+      [
+        Row(
+          children: [
+            AppIcon(
+              AppIcons.bookOpenTextOutlined,
+              size: 20,
+              color: colors.text,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(t.t('reels.inside.title'), style: type.titleMedium),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          t.t('reels.inside.hint'),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                t.t('reels.inside.photos'),
+                style: type.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Text(
+              '${_photos.length} / $kPostMaxPhotos',
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SizedBox(
+          height: 80,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final p in _photos)
+                Padding(
+                  key: p.key,
+                  padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+                  child: _InsidePhoto(
+                    photo: p,
+                    removeLabel: t.t('post.create.removePhoto'),
+                    retryLabel: t.t('error.retry'),
+                    onRemove: _publishing
+                        ? null
+                        : () => setState(() => _photos.remove(p)),
+                    onRetry: () => _uploadPhoto(p),
+                  ),
+                ),
+              if (_photos.length < kPostMaxPhotos)
+                Semantics(
+                  button: true,
+                  label: t.t('reels.inside.addPhoto'),
+                  excludeSemantics: true,
+                  child: AppPressable(
+                    onTap: _publishing ? null : _pickPhotos,
+                    child: Container(
+                      width: 80,
+                      decoration: BoxDecoration(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(AppRadii.field),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Center(
+                        child: AppIcon(
+                          AppIcons.addPhotoAlternateOutlined,
+                          color: colors.goldDark,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        PostDocumentsEditor(controller: _docs, enabled: !_publishing),
+      ];
 
   @override
   Widget build(BuildContext context) {
@@ -264,20 +593,35 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                             : Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  FittedBox(
-                                    fit: BoxFit.cover,
-                                    clipBehavior: Clip.hardEdge,
-                                    child: SizedBox(
-                                      width: c.value.size.width,
-                                      height: c.value.size.height,
-                                      child: VideoPlayer(c),
+                                  GestureDetector(
+                                    onTap: _togglePreview,
+                                    child: FittedBox(
+                                      fit: BoxFit.cover,
+                                      clipBehavior: Clip.hardEdge,
+                                      child: SizedBox(
+                                        width: c.value.size.width,
+                                        height: c.value.size.height,
+                                        child: VideoPlayer(c),
+                                      ),
                                     ),
                                   ),
+                                  if (!c.value.isPlaying)
+                                    const IgnorePointer(
+                                      child: Center(
+                                        child: AppIcon(
+                                          AppIcons.playArrowRounded,
+                                          size: 48,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ),
                                   PositionedDirectional(
                                     end: AppSpacing.sm,
                                     bottom: AppSpacing.sm,
                                     child: Text(
-                                      formatReelDuration(_seconds),
+                                      formatReelDuration(
+                                        ((_cut?.lengthMs ?? 0) / 1000).round(),
+                                      ),
                                       style: type.caption.copyWith(
                                         color: Colors.white,
                                         shadows: const [
@@ -312,6 +656,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                     t.t('reels.limits', {'max': '$_kMaxSeconds'}),
                     style: type.caption.copyWith(color: colors.textSecondary),
                   ),
+                  if (_cut != null) ..._cutSection(t, colors, type, _cut!),
                   const SizedBox(height: AppSpacing.lg),
                   AppTextField(
                     controller: _title,
@@ -350,6 +695,8 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                       style: type.body.copyWith(color: colors.text),
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.lg),
+                  ..._insideSection(t, colors, type),
                   if (_progress != null) ...[
                     const SizedBox(height: AppSpacing.lg),
                     Text(
@@ -381,6 +728,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                 isLoading: _publishing,
                 isEnabled: !_publishing &&
                     _file != null &&
+                    _insideReady &&
                     (_title.text.trim().isNotEmpty ||
                         _text.text.trim().isNotEmpty),
                 onPressed: _publish,
@@ -388,6 +736,98 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InsidePhoto extends StatelessWidget {
+  const _InsidePhoto({
+    required this.photo,
+    required this.removeLabel,
+    required this.retryLabel,
+    required this.onRemove,
+    required this.onRetry,
+  });
+
+  final _Photo photo;
+  final String removeLabel;
+  final String retryLabel;
+  final VoidCallback? onRemove;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return SizedBox.square(
+      dimension: 80,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            child: Image.memory(photo.bytes, fit: BoxFit.cover),
+          ),
+          if (photo.uploading)
+            ColoredBox(
+              color: Colors.black38,
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    value: photo.progress > 0 ? photo.progress : null,
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          if (photo.error != null)
+            Semantics(
+              button: true,
+              label: retryLabel,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: onRetry,
+                child: ColoredBox(
+                  color: Colors.black54,
+                  child: Center(
+                    child: AppIcon(
+                      AppIcons.refreshRounded,
+                      color: colors.danger,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          PositionedDirectional(
+            top: 2,
+            end: 2,
+            child: Semantics(
+              button: true,
+              label: removeLabel,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: AppIcon(
+                      AppIcons.closeRounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

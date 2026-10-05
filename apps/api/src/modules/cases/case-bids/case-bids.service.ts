@@ -82,8 +82,8 @@ export const BID_LIST_INCLUDE = {
           rating_count: true,
           licenses: {
             where: { license_status: 'verified' },
-            select: { id: true },
-            take: 1,
+            select: { state_code: true },
+            orderBy: { state_code: 'asc' },
           },
         },
       },
@@ -163,6 +163,8 @@ export class CaseBidsService {
 
   /** A bid with the attorney's public summary (§5.2 card). */
   async toItem(bid: BidListRow): Promise<CaseBidItemDto> {
+    const a = bid.attorney;
+    const avatar = await this.files.avatarUrls(a.avatar_file_id);
     return {
       id: bid.id,
       caseId: bid.case_id,
@@ -179,9 +181,10 @@ export class CaseBidsService {
       roundCount: bid.round_count,
       turn: bid.turn,
       outsidePractice: bid.outside_practice,
+      outsideLicensedStates: bid.outside_licensed_states,
       decidedAt: bid.decided_at?.toISOString() ?? null,
       createdAt: bid.created_at.toISOString(),
-      attorney: await this.toAttorneySummary(bid),
+      attorney: toAttorneySummary(bid.attorney_id, a, avatar.url256),
     };
   }
 
@@ -194,31 +197,35 @@ export class CaseBidsService {
       where: { id: bidId },
       include: BID_LIST_INCLUDE,
     });
-    return bid ? this.toAttorneySummary(bid) : undefined;
+    if (!bid) return undefined;
+    const avatar = await this.files.avatarUrls(bid.attorney.avatar_file_id);
+    return toAttorneySummary(bid.attorney_id, bid.attorney, avatar.url256);
   }
+}
 
-  private async toAttorneySummary(
-    bid: BidListRow,
-  ): Promise<BidAttorneySummaryDto> {
-    const a = bid.attorney;
-    const p = a.attorney_profile;
-    const avatar = await this.files.avatarUrls(a.avatar_file_id);
-    return {
-      id: bid.attorney_id,
-      username: p?.username ?? '',
-      firstName: a.first_name,
-      lastName: a.last_name,
-      avatarUrl256: avatar.url256,
-      verifiedBadge:
-        p?.verification_status === 'verified' &&
-        !p.name_mismatch &&
-        (p.licenses.length ?? 0) > 0,
-      rating: {
-        avg: p ? Number(p.rating_avg) : 0,
-        count: p?.rating_count ?? 0,
-      },
-    };
-  }
+/** The attorney's public summary on a bid / invite card (§5.2). */
+export function toAttorneySummary(
+  attorneyId: string,
+  a: BidListRow['attorney'],
+  avatarUrl256: string | null,
+): BidAttorneySummaryDto {
+  const p = a.attorney_profile;
+  return {
+    id: attorneyId,
+    username: p?.username ?? '',
+    firstName: a.first_name,
+    lastName: a.last_name,
+    avatarUrl256,
+    verifiedBadge:
+      p?.verification_status === 'verified' &&
+      !p.name_mismatch &&
+      (p.licenses.length ?? 0) > 0,
+    licensedStates: [...new Set((p?.licenses ?? []).map((l) => l.state_code))],
+    rating: {
+      avg: p ? Number(p.rating_avg) : 0,
+      count: p?.rating_count ?? 0,
+    },
+  };
 }
 
 function orderOf(sort: CaseBidsSort): Prisma.BidOrderByWithRelationInput[] {

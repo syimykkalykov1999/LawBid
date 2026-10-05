@@ -30,6 +30,7 @@ import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
 import 'clients/mine_client.dart';
+import 'clients/invites_client.dart';
 import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/users_client.dart';
@@ -60,6 +61,8 @@ import 'clients/presence_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
+import 'clients/partners_client.dart';
+import 'clients/admin_partners_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
 import 'clients/client_badge_client.dart';
@@ -106,6 +109,7 @@ class LawbidApi {
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
   MineClient? _mine;
+  InvitesClient? _invites;
   AdminContactIssuesClient? _adminContactIssues;
   AdminCaseDisputesClient? _adminCaseDisputes;
   UsersClient? _users;
@@ -136,6 +140,8 @@ class LawbidApi {
   AdminIntegrationsClient? _adminIntegrations;
   ReferralsClient? _referrals;
   AdminReferralsClient? _adminReferrals;
+  PartnersClient? _partners;
+  AdminPartnersClient? _adminPartners;
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
   ClientBadgeClient? _clientBadge;
@@ -214,6 +220,9 @@ class LawbidApi {
   CasesClient get cases => _cases ??= CasesClient(_dio, baseUrl: _baseUrl);
 
   MineClient get mine => _mine ??= MineClient(_dio, baseUrl: _baseUrl);
+
+  InvitesClient get invites =>
+      _invites ??= InvitesClient(_dio, baseUrl: _baseUrl);
 
   AdminContactIssuesClient get adminContactIssues =>
       _adminContactIssues ??= AdminContactIssuesClient(_dio, baseUrl: _baseUrl);
@@ -299,6 +308,12 @@ class LawbidApi {
 
   AdminReferralsClient get adminReferrals =>
       _adminReferrals ??= AdminReferralsClient(_dio, baseUrl: _baseUrl);
+
+  PartnersClient get partners =>
+      _partners ??= PartnersClient(_dio, baseUrl: _baseUrl);
+
+  AdminPartnersClient get adminPartners =>
+      _adminPartners ??= AdminPartnersClient(_dio, baseUrl: _baseUrl);
 
   PromotionsClient get promotions =>
       _promotions ??= PromotionsClient(_dio, baseUrl: _baseUrl);

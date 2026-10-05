@@ -110,6 +110,9 @@ abstract final class AppRoutes {
   static String placeBid(String id) => '/case/${Uri.encodeComponent(id)}/bid';
 
   /// "В работе" case: contacts, completion (docs/04 §8, §11.2).
+  /// Owner 2026-10-05: cases clients offered to the attorney.
+  static const invites = '/mine/invites';
+
   static const workCasePattern = '/mine/work/:id';
   static String workCase(String id) => '/mine/work/${Uri.encodeComponent(id)}';
 
@@ -127,6 +130,8 @@ abstract final class AppRoutes {
   // Owner 2026-10-02: About LawBid + the website link.
   static const about = '/profile/settings/about';
   static const referral = '/profile/settings/referral';
+  // Owner 2026-10-05: partner program (shown to partners only).
+  static const partner = '/profile/settings/partner';
 
   /// Owner 2026-10-02: the client's paid gold badge (verify my account).
   static const clientBadge = '/profile/settings/verify-account';

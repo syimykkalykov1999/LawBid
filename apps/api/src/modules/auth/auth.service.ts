@@ -45,6 +45,8 @@ import type { RequestUser } from './decorators/current-user.decorator';
 import type { AuthTokensResult } from './social/auth-result.types';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
+import { AssistantCodeService } from './assistant/assistant-code.service';
+import type { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 
 const ENV = {
   otpPerIdentifierPerHour: 'OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR',
@@ -92,6 +94,7 @@ export class AuthService {
     private readonly newDevice: NewDeviceNotifier,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly bans: AccountBansService,
+    private readonly assistantCodes: AssistantCodeService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -451,6 +454,106 @@ export class AuthService {
     return this.issueLogin(user, p.isNewUser, p.identifier, p.deviceInfo, meta);
   }
 
+  /**
+   * POST /auth/assistant/code (owner 2026-10-04): the assistant's sign-in
+   * with the attorney's one-time code, no SMS. Rate limited per IP and per
+   * device (the code space is ~59 bits; this keeps guessing hopeless).
+   */
+  async assistantCodeLogin(
+    dto: AssistantCodeLoginDto,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
+    const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
+    await this.bans.assertAllowed({ deviceId: deviceInfo.deviceId });
+    const limits = [
+      ...(meta.ip
+        ? [
+            await this.rateLimit.consumeFixedWindow(
+              ['assist-login', 'ip', meta.ip],
+              20,
+              3600,
+            ),
+          ]
+        : []),
+      ...(deviceInfo.deviceId
+        ? [
+            await this.rateLimit.consumeFixedWindow(
+              ['assist-login', 'device', deviceInfo.deviceId],
+              10,
+              3600,
+            ),
+          ]
+        : []),
+    ];
+    const blocked = limits.filter((r) => !r.allowed);
+    if (blocked.length > 0) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many attempts. Try again later.',
+          details: {
+            retryAfterSeconds: Math.max(
+              ...blocked.map((r) => r.retryAfterSeconds),
+            ),
+          },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    let seat;
+    try {
+      seat = await this.assistantCodes.find(dto.code);
+    } catch (e) {
+      await this.authEvents.record({
+        eventType: AUTH_EVENT_TYPES.ASSISTANT_CODE_FAILED,
+        success: false,
+        deviceId: deviceInfo.deviceId,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+      });
+      throw e;
+    }
+
+    // A joined assistant on a new phone: the same account. Otherwise a new
+    // account that only ever works inside this attorney's team.
+    const existing = seat.assistant_user_id
+      ? await this.prisma.user.findUnique({
+          where: { id: seat.assistant_user_id },
+        })
+      : null;
+    if (existing && existing.status !== 'active') {
+      throw new ForbiddenException({
+        code:
+          existing.status === 'suspended'
+            ? ErrorCode.ACCOUNT_SUSPENDED
+            : ErrorCode.ACCOUNT_DELETED,
+        message: 'This account is not available.',
+      });
+    }
+    const isNewUser = existing === null;
+    const user =
+      existing ??
+      (await this.prisma.user.create({
+        data: { status: 'active', role: 'assistant' },
+      }));
+    await this.assistantCodes.claim(seat, user.id);
+    // One account, one phone: a code issued again moves the assistant.
+    if (!isNewUser) {
+      await this.revocation.revokeAllChainsForUser(
+        user.id,
+        'signed_in_elsewhere',
+      );
+    }
+    return this.issueLogin(
+      { ...user, role: 'assistant' },
+      isNewUser,
+      'assistant-code',
+      deviceInfo,
+      meta,
+    );
+  }
+
   /** Session, tokens, audit and the new-device alert of a sign-in. */
   private async issueLogin(
     user: User,
@@ -486,7 +589,9 @@ export class AuthService {
       userId: user.id,
       eventType: identifier.startsWith('social:')
         ? AUTH_EVENT_TYPES.SOCIAL_LOGIN_SUCCESS
-        : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
+        : identifier === 'assistant-code'
+          ? AUTH_EVENT_TYPES.ASSISTANT_CODE_LOGIN
+          : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
       success: true,
       identifier,
       deviceId: deviceInfo.deviceId,

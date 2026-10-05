@@ -43,6 +43,39 @@ export function mapBunnyStatus(
 }
 
 /**
+ * Owner 2026-10-05 — the part of the source a reel plays. null = the
+ * whole video; 'invalid' = outside the video or empty; 'too_long' =
+ * longer than the reel limit.
+ */
+export function reelTrim(
+  dto: { durationSec: number; trimStartMs?: number; trimEndMs?: number },
+  maxSec: number,
+): { startMs: number; endMs: number } | null | 'invalid' | 'too_long' {
+  if (dto.trimStartMs == null && dto.trimEndMs == null) {
+    return dto.durationSec > maxSec ? 'too_long' : null;
+  }
+  const totalMs = dto.durationSec * 1000;
+  const startMs = dto.trimStartMs ?? 0;
+  const endMs = Math.min(dto.trimEndMs ?? totalMs, totalMs);
+  if (startMs >= endMs || endMs - startMs < 1000) return 'invalid';
+  // 1 s of slack: the phone rounds the source length up.
+  if (endMs - startMs > maxSec * 1000 + 1000) return 'too_long';
+  return { startMs, endMs };
+}
+
+/** Seconds the viewer sees: the trimmed part, else the whole video. */
+export function playedSec(
+  a: Pick<VideoAsset, 'duration_sec' | 'trim_start_ms' | 'trim_end_ms'>,
+): number | null {
+  if (a.trim_end_ms == null) return a.duration_sec;
+  const end =
+    a.duration_sec != null
+      ? Math.min(a.trim_end_ms, a.duration_sec * 1000)
+      : a.trim_end_ms;
+  return Math.max(1, Math.round((end - (a.trim_start_ms ?? 0)) / 1000));
+}
+
+/**
  * Owner 2026-10-01 — video reels on Bunny Stream. Hidden everywhere until
  * the owner turns `video_posts` on AND adds the Bunny keys in Admin →
  * Integrations. The phone uploads straight to Bunny (TUS); Bunny encodes;
@@ -90,13 +123,34 @@ export class VideosService {
     await this.assertAvailable();
     const maxSec = await this.settings.number('video.max_duration_sec');
     const maxMb = await this.settings.number('video.max_size_mb');
-    if (dto.durationSec > maxSec || dto.sizeBytes > maxMb * 1024 * 1024) {
+    const sourceSec = await this.sourceLimitSec(maxSec);
+    const trim = reelTrim(dto, maxSec);
+    if (
+      dto.durationSec > sourceSec ||
+      dto.sizeBytes > maxMb * 1024 * 1024 ||
+      trim === 'too_long'
+    ) {
       throw new UnprocessableEntityException({
         code: ErrorCode.VIDEO_TOO_LONG,
-        message: `Videos are up to ${maxSec} s and ${maxMb} MB.`,
-        details: { maxDurationSec: maxSec, maxSizeMb: maxMb },
+        message: `Reels are up to ${maxSec} s (cut from a video up to ${sourceSec} s) and ${maxMb} MB.`,
+        details: {
+          maxDurationSec: maxSec,
+          maxSourceDurationSec: sourceSec,
+          maxSizeMb: maxMb,
+        },
       });
     }
+    if (trim === 'invalid') {
+      throw new UnprocessableEntityException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'The trimmed part is outside the video.',
+        details: { field: 'trimStartMs' },
+      });
+    }
+    const coverMs =
+      dto.coverTimeMs != null && dto.coverTimeMs <= dto.durationSec * 1000
+        ? dto.coverTimeMs
+        : (trim?.startMs ?? null);
     const pending = await this.prisma.videoAsset.count({
       where: {
         owner_user_id: userId,
@@ -113,7 +167,10 @@ export class VideosService {
     await this.limits.consume('video_upload', userId);
     await this.costGuard.consume('video');
     const keys = (await this.bunny.keys())!;
-    const guid = await this.bunny.createVideo(dto.title?.trim() || 'LawBid');
+    const guid = await this.bunny.createVideo(
+      dto.title?.trim() || 'LawBid',
+      coverMs,
+    );
     const ttlMin = await this.settings.number('video.upload_ttl_min');
     const expire = Math.floor(Date.now() / 1000) + ttlMin * 60;
     const asset = await this.prisma.videoAsset.create({
@@ -122,6 +179,9 @@ export class VideosService {
         library_id: keys.libraryId,
         external_id: guid,
         upload_expires_at: new Date(expire * 1000),
+        trim_start_ms: trim?.startMs ?? null,
+        trim_end_ms: trim?.endMs ?? null,
+        cover_time_ms: coverMs,
       },
     });
     return {
@@ -183,8 +243,11 @@ export class VideosService {
     if (next === a.status) return a;
     if (next === 'ready') {
       const maxSec = await this.settings.number('video.max_duration_sec');
-      // The phone said how long it was; Bunny is the truth.
-      if (v.length > maxSec + 2) {
+      // The phone said how long it was; Bunny is the truth. A trimmed reel
+      // plays ≤ maxSec of a longer source; an untrimmed one is the whole.
+      const limit =
+        a.trim_end_ms != null ? await this.sourceLimitSec(maxSec) : maxSec;
+      if (v.length > limit + 2) {
         return this.prisma.videoAsset.update({
           where: { id: a.id },
           data: {
@@ -277,12 +340,22 @@ export class VideosService {
         status: a.status,
         playbackUrl: sign('playlist.m3u8'),
         thumbnailUrl: sign('thumbnail.jpg'),
-        durationSec: a.duration_sec,
+        durationSec: playedSec(a),
         width: a.width,
         height: a.height,
+        trimStartMs: a.trim_start_ms,
+        trimEndMs: a.trim_end_ms,
       });
     }
     return out;
+  }
+
+  /** `video.max_source_duration_sec`, never below the reel limit. */
+  private async sourceLimitSec(maxSec: number): Promise<number> {
+    return Math.max(
+      maxSec,
+      await this.settings.number('video.max_source_duration_sec'),
+    );
   }
 
   toAssetDto(a: VideoAsset): VideoAssetDto {

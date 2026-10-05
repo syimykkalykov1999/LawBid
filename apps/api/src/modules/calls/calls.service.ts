@@ -21,7 +21,20 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PushQueueService } from '../notifications/push/push-queue.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
-import type { CallDto, EndCallDto, IceServersDto } from './calls.dto';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import type {
+  CallDto,
+  EndCallDto,
+  IceServersDto,
+  StartCallDto,
+  VideoCallConfigDto,
+} from './calls.dto';
+import {
+  VIDEO_CALLS_FLAG,
+  WebRtcVideoProvider,
+  videoCallAvailability,
+  type VideoCallProvider,
+} from './video-call-provider';
 
 /** Unanswered after this → missed (the app gives up at 30 s). */
 export const CALL_RING_TIMEOUT_MS = 40_000;
@@ -71,11 +84,34 @@ export class CallsService {
     private readonly notifications: NotificationsService,
     private readonly push: PushQueueService,
     private readonly realtime: RealtimePublisher,
+    private readonly flags: FeatureFlagsService,
     @Optional() private readonly secrets?: SecretsService,
-  ) {}
+  ) {
+    this.videoProvider = new WebRtcVideoProvider(secrets, config);
+  }
+
+  private readonly videoProvider: VideoCallProvider;
+
+  /** GET /calls/video — owner 2026-10-05: flag on AND provider keys set. */
+  async videoConfig(): Promise<VideoCallConfigDto> {
+    const flagOn = await this.flags.isEnabled(VIDEO_CALLS_FLAG, false);
+    const a = await videoCallAvailability(flagOn, this.videoProvider);
+    return { ...a, provider: this.videoProvider.name };
+  }
 
   /** POST /conversations/:id/calls */
-  async start(user: RequestUser, conversationId: string): Promise<CallDto> {
+  async start(
+    user: RequestUser,
+    conversationId: string,
+    dto: StartCallDto = {},
+  ): Promise<CallDto> {
+    const video = dto.video === true;
+    if (video && !(await this.videoConfig()).available) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Video calls are not available yet.',
+      });
+    }
     const conv = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
     });
@@ -126,6 +162,7 @@ export class CallsService {
           status: 'busy',
           ended_at: new Date(),
           end_reason: 'busy',
+          video,
         },
       });
       await this.logCall(busy, 'busy');
@@ -137,6 +174,7 @@ export class CallsService {
         conversation_id: conv.id,
         caller_id: user.sub,
         callee_id: callee,
+        video,
       },
     });
     // OQ-048: a call to the attorney also rings assistants who hold the
@@ -427,6 +465,7 @@ export class CallsService {
       callerId: call.caller_id,
       calleeId: call.callee_id,
       status: call.status,
+      video: call.video,
       outgoing: call.caller_id === viewerId,
       peer: {
         id: peerId,

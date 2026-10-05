@@ -17,6 +17,7 @@ import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart'
 import 'package:lawbid/features/cases/presentation/screens/case_comments_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/case_history_screens.dart';
 import 'package:lawbid/features/cases/presentation/screens/edit_case_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/invites_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
@@ -29,6 +30,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/legal_document_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
+import 'package:lawbid/features/partners/presentation/partner_screen.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
@@ -261,8 +263,17 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          BidFormScreen(caseId: state.pathParameters['id'] ?? ''),
+          BidFormScreen(
+            caseId: state.pathParameters['id'] ?? '',
+            initialAmountCents: state.extra is int ? state.extra! as int : null,
+          ),
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.invites,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const InvitesScreen()),
       ),
       GoRoute(
         path: AppRoutes.workCasePattern,
@@ -317,6 +328,12 @@ GoRouter appRouter(Ref ref) {
           state,
           ReferralScreen(initialCode: state.uri.queryParameters['code']),
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.partner,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const PartnerScreen()),
       ),
       GoRoute(
         path: AppRoutes.about,

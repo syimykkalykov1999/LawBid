@@ -25,7 +25,8 @@ import type {
  * Automatic checks of docs/03 §2.4. Every outcome is stored in
  * `verification_checks` (+ `attorney_licenses.auto_check_result` for bar
  * lookups). Owner 2026-10-04 ("только номер"): when every license of the
- * request passed its state registry lookup (today: New York) and any ID
+ * request passed its state registry lookup (states enabled in the admin,
+ * owner 2026-10-05) and any ID
  * check that ran passed too, the request is approved without a verifier;
  * anything else — another state, a name that differs, an error — stays in
  * the manual queue. With the flags off no check runs. Provider errors and
@@ -84,17 +85,25 @@ export class VerificationChecksService {
 
     const bar = await this.selector.barLookup();
     const barResults: CheckOutcome['result'][] = [];
-    if (bar.name !== 'manual') {
-      for (const license of request.attorney.licenses) {
-        const outcome = await this.barLookup(bar, license, request.id, {
-          firstName: request.attorney.user.first_name ?? '',
-          lastName: request.attorney.user.last_name ?? '',
-        });
-        barResults.push(outcome.result);
+    const licenses = request.attorney.licenses;
+    // Owner 2026-10-05: only states with an enabled registry are looked up;
+    // auto-approval needs every license of the request to pass.
+    let allSupported = licenses.length > 0;
+    for (const license of licenses) {
+      if (!(await bar.supports(license.state_code))) {
+        allSupported = false;
+        continue;
       }
+      const outcome = await this.barLookup(bar, license, request.id, {
+        firstName: request.attorney.user.first_name ?? '',
+        lastName: request.attorney.user.last_name ?? '',
+      });
+      barResults.push(outcome.result);
     }
     const barPassed =
-      barResults.length > 0 && barResults.every((r) => r === 'pass');
+      allSupported &&
+      barResults.length > 0 &&
+      barResults.every((r) => r === 'pass');
 
     const types = new Set(request.documents.map((d) => d.doc_type));
     const hasIdentity =
@@ -169,6 +178,69 @@ export class VerificationChecksService {
       );
     });
     this.logger.info({ requestId, note }, 'Verification request auto-approved');
+  }
+
+  /**
+   * Owner 2026-10-04/05: self-attestation approves at once; afterwards
+   * every license of the request in a state with an enabled registry is
+   * looked up. A match is just recorded; a difference (name, not found,
+   * not active) never rejects — the license stays verified and is flagged
+   * for an admin (`registry_flag`, Admin → Проверка → "Сверка с
+   * реестром"). Registry errors change nothing. Best effort.
+   */
+  async approveSelfAttested(requestId: string): Promise<void> {
+    const request = await this.prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        attorney: {
+          select: {
+            user: { select: { first_name: true, last_name: true } },
+            licenses: { where: { license_status: 'pending' } },
+          },
+        },
+      },
+    });
+    await this.approve(requestId, SELF_ATTESTED_NOTE);
+    if (!request) return;
+    try {
+      const bar = await this.selector.barLookup();
+      for (const license of request.attorney.licenses) {
+        if (!(await bar.supports(license.state_code))) continue;
+        const outcome = await this.barLookup(bar, license, requestId, {
+          firstName: request.attorney.user.first_name ?? '',
+          lastName: request.attorney.user.last_name ?? '',
+        });
+        await this.applyRegistryFlag(license.id, outcome);
+      }
+    } catch (err) {
+      this.logger.warn(
+        { err, requestId },
+        'Registry check after self-attestation failed',
+      );
+    }
+  }
+
+  /**
+   * Owner 2026-10-05: the registry's verdict on a verified license. `pass`
+   * clears the flag; `fail` (not_found / not_active) and a name mismatch
+   * set it; a registry error or a state without a registry leaves it as it
+   * is. Returns the flag now on the license.
+   */
+  async applyRegistryFlag(
+    licenseId: string,
+    outcome: CheckOutcome,
+    now = new Date(),
+  ): Promise<string | null | undefined> {
+    const flag = registryFlagFor(outcome);
+    if (flag === undefined) return undefined;
+    await this.prisma.attorneyLicense.update({
+      where: { id: licenseId },
+      data: {
+        registry_flag: flag,
+        registry_flagged_at: flag ? now : null,
+      },
+    });
+    return flag;
   }
 
   /**
@@ -262,4 +334,16 @@ export class VerificationChecksService {
       };
     }
   }
+}
+
+/** null = clear, a code = flag, undefined = leave as is (no verdict). */
+export function registryFlagFor(
+  outcome: CheckOutcome,
+): string | null | undefined {
+  const reason = outcome.details.reason;
+  if (outcome.result === 'pass') return null;
+  if (outcome.result === 'fail') {
+    return reason === 'not_active' ? 'not_active' : 'not_found';
+  }
+  return reason === 'name_mismatch' ? 'name_mismatch' : undefined;
 }

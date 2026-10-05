@@ -22,3 +22,16 @@ export function generateReferralCode(
 export function normalizeReferralCode(raw: string): string {
   return raw.replace(/[\s-]/g, '').toUpperCase();
 }
+
+const DEEP_LINK_BASE = 'lawbid://referral';
+
+/** The invite link for a code: `${APP_LINK_BASE_URL}/r/CODE` when the
+ * universal-link base is configured, else the app's deep link. */
+export function referralShareUrl(
+  base: string | undefined,
+  code: string,
+): string {
+  return base
+    ? `${base.replace(/\/+$/, '')}/r/${code}`
+    : `${DEEP_LINK_BASE}/${code}`;
+}

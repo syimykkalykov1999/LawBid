@@ -73,6 +73,7 @@ const _keys = <String, String>{
   ApiErrorCodes.assistantNotAllowed: 'error.api.ASSISTANT_NOT_ALLOWED',
   ApiErrorCodes.assistantPhoneTaken: 'error.api.ASSISTANT_PHONE_TAKEN',
   ApiErrorCodes.assistantInviteNotFound: 'error.api.ASSISTANT_INVITE_NOT_FOUND',
+  ApiErrorCodes.assistantCodeInvalid: 'error.api.ASSISTANT_CODE_INVALID',
   ApiErrorCodes.assistantLiabilityRequired:
       'error.api.ASSISTANT_LIABILITY_REQUIRED',
   ApiErrorCodes.taskClosed: 'error.api.TASK_CLOSED',
@@ -149,6 +150,14 @@ const _keys = <String, String>{
   ApiErrorCodes.contactIssueInvalidState:
       'error.api.CONTACT_ISSUE_INVALID_STATE',
   ApiErrorCodes.bidAlreadyExists: 'error.api.BID_ALREADY_EXISTS',
+  ApiErrorCodes.inviteNotFound: 'error.api.INVITE_NOT_FOUND',
+  ApiErrorCodes.inviteInvalidState: 'error.api.INVITE_INVALID_STATE',
+  ApiErrorCodes.inviteAlreadyPending: 'error.api.INVITE_ALREADY_PENDING',
+  ApiErrorCodes.seatLimitRequestPending: 'error.api.SEAT_LIMIT_REQUEST_PENDING',
+  ApiErrorCodes.seatLimitRequestDecided: 'error.api.SEAT_LIMIT_REQUEST_DECIDED',
+  ApiErrorCodes.inviteAttorneyUnavailable:
+      'error.api.INVITE_ATTORNEY_UNAVAILABLE',
+  ApiErrorCodes.inviteLimitReached: 'error.api.INVITE_LIMIT_REACHED',
   ApiErrorCodes.caseContainsContactInfo: 'error.api.CASE_CONTAINS_CONTACT_INFO',
   ApiErrorCodes.clientContactSharingConsentRequired:
       'error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',

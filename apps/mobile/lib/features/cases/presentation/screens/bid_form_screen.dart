@@ -27,9 +27,17 @@ abstract final class BidLimits {
 /// docs/04 §5.1 — "Сделать бид": fee type, amount (hidden for a free
 /// consultation), message, start, optional duration.
 class BidFormScreen extends ConsumerStatefulWidget {
-  const BidFormScreen({required this.caseId, super.key});
+  const BidFormScreen({
+    required this.caseId,
+    this.initialAmountCents,
+    super.key,
+  });
 
   final String caseId;
+
+  /// Owner 2026-10-05: answering a client's invite starts from the
+  /// client's budget.
+  final int? initialAmountCents;
 
   @override
   ConsumerState<BidFormScreen> createState() => _BidFormScreenState();
@@ -51,6 +59,8 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialAmountCents;
+    if (initial != null && initial > 0) _amount.text = '${initial ~/ 100}';
     _loadDraft();
   }
 

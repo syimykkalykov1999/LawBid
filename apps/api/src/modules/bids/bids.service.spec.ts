@@ -148,6 +148,9 @@ describe('BidsService.create over an earlier bid row', () => {
         ),
       },
       caseJournal: { findMany: jest.fn(() => Promise.resolve([])) },
+      caseInvite: {
+        updateMany: jest.fn(() => Promise.resolve({ count: 0 })),
+      },
     };
     const prisma = {
       $transaction: jest.fn((fn: (t: unknown) => unknown) => fn(tx)),

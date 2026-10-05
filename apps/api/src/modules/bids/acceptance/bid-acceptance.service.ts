@@ -1,5 +1,5 @@
 import { assertNoBlockBetween } from '../../blocks/block-check';
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import type { PartyRole, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -17,6 +17,7 @@ import {
 } from '../../chat/chat-system.service';
 import { CaseJournalService } from '../../journal/case-journal.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { ReferralsService } from '../../referrals/referrals.service';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 import {
   BidStateMachine,
@@ -70,6 +71,7 @@ export class BidAcceptanceService {
     private readonly notifications: NotificationsService,
     private readonly subscriptions: SubscriptionAccessService,
     private readonly chat: ChatSystemMessages,
+    @Optional() private readonly referrals?: ReferralsService,
   ) {}
 
   /** POST /bids/:id/accept — the client accepts the attorney's offer, or
@@ -88,6 +90,18 @@ export class BidAcceptanceService {
         return this.acceptInTx(tx, bidId, by, user.sub, meta, chat);
       });
       this.chat.publish(chat);
+      // Owner 2026-10-05: the client hired someone — a qualifying event of
+      // the partner program (idempotent; never throws).
+      const hired = await this.prisma.case.findUnique({
+        where: { id: result.case_id },
+        select: { client_id: true },
+      });
+      if (hired) {
+        await this.referrals?.onQualifyingEvent(
+          hired.client_id,
+          'bid_accepted',
+        );
+      }
       return toBidDto(result);
     } catch (error) {
       if (error instanceof AttorneyInactive) {

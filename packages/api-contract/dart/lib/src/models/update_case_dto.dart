@@ -22,6 +22,7 @@ class UpdateCaseDto {
     this.budgetAmountDollars,
     this.coverKey,
     this.urgency,
+    this.photoFileIds,
   });
 
   factory UpdateCaseDto.fromJson(Map<String, Object?> json) =>
@@ -43,6 +44,9 @@ class UpdateCaseDto {
 
   /// Owner 2026-10-04: how soon the client needs an attorney.
   final CaseUrgency? urgency;
+
+  /// Full set of clean case_photo / case_attachment file ids (0-9), display order.
+  final List<String>? photoFileIds;
 
   Map<String, Object?> toJson() => _$UpdateCaseDtoToJson(this);
 }

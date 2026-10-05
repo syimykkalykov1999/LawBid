@@ -69,6 +69,11 @@ String? notificationRoute({
           'contact_issue_update':
       if (caseId == null) return null;
       return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
+    // Owner 2026-10-05: a client offered a case / an attorney declined.
+    case 'case_invite_received':
+      return AppRoutes.invites;
+    case 'case_invite_declined':
+      return caseId == null ? null : AppRoutes.myCase(caseId);
     case 'review_requested':
       return caseId == null ? null : AppRoutes.reviewFormFor(caseId);
     // Owner 2026-09-30 (opt-in alerts).
@@ -110,6 +115,8 @@ String? notificationRoute({
       return ticketId == null ? null : AppRoutes.supportTicket(ticketId);
     case 'referral_reward':
       return AppRoutes.referral;
+    case 'partner_commission' || 'partner_payout':
+      return AppRoutes.partner;
     case 'promotion_started' || 'promotion_ended':
       if (caseId == null) return null;
       return AppRoutes.myCase(caseId);
@@ -168,6 +175,13 @@ String notificationText(Translator t, AppNotification n) {
     if (k == 'contract' || k == 'contract_revoked') {
       return t.t('notif.list.subscription_status.$k');
     }
+    // Owner 2026-10-05: the admin answered a request for more assistants.
+    if (k == 'seat_limit_approved' || k == 'seat_limit_rejected') {
+      return t.t(
+        'notif.list.subscription_status.$k',
+        {'seats': '${n.payload['seats'] ?? ''}'},
+      );
+    }
   }
   if (n.type == 'admin_broadcast') {
     final title = n.payload['title'];
@@ -213,6 +227,7 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'assistant_request' => AppIcons.factCheckRounded,
       'admin_broadcast' => AppIcons.campaignRounded,
       'referral_reward' => AppIcons.starRounded,
+      'partner_commission' || 'partner_payout' => AppIcons.handshakeOutlined,
       'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
       'assistant_task' => AppIcons.eventNoteRounded,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,

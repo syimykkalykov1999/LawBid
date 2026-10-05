@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_license_dto_registry_flag.dart';
 import 'license_status.dart';
 
 part 'admin_license_dto.g.dart';
@@ -23,6 +24,8 @@ class AdminLicenseDto {
     required this.rejectionNote,
     required this.verifiedAt,
     required this.decidedBy,
+    required this.registryFlag,
+    required this.registryFlaggedAt,
   });
 
   factory AdminLicenseDto.fromJson(Map<String, Object?> json) =>
@@ -44,6 +47,10 @@ class AdminLicenseDto {
   final String? rejectionNote;
   final DateTime? verifiedAt;
   final String? decidedBy;
+
+  /// Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified).
+  final AdminLicenseDtoRegistryFlag? registryFlag;
+  final DateTime? registryFlaggedAt;
 
   Map<String, Object?> toJson() => _$AdminLicenseDtoToJson(this);
 }

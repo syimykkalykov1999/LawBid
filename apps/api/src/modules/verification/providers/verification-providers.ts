@@ -41,9 +41,10 @@ export interface IdVerificationProvider {
 export const BAR_LOOKUP_PROVIDER = Symbol('BAR_LOOKUP_PROVIDER');
 export const ID_VERIFICATION_PROVIDER = Symbol('ID_VERIFICATION_PROVIDER');
 
-/** Feature flags (seeded off, docs/02 feature_flags) that switch checks. */
+/** Feature flags (seeded off, docs/02 feature_flags) that switch checks.
+ * `auto_bar_check` is retired (owner 2026-10-05): bar lookups are enabled
+ * per state in Admin → Ключи и сервисы → "Реестры адвокатов по штатам". */
 export const VERIFICATION_FLAGS = {
-  autoBarCheck: 'auto_bar_check',
   stripeIdentity: 'stripe_identity',
   persona: 'persona_verification',
 } as const;

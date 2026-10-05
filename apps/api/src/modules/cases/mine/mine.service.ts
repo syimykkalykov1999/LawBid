@@ -463,6 +463,7 @@ function bidFields(b: Bid) {
     roundCount: b.round_count,
     turn: b.turn,
     outsidePractice: b.outside_practice,
+    outsideLicensedStates: b.outside_licensed_states,
     decidedAt: b.decided_at?.toISOString() ?? null,
     createdAt: b.created_at.toISOString(),
   };

@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { CallsService } from '../src/modules/calls/calls.service';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 
 /**
  * OQ-041 (owner 2026-09-30): in-app audio calls — only after the bid is
@@ -373,5 +374,79 @@ describe('In-app calls (e2e, OQ-041)', () => {
     const turn = servers.find((s) => s.urls[0].startsWith('turn:'))!;
     expect(turn.username).toMatch(new RegExp(`^\\d+:${c.client.id}$`));
     expect(turn.credential).toBeTruthy();
+  });
+
+  describe('video calls (owner 2026-10-05)', () => {
+    async function setVideoFlag(enabled: boolean): Promise<void> {
+      await prisma.featureFlag.upsert({
+        where: { key: 'video_calls' },
+        create: { key: 'video_calls', enabled },
+        update: { enabled },
+      });
+      await app.get(FeatureFlagsService).invalidate();
+    }
+
+    afterAll(() => setVideoFlag(false));
+
+    it('is refused while the video_calls flag is off; audio still rings', async () => {
+      await setVideoFlag(false);
+      const c = await chat();
+      const cfg = await api()
+        .get('/api/v1/calls/video')
+        .set(c.client.auth)
+        .expect(200);
+      expect(cfg.body.data).toEqual({
+        available: false,
+        provider: 'webrtc',
+        reason: 'flag_off',
+      });
+      const res = await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .send({ video: true });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FEATURE_DISABLED');
+      const audio = await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .expect(201);
+      expect(audio.body.data.video).toBe(false);
+      await api()
+        .post(`/api/v1/calls/${audio.body.data.id}/end`)
+        .set(c.attorney.auth)
+        .send({})
+        .expect(200);
+    });
+
+    it('rings the callee as a video call once the flag is on', async () => {
+      await setVideoFlag(true);
+      const c = await chat();
+      const cfg = await api()
+        .get('/api/v1/calls/video')
+        .set(c.client.auth)
+        .expect(200);
+      expect(cfg.body.data).toMatchObject({ available: true, reason: null });
+      const clientSock = await connect(c.client.token);
+      const incoming = once<{ call: { video: boolean } }>(
+        clientSock,
+        'call:incoming',
+      );
+      const res = await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .send({ video: true })
+        .expect(201);
+      expect(res.body.data).toMatchObject({ status: 'ringing', video: true });
+      expect((await incoming).call.video).toBe(true);
+      const row = await prisma.call.findUniqueOrThrow({
+        where: { id: res.body.data.id as string },
+      });
+      expect(row.video).toBe(true);
+      await api()
+        .post(`/api/v1/calls/${row.id}/end`)
+        .set(c.attorney.auth)
+        .send({})
+        .expect(200);
+    });
   });
 });

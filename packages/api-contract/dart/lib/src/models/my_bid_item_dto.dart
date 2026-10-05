@@ -31,6 +31,7 @@ class MyBidItemDto {
     required this.turn,
     required this.decidedAt,
     required this.outsidePractice,
+    required this.outsideLicensedStates,
     required this.createdAt,
     required this.caseValue,
     required this.lastOffer,
@@ -58,6 +59,10 @@ class MyBidItemDto {
   /// Owner 2026-09-30: the case's practice is outside the attorney's.
   /// own — the client is told to discuss it first.
   final bool outsidePractice;
+
+  /// Owner 2026-10-04: the attorney holds no verified licence in the.
+  /// case's states — bidding is allowed, the client is told.
+  final bool outsideLicensedStates;
   final DateTime createdAt;
 
   /// The attorney summary — only on GET /bids/:id.

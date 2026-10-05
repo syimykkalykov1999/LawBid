@@ -14,6 +14,8 @@ import { UsersModule } from '../users/users.module';
 import { BidDetailController } from './case-bids/bid-detail.controller';
 import { CaseBidsController } from './case-bids/case-bids.controller';
 import { CaseBidsService } from './case-bids/case-bids.service';
+import { CaseInvitesController } from './case-invites/case-invites.controller';
+import { CaseInvitesService } from './case-invites/case-invites.service';
 import { CasesController } from './cases.controller';
 import { CasesFeedController } from './cases-feed.controller';
 import { CasesService } from './cases.service';
@@ -63,6 +65,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     CasesFeedController,
     CaseBidsController,
     BidDetailController,
+    // Owner 2026-10-05: client → attorney case invites.
+    CaseInvitesController,
     CaseContactsController,
     ContactIssuesAdminController,
     CaseLifecycleController,
@@ -78,6 +82,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     CasesFeedService,
     CaseViewTrackingService,
     CaseBidsService,
+    CaseInvitesService,
     CaseContactsService,
     MineService,
   ],

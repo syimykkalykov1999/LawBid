@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/reels/presentation/reel_detail_screen.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -20,7 +21,10 @@ import 'package:lawbid/features/social/social_routes.dart';
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
 /// for the next one, the current reel plays with sound and loops; tap
 /// pauses, double tap likes; actions on the right, author and caption at
-/// the bottom, a thin progress line.
+/// the bottom, a thin progress line. Owner 2026-10-05: a back arrow at the
+/// top left and a wide, low button pinned above the bottom ("Смотреть" /
+/// "Читать") that opens the reel's inner page — title, text, photos and
+/// documents.
 class ReelsScreen extends ConsumerStatefulWidget {
   const ReelsScreen({
     this.initial = const [],
@@ -157,8 +161,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                       tooltip: t.t('common.back'),
                       onPressed: () => Navigator.of(context).maybePop(),
                       icon: const AppIcon(
-                        AppIcons.closeRounded,
+                        AppIcons.arrowBackRounded,
                         color: Colors.white,
+                        size: 26,
                       ),
                     ),
                     Expanded(
@@ -225,6 +230,14 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     super.dispose();
   }
 
+  /// The inner page; the reel waits paused and plays on when back.
+  Future<void> _openInside(Post p) async {
+    final wasPaused = _paused;
+    setState(() => _paused = true);
+    await ReelDetailScreen.open(context, p);
+    if (mounted) setState(() => _paused = wasPaused);
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = ref.watch(
@@ -286,212 +299,304 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           ),
         );
 
-    return DoubleTapLike(
-      onLike: () => run(() => actions.like(p)),
-      child: GestureDetector(
-        onTap: () => setState(() => _paused = !_paused),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (video != null)
-              ReelVideo(
-                video: video,
-                active: widget.active && video.ready,
-                muted: widget.muted,
-                paused: _paused,
-                onProgress: (v) => _progress.value = v,
-              ),
-            if (video != null && !video.ready)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenSide,
+    // The button sits outside the double-tap area: it opens at once.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DoubleTapLike(
+          onLike: () => run(() => actions.like(p)),
+          child: GestureDetector(
+            onTap: () => setState(() => _paused = !_paused),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (video != null)
+                  ReelVideo(
+                    video: video,
+                    active: widget.active && video.ready,
+                    muted: widget.muted,
+                    paused: _paused,
+                    onProgress: (v) => _progress.value = v,
                   ),
-                  child: Text(
-                    t.t('reels.processing'),
-                    textAlign: TextAlign.center,
-                    style: type.body.copyWith(color: Colors.white70),
-                  ),
-                ),
-              ),
-            if (_paused)
-              const Center(
-                child: AppIcon(
-                  AppIcons.playArrowRounded,
-                  size: 72,
-                  color: Colors.white70,
-                ),
-              ),
-            // Bottom shade so the caption reads on any video.
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 260,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [Colors.black87, Colors.transparent],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            PositionedDirectional(
-              end: AppSpacing.md,
-              bottom: AppSpacing.xxl + MediaQuery.paddingOf(context).bottom,
-              child: Column(
-                children: [
-                  rail(
-                    p.likedByMe
-                        ? AppIcons.favoriteRounded
-                        : AppIcons.favoriteBorderRounded,
-                    t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-                    p.likeCount,
-                    () => run(() => actions.toggleLike(p)),
-                    color: p.likedByMe ? colors.danger : null,
-                  ),
-                  rail(AppIcons.modeCommentOutlined, t.t('post.comments'),
-                      p.commentCount, () {
-                    setState(() => _paused = true);
-                    context.push(SocialRoutes.post(p.id));
-                  }),
-                  rail(
-                    AppIcons.sendOutlined,
-                    t.t('post.share'),
-                    p.shareCount,
-                    () => sharePost(context, ref, p),
-                  ),
-                  rail(
-                    p.savedByMe
-                        ? AppIcons.bookmarkRounded
-                        : AppIcons.bookmarkBorderRounded,
-                    t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
-                    null,
-                    () => run(() => actions.toggleSave(p)),
-                    color: p.savedByMe ? colors.gold : null,
-                  ),
-                  rail(AppIcons.moreHorizRounded, t.t('post.menu'), null, () {
-                    setState(() => _paused = true);
-                    showPostMenu(context, ref, p);
-                  }),
-                ],
-              ),
-            ),
-            PositionedDirectional(
-              start: AppSpacing.lg,
-              end: 72,
-              bottom: AppSpacing.xl + MediaQuery.paddingOf(context).bottom,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Semantics(
-                    button: true,
-                    label:
-                        t.t('post.author.open', {'name': p.author.displayName}),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        setState(() => _paused = true);
-                        openAuthorProfile(context, ref, p.author);
-                      },
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: Colors.white24,
-                            backgroundImage: p.author.avatarUrl == null
-                                ? null
-                                : CachedNetworkImageProvider(
-                                    p.author.avatarUrl!,
-                                  ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Flexible(
-                            child: Text(
-                              p.author.displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.body.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                shadows: shadow,
-                              ),
-                            ),
-                          ),
-                          if (p.author.verified) ...[
-                            const SizedBox(width: 4),
-                            AppIcon(
-                              AppIcons.verifiedRounded,
-                              size: 16,
-                              color: colors.gold,
-                            ),
-                          ],
-                        ],
+                if (video != null && !video.ready)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenSide,
+                      ),
+                      child: Text(
+                        t.t('reels.processing'),
+                        textAlign: TextAlign.center,
+                        style: type.body.copyWith(color: Colors.white70),
                       ),
                     ),
                   ),
-                  if (p.locationName != null) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const AppIcon(
-                          AppIcons.locationOnOutlined,
-                          size: 14,
-                          color: Colors.white,
+                if (_paused)
+                  const Center(
+                    child: AppIcon(
+                      AppIcons.playArrowRounded,
+                      size: 72,
+                      color: Colors.white70,
+                    ),
+                  ),
+                // Bottom shade so the caption reads on any video.
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 260,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [Colors.black87, Colors.transparent],
                         ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            p.locationName!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.caption.copyWith(
+                      ),
+                    ),
+                  ),
+                ),
+                PositionedDirectional(
+                  end: AppSpacing.md,
+                  bottom: kReelMoreButtonSpace +
+                      AppSpacing.md +
+                      MediaQuery.paddingOf(context).bottom,
+                  child: Column(
+                    children: [
+                      rail(
+                        p.likedByMe
+                            ? AppIcons.favoriteRounded
+                            : AppIcons.favoriteBorderRounded,
+                        t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
+                        p.likeCount,
+                        () => run(() => actions.toggleLike(p)),
+                        color: p.likedByMe ? colors.danger : null,
+                      ),
+                      rail(AppIcons.modeCommentOutlined, t.t('post.comments'),
+                          p.commentCount, () {
+                        setState(() => _paused = true);
+                        context.push(SocialRoutes.post(p.id));
+                      }),
+                      rail(
+                        AppIcons.sendOutlined,
+                        t.t('post.share'),
+                        p.shareCount,
+                        () => sharePost(context, ref, p),
+                      ),
+                      rail(
+                        p.savedByMe
+                            ? AppIcons.bookmarkRounded
+                            : AppIcons.bookmarkBorderRounded,
+                        t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
+                        null,
+                        () => run(() => actions.toggleSave(p)),
+                        color: p.savedByMe ? colors.gold : null,
+                      ),
+                      rail(AppIcons.moreHorizRounded, t.t('post.menu'), null,
+                          () {
+                        setState(() => _paused = true);
+                        showPostMenu(context, ref, p);
+                      }),
+                    ],
+                  ),
+                ),
+                PositionedDirectional(
+                  start: AppSpacing.lg,
+                  end: 72,
+                  bottom: kReelMoreButtonSpace +
+                      AppSpacing.sm +
+                      MediaQuery.paddingOf(context).bottom,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Semantics(
+                        button: true,
+                        label: t.t(
+                          'post.author.open',
+                          {'name': p.author.displayName},
+                        ),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            setState(() => _paused = true);
+                            openAuthorProfile(context, ref, p.author);
+                          },
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: Colors.white24,
+                                backgroundImage: p.author.avatarUrl == null
+                                    ? null
+                                    : CachedNetworkImageProvider(
+                                        p.author.avatarUrl!,
+                                      ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Flexible(
+                                child: Text(
+                                  p.author.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.body.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    shadows: shadow,
+                                  ),
+                                ),
+                              ),
+                              if (p.author.verified) ...[
+                                const SizedBox(width: 4),
+                                AppIcon(
+                                  AppIcons.verifiedRounded,
+                                  size: 16,
+                                  color: colors.gold,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (p.locationName != null) ...[
+                        const SizedBox(height: AppSpacing.xs),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const AppIcon(
+                              AppIcons.locationOnOutlined,
+                              size: 14,
                               color: Colors.white,
-                              shadows: shadow,
                             ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                p.locationName!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.caption.copyWith(
+                                  color: Colors.white,
+                                  shadows: shadow,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (caption.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        // A short caption; the whole text is inside (the
+                        // button below).
+                        Text(
+                          caption,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.body.copyWith(
+                            color: Colors.white,
+                            shadows: shadow,
                           ),
                         ),
                       ],
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.paddingOf(context).bottom,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _progress,
+                    builder: (_, v, __) => LinearProgressIndicator(
+                      value: v,
+                      minHeight: 2,
+                      backgroundColor: Colors.white24,
+                      color: Colors.white,
                     ),
-                  ],
-                  if (caption.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    // Same text as in posts: #hashtags open the tag page,
-                    // @mentions the profile.
-                    PostBodyText(
-                      body: caption,
-                      mentions: p.mentions,
-                      large: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        PositionedDirectional(
+          start: AppSpacing.lg,
+          end: AppSpacing.lg,
+          bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
+          child: ReelMoreButton(
+            label: t.t(reelMoreLabelKey(p)),
+            onTap: () => _openInside(p),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Height of the pinned button plus its gap to the bottom.
+const kReelMoreButtonSpace = 44.0 + AppSpacing.md;
+
+/// "Смотреть" when the reel has photos or documents inside, else "Читать".
+String reelMoreLabelKey(Post p) =>
+    p.media.isNotEmpty || p.attachments.isNotEmpty
+        ? 'reels.more.watch'
+        : 'reels.more.read';
+
+/// Owner 2026-10-05: the wide, low button over the bottom of a reel.
+class ReelMoreButton extends StatelessWidget {
+  const ReelMoreButton({required this.label, required this.onTap, super.key});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Colors.white38),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Row(
+                children: [
+                  const AppIcon(
+                    AppIcons.bookOpenTextOutlined,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: type.body.copyWith(
                         color: Colors.white,
-                        shadows: shadow,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
+                  ),
+                  const AppIcon(
+                    AppIcons.chevronRightRounded,
+                    size: 20,
+                    color: Colors.white,
+                  ),
                 ],
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: MediaQuery.paddingOf(context).bottom,
-              child: ValueListenableBuilder<double>(
-                valueListenable: _progress,
-                builder: (_, v, __) => LinearProgressIndicator(
-                  value: v,
-                  minHeight: 2,
-                  backgroundColor: Colors.white24,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

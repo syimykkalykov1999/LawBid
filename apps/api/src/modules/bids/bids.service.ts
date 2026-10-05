@@ -106,27 +106,20 @@ export class BidsService {
     if (dto.startAvailability === 'custom_date') {
       assertNotPast(dto.startDate);
     }
-    // Deny by default: the same eligibility (verified + licensed state +
-    // matching practice) that governs seeing the case governs bidding on
-    // it (§2, §4.1). Case status is re-checked below: a participant
-    // (e.g. an existing withdrawn bid) can still "see" a since-closed
-    // case, but must not be able to bid on it.
+    // Deny by default: the attorney must be able to see the case (a
+    // verified attorney, no block either way). Case status is re-checked
+    // below: a participant (e.g. an existing withdrawn bid) can still
+    // "see" a since-closed case, but must not be able to bid on it.
     const access = await this.caseAccess.assertCanView(
       { userId: user.sub, role: 'attorney' },
       caseId,
     );
-    // Owner 2026-10-04: any open case can be viewed, but an offer needs a
-    // verified licence in one of its states.
-    if (access.kind === 'attorney_browser') {
-      throw new ForbiddenException({
-        code: ErrorCode.LICENSE_STATE_REQUIRED,
-        message:
-          'You can send an offer only in states where you hold a verified licence.',
-      });
-    }
-    // Owner 2026-09-30: bids outside the attorney's practices are allowed
-    // and marked (the client is warned).
+    // Owner 2026-09-30 / 2026-10-04: an attorney may bid on ANY open case —
+    // any state, any practice (incl. "Not sure"). A mismatch never blocks;
+    // the bid is marked and the client sees it before accepting.
     const outsidePractice = access.kind !== 'owner' && !access.inPractice;
+    const outsideLicensedStates =
+      access.kind !== 'owner' && !access.inLicensedState;
     // §2: bidding needs an active subscription/trial.
     if (!(await this.subscriptions.isActive(user.sub))) {
       throw new ForbiddenException({
@@ -161,6 +154,7 @@ export class BidsService {
           round_count: 0,
           turn: 'client',
           outside_practice: outsidePractice,
+          outside_licensed_states: outsideLicensedStates,
         } satisfies Prisma.BidUncheckedUpdateInput;
         const previous = await tx.bid.findUnique({
           where: {
@@ -206,6 +200,11 @@ export class BidsService {
             ...(previous ? {} : { bids_count: { increment: 1 } }),
             last_activity_at: now,
           },
+        });
+        // Owner 2026-10-05: a bid answers the client's pending invite.
+        await tx.caseInvite.updateMany({
+          where: { case_id: caseId, attorney_id: user.sub, status: 'pending' },
+          data: { status: 'accepted', bid_id: created.id, decided_at: now },
         });
         await this.journal.append(tx, {
           caseId,
@@ -582,6 +581,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
     roundCount: bid.round_count,
     turn: bid.turn,
     outsidePractice: bid.outside_practice,
+    outsideLicensedStates: bid.outside_licensed_states,
     decidedAt: bid.decided_at?.toISOString() ?? null,
     createdAt: bid.created_at.toISOString(),
     offers: bid.offers

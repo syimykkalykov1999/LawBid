@@ -112,6 +112,8 @@ enum ErrorCode {
   assistantPhoneTaken('ASSISTANT_PHONE_TAKEN'),
   @JsonValue('ASSISTANT_INVITE_NOT_FOUND')
   assistantInviteNotFound('ASSISTANT_INVITE_NOT_FOUND'),
+  @JsonValue('ASSISTANT_CODE_INVALID')
+  assistantCodeInvalid('ASSISTANT_CODE_INVALID'),
   @JsonValue('ASSISTANT_LIABILITY_REQUIRED')
   assistantLiabilityRequired('ASSISTANT_LIABILITY_REQUIRED'),
   @JsonValue('TASK_CLOSED')
@@ -214,6 +216,20 @@ enum ErrorCode {
   subscriptionRequired('SUBSCRIPTION_REQUIRED'),
   @JsonValue('BID_ALREADY_EXISTS')
   bidAlreadyExists('BID_ALREADY_EXISTS'),
+  @JsonValue('INVITE_NOT_FOUND')
+  inviteNotFound('INVITE_NOT_FOUND'),
+  @JsonValue('INVITE_INVALID_STATE')
+  inviteInvalidState('INVITE_INVALID_STATE'),
+  @JsonValue('INVITE_ALREADY_PENDING')
+  inviteAlreadyPending('INVITE_ALREADY_PENDING'),
+  @JsonValue('INVITE_ATTORNEY_UNAVAILABLE')
+  inviteAttorneyUnavailable('INVITE_ATTORNEY_UNAVAILABLE'),
+  @JsonValue('INVITE_LIMIT_REACHED')
+  inviteLimitReached('INVITE_LIMIT_REACHED'),
+  @JsonValue('SEAT_LIMIT_REQUEST_PENDING')
+  seatLimitRequestPending('SEAT_LIMIT_REQUEST_PENDING'),
+  @JsonValue('SEAT_LIMIT_REQUEST_DECIDED')
+  seatLimitRequestDecided('SEAT_LIMIT_REQUEST_DECIDED'),
   @JsonValue('CASE_CONTAINS_CONTACT_INFO')
   caseContainsContactInfo('CASE_CONTAINS_CONTACT_INFO'),
   @JsonValue('CLIENT_CONTACT_SHARING_CONSENT_REQUIRED')
@@ -290,6 +306,8 @@ enum ErrorCode {
   referralNotAllowed('REFERRAL_NOT_ALLOWED'),
   @JsonValue('REFERRAL_INVALID_STATE')
   referralInvalidState('REFERRAL_INVALID_STATE'),
+  @JsonValue('PARTNER_INVALID_STATE')
+  partnerInvalidState('PARTNER_INVALID_STATE'),
   @JsonValue('PROMOTION_ALREADY_ACTIVE')
   promotionAlreadyActive('PROMOTION_ALREADY_ACTIVE'),
   @JsonValue('PROMOTION_INVALID_STATE')

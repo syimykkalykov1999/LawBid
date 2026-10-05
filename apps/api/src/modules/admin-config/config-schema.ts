@@ -1,6 +1,7 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
+import { SEATS_HARD_CAP } from '../billing/billing.constants';
 
 export interface ConfigKeySchema {
   type: ConfigValueType;
@@ -36,6 +37,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       };
     }
   }
+  // Owner 2026-10-05: assistants per attorney, set in the admin.
+  out['billing.max_assistant_seats'] = {
+    ...out['billing.max_assistant_seats'],
+    description:
+      'How many assistants an attorney may add; the yearly plan covers this many.',
+    min: 1,
+    max: SEATS_HARD_CAP,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],

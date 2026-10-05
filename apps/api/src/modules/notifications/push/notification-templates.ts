@@ -22,6 +22,29 @@ export const NOTIFICATION_TEMPLATES: Partial<
     }
   >
 > = {
+  // Owner 2026-10-05: a client offered their case to the attorney.
+  case_invite_received: {
+    group: 'bids',
+    en: {
+      title: 'A client offers you a case',
+      body: 'Open it and answer with a bid or decline.',
+    },
+    ru: {
+      title: 'Клиент предлагает вам дело',
+      body: 'Откройте его и ответьте бидом или откажитесь.',
+    },
+  },
+  case_invite_declined: {
+    group: 'bids',
+    en: {
+      title: 'Invitation declined',
+      body: 'The attorney declined your case. Invite another one.',
+    },
+    ru: {
+      title: 'Приглашение отклонено',
+      body: 'Адвокат отказался от дела. Пригласите другого.',
+    },
+  },
   bid_received: {
     group: 'bids',
     en: { title: 'New bid', body: 'An attorney sent a bid on your case.' },
@@ -262,6 +285,28 @@ export const NOTIFICATION_TEMPLATES: Partial<
     ru: {
       title: 'Адвокат ответил',
       body: 'Откройте «Результаты», чтобы увидеть решение.',
+    },
+  },
+  partner_commission: {
+    group: 'system',
+    en: {
+      title: 'Partner earnings',
+      body: 'Someone you brought to LawBid qualified. Your commission is accrued.',
+    },
+    ru: {
+      title: 'Партнёрское начисление',
+      body: 'Приглашённый вами выполнил условие. Вознаграждение начислено.',
+    },
+  },
+  partner_payout: {
+    group: 'system',
+    en: {
+      title: 'Partner payout',
+      body: 'Your partner earnings were paid out. See the details in the app.',
+    },
+    ru: {
+      title: 'Партнёрская выплата',
+      body: 'Ваше партнёрское вознаграждение выплачено. Подробности в приложении.',
     },
   },
   referral_reward: {

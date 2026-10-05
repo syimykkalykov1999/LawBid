@@ -30,7 +30,19 @@ class OnboardingScaffold extends ConsumerWidget {
     this.onBack,
     this.error,
     this.footnote,
+    this.body,
+    this.progress,
   });
+
+  /// Replaces the scrolling [children] column with a widget that manages
+  /// its own scrolling and actions (e.g. the practices editor); the title
+  /// stays on top.
+  final Widget? body;
+
+  /// (current, total) override of the progress bar — the attorney's
+  /// verification step shows its own sub-steps (licence, practices,
+  /// subscription) as segments.
+  final (int, int)? progress;
 
   final OnboardingStepId step;
   final String title;
@@ -62,7 +74,8 @@ class OnboardingScaffold extends ConsumerWidget {
     final shownError = error ?? (blocker?.step == step ? blocker!.error : null);
     final order = OnboardingStepId.orderFor(role);
     final index = order.indexOf(step);
-    final current = index < 0 ? order.length : index + 1;
+    final (current, total) =
+        progress ?? (index < 0 ? order.length : index + 1, order.length);
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -92,50 +105,68 @@ class OnboardingScaffold extends ConsumerWidget {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: AppStepProgress(
-                      total: order.length,
+                      total: total,
                       current: current,
                       semanticLabel: t.t('common.stepOf', {
                         'current': '$current',
-                        'total': '${order.length}',
+                        'total': '$total',
                       }),
                     ),
                   ),
                 ],
               ),
             ),
-            Expanded(
-              child: SingleChildScrollView(
+            if (body != null) ...[
+              Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenSide,
-                  AppSpacing.xl,
+                  AppSpacing.lg,
                   AppSpacing.screenSide,
-                  AppSpacing.xl,
+                  0,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: staggeredEntrance([
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        title,
-                        style:
-                            typography.titleLarge.copyWith(color: colors.text),
-                      ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        subtitle!,
-                        style: typography.body
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
-                    ...children,
-                  ]),
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    title,
+                    style: typography.titleLarge.copyWith(color: colors.text),
+                  ),
                 ),
               ),
-            ),
+              Expanded(child: body!),
+            ] else
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.xl,
+                    AppSpacing.screenSide,
+                    AppSpacing.xl,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: staggeredEntrance([
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          title,
+                          style: typography.titleLarge
+                              .copyWith(color: colors.text),
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          subtitle!,
+                          style: typography.body
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.xl),
+                      ...children,
+                    ]),
+                  ),
+                ),
+              ),
             if (primaryLabel != null || secondary != null || shownError != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
