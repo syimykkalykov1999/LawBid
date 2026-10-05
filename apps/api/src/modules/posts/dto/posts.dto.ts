@@ -26,6 +26,9 @@ export const POST_TITLE_MAX = 120;
 export const POST_KINDS = ['post', 'news'] as const;
 export type PostKindValue = (typeof POST_KINDS)[number];
 export const POST_MEDIA_MAX = 9;
+/** Owner 2026-10-05: documents per post / reel inner page. */
+export const POST_ATTACHMENTS_MAX = 9;
+export const POST_ATTACHMENT_NAME_MAX = 120;
 export const POSTS_PAGE_DEFAULT = 20;
 export const POSTS_PAGE_MAX = 50;
 
@@ -54,6 +57,24 @@ export class PostLocationDto {
   @Min(-180)
   @Max(180)
   lng?: number | null;
+}
+
+/** Owner 2026-10-05: one document of a post, as the author attaches it. */
+export class PostAttachmentInputDto {
+  @ApiProperty({ format: 'uuid', description: 'A clean post_attachment file.' })
+  @IsUUID('all')
+  fileId!: string;
+
+  @ApiProperty({
+    minLength: 1,
+    maxLength: POST_ATTACHMENT_NAME_MAX,
+    description: 'The name readers see and download (e.g. "Lease.pdf").',
+  })
+  @Transform(trim)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(POST_ATTACHMENT_NAME_MAX)
+  fileName!: string;
 }
 
 /** POST /posts (docs/05 §3.1). */
@@ -108,8 +129,21 @@ export class CreatePostDto {
   @IsUUID('all', { each: true })
   mediaFileIds?: string[];
 
+  /** Owner 2026-10-05: up to 9 documents (PDF, Word, text). */
+  @ApiPropertyOptional({
+    type: [PostAttachmentInputDto],
+    maxItems: POST_ATTACHMENTS_MAX,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(POST_ATTACHMENTS_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => PostAttachmentInputDto)
+  attachments?: PostAttachmentInputDto[];
+
   /** Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).
-   * Instead of photos; the post appears once the video is encoded. */
+   * The post appears once the video is encoded. Owner 2026-10-05: a
+   * reel's photos and documents form its inner page ("Смотреть"). */
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
@@ -240,6 +274,27 @@ export class PostMediaDto {
   mediumUrl!: string;
 }
 
+/** Owner 2026-10-05: a document of a post with a signed download link. */
+export class PostAttachmentDto {
+  @ApiProperty({ format: 'uuid' })
+  fileId!: string;
+
+  @ApiProperty({ type: 'integer' })
+  position!: number;
+
+  @ApiProperty()
+  fileName!: string;
+
+  @ApiProperty({ example: 'application/pdf' })
+  mime!: string;
+
+  @ApiProperty({ type: 'integer' })
+  sizeBytes!: number;
+
+  @ApiProperty({ description: 'Signed download link (1 hour).' })
+  url!: string;
+}
+
 /** The qualification of a post (owner 2026-09-30). */
 export class PostPracticeDto {
   @ApiProperty({
@@ -286,6 +341,10 @@ export class PostDto {
 
   @ApiProperty({ type: [PostMediaDto] })
   media!: PostMediaDto[];
+
+  /** Owner 2026-10-05: documents (reels: on the inner page). */
+  @ApiProperty({ type: [PostAttachmentDto] })
+  attachments!: PostAttachmentDto[];
 
   /** Owner 2026-10-01: a reel's video (null for photo/text posts). */
   @ApiPropertyOptional({ type: PostVideoDto, nullable: true })

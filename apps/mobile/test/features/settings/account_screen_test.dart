@@ -495,6 +495,7 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           referralOffOverride,
+          partnerOffOverride,
           l10nDatabaseProvider.overrideWithValue(l10nDb),
           currentUserControllerProvider.overrideWith(
             () => FixedUserController(CurrentUserState.ready(_client)),

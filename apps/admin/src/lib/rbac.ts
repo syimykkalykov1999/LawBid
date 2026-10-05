@@ -152,6 +152,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'money' },
       { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'money', hint: 'скидки за приглашения' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
+      { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
     ],
   },
   {

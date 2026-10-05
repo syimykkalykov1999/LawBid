@@ -62,6 +62,7 @@ const SUPER_ONLY = [
   '/api/v1/admin/subscriptions',
   '/api/v1/admin/promotions',
   '/api/v1/admin/referrals/settings',
+  '/api/v1/admin/partners',
   '/api/v1/admin/integrations',
   '/api/v1/admin/audit-log',
   '/api/v1/admin/sessions',

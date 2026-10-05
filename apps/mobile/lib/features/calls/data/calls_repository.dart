@@ -10,7 +10,9 @@ enum CallEndReason { hangup, noAnswer, failed }
 
 /// OQ-041 calls API for the app. Throws [ApiException].
 abstract interface class CallsRepository {
-  Future<AppCall> start(String conversationId);
+  /// [video]: a video call — refused (FEATURE_DISABLED) unless the owner
+  /// switched `video_calls` on and TURN is configured.
+  Future<AppCall> start(String conversationId, {bool video = false});
   Future<AppCall> accept(String callId);
   Future<AppCall> decline(String callId);
   Future<AppCall> end(String callId, CallEndReason reason);
@@ -24,8 +26,15 @@ class ApiCallsRepository implements CallsRepository {
   final api.CallsClient _api;
 
   @override
-  Future<AppCall> start(String conversationId) async => CallMappers.call(
-        (await guardApiCall(() => _api.startCall(id: conversationId))).data,
+  Future<AppCall> start(String conversationId, {bool video = false}) async =>
+      CallMappers.call(
+        (await guardApiCall(
+          () => _api.startCall(
+            id: conversationId,
+            body: video ? const api.StartCallDto(video: true) : null,
+          ),
+        ))
+            .data,
       );
 
   @override
@@ -96,6 +105,7 @@ abstract final class CallMappers {
         answeredAt: d.answeredAt,
         endedAt: d.endedAt,
         durationSec: d.durationSec,
+        video: d.video,
       );
 
   /// A realtime `call:*` payload `{call: CallDto}`.

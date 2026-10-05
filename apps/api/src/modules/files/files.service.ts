@@ -572,6 +572,43 @@ export class FilesService {
   }
 
   /**
+   * Owner 2026-10-05: signed download links to clean post documents
+   * (documents bucket, never the CDN). The caller has checked that the
+   * viewer may see the post.
+   */
+  async postAttachmentUrls(
+    files: { fileId: string; fileName: string }[],
+  ): Promise<Map<string, { url: string; mime: string; sizeBytes: number }>> {
+    const out = new Map<
+      string,
+      { url: string; mime: string; sizeBytes: number }
+    >();
+    if (files.length === 0 || !this.storage.configured) return out;
+    const names = new Map(files.map((f) => [f.fileId, f.fileName]));
+    const rows = await this.prisma.file.findMany({
+      where: {
+        id: { in: [...names.keys()] },
+        purpose: 'post_attachment',
+        scan_status: 'clean',
+        deleted_at: null,
+      },
+    });
+    for (const f of rows) {
+      out.set(f.id, {
+        url: await this.storage.signedGetUrl(
+          f.s3_bucket,
+          f.s3_key,
+          MEDIA_SIGNED_URL_TTL_SEC,
+          names.get(f.id),
+        ),
+        mime: f.mime,
+        sizeBytes: Number(f.size_bytes),
+      });
+    }
+    return out;
+  }
+
+  /**
    * OQ-040: short signed links to clean voice notes (documents bucket,
    * never the CDN). The caller has already checked chat membership.
    */

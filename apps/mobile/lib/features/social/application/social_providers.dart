@@ -620,6 +620,20 @@ class SocialActions {
         casePhoto: casePhoto,
         reviewPhoto: reviewPhoto,
       );
+
+  /// Owner 2026-10-05: a post / reel document.
+  Future<String> uploadDocument(
+    Uint8List bytes,
+    String mime, {
+    required int maxBytes,
+    void Function(double)? onProgress,
+  }) =>
+      _repo.uploadPostDocument(
+        bytes,
+        mime,
+        maxBytes: maxBytes,
+        onProgress: onProgress,
+      );
 }
 
 final socialActionsProvider = Provider<SocialActions>(SocialActions.new);

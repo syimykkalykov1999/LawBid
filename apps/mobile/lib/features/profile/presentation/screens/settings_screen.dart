@@ -10,6 +10,7 @@ import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
@@ -109,6 +110,15 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('referral.title'),
               subtitle: t.t('referral.hint'),
               onTap: () => context.push(AppRoutes.referral),
+            ),
+          // Owner 2026-10-05: partner program (partners only).
+          if (ref.watch(partnerMeProvider).value?.isPartner ?? false)
+            AppListRow(
+              key: const ValueKey('settings-partner'),
+              icon: AppIcons.handshakeOutlined,
+              label: t.t('partner.title'),
+              subtitle: t.t('partner.hint'),
+              onTap: () => context.push(AppRoutes.partner),
             ),
           AppListRow(
             icon: AppIcons.historyRounded,

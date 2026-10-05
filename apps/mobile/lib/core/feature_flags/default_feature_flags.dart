@@ -29,6 +29,8 @@ const Map<String, bool> defaultFeatureFlags = {
   'translate_cases': false,
   'translate_reviews': false,
   'translate_profiles': false,
+  // Owner 2026-10-05: on only with TURN configured (bootstrap gate).
+  'video_calls': false,
   'phone_login': true,
   'email_login': true,
   'apple_login': true,

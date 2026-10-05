@@ -40,7 +40,8 @@ export interface PurposeRule {
     | 'files.max_size_mb'
     | 'files.avatar_max_size_mb'
     | 'files.chat_max_size_mb'
-    | 'files.sticker_max_size_mb';
+    | 'files.sticker_max_size_mb'
+    | 'files.post_attachment_max_size_mb';
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
   readonly bucket: BucketKind;
@@ -50,6 +51,16 @@ const IMAGES: readonly FileMime[] = [
   FILE_MIME.jpeg,
   FILE_MIME.png,
   FILE_MIME.heic,
+];
+
+/** Owner 2026-10-05: what a post may carry as a document. */
+export const POST_ATTACHMENT_MIMES: readonly FileMime[] = [
+  FILE_MIME.pdf,
+  FILE_MIME.doc,
+  FILE_MIME.docx,
+  FILE_MIME.txt,
+  FILE_MIME.rtf,
+  FILE_MIME.odt,
 ];
 
 /**
@@ -142,6 +153,14 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
       FILE_MIME.csv,
     ],
     sizeSetting: 'files.chat_max_size_mb',
+    bucket: 'documents',
+  },
+  // Owner 2026-10-05: documents in a post or a reel's inner page — PDF,
+  // Word and plain text. Private bucket with short signed links (the
+  // post's viewers get one), small (files.post_attachment_max_size_mb).
+  post_attachment: {
+    mimes: POST_ATTACHMENT_MIMES,
+    sizeSetting: 'files.post_attachment_max_size_mb',
     bucket: 'documents',
   },
   // OQ-040: voice messages; private (only the two chat members get a

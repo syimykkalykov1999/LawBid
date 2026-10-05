@@ -166,6 +166,23 @@ function resolvePrevious(current) {
   if (headSet && isStrictPrefix(headSet, current)) {
     return { ref: 'HEAD', set: headSet, how: 'HEAD (uncommitted new migrations)' };
   }
+  // A feature branch that merged the default branch in: the last commit
+  // touching migrations is the merge, whose first parent is the branch's
+  // own earlier head — missing the migrations that came from main. The
+  // branch's base (merge-base with main) is the right "previous" there.
+  for (const base of ['origin/main', 'origin/master', 'main', 'master']) {
+    const mergeBase = tryGit('merge-base', 'HEAD', base);
+    if (!mergeBase) continue;
+    const set = migrationsAtRef(mergeBase);
+    if (set && isStrictPrefix(set, current)) {
+      return {
+        ref: mergeBase,
+        set,
+        how: `merge-base with ${base} (${mergeBase.slice(0, 10)})`,
+      };
+    }
+    break;
+  }
   const last = tryGit(
     'log',
     '-1',
@@ -304,6 +321,15 @@ async function main() {
   const baseDb = new URL(baseUrl).pathname.slice(1) || 'defaultdb';
   const current = currentMigrations();
   const prev = resolvePrevious(current);
+  // A PR that adds no migration (MIGRATE_PREV_REF = its base) has nothing
+  // to upgrade: the base's own run already checked this exact set.
+  const sameSet =
+    prev.set.length === current.length &&
+    prev.set.every((name, i) => current[i] === name);
+  if (sameSet && (argValue('--prev-ref') ?? process.env.MIGRATE_PREV_REF)) {
+    log(`no new migrations after ${prev.ref}; nothing to upgrade`);
+    return;
+  }
   if (!isStrictPrefix(prev.set, current)) {
     const missing = prev.set.filter((n) => !current.includes(n));
     fail(

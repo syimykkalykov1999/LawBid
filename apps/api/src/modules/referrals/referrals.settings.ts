@@ -130,8 +130,11 @@ export const DEFAULT_REFERRAL_SETTINGS: ReferralProgramSettings = {
 };
 
 /** Qualification rule: attorney referee → first succeeded (non-zero)
- * subscription payment; client referee → first published case. */
-export type QualifyingEventKind = 'subscription_payment' | 'case_published';
+ * subscription payment; client referee → first published case.
+ * `bid_accepted` (the client hired an attorney) is reported by bids for the
+ * partner program (owner 2026-10-05) and ignored here. */
+export type QualifyingEventKind =
+  'subscription_payment' | 'case_published' | 'bid_accepted';
 
 export const QUALIFYING_EVENT_FOR_ROLE: Record<
   'attorney' | 'client',

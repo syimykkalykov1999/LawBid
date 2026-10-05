@@ -205,6 +205,8 @@ abstract final class ApiErrorCodes {
   static const refundProviderFailed = 'REFUND_PROVIDER_FAILED';
   static const contentInvalidState = 'CONTENT_INVALID_STATE';
   static const stickerPackNameTaken = 'STICKER_PACK_NAME_TAKEN';
+  // Owner 2026-10-05: partner program.
+  static const partnerInvalidState = 'PARTNER_INVALID_STATE';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -368,6 +370,7 @@ abstract final class ApiErrorCodes {
     refundProviderFailed,
     contentInvalidState,
     stickerPackNameTaken,
+    partnerInvalidState,
   ];
 }
 
