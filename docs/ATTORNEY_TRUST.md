@@ -1,0 +1,71 @@
+# Уровни доверия адвокатов (owner 2026-10-05)
+
+Регистрация адвоката остаётся в один шаг: он сам вводит штат и номер лицензии (self-attestation, `docs/03 §2`). Защита от мошенника с чужим номером строится не на блокировке входа, а на том, **что адвокату разрешено** и **что видит клиент**: права растут вместе с подтверждёнными фактами, а клиент всегда видит, что именно проверено, и ссылку на реестр штата.
+
+Код: `apps/api/src/modules/attorney-trust/` (`AttorneyTrustService` — глобальный модуль `AttorneyTrustCoreModule`; HTTP и админка — `AttorneyTrustModule`). Чистая логика уровня — `trust-level.ts` (юнит-тесты). e2e — `test/owner-attorney-trust.e2e-spec.ts`.
+
+## 1. Уровни
+
+| Уровень | В приложении | Условие (`computeLevel`) |
+|---|---|---|
+| 0 | Заявлен / Self-declared | статус `verified` и ≥1 лицензия `verified`, больше ничего |
+| 1 | Реестр / Registry | лицензия подтверждена: реестром (`auto_check_result.result = 'pass'` и нет `registry_flag` ни на одной лицензии) **или** сотрудником (`attorney_trust.license_confirmed_at`) |
+| 2 | Личность / Identity | уровень 1 **и** Stripe KYC (`stripe_kyc_at` + `stripe_charges_enabled`) с `name_check = 'match'` **или** `firm_link_status = 'confirmed'` |
+| 3 | Документы / Documents | уровень 2 **и** `documents_verified_at` (сотрудник проверил bar card + ID + селфи) |
+
+Факты — `attorney_trust` (одна строка на адвоката), история — `attorney_trust_events` (`kind`, `from_level → to_level`, `actor_type` system/admin/attorney/client, `details`). Зеркало для списков: `attorney_profiles.trust_level`, `trust_badge`. Пересчёт: при каждом факте, при `GET /trust/me`, ежедневно job `trust.recompute` (03:45 UTC), кнопка «Пересчитать» в админке.
+
+Любая потеря факта (отзыв подтверждения, флаг реестра, suspend) понижает уровень; галочка снимается автоматически.
+
+## 2. Гейты и настройки (`trust.*`, админка Верификация → «Уровни доверия»)
+
+| Ключ | По умолчанию | Что делает |
+|---|---|---|
+| `trust.min_level_bids` | 0 | ниже — 403 `TRUST_LEVEL_REQUIRED` `{gate:'bids', required, current}` при отправке бида; приглашение адвокату тоже не принимается (`AttorneyInactive why = 'on_hold'`) |
+| `trust.min_level_payments` | 2 | ниже — `paymentsGate.allowed = false`, клиент не может платить адвокату в приложении (`assertCanAcceptPayments`) |
+| `trust.min_level_badge` | 2 | с какого уровня показывается галочка |
+| `trust.payout_delay_days` | 7 | задержка выплат Stripe (`settings.payouts.schedule.delay_days`) |
+| `trust.payout_delay_until_level` | 3 | с этого уровня задержка снимается (`payoutDelayFor`) |
+| `trust.auto_hold_on_complaint` | true | жалоба → холд оплат и бидов |
+| `trust.complaints_to_suspend` | 2 | столько разных клиентов за окно → `verification_status = 'suspended'`, биды снимаются |
+| `trust.complaint_window_days` | 90 | окно жалоб |
+| `trust.auto_hold_on_name_mismatch` | true | имя в Stripe ≠ профиль/реестр → холд оплат + запрос документов |
+| `trust.flag_duplicate_claims` | true | второй аккаунт с тем же номером → `registry_flag = 'duplicate_claim'` у владельца |
+| `trust.firm_link_auto_registry` | true | фирма из реестра == `company.name` в Stripe → связь подтверждена автоматически |
+| `trust.firm_link_auto_email` | true | код на почту на домене фирмы (== домен `business_profile.url`) → связь подтверждена |
+
+Холды (`payments_hold`, `bids_hold`, `hold_note` с кодом complaint / name_mismatch / duplicate_claim / admin) — отдельно от уровня: уровень может быть 3, а оплаты на паузе. Снимает сотрудник (`POST /admin/trust/attorneys/:id/release`) или `confirmDocuments` для name_mismatch.
+
+## 3. Личность через Stripe Connect
+
+`AttorneyTrustService.onStripeAccount(attorneyId, facts)` вызывается из webhook `account.updated` (PR #48 передаёт `business_type`, `individual.first_name/last_name`, `company.name`, `business_profile.url`, представителя и persons с relationship owner/executive).
+
+- **individual** — юридическое имя сравнивается с именем профиля и с именем в реестре (`checkLegalName`, `normalizeName`). match → `name_check = 'match'`; mismatch → холд оплат (если включено), уведомление `trust_documents_requested`.
+- **company (LLC/LLP/PC)** — сравниваются представитель и владельцы/руководители, **никогда** `company.name` с человеком. Совпал → как match. Не совпал → `tryAutoFirmLink`: (1) фирма в реестре (`auto_check_result.firm`) ≈ `company.name` (`firmNamesMatch`, без LLC/LLP/PC/«Law Offices»); (2) подтверждённая рабочая почта на домене `company.url`. Иначе `firm_link_status = 'pending'`, уведомление `trust_firm_link_required`; адвокат подтверждает почтой (`POST /trust/me/firm-email` → код 6 цифр на 15 минут, 5 попыток, 5 кодов в день, публичные домены отклоняются) или сотрудник (`confirm-firm-link`, письмо на бланке + bar card + ID).
+
+В админке видно тип аккаунта Stripe, представителя, название компании, домен и результат сравнения; клиент видит только уровень.
+
+## 4. Жалобы и дубликаты
+
+- `POST /reports {targetType:'user', reason:'fraud'|'impersonation'}` → `onComplaint`: учитывается только если у клиента был бид на его кейс или чат с адвокатом (`dealtWith`); иначе только запись в отчётах. Холд + событие `complaint`; ≥ `complaints_to_suspend` разных заявителей за окно → `autoSuspend` (статус `suspended`, активные биды → withdrawn через `BidStateMachine`, журнал кейса, уведомление `suspended`).
+- Добавление лицензии с чужим (state, bar_number) → 409 как раньше **и** `onDuplicateClaim`: владельцу `registry_flag = 'duplicate_claim'` (очередь «Сверка с реестром»), событие обоим; подтверждение реестра не считается, пока сотрудник не очистит флаг или не подтвердит лицензию вручную.
+
+## 5. API
+
+Приложение: `GET /trust/me` (OwnTrustDto: уровень, сигналы, гейты, `payoutDelayDays`, `nextSteps` hold_review | registry_check | stripe_kyc | firm_link | fix_name | documents, `firmLink`), `POST /trust/me/firm-email`, `POST /trust/me/firm-email/confirm`, `GET /trust/attorneys/:id` (PublicTrustDto + `registryLinks`). `trustLevel` добавлен в DTO профиля, бидов, подписок, списков.
+
+Админка (`verifier`, `super_admin`; сегмент `trust` → область `verification`): `GET/PUT /admin/trust/settings`, `GET /admin/trust/stats`, `GET /admin/trust/holds`, `GET /admin/trust/attorneys/:id` (карточка + события), `POST …/confirm-license | unconfirm-license | confirm-documents | confirm-firm-link | hold | release | recompute`, `POST /admin/trust/recompute-all`. Все действия — в audit log (`trust.*`).
+
+Уведомления адвокату (тип `verification_update`, `payload.kind`): `trust_level_up`, `trust_payments_paused`, `trust_payments_resumed`, `trust_bids_paused`, `trust_hold_lifted`, `trust_documents_requested`, `trust_auto_suspended`, `trust_firm_link_required`, `trust_firm_link_confirmed`.
+
+## 6. Интеграция с оплатами (PR #48) и планами (PR #47)
+
+После слияния #48: в `CasePaymentsService.attorneyEntitled` → `trust.assertCanAcceptPayments(attorneyId)`; `syncAccount(account.updated)` → `trust.onStripeAccount(...)` с полями выше; при изменении уровня `desiredPayoutDelayDays` → `accounts.update({settings:{payouts:{schedule:{delay_days}}}})` и `markPayoutDelaySynced`. Виджет `TrustPaymentNotice` в приложении встраивается в лист оплаты. #47: `platform_payments` в entitlement проверяется до гейта доверия.
+
+## 7. Миграции
+
+`20261005080000_owner_trust_enums` (`report_reason` += `fraud`), `20261005080100_owner_attorney_trust` (`attorney_profiles.trust_level/trust_badge`, `attorney_trust`, `attorney_trust_events`). После деплоя один раз `POST /admin/trust/recompute-all` (или дождаться ночного job), чтобы заполнить уровни существующим адвокатам.
+
+## 8. Юридические тексты
+
+Черновик для юриста: `/mnt/project-files/legal/attorney-trust.md`; пункт «Trust levels» в Terms на сайте (lawbidsite). Формулировка везде: уровень — индикатор того, что совпало и когда, не гарантия и не сертификация.
