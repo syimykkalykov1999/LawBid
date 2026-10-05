@@ -172,7 +172,12 @@ jobs:
         # migration set (last release tag, else the parent of the last
         # migrations commit), seeded, upgraded with migrate deploy, then
         # checked for drift / introspection / surviving rows, then dropped.
+        # On a PR the previous set is the base branch's (a branch that merged
+        # the base in after adding its own migration would otherwise pick its
+        # own commit as "previous"); on push the script's fallback applies.
         working-directory: apps/api
+        env:
+          MIGRATE_PREV_REF: ${{ github.event.pull_request.base.sha }}
         run: node scripts/migrate-from-previous.mjs
 
       - name: ERD is up to date

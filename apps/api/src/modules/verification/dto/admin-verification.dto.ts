@@ -33,6 +33,13 @@ import {
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
+/** Owner 2026-10-05: `attorney_licenses.registry_flag` values. */
+export const REGISTRY_FLAGS = [
+  'name_mismatch',
+  'not_found',
+  'not_active',
+] as const;
+
 export const QUEUE_PAGE_DEFAULT = 20;
 export const QUEUE_PAGE_MAX = 50;
 export const QUEUE_STATUSES = [
@@ -271,6 +278,44 @@ export class AdminLicenseDto {
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   decidedBy!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: REGISTRY_FLAGS,
+    description:
+      'Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified).',
+  })
+  registryFlag!: (typeof REGISTRY_FLAGS)[number] | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  registryFlaggedAt!: string | null;
+}
+
+export class RegistryFlagItemDto {
+  @ApiProperty({ type: AdminAttorneySummaryDto })
+  attorney!: AdminAttorneySummaryDto;
+
+  @ApiProperty({ type: () => AdminLicenseDto })
+  license!: AdminLicenseDto;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: "The attorney's latest verification request (its card).",
+  })
+  latestRequestId!: string | null;
+}
+
+export class RegistryCheckDto {
+  @ApiProperty({ type: () => AdminLicenseDto })
+  license!: AdminLicenseDto;
+
+  @ApiProperty({ enum: CheckResult, enumName: 'CheckResult' })
+  result!: CheckResult;
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  details!: Record<string, unknown>;
 }
 
 export class AdminDocumentDto {

@@ -4,7 +4,11 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import type { VerificationProviderSelector } from '../providers/verification-provider.selector';
-import { VerificationChecksService } from './verification-checks.service';
+import {
+  registryFlagFor,
+  SELF_ATTESTED_NOTE,
+  VerificationChecksService,
+} from './verification-checks.service';
 
 const logger = {
   setContext: jest.fn(),
@@ -62,7 +66,13 @@ function setup(opts: {
     .fn()
     .mockResolvedValue({ result: 'pass', details: {} });
   const selector = {
-    barLookup: () => Promise.resolve({ name: opts.barName, lookup }),
+    // 'manual' = no state registry enabled for NY (owner 2026-10-05).
+    barLookup: () =>
+      Promise.resolve({
+        name: 'auto',
+        lookup,
+        supports: () => Promise.resolve(opts.barName === 'auto'),
+      }),
     idVerification: () =>
       Promise.resolve({
         provider: opts.idProvider,
@@ -214,6 +224,68 @@ describe('VerificationChecksService (docs/03 §2.4)', () => {
       const s = setup({ barName: 'auto', idProvider: 'stripe_identity' });
       await s.service.runOnSubmit('r1');
       expect(s.licenseUpdateMany).toHaveBeenCalled();
+    });
+  });
+
+  describe('self-attestation + state registry (owner 2026-10-05)', () => {
+    it('approves at once, then a matching registry clears the flag', async () => {
+      const s = setup({ barName: 'auto', idProvider: 'manual' });
+      await s.service.approveSelfAttested('r1');
+      expect(s.requestUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'approved',
+            admin_note: SELF_ATTESTED_NOTE,
+          }) as unknown,
+        }),
+      );
+      expect(s.lookup).toHaveBeenCalledTimes(1);
+      expect(s.licenseUpdate).toHaveBeenCalledWith({
+        where: { id: 'l1' },
+        data: { registry_flag: null, registry_flagged_at: null },
+      });
+    });
+
+    it('a registry difference flags the license, never rejects', async () => {
+      const s = setup({
+        barName: 'auto',
+        idProvider: 'manual',
+        lookupResult: 'fail',
+      });
+      await s.service.approveSelfAttested('r1');
+      expect(s.licenseUpdateMany).toHaveBeenCalled();
+      expect(s.licenseUpdate).toHaveBeenCalledWith({
+        where: { id: 'l1' },
+        data: {
+          registry_flag: 'not_found',
+          registry_flagged_at: expect.any(Date) as unknown,
+        },
+      });
+    });
+
+    it('a state without a registry: approved, nothing looked up', async () => {
+      const s = setup({ barName: 'manual', idProvider: 'manual' });
+      await s.service.approveSelfAttested('r1');
+      expect(s.licenseUpdateMany).toHaveBeenCalled();
+      expect(s.lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [{ result: 'pass', details: {} }, null],
+      [{ result: 'fail', details: { reason: 'not_active' } }, 'not_active'],
+      [{ result: 'fail', details: { reason: 'not_found' } }, 'not_found'],
+      [
+        { result: 'manual_review', details: { reason: 'name_mismatch' } },
+        'name_mismatch',
+      ],
+      [
+        { result: 'manual_review', details: { reason: 'provider_error' } },
+        undefined,
+      ],
+    ] as const)('registryFlagFor(%j) → %s', (outcome, flag) => {
+      expect(
+        registryFlagFor({ result: outcome.result, details: outcome.details }),
+      ).toBe(flag);
     });
   });
 });

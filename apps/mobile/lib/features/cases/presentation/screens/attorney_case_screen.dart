@@ -12,6 +12,7 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
@@ -250,6 +251,17 @@ class _Body extends ConsumerWidget {
             title: t.t('cases.detail.yourBid'),
             child: _OwnBidCard(bidId: c.ownBidId!, t: t, formats: formats),
           ),
+        // Owner 2026-10-05: how complete the case is, and that its files
+        // and the client's contacts open once the bid is accepted.
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: CaseDossierPanel(
+            score: CaseDossierScore.of(c),
+            status: c.status,
+            t: t,
+            unlocked: c.photos.isNotEmpty,
+          ),
+        ),
         DetailSection(
           title: t.t('cases.detail.description'),
           child: Text(

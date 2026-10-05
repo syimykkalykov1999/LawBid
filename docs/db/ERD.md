@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-103 tables.
+104 tables.
 
 ```mermaid
 erDiagram
@@ -228,6 +228,8 @@ erDiagram
     Json auto_check_result "nullable"
     String rejection_code "nullable"
     String rejection_note "nullable"
+    String registry_flag "nullable"
+    DateTime registry_flagged_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -959,6 +961,20 @@ erDiagram
     Boolean last_test_ok "nullable"
     String last_test_error "nullable"
   }
+  state_bar_registries {
+    String state_code PK,FK
+    String adapter
+    Boolean enabled
+    Json config
+    String secret_enc "nullable"
+    String secret_masked "nullable"
+    String test_bar_number "nullable"
+    DateTime last_test_at "nullable"
+    Json last_test_result "nullable"
+    String updated_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   video_assets {
     String id PK
     String owner_user_id FK
@@ -1334,6 +1350,7 @@ erDiagram
   assistant_liability_acceptances }o--|| users : "attorney_id"
   assistant_liability_acceptances }o--|| assistant_memberships : "membership_id"
   integration_credentials }o--o| users : "created_by"
+  state_bar_registries |o--|| states : "state_code"
   video_assets }o--|| users : "owner_user_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"

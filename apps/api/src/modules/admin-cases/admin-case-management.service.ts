@@ -6,6 +6,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DOSSIER_ITEMS, dossierMissing } from '../cases/domain/case-dossier';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -77,10 +78,17 @@ const ROW = {
   view_count: true,
   last_activity_at: true,
   created_at: true,
+  // Owner 2026-10-05: the case dossier ("4 of 6").
+  description: true,
+  city: true,
+  urgency: true,
+  budget_mode: true,
+  budget_cents: true,
   client: { select: { first_name: true, last_name: true } },
   practice_area: { select: { name_en: true } },
 } as const;
 type Row = Prisma.CaseGetPayload<{ select: typeof ROW }>;
+type FileCounts = { images: number; documents: number };
 
 /**
  * Audit 2026-10-02 — admin panel → Cases: the list, the full card and the
@@ -136,14 +144,15 @@ export class AdminCaseManagementService {
     });
     const page = rows.slice(0, limit);
     const ids = page.map((r) => r.id);
-    const [reports, promoted] = await Promise.all([
+    const [reports, promoted, files] = await Promise.all([
       this.openReportCounts(ids),
       this.activePromotions(ids),
+      this.fileCounts(ids),
     ]);
     const last = page[page.length - 1];
     return {
       items: page.map((r) =>
-        toRow(r, reports.get(r.id) ?? 0, promoted.has(r.id)),
+        toRow(r, reports.get(r.id) ?? 0, promoted.has(r.id), files.get(r.id)),
       ),
       nextCursor:
         rows.length > limit && last
@@ -179,7 +188,7 @@ export class AdminCaseManagementService {
       },
     });
     if (!kase) throw caseNotFound();
-    const [bids, invites, journal, disputes, issues, reports, promoted] =
+    const [bids, invites, journal, disputes, issues, reports, promoted, files] =
       await Promise.all([
         this.prisma.bid.findMany({
           where: { case_id: id },
@@ -237,10 +246,11 @@ export class AdminCaseManagementService {
         }),
         this.openReportCounts([id]),
         this.activePromotions([id]),
+        this.fileCounts([id]),
       ]);
     const until = promoted.get(id) ?? null;
     return {
-      ...toRow(kase, reports.get(id) ?? 0, promoted.has(id)),
+      ...toRow(kase, reports.get(id) ?? 0, promoted.has(id), files.get(id)),
       description: kase.description,
       city: kase.city,
       budgetMode: kase.budget_mode,
@@ -404,6 +414,23 @@ export class AdminCaseManagementService {
     return rows.map((r) => r.target_id);
   }
 
+  /** Owner 2026-10-05: attached photos vs documents per case (dossier). */
+  private async fileCounts(ids: string[]): Promise<Map<string, FileCounts>> {
+    const out = new Map<string, FileCounts>();
+    if (ids.length === 0) return out;
+    const rows = await this.prisma.casePhoto.findMany({
+      where: { case_id: { in: ids } },
+      select: { case_id: true, file: { select: { mime: true } } },
+    });
+    for (const r of rows) {
+      const c = out.get(r.case_id) ?? { images: 0, documents: 0 };
+      if (r.file.mime.startsWith('image/')) c.images += 1;
+      else c.documents += 1;
+      out.set(r.case_id, c);
+    }
+    return out;
+  }
+
   private async openReportCounts(ids: string[]): Promise<Map<string, number>> {
     if (ids.length === 0) return new Map();
     const groups = await this.prisma.report.groupBy({
@@ -480,7 +507,17 @@ function toRow(
   r: Row,
   openReports: number,
   promoted: boolean,
+  files: FileCounts = { images: 0, documents: 0 },
 ): AdminCaseRowDto {
+  const missing = dossierMissing({
+    descriptionLength: r.description.length,
+    city: r.city,
+    urgency: r.urgency,
+    budgetMode: r.budget_mode,
+    budgetCents: r.budget_cents,
+    imagesCount: files.images,
+    documentsCount: files.documents,
+  });
   return {
     id: r.id,
     title: r.title,
@@ -495,6 +532,10 @@ function toRow(
     viewCount: r.view_count,
     openReports,
     promoted,
+    imagesCount: files.images,
+    documentsCount: files.documents,
+    dossierScore: DOSSIER_ITEMS.length - missing.length,
+    dossierMissing: missing,
     lastActivityAt: r.last_activity_at.toISOString(),
     createdAt: r.created_at.toISOString(),
   };

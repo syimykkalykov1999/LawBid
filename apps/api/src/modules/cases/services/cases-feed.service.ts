@@ -298,7 +298,7 @@ export class CasesFeedService {
    * skipped). Also used by the saved-cases list (docs/04 §11.2). */
   async hydrate(ids: string[], attorneyId: string): Promise<CaseFeedItemDto[]> {
     if (ids.length === 0) return [];
-    const [rows, ownBids, saved, pendingComments, pendingShares] =
+    const [rows, ownBids, saved, pendingComments, pendingShares, files] =
       await Promise.all([
         this.prisma.case.findMany({
           where: { id: { in: ids } },
@@ -322,6 +322,11 @@ export class CasesFeedService {
         this.counters
           ? this.counters.pending('case', 'share_count', ids)
           : Promise.resolve(new Map<string, number>()),
+        this.photos
+          ? this.photos.counts(ids)
+          : Promise.resolve(
+              new Map<string, { images: number; documents: number }>(),
+            ),
       ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
@@ -374,6 +379,11 @@ export class CasesFeedService {
         isSaved: savedIds.has(c.id),
         shareCount: Math.max(0, c.share_count + (pendingShares.get(c.id) ?? 0)),
         promoted: promoted.has(c.id),
+        dossier: {
+          imagesCount: files.get(c.id)?.images ?? 0,
+          documentsCount: files.get(c.id)?.documents ?? 0,
+          descriptionLength: c.description.length,
+        },
       });
     }
     return items;

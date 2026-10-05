@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_case_bid_dto.dart';
 import 'admin_case_card_dto_budget_mode.dart';
+import 'admin_case_card_dto_dossier_missing.dart';
 import 'admin_case_card_dto_status.dart';
 import 'admin_case_invite_dto.dart';
 import 'admin_case_state_dto.dart';
@@ -17,7 +18,7 @@ part 'admin_case_card_dto.g.dart';
 @JsonSerializable()
 class AdminCaseCardDto {
   const AdminCaseCardDto({
-    required this.id,
+    required this.promoted,
     required this.title,
     required this.status,
     required this.clientId,
@@ -29,13 +30,17 @@ class AdminCaseCardDto {
     required this.commentCount,
     required this.viewCount,
     required this.openReports,
-    required this.promoted,
+    required this.id,
+    required this.imagesCount,
+    required this.documentsCount,
+    required this.dossierScore,
+    required this.dossierMissing,
     required this.lastActivityAt,
     required this.createdAt,
     required this.description,
     required this.city,
     required this.budgetMode,
-    required this.budgetCents,
+    required this.promotedUntil,
     required this.client,
     required this.states,
     required this.photosCount,
@@ -47,7 +52,7 @@ class AdminCaseCardDto {
     required this.contactIssueIds,
     required this.archivedAt,
     required this.closedAt,
-    required this.promotedUntil,
+    required this.budgetCents,
   });
 
   factory AdminCaseCardDto.fromJson(Map<String, Object?> json) =>
@@ -68,6 +73,16 @@ class AdminCaseCardDto {
 
   /// A paid / granted promotion is running.
   final bool promoted;
+
+  /// Owner 2026-10-05: the case dossier ("4 of 6").
+  final int imagesCount;
+  final int documentsCount;
+
+  /// Filled-in items, 0–6.
+  final int dossierScore;
+
+  /// Dossier items the client has not filled in.
+  final List<AdminCaseCardDtoDossierMissing> dossierMissing;
   final DateTime lastActivityAt;
   final DateTime createdAt;
   final String description;
