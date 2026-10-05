@@ -24,6 +24,7 @@ class OwnAttorneyProfileDto {
     required this.languages,
     required this.verificationStatus,
     required this.verifiedBadge,
+    required this.trustLevel,
     required this.nameMismatch,
     required this.usernameChangedAt,
     required this.usernameNextChangeAt,
@@ -51,6 +52,9 @@ class OwnAttorneyProfileDto {
 
   /// Blue check (docs/03 §6.3): verified status and at least one verified license.
   final bool verifiedBadge;
+
+  /// Owner 2026-10-05: trust level — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both.
+  final int trustLevel;
 
   /// OQ-029: the current name is far from the verified one, so the blue.
   /// check is hidden until it is changed back (own profile only).

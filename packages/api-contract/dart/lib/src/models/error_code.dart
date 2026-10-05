@@ -294,6 +294,10 @@ enum ErrorCode {
   commentsDisabled('COMMENTS_DISABLED'),
   @JsonValue('LICENSE_STATE_REQUIRED')
   licenseStateRequired('LICENSE_STATE_REQUIRED'),
+  @JsonValue('TRUST_LEVEL_REQUIRED')
+  trustLevelRequired('TRUST_LEVEL_REQUIRED'),
+  @JsonValue('ATTORNEY_ON_HOLD')
+  attorneyOnHold('ATTORNEY_ON_HOLD'),
   @JsonValue('TRANSLATION_UNAVAILABLE')
   translationUnavailable('TRANSLATION_UNAVAILABLE'),
   @JsonValue('STICKER_LIMIT_REACHED')
