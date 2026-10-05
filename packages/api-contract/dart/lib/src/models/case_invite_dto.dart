@@ -5,7 +5,10 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'bid_attorney_summary_dto.dart';
+import 'case_budget_dto.dart';
+import 'case_dossier_dto.dart';
 import 'case_invite_status.dart';
+import 'case_urgency.dart';
 
 part 'case_invite_dto.g.dart';
 
@@ -29,7 +32,11 @@ class CaseInviteDto {
     required this.caseStatus,
     required this.casePracticeKey,
     required this.caseStateCodes,
+    required this.caseBudget,
+    required this.caseDossier,
     required this.attorney,
+    this.caseCity,
+    this.caseUrgency,
   });
 
   factory CaseInviteDto.fromJson(Map<String, Object?> json) =>
@@ -62,6 +69,14 @@ class CaseInviteDto {
   /// i18n key of the case's practice area.
   final String casePracticeKey;
   final List<String> caseStateCodes;
+
+  /// Owner 2026-10-05: the dossier ("Case file 4 of 6") on the invite, so.
+  /// the attorney sees what the client filled in before answering. Counts.
+  /// only — the files open once the client accepts the attorney's bid.
+  final String? caseCity;
+  final CaseUrgency? caseUrgency;
+  final CaseBudgetDto caseBudget;
+  final CaseDossierDto caseDossier;
 
   /// The invited attorney (client view only).
   final BidAttorneySummaryDto? attorney;

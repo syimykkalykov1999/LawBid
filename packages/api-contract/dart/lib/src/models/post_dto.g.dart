@@ -14,6 +14,9 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   media: (json['media'] as List<dynamic>)
       .map((e) => PostMediaDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  attachments: (json['attachments'] as List<dynamic>)
+      .map((e) => PostAttachmentDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
   mentions: (json['mentions'] as List<dynamic>)
       .map((e) => MentionDto.fromJson(e as Map<String, dynamic>))
@@ -51,6 +54,7 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'author': instance.author.toJson(),
   'body': instance.body,
   'media': instance.media.map((e) => e.toJson()).toList(),
+  'attachments': instance.attachments.map((e) => e.toJson()).toList(),
   'video': ?instance.video?.toJson(),
   'tags': instance.tags,
   'mentions': instance.mentions.map((e) => e.toJson()).toList(),

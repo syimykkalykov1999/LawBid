@@ -17,6 +17,8 @@ class PostVideoDto {
     this.durationSec,
     this.width,
     this.height,
+    this.trimStartMs,
+    this.trimEndMs,
   });
 
   factory PostVideoDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +30,12 @@ class PostVideoDto {
   final int? durationSec;
   final int? width;
   final int? height;
+
+  /// Owner 2026-10-05: play only from here…
+  final int? trimStartMs;
+
+  /// …to here (null = to the end).
+  final int? trimEndMs;
 
   Map<String, Object?> toJson() => _$PostVideoDtoToJson(this);
 }

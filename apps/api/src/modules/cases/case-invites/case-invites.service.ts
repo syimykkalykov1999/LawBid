@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
@@ -17,8 +18,10 @@ import {
   BID_LIST_INCLUDE,
   toAttorneySummary,
 } from '../case-bids/case-bids.service';
+import type { CaseUrgency } from '../domain/case-cover';
 import { caseNotFound } from '../domain/case-state-machine';
 import { CaseAccessPolicy } from '../policies/case-access.policy';
+import { CasePhotosService } from '../services/case-photos.service';
 import {
   INVITES_PAGE_SIZE,
   type CaseInviteDto,
@@ -37,6 +40,11 @@ const INVITE_INCLUDE = {
       title: true,
       status: true,
       deleted_at: true,
+      description: true,
+      city: true,
+      urgency: true,
+      budget_mode: true,
+      budget_cents: true,
       practice_area: { select: { i18n_key: true } },
       states: { select: { state_code: true }, orderBy: { state_code: 'asc' } },
     },
@@ -72,6 +80,7 @@ export class CaseInvitesService {
     private readonly notifications: NotificationsService,
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
+    @Optional() private readonly photos?: CasePhotosService,
   ) {}
 
   /** POST /cases/:id/invites. */
@@ -389,6 +398,9 @@ export class CaseInvitesService {
         attorney = toAttorneySummary(row.attorney_id, a, avatar.url256);
       }
     }
+    const files = this.photos
+      ? (await this.photos.counts([row.case_id])).get(row.case_id)
+      : undefined;
     return {
       id: row.id,
       caseId: row.case_id,
@@ -407,6 +419,17 @@ export class CaseInvitesService {
       caseStatus: row.case.status,
       casePracticeKey: row.case.practice_area.i18n_key,
       caseStateCodes: row.case.states.map((s) => s.state_code),
+      caseCity: row.case.city,
+      caseUrgency: row.case.urgency as CaseUrgency | null,
+      caseBudget: {
+        mode: row.case.budget_mode,
+        amountCents: row.case.budget_cents,
+      },
+      caseDossier: {
+        imagesCount: files?.images ?? 0,
+        documentsCount: files?.documents ?? 0,
+        descriptionLength: row.case.description.length,
+      },
       attorney,
     };
   }

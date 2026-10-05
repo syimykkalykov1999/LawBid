@@ -547,4 +547,14 @@ abstract final class AppIcons {
       IconData(0xe68e, fontFamily: lightFamily);
   static const IconData shareNetworkOutlined =
       IconData(0xe408, fontFamily: lightFamily);
+
+  // Owner 2026-10-05: reels (back, trim, inner page) and video calls.
+  static const IconData arrowBackRounded =
+      IconData(0xe058, fontFamily: lightFamily);
+  static const IconData cameraRotateOutlined =
+      IconData(0xe7a4, fontFamily: lightFamily);
+  static const IconData contentCutRounded =
+      IconData(0xeae0, fontFamily: lightFamily);
+  static const IconData bookOpenTextOutlined =
+      IconData(0xe8f2, fontFamily: lightFamily);
 }

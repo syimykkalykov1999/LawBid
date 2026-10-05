@@ -123,7 +123,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   }
 
   /// OQ-041: calls open once the bid is accepted (contacts unlocked).
-  void _call(Conversation c) {
+  /// Owner 2026-10-05: [video] = a video call.
+  void _call(Conversation c, {bool video = false}) {
     final t = ref.read(translatorProvider);
     if (!c.contactsUnlocked) {
       showAppSnackBar(
@@ -144,6 +145,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   username: c.counterpart.username,
                   avatarUrl: c.counterpart.avatarUrl,
                 ),
+          video: video,
         );
   }
 
@@ -319,6 +321,28 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
               ),
               semanticLabel: t.t('call.button'),
               onPressed: () => _call(c),
+            ),
+          // Owner 2026-10-05: "Видеозвонок" next to the call — only while
+          // the owner has video calls on (flag + TURN configured).
+          if (c != null &&
+              !c.closed &&
+              !c.myRequestPending &&
+              !c.awaitingMyAnswer &&
+              !c.myRequestDeclined &&
+              ref.watch(videoCallsEnabledProvider) &&
+              ref.watch(canDoProvider(AssistantDuty.calls)) &&
+              !(ref
+                      .watch(blockedIdsProvider)
+                      .value
+                      ?.contains(c.counterpart.id) ??
+                  false))
+            AppIconButton(
+              icon: AppIcon(
+                AppIcons.videoCameraOutlined,
+                color: c.contactsUnlocked ? colors.text : colors.textSecondary,
+              ),
+              semanticLabel: t.t('call.videoButton'),
+              onPressed: () => _call(c, video: true),
             ),
           if (c != null)
             AppIconButton(

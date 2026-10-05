@@ -22,6 +22,7 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
       ? null
       : DateTime.parse(json['endedAt'] as String),
   durationSec: (json['durationSec'] as num?)?.toInt(),
+  video: json['video'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
@@ -31,6 +32,7 @@ Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
   'calleeId': instance.calleeId,
   'status': instance.status.toJson(),
   'outgoing': instance.outgoing,
+  'video': instance.video,
   'peer': instance.peer.toJson(),
   'createdAt': instance.createdAt.toIso8601String(),
   'answeredAt': ?instance.answeredAt?.toIso8601String(),

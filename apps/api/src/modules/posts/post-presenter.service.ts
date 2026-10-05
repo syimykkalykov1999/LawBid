@@ -54,6 +54,7 @@ export class PostPresenter {
       pSave,
       pShare,
       follows,
+      docs,
     ] = await Promise.all([
       this.prisma.user.findMany({
         where: { id: { in: authorIds } },
@@ -104,7 +105,21 @@ export class PostPresenter {
         where: { follower_id: viewerId, followee_id: { in: authorIds } },
         select: { followee_id: true },
       }),
+      // Owner 2026-10-05: documents of the post / reel inner page.
+      this.prisma.postAttachment.findMany({
+        where: { post_id: { in: ids } },
+        orderBy: { position: 'asc' },
+      }),
     ]);
+    const docUrls = await this.files.postAttachmentUrls(
+      docs.map((d) => ({ fileId: d.file_id, fileName: d.file_name })),
+    );
+    const docsByPost = new Map<string, typeof docs>();
+    for (const d of docs) {
+      const list = docsByPost.get(d.post_id) ?? [];
+      list.push(d);
+      docsByPost.set(d.post_id, list);
+    }
     const followed = new Set(follows.map((f) => f.followee_id));
     const urls = await this.files.postImageUrls(media.map((m) => m.file_id));
     const files = await this.files.avatarUrlsMany(
@@ -220,6 +235,19 @@ export class PostPresenter {
                   position: m.position,
                   width: m.width,
                   height: m.height,
+                  ...u,
+                },
+              ]
+            : [];
+        }),
+        attachments: (docsByPost.get(p.id) ?? []).flatMap((d) => {
+          const u = docUrls.get(d.file_id);
+          return u
+            ? [
+                {
+                  fileId: d.file_id,
+                  position: d.position,
+                  fileName: d.file_name,
                   ...u,
                 },
               ]

@@ -18,6 +18,11 @@ CreatePostDto _$CreatePostDtoFromJson(Map<String, dynamic> json) =>
       mediaFileIds: (json['mediaFileIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      attachments: (json['attachments'] as List<dynamic>?)
+          ?.map(
+            (e) => PostAttachmentInputDto.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
       videoAssetId: json['videoAssetId'] as String?,
       location: json['location'] == null
           ? null
@@ -31,6 +36,7 @@ Map<String, dynamic> _$CreatePostDtoToJson(CreatePostDto instance) =>
       'kind': instance.kind.toJson(),
       'body': instance.body,
       'mediaFileIds': ?instance.mediaFileIds,
+      'attachments': ?instance.attachments?.map((e) => e.toJson()).toList(),
       'videoAssetId': ?instance.videoAssetId,
       'location': ?instance.location?.toJson(),
       'commentsEnabled': instance.commentsEnabled,

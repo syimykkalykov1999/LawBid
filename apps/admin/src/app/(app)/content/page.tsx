@@ -278,6 +278,9 @@ function Posts({ ask }: { ask: Ask }) {
               <Td className="max-w-md">
                 {p.kind === 'news' ? <Badge tone="gold">новость</Badge> : null}
                 {p.hasVideo ? <Badge tone="info">видео</Badge> : null}
+                {p.attachments > 0 ? (
+                  <Badge tone="info">файлы: {p.attachments}</Badge>
+                ) : null}
                 <div className="font-medium text-heading">{p.title ?? '—'}</div>
                 <div className="line-clamp-2 text-xs text-muted">{p.body}</div>
               </Td>
