@@ -863,11 +863,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .expect(200);
 
       const verifier = await admin('verifier');
-      await api()
-        .post(`/api/v1/admin/verification/attorneys/${a.userId}/suspend`)
-        .set(verifier.auth)
-        .send({})
-        .expect(400);
+      // Owner 2026-10-05: the reason is required only in the sections the
+      // owner switched on (verification is off by default).
       const res = await api()
         .post(`/api/v1/admin/verification/attorneys/${a.userId}/suspend`)
         .set(verifier.auth)

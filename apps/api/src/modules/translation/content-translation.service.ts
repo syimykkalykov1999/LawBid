@@ -42,7 +42,8 @@ export class ContentTranslationService {
     target: string,
   ): Promise<TextTranslation> {
     const zone = KIND_ZONE[kind];
-    // Zone and key first: nothing is read when translation is off there.
+    // Plan, then zone and key: nothing is read when translation is off.
+    await this.translation.assertEntitled(user);
     if (!(await this.translation.apiKey(zone))) throw translationUnavailable();
     const text = (await this.load(user, kind, id))?.trim() ?? '';
     if (text === '') throw notFound();

@@ -46,8 +46,14 @@ describe('PayrollPartnersBridge', () => {
           .fn()
           .mockResolvedValue([
             { event_ref: 'partner:c1' },
-            { event_ref: 'partner:c0' },
+            { event_ref: 'partner:00000000-0000-4000-8000-0000000000c0' },
+            { event_ref: 'partner:e2e:not-a-commission' },
           ]),
+      },
+      partnerCommission: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: '00000000-0000-4000-8000-0000000000c0' }]),
       },
     };
     const bridge = new PayrollPartnersBridge(
@@ -72,7 +78,7 @@ describe('PayrollPartnersBridge', () => {
     );
     expect(t.accruals.cancel).toHaveBeenCalledTimes(1);
     expect(t.accruals.cancel).toHaveBeenCalledWith(
-      'partner:c0',
+      'partner:00000000-0000-4000-8000-0000000000c0',
       expect.any(String),
     );
   });

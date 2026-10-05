@@ -386,7 +386,8 @@ describe('stage 6.4 — moderation (e2e)', () => {
       .set(mod.auth)
       .send({ action: 'hide' })
       .expect(400);
-    expect((noReason.body as Body).error?.code).toBe('VALIDATION_ERROR');
+    // Owner 2026-10-05: moderation is a «reason required» section for staff.
+    expect((noReason.body as Body).error?.code).toBe('REASON_REQUIRED');
 
     const hid = await api()
       .post(`/api/v1/admin/moderation/targets/post/${postId}/actions`)

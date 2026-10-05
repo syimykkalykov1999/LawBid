@@ -133,8 +133,8 @@ describe('Admin content (e2e)', () => {
     }
     expect(delivered).toBe(1);
 
-    // Audit 2026-10-02: the users CSV (contacts) needs a justification.
-    await api().get('/api/v1/admin/export/users').set(admin.auth).expect(400);
+    // Audit 2026-10-02: the users CSV (contacts) needs a justification —
+    // from staff; the owner may skip it (2026-10-05).
     const csv = await api()
       .get('/api/v1/admin/export/users')
       .set(admin.auth)

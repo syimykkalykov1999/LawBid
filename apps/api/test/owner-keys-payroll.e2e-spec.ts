@@ -9,6 +9,7 @@ import { SecretsService } from '../src/common/secrets/secrets.service';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { PayrollAccrualsService } from '../src/modules/admin-payroll/payroll-accruals.service';
+import { PlansService } from '../src/modules/plans/plans.service';
 import { adminSession, type AdminSession } from './support/admin-login';
 
 /**
@@ -147,7 +148,7 @@ describe('Key sets + payroll (e2e)', () => {
       .patch(`/api/v1/admin/integrations/${provider}/slots/backup`)
       .set(admin.auth)
       .send({ enabled: false })
-      .expect(200);
+      .expect(204);
     expect(
       (await secrets.getAll(provider)).map((c) => c.fields.apiKey),
     ).toEqual(['first-key-aaaa-0001']);
@@ -155,12 +156,12 @@ describe('Key sets + payroll (e2e)', () => {
       .patch(`/api/v1/admin/integrations/${provider}/slots/backup`)
       .set(admin.auth)
       .send({ enabled: true })
-      .expect(200);
+      .expect(204);
     await api()
       .put(`/api/v1/admin/integrations/${provider}/order`)
       .set(admin.auth)
       .send({ slots: ['backup', 'main'] })
-      .expect(200);
+      .expect(204);
 
     const overview = await api()
       .get('/api/v1/admin/integrations')
@@ -504,8 +505,9 @@ describe('Key sets + payroll (e2e)', () => {
     expect(list.body.data).toHaveLength(2);
   });
 
-  it('free trial length is an admin setting the app reads', async () => {
+  it('free trial: the plan decides; billing.trial_days is the fallback', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
+    const plans = app.get(PlansService);
     const set = (value: number) =>
       api()
         .put('/api/v1/admin/config/billing.trial_days')
@@ -513,13 +515,29 @@ describe('Key sets + payroll (e2e)', () => {
         .send({ value });
     await set(400).expect(400);
     await set(-1).expect(400);
+    const monthly = (await plans.all()).find(
+      (p) => p.code === 'attorney_monthly',
+    )!;
+    const own = monthly.entitlements as Record<string, unknown>;
+    const trialDays = async () => {
+      plans.invalidate();
+      return (await api().get('/api/v1/pricing').expect(200)).body.data
+        .trialDays as number;
+    };
     try {
       await set(14).expect(200);
-      const pricing = await api().get('/api/v1/pricing').expect(200);
-      expect(pricing.body.data.trialDays).toBe(14);
+      // The plan sets its own days: they win.
+      expect(await trialDays()).toBe(own.trial_days);
+      // The plan leaves them unset: the setting is used.
+      const rest = { ...own };
+      delete rest.trial_days;
+      await prisma.plan.update({
+        where: { id: monthly.id },
+        data: { entitlements: rest },
+      });
+      expect(await trialDays()).toBe(14);
       await set(0).expect(200);
-      const off = await api().get('/api/v1/pricing').expect(200);
-      expect(off.body.data.trialDays).toBe(0);
+      expect(await trialDays()).toBe(0);
       const audit = await prisma.auditLog.findMany({
         where: { admin_id: admin.userId, target_type: 'app_config' },
       });
@@ -530,6 +548,11 @@ describe('Key sets + payroll (e2e)', () => {
         ),
       ).toBe(true);
     } finally {
+      await prisma.plan.update({
+        where: { id: monthly.id },
+        data: { entitlements: own },
+      });
+      plans.invalidate();
       await set(7).expect(200);
     }
   });

@@ -29,7 +29,8 @@ export class ChatTranslationService {
     messageId: string,
     target: string,
   ): Promise<MessageTranslation> {
-    // Zone and key first: nothing is read when translation is off.
+    // Plan, then zone and key: nothing is read when translation is off.
+    await this.translation.assertEntitled(user);
     if (!(await this.translation.apiKey('chat'))) {
       throw translationUnavailable();
     }

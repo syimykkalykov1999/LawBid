@@ -67,13 +67,9 @@ export class TranslationService {
 
   /** Translates [text] (already access-checked by the caller); [cacheId]
    * names the source, e.g. `post:<id>`. */
-  async translate(
-    user: RequestUser,
-    zone: TranslateZone,
-    cacheId: string,
-    text: string,
-    target: string,
-  ): Promise<TextTranslation> {
+  /** The plan's `chat_translate` term (owner 2026-10-05): checked
+   * before anything else, in every zone. */
+  async assertEntitled(user: RequestUser): Promise<void> {
     if (
       this.entitlements &&
       !(await this.entitlements.has(user.sub, 'chat_translate'))
@@ -83,6 +79,16 @@ export class TranslationService {
         message: 'Your plan does not include translation.',
       });
     }
+  }
+
+  async translate(
+    user: RequestUser,
+    zone: TranslateZone,
+    cacheId: string,
+    text: string,
+    target: string,
+  ): Promise<TextTranslation> {
+    await this.assertEntitled(user);
     const key = await this.apiKey(zone);
     if (!key) throw translationUnavailable();
     // The text's hash is part of the key: an edited post is re-translated.

@@ -119,7 +119,10 @@ export class SubscriptionSyncService {
   async apply(
     remote: ProviderSubscription,
     extra: Partial<Prisma.SubscriptionUpdateInput> = {},
+    opts: { notify?: boolean } = {},
   ): Promise<Subscription | null> {
+    // An admin action sends its own, fuller notice (opts.notify = false).
+    const notify = opts.notify ?? true;
     const graceDays = await this.settings.number(
       'subscription.past_due_grace_days',
     );
@@ -189,16 +192,18 @@ export class SubscriptionSyncService {
       const withdrawn = covered
         ? 0
         : await this.bids.withdrawActiveBidsForAttorney(row.user_id);
-      await this.notify(row.user_id, 'subscription_status', {
-        status: row.status,
-        withdrawnBids: withdrawn,
-      });
+      if (notify)
+        await this.notify(row.user_id, 'subscription_status', {
+          status: row.status,
+          withdrawnBids: withdrawn,
+        });
     } else if (transition === 'gained' && previousStatus !== 'incomplete') {
       // A fresh subscription (incomplete → trialing/active) is the user's
       // own action; only a re-activation is news worth a notification.
-      await this.notify(row.user_id, 'subscription_status', {
-        status: row.status,
-      });
+      if (notify)
+        await this.notify(row.user_id, 'subscription_status', {
+          status: row.status,
+        });
     }
     return row;
   }

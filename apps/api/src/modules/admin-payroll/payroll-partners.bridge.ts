@@ -7,6 +7,7 @@ import {
 } from './payroll-accruals.service';
 
 const REF = 'partner:';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Owner 2026-10-05: partners are paid with payroll. Before the payroll
@@ -69,10 +70,20 @@ export class PayrollPartnersBridge implements OnModuleInit {
         where: { status: 'pending', event_ref: { startsWith: REF } },
         select: { event_ref: true },
       });
-      for (const a of stale) {
-        if (!approved.has(a.event_ref)) {
-          await this.accruals.cancel(a.event_ref, 'Settled in Партнёры');
-        }
+      // Only accruals of a real commission that is no longer approved;
+      // other `partner:` refs (or an unknown id) are left alone.
+      const ids = stale
+        .filter((a) => !approved.has(a.event_ref))
+        .map((a) => a.event_ref.slice(REF.length))
+        .filter((id) => UUID.test(id));
+      const gone = ids.length
+        ? await this.prisma.partnerCommission.findMany({
+            where: { id: { in: ids }, status: { not: 'approved' } },
+            select: { id: true },
+          })
+        : [];
+      for (const c of gone) {
+        await this.accruals.cancel(`${REF}${c.id}`, 'Settled in Партнёры');
       }
     } catch (e) {
       this.logger.error(`partner commissions sync failed: ${String(e)}`);

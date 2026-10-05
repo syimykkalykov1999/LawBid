@@ -36,6 +36,30 @@ import { AdminSessionService } from './admin-session.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 
 export const JUSTIFICATION_MIN = 10;
+/** Handlers whose body DTO declares `reason` (cached per handler). */
+const reasonRoutes = new WeakMap<object, boolean>();
+function takesReason(context: ExecutionContext): boolean {
+  const handler = context.getHandler();
+  const known = reasonRoutes.get(handler);
+  if (known !== undefined) return known;
+  const types = (Reflect.getMetadata(
+    'design:paramtypes',
+    context.getClass().prototype as object,
+    handler.name,
+  ) ?? []) as unknown[];
+  const found = types.some((t) => {
+    if (typeof t !== 'function' || t === Object || t === String) return false;
+    try {
+      const probe = new (t as new () => object)();
+      return typeof probe === 'object' && probe !== null && 'reason' in probe;
+    } catch {
+      return false;
+    }
+  });
+  reasonRoutes.set(handler, found);
+  return found;
+}
+
 /** Owner 2026-10-05: a required action reason (see assertReason). */
 export const REASON_MIN = 3;
 export const JUSTIFICATION_MAX = 500;
@@ -134,7 +158,14 @@ export class AdminAuthGuard implements CanActivate {
       // toggles; money and keys are closed for them in the API itself (not
       // only hidden in the panel). Admin management needs the right the
       // super admin gives one by one.
-      const superOnly = allowed.length === 1 && allowed[0] === 'super_admin';
+      // The trusted deputy also reads the owner-only pages (sessions,
+      // prices, plans), except the keys; changing them stays the owner's.
+      const deputyRead =
+        manageAdmins &&
+        routeArea(path) !== 'keys' &&
+        levelForMethod(req.method) === 'view';
+      const superOnly =
+        allowed.length === 1 && allowed[0] === 'super_admin' && !deputyRead;
       if (
         superOnly ||
         !canAccess(adminRole, permissions, path, req.method, manageAdmins)
@@ -146,7 +177,7 @@ export class AdminAuthGuard implements CanActivate {
       }
       // Owner 2026-10-05: who looked at money is visible in the audit log.
       const area = routeArea(path);
-      await this.assertReason(area, req.method, req.body);
+      await this.assertReason(area, req.method, req.body, context);
       if (
         area &&
         VIEW_AUDITED_AREAS.has(area) &&
@@ -196,10 +227,14 @@ export class AdminAuthGuard implements CanActivate {
     area: string | null,
     method: string,
     body: unknown,
+    context: ExecutionContext,
   ): Promise<void> {
     if (!area || !this.settings || levelForMethod(method) === 'view') return;
-    if (!body || typeof body !== 'object' || !('reason' in body)) return;
-    const reason = (body as { reason?: unknown }).reason;
+    const sent = !!body && typeof body === 'object' && 'reason' in body;
+    // A route whose body DTO has a `reason` field counts even when the
+    // client left the field out.
+    if (!sent && !takesReason(context)) return;
+    const reason = sent ? (body as { reason?: unknown }).reason : undefined;
     if (typeof reason === 'string' && reason.trim().length >= REASON_MIN) {
       return;
     }

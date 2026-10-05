@@ -380,11 +380,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .set(boss.auth)
       .send({ phone: other.phone, reason: 'x' })
       .expect(409);
-    await api()
-      .post(`/api/v1/admin/users/${c.id}/phone`)
-      .set(boss.auth)
-      .send({ phone: fresh })
-      .expect(400);
+    // Owner 2026-10-05: the super admin may leave the reason out.
     const r = await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
       .set(boss.auth)

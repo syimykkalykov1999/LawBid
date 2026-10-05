@@ -34,6 +34,7 @@ function setup(opts: { key?: string | null; caseAccess?: unknown } = {}) {
       ),
   };
   const engine = {
+    assertEntitled: jest.fn().mockResolvedValue(undefined),
     apiKey: jest
       .fn()
       .mockResolvedValue(opts.key === undefined ? 'k' : opts.key),

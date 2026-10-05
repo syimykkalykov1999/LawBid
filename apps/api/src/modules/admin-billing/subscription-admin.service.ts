@@ -85,7 +85,8 @@ export class SubscriptionAdminService {
       dto.when === 'now'
         ? await this.provider.cancelNow(subId)
         : await this.provider.setCancelAtPeriodEnd(subId, true);
-    const updated = (await this.sync.apply(remote)) ?? row;
+    const updated =
+      (await this.sync.apply(remote, {}, { notify: false })) ?? row;
     await this.access.invalidate(userId);
 
     let refundOut: AdminSubscriptionRefundOutcomeDto | null = null;
@@ -155,7 +156,8 @@ export class SubscriptionAdminService {
       row.stripe_subscription_id!,
       false,
     );
-    const updated = (await this.sync.apply(remote)) ?? row;
+    const updated =
+      (await this.sync.apply(remote, {}, { notify: false })) ?? row;
     await this.access.invalidate(userId);
     await this.audit.record({
       adminId: admin.id,
