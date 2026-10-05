@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-105 tables.
+107 tables.
 
 ```mermaid
 erDiagram
@@ -1097,6 +1097,45 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  partners {
+    String id PK
+    String user_id UK
+    String status
+    String label "nullable"
+    String note "nullable"
+    Int attorney_rate_cents "nullable"
+    Int client_rate_cents "nullable"
+    Int monthly_base_cents
+    String client_rule "nullable"
+    Int hold_days "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime ended_at "nullable"
+  }
+  partner_commissions {
+    String id PK
+    String partner_id FK
+    String partner_user_id
+    String referral_id "nullable"
+    String referred_user_id "nullable"
+    String kind
+    Int amount_cents
+    String status
+    String event_ref UK
+    String period
+    DateTime hold_until "nullable"
+    DateTime approved_at "nullable"
+    String approved_by "nullable"
+    DateTime paid_at "nullable"
+    String paid_by "nullable"
+    String payout_ref "nullable"
+    DateTime reversed_at "nullable"
+    String reversed_reason "nullable"
+    String note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   case_promotions {
     String id PK
     String case_id
@@ -1366,6 +1405,7 @@ erDiagram
   integration_credentials }o--o| users : "created_by"
   state_bar_registries |o--|| states : "state_code"
   video_assets }o--|| users : "owner_user_id"
+  partner_commissions }o--|| partners : "partner_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"
   stickers |o--|| files : "file_id"

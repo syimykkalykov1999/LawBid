@@ -97,6 +97,8 @@ String? notificationRoute({
       return ticketId == null ? null : AppRoutes.supportTicket(ticketId);
     case 'referral_reward':
       return AppRoutes.referral;
+    case 'partner_commission' || 'partner_payout':
+      return AppRoutes.partner;
     case 'promotion_started' || 'promotion_ended':
       if (caseId == null) return null;
       return AppRoutes.myCase(caseId);
@@ -195,6 +197,7 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'assistant_request' => AppIcons.factCheckRounded,
       'admin_broadcast' => AppIcons.campaignRounded,
       'referral_reward' => AppIcons.starRounded,
+      'partner_commission' || 'partner_payout' => AppIcons.handshakeOutlined,
       'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
       'assistant_task' => AppIcons.eventNoteRounded,
       'assistant_joined' || 'assistant_result' => AppIcons.supportAgentRounded,
