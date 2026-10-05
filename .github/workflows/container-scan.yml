@@ -33,19 +33,34 @@ jobs:
       # Trivy CLI image against the local image instead.
       - name: Trivy (fail on CRITICAL/HIGH)
         run: |
+          # The vulnerability DB is fetched once into a shared cache, trying
+          # each official mirror in turn (mirror.gcr.io has served a broken
+          # blob), then both scans read it without updating.
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          ok=
+          for repo in mirror.gcr.io/aquasec/trivy-db:2 ghcr.io/aquasecurity/trivy-db:2 public.ecr.aws/aquasecurity/trivy-db:2; do
+            if docker run --rm -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
+              aquasec/trivy:0.58.0 image --download-db-only --db-repository "$repo"; then
+              ok=1; break
+            fi
+            echo "Trivy DB from $repo failed, trying the next mirror"
+          done
+          [ -n "$ok" ] || { echo "No Trivy DB mirror answered"; exit 1; }
           # Readable list in the log first, then the gating SARIF run.
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
             -v "$PWD:/out" \
-            aquasec/trivy:0.58.0 image \
+            aquasec/trivy:0.58.0 image --skip-db-update \
             --severity CRITICAL,HIGH --ignore-unfixed --exit-code 0 \
             --skip-dirs /usr/local/lib/node_modules/npm \
             --ignorefile /out/.trivyignore \
             --format table lawbid-api:ci
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
             -v "$PWD:/out" \
-            aquasec/trivy:0.58.0 image \
+            aquasec/trivy:0.58.0 image --skip-db-update \
             --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 \
             --skip-dirs /usr/local/lib/node_modules/npm \
             --ignorefile /out/.trivyignore \
