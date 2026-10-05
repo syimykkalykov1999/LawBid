@@ -188,7 +188,12 @@ class Post {
     this.locationName,
     this.commentsEnabled = true,
     this.attachments = const [],
+    this.promotionId,
   });
+
+  /// Owner 2026-10-05: set on a paid promoted post in the feed — the card
+  /// says «Реклама» and an open is reported for the owner's stats.
+  final String? promotionId;
 
   /// Owner 2026-10-05: up to 9 documents readers download.
   final List<PostAttachment> attachments;
@@ -272,6 +277,7 @@ class Post {
         locationName: locationName,
         commentsEnabled: commentsEnabled,
         attachments: attachments,
+        promotionId: promotionId,
       );
 }
 

@@ -10,6 +10,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
+import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -103,6 +104,18 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   onTap: () {
                     Navigator.of(sheet).pop();
                     showEditPostSheet(context, ref, post);
+                  },
+                ),
+              // Owner 2026-10-05: Instagram-style "Promote" (money: the
+              // account owner, never an assistant).
+              if (!ref.read(isAssistantProvider))
+                AppListRow(
+                  icon: AppIcons.campaignOutlined,
+                  label: t.t('promote.menu'),
+                  showChevron: false,
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    openPostPromotion(context, ref, post.id);
                   },
                 ),
               if (!ref.read(isAssistantProvider))

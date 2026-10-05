@@ -61,6 +61,8 @@ function setup(opts: { enabled?: boolean; credits?: number } = {}) {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     payment: { create: jest.fn().mockResolvedValue({ id: 'pay1' }) },
+    report: { count: jest.fn().mockResolvedValue(0) },
+    post: { findUnique: jest.fn().mockResolvedValue(null) },
     user: { findUnique: jest.fn().mockResolvedValue({ email: 'c@x.io' }) },
     promoCode: { findUnique: jest.fn(), update: jest.fn() },
     promoRedemption: {
@@ -439,16 +441,21 @@ describe('PromotionsService.expire', () => {
   it('finishes ended promotions and abandons stale checkouts', async () => {
     const s = setup();
     const now = new Date('2026-10-02T12:00:00Z');
-    s.prisma.casePromotion.updateMany
-      .mockResolvedValueOnce({ count: 4 })
-      .mockResolvedValue({ count: 1 });
+    s.prisma.casePromotion.updateMany.mockResolvedValue({ count: 1 });
     s.prisma.casePromotion.findMany
-      .mockResolvedValueOnce([{ id: 'e1', user_id: 'owner', case_id: 'c1' }])
+      // time over
+      .mockResolvedValueOnce([
+        { id: 'e1', user_id: 'owner', case_id: 'c1', post_id: null },
+      ])
+      // still running: case c1 is open (setup) → kept
+      .mockResolvedValueOnce([
+        { id: 'r1', user_id: 'owner', case_id: 'c1', post_id: null },
+      ])
       .mockResolvedValue([{ id: 'old', user_id: 'owner' }]);
-    expect(await s.service.expire(now)).toEqual({ finished: 4, abandoned: 1 });
+    expect(await s.service.expire(now)).toEqual({ finished: 1, abandoned: 1 });
     expect(s.prisma.casePromotion.updateMany).toHaveBeenNthCalledWith(1, {
-      where: { id: { in: ['e1'] }, status: 'active' },
-      data: { status: 'finished' },
+      where: { id: 'e1', status: 'active' },
+      data: { status: 'finished', cancel_reason: 'time_over' },
     });
     expect(s.prisma.casePromotion.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -463,5 +470,91 @@ describe('PromotionsService.expire', () => {
       'owner',
       'old',
     );
+  });
+});
+
+describe('Instagram-style promotion (owner 2026-10-05)', () => {
+  it('quote: daily budget × days, reach from the CPM', async () => {
+    const s = setup();
+    const q = await s.service.quote('owner', 7, 1_000, 'post');
+    // $70 at $5 CPM = 14 000 impressions ÷ 1.6 per person ≈ 8 750 people.
+    expect(q.grossCents).toBe(7_000);
+    expect(q.estImpressions).toBe(14_000);
+    expect(q.estReachMin).toBe(7_000);
+    expect(q.estReachMax).toBe(10_500);
+    expect(q.enabled).toBe(true);
+    expect(q.dailyBudgetCents).toBe(1_000);
+  });
+
+  it('a quote clamps the budget, a purchase outside the limits is a 400', async () => {
+    const s = setup();
+    expect(
+      (await s.service.quote('owner', 1, 1, 'case')).dailyBudgetCents,
+    ).toBe(DEFAULT_PROMOTION_SETTINGS.minDailyBudgetCents);
+    await expect(
+      s.service.create('owner', 'c1', { days: 1, dailyBudgetCents: 10 }),
+    ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
+  });
+
+  it('no subscription needed unless the admin requires one', async () => {
+    const s = setup();
+    const entitlements = { has: jest.fn().mockResolvedValue(false) };
+    const service = new PromotionsService(
+      s.prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+      s.referrals as unknown as ReferralsService,
+      s.provider as unknown as PaymentProvider,
+      undefined,
+      entitlements as never,
+    );
+    await expect(service.quote('owner', 1)).resolves.toBeTruthy();
+    expect(entitlements.has).not.toHaveBeenCalled();
+  });
+
+  it('promotes my own published post with an audience and a reach cap', async () => {
+    const s = setup();
+    s.prisma.post.findUnique.mockResolvedValue({
+      author_id: 'owner',
+      status: 'published',
+      deleted_at: null,
+    });
+    const r = await s.service.createPost('owner', 'p9', {
+      days: 3,
+      dailyBudgetCents: 500,
+      audience: { role: 'clients', states: ['CA'], countries: [], topics: [] },
+    });
+    expect(r.checkoutUrl).toBe('https://pay/cs_1');
+    const data = s.prisma.casePromotion.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      target_type: 'post',
+      post_id: 'p9',
+      case_id: null,
+      total_cents: 1_500,
+      target_impressions: 3_000,
+      audience: { role: 'clients', states: ['CA'] },
+    });
+  });
+
+  it("someone else's post is not found", async () => {
+    const s = setup();
+    s.prisma.post.findUnique.mockResolvedValue({
+      author_id: 'other',
+      status: 'published',
+      deleted_at: null,
+    });
+    await expect(
+      s.service.createPost('owner', 'p9', { days: 1 }),
+    ).rejects.toMatchObject({ response: { code: 'POST_NOT_FOUND' } });
+  });
+
+  it('reported content waits for a staff check after payment', async () => {
+    const s = setup({ credits: 30 });
+    s.prisma.report.count.mockResolvedValue(1);
+    const r = await s.service.create('owner', 'c1', {
+      days: 1,
+      dailyBudgetCents: 1_000,
+    });
+    expect(r.status).toBe('pending_review');
+    expect(r.checkoutUrl).toBeNull();
   });
 });

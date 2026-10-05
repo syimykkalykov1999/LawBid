@@ -16,6 +16,21 @@ PromotionQuoteDto _$PromotionQuoteDtoFromJson(Map<String, dynamic> json) =>
       creditDaysUsed: (json['creditDaysUsed'] as num).toInt(),
       maxDays: (json['maxDays'] as num).toInt(),
       enabled: json['enabled'] as bool,
+      dailyBudgetCents: (json['dailyBudgetCents'] as num).toInt(),
+      minDailyBudgetCents: (json['minDailyBudgetCents'] as num).toInt(),
+      maxDailyBudgetCents: (json['maxDailyBudgetCents'] as num).toInt(),
+      budgetPresetsCents: (json['budgetPresetsCents'] as List<dynamic>)
+          .map((e) => (e as num).toInt())
+          .toList(),
+      durationPresets: (json['durationPresets'] as List<dynamic>)
+          .map((e) => (e as num).toInt())
+          .toList(),
+      cpmCents: (json['cpmCents'] as num).toInt(),
+      estImpressions: (json['estImpressions'] as num).toInt(),
+      estReachMin: (json['estReachMin'] as num).toInt(),
+      estReachMax: (json['estReachMax'] as num).toInt(),
+      postsEnabled: json['postsEnabled'] as bool,
+      casesEnabled: json['casesEnabled'] as bool,
     );
 
 Map<String, dynamic> _$PromotionQuoteDtoToJson(PromotionQuoteDto instance) =>
@@ -28,4 +43,15 @@ Map<String, dynamic> _$PromotionQuoteDtoToJson(PromotionQuoteDto instance) =>
       'creditDaysUsed': instance.creditDaysUsed,
       'maxDays': instance.maxDays,
       'enabled': instance.enabled,
+      'dailyBudgetCents': instance.dailyBudgetCents,
+      'minDailyBudgetCents': instance.minDailyBudgetCents,
+      'maxDailyBudgetCents': instance.maxDailyBudgetCents,
+      'budgetPresetsCents': instance.budgetPresetsCents,
+      'durationPresets': instance.durationPresets,
+      'cpmCents': instance.cpmCents,
+      'estImpressions': instance.estImpressions,
+      'estReachMin': instance.estReachMin,
+      'estReachMax': instance.estReachMax,
+      'postsEnabled': instance.postsEnabled,
+      'casesEnabled': instance.casesEnabled,
     };

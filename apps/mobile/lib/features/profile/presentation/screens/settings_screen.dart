@@ -158,6 +158,14 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('plan.client.hint'),
               onTap: () => context.push(ClientPlanRoutes.clientPlan),
             ),
+          // Owner 2026-10-05: promoted posts / cases (reach, clicks, stop).
+          if (!ref.watch(isAssistantProvider))
+            AppListRow(
+              icon: AppIcons.campaignOutlined,
+              label: t.t('promote.mine.title'),
+              subtitle: t.t('promote.mine.hint'),
+              onTap: () => context.push(AppRoutes.myPromotions),
+            ),
           // Owner 2026-10-02: referrals (shown only when the program is on).
           if (ref.watch(referralMeProvider).value?.enabled ?? false)
             AppListRow(

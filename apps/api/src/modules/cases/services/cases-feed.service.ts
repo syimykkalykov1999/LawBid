@@ -34,6 +34,7 @@ import {
   buildVisibleCasesSql,
 } from '../queries/cases-visible.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
+import { PromotionDeliveryService } from '../../promotions/promotion-delivery.service';
 import {
   clientsWithEntitlementSql,
   EntitlementsService,
@@ -83,6 +84,8 @@ export class CasesFeedService {
     @Optional() private readonly counters?: CounterAggregator,
     @Optional() private readonly entitlements?: EntitlementsService,
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-05: budget, audience, frequency cap and reach.
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -159,16 +162,33 @@ export class CasesFeedService {
     // active promoted cases this attorney may see (same filters) go on top
     // of the first page and are left out of the keyset pages, so cursor
     // pagination stays intact and nothing repeats.
-    const promotedIds = await this.activePromotedCaseIds();
-    const slot = promotedIds.length
-      ? (
-          await run(
-            Prisma.sql`${extra} AND c.id = ANY(${promotedIds}::UUID[])`,
-            undefined,
-            PROMOTED_FEED_SLOTS,
+    // Owner 2026-10-05: only promotions with budget left, matching this
+    // attorney and under today's per-person cap, best-paced first.
+    const live = this.promoDelivery
+      ? await this.promoDelivery.eligible('case', viewer.userId)
+      : null;
+    const slots = this.promoDelivery
+      ? (await this.promoDelivery.settings()).caseFeedSlots
+      : PROMOTED_FEED_SLOTS;
+    const promotedIds = live
+      ? [...new Set(live.flatMap((p) => (p.caseId ? [p.caseId] : [])))]
+      : await this.activePromotedCaseIds();
+    const visiblePromoted =
+      promotedIds.length && slots > 0
+        ? new Set(
+            (
+              await run(
+                Prisma.sql`${extra} AND c.id = ANY(${promotedIds}::UUID[])`,
+                undefined,
+                promotedIds.length,
+              )
+            ).map((r) => r.id),
           )
-        ).map((r) => r.id)
-      : [];
+        : new Set<string>();
+    // Keep the pacing order, then the slot count.
+    const slot = promotedIds
+      .filter((id) => visiblePromoted.has(id))
+      .slice(0, slots);
     // Owner 2026-10-05: then the newest cases of clients on a plan with
     // "cases shown first" — same filters, same keyset exclusion.
     const priority = cursor
@@ -195,7 +215,18 @@ export class CasesFeedService {
       [...new Set([...shownPromoted, ...priority, ...page.map((r) => r.id)])],
       viewer.userId,
     );
-    if (shownPromoted.length) this.countImpressions(shownPromoted);
+    if (shownPromoted.length) {
+      if (live && this.promoDelivery) {
+        this.promoDelivery.recordImpressions(
+          viewer.userId,
+          live
+            .filter((p) => p.caseId && shownPromoted.includes(p.caseId))
+            .map((p) => p.id),
+        );
+      } else {
+        this.countImpressions(shownPromoted);
+      }
+    }
     const last = page[page.length - 1];
     return {
       items,
@@ -466,7 +497,7 @@ export class CasesFeedService {
         orderBy: { starts_at: 'asc' },
         take: 200,
       });
-      return [...new Set(rows.map((r) => r.case_id))];
+      return [...new Set(rows.flatMap((r) => (r.case_id ? [r.case_id] : [])))];
     } catch {
       return [];
     }

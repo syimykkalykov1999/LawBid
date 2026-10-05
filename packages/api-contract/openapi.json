@@ -53142,6 +53142,25 @@
               "maximum": 365,
               "type": "integer"
             }
+          },
+          {
+            "name": "dailyBudgetCents",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: daily budget; default from the admin.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000000,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "target",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PromotionTarget"
+            }
           }
         ],
         "responses": {
@@ -53460,6 +53479,500 @@
         ]
       }
     },
+    "/posts/{id}/promotion": {
+      "get": {
+        "operationId": "getPostPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePromotionStateEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My post's current / last promotion and a quote (author)",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/posts/{id}/promotions": {
+      "post": {
+        "operationId": "createPostPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required: a retry with the same key and body returns the first result instead of a second checkout.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePromotionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePromotionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, PROMO_CODE_INVALID, IDEMPOTENCY_KEY_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, PROMOTION_ALREADY_ACTIVE, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Promote my post (Instagram-style): free with credits / a 100 % code, else a checkout URL",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/me/promotions": {
+      "get": {
+        "operationId": "listMyPromotions",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPromotionListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My promotions with reach, clicks and progress",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/promotions/{id}/stop": {
+      "post": {
+        "operationId": "stopPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePromotionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PROMOTION_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop my running / unpaid promotion early",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/promotions/{id}/click": {
+      "post": {
+        "operationId": "clickPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionClickResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A promoted post / case was opened (stats)",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
     "/admin/promotions": {
       "get": {
         "operationId": "listAdminPromotions",
@@ -53473,7 +53986,24 @@
             }
           },
           {
+            "name": "target",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PromotionTarget"
+            }
+          },
+          {
             "name": "caseId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "postId",
             "required": false,
             "in": "query",
             "schema": {
@@ -53888,7 +54418,7 @@
             }
           },
           "404": {
-            "description": "Not found: CASE_NOT_FOUND",
+            "description": "Not found: CASE_NOT_FOUND, POST_NOT_FOUND",
             "content": {
               "application/json": {
                 "schema": {
@@ -53943,7 +54473,7 @@
             "admin": []
           }
         ],
-        "summary": "Promote a case for free",
+        "summary": "Promote a case or post for free",
         "tags": [
           "admin-promotions"
         ]
@@ -54025,7 +54555,7 @@
             }
           },
           "409": {
-            "description": "Conflict: PROMOTION_INVALID_STATE",
+            "description": "Conflict: PROMOTION_INVALID_STATE, REFUND_NOT_ALLOWED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54070,7 +54600,134 @@
             "admin": []
           }
         ],
-        "summary": "Cancel a promotion (a paid one is refunded from the Payments screen)",
+        "summary": "Cancel a promotion; refund none / the unspent part / all of it",
+        "tags": [
+          "admin-promotions"
+        ]
+      }
+    },
+    "/admin/promotions/{id}/review": {
+      "post": {
+        "operationId": "reviewAdminPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminReviewPromotionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPromotionActionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PROMOTION_INVALID_STATE, REFUND_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Approve or reject a promotion waiting for a check (reject refunds it)",
         "tags": [
           "admin-promotions"
         ]
@@ -78439,6 +79096,12 @@
             "type": "string",
             "nullable": true,
             "description": "\"Изменено\" (§3.3)."
+          },
+          "promotionId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: set on a paid promoted post in the feed — the app\nshows «Реклама» and reports the open to POST /promotions/:id/click.",
+            "format": "uuid"
           }
         },
         "required": [
@@ -96074,6 +96737,47 @@
             "type": "integer"
           },
           "enabled": {
+            "type": "boolean",
+            "description": "This target can be promoted (admin switch)."
+          },
+          "dailyBudgetCents": {
+            "type": "integer"
+          },
+          "minDailyBudgetCents": {
+            "type": "integer"
+          },
+          "maxDailyBudgetCents": {
+            "type": "integer"
+          },
+          "budgetPresetsCents": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "durationPresets": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "cpmCents": {
+            "type": "integer",
+            "description": "Price of 1 000 impressions."
+          },
+          "estImpressions": {
+            "type": "integer"
+          },
+          "estReachMin": {
+            "type": "integer"
+          },
+          "estReachMax": {
+            "type": "integer"
+          },
+          "postsEnabled": {
+            "type": "boolean"
+          },
+          "casesEnabled": {
             "type": "boolean"
           }
         },
@@ -96085,7 +96789,25 @@
           "creditDaysAvailable",
           "creditDaysUsed",
           "maxDays",
-          "enabled"
+          "enabled",
+          "dailyBudgetCents",
+          "minDailyBudgetCents",
+          "maxDailyBudgetCents",
+          "budgetPresetsCents",
+          "durationPresets",
+          "cpmCents",
+          "estImpressions",
+          "estReachMin",
+          "estReachMax",
+          "postsEnabled",
+          "casesEnabled"
+        ]
+      },
+      "PromotionTarget": {
+        "type": "string",
+        "enum": [
+          "case",
+          "post"
         ]
       },
       "PromotionQuoteEnvelope": {
@@ -96106,10 +96828,59 @@
         "type": "string",
         "enum": [
           "pending_payment",
+          "pending_review",
           "active",
           "finished",
           "canceled",
-          "refunded"
+          "refunded",
+          "rejected"
+        ]
+      },
+      "PromotionAudienceDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "all",
+              "attorneys",
+              "clients"
+            ],
+            "type": "string",
+            "default": "all"
+          },
+          "states": {
+            "maxItems": 60,
+            "description": "US state codes.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "countries": {
+            "maxItems": 50,
+            "description": "Country codes.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "topics": {
+            "maxItems": 30,
+            "description": "Practice category codes.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,40}$"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "states",
+          "countries",
+          "topics"
         ]
       },
       "CasePromotionDto": {
@@ -96119,8 +96890,21 @@
             "type": "string",
             "format": "uuid"
           },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
           "caseId": {
             "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "status": {
@@ -96153,6 +96937,31 @@
           "impressions": {
             "type": "integer"
           },
+          "reach": {
+            "type": "integer",
+            "description": "Distinct people reached."
+          },
+          "clicks": {
+            "type": "integer"
+          },
+          "targetImpressions": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Impressions the budget buys (null = no cap)."
+          },
+          "audience": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionAudienceDto"
+              }
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -96160,12 +96969,14 @@
         },
         "required": [
           "id",
-          "caseId",
+          "targetType",
           "status",
           "days",
           "priceCentsPerDay",
           "totalCents",
           "impressions",
+          "reach",
+          "clicks",
           "createdAt"
         ]
       },
@@ -96184,7 +96995,7 @@
           },
           "canPromote": {
             "type": "boolean",
-            "description": "The case can be promoted now."
+            "description": "The case / post can be promoted now."
           },
           "quote": {
             "description": "Quote for 1 day.",
@@ -96259,6 +97070,15 @@
             "minimum": 1,
             "maximum": 365
           },
+          "dailyBudgetCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "Owner 2026-10-05: daily budget; default from the admin."
+          },
+          "audience": {
+            "$ref": "#/components/schemas/PromotionAudienceDto"
+          },
           "useCredits": {
             "type": "boolean",
             "default": true,
@@ -96288,15 +97108,28 @@
           "data"
         ]
       },
-      "AdminPromotionRowDto": {
+      "MyPromotionDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
           "caseId": {
             "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "status": {
@@ -96329,12 +97162,208 @@
           "impressions": {
             "type": "integer"
           },
+          "reach": {
+            "type": "integer",
+            "description": "Distinct people reached."
+          },
+          "clicks": {
+            "type": "integer"
+          },
+          "targetImpressions": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Impressions the budget buys (null = no cap)."
+          },
+          "audience": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionAudienceDto"
+              }
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string",
+            "description": "Case title / post title or text start."
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "status",
+          "days",
+          "priceCentsPerDay",
+          "totalCents",
+          "impressions",
+          "reach",
+          "clicks",
+          "createdAt",
+          "title"
+        ]
+      },
+      "MyPromotionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyPromotionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CasePromotionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CasePromotionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PromotionClickResultDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "PromotionClickResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromotionClickResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPromotionRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
+          "caseId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CasePromotionStatus"
+              }
+            ]
+          },
+          "days": {
+            "type": "integer"
+          },
+          "priceCentsPerDay": {
+            "type": "integer"
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Charged amount."
+          },
+          "startsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "impressions": {
+            "type": "integer"
+          },
+          "reach": {
+            "type": "integer",
+            "description": "Distinct people reached."
+          },
+          "clicks": {
+            "type": "integer"
+          },
+          "targetImpressions": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Impressions the budget buys (null = no cap)."
+          },
+          "audience": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionAudienceDto"
+              }
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
           },
           "caseTitle": {
-            "type": "string"
+            "type": "string",
+            "description": "Case title, or the post title / text."
+          },
+          "reviewedBy": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "refundedCents": {
+            "type": "integer"
+          },
+          "cpmCents": {
+            "type": "integer",
+            "nullable": true
           },
           "caseStatus": {
             "type": "string"
@@ -96365,22 +97394,21 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
-          },
-          "cancelReason": {
-            "type": "string",
-            "nullable": true
           }
         },
         "required": [
           "id",
-          "caseId",
+          "targetType",
           "status",
           "days",
           "priceCentsPerDay",
           "totalCents",
           "impressions",
+          "reach",
+          "clicks",
           "createdAt",
           "caseTitle",
+          "refundedCents",
           "caseStatus",
           "ownerId"
         ]
@@ -96434,13 +97462,39 @@
             "items": {
               "$ref": "#/components/schemas/PromotionStatusCountDto"
             }
+          },
+          "activePosts": {
+            "type": "integer"
+          },
+          "activeCases": {
+            "type": "integer"
+          },
+          "pendingReview": {
+            "type": "integer",
+            "description": "Waiting for a staff check."
+          },
+          "impressions30d": {
+            "type": "integer",
+            "description": "Impressions, last 30 days."
+          },
+          "reach30d": {
+            "type": "integer"
+          },
+          "clicks30d": {
+            "type": "integer"
           }
         },
         "required": [
           "activeCount",
           "revenue30dCents",
           "paid30dCount",
-          "byStatus"
+          "byStatus",
+          "activePosts",
+          "activeCases",
+          "pendingReview",
+          "impressions30d",
+          "reach30d",
+          "clicks30d"
         ]
       },
       "AdminPromotionStatsEnvelope": {
@@ -96478,13 +97532,84 @@
             "minimum": 1,
             "maximum": 1,
             "default": 1
+          },
+          "postsEnabled": {
+            "type": "boolean"
+          },
+          "cpmCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Price of 1 000 impressions."
+          },
+          "minDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 1000000
+          },
+          "maxDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 10000000
+          },
+          "budgetPresetsCents": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "durationPresets": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "feedEveryN": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 50
+          },
+          "caseFeedSlots": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "frequencyCapPerDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "impressionsPerPerson": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "autoApprove": {
+            "type": "boolean"
+          },
+          "requireSubscription": {
+            "type": "boolean"
           }
         },
         "required": [
           "enabled",
           "priceCentsPerDay",
           "maxDays",
-          "maxActivePerCase"
+          "maxActivePerCase",
+          "postsEnabled",
+          "cpmCents",
+          "minDailyBudgetCents",
+          "maxDailyBudgetCents",
+          "budgetPresetsCents",
+          "durationPresets",
+          "feedEveryN",
+          "caseFeedSlots",
+          "frequencyCapPerDay",
+          "impressionsPerPerson",
+          "autoApprove",
+          "requireSubscription"
         ]
       },
       "PromotionSettingsEnvelope": {
@@ -96520,9 +97645,24 @@
       "AdminGrantPromotionDto": {
         "type": "object",
         "properties": {
+          "target": {
+            "default": "case",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
           "caseId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Case id or post id."
+          },
+          "dailyBudgetCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "Daily budget it is worth (reach); default from settings."
           },
           "days": {
             "type": "integer",
@@ -96554,6 +97694,15 @@
           "data"
         ]
       },
+      "PromotionRefundMode": {
+        "type": "string",
+        "enum": [
+          "none",
+          "unspent",
+          "full"
+        ],
+        "description": "Owner 2026-10-05: give money back right away."
+      },
       "AdminCancelPromotionDto": {
         "type": "object",
         "properties": {
@@ -96561,8 +97710,37 @@
             "type": "string",
             "default": "",
             "maxLength": 500
+          },
+          "refund": {
+            "default": "none",
+            "description": "Owner 2026-10-05: give money back right away.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionRefundMode"
+              }
+            ]
           }
         }
+      },
+      "AdminReviewPromotionDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "default": "",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "decision"
+        ]
       },
       "AdminExtendPromotionDto": {
         "type": "object",
