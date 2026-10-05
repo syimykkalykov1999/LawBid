@@ -81,6 +81,15 @@ abstract interface class CasesRepository {
   /// Owner 2026-10-05: the full set of the case's photos and documents
   /// (display order) — the client completes the dossier after publishing.
   Future<void> setCaseFiles(String caseId, List<String> fileIds);
+
+  /// Owner 2026-10-05: the urgency or the date alone — also after an
+  /// attorney is hired (client or hired attorney); the other side is told.
+  Future<void> setCaseUrgency(
+    String caseId, {
+    required String urgency,
+    DateTime? deadline,
+    String? deadlineKind,
+  });
   Future<CursorPage<CaseSummary>> myCases(
     MyCasesFilter filter, {
     String? cursor,
@@ -195,6 +204,12 @@ class ApiCasesRepository implements CasesRepository {
           urgency: api.CaseUrgency.fromJson(
             draft.urgency ?? kDefaultCaseUrgency,
           ),
+          // Owner 2026-10-05: the day itself (a local calendar date).
+          deadlineAt:
+              draft.urgency == 'by_date' ? parseIsoDay(draft.deadlineAt) : null,
+          deadlineKind: draft.urgency == 'by_date' && draft.deadlineKind != null
+              ? api.CaseDeadlineKind.fromJson(draft.deadlineKind!)
+              : null,
         ),
         extras: _createsResource,
       ),
@@ -240,6 +255,41 @@ class ApiCasesRepository implements CasesRepository {
               draft.urgency != null && draft.urgency != original.urgency?.json
                   ? api.CaseUrgency.fromJson(draft.urgency!)
                   : null,
+          // Owner 2026-10-05: a level clears the date on the server.
+          deadlineAt: draft.urgency == 'by_date' &&
+                  draft.deadlineAt != null &&
+                  parseIsoDay(draft.deadlineAt) != original.urgencyInfo.deadline
+              ? parseIsoDay(draft.deadlineAt)
+              : null,
+          deadlineKind: draft.urgency == 'by_date' &&
+                  draft.deadlineKind != null &&
+                  draft.deadlineKind != original.urgencyInfo.kind?.json
+              ? api.CaseDeadlineKind.fromJson(draft.deadlineKind!)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<void> setCaseUrgency(
+    String caseId, {
+    required String urgency,
+    DateTime? deadline,
+    String? deadlineKind,
+  }) async {
+    final dated = urgency == 'by_date';
+    await guardApiCall(
+      () => _cases.updateCaseUrgency(
+        id: caseId,
+        body: api.UpdateCaseUrgencyDto(
+          urgency: api.CaseUrgency.fromJson(urgency),
+          deadlineAt: dated && deadline != null
+              ? DateTime(deadline.year, deadline.month, deadline.day)
+              : null,
+          deadlineKind: dated && deadlineKind != null
+              ? api.CaseDeadlineKind.fromJson(deadlineKind)
+              : null,
         ),
       ),
     );

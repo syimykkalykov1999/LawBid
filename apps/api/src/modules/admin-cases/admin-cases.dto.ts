@@ -281,8 +281,8 @@ export class AdminCaseRowDto {
     description: 'Dossier items the client has not filled in.',
   })
   dossierMissing!: string[];
-  /** Owner 2026-10-05: the client's urgency (a level or `by_date`), the
-   * level it reads as today and the date with what it is. */
+  // Owner 2026-10-05: the client's urgency (a level or `by_date`), the
+  // level it reads as today and the date with what it is.
   @ApiProperty({
     enum: CASE_URGENCIES,
     enumName: 'CaseUrgency',

@@ -38,6 +38,8 @@ class CaseDraft {
     this.practiceCode,
     this.coverKey,
     this.urgency,
+    this.deadlineAt,
+    this.deadlineKind,
   });
 
   /// The leaf code (`family_law.divorce`) — previews the covers.
@@ -46,8 +48,17 @@ class CaseDraft {
   /// Owner 2026-10-04: `art:N` / `icon:<name>`; null = automatic.
   final String? coverKey;
 
-  /// Owner 2026-10-04: flexible | soon | urgent (API values).
+  /// Owner 2026-10-04/05: flexible | within_month | soon | urgent |
+  /// very_urgent | by_date (API values).
   final String? urgency;
+
+  /// Owner 2026-10-05: with `by_date`, the day (`YYYY-MM-DD`) and what it
+  /// is (court_hearing | filing_deadline | meeting | signing | other).
+  final String? deadlineAt;
+  final String? deadlineKind;
+
+  /// `by_date` needs a date.
+  bool get urgencyValid => urgency != 'by_date' || deadlineAt != null;
 
   final String? practiceAreaId;
   final String? practiceI18nKey;
@@ -110,6 +121,9 @@ class CaseDraft {
     String? coverKey,
     bool clearCoverKey = false,
     String? urgency,
+    String? deadlineAt,
+    String? deadlineKind,
+    bool clearDeadline = false,
   }) =>
       CaseDraft(
         practiceAreaId: practiceAreaId ?? this.practiceAreaId,
@@ -127,6 +141,9 @@ class CaseDraft {
         practiceCode: practiceCode ?? this.practiceCode,
         coverKey: clearCoverKey ? null : (coverKey ?? this.coverKey),
         urgency: urgency ?? this.urgency,
+        deadlineAt: clearDeadline ? null : (deadlineAt ?? this.deadlineAt),
+        deadlineKind:
+            clearDeadline ? null : (deadlineKind ?? this.deadlineKind),
       );
 
   Map<String, Object?> toJson() => {
@@ -144,6 +161,8 @@ class CaseDraft {
         'practiceCode': practiceCode,
         'coverKey': coverKey,
         'urgency': urgency,
+        'deadlineAt': deadlineAt,
+        'deadlineKind': deadlineKind,
       };
 
   String encode() => jsonEncode(toJson());
@@ -170,6 +189,8 @@ class CaseDraft {
         practiceCode: m['practiceCode'] as String?,
         coverKey: m['coverKey'] as String?,
         urgency: m['urgency'] as String?,
+        deadlineAt: m['deadlineAt'] as String?,
+        deadlineKind: m['deadlineKind'] as String?,
       );
     } on Object {
       return null; // A corrupt draft is dropped, never crashes the wizard.

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 
 /// Owner 2026-10-04: what an attorney scans first on a case card, large
 /// and side by side: state, urgency, budget.
 class CaseKeyFacts extends StatelessWidget {
   const CaseKeyFacts({
     required this.t,
+    required this.formats,
     required this.stateCode,
     required this.urgency,
     required this.budget,
@@ -17,21 +20,17 @@ class CaseKeyFacts extends StatelessWidget {
   });
 
   final Translator t;
+  final L10nFormats formats;
   final String stateCode;
 
   /// City and/or "+N" more states, under the code.
   final String? stateSub;
-  final CaseUrgency? urgency;
+
+  /// A level, or the date (court hearing…) with how far off it is.
+  final CaseUrgencyInfo urgency;
 
   /// Formatted amount, or null for "clarify later".
   final String? budget;
-
-  static String urgencyLabel(Translator t, CaseUrgency? u) => switch (u) {
-        CaseUrgency.urgent => t.t('cases.urgency.urgent'),
-        CaseUrgency.soon => t.t('cases.urgency.soon'),
-        CaseUrgency.flexible => t.t('cases.urgency.flexible'),
-        _ => t.t('cases.facts.notSet'),
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +48,7 @@ class CaseKeyFacts extends StatelessWidget {
       fontWeight: FontWeight.w700,
       height: 1.15,
     );
-    final urgencyColor = switch (urgency) {
-      CaseUrgency.urgent => colors.danger,
-      CaseUrgency.soon => colors.goldDark,
-      _ => colors.textSecondary,
-    };
+    final urgencyColor = CaseUrgencyText.tone(colors, urgency);
 
     Widget tile({
       required String label,
@@ -124,9 +119,10 @@ class CaseKeyFacts extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           tile(
             label: t.t('cases.facts.urgency'),
+            sub: CaseUrgencyText.sub(t, urgency),
             value: Row(
               children: [
-                if (urgency == CaseUrgency.urgent) ...[
+                if (urgency.isUrgent) ...[
                   AppIcon(
                     AppIcons.timerOutlined,
                     size: 16,
@@ -136,7 +132,7 @@ class CaseKeyFacts extends StatelessWidget {
                 ],
                 Flexible(
                   child: Text(
-                    urgencyLabel(t, urgency),
+                    CaseUrgencyText.label(t, formats, urgency),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: small.copyWith(color: urgencyColor),

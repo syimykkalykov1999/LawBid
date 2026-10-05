@@ -56630,8 +56630,7 @@
           "urgent",
           "very_urgent",
           "by_date"
-        ],
-        "description": "Owner 2026-10-05: the client's urgency (a level or `by_date`), the\nlevel it reads as today and the date with what it is."
+        ]
       },
       "CaseUrgencyLevel": {
         "type": "string",
@@ -56736,7 +56735,6 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-05: the client's urgency (a level or `by_date`), the\nlevel it reads as today and the date with what it is.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
@@ -57018,7 +57016,6 @@
           },
           "urgency": {
             "nullable": true,
-            "description": "Owner 2026-10-05: the client's urgency (a level or `by_date`), the\nlevel it reads as today and the date with what it is.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CaseUrgency"
@@ -61869,7 +61866,7 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-10-05: the date it is needed by (today … 2 years).",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}(T[\\d:.]+(Z|[+-]\\d{2}:?\\d{2})?)?$",
             "format": "date",
             "example": "2026-11-03"
           },
@@ -61973,7 +61970,7 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-10-05: the date it is needed by (today … 2 years).",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}(T[\\d:.]+(Z|[+-]\\d{2}:?\\d{2})?)?$",
             "format": "date",
             "example": "2026-11-03"
           },
@@ -62014,7 +62011,7 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-10-05: the date it is needed by (today … 2 years).",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}(T[\\d:.]+(Z|[+-]\\d{2}:?\\d{2})?)?$",
             "format": "date",
             "example": "2026-11-03"
           },

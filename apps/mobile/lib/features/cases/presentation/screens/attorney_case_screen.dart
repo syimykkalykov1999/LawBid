@@ -17,6 +17,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -293,6 +294,7 @@ class _Body extends ConsumerWidget {
           title: t.t('cases.detail.details'),
           child: FactsCard(
             rows: [
+              CaseUrgencyRow(caseId: c.id, info: c.urgencyInfo, canEdit: false),
               InfoRow(
                 icon: AppIcons.paymentsOutlined,
                 label: t.t('cases.card.budget'),

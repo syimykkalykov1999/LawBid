@@ -180,7 +180,9 @@ export class CreateCaseDto {
     example: '2026-11-03',
   })
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  // A date, or an ISO date-time whose date part is used (the generated
+  // Dart client sends DateTime.toIso8601String()).
+  @Matches(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/)
   deadlineAt?: string | null;
 
   /** Owner 2026-10-05: what the date is; only with a date. */
@@ -296,7 +298,9 @@ export class UpdateCaseDto {
     example: '2026-11-03',
   })
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  // A date, or an ISO date-time whose date part is used (the generated
+  // Dart client sends DateTime.toIso8601String()).
+  @Matches(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/)
   deadlineAt?: string | null;
 
   /** Owner 2026-10-05: what the date is; only with a date. */
@@ -389,7 +393,9 @@ export class UpdateCaseUrgencyDto {
     example: '2026-11-03',
   })
   @IsOptional()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  // A date, or an ISO date-time whose date part is used (the generated
+  // Dart client sends DateTime.toIso8601String()).
+  @Matches(/^\d{4}-\d{2}-\d{2}(T[\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/)
   deadlineAt?: string | null;
 
   /** Owner 2026-10-05: what the date is; only with a date. */

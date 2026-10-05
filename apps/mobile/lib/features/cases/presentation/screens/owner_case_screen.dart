@@ -16,6 +16,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
@@ -408,6 +409,17 @@ class _OwnerCaseBody extends ConsumerWidget {
             title: t.t('cases.detail.details'),
             child: FactsCard(
               rows: [
+                // Owner 2026-10-05: the level or the date; the client may
+                // move it until the case is done (the attorney is told).
+                CaseUrgencyRow(
+                  caseId: c.id,
+                  info: c.urgencyInfo,
+                  canEdit: c.status == CaseStatus.open ||
+                      c.status == CaseStatus.inProgress ||
+                      c.status == CaseStatus.pendingCompletion,
+                  hired: c.acceptedBid != null,
+                  onSaved: () => ref.invalidate(ownerCaseProvider(c.id)),
+                ),
                 InfoRow(
                   icon: AppIcons.paymentsOutlined,
                   label: t.t('cases.card.budget'),

@@ -9,6 +9,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_facts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
@@ -228,18 +229,20 @@ class FeedCaseCard extends StatelessWidget {
     final extraStates = item.additionalStateCodes.length;
     final facts = CaseKeyFacts(
       t: t,
+      formats: formats,
       stateCode: item.primaryStateCode,
       stateSub: [
         if (item.city != null && item.city!.trim().isNotEmpty)
           item.city!.trim(),
         if (extraStates > 0) '+$extraStates',
       ].join(' · '),
-      urgency: item.urgency,
+      urgency: item.urgencyInfo,
       budget: item.budget.isClarifyLater
           ? null
           : CaseFormat.money(formats, item.budget.amountCents!),
     );
-    final urgency = CaseKeyFacts.urgencyLabel(t, item.urgency);
+    final urgency = CaseUrgencyText.label(t, formats, item.urgencyInfo);
+    final urgencyFull = CaseUrgencyText.full(t, formats, item.urgencyInfo);
     final dossier = CaseDossierScore.of(item);
     final dossierLabel = [
       '${t.t('cases.dossier.title')} ${dossier.score(t)}',
@@ -268,7 +271,7 @@ class FeedCaseCard extends StatelessWidget {
       if (item.isNew) t.t('cases.card.new'),
       item.title,
       place,
-      urgency,
+      urgencyFull,
       budget,
       dossierLabel,
       t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
@@ -448,11 +451,8 @@ class FeedCaseCard extends StatelessWidget {
           )
         : null;
     // Facts in one line with gold hairlines.
-    final urgencyColor = switch (item.urgency) {
-      CaseUrgency.urgent => colors.danger,
-      CaseUrgency.soon => light ? colors.goldDark : colors.gold,
-      _ => colors.textSecondary,
-    };
+    final urgencyColor =
+        CaseUrgencyText.tone(colors, item.urgencyInfo, light: light);
     final money = item.budget.isClarifyLater
         ? t.t('cases.facts.negotiable')
         : CaseFormat.money(formats, item.budget.amountCents!);
@@ -542,6 +542,7 @@ class FeedCaseCard extends StatelessWidget {
             col(
               t.t('cases.facts.urgency'),
               urgency,
+              sub: CaseUrgencyText.sub(t, item.urgencyInfo),
               tone: urgencyColor,
               wrap: true,
             ),
@@ -642,7 +643,7 @@ class FeedCaseCard extends StatelessWidget {
         if (item.isNew) t.t('cases.card.new'),
         item.title,
         place,
-        urgency,
+        urgencyFull,
         budget,
         dossierLabel,
         t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),

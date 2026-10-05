@@ -18,6 +18,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -252,6 +253,24 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
                   title: t.t('cases.work.terms'),
                   child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
                 ),
+              // Owner 2026-10-05: the hired attorney may move the date too
+              // (a court reschedules); the client is told.
+              DetailSection(
+                title: t.t('cases.facts.urgency'),
+                child: FactsCard(
+                  rows: [
+                    CaseUrgencyRow(
+                      caseId: c.id,
+                      info: c.urgencyInfo,
+                      canEdit: !ref.watch(isAssistantProvider) &&
+                          (c.status == CaseStatus.inProgress ||
+                              c.status == CaseStatus.pendingCompletion),
+                      hired: true,
+                      onSaved: () => ref.invalidate(attorneyCaseProvider(c.id)),
+                    ),
+                  ],
+                ),
+              ),
               // OQ-038: the hired attorney reviews the client (audit
               // 2026-10-02: in person — not an assistant in their name).
               if (!ref.watch(isAssistantProvider))

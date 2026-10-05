@@ -109,6 +109,12 @@ class ApiInvitesRepository implements InvitesRepository {
         caseCity: d.caseCity,
         caseUrgency:
             d.caseUrgency == api.CaseUrgency.$unknown ? null : d.caseUrgency,
+        caseUrgencyDetail: CaseUrgencyInfo.of(
+          urgency: d.caseUrgency,
+          level: d.caseUrgencyLevel,
+          deadlineAt: d.caseDeadlineAt,
+          kind: d.caseDeadlineKind,
+        ),
         caseBudget: CaseBudget(
           mode: d.caseBudget.mode,
           amountCents: d.caseBudget.amountCents,

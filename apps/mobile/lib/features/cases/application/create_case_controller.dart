@@ -81,7 +81,7 @@ class CreateCaseState {
         0 => draft.practiceValid,
         1 => draft.titleValid && draft.descriptionValid && !photosUploading,
         2 => draft.placeValid,
-        3 => draft.budgetValid,
+        3 => draft.budgetValid && draft.urgencyValid,
         _ => !needsConsent || consentChecked,
       };
 
@@ -327,4 +327,8 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
       practiceCode: c.practice.code,
       coverKey: c.coverKey,
       urgency: c.urgency?.json,
+      deadlineAt: c.urgencyInfo.deadline == null
+          ? null
+          : isoDay(c.urgencyInfo.deadline!),
+      deadlineKind: c.urgencyInfo.kind?.json,
     );

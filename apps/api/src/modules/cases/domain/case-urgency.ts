@@ -200,7 +200,7 @@ export function resolveUrgencyInput(
       deadline = null;
       if (dto.urgency === undefined && urgency === 'by_date') urgency = null;
     } else {
-      const parsed = parseIsoDate(dto.deadlineAt);
+      const parsed = parseIsoDate(dto.deadlineAt.slice(0, 10));
       if (!parsed) {
         throw new UrgencyInputError(
           'deadlineAt must be a date (YYYY-MM-DD).',

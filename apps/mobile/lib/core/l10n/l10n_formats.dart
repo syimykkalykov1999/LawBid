@@ -37,6 +37,10 @@ class L10nFormats {
   String dateLong(DateTime value) =>
       DateFormat.yMMMMd(locale).format(_local(value));
 
+  /// `Nov 3` / `3 нояб.` (owner 2026-10-05: a case's date on its card).
+  String dayMonth(DateTime value) =>
+      DateFormat.MMMd(locale).format(_local(value));
+
   /// `3:05 PM` / `15:05`
   String time(DateTime value) => DateFormat.jm(locale).format(_local(value));
 

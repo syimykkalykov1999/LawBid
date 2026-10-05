@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -926,14 +927,10 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        SegmentedChoice<String>(
-          value: d.urgency ?? kDefaultCaseUrgency,
-          options: [
-            ('flexible', t.t('cases.urgency.flexible')),
-            ('soon', t.t('cases.urgency.soon')),
-            ('urgent', t.t('cases.urgency.urgent')),
-          ],
-          onChanged: (v) => widget.onChange((x) => x.copyWith(urgency: v)),
+        // Owner 2026-10-05: a level, or a concrete date (court hearing…).
+        CaseUrgencyPicker(
+          value: CaseUrgencyChoice.ofDraft(d),
+          onChanged: (v) => widget.onChange(v.applyTo),
         ),
       ],
     );

@@ -90,9 +90,6 @@ class AdminCaseCardDto {
 
   /// Dossier items the client has not filled in.
   final List<AdminCaseCardDtoDossierMissing> dossierMissing;
-
-  /// Owner 2026-10-05: the client's urgency (a level or `by_date`), the.
-  /// level it reads as today and the date with what it is.
   final CaseUrgency? urgency;
   final CaseUrgencyLevel? urgencyLevel;
   final DateTime? deadlineAt;

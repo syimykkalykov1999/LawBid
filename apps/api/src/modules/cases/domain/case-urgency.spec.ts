@@ -107,6 +107,11 @@ describe('case urgency: a level or a date (owner 2026-10-05)', () => {
     expect(() =>
       resolveUrgencyInput({ deadlineAt: '2029-01-01' }, null, now),
     ).toThrow(UrgencyInputError);
+    // The Dart client sends a date-time; its date part counts.
+    expect(
+      resolveUrgencyInput({ deadlineAt: '2026-11-03T00:00:00.000' }, null, now)
+        .deadline_at,
+    ).toEqual(d('2026-11-03'));
     // A day of slack for the client's time zone.
     expect(
       resolveUrgencyInput({ deadlineAt: '2026-10-04' }, null, now).deadline_at,
@@ -123,6 +128,7 @@ describe('case urgency: a level or a date (owner 2026-10-05)', () => {
     ).toEqual([]);
     expect(errors({ urgency: 'within_month' })).toEqual([]);
     expect(errors({ urgency: 'by_date', deadlineAt: null })).toEqual([]);
+    expect(errors({ deadlineAt: '2026-11-03T00:00:00.000' })).toEqual([]);
     expect(errors({ deadlineAt: 'tomorrow' })).toEqual(['deadlineAt']);
     expect(errors({ deadlineKind: 'trial' })).toEqual(['deadlineKind']);
   });
