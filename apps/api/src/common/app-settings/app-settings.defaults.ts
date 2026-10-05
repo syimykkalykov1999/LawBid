@@ -92,6 +92,11 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-05: documents in posts / reels — small on purpose.
   'files.post_attachment_max_size_mb': 10,
   'posts.attachments_max_total_mb': 30,
+  // Owner 2026-10-05: photos of posts and reels are shrunk on the phone
+  // before upload (longest side, JPEG quality) — no visible loss, small
+  // files. Videos are re-encoded by Bunny for viewers.
+  'media.photo_max_px': 2048,
+  'media.photo_quality': 85,
 } as const;
 
 // Owner 2026-10-02: support tickets — per-user limits (429 RATE_LIMITED).

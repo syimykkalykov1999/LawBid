@@ -30,6 +30,8 @@ const KEY_TEXT: Record<string, string> = {
   'files.post_attachment_max_size_mb': 'Максимальный размер документа в посте или рилсе (PDF, Word, текст), МБ.',
   'posts.attachments_max_total_mb': 'Все документы одного поста вместе, МБ.',
   'video.max_source_duration_sec': 'Длина исходного видео, из которого автор вырезает рилс, сек.',
+  'media.photo_max_px': 'Фото постов и рилсов: длинная сторона после сжатия на телефоне, px',
+  'media.photo_quality': 'Фото постов и рилсов: качество JPEG после сжатия (50–100)',
   'contacts.suspend_after_confirmed_reports': 'После скольких подтверждённых «Не могу связаться» клиент приостанавливается.',
   'rate_limit.post_create_per_day': 'Публикаций в день на пользователя.',
   'rate_limit.comment_per_hour': 'Комментариев в час.',

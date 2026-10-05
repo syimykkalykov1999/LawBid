@@ -44,7 +44,11 @@ class AppCall {
     this.answeredAt,
     this.endedAt,
     this.durationSec,
+    this.video = false,
   });
+
+  /// Owner 2026-10-05: a video call (camera on both sides).
+  final bool video;
 
   final String id;
   final String conversationId;
