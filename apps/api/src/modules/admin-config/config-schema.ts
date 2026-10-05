@@ -76,6 +76,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
   };
+  // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
+  out['ops.db_slow_ms'] = {
+    ...out['ops.db_slow_ms'],
+    description:
+      'Database answer time (ms) above which heavy background jobs pause on their own for 15 minutes.',
+    min: 100,
+    max: 60_000,
+  };
+  out['ops.backup_max_age_hours'] = {
+    ...out['ops.backup_max_age_hours'],
+    description:
+      'Alert when the newest CockroachDB Cloud backup is older than this many hours.',
+    min: 2,
+    max: 24 * 14,
+  };
   out['trust.payout_delay_days'] = {
     ...out['trust.payout_delay_days'],
     description:

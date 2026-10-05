@@ -5,6 +5,7 @@ import type { Options as PinoHttpOptions } from 'pino-http';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { OpsModule } from './common/ops/ops.module';
 import { ThrottlerModule } from './throttler/throttler.module';
 import { UserThrottlerGuard } from './throttler/user-throttler.guard';
 import { HealthModule } from './modules/health/health.module';
@@ -29,6 +30,7 @@ import { BlocksModule } from './modules/blocks/blocks.module';
 import { PresenceModule } from './modules/presence/presence.module';
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
+import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
@@ -174,6 +176,8 @@ const isDev =
     LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
     PrismaModule,
     RedisModule,
+    // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
+    OpsModule,
     // Owner 2026-10-05: plans + the entitlements gate (global).
     PlansCoreModule,
     ThrottlerModule,
@@ -238,6 +242,8 @@ const isDev =
     PresenceModule,
     SecretsModule,
     AdminIntegrationsModule,
+    // Owner 2026-10-05: Система → Здоровье системы.
+    AdminOpsModule,
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,
     PartnersModule,
