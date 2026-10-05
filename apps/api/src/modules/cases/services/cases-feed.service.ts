@@ -179,7 +179,7 @@ export class CasesFeedService {
     const page = rows.slice(0, limit);
     const shownPromoted = cursor ? [] : slot;
     const items = await this.hydrate(
-      [...shownPromoted, ...priority, ...page.map((r) => r.id)],
+      [...new Set([...shownPromoted, ...priority, ...page.map((r) => r.id)])],
       viewer.userId,
     );
     if (shownPromoted.length) this.countImpressions(shownPromoted);

@@ -15,9 +15,13 @@ class PlanEntitlementsDto {
     this.bidsAnyState,
     this.maxActiveBids,
     this.prioritySearch,
-    this.videoCalls,
-    this.documentTemplates,
-    this.platformPayments,
+    this.calls,
+    this.chatTranslate,
+    this.translationsPerDay,
+    this.videoPosts,
+    this.postsPerDay,
+    this.videosPerDay,
+    this.casePromotion,
     this.trialDays,
     this.verifiedBadge,
     this.priorityFeed,
@@ -39,12 +43,19 @@ class PlanEntitlementsDto {
   final int? maxActiveBids;
   @JsonKey(name: 'priority_search')
   final bool? prioritySearch;
-  @JsonKey(name: 'video_calls')
-  final bool? videoCalls;
-  @JsonKey(name: 'document_templates')
-  final bool? documentTemplates;
-  @JsonKey(name: 'platform_payments')
-  final bool? platformPayments;
+  final bool? calls;
+  @JsonKey(name: 'chat_translate')
+  final bool? chatTranslate;
+  @JsonKey(name: 'translations_per_day')
+  final int? translationsPerDay;
+  @JsonKey(name: 'video_posts')
+  final bool? videoPosts;
+  @JsonKey(name: 'posts_per_day')
+  final int? postsPerDay;
+  @JsonKey(name: 'videos_per_day')
+  final int? videosPerDay;
+  @JsonKey(name: 'case_promotion')
+  final bool? casePromotion;
   @JsonKey(name: 'trial_days')
   final int? trialDays;
   @JsonKey(name: 'verified_badge')

@@ -110,6 +110,17 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.self_attestation_auto_approve': true,
 } as const;
 
+// Owner 2026-10-05 (automation principle, docs/AUTOMATION_PRINCIPLE.md):
+// every manual admin step except checking an attorney's documents has an
+// "auto" switch, on by default. A client's badge request is approved the
+// moment the documents are uploaded and scanned; the admin can still
+// revoke it. Undecided review appeals stay as decided on 2026-10-01
+// (Google-style, no automatic removal) but the switch now lives here.
+export const OWNER_AUTOMATION_SETTINGS = {
+  'verification.client_badge_auto_approve': true,
+  'reviews.auto_remove_undecided_appeals': false,
+} as const;
+
 /** Every typed app_config tunable with its spec default. */
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -120,6 +131,7 @@ export const APP_SETTINGS = {
   ...OWNER_SUPPORT_SETTINGS,
   ...OWNER_BADGE_SETTINGS,
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
+  ...OWNER_AUTOMATION_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

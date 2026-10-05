@@ -34,7 +34,11 @@ export class CallsController {
   @ApiOperation({ summary: 'Call the other chat member (audio only)' })
   @ApiEnvelopeResponse(CallDto, { status: 201 })
   @ApiErrors({
-    403: [ErrorCode.SUBSCRIPTION_REQUIRED, ErrorCode.USER_BLOCKED],
+    403: [
+      ErrorCode.SUBSCRIPTION_REQUIRED,
+      ErrorCode.USER_BLOCKED,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+    ],
     404: [ErrorCode.CONVERSATION_NOT_FOUND],
     409: [
       ErrorCode.CONVERSATION_CLOSED,

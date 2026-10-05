@@ -257,6 +257,7 @@ class FeedCaseCard extends StatelessWidget {
     final semantics = [
       category,
       if (item.promoted) t.t('cases.card.promoted'),
+      if (item.priorityClient && !item.promoted) t.t('plan.feed.priority'),
       if (item.isNew) t.t('cases.card.new'),
       item.title,
       place,
@@ -322,18 +323,23 @@ class FeedCaseCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (item.promoted || item.isNew) ...[
+                          if (item.promoted ||
+                              item.priorityClient ||
+                              item.isNew) ...[
                             const SizedBox(width: AppSpacing.sm),
                             // Capped so a long translation can't squeeze
                             // the chips away.
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 120),
                               child: Text(
-                                // Owner 2026-10-02: a paid promotion leads.
+                                // Owner 2026-10-02: a paid promotion leads;
+                                // owner 2026-10-05: then the plan's priority.
                                 t.t(
                                   item.promoted
                                       ? 'cases.card.promoted'
-                                      : 'cases.card.new',
+                                      : item.priorityClient
+                                          ? 'plan.feed.priority'
+                                          : 'cases.card.new',
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -420,8 +426,14 @@ class FeedCaseCard extends StatelessWidget {
 
     final light = Theme.of(context).brightness == Brightness.light;
     final champagneLo = Color.lerp(colors.surface, colors.gold, 0.12)!;
-    final badge = item.promoted || item.isNew
-        ? t.t(item.promoted ? 'cases.card.promoted' : 'cases.card.new')
+    final badge = item.promoted || item.priorityClient || item.isNew
+        ? t.t(
+            item.promoted
+                ? 'cases.card.promoted'
+                : item.priorityClient
+                    ? 'plan.feed.priority'
+                    : 'cases.card.new',
+          )
         : null;
     // Facts in one line with gold hairlines.
     final urgencyColor = switch (item.urgency) {

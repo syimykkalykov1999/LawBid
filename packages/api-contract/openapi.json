@@ -17853,7 +17853,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: VIDEO_UNAVAILABLE, POST_NOT_ALLOWED",
+            "description": "Forbidden: VIDEO_UNAVAILABLE, POST_NOT_ALLOWED, ENTITLEMENT_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -40828,6 +40828,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden: ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -41022,7 +41032,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FEATURE_DISABLED",
+            "description": "Forbidden: FEATURE_DISABLED, ENTITLEMENT_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -44078,6 +44088,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden: ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
             "content": {
@@ -44477,7 +44497,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: SUBSCRIPTION_REQUIRED, USER_BLOCKED",
+            "description": "Forbidden: SUBSCRIPTION_REQUIRED, USER_BLOCKED, ENTITLEMENT_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -53309,15 +53329,31 @@
             "type": "boolean",
             "nullable": true
           },
-          "video_calls": {
+          "calls": {
             "type": "boolean",
             "nullable": true
           },
-          "document_templates": {
+          "chat_translate": {
             "type": "boolean",
             "nullable": true
           },
-          "platform_payments": {
+          "translations_per_day": {
+            "type": "integer",
+            "nullable": true
+          },
+          "video_posts": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "posts_per_day": {
+            "type": "integer",
+            "nullable": true
+          },
+          "videos_per_day": {
+            "type": "integer",
+            "nullable": true
+          },
+          "case_promotion": {
             "type": "boolean",
             "nullable": true
           },
@@ -53867,9 +53903,13 @@
           "bids_any_state",
           "max_active_bids",
           "priority_search",
-          "video_calls",
-          "document_templates",
-          "platform_payments",
+          "calls",
+          "chat_translate",
+          "translations_per_day",
+          "video_posts",
+          "posts_per_day",
+          "videos_per_day",
+          "case_promotion",
           "trial_days",
           "verified_badge",
           "priority_feed",

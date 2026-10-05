@@ -19,6 +19,7 @@ import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PushQueueService } from '../notifications/push/push-queue.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { EntitlementsService } from '../plans/entitlements.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import type { CallDto, EndCallDto, IceServersDto } from './calls.dto';
 
@@ -71,6 +72,7 @@ export class CallsService {
     private readonly push: PushQueueService,
     private readonly realtime: RealtimePublisher,
     @Optional() private readonly secrets?: SecretsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   /** POST /conversations/:id/calls */
@@ -102,6 +104,16 @@ export class CallsService {
     const callee =
       user.sub === conv.attorney_id ? conv.client_id : conv.attorney_id;
     await this.blocks.assertNotBlocked(user.sub, callee);
+    // Plan term (owner 2026-10-05): the admin can switch calls off per plan.
+    if (
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'calls'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'Your plan does not include calls.',
+      });
+    }
     await this.assertSubscription(conv);
     await this.limits.consume('message', user.sub);
     await this.sweep();

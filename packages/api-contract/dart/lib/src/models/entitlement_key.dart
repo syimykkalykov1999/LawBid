@@ -18,12 +18,20 @@ enum EntitlementKey {
   maxActiveBids('max_active_bids'),
   @JsonValue('priority_search')
   prioritySearch('priority_search'),
-  @JsonValue('video_calls')
-  videoCalls('video_calls'),
-  @JsonValue('document_templates')
-  documentTemplates('document_templates'),
-  @JsonValue('platform_payments')
-  platformPayments('platform_payments'),
+  @JsonValue('calls')
+  calls('calls'),
+  @JsonValue('chat_translate')
+  chatTranslate('chat_translate'),
+  @JsonValue('translations_per_day')
+  translationsPerDay('translations_per_day'),
+  @JsonValue('video_posts')
+  videoPosts('video_posts'),
+  @JsonValue('posts_per_day')
+  postsPerDay('posts_per_day'),
+  @JsonValue('videos_per_day')
+  videosPerDay('videos_per_day'),
+  @JsonValue('case_promotion')
+  casePromotion('case_promotion'),
   @JsonValue('trial_days')
   trialDays('trial_days'),
   @JsonValue('verified_badge')

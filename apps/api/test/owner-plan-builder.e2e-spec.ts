@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { EntitlementsService } from '../src/modules/plans/entitlements.service';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { adminSession } from './support/admin-login';
 
 /**
@@ -39,6 +40,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
   let prisma: PrismaService;
   let tokens: TokenService;
   let entitlements: EntitlementsService;
+  let flags: FeatureFlagsService;
   let baseUrl = '';
   let practiceAreaId = '';
   let admin: Record<string, string>;
@@ -65,6 +67,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
     entitlements = app.get(EntitlementsService);
+    flags = app.get(FeatureFlagsService);
     for (const [code, name] of [
       ['NJ', 'New Jersey'],
       ['NY', 'New York'],
@@ -160,6 +163,38 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     if (!plan) throw new Error(`plan ${code} missing`);
     return plan;
   };
+
+  /** The owner flips one term on a plan from the admin; everyone on it follows. */
+  async function setTerm(
+    code: string,
+    key: string,
+    value: boolean | number | null,
+  ): Promise<void> {
+    const plan = await planByCode(code);
+    const res = await api()
+      .put(`/api/v1/admin/billing/plans/${plan.id}`)
+      .set(admin)
+      .send({ entitlements: { ...plan.entitlements, [key]: value } });
+    expect(res.status).toBe(200);
+    await entitlements.invalidateAll();
+  }
+
+  async function conversation(clientId: string, attorneyId: string) {
+    const caseId = await kase(clientId);
+    const conv = await prisma.conversation.create({
+      data: {
+        case_id: caseId,
+        client_id: clientId,
+        attorney_id: attorneyId,
+        status: 'active',
+        contacts_unlocked: true,
+        participants: {
+          create: [{ user_id: clientId }, { user_id: attorneyId }],
+        },
+      },
+    });
+    return conv.id;
+  }
 
   it('seeds the built-in plans and lists them for the app', async () => {
     const res = await api().get('/api/v1/plans?audience=attorney');
@@ -395,5 +430,112 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
       .get('/api/v1/client-plans/me')
       .set(attorney.auth);
     expect(forbidden.status).toBe(403);
+  });
+
+  // ---- every catalog term is a real gate (owner 2026-10-05) ---------------
+
+  it('calls: off on the plan → 403 ENTITLEMENT_REQUIRED, on → the call rings', async () => {
+    const c = await user('client');
+    const a = await user('attorney'); // pre-plan row → default monthly plan
+    const conv = await conversation(c.id, a.id);
+    await setTerm('attorney_monthly', 'calls', false);
+    const denied = await api()
+      .post(`/api/v1/conversations/${conv}/calls`)
+      .set(a.auth);
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe('ENTITLEMENT_REQUIRED');
+    await setTerm('attorney_monthly', 'calls', true);
+    const ok = await api()
+      .post(`/api/v1/conversations/${conv}/calls`)
+      .set(a.auth);
+    expect(ok.status).toBe(201);
+    await api().post(`/api/v1/calls/${ok.body.data.id}/end`).set(a.auth);
+  });
+
+  it('chat translation: a client without the term gets 403 before anything else', async () => {
+    const c = await user('client');
+    await setTerm('client_free', 'chat_translate', false);
+    const denied = await api()
+      .post(
+        `/api/v1/conversations/${randomUUID()}/messages/${randomUUID()}/translate`,
+      )
+      .set(c.auth)
+      .send({ target: 'ru' });
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe('ENTITLEMENT_REQUIRED');
+    await setTerm('client_free', 'chat_translate', true);
+    const next = await api()
+      .post(
+        `/api/v1/conversations/${randomUUID()}/messages/${randomUUID()}/translate`,
+      )
+      .set(c.auth)
+      .send({ target: 'ru' });
+    expect(next.status).not.toBe(403); // 503 (no Google key) or 404 — the plan no longer blocks
+  });
+
+  it('video posts: the global flag is on but the plan says no → 403', async () => {
+    await prisma.featureFlag.upsert({
+      where: { key: 'video_posts' },
+      create: { key: 'video_posts', enabled: true },
+      update: { enabled: true },
+    });
+    await flags.invalidate();
+    const c = await user('client');
+    const presign = () =>
+      api()
+        .post('/api/v1/files/presign')
+        .set(c.auth)
+        .send({
+          purpose: 'post_video',
+          mime: 'image/jpeg',
+          sizeBytes: 1000,
+          sha256: 'a'.repeat(64),
+        });
+    await setTerm('client_free', 'video_posts', false);
+    const denied = await presign();
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe('ENTITLEMENT_REQUIRED');
+    await setTerm('client_free', 'video_posts', true);
+    const next = await presign();
+    expect(next.body?.error?.code).not.toBe('ENTITLEMENT_REQUIRED');
+    await prisma.featureFlag.deleteMany({ where: { key: 'video_posts' } });
+    await flags.invalidate();
+  });
+
+  it('posts per day: the plan caps an attorney at 1 post, 0 lifts the cap', async () => {
+    const a = await user('attorney'); // verified → may post
+    const post = () =>
+      api()
+        .post('/api/v1/posts')
+        .set(a.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          title: 'Hello',
+          body: 'A post about the practice.',
+          practiceCode: 'e2e_plans_leaf',
+        });
+    await setTerm('attorney_monthly', 'posts_per_day', 1);
+    const first = await post();
+    expect(first.status).toBe(201);
+    const second = await post();
+    expect(second.status).toBe(429);
+    expect(second.body.error.code).toBe('RATE_LIMITED');
+    await setTerm('attorney_monthly', 'posts_per_day', 0);
+    const third = await post();
+    expect(third.status).toBe(201);
+    await setTerm('attorney_monthly', 'posts_per_day', null);
+  });
+
+  it('case promotion: a client plan term', async () => {
+    const c = await user('client');
+    await setTerm('client_free', 'case_promotion', false);
+    const denied = await api()
+      .get('/api/v1/promotions/quote?days=1')
+      .set(c.auth);
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe('ENTITLEMENT_REQUIRED');
+    await setTerm('client_free', 'case_promotion', true);
+    const ok = await api().get('/api/v1/promotions/quote?days=1').set(c.auth);
+    expect(ok.status).toBe(200);
   });
 });

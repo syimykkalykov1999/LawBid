@@ -49,6 +49,7 @@ class ClientBadgeRepository {
         priceCents: d.priceCents,
         canSubmit: d.canSubmit,
         canSubscribe: d.canSubscribe,
+        includedInPlan: d.includedInPlan,
         subscription: d.subscription == null
             ? null
             : ClientBadgeSubscription(

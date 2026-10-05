@@ -109,12 +109,18 @@ export class ClientBadgeService {
         details: { status: existing.status },
       });
     }
+    // Automation principle (docs/AUTOMATION_PRINCIPLE.md): approved at once
+    // unless the owner switched the queue back on; staff only revoke.
+    const auto = await this.settings.boolean(
+      'verification.client_badge_auto_approve',
+    );
+    const now = new Date();
     const data = {
-      status: 'pending',
+      status: auto ? 'approved' : 'pending',
       document_file_ids: fileIds,
       note: dto.note ?? null,
-      submitted_at: new Date(),
-      reviewed_at: null,
+      submitted_at: now,
+      reviewed_at: auto ? now : null,
       reviewed_by: null,
       reject_reason: null,
       revoke_reason: null,
@@ -124,6 +130,12 @@ export class ClientBadgeService {
       create: { user_id: userId, ...data },
       update: data,
     });
+    if (auto) {
+      await this.notifyBadge(
+        row,
+        clientBadgeActive(row) || (await this.includedInPlan(userId)),
+      );
+    }
     return this.toState(row, userId);
   }
 

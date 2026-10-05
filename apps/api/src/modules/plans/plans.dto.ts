@@ -46,11 +46,19 @@ export class PlanEntitlementsDto {
   @ApiPropertyOptional({ type: Boolean, nullable: true })
   priority_search?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
-  video_calls?: number | boolean | null;
+  calls?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
-  document_templates?: number | boolean | null;
+  chat_translate?: number | boolean | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  translations_per_day?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
-  platform_payments?: number | boolean | null;
+  video_posts?: number | boolean | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  posts_per_day?: number | boolean | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  videos_per_day?: number | boolean | null;
+  @ApiPropertyOptional({ type: Boolean, nullable: true })
+  case_promotion?: number | boolean | null;
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   trial_days?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
