@@ -1,11 +1,12 @@
 import {
-  Article, Bank, Devices, Books, Briefcase, ClockCounterClockwise, CrownSimple, DownloadSimple, EnvelopeSimple,
+  AddressBook, Article, Bank, Devices, Books, Briefcase, ClockCounterClockwise, CrownSimple, DownloadSimple, EnvelopeSimple,
   FileText, FilmStrip, Flag, Gauge, Gavel, Handshake, Key, Lifebuoy, Megaphone, Receipt, RocketLaunch,
   Scales, SealCheck, ShareNetwork, ShieldCheck, SlidersHorizontal, Ticket, ToggleRight, Translate,
   Prohibit, Tag, Users, UsersThree, type Icon,
 } from '@phosphor-icons/react';
 
 export const ICONS: Record<string, Icon> = {
+  'address-book': AddressBook,
   gauge: Gauge, users: Users, 'seal-check': SealCheck, 'users-three': UsersThree, flag: Flag, scales: Scales,
   article: Article, 'film-strip': FilmStrip, briefcase: Briefcase, gavel: Gavel, 'rocket-launch': RocketLaunch,
   'crown-simple': CrownSimple, handshake: Handshake, receipt: Receipt, ticket: Ticket, 'share-network': ShareNetwork,
