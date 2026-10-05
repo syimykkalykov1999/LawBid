@@ -223,12 +223,12 @@ describe('Outreach (e2e)', () => {
       .get(`/api/v1/admin/outreach/leads?q=${tag}`)
       .set(owner.auth)
       .expect(200);
-    expect(ownerList.body.data.items).toHaveLength(2);
+    expect(ownerList.body.data).toHaveLength(2);
     const empEmpty = await api()
       .get(`/api/v1/admin/outreach/leads?q=${tag}`)
       .set(emp.auth)
       .expect(200);
-    expect(empEmpty.body.data.items).toHaveLength(0);
+    expect(empEmpty.body.data).toHaveLength(0);
     await api()
       .get(`/api/v1/admin/outreach/leads/${ivan.id}`)
       .set(emp.auth)
@@ -250,8 +250,8 @@ describe('Outreach (e2e)', () => {
       .get(`/api/v1/admin/outreach/leads?q=${tag}`)
       .set(emp.auth)
       .expect(200);
-    expect(empList.body.data.items).toHaveLength(1);
-    expect(empList.body.data.items[0].id).toBe(ivan.id);
+    expect(empList.body.data).toHaveLength(1);
+    expect(empList.body.data[0].id).toBe(ivan.id);
 
     // A call: no answer → working; interested → replied. Never backwards.
     const call1 = await api()
