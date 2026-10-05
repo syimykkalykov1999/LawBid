@@ -309,6 +309,28 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Ваше партнёрское вознаграждение выплачено. Подробности в приложении.',
     },
   },
+  partner_approved: {
+    group: 'system',
+    en: {
+      title: 'You are a LawBid partner',
+      body: 'Your request is approved. Your partner link is ready in Settings.',
+    },
+    ru: {
+      title: 'Вы партнёр LawBid',
+      body: 'Заявка одобрена. Ваша партнёрская ссылка готова в настройках.',
+    },
+  },
+  partner_declined: {
+    group: 'system',
+    en: {
+      title: 'Partner request declined',
+      body: 'The LawBid team did not approve your partner request this time.',
+    },
+    ru: {
+      title: 'Заявка партнёра отклонена',
+      body: 'Команда LawBid пока не одобрила вашу заявку на участие в программе.',
+    },
+  },
   referral_reward: {
     group: 'system',
     en: {

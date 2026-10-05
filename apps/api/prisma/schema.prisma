@@ -458,6 +458,9 @@ enum NotificationType {
   // Owner 2026-10-05: partner program — a commission accrued / paid out.
   partner_commission
   partner_payout
+  // Owner 2026-10-05: a self-enrolment request answered by the admin.
+  partner_approved
+  partner_declined
   // Owner 2026-10-01: an admin changed the phone on the user's request.
   security_phone_changed
   // Owner 2026-10-04: the other side disputed completion / support decided.

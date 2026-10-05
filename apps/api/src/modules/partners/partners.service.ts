@@ -177,13 +177,14 @@ export class PartnersService {
     const lang: PartnerLang = user?.ui_language === 'ru' ? 'ru' : 'en';
     const canJoin =
       settings.enabled &&
-      settings.selfEnroll &&
+      settings.joinMode !== 'closed' &&
       !partner &&
       canSelfEnroll(user?.role);
     const empty: PartnerMeDto = {
       enabled: settings.enabled,
       isPartner: false,
       canJoin,
+      joinMode: settings.joinMode,
       status: null,
       code: '',
       shareUrl: '',
@@ -215,6 +216,7 @@ export class PartnersService {
       enabled: settings.enabled,
       isPartner: true,
       canJoin: false,
+      joinMode: settings.joinMode,
       status: partner.status as PartnerStatus,
       code,
       shareUrl: this.shareUrl(code),
@@ -239,12 +241,14 @@ export class PartnersService {
    * POST /partners/me/join — owner 2026-10-05: attorneys and clients take
    * their partner link themselves; the admin no longer has to hand out
    * codes one by one. Program defaults apply (the admin can still set own
-   * rates later). Refused while the program or self-enrolment is off, and
-   * for a partnership the admin ended.
+   * rates later). joinMode 'open' activates at once; 'approval' creates a
+   * pending request the admin confirms (no attribution until then);
+   * 'closed' and a switched-off program refuse. A partnership the admin
+   * ended cannot be rejoined.
    */
   async join(userId: string): Promise<PartnerMeDto> {
     const settings = await this.settings();
-    if (!settings.enabled || !settings.selfEnroll) {
+    if (!settings.enabled || settings.joinMode === 'closed') {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
         message: 'The partner program is not open for joining right now.',
@@ -274,18 +278,42 @@ export class PartnersService {
         message:
           existing.status === 'ended'
             ? 'This partnership was ended by the administrator.'
-            : 'You are already a partner.',
+            : existing.status === 'pending'
+              ? 'Your request is waiting for the administrator.'
+              : 'You are already a partner.',
       });
     }
     try {
       await this.prisma.partner.create({
-        data: { user_id: userId, status: 'active', note: 'self-enrolled' },
+        data: {
+          user_id: userId,
+          status: settings.joinMode === 'approval' ? 'pending' : 'active',
+          note: 'self-enrolled',
+        },
       });
     } catch (e) {
       if (!isUniqueViolation(e)) throw e; // joined twice at once: fine
     }
     await this.ensureCode(userId);
     return this.me(userId);
+  }
+
+  /** The admin answered a join request (admin-partners.service). */
+  async notifyJoinDecision(
+    partner: Partner,
+    decision: 'approved' | 'declined',
+  ): Promise<void> {
+    await this.notifications
+      ?.emit({
+        type: decision === 'approved' ? 'partner_approved' : 'partner_declined',
+        recipientId: partner.user_id,
+        payload: { partnerId: partner.id },
+      })
+      .catch((e: unknown) =>
+        this.logger.warn(
+          `partner ${decision} notification failed: ${String(e)}`,
+        ),
+      );
   }
 
   rates(settings: PartnerProgramSettings, partner: Partner): PartnerRatesDto {

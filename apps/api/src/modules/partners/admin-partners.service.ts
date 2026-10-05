@@ -99,7 +99,7 @@ export class AdminPartnersService {
   ): Promise<PartnerProgramSettings> {
     const next: PartnerProgramSettings = {
       enabled: dto.enabled,
-      selfEnroll: dto.selfEnroll,
+      joinMode: dto.joinMode,
       attorneyRateCents: dto.attorneyRateCents,
       clientRateCents: dto.clientRateCents,
       clientRule: dto.clientRule,
@@ -135,14 +135,16 @@ export class AdminPartnersService {
   // ---- partners -----------------------------------------------------------
 
   async stats(): Promise<AdminPartnerStatsDto> {
-    const [partners, active, totals] = await Promise.all([
+    const [partners, active, pending, totals] = await Promise.all([
       this.prisma.partner.count(),
       this.prisma.partner.count({ where: { status: 'active' } }),
+      this.prisma.partner.count({ where: { status: 'pending' } }),
       this.partners.totals(),
     ]);
     return {
       partners,
       active,
+      pending,
       referredCount: totals.referredCount,
       heldCents: totals.heldCents,
       approvedCents: totals.approvedCents,
@@ -331,6 +333,14 @@ export class AdminPartnersService {
       );
       return row;
     });
+    // A request answered: tell the person (approved → their link now works;
+    // ended straight from pending → declined).
+    if (before.status === 'pending' && after.status !== 'pending') {
+      await this.partners.notifyJoinDecision(
+        after,
+        after.status === 'active' ? 'approved' : 'declined',
+      );
+    }
     return (await this.present([after]))[0];
   }
 

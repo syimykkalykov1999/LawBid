@@ -18,6 +18,7 @@ import {
   CLIENT_RULES,
   COMMISSION_KINDS,
   COMMISSION_STATUSES,
+  JOIN_MODES,
   MAX_HOLD_DAYS,
   MAX_RATE_CENTS,
   PARTNER_STATUSES,
@@ -25,6 +26,7 @@ import {
   type ClientRule,
   type CommissionKind,
   type CommissionStatus,
+  type JoinMode,
   type PartnerStatus,
 } from './partners.settings';
 
@@ -203,9 +205,16 @@ export class PartnerMeDto {
 
   @ApiProperty({
     description:
-      'The user may become a partner right now (program on, self-enrolment on, not a partner yet).',
+      'The user may ask to become a partner right now (program on, joining not closed, not a partner yet).',
   })
   canJoin!: boolean;
+
+  @ApiProperty({
+    enum: JOIN_MODES,
+    enumName: 'PartnerJoinMode',
+    description: 'open: the link at once; approval: the admin confirms first.',
+  })
+  joinMode!: JoinMode;
 
   @ApiPropertyOptional({
     enum: PARTNER_STATUSES,
@@ -253,10 +262,13 @@ export class PartnerSettingsDto {
   enabled!: boolean;
 
   @ApiProperty({
-    description: 'Users may join from the app by themselves.',
+    enum: JOIN_MODES,
+    enumName: 'PartnerJoinMode',
+    description:
+      'open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners.',
   })
-  @IsBoolean()
-  selfEnroll!: boolean;
+  @IsIn(JOIN_MODES)
+  joinMode!: JoinMode;
 
   @ApiProperty({ type: 'integer' })
   @IsInt()
@@ -631,6 +643,12 @@ export class AdminPartnerStatsDto {
 
   @ApiProperty({ type: 'integer' })
   active!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Requests waiting for the admin.',
+  })
+  pending!: number;
 
   @ApiProperty({ type: 'integer' })
   referredCount!: number;

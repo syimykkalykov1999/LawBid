@@ -26,7 +26,7 @@ class FakePartnersRepository extends PartnersRepository {
   @override
   Future<PartnerMe> join() async {
     joins += 1;
-    return state = _partner;
+    return state = state.joinMode == 'approval' ? _pending : _partner;
   }
 }
 
@@ -50,12 +50,15 @@ PartnerMe _me({
   required bool enabled,
   required bool isPartner,
   required bool canJoin,
+  String joinMode = 'open',
+  String? status,
 }) =>
     PartnerMe(
       enabled: enabled,
       isPartner: isPartner,
       canJoin: canJoin,
-      status: isPartner ? 'active' : null,
+      joinMode: joinMode,
+      status: status ?? (isPartner ? 'active' : null),
       code: isPartner ? 'ANN12345' : '',
       shareUrl: isPartner ? 'https://lawbid.dev/r/ANN12345' : '',
       rates: _rates,
@@ -67,6 +70,13 @@ PartnerMe _me({
     );
 
 final _partner = _me(enabled: true, isPartner: true, canJoin: false);
+final _pending = _me(
+  enabled: true,
+  isPartner: true,
+  canJoin: false,
+  joinMode: 'approval',
+  status: 'pending',
+);
 
 final _client = meFixture(
   role: UserRole.client,
@@ -109,6 +119,24 @@ void main() {
     expect(repo.joins, 1);
     expect(find.byKey(const ValueKey('partner-join')), findsNothing);
     expect(find.text('ANN12345'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('approval mode: the tap sends a request; no link until approved',
+      (tester) async {
+    final repo = FakePartnersRepository(
+      _me(enabled: true, isPartner: false, canJoin: true, joinMode: 'approval'),
+    );
+    await _pump(tester, repo);
+    expect(find.textContaining('sends a request'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('partner-join')));
+    await tester.pumpAndSettle();
+    expect(repo.joins, 1);
+    expect(
+      find.byKey(const ValueKey('partner-status-pending')),
+      findsOneWidget,
+    );
+    expect(find.text('ANN12345'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

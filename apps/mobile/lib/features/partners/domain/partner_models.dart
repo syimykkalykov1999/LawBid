@@ -113,6 +113,7 @@ class PartnerMe {
     required this.enabled,
     required this.isPartner,
     required this.canJoin,
+    required this.joinMode,
     required this.status,
     required this.code,
     required this.shareUrl,
@@ -128,8 +129,13 @@ class PartnerMe {
   final bool enabled;
   final bool isPartner;
 
-  /// Program on, self-enrolment on and not a partner yet.
+  /// Program on, joining not closed and not a partner yet.
   final bool canJoin;
+
+  /// open · approval · closed — how joining from the app works.
+  final String joinMode;
+
+  bool get isPending => isPartner && status == 'pending';
 
   /// active · paused · ended (null for non-partners).
   final String? status;

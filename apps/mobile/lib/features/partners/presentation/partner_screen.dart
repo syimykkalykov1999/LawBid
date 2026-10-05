@@ -93,16 +93,29 @@ class PartnerScreen extends ConsumerWidget {
                       style:
                           type.body.copyWith(color: colors.text, height: 1.4),
                     ),
-                  if (me.status == 'paused' || me.status == 'ended') ...[
+                  if (me.status == 'pending' ||
+                      me.status == 'paused' ||
+                      me.status == 'ended') ...[
                     const SizedBox(height: AppSpacing.md),
-                    _Notice(text: t.t('partner.status.${me.status}')),
+                    _Notice(
+                      key: ValueKey('partner-status-${me.status}'),
+                      text: t.t('partner.status.${me.status}'),
+                    ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  _LinkCard(me: me, t: t),
-                  const SizedBox(height: AppSpacing.lg),
-                  _Totals(totals: me.totals, t: t, f: f),
-                  const SizedBox(height: AppSpacing.lg),
-                  _Rates(rates: me.rates, t: t, f: f),
+                  // A pending request has no working link yet.
+                  if (!me.isPending) ...[
+                    _LinkCard(me: me, t: t),
+                    const SizedBox(height: AppSpacing.lg),
+                    _Totals(totals: me.totals, t: t, f: f),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  _Rates(
+                    rates: me.rates,
+                    t: t,
+                    f: f,
+                    title: me.isPending ? t.t('partner.join.rates') : null,
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   Text(
                     t.t('partner.referred.title'),
@@ -221,7 +234,7 @@ class PartnerScreen extends ConsumerWidget {
 }
 
 class _Notice extends StatelessWidget {
-  const _Notice({required this.text});
+  const _Notice({required this.text, super.key});
 
   final String text;
 
@@ -392,9 +405,14 @@ class _JoinIntroState extends ConsumerState<_JoinIntro> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      await ref.read(partnersRepositoryProvider).join();
+      final after = await ref.read(partnersRepositoryProvider).join();
       if (!mounted) return;
-      showAppSnackBar(context, widget.t.t('partner.join.done'));
+      showAppSnackBar(
+        context,
+        widget.t.t(
+          after.isPending ? 'partner.join.sent' : 'partner.join.done',
+        ),
+      );
       ref.invalidate(partnerMeProvider);
     } catch (e) {
       if (!mounted) return;
@@ -441,7 +459,11 @@ class _JoinIntroState extends ConsumerState<_JoinIntro> {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          t.t('partner.join.note'),
+          t.t(
+            me.joinMode == 'approval'
+                ? 'partner.join.note.approval'
+                : 'partner.join.note',
+          ),
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
       ],

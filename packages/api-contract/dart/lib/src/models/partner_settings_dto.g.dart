@@ -9,7 +9,7 @@ part of 'partner_settings_dto.dart';
 PartnerSettingsDto _$PartnerSettingsDtoFromJson(Map<String, dynamic> json) =>
     PartnerSettingsDto(
       enabled: json['enabled'] as bool,
-      selfEnroll: json['selfEnroll'] as bool,
+      joinMode: PartnerJoinMode.fromJson(json['joinMode'] as String),
       attorneyRateCents: (json['attorneyRateCents'] as num).toInt(),
       clientRateCents: (json['clientRateCents'] as num).toInt(),
       clientRule: PartnerClientRule.fromJson(json['clientRule'] as String),
@@ -22,7 +22,7 @@ PartnerSettingsDto _$PartnerSettingsDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$PartnerSettingsDtoToJson(PartnerSettingsDto instance) =>
     <String, dynamic>{
       'enabled': instance.enabled,
-      'selfEnroll': instance.selfEnroll,
+      'joinMode': instance.joinMode.toJson(),
       'attorneyRateCents': instance.attorneyRateCents,
       'clientRateCents': instance.clientRateCents,
       'clientRule': instance.clientRule.toJson(),

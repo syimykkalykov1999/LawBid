@@ -802,6 +802,7 @@ export 'models/set_referral_code_dto.dart';
 export 'models/admin_referral_code_row_envelope.dart';
 export 'models/admin_referral_reason_dto.dart';
 export 'models/admin_referral_row_envelope.dart';
+export 'models/partner_join_mode.dart';
 export 'models/partner_status.dart';
 export 'models/partner_client_rule.dart';
 export 'models/partner_rates_dto.dart';

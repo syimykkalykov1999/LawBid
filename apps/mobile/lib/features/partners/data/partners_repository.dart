@@ -21,6 +21,7 @@ class PartnersRepository {
       enabled: d.enabled,
       isPartner: d.isPartner,
       canJoin: d.canJoin,
+      joinMode: d.joinMode.json ?? 'open',
       status: d.status?.json,
       code: d.code,
       shareUrl: d.shareUrl,

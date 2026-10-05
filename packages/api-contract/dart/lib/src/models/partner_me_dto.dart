@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'partner_commission_dto.dart';
+import 'partner_join_mode.dart';
 import 'partner_rates_dto.dart';
 import 'partner_referred_user_dto.dart';
 import 'partner_status.dart';
@@ -19,6 +20,7 @@ class PartnerMeDto {
     required this.enabled,
     required this.isPartner,
     required this.canJoin,
+    required this.joinMode,
     required this.code,
     required this.shareUrl,
     required this.rates,
@@ -38,8 +40,11 @@ class PartnerMeDto {
   /// False for everyone who is not a partner.
   final bool isPartner;
 
-  /// The user may become a partner right now (program on, self-enrolment on, not a partner yet).
+  /// The user may ask to become a partner right now (program on, joining not closed, not a partner yet).
   final bool canJoin;
+
+  /// open: the link at once; approval: the admin confirms first.
+  final PartnerJoinMode joinMode;
   final PartnerStatus? status;
 
   /// Referral code (same as the referral screen).

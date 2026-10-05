@@ -29,6 +29,7 @@ final partnerOffOverride = partnerMeProvider.overrideWith(
     enabled: false,
     isPartner: false,
     canJoin: false,
+    joinMode: 'open',
     status: null,
     code: '',
     shareUrl: '',

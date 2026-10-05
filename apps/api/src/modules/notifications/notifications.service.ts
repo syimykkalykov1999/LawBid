@@ -56,6 +56,8 @@ export const NOTIFICATION_CATEGORY: Record<
   // Owner 2026-10-05: partner program.
   partner_commission: 'system',
   partner_payout: 'system',
+  partner_approved: 'system',
+  partner_declined: 'system',
   promotion_started: 'cases',
   promotion_ended: 'cases',
   new_case: 'new_cases',

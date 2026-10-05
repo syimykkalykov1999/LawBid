@@ -75037,9 +75037,19 @@
           "data"
         ]
       },
+      "PartnerJoinMode": {
+        "type": "string",
+        "enum": [
+          "open",
+          "approval",
+          "closed"
+        ],
+        "description": "open: the link at once; approval: the admin confirms first."
+      },
       "PartnerStatus": {
         "type": "string",
         "enum": [
+          "pending",
           "active",
           "paused",
           "ended"
@@ -75308,7 +75318,15 @@
           },
           "canJoin": {
             "type": "boolean",
-            "description": "The user may become a partner right now (program on, self-enrolment on, not a partner yet)."
+            "description": "The user may ask to become a partner right now (program on, joining not closed, not a partner yet)."
+          },
+          "joinMode": {
+            "description": "open: the link at once; approval: the admin confirms first.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerJoinMode"
+              }
+            ]
           },
           "status": {
             "nullable": true,
@@ -75358,6 +75376,7 @@
           "enabled",
           "isPartner",
           "canJoin",
+          "joinMode",
           "code",
           "shareUrl",
           "rates",
@@ -75515,6 +75534,10 @@
           "active": {
             "type": "integer"
           },
+          "pending": {
+            "type": "integer",
+            "description": "Requests waiting for the admin."
+          },
           "referredCount": {
             "type": "integer"
           },
@@ -75534,6 +75557,7 @@
         "required": [
           "partners",
           "active",
+          "pending",
           "referredCount",
           "heldCents",
           "approvedCents",
@@ -75576,9 +75600,13 @@
           "enabled": {
             "type": "boolean"
           },
-          "selfEnroll": {
-            "type": "boolean",
-            "description": "Users may join from the app by themselves."
+          "joinMode": {
+            "description": "open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartnerJoinMode"
+              }
+            ]
           },
           "attorneyRateCents": {
             "type": "integer",
@@ -75608,7 +75636,7 @@
         },
         "required": [
           "enabled",
-          "selfEnroll",
+          "joinMode",
           "attorneyRateCents",
           "clientRateCents",
           "clientRule",

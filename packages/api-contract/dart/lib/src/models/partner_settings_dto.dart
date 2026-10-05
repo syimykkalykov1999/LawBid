@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'partner_client_rule.dart';
+import 'partner_join_mode.dart';
 import 'partner_texts_by_lang_dto.dart';
 
 part 'partner_settings_dto.g.dart';
@@ -13,7 +14,7 @@ part 'partner_settings_dto.g.dart';
 class PartnerSettingsDto {
   const PartnerSettingsDto({
     required this.enabled,
-    required this.selfEnroll,
+    required this.joinMode,
     required this.attorneyRateCents,
     required this.clientRateCents,
     required this.clientRule,
@@ -26,8 +27,8 @@ class PartnerSettingsDto {
 
   final bool enabled;
 
-  /// Users may join from the app by themselves.
-  final bool selfEnroll;
+  /// open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners.
+  final PartnerJoinMode joinMode;
   final int attorneyRateCents;
   final int clientRateCents;
   final PartnerClientRule clientRule;

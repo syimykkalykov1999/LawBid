@@ -348,14 +348,64 @@ describe('Partner program (e2e)', () => {
       .expect(200);
     expect(list.body.data).toHaveLength(1);
 
-    // Self-enrolment off: the next person cannot join; partners keep working.
+    // Approval mode: a request waits; the code attributes nobody until the
+    // admin approves, then the person is told and the link works.
     const settings = (
       await api().get('/api/v1/admin/partners/settings').set(admin.auth)
     ).body.data;
     await api()
       .put('/api/v1/admin/partners/settings')
       .set(admin.auth)
-      .send({ ...settings, selfEnroll: false })
+      .send({ ...settings, joinMode: 'approval' })
+      .expect(200);
+    const applicant = await user('client', 'Applicant');
+    const asked = await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(applicant.id, 'client'))
+      .expect(200);
+    expect(asked.body.data).toMatchObject({
+      isPartner: true,
+      status: 'pending',
+      joinMode: 'approval',
+    });
+    const applicantCode = asked.body.data.code as string;
+    const friend = await user('attorney', 'Friend');
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(friend.id, 'attorney'))
+      .send({ code: applicantCode })
+      .expect(403); // pending: not a partner yet, friends' program off
+    const pendingStats = await api()
+      .get('/api/v1/admin/partners/stats')
+      .set(admin.auth)
+      .expect(200);
+    expect(pendingStats.body.data.pending).toBeGreaterThanOrEqual(1);
+    const pendingRows = await api()
+      .get('/api/v1/admin/partners?status=pending&q=Applicant')
+      .set(admin.auth)
+      .expect(200);
+    expect(pendingRows.body.data).toHaveLength(1);
+    await api()
+      .patch(`/api/v1/admin/partners/${pendingRows.body.data[0].id}`)
+      .set(admin.auth)
+      .send({ status: 'active', reason: REASON })
+      .expect(200);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: applicant.id, type: 'partner_approved' },
+      }),
+    ).toBe(1);
+    await api()
+      .post('/api/v1/referrals/apply')
+      .set(auth(friend.id, 'attorney'))
+      .send({ code: applicantCode })
+      .expect(200);
+
+    // Closed: the next person cannot join; partners keep working.
+    await api()
+      .put('/api/v1/admin/partners/settings')
+      .set(admin.auth)
+      .send({ ...settings, joinMode: 'closed' })
       .expect(200);
     const other = await user('client', 'Latecomer');
     const otherMe = await api()
@@ -395,7 +445,7 @@ describe('Partner program (e2e)', () => {
     await api()
       .put('/api/v1/admin/partners/settings')
       .set(admin.auth)
-      .send({ ...settings, enabled: true, selfEnroll: true })
+      .send({ ...settings, enabled: true, joinMode: 'open' })
       .expect(200);
     await api()
       .post('/api/v1/partners/me/join')

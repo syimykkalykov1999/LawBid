@@ -98,10 +98,15 @@ function setup(
 }
 
 describe('partner settings', () => {
-  it('self-enrolment is on by default and parsed as a boolean', () => {
-    expect(parsePartnerSettings(null).selfEnroll).toBe(true);
-    expect(parsePartnerSettings({ selfEnroll: false }).selfEnroll).toBe(false);
-    expect(parsePartnerSettings({ selfEnroll: 'no' }).selfEnroll).toBe(true);
+  it('joining is open by default; unknown modes fall back', () => {
+    expect(parsePartnerSettings(null).joinMode).toBe('open');
+    expect(parsePartnerSettings({ joinMode: 'approval' }).joinMode).toBe(
+      'approval',
+    );
+    expect(parsePartnerSettings({ joinMode: 'closed' }).joinMode).toBe(
+      'closed',
+    );
+    expect(parsePartnerSettings({ joinMode: 'maybe' }).joinMode).toBe('open');
   });
 
   it('defaults field by field', () => {
@@ -422,7 +427,7 @@ describe('PartnersService.join (self-enrolment)', () => {
     expect(on.rates.attorneyRateCents).toBe(5_000);
     const noSelf = await setup({
       partner: null,
-      settings: { selfEnroll: false },
+      settings: { joinMode: 'closed' },
     }).svc.me('blogger');
     expect(noSelf.canJoin).toBe(false);
     const off = await setup({
@@ -432,12 +437,53 @@ describe('PartnersService.join (self-enrolment)', () => {
     expect(off).toMatchObject({ enabled: false, canJoin: false });
   });
 
-  it('refuses when the program or self-enrolment is off, for assistants, and for existing or ended partners', async () => {
+  it('in approval mode the request is pending: no link works until the admin approves', async () => {
+    const { svc, prisma } = setup({
+      partner: null,
+      settings: { joinMode: 'approval' },
+    });
+    prisma.partner.findUnique.mockResolvedValueOnce(null).mockResolvedValue({
+      id: 'p-new',
+      user_id: 'blogger',
+      status: 'pending',
+      attorney_rate_cents: null,
+      client_rate_cents: null,
+      monthly_base_cents: 0,
+      client_rule: null,
+      hold_days: null,
+    });
+    jest.spyOn(svc, 'totals').mockResolvedValue({
+      heldCents: 0,
+      approvedCents: 0,
+      paidCents: 0,
+      thisMonthCents: 0,
+      referredCount: 0,
+      qualifiedCount: 0,
+    });
+    jest
+      .spyOn(
+        svc as unknown as { referredOf: () => Promise<never[]> },
+        'referredOf',
+      )
+      .mockResolvedValue([]);
+    const me = await svc.join('blogger');
+    expect(prisma.partner.create).toHaveBeenCalledWith({
+      data: { user_id: 'blogger', status: 'pending', note: 'self-enrolled' },
+    });
+    expect(me.status).toBe('pending');
+    expect(me.joinMode).toBe('approval');
+    // A pending partner attributes nobody.
+    expect(await svc.activePartnerOf('blogger')).toBeNull();
+    // Asking again while pending is a 409.
+    await expect(svc.join('blogger')).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('refuses when the program is off or joining is closed, for assistants, and for existing or ended partners', async () => {
     await expect(
       setup({ partner: null, settings: { enabled: false } }).svc.join('b'),
     ).rejects.toMatchObject({ status: 403 });
     await expect(
-      setup({ partner: null, settings: { selfEnroll: false } }).svc.join('b'),
+      setup({ partner: null, settings: { joinMode: 'closed' } }).svc.join('b'),
     ).rejects.toMatchObject({ status: 403 });
     const assistant = setup({ partner: null });
     assistant.prisma.user.findUnique.mockResolvedValue({

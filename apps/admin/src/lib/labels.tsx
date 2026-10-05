@@ -293,9 +293,15 @@ export const REFERRAL_STATUS: Record<string, string> = {
 
 /** Owner 2026-10-05: partner program. */
 export const PARTNER_STATUS: Record<string, string> = {
+  pending: 'заявка',
   active: 'активен',
   paused: 'на паузе',
   ended: 'завершён',
+};
+export const JOIN_MODE: Record<string, string> = {
+  open: 'Открыто: ссылка сразу',
+  approval: 'По заявке: одобряет админ',
+  closed: 'Только админ',
 };
 export const COMMISSION_STATUS: Record<string, string> = {
   held: 'на проверке',
