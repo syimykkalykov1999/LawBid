@@ -164,6 +164,11 @@ export enum ErrorCode {
   // 403: this bar number (or the contacts of a blocked account) was rejected
   // or blocked before; registration with it is refused — contact support.
   BAR_NUMBER_BLOCKED = 'BAR_NUMBER_BLOCKED',
+  // 403 (owner 2026-10-05, docs/CLIENT_FRAUD.md): the account is limited
+  // while staff check it (complaints, or it is linked to a blocked
+  // account); it cannot publish cases or write to attorneys. Support chat
+  // stays open for an appeal.
+  ACCOUNT_RESTRICTED = 'ACCOUNT_RESTRICTED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',

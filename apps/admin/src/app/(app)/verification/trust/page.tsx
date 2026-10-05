@@ -3,12 +3,14 @@
 import { HandPalm, Hourglass, SealCheck, Warning } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
 import { AttorneysList } from '@/components/trust/attorneys-list';
 import { BarLookups, BlockedChip } from '@/components/trust/bar-lookups';
 import { BlockedBarNumbers } from '@/components/trust/blocked-bar-numbers';
 import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
+import { ClientFraud } from '@/components/fraud/client-fraud';
 import { useConfirm } from '@/components/legacy/confirm';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { useDebounced } from '@/components/legacy/use-debounced';
@@ -26,7 +28,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
-import { trustStatsQuery } from '@/lib/live';
+import { fraudStatsQuery, trustStatsQuery } from '@/lib/live';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
@@ -49,7 +51,8 @@ type Settings = components['schemas']['TrustSettingsDto'];
 type QueueItem = components['schemas']['TrustQueueItemDto'];
 type Stats = components['schemas']['TrustStatsDto'];
 type Preset = components['schemas']['TrustPresetDto']['preset'];
-type Tab = 'attorneys' | 'queue' | 'rules' | 'holds' | 'blocked' | 'staff';
+const TABS = ['attorneys', 'clients', 'queue', 'rules', 'holds', 'blocked', 'staff'] as const;
+type Tab = (typeof TABS)[number];
 
 const ATTORNEYS = ['адвокат', 'адвоката', 'адвокатов'] as const;
 
@@ -57,16 +60,29 @@ const ATTORNEYS = ['адвокат', 'адвоката', 'адвокатов'] a
  * Owner 2026-10-05 — Верификация → «Борьба с мошенниками»
  * (docs/ATTORNEY_TRUST.md): the staff queue of attorneys waiting for a
  * person, the rules (what to require, what is automatic) and the holds.
+ * «Клиенты» — repeat accounts of blocked fraudsters and the client risk
+ * score (components/fraud/client-fraud.tsx). `?tab=clients` opens a tab.
  */
 export default function AntiFraudPage() {
+  // useSearchParams needs a Suspense boundary in a statically rendered page.
+  return (
+    <Suspense fallback={null}>
+      <AntiFraud />
+    </Suspense>
+  );
+}
+
+function AntiFraud() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: me } = useMe();
   const canManage = me ? can(me, 'verification', 'manage') : false;
   const { confirm, dialog: confirmDialog } = useConfirm();
-  const [tab, setTab] = useState<Tab>('attorneys');
+  const initialTab = useSearchParams().get('tab');
+  const [tab, setTab] = useState<Tab>(TABS.find((t) => t === initialTab) ?? 'attorneys');
 
   const stats = useQuery(trustStatsQuery);
+  const fraud = useQuery(fraudStatsQuery);
   const recomputeAll = useMutation({
     mutationFn: async () => {
       const ok = await confirm({
@@ -95,7 +111,7 @@ export default function AntiFraudPage() {
         title="Борьба с мошенниками"
         subtitle="Регистрация остаётся простой: адвокат называет штат и номер под присягой. Вы выбираете, что от него требовать; что проверяется автоматически — проверяется само, остальное ждёт человека в очереди. «Подтвердить» — и перепроверок больше нет."
         actions={
-          canManage ? (
+          canManage && tab !== 'clients' ? (
             <Button size="sm" variant="outline" className="w-44" loading={recomputeAll.isPending} onClick={() => recomputeAll.mutate()}>
               Пересчитать всех
             </Button>
@@ -123,6 +139,7 @@ export default function AntiFraudPage() {
           onChange={setTab}
           items={[
             { value: 'attorneys', label: 'Адвокаты' },
+            { value: 'clients', label: 'Клиенты', count: fraud.data ? fraud.data.review + fraud.data.restricted : null },
             { value: 'queue', label: 'Очередь', count: stats.data?.inQueue },
             { value: 'rules', label: 'Правила' },
             { value: 'holds', label: 'Холды', count: stats.data?.held },
@@ -133,6 +150,7 @@ export default function AntiFraudPage() {
       </div>
 
       {tab === 'attorneys' ? <AttorneysList canManage={canManage} /> : null}
+      {tab === 'clients' ? <ClientFraud canManage={canManage} /> : null}
       {tab === 'queue' ? <Queue canManage={canManage} stats={stats.data} /> : null}
       {tab === 'rules' ? <Rules canManage={canManage} /> : null}
       {tab === 'holds' ? <Holds canManage={canManage} /> : null}

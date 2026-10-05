@@ -47,6 +47,21 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+        // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): ANDROID_ID for the
+        // X-Device-Key header (lib/core/network/device_key.dart). Stable for
+        // this app on this phone until a factory reset; the server keeps
+        // only a hash, to recognise a blocked fraudster's new account.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/device_key",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "androidId" -> result.success(
+                    Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID),
+                )
+                else -> result.notImplemented()
+            }
+        }
     }
 
     private fun createChannels() {

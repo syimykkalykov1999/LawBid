@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/account_status/account_restricted.dart';
 import 'package:lawbid/core/account_status/account_suspended.dart';
 import 'package:lawbid/core/app_update/app_update_interceptor.dart';
 import 'package:lawbid/core/config/app_environment.dart';
@@ -35,6 +36,7 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(HeadersInterceptor(ref));
   dio.interceptors.add(AppUpdateInterceptor(ref));
   dio.interceptors.add(AccountSuspendedInterceptor(ref));
+  dio.interceptors.add(AccountRestrictedInterceptor(ref));
   dio.interceptors.add(IdempotencyInterceptor());
   dio.interceptors.add(AuthInterceptor(ref, dio));
   dio.interceptors.add(RetryInterceptor(dio));

@@ -81,6 +81,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: nightly safety net — attorney trust levels follow
    * the facts (registry flags, Stripe, decisions) even if a hook was missed. */
   trustRecompute: 'trust.recompute',
+  /** Owner 2026-10-05: client fraud — re-score the queue, propagate fresh
+   * blocks to linked accounts, delete old hashes (retention). */
+  fraudSweep: 'fraud.sweep',
   /** Owner 2026-10-05 zero maintenance: DB probe + auto pause of heavy jobs. */
   opsGuard: 'ops.guard',
   /** AWS spend vs the monthly budget; scale to the minimum at 100 %. */
@@ -147,6 +150,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 14:30 UTC ≈ 07:30 Pacific: the day after a period ends.
   { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },
   { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
+  { name: CRON_JOBS.fraudSweep, pattern: '55 3 * * *' },
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },

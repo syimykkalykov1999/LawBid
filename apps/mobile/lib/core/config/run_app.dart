@@ -8,6 +8,7 @@ import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
@@ -29,8 +30,12 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // Real installed version for X-App-Version (docs/01_FOUNDATION_AUTH.md
   // §7) — before any request, including the splash's /config/bootstrap.
   // Local platform call, no network.
-  final (prefs, _) =
-      await (SharedPreferences.getInstance(), AppVersion.load()).wait;
+  // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): the phone's X-Device-Key.
+  final (prefs, _, _) = await (
+    SharedPreferences.getInstance(),
+    AppVersion.load(),
+    DeviceKey.load(),
+  ).wait;
 
   final container = ProviderContainer(
     overrides: [
