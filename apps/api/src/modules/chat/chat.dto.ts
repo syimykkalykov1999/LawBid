@@ -172,6 +172,22 @@ export class MessagesQueryDto {
   only?: 'attachment';
 }
 
+/** Owner 2026-10-05: what the chat's files take (the "Files" screen
+ * header) — like Telegram's "shared media" counts. */
+export class ChatStorageDto {
+  @ApiProperty() photos!: number;
+  @ApiProperty() documents!: number;
+  @ApiProperty() voice!: number;
+  @ApiProperty({ description: 'Bytes of every file sent in the chat.' })
+  usedBytes!: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'The per-chat cap in bytes; null = no cap.',
+  })
+  quotaBytes!: number | null;
+}
+
 export class SendMessageDto {
   @ApiProperty({ description: 'App-generated id (UUID), idempotency key.' })
   @IsString()

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-136 tables.
+137 tables.
 
 ```mermaid
 erDiagram
@@ -17,6 +17,7 @@ erDiagram
     String first_name "nullable"
     String last_name "nullable"
     String avatar_file_id FK "nullable"
+    Int storage_quota_mb "nullable"
     String email UK "nullable"
     DateTime email_verified_at "nullable"
     String phone_e164 UK "nullable"
@@ -39,15 +40,18 @@ erDiagram
     String owner_user_id FK
     enum_FilePurpose purpose
     String s3_bucket
-    String s3_key UK
+    String s3_key
     String mime
     BigInt size_bytes
     String sha256
+    String source_sha256 "nullable"
     Int width "nullable"
     Int height "nullable"
     enum_ScanStatus scan_status
     Boolean is_public
     DateTime deleted_at "nullable"
+    String deleted_reason "nullable"
+    DateTime purged_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1696,6 +1700,17 @@ erDiagram
     Json entitlements "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  storage_snapshots {
+    String id PK
+    DateTime day UK
+    BigInt files_bytes
+    BigInt stored_bytes
+    Int files_count
+    Json by_purpose
+    Json db_tables
+    BigInt db_bytes
+    DateTime created_at
   }
   identity_fingerprints {
     String id PK
