@@ -99,6 +99,13 @@ export const OWNER_MEDIA_SETTINGS = {
   'media.photo_max_px': 2048,
   'media.photo_quality': 85,
   'media.avatar_max_px': 1024,
+  // Owner 2026-10-05: reels are re-encoded on the phone before upload —
+  // at most this height (1080 = Full HD, no visible loss on a phone),
+  // 0 = upload as recorded. Frame rate cap keeps files small.
+  'media.video_max_height': 1080,
+  'media.video_frame_rate': 30,
+  // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
+  'files.document_template_max_size_mb': 10,
 } as const;
 
 // Owner 2026-10-02: support tickets — per-user limits (429 RATE_LIMITED).
