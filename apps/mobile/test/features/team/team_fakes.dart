@@ -260,6 +260,38 @@ class FakeTeamRepository implements TeamRepository {
     return t;
   }
 
+  List<TaskPlaceSuggestion> placeList = [];
+  List<TaskPersonSuggestion> peopleList = [];
+
+  @override
+  Future<List<TaskPlaceSuggestion>> taskPlaces() async => placeList;
+
+  @override
+  Future<List<TaskPersonSuggestion>> taskPeople([String? q]) async =>
+      peopleList;
+
+  @override
+  Future<({int affected, int skipped})> bulkTasks(
+    List<String> ids,
+    TaskBulkAction action, {
+    TaskStatus? status,
+    TaskPriority? priority,
+    String? assigneeMembershipId,
+  }) async {
+    calls.add('bulk:${action.name}:${ids.join(',')}');
+    if (action == TaskBulkAction.delete) {
+      active = [
+        for (final x in active)
+          if (!ids.contains(x.id)) x,
+      ];
+      done = [
+        for (final x in done)
+          if (!ids.contains(x.id)) x,
+      ];
+    }
+    return (affected: ids.length, skipped: 0);
+  }
+
   @override
   Future<void> deleteTask(String id) async {
     calls.add('delete:$id');
