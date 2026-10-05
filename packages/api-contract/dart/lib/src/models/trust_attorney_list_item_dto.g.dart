@@ -34,6 +34,10 @@ TrustAttorneyListItemDto _$TrustAttorneyListItemDtoFromJson(
       ? null
       : DateTime.parse(json['documentsRequestedAt'] as String),
   complaintsTotal: (json['complaintsTotal'] as num).toInt(),
+  lookups: (json['lookups'] as List<dynamic>)
+      .map((e) => BarLookupDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  blocked: json['blocked'] as bool,
 );
 
 Map<String, dynamic> _$TrustAttorneyListItemDtoToJson(
@@ -50,4 +54,6 @@ Map<String, dynamic> _$TrustAttorneyListItemDtoToJson(
   'staffClearedBy': ?instance.staffClearedBy?.toJson(),
   'documentsRequestedAt': ?instance.documentsRequestedAt?.toIso8601String(),
   'complaintsTotal': instance.complaintsTotal,
+  'lookups': instance.lookups.map((e) => e.toJson()).toList(),
+  'blocked': instance.blocked,
 };

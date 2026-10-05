@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -13,6 +23,11 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import {
   AdminTrustCardDto,
+  BarNumberBlockDto,
+  BarNumberBlockIdParamDto,
+  BarNumberBlocksQueryDto,
+  BlockBarNumberDto,
+  UnblockBarNumberDto,
   BulkTrustDto,
   ClearedByItemDto,
   ClearedByQueryDto,
@@ -101,6 +116,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/confirm-license')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Verifier confirmed the license on the state bar's page",
   })
@@ -115,6 +131,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/unconfirm-license')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Withdraw the staff confirmation of the license' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -127,6 +144,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/confirm-documents')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verifier checked bar card + ID + selfie' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -139,6 +157,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/confirm-firm-link')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
       "Verifier saw the firm's letter: the attorney works for the Stripe company",
@@ -154,6 +173,7 @@ export class AdminTrustController {
   }
 
   @Post('settings/preset')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
       'Apply a preset: off («Выключить всё»), soft, standard, strict, all («Включить всё»)',
@@ -184,6 +204,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/status')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Set the badge status by hand (reason required, audited)',
   })
@@ -230,6 +251,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/clear')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Подтвердить: staff vouch; badge and payments open for good',
   })
@@ -244,6 +266,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/unclear')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Withdraw the staff clearance' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -256,6 +279,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/request-documents')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Запросить ещё: ask for documents from a template' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -268,6 +292,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/reject')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Отклонить: suspend the account, withdraw bids' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -280,6 +305,7 @@ export class AdminTrustController {
   }
 
   @Post('bulk')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Clear / request documents / reject / release many',
   })
@@ -293,6 +319,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/hold')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Pause payments and/or bids' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -305,6 +332,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/release')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Lift holds after review' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -317,6 +345,7 @@ export class AdminTrustController {
   }
 
   @Post('attorneys/:attorneyId/recompute')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Recompute the level from the facts' })
   @ApiEnvelopeResponse(AdminTrustCardDto)
   @ApiErrors(ERRORS)
@@ -327,7 +356,63 @@ export class AdminTrustController {
     return this.admin.recompute(admin, p.attorneyId);
   }
 
+  // --- Owner 2026-10-05 07:00: «Заблокированные номера» -------------------
+
+  @Get('blocked-bar-numbers')
+  @ApiOperation({
+    summary:
+      'Bar numbers that cannot register again: reason, who blocked, attempts',
+  })
+  @ApiEnvelopeResponse(BarNumberBlockDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  blockedBarNumbers(
+    @Query() q: BarNumberBlocksQueryDto,
+  ): Promise<BarNumberBlockDto[]> {
+    return this.admin.blockedBarNumbers({
+      q: q.q ?? null,
+      status: q.status ?? null,
+      limit: q.limit,
+    });
+  }
+
+  @Post('blocked-bar-numbers')
+  @ApiOperation({ summary: 'Block a bar number by hand (reason required)' })
+  @ApiEnvelopeResponse(BarNumberBlockDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  blockBarNumber(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: BlockBarNumberDto,
+  ): Promise<BarNumberBlockDto> {
+    return this.admin.blockBarNumber(admin, dto);
+  }
+
+  @Get('blocked-bar-numbers/:id')
+  @ApiOperation({ summary: 'One blocked bar number with its history' })
+  @ApiEnvelopeResponse(BarNumberBlockDto)
+  @ApiErrors(ERRORS)
+  blockedBarNumber(
+    @Param() p: BarNumberBlockIdParamDto,
+  ): Promise<BarNumberBlockDto> {
+    return this.admin.blockedBarNumber(p.id);
+  }
+
+  @Post('blocked-bar-numbers/:id/unblock')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Lift the block (the person explained / proved); reason required',
+  })
+  @ApiEnvelopeResponse(BarNumberBlockDto)
+  @ApiErrors(ERRORS)
+  unblockBarNumber(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: BarNumberBlockIdParamDto,
+    @Body() dto: UnblockBarNumberDto,
+  ): Promise<BarNumberBlockDto> {
+    return this.admin.unblockBarNumber(admin, p.id, dto.reason);
+  }
+
   @Post('recompute-all')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Recompute every attorney (after a settings change)',
   })

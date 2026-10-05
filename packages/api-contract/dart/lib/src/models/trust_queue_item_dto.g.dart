@@ -28,6 +28,10 @@ TrustQueueItemDto _$TrustQueueItemDtoFromJson(Map<String, dynamic> json) =>
       registryLinks: (json['registryLinks'] as List<dynamic>)
           .map((e) => RegistryLinkDto.fromJson(e as Map<String, dynamic>))
           .toList(),
+      lookups: (json['lookups'] as List<dynamic>)
+          .map((e) => BarLookupDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      blocked: json['blocked'] as bool,
       requestId: json['requestId'] as String?,
       documentsCount: (json['documentsCount'] as num).toInt(),
       documentsRequestedAt: json['documentsRequestedAt'] == null
@@ -53,6 +57,8 @@ Map<String, dynamic> _$TrustQueueItemDtoToJson(TrustQueueItemDto instance) =>
       'stripeRepresentative': ?instance.stripeRepresentative,
       'stripeCompanyName': ?instance.stripeCompanyName,
       'registryLinks': instance.registryLinks.map((e) => e.toJson()).toList(),
+      'lookups': instance.lookups.map((e) => e.toJson()).toList(),
+      'blocked': instance.blocked,
       'requestId': ?instance.requestId,
       'documentsCount': instance.documentsCount,
       'documentsRequestedAt': ?instance.documentsRequestedAt?.toIso8601String(),

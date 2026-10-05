@@ -216,6 +216,12 @@ export const OWNER_TRUST_SETTINGS = {
    * verifier checks a letter on the firm's letterhead. */
   'trust.firm_link_auto_registry': true,
   'trust.firm_link_auto_email': true,
+  /** Owner 2026-10-05 07:00: a staff «Отклонить» (and an admin suspension)
+   * blocks the attorney's bar numbers: they cannot register again under
+   * another name or account until staff unblock them. */
+  'trust.block_on_reject': true,
+  /** A block also refuses the e-mail and phone of the blocked account. */
+  'trust.block_contacts': false,
 } as const;
 
 /** Every typed app_config tunable with its spec default. */

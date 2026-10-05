@@ -200,6 +200,8 @@ const trustRu = <String, String>{
       'Для этого действия не выполнены требования: {missing}. Откройте «Мой уровень доверия».',
   'error.api.TRUST_LEVEL_REQUIRED.plain':
       'Для этого действия не выполнены требования проверки. Откройте «Мой уровень доверия».',
+  'error.api.BAR_NUMBER_BLOCKED':
+      'Этот номер лицензии нельзя зарегистрировать: он был отклонён или заблокирован ранее. Обратитесь в поддержку.',
   'error.api.ATTORNEY_ON_HOLD':
       'Действие приостановлено: ваш профиль на проверке. Подробности — в «Мой уровень доверия».',
 };
@@ -385,6 +387,8 @@ const trustEn = <String, String>{
       'Requirements not met for this action: {missing}. Open "My trust level".',
   'error.api.TRUST_LEVEL_REQUIRED.plain':
       'The verification requirements for this action are not met. Open "My trust level".',
+  'error.api.BAR_NUMBER_BLOCKED':
+      'This license number cannot be registered: it was rejected or blocked before. Please contact support.',
   'error.api.ATTORNEY_ON_HOLD':
       'This action is paused: your profile is under review. Details in "My trust level".',
 };

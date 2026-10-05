@@ -160,6 +160,8 @@ enum ErrorCode {
   licenseAlreadyAdded('LICENSE_ALREADY_ADDED'),
   @JsonValue('ATTORNEY_SUSPENDED')
   attorneySuspended('ATTORNEY_SUSPENDED'),
+  @JsonValue('BAR_NUMBER_BLOCKED')
+  barNumberBlocked('BAR_NUMBER_BLOCKED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
   @JsonValue('ADMIN_TICKET_INVALID')

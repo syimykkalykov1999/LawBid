@@ -66,7 +66,15 @@
 
 Приложение: `GET /trust/me` (OwnTrustDto: уровень, сигналы, гейты, `payoutDelayDays`, `nextSteps` hold_review | registry_check | stripe_kyc | firm_link | fix_name | documents, `firmLink`), `POST /trust/me/firm-email`, `POST /trust/me/firm-email/confirm`, `GET /trust/attorneys/:id` (PublicTrustDto + `registryLinks`). `trustLevel` добавлен в DTO профиля, бидов, подписок, списков.
 
-Админка (`verifier`, `super_admin`; сегмент `trust` → область `verification`): `GET/PUT /admin/trust/settings`, `GET /admin/trust/stats`, `GET /admin/trust/holds`, `GET /admin/trust/attorneys/:id` (карточка + события), `POST …/confirm-license | unconfirm-license | confirm-documents | confirm-firm-link | hold | release | recompute`, `POST /admin/trust/recompute-all`. Все действия — в audit log (`trust.*`).
+Админка (`verifier`, `super_admin`; сегмент `trust` → область `verification`): `GET/PUT /admin/trust/settings`, `POST /admin/trust/settings/preset`, `GET /admin/trust/stats`, `GET /admin/trust/holds`, `GET /admin/trust/attorneys` («Галочки → Адвокаты»), `GET /admin/trust/attorneys/:id` (карточка + события), `POST …/status | confirm-license | unconfirm-license | confirm-documents | confirm-firm-link | clear | unclear | request-documents | reject | hold | release | recompute`, `POST /admin/trust/bulk`, `GET /admin/trust/queue`, `GET /admin/trust/staff-decisions`, `GET /admin/trust/cleared-by`, `POST /admin/trust/recompute-all`. Все действия — в audit log (`trust.*`).
+
+### 5.1 Блок-лист номеров лицензий (владелец 2026-10-05 07:00)
+
+Отклонённый сотрудником («Отклонить» в очереди, `reject` в верификации) или приостановленный адвокат не может зарегистрировать тот же номер лицензии снова — под другим именем или новым аккаунтом. Таблицы `bar_number_blocks` (уникально `(state_code, bar_key)`, где `bar_key` — номер без пробелов/знаков в верхнем регистре; `active`, `reason`, `source` staff_reject | verification_reject | suspend | manual, `attorney_id`, `blocked_by`, `block_contacts` + `email_lower`/`phone_e164`, `unblocked_*`, `attempts`) и `bar_number_block_events` (blocked / unblocked / attempt — append-only история). `POST /verification/requests/:id/licenses` с заблокированным номером (или с e-mail/телефоном заблокированного аккаунта при `block_contacts`) → 403 `BAR_NUMBER_BLOCKED`, попытка записывается в историю и счётчик.
+
+Тумблеры: `trust.block_on_reject` (по умолчанию вкл., слушает главный выключатель) — отклонение/приостановка блокирует номер автоматически; `trust.block_contacts` (выкл.) — блок распространяется на e-mail и телефон. Пресеты soft/standard/all включают первый, strict — оба.
+
+Админка «Борьба с мошенниками» → «Заблокированные номера»: `GET /admin/trust/blocked-bar-numbers?q&status=active|unblocked`, `GET …/:id` (с историей), `POST /admin/trust/blocked-bar-numbers` (вручную, причина обязательна), `POST …/:id/unblock` (причина обязательна — что объяснил/доказал человек). Audit: `trust.block_bar_number`, `trust.unblock_bar_number`. Для сотрудника в очереди, списке и карточке — `lookups[]`: ссылка на страницу реестра штата (`prefilled: true` — страница открывается сразу на номере, CA/FL; иначе поиск + «Скопировать номер»), `blocked` — номер в блок-листе.
 
 Уведомления адвокату (тип `verification_update`, `payload.kind`): `trust_level_up`, `trust_payments_paused`, `trust_payments_resumed`, `trust_bids_paused`, `trust_hold_lifted`, `trust_documents_requested`, `trust_auto_suspended`, `trust_firm_link_required`, `trust_firm_link_confirmed`.
 
@@ -76,7 +84,7 @@
 
 ## 7. Миграции
 
-`20261005130000_owner_trust_enums` (`report_reason` += `fraud`), `20261005130100_owner_attorney_trust` (`attorney_profiles.trust_level/trust_badge`, `attorney_trust`, `attorney_trust_events`), `20261005130200_owner_trust_staff_clearance` (`staff_cleared_*`, `documents_requested_*`). После деплоя один раз `POST /admin/trust/recompute-all` (или дождаться ночного job), чтобы заполнить уровни существующим адвокатам.
+`20261005130000_owner_trust_enums` (`report_reason` += `fraud`), `20261005130100_owner_attorney_trust` (`attorney_profiles.trust_level/trust_badge`, `attorney_trust`, `attorney_trust_events`), `20261005130200_owner_trust_staff_clearance` (`staff_cleared_*`, `documents_requested_*`), `20261005130300_owner_bar_number_blocks` (`bar_number_blocks`, `bar_number_block_events`). После деплоя один раз `POST /admin/trust/recompute-all` (или дождаться ночного job), чтобы заполнить уровни существующим адвокатам.
 
 ## 8. Юридические тексты
 

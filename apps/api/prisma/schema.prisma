@@ -2760,72 +2760,72 @@ model StateBarRegistry {
 /// badge mirror on attorney_profiles (trust_level / trust_badge) for cheap
 /// reads in lists.
 model AttorneyTrust {
-  attorney_id            String          @id @db.Uuid
-  attorney               AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
-  level                  Int             @default(0) @db.Int2
+  attorney_id                  String          @id @db.Uuid
+  attorney                     AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
+  level                        Int             @default(0) @db.Int2
   // Signals ----------------------------------------------------------
   // The license was confirmed outside the attorney's word: 'registry'
   // (state registry match) or 'staff' (verifier opened the state bar's
   // page). Null = only self-attested.
-  license_confirmed_at   DateTime?       @db.Timestamptz
-  license_confirmed_by   String?         @db.String(16)
-  license_confirmed_note String?         @db.String(500)
+  license_confirmed_at         DateTime?       @db.Timestamptz
+  license_confirmed_by         String?         @db.String(16)
+  license_confirmed_note       String?         @db.String(500)
   // A verifier checked bar card + ID + selfie.
-  documents_verified_at  DateTime?       @db.Timestamptz
-  documents_verified_by  String?         @db.Uuid
+  documents_verified_at        DateTime?       @db.Timestamptz
+  documents_verified_by        String?         @db.Uuid
   // Stripe Connect KYC (account.updated): charges enabled and details
   // submitted; the legal name Stripe verified.
-  stripe_kyc_at          DateTime?       @db.Timestamptz
-  stripe_charges_enabled Boolean         @default(false)
-  stripe_legal_name      String?         @db.String(200)
+  stripe_kyc_at                DateTime?       @db.Timestamptz
+  stripe_charges_enabled       Boolean         @default(false)
+  stripe_legal_name            String?         @db.String(200)
   // Owner 2026-10-05 (LLC question): individual | company | non_profit |
   // government_entity; for a company the representative / owners are the
   // people compared with the profile, never the company name.
-  stripe_business_type   String?         @db.String(24)
-  stripe_company_name    String?         @db.String(200)
+  stripe_business_type         String?         @db.String(24)
+  stripe_company_name          String?         @db.String(200)
   // Host of business_profile.url (a firm's website), for the firm e-mail check.
-  stripe_company_domain  String?         @db.String(200)
+  stripe_company_domain        String?         @db.String(200)
   // The representative / owner whose name matched the profile (or the first).
-  stripe_representative  String?         @db.String(200)
+  stripe_representative        String?         @db.String(200)
   // Legal name (Stripe) vs profile / registry: match | mismatch | unknown.
-  name_check             String          @default("unknown") @db.String(16)
-  name_checked_at        DateTime?       @db.Timestamptz
+  name_check                   String          @default("unknown") @db.String(16)
+  name_checked_at              DateTime?       @db.Timestamptz
   // Firm link (a company account the attorney neither owns nor represents):
   // none | pending | confirmed; source registry | email | staff.
-  firm_link_status       String          @default("none") @db.String(16)
-  firm_link_source       String?         @db.String(16)
-  firm_link_at           DateTime?       @db.Timestamptz
-  firm_link_note         String?         @db.String(500)
+  firm_link_status             String          @default("none") @db.String(16)
+  firm_link_source             String?         @db.String(16)
+  firm_link_at                 DateTime?       @db.Timestamptz
+  firm_link_note               String?         @db.String(500)
   // The firm e-mail domain the attorney confirmed with a code.
-  firm_email_domain      String?         @db.String(200)
-  firm_email_verified_at DateTime?       @db.Timestamptz
+  firm_email_domain            String?         @db.String(200)
+  firm_email_verified_at       DateTime?       @db.Timestamptz
   // Staff clearance (owner 2026-10-05, «Борьба с мошенниками»): a verifier
   // pressed «Подтвердить» after checking what the rules require; from then
   // on the badge and payments stay open with no re-checks (only complaints
   // and an explicit withdrawal close them).
-  staff_cleared_at       DateTime?       @db.Timestamptz
-  staff_cleared_by       String?         @db.Uuid
-  staff_cleared_note     String?         @db.String(500)
+  staff_cleared_at             DateTime?       @db.Timestamptz
+  staff_cleared_by             String?         @db.Uuid
+  staff_cleared_note           String?         @db.String(500)
   // «Запросить ещё»: the last request for more documents and its template.
-  documents_requested_at DateTime?       @db.Timestamptz
-  documents_requested_template String?   @db.String(32)
+  documents_requested_at       DateTime?       @db.Timestamptz
+  documents_requested_template String?         @db.String(32)
   // Holds -------------------------------------------------------------
   // A code (complaint | name_mismatch | duplicate_claim | admin | ...) or
   // null. While set, the gate is closed whatever the level.
-  payments_hold          String?         @db.String(32)
-  payments_hold_at       DateTime?       @db.Timestamptz
-  bids_hold              String?         @db.String(32)
-  bids_hold_at           DateTime?       @db.Timestamptz
-  hold_note              String?         @db.String(500)
+  payments_hold                String?         @db.String(32)
+  payments_hold_at             DateTime?       @db.Timestamptz
+  bids_hold                    String?         @db.String(32)
+  bids_hold_at                 DateTime?       @db.Timestamptz
+  hold_note                    String?         @db.String(500)
   // Counters ----------------------------------------------------------
-  complaints_total       Int             @default(0)
-  duplicate_claims       Int             @default(0)
+  complaints_total             Int             @default(0)
+  duplicate_claims             Int             @default(0)
   // Payout delay (days) LawBid asked Stripe to apply; null = Stripe default.
-  payout_delay_days      Int?            @db.Int2
-  payout_delay_synced_at DateTime?       @db.Timestamptz
-  computed_at            DateTime        @default(now()) @db.Timestamptz
-  created_at             DateTime        @default(now()) @db.Timestamptz
-  updated_at             DateTime        @updatedAt @db.Timestamptz
+  payout_delay_days            Int?            @db.Int2
+  payout_delay_synced_at       DateTime?       @db.Timestamptz
+  computed_at                  DateTime        @default(now()) @db.Timestamptz
+  created_at                   DateTime        @default(now()) @db.Timestamptz
+  updated_at                   DateTime        @updatedAt @db.Timestamptz
 
   @@index([level])
   @@index([payments_hold])
@@ -2850,6 +2850,61 @@ model AttorneyTrustEvent {
   @@index([attorney_id, created_at(sort: Desc)])
   @@index([kind, created_at(sort: Desc)])
   @@map("attorney_trust_events")
+}
+
+/// Owner 2026-10-05 07:00: a bar number that staff rejected or an account
+/// that was blocked cannot register again under another name or account.
+/// One row per (state, bar number); `active` flips on unblock, the history
+/// lives in bar_number_block_events and is never deleted.
+model BarNumberBlock {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  state_code      String                @db.Char(2)
+  bar_number      String
+  /// Normalised for matching: upper-case, no spaces / punctuation.
+  bar_key         String
+  active          Boolean               @default(true)
+  reason          String                @db.String(500)
+  /// 'staff_reject' | 'verification_reject' | 'suspend' | 'manual'
+  source          String                @db.String(32)
+  /// The attorney whose rejection / block created it (may be gone later).
+  attorney_id     String?               @db.Uuid
+  blocked_by      String?               @db.Uuid
+  blocked_at      DateTime              @default(now()) @db.Timestamptz
+  /// Also refuse the e-mail / phone that were on the blocked account.
+  block_contacts  Boolean               @default(false)
+  email_lower     String?
+  phone_e164      String?
+  unblocked_at    DateTime?             @db.Timestamptz
+  unblocked_by    String?               @db.Uuid
+  unblock_reason  String?               @db.String(500)
+  attempts        Int                   @default(0)
+  last_attempt_at DateTime?             @db.Timestamptz
+  created_at      DateTime              @default(now()) @db.Timestamptz
+  updated_at      DateTime              @updatedAt @db.Timestamptz
+  events          BarNumberBlockEvent[]
+
+  @@unique([state_code, bar_key])
+  @@index([active, blocked_at(sort: Desc)])
+  @@index([email_lower])
+  @@index([phone_e164])
+  @@map("bar_number_blocks")
+}
+
+/// Immutable history of a blocked bar number: blocked / unblocked /
+/// attempt (someone tried to register it again).
+model BarNumberBlockEvent {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  block_id   String         @db.Uuid
+  block      BarNumberBlock @relation(fields: [block_id], references: [id], onDelete: Cascade)
+  kind       String         @db.String(32)
+  actor_type String         @default("system") @db.String(16)
+  actor_id   String?        @db.Uuid
+  reason     String?        @db.String(500)
+  details    Json           @default("{}")
+  created_at DateTime       @default(now()) @db.Timestamptz
+
+  @@index([block_id, created_at(sort: Desc)])
+  @@map("bar_number_block_events")
 }
 
 /// Owner 2026-10-01: Bunny Stream video of a post.

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-111 tables.
+114 tables.
 
 ```mermaid
 erDiagram
@@ -1011,6 +1011,11 @@ erDiagram
     String firm_link_note "nullable"
     String firm_email_domain "nullable"
     DateTime firm_email_verified_at "nullable"
+    DateTime staff_cleared_at "nullable"
+    String staff_cleared_by "nullable"
+    String staff_cleared_note "nullable"
+    DateTime documents_requested_at "nullable"
+    String documents_requested_template "nullable"
     String payments_hold "nullable"
     DateTime payments_hold_at "nullable"
     String bids_hold "nullable"
@@ -1032,6 +1037,38 @@ erDiagram
     Int to_level "nullable"
     String actor_type
     String actor_id "nullable"
+    Json details
+    DateTime created_at
+  }
+  bar_number_blocks {
+    String id PK
+    String state_code
+    String bar_number
+    String bar_key
+    Boolean active
+    String reason
+    String source
+    String attorney_id "nullable"
+    String blocked_by "nullable"
+    DateTime blocked_at
+    Boolean block_contacts
+    String email_lower "nullable"
+    String phone_e164 "nullable"
+    DateTime unblocked_at "nullable"
+    String unblocked_by "nullable"
+    String unblock_reason "nullable"
+    Int attempts
+    DateTime last_attempt_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  bar_number_block_events {
+    String id PK
+    String block_id FK
+    String kind
+    String actor_type
+    String actor_id "nullable"
+    String reason "nullable"
     Json details
     DateTime created_at
   }
@@ -1510,6 +1547,7 @@ erDiagram
   state_bar_registries |o--|| states : "state_code"
   attorney_trust |o--|| attorney_profiles : "attorney_id"
   attorney_trust_events }o--|| attorney_profiles : "attorney_id"
+  bar_number_block_events }o--|| bar_number_blocks : "block_id"
   video_assets }o--|| users : "owner_user_id"
   partner_commissions }o--|| partners : "partner_id"
   sticker_packs }o--o| users : "owner_user_id"

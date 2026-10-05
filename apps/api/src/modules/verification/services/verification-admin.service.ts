@@ -13,6 +13,10 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
+import {
+  BLOCK_SOURCE,
+  BarNumberBlocksService,
+} from '../../attorney-trust/bar-number-blocks.service';
 import { AuditLogService } from '../../admin-access/audit-log.service';
 import { BidStateMachine } from '../../bids/domain/bid-state-machine';
 import { CaseJournalService } from '../../journal/case-journal.service';
@@ -101,6 +105,7 @@ export class VerificationAdminService {
     private readonly bidMachine: BidStateMachine,
     private readonly journal: CaseJournalService,
     private readonly trust: AttorneyTrustService,
+    private readonly blocks: BarNumberBlocksService,
   ) {}
 
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
@@ -582,6 +587,17 @@ export class VerificationAdminService {
         requestId: req.id,
         rejectionCode: dto.rejectionCode,
       });
+      // Owner 2026-10-05 07:00: the rejected bar numbers stay blocked for
+      // re-registration until staff unblock them (`trust.block_on_reject`).
+      if (await this.blocks.blockOnReject()) {
+        await this.blocks.blockAttorney(
+          req.attorney_id,
+          { type: 'admin', id: admin.id, ip: admin.ip },
+          dto.comment || `Verification rejected: ${dto.rejectionCode}`,
+          BLOCK_SOURCE.verificationReject,
+          tx,
+        );
+      }
     });
     return this.card(requestId);
   }
@@ -953,6 +969,17 @@ export class VerificationAdminService {
         { type: 'admin', id: admin.id },
         tx,
       );
+      // Owner 2026-10-05 07:00: a blocked account's bar numbers cannot be
+      // registered again under a new account (`trust.block_on_reject`).
+      if (await this.blocks.blockOnReject()) {
+        await this.blocks.blockAttorney(
+          attorneyId,
+          { type: 'admin', id: admin.id, ip: admin.ip },
+          reason,
+          BLOCK_SOURCE.suspend,
+          tx,
+        );
+      }
       return {
         attorneyId,
         verificationStatus: 'suspended',

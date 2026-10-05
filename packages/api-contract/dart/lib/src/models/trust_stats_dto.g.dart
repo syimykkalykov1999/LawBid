@@ -22,6 +22,7 @@ TrustStatsDto _$TrustStatsDtoFromJson(Map<String, dynamic> json) =>
       byStatus: (json['byStatus'] as List<dynamic>)
           .map((e) => TrustStatusCountDto.fromJson(e as Map<String, dynamic>))
           .toList(),
+      blockedBarNumbers: (json['blockedBarNumbers'] as num).toInt(),
     );
 
 Map<String, dynamic> _$TrustStatsDtoToJson(TrustStatsDto instance) =>
@@ -36,4 +37,5 @@ Map<String, dynamic> _$TrustStatsDtoToJson(TrustStatsDto instance) =>
       'enabled': instance.enabled,
       'manualReview': instance.manualReview,
       'byStatus': instance.byStatus.map((e) => e.toJson()).toList(),
+      'blockedBarNumbers': instance.blockedBarNumbers,
     };

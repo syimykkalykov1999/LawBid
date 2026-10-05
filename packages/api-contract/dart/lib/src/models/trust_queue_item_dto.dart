@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_trust_attorney_dto.dart';
+import 'bar_lookup_dto.dart';
 import 'registry_link_dto.dart';
 import 'trust_holds_dto.dart';
 import 'trust_queue_item_dto_badge_status.dart';
@@ -27,6 +28,8 @@ class TrustQueueItemDto {
     required this.stripeRepresentative,
     required this.stripeCompanyName,
     required this.registryLinks,
+    required this.lookups,
+    required this.blocked,
     required this.requestId,
     required this.documentsCount,
     required this.documentsRequestedAt,
@@ -47,6 +50,10 @@ class TrustQueueItemDto {
   final String? stripeRepresentative;
   final String? stripeCompanyName;
   final List<RegistryLinkDto> registryLinks;
+  final List<BarLookupDto> lookups;
+
+  /// One of the licenses is on the block list.
+  final bool blocked;
 
   /// Open the documents on this verification request.
   final String? requestId;

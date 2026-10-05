@@ -161,6 +161,9 @@ export enum ErrorCode {
   LICENSE_ALREADY_ADDED = 'LICENSE_ALREADY_ADDED',
   // 403: a suspended attorney can't create or change verification requests.
   ATTORNEY_SUSPENDED = 'ATTORNEY_SUSPENDED',
+  // 403: this bar number (or the contacts of a blocked account) was rejected
+  // or blocked before; registration with it is refused — contact support.
+  BAR_NUMBER_BLOCKED = 'BAR_NUMBER_BLOCKED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',

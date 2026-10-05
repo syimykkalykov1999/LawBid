@@ -22,6 +22,7 @@ class TrustStatsDto {
     required this.enabled,
     required this.manualReview,
     required this.byStatus,
+    required this.blockedBarNumbers,
   });
 
   factory TrustStatsDto.fromJson(Map<String, Object?> json) =>
@@ -53,6 +54,9 @@ class TrustStatsDto {
 
   /// Attorneys per badge status, same order as the enum.
   final List<TrustStatusCountDto> byStatus;
+
+  /// Bar numbers on the block list right now (owner 07:00).
+  final int blockedBarNumbers;
 
   Map<String, Object?> toJson() => _$TrustStatsDtoToJson(this);
 }

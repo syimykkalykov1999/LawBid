@@ -8,6 +8,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminTrustController } from './admin-trust.controller';
 import { AdminTrustService } from './admin-trust.service';
 import { AttorneyTrustService } from './attorney-trust.service';
+import { BarNumberBlocksService } from './bar-number-blocks.service';
 import { FirmEmailService } from './firm-email.service';
 import { TrustController } from './trust.controller';
 
@@ -21,8 +22,8 @@ import { TrustController } from './trust.controller';
 @Global()
 @Module({
   imports: [NotificationsModule, JournalModule],
-  providers: [AttorneyTrustService, BidStateMachine],
-  exports: [AttorneyTrustService],
+  providers: [AttorneyTrustService, BarNumberBlocksService, BidStateMachine],
+  exports: [AttorneyTrustService, BarNumberBlocksService],
 })
 export class AttorneyTrustCoreModule {}
 

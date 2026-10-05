@@ -67,6 +67,16 @@ const PROFILE_PAGES: Readonly<Record<string, (n: string) => string>> = {
     `https://www.floridabar.org/directories/find-mbr/profile/?num=${n}`,
 };
 
+/** True when the state's page takes the bar number in the URL (one tap
+ * opens the attorney's record); false = a search page, the verifier pastes
+ * the number («Скопировать номер»). */
+export function stateBarLookupPrefilled(
+  stateCode: string,
+  barNumber: string,
+): boolean {
+  return Boolean(PROFILE_PAGES[stateCode] && barNumber.replace(/\D/g, ''));
+}
+
 /** Where a verifier checks [barNumber] in [stateCode]; null if unknown. */
 export function stateBarLookupUrl(
   stateCode: string,

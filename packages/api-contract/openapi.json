@@ -54147,6 +54147,444 @@
         ]
       }
     },
+    "/admin/trust/blocked-bar-numbers": {
+      "get": {
+        "operationId": "blockedBarNumbers",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "unblocked"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 80,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Bar numbers that cannot register again: reason, who blocked, attempts",
+        "tags": [
+          "admin-trust"
+        ]
+      },
+      "post": {
+        "operationId": "blockBarNumber",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockBarNumberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Block a bar number by hand (reason required)",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/blocked-bar-numbers/{id}": {
+      "get": {
+        "operationId": "blockedBarNumber",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One blocked bar number with its history",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
+    "/admin/trust/blocked-bar-numbers/{id}/unblock": {
+      "post": {
+        "operationId": "unblockBarNumber",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnblockBarNumberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BarNumberBlockEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Lift the block (the person explained / proved); reason required",
+        "tags": [
+          "admin-trust"
+        ]
+      }
+    },
     "/admin/trust/recompute-all": {
       "post": {
         "operationId": "recomputeAllTrust",
@@ -55633,6 +56071,7 @@
           "LICENSE_ALREADY_REGISTERED",
           "LICENSE_ALREADY_ADDED",
           "ATTORNEY_SUSPENDED",
+          "BAR_NUMBER_BLOCKED",
           "JUSTIFICATION_REQUIRED",
           "ADMIN_TICKET_INVALID",
           "ADMIN_TOTP_INVALID",
@@ -81985,6 +82424,14 @@
           "firmLinkAutoEmail": {
             "type": "boolean",
             "description": "Firm link counts after a code to an e-mail on the firm domain."
+          },
+          "blockOnReject": {
+            "type": "boolean",
+            "description": "Owner 2026-10-05 07:00: a rejection or a suspension also blocks the bar number for new accounts."
+          },
+          "blockContacts": {
+            "type": "boolean",
+            "description": "A block also refuses the e-mail and phone that were on the blocked account."
           }
         },
         "required": [
@@ -82001,7 +82448,9 @@
           "autoHoldOnNameMismatch",
           "flagDuplicateClaims",
           "firmLinkAutoRegistry",
-          "firmLinkAutoEmail"
+          "firmLinkAutoEmail",
+          "blockOnReject",
+          "blockContacts"
         ]
       },
       "TrustSettingsEnvelope": {
@@ -82104,6 +82553,10 @@
             "items": {
               "$ref": "#/components/schemas/TrustStatusCountDto"
             }
+          },
+          "blockedBarNumbers": {
+            "type": "integer",
+            "description": "Bar numbers on the block list right now (owner 07:00)."
           }
         },
         "required": [
@@ -82116,7 +82569,8 @@
           "inQueue",
           "enabled",
           "manualReview",
-          "byStatus"
+          "byStatus",
+          "blockedBarNumbers"
         ]
       },
       "TrustStatsEnvelope": {
@@ -82268,6 +82722,45 @@
           "name",
           "email",
           "role"
+        ]
+      },
+      "BarLookupDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string"
+          },
+          "stateName": {
+            "type": "string"
+          },
+          "barNumber": {
+            "type": "string"
+          },
+          "licenseStatus": {
+            "type": "string",
+            "description": "pending / verified / rejected …"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "prefilled": {
+            "type": "boolean",
+            "description": "True: the page opens straight on this number. False: a search page, paste the number."
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "This number is on the block list right now."
+          }
+        },
+        "required": [
+          "stateCode",
+          "stateName",
+          "barNumber",
+          "licenseStatus",
+          "url",
+          "prefilled",
+          "blocked"
         ]
       },
       "TrustEventDto": {
@@ -82471,6 +82964,16 @@
               "$ref": "#/components/schemas/RegistryLinkDto"
             }
           },
+          "lookups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarLookupDto"
+            }
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "One of the licenses is on the block list (owner 07:00)."
+          },
           "latestRequestId": {
             "type": "string",
             "nullable": true,
@@ -82514,6 +83017,8 @@
           "complaintsTotal",
           "duplicateClaims",
           "registryLinks",
+          "lookups",
+          "blocked",
           "latestRequestId",
           "events"
         ]
@@ -82635,6 +83140,16 @@
           },
           "complaintsTotal": {
             "type": "integer"
+          },
+          "lookups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarLookupDto"
+            }
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "One of the licenses is on the block list."
           }
         },
         "required": [
@@ -82648,7 +83163,9 @@
           "staffClearedAt",
           "staffClearedBy",
           "documentsRequestedAt",
-          "complaintsTotal"
+          "complaintsTotal",
+          "lookups",
+          "blocked"
         ]
       },
       "TrustAttorneyListItemListEnvelope": {
@@ -82749,6 +83266,16 @@
               "$ref": "#/components/schemas/RegistryLinkDto"
             }
           },
+          "lookups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarLookupDto"
+            }
+          },
+          "blocked": {
+            "type": "boolean",
+            "description": "One of the licenses is on the block list."
+          },
           "requestId": {
             "type": "string",
             "nullable": true,
@@ -82794,6 +83321,8 @@
           "stripeRepresentative",
           "stripeCompanyName",
           "registryLinks",
+          "lookups",
+          "blocked",
           "requestId",
           "documentsCount",
           "documentsRequestedAt",
@@ -83066,6 +83595,255 @@
         "required": [
           "payments",
           "bids"
+        ]
+      },
+      "BarNumberBlockEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "blocked",
+              "unblocked",
+              "attempt"
+            ]
+          },
+          "actorType": {
+            "type": "string",
+            "description": "admin / system / attorney"
+          },
+          "actor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "actorType",
+          "actor",
+          "reason",
+          "details",
+          "createdAt"
+        ]
+      },
+      "BarNumberBlockDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stateCode": {
+            "type": "string"
+          },
+          "barNumber": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "staff_reject",
+              "verification_reject",
+              "suspend",
+              "manual"
+            ]
+          },
+          "attorney": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminTrustAttorneyDto"
+              }
+            ]
+          },
+          "blockedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "blockedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "blockContacts": {
+            "type": "boolean"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Masked."
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Masked."
+          },
+          "unblockedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "unblockedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffAdminDto"
+              }
+            ]
+          },
+          "unblockReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "attempts": {
+            "type": "integer",
+            "description": "How many times someone tried to register it again."
+          },
+          "lastAttemptAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lookupUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarNumberBlockEventDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "stateCode",
+          "barNumber",
+          "active",
+          "reason",
+          "source",
+          "attorney",
+          "blockedBy",
+          "blockedAt",
+          "blockContacts",
+          "email",
+          "phone",
+          "unblockedAt",
+          "unblockedBy",
+          "unblockReason",
+          "attempts",
+          "lastAttemptAt",
+          "lookupUrl",
+          "events"
+        ]
+      },
+      "BarNumberBlockListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarNumberBlockDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BlockBarNumberDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2,
+            "example": "CA"
+          },
+          "barNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500
+          },
+          "blockContacts": {
+            "type": "boolean",
+            "description": "Also block the e-mail / phone of the current holder."
+          }
+        },
+        "required": [
+          "stateCode",
+          "barNumber",
+          "reason"
+        ]
+      },
+      "BarNumberBlockEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BarNumberBlockDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UnblockBarNumberDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500,
+            "description": "Why the block is lifted (what the person explained / proved)."
+          }
+        },
+        "required": [
+          "reason"
         ]
       },
       "RecomputeAllResultDto": {

@@ -16,7 +16,11 @@ import {
 } from './attorney-trust.constants';
 import type { TrustSnapshot } from './attorney-trust.service';
 import type {
+  AdminTrustAttorneyDto,
   AdminTrustCardDto,
+  BarNumberBlockDto,
+  BarNumberBlockEventDto,
+  BlockBarNumberDto,
   BulkTrustDto,
   ClearedByItemDto,
   StaffAdminDto,
@@ -36,7 +40,10 @@ import {
   AttorneyTrustService,
   type TrustActor,
 } from './attorney-trust.service';
+import { stateBarLookupUrl } from '../verification/state-bar-links';
+import { BarNumberBlocksService } from './bar-number-blocks.service';
 import {
+  barLookups,
   registryLinks,
   toEventDto,
   toFirmLink,
@@ -59,6 +66,18 @@ const SETTING_KEYS = {
   flagDuplicateClaims: 'trust.flag_duplicate_claims',
   firmLinkAutoRegistry: 'trust.firm_link_auto_registry',
   firmLinkAutoEmail: 'trust.firm_link_auto_email',
+  blockOnReject: 'trust.block_on_reject',
+  blockContacts: 'trust.block_contacts',
+} as const;
+
+const LICENSE_SELECT = {
+  select: {
+    state_code: true,
+    bar_number: true,
+    license_status: true,
+    state: { select: { name: true } },
+  },
+  orderBy: { state_code: 'asc' },
 } as const;
 
 /** Admin → Верификация → «Уровни доверия». */
@@ -70,6 +89,7 @@ export class AdminTrustService {
     private readonly settings: AppSettingsService,
     private readonly config: AdminConfigService,
     private readonly audit: AuditLogService,
+    private readonly blocks: BarNumberBlocksService,
   ) {}
 
   async settingsDto(): Promise<TrustSettingsDto> {
@@ -91,6 +111,8 @@ export class AdminTrustService {
       flagDuplicateClaims: await s.boolean(SETTING_KEYS.flagDuplicateClaims),
       firmLinkAutoRegistry: await s.boolean(SETTING_KEYS.firmLinkAutoRegistry),
       firmLinkAutoEmail: await s.boolean(SETTING_KEYS.firmLinkAutoEmail),
+      blockOnReject: await s.boolean(SETTING_KEYS.blockOnReject),
+      blockContacts: await s.boolean(SETTING_KEYS.blockContacts),
     };
   }
 
@@ -180,9 +202,10 @@ export class AdminTrustService {
         }),
         this.trust.queue({ limit: 1000 }).then((q) => q.length),
       ]);
-    const [rules, byStatus] = await Promise.all([
+    const [rules, byStatus, blockedBarNumbers] = await Promise.all([
       this.trust.rules(),
       this.trust.countByStatus(),
+      this.blocks.countActive(),
     ]);
     const counts = new Map(byLevel.map((r) => [r.trust_level, r._count._all]));
     return {
@@ -203,6 +226,7 @@ export class AdminTrustService {
         status,
         attorneys: byStatus.get(status) ?? 0,
       })),
+      blockedBarNumbers,
     };
   }
 
@@ -222,6 +246,7 @@ export class AdminTrustService {
           username: true,
           verification_status: true,
           user: { select: { first_name: true, last_name: true } },
+          licenses: LICENSE_SELECT,
         },
       }),
       this.admins(
@@ -230,6 +255,9 @@ export class AdminTrustService {
           .filter((id): id is string => typeof id === 'string'),
       ),
     ]);
+    const blocked = await this.blocks.activeKeys(
+      rows.flatMap((r) => r.licenses),
+    );
     const byId = new Map(rows.map((r) => [r.user_id, r]));
     const items: TrustAttorneyListItemDto[] = [];
     for (const snap of snaps) {
@@ -255,6 +283,8 @@ export class AdminTrustService {
           : null,
         documentsRequestedAt: snap.documentsRequestedAt?.toISOString() ?? null,
         complaintsTotal: snap.complaintsTotal,
+        lookups: barLookups(row.licenses, blocked),
+        blocked: barLookups(row.licenses, blocked).some((l) => l.blocked),
       });
     }
     return items;
@@ -323,15 +353,7 @@ export class AdminTrustService {
         username: true,
         verification_status: true,
         user: { select: { first_name: true, last_name: true } },
-        licenses: {
-          select: {
-            state_code: true,
-            bar_number: true,
-            license_status: true,
-            state: { select: { name: true } },
-          },
-          orderBy: { state_code: 'asc' },
-        },
+        licenses: LICENSE_SELECT,
         verification_requests: {
           orderBy: { created_at: 'desc' },
           take: 1,
@@ -343,6 +365,9 @@ export class AdminTrustService {
         },
       },
     });
+    const blocked = await this.blocks.activeKeys(
+      rows.flatMap((r) => r.licenses),
+    );
     const byId = new Map(rows.map((r) => [r.user_id, r]));
     const items: TrustQueueItemDto[] = [];
     for (const snap of snaps) {
@@ -374,6 +399,8 @@ export class AdminTrustService {
         stripeRepresentative: snap.stripe.representative,
         stripeCompanyName: snap.stripe.companyName,
         registryLinks: registryLinks(row.licenses),
+        lookups: barLookups(row.licenses, blocked),
+        blocked: barLookups(row.licenses, blocked).some((l) => l.blocked),
         requestId: request?.id ?? null,
         documentsCount: request?._count.documents ?? 0,
         documentsRequestedAt: snap.documentsRequestedAt?.toISOString() ?? null,
@@ -600,15 +627,7 @@ export class AdminTrustService {
         username: true,
         verification_status: true,
         user: { select: { first_name: true, last_name: true } },
-        licenses: {
-          select: {
-            state_code: true,
-            bar_number: true,
-            license_status: true,
-            state: { select: { name: true } },
-          },
-          orderBy: { state_code: 'asc' },
-        },
+        licenses: LICENSE_SELECT,
         verification_requests: {
           orderBy: { created_at: 'desc' },
           take: 1,
@@ -619,7 +638,11 @@ export class AdminTrustService {
     if (!row) throw attorneyNotFound();
     const snap = await this.trust.recompute(attorneyId);
     if (!snap) throw attorneyNotFound();
-    const events = await this.trust.events(attorneyId);
+    const [events, blocked] = await Promise.all([
+      this.trust.events(attorneyId),
+      this.blocks.activeKeys(row.licenses),
+    ]);
+    const lookups = barLookups(row.licenses, blocked);
     return {
       attorney: {
         id: row.user_id,
@@ -660,6 +683,8 @@ export class AdminTrustService {
       complaintsTotal: snap.complaintsTotal,
       duplicateClaims: snap.duplicateClaims,
       registryLinks: registryLinks(row.licenses),
+      lookups,
+      blocked: lookups.some((l) => l.blocked),
       latestRequestId: row.verification_requests[0]?.id ?? null,
       events: events.map(toEventDto),
     };
@@ -871,6 +896,179 @@ export class AdminTrustService {
     }));
   }
 
+  // --- Owner 2026-10-05 07:00: «Заблокированные номера» -------------------
+
+  async blockedBarNumbers(opts: {
+    q?: string | null;
+    status?: 'active' | 'unblocked' | null;
+    limit?: number;
+  }): Promise<BarNumberBlockDto[]> {
+    const rows = await this.blocks.list(opts);
+    return this.blockDtos(rows.map((r) => ({ ...r, events: [] })));
+  }
+
+  async blockedBarNumber(id: string): Promise<BarNumberBlockDto> {
+    const row = await this.blocks.getById(id);
+    if (!row) throw blockNotFound();
+    return (await this.blockDtos([row]))[0];
+  }
+
+  /** A block by hand: the number cannot be registered from now on. */
+  async blockBarNumber(
+    admin: AdminActor,
+    dto: BlockBarNumberDto,
+  ): Promise<BarNumberBlockDto> {
+    const before = await this.blocks.get(dto.stateCode, dto.barNumber);
+    const row = await this.blocks.block({
+      stateCode: dto.stateCode,
+      barNumber: dto.barNumber,
+      reason: dto.reason,
+      actor: actorOf(admin),
+      blockContacts:
+        dto.blockContacts ??
+        (await this.settings.boolean(SETTING_KEYS.blockContacts)),
+    });
+    if (!row) throw blockNotFound();
+    await this.audit.record({
+      adminId: admin.id,
+      action: TRUST_AUDIT_ACTION.blockBar,
+      targetType: 'bar_number_block',
+      targetId: row.id,
+      before: { active: before?.active ?? false },
+      after: {
+        active: true,
+        stateCode: row.state_code,
+        barNumber: row.bar_number,
+        reason: dto.reason,
+        blockContacts: row.block_contacts,
+      },
+      ip: admin.ip,
+    });
+    return (await this.blockDtos([row]))[0];
+  }
+
+  /** The person explained and proved: the number may register again. */
+  async unblockBarNumber(
+    admin: AdminActor,
+    id: string,
+    reason: string,
+  ): Promise<BarNumberBlockDto> {
+    const before = await this.blocks.getById(id);
+    if (!before) throw blockNotFound();
+    const row = await this.blocks.unblock(id, actorOf(admin), reason);
+    if (!row) throw blockNotFound();
+    await this.audit.record({
+      adminId: admin.id,
+      action: TRUST_AUDIT_ACTION.unblockBar,
+      targetType: 'bar_number_block',
+      targetId: id,
+      before: { active: before.active },
+      after: {
+        active: false,
+        stateCode: row.state_code,
+        barNumber: row.bar_number,
+        reason,
+      },
+      ip: admin.ip,
+    });
+    return (await this.blockDtos([row]))[0];
+  }
+
+  private async blockDtos(
+    rows: Array<
+      Awaited<ReturnType<BarNumberBlocksService['list']>>[number] & {
+        events: Array<{
+          id: string;
+          kind: string;
+          actor_type: string;
+          actor_id: string | null;
+          reason: string | null;
+          details: unknown;
+          created_at: Date;
+        }>;
+      }
+    >,
+  ): Promise<BarNumberBlockDto[]> {
+    const adminIds: string[] = [];
+    const attorneyIds: string[] = [];
+    for (const r of rows) {
+      if (r.blocked_by) adminIds.push(r.blocked_by);
+      if (r.unblocked_by) adminIds.push(r.unblocked_by);
+      if (r.attorney_id) attorneyIds.push(r.attorney_id);
+      for (const e of r.events) {
+        if (e.actor_type === TRUST_ACTOR.admin && e.actor_id) {
+          adminIds.push(e.actor_id);
+        }
+      }
+    }
+    const [admins, attorneys] = await Promise.all([
+      this.admins(adminIds),
+      this.attorneys(attorneyIds),
+    ]);
+    const adminOf = (id: string | null) =>
+      id ? (admins.get(id) ?? null) : null;
+    return rows.map((r) => ({
+      id: r.id,
+      stateCode: r.state_code,
+      barNumber: r.bar_number,
+      active: r.active,
+      reason: r.reason,
+      source: r.source,
+      attorney: r.attorney_id ? (attorneys.get(r.attorney_id) ?? null) : null,
+      blockedBy: adminOf(r.blocked_by),
+      blockedAt: r.blocked_at.toISOString(),
+      blockContacts: r.block_contacts,
+      email: maskEmail(r.email_lower),
+      phone: maskPhone(r.phone_e164),
+      unblockedAt: r.unblocked_at?.toISOString() ?? null,
+      unblockedBy: adminOf(r.unblocked_by),
+      unblockReason: r.unblock_reason,
+      attempts: r.attempts,
+      lastAttemptAt: r.last_attempt_at?.toISOString() ?? null,
+      lookupUrl: stateBarLookupUrl(r.state_code, r.bar_number),
+      events: r.events.map((e): BarNumberBlockEventDto => ({
+        id: e.id,
+        kind: e.kind,
+        actorType: e.actor_type,
+        actor: e.actor_type === TRUST_ACTOR.admin ? adminOf(e.actor_id) : null,
+        reason: e.reason,
+        details:
+          e.details && typeof e.details === 'object'
+            ? (e.details as Record<string, unknown>)
+            : {},
+        createdAt: e.created_at.toISOString(),
+      })),
+    }));
+  }
+
+  private async attorneys(
+    ids: string[],
+  ): Promise<Map<string, AdminTrustAttorneyDto>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.prisma.attorneyProfile.findMany({
+      where: { user_id: { in: unique } },
+      select: {
+        user_id: true,
+        username: true,
+        verification_status: true,
+        user: { select: { first_name: true, last_name: true } },
+      },
+    });
+    return new Map(
+      rows.map((r) => [
+        r.user_id,
+        {
+          id: r.user_id,
+          firstName: r.user.first_name,
+          lastName: r.user.last_name,
+          username: r.username,
+          verificationStatus: r.verification_status,
+        },
+      ]),
+    );
+  }
+
   private async admins(ids: string[]): Promise<Map<string, StaffAdminDto>> {
     const unique = [...new Set(ids)];
     if (unique.length === 0) return new Map();
@@ -963,6 +1161,7 @@ export function presetSettings(
         flagDuplicateClaims: true,
         firmLinkAutoRegistry: true,
         firmLinkAutoEmail: true,
+        blockOnReject: true,
       };
     case 'standard':
       return {
@@ -981,6 +1180,7 @@ export function presetSettings(
         flagDuplicateClaims: true,
         firmLinkAutoRegistry: true,
         firmLinkAutoEmail: true,
+        blockOnReject: true,
       };
     case 'strict':
       return {
@@ -999,6 +1199,8 @@ export function presetSettings(
         flagDuplicateClaims: true,
         firmLinkAutoRegistry: false,
         firmLinkAutoEmail: false,
+        blockOnReject: true,
+        blockContacts: true,
       };
     case 'all':
       return {
@@ -1017,12 +1219,33 @@ export function presetSettings(
         flagDuplicateClaims: true,
         firmLinkAutoRegistry: true,
         firmLinkAutoEmail: true,
+        blockOnReject: true,
       };
   }
 }
 
 function actorOf(admin: AdminActor): TrustActor {
   return { type: TRUST_ACTOR.admin, id: admin.id, ip: admin.ip };
+}
+
+function blockNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: ErrorCode.NOT_FOUND,
+    message: 'Blocked bar number not found.',
+  });
+}
+
+/** `j***@firm.com` — staff see that a contact is on the list, not the contact. */
+function maskEmail(email: string | null): string | null {
+  if (!email) return null;
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
+function maskPhone(phone: string | null): string | null {
+  if (!phone) return null;
+  return `${phone.slice(0, 2)}*** ${phone.slice(-4)}`;
 }
 
 function attorneyNotFound(): NotFoundException {

@@ -4,6 +4,8 @@ import {
   Get,
   NotFoundException,
   Param,
+  HttpCode,
+  HttpStatus,
   Post,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -50,6 +52,7 @@ export class TrustController {
   ) {}
 
   @Post('me/firm-email')
+  @HttpCode(HttpStatus.OK)
   @AttorneyOnly()
   @ApiOperation({
     summary: 'Send a code to my address at the firm (firm link)',
@@ -68,6 +71,7 @@ export class TrustController {
   }
 
   @Post('me/firm-email/confirm')
+  @HttpCode(HttpStatus.OK)
   @AttorneyOnly()
   @ApiOperation({ summary: 'Confirm the firm e-mail code' })
   @ApiEnvelopeResponse(FirmEmailResultDto)

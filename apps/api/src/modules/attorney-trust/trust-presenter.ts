@@ -1,5 +1,9 @@
-import { stateBarLookupUrl } from '../verification/state-bar-links';
+import {
+  stateBarLookupPrefilled,
+  stateBarLookupUrl,
+} from '../verification/state-bar-links';
 import type {
+  BarLookupDto,
   FirmLinkDto,
   OwnTrustDto,
   PublicTrustDto,
@@ -32,6 +36,29 @@ export function registryLinks(
     });
   }
   return out;
+}
+
+/** Owner 2026-10-05 07:00: every license as the verifier works it — a
+ * one-tap link to the state bar's page, or the search page plus the
+ * number to paste, and whether the number is on the block list. */
+export function barLookups(
+  licenses: readonly LicenseForLinks[],
+  blockedKeys: ReadonlySet<string>,
+): BarLookupDto[] {
+  return licenses.map((l) => ({
+    stateCode: l.state_code,
+    stateName: l.state.name,
+    barNumber: l.bar_number,
+    licenseStatus: l.license_status,
+    url: stateBarLookupUrl(l.state_code, l.bar_number),
+    prefilled: stateBarLookupPrefilled(l.state_code, l.bar_number),
+    blocked: blockedKeys.has(blockKey(l.state_code, l.bar_number)),
+  }));
+}
+
+/** `(state, normalised number)` — the key of `bar_number_blocks`. */
+export function blockKey(stateCode: string, barNumber: string): string {
+  return `${stateCode}:${barNumber.replace(/[^0-9a-z]/gi, '').toUpperCase()}`;
 }
 
 export function toPublicTrust(

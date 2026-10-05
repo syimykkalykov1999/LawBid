@@ -10,6 +10,10 @@ import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { VERIFICATION_NOTIFICATION_KIND } from '../verification/verification.constants';
 import {
+  BLOCK_SOURCE,
+  BarNumberBlocksService,
+} from './bar-number-blocks.service';
+import {
   COMPLAINT_REASONS,
   DUPLICATE_CLAIM_FLAG,
   FIRM_LINK,
@@ -225,6 +229,7 @@ export class AttorneyTrustService {
     private readonly notifications: NotificationsService,
     private readonly bidMachine: BidStateMachine,
     private readonly journal: CaseJournalService,
+    private readonly blocks: BarNumberBlocksService,
     @InjectPinoLogger(AttorneyTrustService.name)
     private readonly logger: PinoLogger,
   ) {}
@@ -1150,6 +1155,17 @@ export class AttorneyTrustService {
         reason: 'staff_reject',
         ...seen,
       });
+      // Owner 2026-10-05 07:00: the rejected bar numbers cannot come back
+      // under another name or account (switch `trust.block_on_reject`).
+      if (await this.blocks.blockOnReject()) {
+        await this.blocks.blockAttorney(
+          attorneyId,
+          actor,
+          note ?? 'Rejected by staff',
+          BLOCK_SOURCE.staffReject,
+          tx,
+        );
+      }
       return this.recompute(attorneyId, actor, tx);
     });
   }

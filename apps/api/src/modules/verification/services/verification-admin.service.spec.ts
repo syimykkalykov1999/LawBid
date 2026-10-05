@@ -55,6 +55,7 @@ describe('VerificationAdminService.documentUrl rate limit', () => {
         recompute: jest.fn(),
         confirmDocuments: jest.fn(),
       } as unknown as AttorneyTrustService,
+      { blockOnReject: jest.fn(() => Promise.resolve(false)) } as never,
     );
     return {
       service,

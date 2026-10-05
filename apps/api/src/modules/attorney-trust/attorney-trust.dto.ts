@@ -164,6 +164,38 @@ export class RegistryLinkDto {
 }
 
 /**
+ * Owner 2026-10-05 07:00: one license as the verifier works it — a button
+ * that opens the state bar's page (the number already in the URL where the
+ * state allows it, else the search page + «Скопировать номер»), and
+ * whether this number is on the block list.
+ */
+export class BarLookupDto {
+  @ApiProperty()
+  stateCode!: string;
+
+  @ApiProperty()
+  stateName!: string;
+
+  @ApiProperty()
+  barNumber!: string;
+
+  @ApiProperty({ description: 'pending / verified / rejected …' })
+  licenseStatus!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  url!: string | null;
+
+  @ApiProperty({
+    description:
+      'True: the page opens straight on this number. False: a search page, paste the number.',
+  })
+  prefilled!: boolean;
+
+  @ApiProperty({ description: 'This number is on the block list right now.' })
+  blocked!: boolean;
+}
+
+/**
  * What a client (or the attorney) sees: the level, what exactly was
  * checked and whether money can be sent through LawBid. Never says
  * "verified" for a level the facts do not support.
@@ -444,6 +476,14 @@ export class AdminTrustCardDto {
   @ApiProperty({ type: [RegistryLinkDto] })
   registryLinks!: RegistryLinkDto[];
 
+  @ApiProperty({ type: [BarLookupDto] })
+  lookups!: BarLookupDto[];
+
+  @ApiProperty({
+    description: 'One of the licenses is on the block list (owner 07:00).',
+  })
+  blocked!: boolean;
+
   @ApiProperty({
     type: String,
     format: 'uuid',
@@ -537,6 +577,12 @@ export class TrustStatsDto {
     description: 'Attorneys per badge status, same order as the enum.',
   })
   byStatus!: TrustStatusCountDto[];
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Bar numbers on the block list right now (owner 07:00).',
+  })
+  blockedBarNumbers!: number;
 }
 
 export class StaffAdminDto {
@@ -676,6 +722,12 @@ export class TrustQueueItemDto {
   @ApiProperty({ type: [RegistryLinkDto] })
   registryLinks!: RegistryLinkDto[];
 
+  @ApiProperty({ type: [BarLookupDto] })
+  lookups!: BarLookupDto[];
+
+  @ApiProperty({ description: 'One of the licenses is on the block list.' })
+  blocked!: boolean;
+
   @ApiProperty({
     type: String,
     nullable: true,
@@ -731,6 +783,12 @@ export class TrustAttorneyListItemDto {
 
   @ApiProperty({ type: 'integer' })
   complaintsTotal!: number;
+
+  @ApiProperty({ type: [BarLookupDto] })
+  lookups!: BarLookupDto[];
+
+  @ApiProperty({ description: 'One of the licenses is on the block list.' })
+  blocked!: boolean;
 }
 
 export class TrustAttorneyListQueryDto {
@@ -930,6 +988,183 @@ export class TrustSettingsDto {
   })
   @IsBoolean()
   firmLinkAutoEmail!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-05 07:00: a rejection or a suspension also blocks the bar number for new accounts.',
+  })
+  @IsBoolean()
+  blockOnReject!: boolean;
+
+  @ApiProperty({
+    description:
+      'A block also refuses the e-mail and phone that were on the blocked account.',
+  })
+  @IsBoolean()
+  blockContacts!: boolean;
+}
+
+// --- Owner 2026-10-05 07:00: «Заблокированные номера» ----------------------
+
+export const BAR_BLOCK_STATUSES = ['active', 'unblocked'] as const;
+export type BarBlockStatus = (typeof BAR_BLOCK_STATUSES)[number];
+
+export class BarNumberBlockEventDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ enum: ['blocked', 'unblocked', 'attempt'] })
+  kind!: string;
+
+  @ApiProperty({ description: 'admin / system / attorney' })
+  actorType!: string;
+
+  @ApiProperty({ type: StaffAdminDto, nullable: true })
+  actor!: StaffAdminDto | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  reason!: string | null;
+
+  @ApiProperty({ type: Object, additionalProperties: true })
+  details!: Record<string, unknown>;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt!: string;
+}
+
+/** One blocked bar number: reason, who, history, who tried to use it. */
+export class BarNumberBlockDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  stateCode!: string;
+
+  @ApiProperty()
+  barNumber!: string;
+
+  @ApiProperty()
+  active!: boolean;
+
+  @ApiProperty()
+  reason!: string;
+
+  @ApiProperty({
+    enum: ['staff_reject', 'verification_reject', 'suspend', 'manual'],
+  })
+  source!: string;
+
+  @ApiProperty({ type: AdminTrustAttorneyDto, nullable: true })
+  attorney!: AdminTrustAttorneyDto | null;
+
+  @ApiProperty({ type: StaffAdminDto, nullable: true })
+  blockedBy!: StaffAdminDto | null;
+
+  @ApiProperty({ format: 'date-time' })
+  blockedAt!: string;
+
+  @ApiProperty()
+  blockContacts!: boolean;
+
+  @ApiProperty({ type: String, nullable: true, description: 'Masked.' })
+  email!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, description: 'Masked.' })
+  phone!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  unblockedAt!: string | null;
+
+  @ApiProperty({ type: StaffAdminDto, nullable: true })
+  unblockedBy!: StaffAdminDto | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  unblockReason!: string | null;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'How many times someone tried to register it again.',
+  })
+  attempts!: number;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  lastAttemptAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  lookupUrl!: string | null;
+
+  @ApiProperty({ type: [BarNumberBlockEventDto] })
+  events!: BarNumberBlockEventDto[];
+}
+
+export class BarNumberBlocksQueryDto {
+  @ApiPropertyOptional({ enum: BAR_BLOCK_STATUSES })
+  @IsOptional()
+  @IsIn([...BAR_BLOCK_STATUSES])
+  status?: BarBlockStatus;
+
+  @ApiPropertyOptional({ maxLength: 80 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 500 })
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+}
+
+export class BlockBarNumberDto {
+  @ApiProperty({ minLength: 2, maxLength: 2, example: 'CA' })
+  @Transform(({ value }): unknown =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsString()
+  @Length(2, 2)
+  stateCode!: string;
+
+  @ApiProperty({ minLength: 1, maxLength: 32 })
+  @Transform(trim)
+  @IsString()
+  @Length(1, 32)
+  barNumber!: string;
+
+  @ApiProperty({ minLength: 3, maxLength: TRUST_NOTE_MAX })
+  @Transform(trim)
+  @IsString()
+  @Length(3, TRUST_NOTE_MAX)
+  reason!: string;
+
+  @ApiPropertyOptional({
+    description: 'Also block the e-mail / phone of the current holder.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  blockContacts?: boolean;
+}
+
+export class UnblockBarNumberDto {
+  @ApiProperty({
+    minLength: 3,
+    maxLength: TRUST_NOTE_MAX,
+    description:
+      'Why the block is lifted (what the person explained / proved).',
+  })
+  @Transform(trim)
+  @IsString()
+  @Length(3, TRUST_NOTE_MAX)
+  reason!: string;
+}
+
+export class BarNumberBlockIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
 }
 
 export class TrustNoteDto {

@@ -22,6 +22,8 @@ TrustSettingsDto _$TrustSettingsDtoFromJson(Map<String, dynamic> json) =>
       flagDuplicateClaims: json['flagDuplicateClaims'] as bool,
       firmLinkAutoRegistry: json['firmLinkAutoRegistry'] as bool,
       firmLinkAutoEmail: json['firmLinkAutoEmail'] as bool,
+      blockOnReject: json['blockOnReject'] as bool,
+      blockContacts: json['blockContacts'] as bool,
     );
 
 Map<String, dynamic> _$TrustSettingsDtoToJson(TrustSettingsDto instance) =>
@@ -40,4 +42,6 @@ Map<String, dynamic> _$TrustSettingsDtoToJson(TrustSettingsDto instance) =>
       'flagDuplicateClaims': instance.flagDuplicateClaims,
       'firmLinkAutoRegistry': instance.firmLinkAutoRegistry,
       'firmLinkAutoEmail': instance.firmLinkAutoEmail,
+      'blockOnReject': instance.blockOnReject,
+      'blockContacts': instance.blockContacts,
     };

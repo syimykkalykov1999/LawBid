@@ -923,4 +923,162 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       (some.body.data as StatRow[]).some((r) => r.admin.id === admin.userId),
     ).toBe(true);
   });
+  it('owner 07:00: a rejected bar number cannot register again; staff unblock it with a reason; the verifier gets one-tap registry links', async () => {
+    const admin = await adminSession(base, prisma, 'verifier');
+    const a = await attorney({ state: 'CA' });
+    const lic = await prisma.attorneyLicense.findFirstOrThrow({
+      where: { attorney_id: a.id },
+    });
+
+    // The verifier's card: a link straight to the state bar's page where
+    // the state allows it (CA puts the number in the URL), not blocked yet.
+    const card = await api()
+      .get(`/api/v1/admin/trust/attorneys/${a.id}`)
+      .set(admin.auth)
+      .expect(200);
+    type Lookup = {
+      stateCode: string;
+      url: string | null;
+      prefilled: boolean;
+      blocked: boolean;
+    };
+    const lookups = card.body.data.lookups as Lookup[];
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0]).toMatchObject({
+      stateCode: 'CA',
+      prefilled: true,
+      blocked: false,
+    });
+    expect(lookups[0].url).toContain('calbar.ca.gov');
+    expect(card.body.data.blocked).toBe(false);
+
+    // «Отклонить» → the bar number is on the block list (default on).
+    await api()
+      .post(`/api/v1/admin/trust/attorneys/${a.id}/reject`)
+      .set(admin.auth)
+      .send({ note: 'Bar card belongs to another person' })
+      .expect(200);
+    const blocks = await api()
+      .get(`/api/v1/admin/trust/blocked-bar-numbers?q=${lic.bar_number}`)
+      .set(admin.auth)
+      .expect(200);
+    type Block = {
+      id: string;
+      active: boolean;
+      source: string;
+      reason: string;
+      attempts: number;
+      attorney: { id: string } | null;
+      blockedBy: { id: string } | null;
+    };
+    const rows = blocks.body.data as Block[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      active: true,
+      source: 'staff_reject',
+      reason: 'Bar card belongs to another person',
+      attorney: { id: a.id },
+      blockedBy: { id: admin.userId },
+    });
+    const after = await api()
+      .get(`/api/v1/admin/trust/attorneys/${a.id}`)
+      .set(admin.auth)
+      .expect(200);
+    expect(after.body.data.blocked).toBe(true);
+
+    // A new account with other names tries the same number → 403, the
+    // attempt is counted and recorded.
+    const impostor = await attorney({ state: 'NJ' });
+    await prisma.user.update({
+      where: { id: impostor.id },
+      data: { first_name: 'Saul', last_name: 'Goodman' },
+    });
+    const draft = await api()
+      .post('/api/v1/verification/requests')
+      .set(impostor.auth)
+      .expect(201);
+    const requestId = draft.body.data.id as string;
+    const refused = await api()
+      .post(`/api/v1/verification/requests/${requestId}/licenses`)
+      .set(impostor.auth)
+      .send({ stateCode: 'CA', barNumber: lic.bar_number.toLowerCase() })
+      .expect(403);
+    expect(refused.body.error.code).toBe('BAR_NUMBER_BLOCKED');
+    const one = await api()
+      .get(`/api/v1/admin/trust/blocked-bar-numbers/${rows[0].id}`)
+      .set(admin.auth)
+      .expect(200);
+    expect(one.body.data.attempts).toBe(1);
+    type Ev = { kind: string };
+    expect((one.body.data.events as Ev[]).map((e) => e.kind).sort()).toEqual([
+      'attempt',
+      'blocked',
+    ]);
+
+    // No reason → refused. With one → unblocked, history kept, audited,
+    // and the number registers again.
+    await api()
+      .post(`/api/v1/admin/trust/blocked-bar-numbers/${rows[0].id}/unblock`)
+      .set(admin.auth)
+      .send({})
+      .expect(400);
+    const unblocked = await api()
+      .post(`/api/v1/admin/trust/blocked-bar-numbers/${rows[0].id}/unblock`)
+      .set(admin.auth)
+      .send({ reason: 'Came to the office with the bar card and a passport' })
+      .expect(200);
+    expect(unblocked.body.data.active).toBe(false);
+    expect(unblocked.body.data.unblockedBy.id).toBe(admin.userId);
+    expect(
+      (unblocked.body.data.events as Ev[]).map((e) => e.kind).sort(),
+    ).toEqual(['attempt', 'blocked', 'unblocked']);
+    await api()
+      .post(`/api/v1/verification/requests/${requestId}/licenses`)
+      .set(impostor.auth)
+      .send({ stateCode: 'CA', barNumber: lic.bar_number })
+      .expect(201);
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          admin_id: admin.userId,
+          action: 'trust.unblock_bar_number',
+          target_id: rows[0].id,
+        },
+      }),
+    ).toBe(1);
+
+    // By hand, and the switch: with block_on_reject off a rejection does
+    // not block.
+    const manual = await api()
+      .post('/api/v1/admin/trust/blocked-bar-numbers')
+      .set(admin.auth)
+      .send({ stateCode: 'ny', barNumber: 'B 777 888', reason: 'Court order' })
+      .expect(201);
+    expect(manual.body.data).toMatchObject({
+      stateCode: 'NY',
+      active: true,
+      source: 'manual',
+    });
+    const stats = await api()
+      .get('/api/v1/admin/trust/stats')
+      .set(admin.auth)
+      .expect(200);
+    expect(stats.body.data.blockedBarNumbers).toBeGreaterThanOrEqual(1);
+    await setSetting('trust.block_on_reject', false);
+    const b = await attorney({ state: 'CA' });
+    await api()
+      .post(`/api/v1/admin/trust/attorneys/${b.id}/reject`)
+      .set(admin.auth)
+      .send({ note: 'Not blocking this one' })
+      .expect(200);
+    const licB = await prisma.attorneyLicense.findFirstOrThrow({
+      where: { attorney_id: b.id },
+    });
+    expect(
+      await prisma.barNumberBlock.count({
+        where: { state_code: 'CA', bar_number: licB.bar_number },
+      }),
+    ).toBe(0);
+    await resetSettings();
+  });
 });

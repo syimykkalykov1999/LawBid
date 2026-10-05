@@ -10,6 +10,7 @@ import 'admin_trust_card_dto_cleared_by.dart';
 import 'admin_trust_card_dto_missing.dart';
 import 'admin_trust_card_dto_queue_reasons.dart';
 import 'admin_trust_card_dto_staff_status.dart';
+import 'bar_lookup_dto.dart';
 import 'firm_link_dto.dart';
 import 'registry_link_dto.dart';
 import 'staff_admin_dto.dart';
@@ -53,6 +54,8 @@ class AdminTrustCardDto {
     required this.complaintsTotal,
     required this.duplicateClaims,
     required this.registryLinks,
+    required this.lookups,
+    required this.blocked,
     required this.latestRequestId,
     required this.events,
   });
@@ -97,6 +100,10 @@ class AdminTrustCardDto {
   final int complaintsTotal;
   final int duplicateClaims;
   final List<RegistryLinkDto> registryLinks;
+  final List<BarLookupDto> lookups;
+
+  /// One of the licenses is on the block list (owner 07:00).
+  final bool blocked;
 
   /// Latest verification request (its card).
   final String? latestRequestId;

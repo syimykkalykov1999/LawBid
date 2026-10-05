@@ -62,6 +62,10 @@ AdminTrustCardDto _$AdminTrustCardDtoFromJson(
   registryLinks: (json['registryLinks'] as List<dynamic>)
       .map((e) => RegistryLinkDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  lookups: (json['lookups'] as List<dynamic>)
+      .map((e) => BarLookupDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  blocked: json['blocked'] as bool,
   latestRequestId: json['latestRequestId'] as String?,
   events: (json['events'] as List<dynamic>)
       .map((e) => TrustEventDto.fromJson(e as Map<String, dynamic>))
@@ -99,6 +103,8 @@ Map<String, dynamic> _$AdminTrustCardDtoToJson(AdminTrustCardDto instance) =>
       'complaintsTotal': instance.complaintsTotal,
       'duplicateClaims': instance.duplicateClaims,
       'registryLinks': instance.registryLinks.map((e) => e.toJson()).toList(),
+      'lookups': instance.lookups.map((e) => e.toJson()).toList(),
+      'blocked': instance.blocked,
       'latestRequestId': ?instance.latestRequestId,
       'events': instance.events.map((e) => e.toJson()).toList(),
     };

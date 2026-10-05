@@ -163,6 +163,7 @@ const _keys = <String, String>{
   ApiErrorCodes.bidAttorneyInactive: 'error.api.BID_ATTORNEY_INACTIVE',
   ApiErrorCodes.trustLevelRequired: 'error.api.TRUST_LEVEL_REQUIRED',
   ApiErrorCodes.attorneyOnHold: 'error.api.ATTORNEY_ON_HOLD',
+  ApiErrorCodes.barNumberBlocked: 'error.api.BAR_NUMBER_BLOCKED',
   ApiErrorCodes.contactsLocked: 'error.api.CONTACTS_LOCKED',
   ApiErrorCodes.contactIssueAlreadyOpen: 'error.api.CONTACT_ISSUE_ALREADY_OPEN',
   ApiErrorCodes.contactIssueInvalidState:

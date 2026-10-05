@@ -23,6 +23,8 @@ class TrustSettingsDto {
     required this.flagDuplicateClaims,
     required this.firmLinkAutoRegistry,
     required this.firmLinkAutoEmail,
+    required this.blockOnReject,
+    required this.blockContacts,
   });
 
   factory TrustSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -57,6 +59,12 @@ class TrustSettingsDto {
 
   /// Firm link counts after a code to an e-mail on the firm domain.
   final bool firmLinkAutoEmail;
+
+  /// Owner 2026-10-05 07:00: a rejection or a suspension also blocks the bar number for new accounts.
+  final bool blockOnReject;
+
+  /// A block also refuses the e-mail and phone that were on the blocked account.
+  final bool blockContacts;
 
   Map<String, Object?> toJson() => _$TrustSettingsDtoToJson(this);
 }

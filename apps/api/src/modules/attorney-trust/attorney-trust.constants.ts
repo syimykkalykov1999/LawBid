@@ -187,6 +187,8 @@ export const TRUST_AUDIT_ACTION = {
   bulk: 'trust.bulk',
   preset: 'trust.preset',
   setStatus: 'trust.set_status',
+  blockBar: 'trust.block_bar_number',
+  unblockBar: 'trust.unblock_bar_number',
 } as const;
 
 /** Report reasons of a client that count as a trust complaint. */

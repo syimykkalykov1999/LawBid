@@ -188,6 +188,7 @@ abstract final class ApiErrorCodes {
   // level is too low / a hold is active (details {gate, required, current}).
   static const trustLevelRequired = 'TRUST_LEVEL_REQUIRED';
   static const attorneyOnHold = 'ATTORNEY_ON_HOLD';
+  static const barNumberBlocked = 'BAR_NUMBER_BLOCKED';
   static const stickerLimitReached = 'STICKER_LIMIT_REACHED';
   // Audit 2026-10-02: support, referrals, promotions, promo codes.
   static const supportTicketClosed = 'SUPPORT_TICKET_CLOSED';
@@ -364,6 +365,7 @@ abstract final class ApiErrorCodes {
     licenseStateRequired,
     trustLevelRequired,
     attorneyOnHold,
+    barNumberBlocked,
     stickerLimitReached,
     supportTicketClosed,
     adminCredentialsInvalid,

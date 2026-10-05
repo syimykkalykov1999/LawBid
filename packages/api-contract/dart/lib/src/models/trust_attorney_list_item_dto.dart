@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_trust_attorney_dto.dart';
+import 'bar_lookup_dto.dart';
 import 'staff_admin_dto.dart';
 import 'trust_attorney_list_item_dto_badge_status.dart';
 import 'trust_attorney_list_item_dto_missing.dart';
@@ -27,6 +28,8 @@ class TrustAttorneyListItemDto {
     required this.staffClearedBy,
     required this.documentsRequestedAt,
     required this.complaintsTotal,
+    required this.lookups,
+    required this.blocked,
   });
 
   factory TrustAttorneyListItemDto.fromJson(Map<String, Object?> json) =>
@@ -45,6 +48,10 @@ class TrustAttorneyListItemDto {
   final StaffAdminDto? staffClearedBy;
   final DateTime? documentsRequestedAt;
   final int complaintsTotal;
+  final List<BarLookupDto> lookups;
+
+  /// One of the licenses is on the block list.
+  final bool blocked;
 
   Map<String, Object?> toJson() => _$TrustAttorneyListItemDtoToJson(this);
 }

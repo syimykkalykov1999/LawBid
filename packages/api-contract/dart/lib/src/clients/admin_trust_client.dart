@@ -6,6 +6,9 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_trust_card_envelope.dart';
+import '../models/bar_number_block_envelope.dart';
+import '../models/bar_number_block_list_envelope.dart';
+import '../models/block_bar_number_dto.dart';
 import '../models/bulk_trust_dto.dart';
 import '../models/bulk_trust_result_envelope.dart';
 import '../models/cleared_by_item_list_envelope.dart';
@@ -14,6 +17,7 @@ import '../models/reason.dart';
 import '../models/recompute_all_result_envelope.dart';
 import '../models/staff_decision_stats_list_envelope.dart';
 import '../models/status11.dart';
+import '../models/status12.dart';
 import '../models/trust_attorney_list_item_list_envelope.dart';
 import '../models/trust_hold_dto.dart';
 import '../models/trust_hold_list_item_list_envelope.dart';
@@ -24,6 +28,7 @@ import '../models/trust_set_status_dto.dart';
 import '../models/trust_settings_dto.dart';
 import '../models/trust_settings_envelope.dart';
 import '../models/trust_stats_envelope.dart';
+import '../models/unblock_bar_number_dto.dart';
 
 part 'admin_trust_client.g.dart';
 
@@ -203,6 +208,37 @@ abstract class AdminTrustClient {
   @POST('/admin/trust/attorneys/{attorneyId}/recompute')
   Future<AdminTrustCardEnvelope> recomputeTrust({
     @Path('attorneyId') required String attorneyId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bar numbers that cannot register again: reason, who blocked, attempts
+  @GET('/admin/trust/blocked-bar-numbers')
+  Future<BarNumberBlockListEnvelope> blockedBarNumbers({
+    @Query('status') Status12? status,
+    @Query('q') String? q,
+    @Query('limit') int? limit,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Block a bar number by hand (reason required)
+  @POST('/admin/trust/blocked-bar-numbers')
+  Future<BarNumberBlockEnvelope> blockBarNumber({
+    @Body() required BlockBarNumberDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// One blocked bar number with its history
+  @GET('/admin/trust/blocked-bar-numbers/{id}')
+  Future<BarNumberBlockEnvelope> blockedBarNumber({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Lift the block (the person explained / proved); reason required
+  @POST('/admin/trust/blocked-bar-numbers/{id}/unblock')
+  Future<BarNumberBlockEnvelope> unblockBarNumber({
+    @Path('id') required String id,
+    @Body() required UnblockBarNumberDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
