@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import Link from 'next/link';
 import { StatusPill, ROLE_TEXT, TICKET_STATUS } from '@/lib/labels';
 import { cn, formatDateTime } from '@/lib/utils';
-import { CategoryBadge, initials, PriorityBadge, relativeTime, type TicketRow } from './support-labels';
+import { CategoryBadge, initials, PriorityBadge, relativeTime, SlaBadge, type TicketRow } from './support-labels';
 
 /** One inbox row: avatar, subject, user, badges, unread dot, last activity. */
 export function TicketRowItem({ t, i, showStatus }: { t: TicketRow; i: number; showStatus?: boolean }) {
@@ -47,13 +47,15 @@ export function TicketRowItem({ t, i, showStatus }: { t: TicketRow; i: number; s
                 <UserCircle size={13} weight="light" /> {t.assigneeName}
               </span>
             ) : null}
-            <span className="flex gap-1 md:hidden">
+            <span className="flex flex-wrap gap-1 md:hidden">
+              {t.status === 'open' ? <SlaBadge dueAt={t.slaDueAt} breached={t.slaBreached} /> : null}
               <CategoryBadge value={t.category} />
               <PriorityBadge value={t.priority} />
             </span>
           </span>
         </span>
         <span className="hidden shrink-0 items-center gap-1.5 md:flex">
+          {t.status === 'open' ? <SlaBadge dueAt={t.slaDueAt} breached={t.slaBreached} /> : null}
           {showStatus ? <StatusPill map={TICKET_STATUS} value={t.status} /> : null}
           <CategoryBadge value={t.category} />
           <PriorityBadge value={t.priority} />

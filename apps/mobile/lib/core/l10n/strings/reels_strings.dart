@@ -79,6 +79,11 @@ const reelsRu = <String, String>{
   'support.message': 'Опишите подробнее',
   'support.hint':
       'Ответ придёт сюда и уведомлением. Не отправляйте пароли и коды.',
+  'support.eta.open': 'Обычно отвечаем в течение {time}',
+  'support.eta.closed':
+      'Сейчас нерабочее время. Ответим, когда команда вернётся: {when}',
+  'support.eta.minutes': '{n} мин',
+  'support.eta.hours': '{n} ч',
   'support.send': 'Отправить',
   'support.sent': 'Обращение отправлено',
   'support.reply': 'Ваш ответ',
@@ -361,6 +366,11 @@ const reelsEn = <String, String>{
   'support.message': 'Describe it in detail',
   'support.hint':
       'The answer comes here and as a notification. Never send passwords or codes.',
+  'support.eta.open': 'We usually reply within {time}',
+  'support.eta.closed':
+      "We're offline now. We'll reply when the team is back: {when}",
+  'support.eta.minutes': '{n} min',
+  'support.eta.hours': '{n} h',
   'support.send': 'Send',
   'support.sent': 'Request sent',
   'support.reply': 'Your reply',

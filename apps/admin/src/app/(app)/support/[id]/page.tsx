@@ -1,18 +1,19 @@
 'use client';
 
-import { ArrowLeft, ChatsCircle, Eye, LockSimple } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, ChatsCircle, Eye, LockSimple, Lightning } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { ErrorNote } from '@/components/page-header';
 import { Composer, type ComposerSubmit } from '@/components/support/composer';
 import { MessageBubble } from '@/components/support/message-bubble';
 import {
-  canWriteSupport, CategoryBadge, PRIORITIES, PriorityBadge, STATUSES, type TicketPriority, type TicketStatus,
+  canWriteSupport, CategoryBadge, PRIORITIES, PriorityBadge, SlaBadge, STATUSES, type TicketPriority, type TicketStatus,
 } from '@/components/support/support-labels';
 import { UserSummaryCard } from '@/components/support/user-summary-card';
+import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Select } from '@/components/ui/input';
@@ -33,11 +34,20 @@ export default function SupportTicketPage() {
   const { data: me } = useMe();
   const canWrite = canWriteSupport(me);
   const isSuper = me?.role === 'super_admin';
+  const router = useRouter();
+  // Focus mode (from «Следующее обращение»): answering opens the next one.
+  const focus = useSearchParams().get('focus') === '1';
 
   const tq = useQuery({
     queryKey: ['support-ticket', id],
     queryFn: async () => (await api.GET('/admin/support/tickets/{id}', { params: { path: { id } } })).data!.data,
     refetchInterval: 30_000,
+  });
+  const macros = useQuery({
+    queryKey: ['support-macros', 'active'],
+    queryFn: async () => (await api.GET('/admin/support/macros')).data!.data,
+    enabled: canWrite,
+    staleTime: 60_000,
   });
   const admins = useQuery({
     queryKey: ['admins'],
@@ -56,13 +66,27 @@ export default function SupportTicketPage() {
     mutationFn: async (v: ComposerSubmit) => {
       const r = await api.POST('/admin/support/tickets/{id}/messages', {
         params: { path: { id } },
-        body: { body: v.body, internal: v.internal, status: v.status },
+        body: { body: v.body, internal: v.internal, status: v.status, macroId: v.macroId },
       });
       return r.data!.data;
     },
     onSuccess: (_m, v) => {
       toast.success(v.internal ? 'Заметка сохранена' : `Ответ отправлен · ${TICKET_STATUS[v.status ?? 'waiting_user']}`);
       invalidate();
+      if (v.macroId) void qc.invalidateQueries({ queryKey: ['support-macros'] });
+      if (focus && !v.internal) next.mutate();
+    },
+    onError: (e) => toast.error(e),
+  });
+
+  const next = useMutation({
+    mutationFn: async () => (await api.POST('/admin/support/tickets/next')).data!.data,
+    onSuccess: (r) => {
+      if (r.ticket && r.ticket.id !== id) router.push(`/support/${r.ticket.id}?focus=1`);
+      else if (!r.ticket) {
+        toast.success('Очередь пуста: вы ответили на всё');
+        router.push('/workspace');
+      }
     },
     onError: (e) => toast.error(e),
   });
@@ -83,6 +107,7 @@ export default function SupportTicketPage() {
               : 'Ответственный назначен',
       );
       invalidate();
+      if (focus && (v.status === 'resolved' || v.status === 'closed')) next.mutate();
     },
     onError: (e) => toast.error(e),
   });
@@ -134,6 +159,19 @@ export default function SupportTicketPage() {
   return (
     <>
       <BackLink />
+      {focus ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-gold/40 bg-accent-soft/50 px-4 py-2.5 text-sm">
+          <Lightning size={16} weight="fill" className="text-gold-600" />
+          <span className="min-w-0 flex-1 text-ink">Режим очереди: после ответа или решения откроется следующее обращение.</span>
+          <Button variant="outline" size="sm" loading={next.isPending} onClick={() => next.mutate()}>
+            {next.isPending ? null : <ArrowRight size={14} weight="bold" />}
+            Пропустить
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => router.push(`/support/${id}`)}>
+            Выйти
+          </Button>
+        </div>
+      ) : null}
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="font-serif text-2xl leading-tight font-semibold tracking-tight text-heading sm:text-[28px]">{t.subject}</h1>
@@ -141,6 +179,7 @@ export default function SupportTicketPage() {
             <StatusPill map={TICKET_STATUS} value={t.status} />
             <CategoryBadge value={t.category} />
             <PriorityBadge value={t.priority} />
+            {t.status === 'open' ? <SlaBadge dueAt={t.slaDueAt} breached={t.slaBreached} /> : null}
             <span className="ml-1">создано {formatDateTime(t.createdAt)}</span>
           </div>
         </div>
@@ -170,7 +209,7 @@ export default function SupportTicketPage() {
             ) : null}
           </div>
           {canWrite && t.status !== 'closed' ? (
-            <Composer busy={reply.isPending} onSubmit={(v) => reply.mutateAsync(v).then(() => true, () => false)} />
+            <Composer busy={reply.isPending} macros={macros.data ?? []} onSubmit={(v) => reply.mutateAsync(v).then(() => true, () => false)} />
           ) : (
             <div className="flex items-center gap-2 border-t border-line bg-surface-2 px-5 py-3 text-xs text-muted">
               <LockSimple size={14} weight="light" />
