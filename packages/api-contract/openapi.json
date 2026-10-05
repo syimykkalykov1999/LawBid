@@ -12693,6 +12693,210 @@
         ]
       }
     },
+    "/admin/config/budgets": {
+      "get": {
+        "operationId": "listBudgetLimits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetLimitListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Spend caps per provider and window: mode (auto/manual), floor, ceiling, cap in force, usage",
+        "tags": [
+          "admin-config"
+        ]
+      }
+    },
+    "/admin/config/budgets/{provider}/{window}": {
+      "put": {
+        "operationId": "updateBudgetLimit",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sms",
+                "email",
+                "id_check",
+                "storage",
+                "translate",
+                "video"
+              ]
+            }
+          },
+          {
+            "name": "window",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "minute",
+                "daily",
+                "monthly"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBudgetLimitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetLimitEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Auto: store floor/ceiling and recompute now; manual: set the cap (0 = off)",
+        "tags": [
+          "admin-config"
+        ]
+      }
+    },
     "/admin/config/{key}": {
       "put": {
         "operationId": "updateAppConfig",
@@ -33834,6 +34038,101 @@
         "tags": [
           "admin-billing"
         ]
+      },
+      "delete": {
+        "operationId": "deletePromoCode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoDeleteResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Delete a promo code: removed for good when unused, archived (off + hidden) when already used",
+        "tags": [
+          "admin-billing"
+        ]
       }
     },
     "/admin/billing/promo-codes/{id}/deactivate": {
@@ -33928,6 +34227,103 @@
           }
         ],
         "summary": "Switch a promo code off",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/promo-codes/{id}/restore": {
+      "post": {
+        "operationId": "restorePromoCode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoCodeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Bring an archived promo code back (switched off)",
         "tags": [
           "admin-billing"
         ]
@@ -48505,6 +48901,16 @@
             "in": "query",
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search: code prefix, or name / email of either side (owner 2026-10-05).",
+            "schema": {
+              "maxLength": 100,
               "type": "string"
             }
           },
@@ -74718,6 +75124,140 @@
           "data"
         ]
       },
+      "BudgetLimitDto": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "enum": [
+              "sms",
+              "email",
+              "id_check",
+              "storage",
+              "translate",
+              "video"
+            ],
+            "type": "string"
+          },
+          "window": {
+            "enum": [
+              "minute",
+              "daily",
+              "monthly"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "floor": {
+            "type": "integer"
+          },
+          "ceiling": {
+            "type": "integer"
+          },
+          "cap": {
+            "type": "integer",
+            "description": "Cap in force now (0 = provider switched off)."
+          },
+          "envDefault": {
+            "type": "integer",
+            "description": "Server default (BUDGET_* env)."
+          },
+          "usedToday": {
+            "type": "integer"
+          },
+          "usedThisMonth": {
+            "type": "integer"
+          },
+          "lastAutoAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Last automatic recompute of this provider."
+          }
+        },
+        "required": [
+          "provider",
+          "window",
+          "mode",
+          "floor",
+          "ceiling",
+          "cap",
+          "envDefault",
+          "usedToday",
+          "usedThisMonth",
+          "lastAutoAt"
+        ]
+      },
+      "BudgetLimitListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetLimitDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateBudgetLimitDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string",
+            "description": "auto: the cap follows real usage hourly within [floor, ceiling]; manual: the cap is `value`."
+          },
+          "floor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000,
+            "description": "Auto mode: the cap never goes below this."
+          },
+          "ceiling": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000,
+            "description": "Auto mode: safety ceiling, the cap never goes above this."
+          },
+          "value": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000,
+            "description": "Manual mode: the cap (0 switches the provider off). Omitted keeps the current cap."
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "BudgetLimitEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BudgetLimitDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "UpdateConfigDto": {
         "type": "object",
         "properties": {
@@ -85767,7 +86307,8 @@
           "scheduled",
           "expired",
           "exhausted",
-          "inactive"
+          "inactive",
+          "archived"
         ]
       },
       "PromoCodeDto": {
@@ -85848,6 +86389,12 @@
             "type": "string",
             "nullable": true
           },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Set when the code was deleted after being used."
+          },
           "createdBy": {
             "type": "string",
             "format": "uuid"
@@ -85874,6 +86421,7 @@
           "active",
           "status",
           "stripeCouponId",
+          "archivedAt",
           "createdBy",
           "createdAt"
         ]
@@ -85883,7 +86431,8 @@
         "enum": [
           "active",
           "expired",
-          "inactive"
+          "inactive",
+          "archived"
         ]
       },
       "PromoCodeListEnvelope": {
@@ -86015,6 +86564,49 @@
             "description": "null = never expires."
           }
         }
+      },
+      "PromoDeleteOutcome": {
+        "type": "string",
+        "enum": [
+          "deleted",
+          "archived"
+        ],
+        "description": "deleted: never used, removed for good (the code can be reused); archived: already used, hidden and switched off so payment history stays intact."
+      },
+      "PromoDeleteResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "description": "deleted: never used, removed for good (the code can be reused); archived: already used, hidden and switched off so payment history stays intact.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromoDeleteOutcome"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "outcome"
+        ]
+      },
+      "PromoDeleteResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromoDeleteResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
       },
       "PromoRedemptionDto": {
         "type": "object",
@@ -93196,7 +93788,13 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100000,
-            "description": "balance_cents: cents of credit; percent_first_invoice: percent; promotion_days: days."
+            "description": "balance_cents: cents of credit; percent_first_invoice: percent; promotion_days: whole days (see amount)."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000,
+            "description": "Exact value (owner 2026-10-05): promotion_days may be fractional, up to 2 decimals (0.5 = 12 hours). Always set in responses; in requests it wins over value."
           }
         },
         "required": [
@@ -93358,6 +93956,10 @@
             "type": "integer",
             "description": "Free case-promotion days."
           },
+          "promotionCreditDaysExact": {
+            "type": "number",
+            "description": "Free case-promotion days, exact (may be fractional: 0.5 = 12 hours)."
+          },
           "pendingDiscountPercent": {
             "type": "integer",
             "description": "Percent off the first subscription invoice (0 = none)."
@@ -93399,6 +94001,7 @@
           "rewarded",
           "rewards",
           "promotionCreditDays",
+          "promotionCreditDaysExact",
           "pendingDiscountPercent",
           "applyWindowDays",
           "canApply",
@@ -93637,6 +94240,14 @@
           "promotionDaysUsed": {
             "type": "integer",
             "description": "Promotion days spent."
+          },
+          "promotionDaysIssuedExact": {
+            "type": "number",
+            "description": "Promotion days issued, exact (may be fractional)."
+          },
+          "promotionDaysUsedExact": {
+            "type": "number",
+            "description": "Promotion days spent, exact (may be fractional)."
           }
         },
         "required": [
@@ -93645,7 +94256,9 @@
           "byRole",
           "balanceCentsIssued",
           "promotionDaysIssued",
-          "promotionDaysUsed"
+          "promotionDaysUsed",
+          "promotionDaysIssuedExact",
+          "promotionDaysUsedExact"
         ]
       },
       "AdminReferralStatsEnvelope": {
@@ -96065,10 +96678,20 @@
             "description": "If credits are used."
           },
           "creditDaysAvailable": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Whole credit days."
           },
           "creditDaysUsed": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Whole credit days."
+          },
+          "creditDaysAvailableExact": {
+            "type": "number",
+            "description": "Referral credit days, exact (owner 2026-10-05: may be fractional, 0.5 = 12 hours)."
+          },
+          "creditDaysUsedExact": {
+            "type": "number",
+            "description": "Credit days used, exact."
           },
           "maxDays": {
             "type": "integer"
@@ -96084,6 +96707,8 @@
           "totalCents",
           "creditDaysAvailable",
           "creditDaysUsed",
+          "creditDaysAvailableExact",
+          "creditDaysUsedExact",
           "maxDays",
           "enabled"
         ]
@@ -96237,7 +96862,12 @@
             "type": "integer"
           },
           "creditDaysUsed": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Whole credit days."
+          },
+          "creditDaysUsedExact": {
+            "type": "number",
+            "description": "Credit days used, exact (may be fractional)."
           },
           "promotion": {
             "$ref": "#/components/schemas/CasePromotionDto"
@@ -96248,6 +96878,7 @@
           "status",
           "totalCents",
           "creditDaysUsed",
+          "creditDaysUsedExact",
           "promotion"
         ]
       },

@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -41,12 +42,23 @@ export class ReferralRewardDto {
   @ApiProperty({
     type: 'integer',
     description:
-      'balance_cents: cents of credit; percent_first_invoice: percent; promotion_days: days.',
+      'balance_cents: cents of credit; percent_first_invoice: percent; promotion_days: whole days (see amount).',
   })
   @IsInt()
   @Min(0)
   @Max(100_000)
   value!: number;
+
+  @ApiPropertyOptional({
+    type: 'number',
+    description:
+      'Exact value (owner 2026-10-05): promotion_days may be fractional, up to 2 decimals (0.5 = 12 hours). Always set in responses; in requests it wins over value.',
+  })
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100_000)
+  amount?: number;
 }
 
 // ---- app --------------------------------------------------------------
@@ -168,6 +180,13 @@ export class ReferralMeDto {
   promotionCreditDays!: number;
 
   @ApiProperty({
+    type: 'number',
+    description:
+      'Free case-promotion days, exact (may be fractional: 0.5 = 12 hours).',
+  })
+  promotionCreditDaysExact!: number;
+
+  @ApiProperty({
     type: 'integer',
     description: 'Percent off the first subscription invoice (0 = none).',
   })
@@ -232,6 +251,17 @@ export class AdminReferralsQueryDto {
   @IsOptional()
   @IsUUID('all')
   refereeId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Search: code prefix, or name / email of either side (owner 2026-10-05).',
+    maxLength: 100,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  q?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -327,6 +357,18 @@ export class AdminReferralStatsDto {
 
   @ApiProperty({ type: 'integer', description: 'Promotion days spent.' })
   promotionDaysUsed!: number;
+
+  @ApiProperty({
+    type: 'number',
+    description: 'Promotion days issued, exact (may be fractional).',
+  })
+  promotionDaysIssuedExact!: number;
+
+  @ApiProperty({
+    type: 'number',
+    description: 'Promotion days spent, exact (may be fractional).',
+  })
+  promotionDaysUsedExact!: number;
 }
 
 export class AdminReferralReasonDto {

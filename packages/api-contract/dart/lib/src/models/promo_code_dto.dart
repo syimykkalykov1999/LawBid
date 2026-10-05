@@ -30,6 +30,7 @@ class PromoCodeDto {
     required this.active,
     required this.status,
     required this.stripeCouponId,
+    required this.archivedAt,
     required this.createdBy,
     required this.createdAt,
   });
@@ -53,6 +54,9 @@ class PromoCodeDto {
   final bool active;
   final PromoCodeStatus status;
   final String? stripeCouponId;
+
+  /// Set when the code was deleted after being used.
+  final DateTime? archivedAt;
   final String createdBy;
   final DateTime createdAt;
 

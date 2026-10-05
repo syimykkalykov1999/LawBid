@@ -36,7 +36,7 @@ import {
   type PartnerStatus,
   type Picked,
 } from "@/components/partners/shared";
-import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
+import { ErrorNote, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
@@ -61,7 +61,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 
 type Settings = components["schemas"]["PartnerSettingsDto"];
-type Tab = "partners" | "commissions";
+type Tab = "partners" | "commissions" | "settings";
 type StatusTab = "all" | PartnerStatus;
 
 /** Partner program: who brings attorneys and clients, what they are paid. */
@@ -170,18 +170,18 @@ export default function PartnersPage() {
           items={[
             { value: "partners" as Tab, label: "Партнёры" },
             { value: "commissions" as Tab, label: "Начисления" },
+            { value: "settings" as Tab, label: "Настройки программы" },
           ]}
         />
       </div>
 
+      {/* Owner 2026-10-05: settings get their own tab, so a long list of
+          partners never pushes them out of reach. */}
       {tab === "partners" ? (
         <PartnersList canWrite={canWrite} canOpenUsers={canOpenUsers} />
-      ) : (
+      ) : tab === "commissions" ? (
         <AllCommissions canWrite={canWrite} canOpenUsers={canOpenUsers} />
-      )}
-
-      <SectionTitle>Настройки программы</SectionTitle>
-      {settings.isPending ? (
+      ) : settings.isPending ? (
         <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
       ) : settings.data ? (
         <SettingsForm

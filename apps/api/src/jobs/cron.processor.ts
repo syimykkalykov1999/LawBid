@@ -41,6 +41,7 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { CostAutoscaleService } from '../common/cost-guard/cost-autoscale.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -83,6 +84,7 @@ export class CronProcessor {
     @Optional() private readonly rewards?: RewardsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly opsState?: OpsStateService,
+    @Optional() private readonly costAutoscale?: CostAutoscaleService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -173,6 +175,8 @@ export class CronProcessor {
         return this.opsGuard?.costCheck();
       case CRON_JOBS.opsBackupCheck:
         return this.opsGuard?.backupCheck();
+      case CRON_JOBS.costAutoscale:
+        return this.costAutoscale?.run();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

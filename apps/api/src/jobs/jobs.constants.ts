@@ -87,6 +87,9 @@ export const CRON_JOBS = {
   opsCostCheck: 'ops.cost-check',
   /** Newest CockroachDB Cloud backup is fresh. */
   opsBackupCheck: 'ops.backup-check',
+  /** Owner 2026-10-05: spend caps in mode «Авто» follow real usage
+   * (CostAutoscaleService). */
+  costAutoscale: 'cost.autoscale',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -150,6 +153,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },
+  { name: CRON_JOBS.costAutoscale, pattern: '17 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');
