@@ -135,7 +135,13 @@ export function errorText(e: unknown): string {
   if (e instanceof ApiError) {
     const known = ERROR_TEXT[e.code];
     const generic = !known && (e.status >= 500 || e.code === 'INTERNAL_ERROR');
-    const base = known ?? (generic ? SERVER_DOWN : e.message);
+    // A rejected field names itself: the server message says which field
+    // and why («Webhook signing secret is required.»), so show it after the
+    // generic line instead of hiding it.
+    const field = e.code === 'VALIDATION_ERROR' && e.details?.field;
+    const base = field
+      ? `${known} ${e.message}`
+      : (known ?? (generic ? SERVER_DOWN : e.message));
     const left = e.details?.remainingAttempts;
     const text = typeof left === 'number' ? `${base} Осталось попыток: ${left}.` : base;
     if (generic) DETAILS.set(text, `${e.status} ${e.code}: ${e.message}`);
