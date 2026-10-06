@@ -31,7 +31,7 @@ void main() {
   test('iOS: no plain-http exception in prod, export compliance, iPhone only', () {
     final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
     expect(pbx, contains('/* Strip dev-only ATS (prod) */,'));
-    expect(pbx, contains(r'Delete :NSAppTransportSecurity'));
+    expect(pbx, contains('Delete :NSAppTransportSecurity'));
     expect(pbx, isNot(contains('TARGETED_DEVICE_FAMILY = "1,2";')));
     final plist = read('ios/Runner/Info.plist');
     expect(
