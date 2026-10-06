@@ -65,6 +65,14 @@ interface CachedBootstrapContent {
 export const BOOTSTRAP_CACHE_TTL_SECONDS = 30;
 export const BOOTSTRAP_CACHE_KEY = 'config:bootstrap:content';
 
+/** Types whose text travels in the bootstrap payload (the old four). */
+const BOOTSTRAP_TEXT_TYPES: ReadonlySet<string> = new Set([
+  'terms',
+  'privacy',
+  'disclaimer',
+  'client_contact_sharing',
+]);
+
 /** I18nBundleService (modules/i18n) owns this key: I18nImportService
  * writes each language's new bundle version into it right after an
  * import commits. Overlaying it on the cached map means an import is
@@ -231,7 +239,7 @@ export class BootstrapService {
         select: { lang: true, version: true },
       }),
       this.prisma.legalDocument.findMany({
-        where: { is_current: true },
+        where: { is_current: true, status: 'published' },
         select: {
           id: true,
           doc_type: true,
@@ -253,6 +261,12 @@ export class BootstrapService {
       translations_version: translationsVersion,
       legal_documents: legalDocuments.map((doc) => ({
         ...doc,
+        // Owner 2026-10-05: the newer documents are large and are read
+        // on demand (GET /legal/documents/:type); bootstrap keeps the
+        // text of the four old ones only, as before.
+        content_md: BOOTSTRAP_TEXT_TYPES.has(doc.doc_type)
+          ? doc.content_md
+          : null,
         published_at: doc.published_at?.toISOString() ?? null,
       })),
     };

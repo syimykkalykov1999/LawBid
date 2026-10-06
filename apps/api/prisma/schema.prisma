@@ -84,6 +84,10 @@ enum ConsentType {
   marketing_email
   marketing_push
   analytics
+  // Owner 2026-10-05 (legal documents): accepted with the role documents.
+  attorney_agreement
+  client_agreement
+  eula
 
   @@map("consent_type")
 }
@@ -93,6 +97,16 @@ enum LegalDocType {
   privacy
   disclaimer
   client_contact_sharing
+  // Owner 2026-10-05 (legal documents): edited in Система → Юридические
+  // документы, shown on lawbid.dev and in the app.
+  attorney_agreement
+  client_agreement
+  eula
+  refund
+  cookies
+  third_party_services
+  partner_terms
+  dmca_policy
 
   @@map("legal_doc_type")
 }
@@ -950,9 +964,25 @@ model LegalDocument {
   created_at   DateTime     @default(now()) @db.Timestamptz
   updated_at   DateTime     @updatedAt @db.Timestamptz
 
+  // Owner 2026-10-05 (legal documents): `draft` (version = 'draft', one per
+  // type + locale, edited freely), `published` (the current version) or
+  // `archived` (a former version; never deleted — it is what users accepted).
+  status                String    @default("draft") @db.String(16)
+  // The users accepted an older version → ask them again when this one is
+  // published (material change). Stored on the version that was published.
+  requires_reacceptance Boolean   @default(true)
+  // Admin ids (users.id of the admin) and the note shown in the history.
+  created_by            String?   @db.Uuid
+  changed_by            String?   @db.Uuid
+  change_note           String?   @db.String(1000)
+  // Rollback = the old text published as a new version; points at the
+  // version it was copied from.
+  rollback_of_id        String?   @db.Uuid
+
   consents UserConsent[]
 
   @@unique([doc_type, version, locale])
+  @@index([doc_type, locale, status])
   @@map("legal_documents")
 }
 

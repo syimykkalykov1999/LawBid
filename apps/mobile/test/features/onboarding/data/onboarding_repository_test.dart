@@ -35,6 +35,7 @@ Map<String, dynamic> meJson({
       'uiLanguage': 'en',
       'theme': 'system',
       'requiredConsentsGranted': false,
+      'pendingLegalDocuments': <Object>[],
       'onboarding': {
         'currentStep': step,
         'completedAt': null,

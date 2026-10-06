@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'me_profile_dto.dart';
 import 'missing_requirement.dart';
 import 'onboarding_state_dto.dart';
+import 'pending_legal_document_dto.dart';
 import 'theme_pref.dart';
 import 'user_role.dart';
 import 'user_status.dart';
@@ -30,6 +31,7 @@ class MeDto {
     required this.avatarFileId,
     required this.avatarUrl,
     required this.requiredConsentsGranted,
+    required this.pendingLegalDocuments,
     required this.onboarding,
     required this.profile,
     required this.missing,
@@ -59,6 +61,9 @@ class MeDto {
   /// Short-lived signed link to the avatar (1024 px JPEG).
   final String? avatarUrl;
   final bool requiredConsentsGranted;
+
+  /// Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.
+  final List<PendingLegalDocumentDto> pendingLegalDocuments;
   final OnboardingStateDto onboarding;
 
   /// Null before the profile step is saved (or without a role).

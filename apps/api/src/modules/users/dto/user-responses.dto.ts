@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { PendingLegalDocumentDto } from '../../legal-documents/legal-documents.dto';
 import {
   ContactMethod,
   IdentifierType,
@@ -184,6 +185,13 @@ export class MeDto {
 
   @ApiProperty()
   requiredConsentsGranted!: boolean;
+
+  @ApiProperty({
+    type: [PendingLegalDocumentDto],
+    description:
+      'Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.',
+  })
+  pendingLegalDocuments!: PendingLegalDocumentDto[];
 
   @ApiProperty({ type: OnboardingStateDto })
   onboarding!: OnboardingStateDto;

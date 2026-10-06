@@ -83,6 +83,7 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
           content_md: `# ${docType}`,
           published_at: new Date(),
           is_current: true,
+          status: 'published',
         },
         update: {},
       });
@@ -93,7 +94,7 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       });
       await prisma.legalDocument.updateMany({
         where: { doc_type: docType, locale: 'en', version: '1.0' },
-        data: { is_current: true },
+        data: { is_current: true, status: 'published' },
       });
     }
     await redis.del(

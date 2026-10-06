@@ -432,4 +432,8 @@ export enum ErrorCode {
   DEMO_LIMIT_REACHED = 'DEMO_LIMIT_REACHED',
   DEMO_UNAVAILABLE = 'DEMO_UNAVAILABLE',
   DEMO_CODE_INVALID = 'DEMO_CODE_INVALID',
+  // Owner 2026-10-05 — legal documents. 403: a key action (publish a case,
+  // place a bid) needs the user to accept the updated legal documents
+  // first; details.documents = the doc types.
+  LEGAL_REACCEPT_REQUIRED = 'LEGAL_REACCEPT_REQUIRED',
 }

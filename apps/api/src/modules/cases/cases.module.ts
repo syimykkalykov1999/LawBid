@@ -1,5 +1,6 @@
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { CasePhotosService } from './services/case-photos.service';
+import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
@@ -43,6 +44,7 @@ import { CasesFeedService } from './services/cases-feed.service';
 @Module({
   imports: [
     UsersModule,
+    LegalAcceptanceModule,
     ChatSystemModule,
     BidsModule,
     JournalModule,

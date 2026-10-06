@@ -1,3 +1,4 @@
+import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -16,6 +17,7 @@ CurrentUser meFixture({
   OnboardingStepId? step,
   bool completed = false,
   Map<String, dynamic> data = const {},
+  List<PendingLegalDocument> pendingLegal = const [],
 }) {
   final hasName = (firstName ?? '').isNotEmpty && (lastName ?? '').isNotEmpty;
   return CurrentUser(
@@ -31,6 +33,7 @@ CurrentUser meFixture({
     uiLanguage: 'en',
     theme: null,
     requiredConsentsGranted: consents,
+    pendingLegalDocuments: pendingLegal,
     onboarding: OnboardingProgress(
       currentStep: step,
       completedAt: completed ? DateTime.utc(2026, 9, 27) : null,

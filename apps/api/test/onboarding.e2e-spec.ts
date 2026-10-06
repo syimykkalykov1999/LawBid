@@ -307,6 +307,7 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
         locale: 'en',
         content_md: 'Terms',
         is_current: true,
+        status: 'published',
         published_at: new Date(),
       },
       update: {},
