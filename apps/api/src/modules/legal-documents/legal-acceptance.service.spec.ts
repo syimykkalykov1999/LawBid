@@ -90,6 +90,14 @@ describe('LegalAcceptanceService', () => {
     await expect(ok.svc.assertAccepted('u1')).resolves.toBeUndefined();
   });
 
+  it('does not block key actions for a missing first acceptance of terms/privacy', async () => {
+    const { svc } = setup({
+      role: 'client',
+      docs: [d('t', 'terms'), d('p', 'privacy')],
+    });
+    await expect(svc.assertAccepted('u1')).resolves.toBeUndefined();
+  });
+
   it('records one consent per ticked current document with ip and device', async () => {
     const { svc, prisma } = setup({ role: 'client', docs: [] });
     prisma.legalDocument.findMany.mockResolvedValueOnce([

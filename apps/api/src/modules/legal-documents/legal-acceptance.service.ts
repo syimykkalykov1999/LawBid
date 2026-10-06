@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import {
   docLocaleOf,
   isAcceptableDocType,
+  LEGACY_ACCEPTED_TYPES,
   requiredDocTypes,
   titleOf,
 } from './legal-documents.constants';
@@ -103,7 +104,12 @@ export class LegalAcceptanceService {
 
   /** Throws LEGAL_REACCEPT_REQUIRED while something is pending. */
   async assertAccepted(userId: string): Promise<void> {
-    const pending = await this.pending(userId);
+    // Terms / privacy / disclaimer are first accepted at onboarding, so a
+    // missing first acceptance of those is not this guard's business (only a
+    // material update is); a brand-new document type still blocks.
+    const pending = (await this.pending(userId)).filter(
+      (p) => !(p.reason === 'new' && LEGACY_ACCEPTED_TYPES.has(p.docType)),
+    );
     if (pending.length === 0) return;
     throw new ForbiddenException({
       code: ErrorCode.LEGAL_REACCEPT_REQUIRED,
