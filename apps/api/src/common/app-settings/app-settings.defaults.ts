@@ -398,6 +398,31 @@ export const OWNER_OPS_SETTINGS = {
   'ops.backup_max_age_hours': 26,
 };
 
+/** Owner 2026-10-05 «Прибыль и резерв» (Деньги): the monthly split of the
+ * Stripe balance into «Расходы» (services, salaries paid from the bank),
+ * a reserve that stays on Stripe and «Прибыль» for the owner. */
+export const OWNER_TREASURY_SETTINGS = {
+  /** Run the split on its own every month (off: only the button). */
+  'treasury.auto': true,
+  /** Day of the month (1…28, UTC). The 25th: the money for next month's
+   * bills is in the expense account before they come. */
+  'treasury.payout_day': 25,
+  /** Safety cushion kept on Stripe: percent of a month of all costs. */
+  'treasury.buffer_percent': 50,
+  /** Kept on Stripe for refunds and disputes, dollars. */
+  'treasury.refund_buffer_usd': 200,
+  /** Profit smaller than this waits for the next month, dollars. */
+  'treasury.min_profit_usd': 50,
+  /** Owner 2026-10-06: salaries linked to Stripe go out by themselves on
+   * the pay day, from the reserve on Stripe (off: «Выплатить» by hand). */
+  'treasury.payroll_auto': true,
+  /** Pay day of the month (1…28, UTC); a missed day runs the next day. */
+  'treasury.payroll_day': 1,
+  /** Warn this many days before the pay day when Stripe holds less than
+   * the salaries due. */
+  'treasury.payroll_warn_days': 5,
+};
+
 // Owner 2026-10-05: legal posts vs general (personal) posts. What a person
 // who never chose sees: 'all' or 'legal_only' (general posts hidden).
 export const OWNER_FEED_SETTINGS = {
@@ -430,6 +455,7 @@ export const APP_SETTINGS = {
   ...OWNER_STORAGE_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_OPS_SETTINGS,
+  ...OWNER_TREASURY_SETTINGS,
   ...OWNER_FEED_SETTINGS,
 };
 

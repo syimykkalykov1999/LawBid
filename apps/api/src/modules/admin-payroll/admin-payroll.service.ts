@@ -37,6 +37,17 @@ import {
 
 const PAYOUTS_PAGE = 500;
 
+export interface PayrollAutoDue {
+  /** Flag payroll_stripe_payouts on and Stripe keys saved. */
+  stripeReady: boolean;
+  /** Linked people with something to receive. */
+  employeeIds: string[];
+  /** What the run takes from the Stripe balance at most, cents. */
+  dueCents: number;
+  /** Names of people on a salary who are paid by hand. */
+  notLinked: string[];
+}
+
 interface PlannedPayout {
   id: string;
   employee: PayrollEmployee;
@@ -193,7 +204,7 @@ export class AdminPayrollService {
    * (gross − fee = net), never from the platform.
    */
   async payBulk(
-    admin: AdminActor,
+    admin: AdminActor | null,
     dto: PayrollBulkPayDto,
   ): Promise<PayrollBulkResultDto> {
     const ids = [...new Set(dto.employeeIds)];
@@ -330,7 +341,7 @@ export class AdminPayrollService {
           method,
           status: viaStripe ? 'processing' : 'paid',
           note: dto.note || null,
-          created_by: admin.id,
+          created_by: admin?.id ?? null,
         })),
       });
       const now = new Date();
@@ -341,27 +352,31 @@ export class AdminPayrollService {
           data: { status: 'paid', payout_id: c.id, paid_at: now },
         });
       }
-      await this.audit.record(
-        {
-          adminId: admin.id,
-          action: 'payroll.pay_bulk',
-          targetType: 'payroll_batch',
-          targetId: batchId,
-          after: {
-            period: dto.period,
-            method,
-            count: created.length,
-            totals: sumBy(created, (c) => c.gross),
-            fees: sumBy(created, (c) => c.fee),
-            commissions: sumBy(created, (c) => c.commission),
-            employeeIds: created.map((c) => c.employee.id),
-            skippedAlreadyPaid: alreadyPaid,
-            skippedNothingOwed: nothingOwed,
+      // The automatic pay day (admin null) is recorded by its payout rows
+      // (note «Авто», no author) and the worker log.
+      if (admin) {
+        await this.audit.record(
+          {
+            adminId: admin.id,
+            action: 'payroll.pay_bulk',
+            targetType: 'payroll_batch',
+            targetId: batchId,
+            after: {
+              period: dto.period,
+              method,
+              count: created.length,
+              totals: sumBy(created, (c) => c.gross),
+              fees: sumBy(created, (c) => c.fee),
+              commissions: sumBy(created, (c) => c.commission),
+              employeeIds: created.map((c) => c.employee.id),
+              skippedAlreadyPaid: alreadyPaid,
+              skippedNothingOwed: nothingOwed,
+            },
+            ip: admin.ip,
           },
-          ip: admin.ip,
-        },
-        tx,
-      );
+          tx,
+        );
+      }
     });
     if (created.length === 0) {
       throw new ConflictException({
@@ -396,7 +411,7 @@ export class AdminPayrollService {
    * key, so a retry never pays twice. A failed transfer puts its
    * commissions back to pending. Returns the employees that failed. */
   private async sendTransfers(
-    admin: AdminActor,
+    admin: AdminActor | null,
     rows: PlannedPayout[],
   ): Promise<string[]> {
     const failed: string[] = [];
@@ -434,14 +449,72 @@ export class AdminPayrollService {
             data: { status: 'pending', payout_id: null, paid_at: null },
           }),
         ]);
-        await this.log(admin, 'payroll.payout_failed', r.id, null, {
-          employeeId: r.employee.id,
-          amountCents: r.gross,
-          failure,
-        });
+        if (admin) {
+          await this.log(admin, 'payroll.payout_failed', r.id, null, {
+            employeeId: r.employee.id,
+            amountCents: r.gross,
+            failure,
+          });
+        }
       }
     }
     return failed;
+  }
+
+  /**
+   * Owner 2026-10-06 «зарплаты платятся сами»: who the automatic pay day
+   * pays through Stripe for `period` and how much it takes from the
+   * platform's Stripe balance (salary not yet paid this period + pending
+   * commissions and bonuses; Stripe's cost comes out of each payout, so
+   * the gross is what leaves the balance at most). Dollar payroll only;
+   * people not linked to Stripe are listed by name — they are paid by hand.
+   */
+  async autoDue(period: string): Promise<PayrollAutoDue> {
+    const stripeReady = await this.stripe.available();
+    await this.partnersBridge?.sync();
+    const people = await this.prisma.payrollEmployee.findMany({
+      where: { active: true, currency: 'usd' },
+      orderBy: { name: 'asc' },
+    });
+    const linked = people.filter(
+      (p) => stripeReady && p.stripe_account_id && p.stripe_payouts_enabled,
+    );
+    const ids = linked.map((p) => p.id);
+    const [paid, pending] = await Promise.all([
+      this.prisma.payrollPayout.findMany({
+        where: {
+          employee_id: { in: ids },
+          period,
+          status: { in: COUNTS_AS_PAID },
+          base_cents: { gt: 0 },
+        },
+        select: { employee_id: true },
+      }),
+      this.prisma.payrollAccrual.groupBy({
+        by: ['employee_id'],
+        where: { employee_id: { in: ids }, status: 'pending', currency: 'usd' },
+        _sum: { amount_cents: true },
+      }),
+    ]);
+    const basePaid = new Set(paid.map((p) => p.employee_id));
+    let dueCents = 0;
+    const employeeIds: string[] = [];
+    for (const p of linked) {
+      const owed =
+        (basePaid.has(p.id) ? 0 : p.amount_cents) +
+        (pending.find((x) => x.employee_id === p.id)?._sum.amount_cents ?? 0);
+      if (owed <= 0) continue;
+      dueCents += owed;
+      employeeIds.push(p.id);
+    }
+    return {
+      stripeReady,
+      employeeIds,
+      dueCents,
+      notLinked: people
+        .filter((p) => !linked.includes(p) && p.amount_cents > 0)
+        .map((p) => p.name),
+    };
   }
 
   /** The Stripe page where the person links a bank account or card

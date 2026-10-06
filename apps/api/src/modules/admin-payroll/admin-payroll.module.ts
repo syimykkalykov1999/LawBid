@@ -8,10 +8,10 @@ import { AdminPayrollService } from './admin-payroll.service';
 import { PayrollStripeService } from './payroll-stripe.service';
 import { PayrollAccrualsService } from './payroll-accruals.service';
 
-/** Owner 2026-10-05: Деньги → Зарплаты (staff salaries). */
+/** Owner 2026-10-05: the payroll itself — also used by the worker
+ * (owner 2026-10-06: automatic pay day in `treasury.daily`). */
 @Module({
   imports: [AdminAccessModule, FeatureFlagsModule, PartnersCoreModule],
-  controllers: [AdminPayrollController],
   providers: [
     AdminPayrollService,
     PayrollStripeService,
@@ -19,6 +19,14 @@ import { PayrollAccrualsService } from './payroll-accruals.service';
     PayrollPartnersBridge,
   ],
   /** Other modules (partner program) accrue commissions here. */
-  exports: [PayrollAccrualsService],
+  exports: [AdminPayrollService, PayrollAccrualsService],
+})
+export class AdminPayrollCoreModule {}
+
+/** Owner 2026-10-05: Деньги → Зарплаты (staff salaries). */
+@Module({
+  imports: [AdminPayrollCoreModule],
+  controllers: [AdminPayrollController],
+  exports: [AdminPayrollCoreModule],
 })
 export class AdminPayrollModule {}

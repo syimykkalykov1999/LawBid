@@ -101,6 +101,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: spend caps in mode «Авто» follow real usage
    * (CostAutoscaleService). */
   costAutoscale: 'cost.autoscale',
+  /** Owner 2026-10-05 «Прибыль и резерв»: payout statuses, a change of the
+   * banks in Stripe, and the monthly split on its payout day. */
+  treasuryDaily: 'treasury.daily',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -170,6 +173,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },
   { name: CRON_JOBS.costAutoscale, pattern: '17 * * * *' },
+  // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.
+  { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');
