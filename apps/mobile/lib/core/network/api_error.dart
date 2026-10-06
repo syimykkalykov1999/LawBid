@@ -242,6 +242,11 @@ abstract final class ApiErrorCodes {
   static const outreachClientsDisabled = 'OUTREACH_CLIENTS_DISABLED';
   // Owner 2026-10-05 (legal): DMCA notice in the wrong status.
   static const dmcaInvalidState = 'DMCA_INVALID_STATE';
+  // Owner 2026-10-05: demo mode («Продвижение») — docs/ops/demo-world.md
+  static const demoDisabled = 'DEMO_DISABLED';
+  static const demoLimitReached = 'DEMO_LIMIT_REACHED';
+  static const demoUnavailable = 'DEMO_UNAVAILABLE';
+  static const demoCodeInvalid = 'DEMO_CODE_INVALID';
 
   /// Every server code, in enum order.
   static const all = <String>[
@@ -430,6 +435,10 @@ abstract final class ApiErrorCodes {
     outreachContactBlocked,
     outreachClientsDisabled,
     dmcaInvalidState,
+    demoDisabled,
+    demoLimitReached,
+    demoUnavailable,
+    demoCodeInvalid,
   ];
 }
 

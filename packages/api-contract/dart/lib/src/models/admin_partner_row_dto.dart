@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_partner_external_dto.dart';
 import 'admin_partner_user_dto.dart';
 import 'partner_client_rule.dart';
 import 'partner_rates_dto.dart';
@@ -23,6 +24,8 @@ class AdminPartnerRowDto {
     required this.rates,
     required this.totals,
     required this.createdAt,
+    required this.demoAccess,
+    required this.externalValue,
     this.label,
     this.note,
     this.attorneyRateCents,
@@ -64,6 +67,15 @@ class AdminPartnerRowDto {
 
   /// W-9 (or W-8) received; null blocks payouts while requireW9 is on.
   final DateTime? w9ReceivedAt;
+
+  /// Owner 2026-10-05 («Продвижение»): may create demo accounts.
+  final bool demoAccess;
+
+  /// The name has been replaced because it contains a keyword. Original name: `external`.
+  /// The name has been replaced because it contains a keyword. Original name: `external`.
+  /// The name has been replaced because it contains a keyword. Original name: `external`.
+  @JsonKey(name: 'external')
+  final AdminPartnerExternalDto? externalValue;
 
   Map<String, Object?> toJson() => _$AdminPartnerRowDtoToJson(this);
 }

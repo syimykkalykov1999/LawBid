@@ -98,6 +98,8 @@ import {
   RequestIdMiddleware,
   resolveRequestId,
 } from './common/middleware/request-id.middleware';
+import { DemoHeaderMiddleware } from './common/demo/demo-header.middleware';
+import { DemoModule } from './modules/demo/demo.module';
 
 /**
  * pino-http options for LoggerModule. Exported so src/app.module.spec.ts
@@ -257,6 +259,8 @@ const isDev =
     PartnersModule,
     // Owner 2026-10-05 (legal): DMCA notices, legal texts, partner rules.
     LegalModule,
+    // Owner 2026-10-05: demo world for bloggers («Продвижение»).
+    DemoModule,
     OutreachModule,
     PromotionsModule,
     // Owner 2026-10-05: client → attorney payments via Stripe Connect.
@@ -309,6 +313,8 @@ const isDev =
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    // Demo mode (owner 2026-10-05): the demo header decides the database
+    // for the whole request; it must wrap everything that follows.
+    consumer.apply(RequestIdMiddleware, DemoHeaderMiddleware).forRoutes('*');
   }
 }

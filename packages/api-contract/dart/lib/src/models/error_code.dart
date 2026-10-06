@@ -378,6 +378,14 @@ enum ErrorCode {
   countryNotAvailable('COUNTRY_NOT_AVAILABLE'),
   @JsonValue('DMCA_INVALID_STATE')
   dmcaInvalidState('DMCA_INVALID_STATE'),
+  @JsonValue('DEMO_DISABLED')
+  demoDisabled('DEMO_DISABLED'),
+  @JsonValue('DEMO_LIMIT_REACHED')
+  demoLimitReached('DEMO_LIMIT_REACHED'),
+  @JsonValue('DEMO_UNAVAILABLE')
+  demoUnavailable('DEMO_UNAVAILABLE'),
+  @JsonValue('DEMO_CODE_INVALID')
+  demoCodeInvalid('DEMO_CODE_INVALID'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

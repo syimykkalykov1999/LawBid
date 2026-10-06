@@ -4,7 +4,9 @@ import {
   ArrowLeft,
   Coins,
   DownloadSimple,
+  Flask,
   HourglassMedium,
+  LinkSimple,
   PlusMinus,
   UsersThree,
 } from "@phosphor-icons/react";
@@ -18,17 +20,23 @@ import { CommissionsTable } from "@/components/partners/commissions-table";
 import {
   centsToText,
   downloadCommissionsCsv,
+  extend,
+  NoAccountBadge,
+  partnerName,
   PersonCell,
   RateFields,
   textToCents,
+  UserPicker,
   type ClientRule,
   type PartnerRow,
   type PartnerStatus,
+  type Picked,
 } from "@/components/partners/shared";
 import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
 import { useReason } from "@/components/reason-dialog";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Badge, Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/empty";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -36,6 +44,7 @@ import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
+import { partnersExtApi } from "@/lib/api/demo";
 import { useMe } from "@/lib/hooks";
 import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
 import {
@@ -121,8 +130,9 @@ export default function PartnerPage() {
       </>
     );
   }
-  const { partner: p, referred, commissions } = q.data;
-  const title = p.label || p.user.name || p.user.email || "Партнёр";
+  const { referred, commissions } = q.data;
+  const p = extend(q.data.partner);
+  const title = partnerName(p);
   // Owner 2026-10-05 (legal): no payout without a W-9 while the program requires one.
   const w9Missing = (settings.data?.requireW9 ?? true) && !p.w9ReceivedAt;
 
@@ -135,6 +145,12 @@ export default function PartnerPage() {
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-2">
             <StatusPill map={PARTNER_STATUS} value={p.status} />
+            {p.user ? null : <NoAccountBadge />}
+            {p.demoAccess ? (
+              <Badge tone="gold">
+                <Flask size={12} weight="light" /> демо-доступ
+              </Badge>
+            ) : null}
             <span>код</span>
             <span className="font-mono text-ink">{p.code}</span>
             <CopyButton text={p.shareUrl} label="Скопировать ссылку" />
@@ -185,6 +201,9 @@ export default function PartnerPage() {
         onSaved={refresh}
       />
       <ComplianceCard partner={p} canEdit={canWrite} requireW9={settings.data?.requireW9 ?? true} onSaved={refresh} />
+
+      <SectionTitle>Демо-доступ</SectionTitle>
+      <DemoAccessCard partner={p} canEdit={canWrite} onSaved={refresh} />
 
       {canWrite ? (
         <>
@@ -288,6 +307,7 @@ function PartnerForm({
 }) {
   const toast = useToast();
   const { ask, dialog } = useReason();
+  const [linking, setLinking] = useState(false);
   const [label, setLabel] = useState(p.label ?? "");
   const [note, setNote] = useState(p.note ?? "");
   const [status, setStatus] = useState<PartnerStatus>(p.status);
@@ -344,6 +364,16 @@ function PartnerForm({
   return (
     <Card className="p-5">
       {dialog}
+      {linking ? (
+        <LinkUserDialog
+          partner={p}
+          onClose={() => setLinking(false)}
+          onLinked={() => {
+            setLinking(false);
+            onSaved();
+          }}
+        />
+      ) : null}
       <div className="grid gap-4 md:grid-cols-3">
         <Field label="Метка (для вас)" htmlFor="pf-label">
           <Input id="pf-label" value={label} disabled={!canEdit} maxLength={120} onChange={(e) => setLabel(e.target.value)} />
@@ -359,7 +389,24 @@ function PartnerForm({
         </Field>
         <Field label="Аккаунт" htmlFor="pf-user">
           <div id="pf-user" className="pt-2">
-            <PersonCell u={p.user} role={p.user.role} link />
+            {p.user ? (
+              <PersonCell u={p.user} role={p.user.role} link />
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-0">
+                  <NoAccountBadge />
+                  <div className="mt-1 truncate text-xs text-faint" title={p.external?.contact ?? undefined}>
+                    {p.external?.name}
+                    {p.external?.contact ? ` · ${p.external.contact}` : ""}
+                  </div>
+                </div>
+                {canEdit ? (
+                  <Button size="sm" variant="outline" onClick={() => setLinking(true)}>
+                    <LinkSimple size={14} weight="light" /> Привязать аккаунт
+                  </Button>
+                ) : null}
+              </div>
+            )}
           </div>
         </Field>
       </div>
@@ -378,6 +425,105 @@ function PartnerForm({
           </Button>
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+/** §5: attach a real account to a partner created «без аккаунта». */
+function LinkUserDialog({
+  partner: p,
+  onClose,
+  onLinked,
+}: {
+  partner: PartnerRow;
+  onClose: () => void;
+  onLinked: () => void;
+}) {
+  const toast = useToast();
+  const [picked, setPicked] = useState<Picked | null>(null);
+  const link = useMutation({
+    mutationFn: () =>
+      partnersExtApi.linkUser(p.id, picked!.id, "Аккаунт привязан к партнёру из админки"),
+    onSuccess: () => {
+      toast.success("Аккаунт привязан: код и начисления сохранены");
+      onLinked();
+    },
+    onError: (e) => toast.error(growthError(e)),
+  });
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Привязать аккаунт"
+      description={`${p.external?.name ?? "Партнёр"} завёл аккаунт в LawBid? Выберите его — код ${p.code}, ссылка и все начисления останутся за ним, а партнёрский раздел появится у него в приложении.`}
+    >
+      <Field label="Аккаунт" htmlFor="lu-user">
+        <UserPicker id="lu-user" picked={picked} onPick={setPicked} />
+      </Field>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          Отмена
+        </Button>
+        <Button
+          type="button"
+          disabled={!picked || link.isPending}
+          loading={link.isPending}
+          onClick={() => link.mutate()}
+        >
+          Привязать
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** §4: the per-partner right to create demo accounts (PATCH demoAccess). */
+function DemoAccessCard({
+  partner: p,
+  canEdit,
+  onSaved,
+}: {
+  partner: PartnerRow;
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const on = !!p.demoAccess;
+  const toggle = useMutation({
+    mutationFn: (next: boolean) =>
+      partnersExtApi.setDemoAccess(
+        p.id,
+        next,
+        next ? "Демо-доступ включён из админки" : "Демо-доступ выключен из админки",
+      ),
+    onSuccess: (_, next) => {
+      toast.success(next ? "Демо-доступ включён" : "Демо-доступ выключен");
+      onSaved();
+    },
+    onError: (e) => toast.error(growthError(e)),
+  });
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-xl">
+          <p className="text-sm font-medium text-heading">Демо-аккаунты в приложении</p>
+          <p className="mt-1 text-sm text-muted">
+            С демо-доступом партнёр создаёт в разделе «Партнёрская программа» демо-аккаунты
+            (клиент, адвокат, помощник) и показывает приложение подписчикам на ненастоящих
+            данных. Лимит и срок жизни — на вкладке «Демо-доступ» у партнёров.
+            {p.user ? "" : " Партнёру без аккаунта демо-аккаунт создаётся там же, по коду."}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted">{on ? "Включён" : "Выключен"}</span>
+          <Switch
+            checked={on}
+            disabled={!canEdit || toggle.isPending}
+            onChange={(v) => toggle.mutate(v)}
+            label="Демо-доступ"
+          />
+        </div>
+      </div>
     </Card>
   );
 }

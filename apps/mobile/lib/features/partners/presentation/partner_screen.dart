@@ -6,6 +6,8 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/demo/application/demo_providers.dart';
+import 'package:lawbid/features/demo/presentation/demo_section.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
@@ -78,7 +80,10 @@ class PartnerScreen extends ConsumerWidget {
             }
             return RefreshIndicator(
               color: colors.gold,
-              onRefresh: () => ref.refresh(partnerMeProvider.future),
+              onRefresh: () {
+                ref.invalidate(demoMeProvider);
+                return ref.refresh(partnerMeProvider.future);
+              },
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.screenSide),
                 children: [
@@ -127,6 +132,9 @@ class PartnerScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.lg),
                     _Totals(totals: me.totals, t: t, f: f),
                     const SizedBox(height: AppSpacing.lg),
+                    // Owner 2026-10-05: demo accounts for recording videos
+                    // (renders nothing without the demo right).
+                    const _DemoBlock(),
                   ],
                   _Rates(
                     rates: me.rates,
@@ -247,6 +255,21 @@ class PartnerScreen extends ConsumerWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+/// `DemoSection` plus its bottom gap, both only when the section shows.
+class _DemoBlock extends ConsumerWidget {
+  const _DemoBlock();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(demoMeProvider).value?.enabled ?? false;
+    if (!enabled) return const SizedBox.shrink();
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [DemoSection(), SizedBox(height: AppSpacing.xl)],
     );
   }
 }

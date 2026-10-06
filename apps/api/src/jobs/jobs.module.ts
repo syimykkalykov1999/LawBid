@@ -45,6 +45,7 @@ import { ClientReviewsCoreModule } from '../modules/client-reviews/client-review
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
+import { DemoCoreModule } from '../modules/demo/demo.module';
 
 /**
  * Periodic maintenance on BullMQ (docs/01 §5.2): session + OTP cleanup
@@ -75,6 +76,7 @@ export class JobsModule {
         CasePaymentsCoreModule,
         // Owner 2026-10-05: `partners.sweep`.
         PartnersCoreModule,
+        DemoCoreModule,
         // Owner 2026-10-05: `support.sweep`, `rewards.award`.
         SupportModule,
         RewardsModule,

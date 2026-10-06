@@ -379,6 +379,14 @@ export class AdminPartnerUserDto {
   role!: string | null;
 }
 
+export class AdminPartnerExternalDto {
+  @ApiProperty({ description: 'How the admin knows the blogger.' })
+  name!: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  contact!: string | null;
+}
+
 export class AdminPartnerRowDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -455,6 +463,18 @@ export class AdminPartnerRowDto {
       'W-9 (or W-8) received; null blocks payouts while requireW9 is on.',
   })
   w9ReceivedAt!: string | null;
+
+  @ApiProperty({
+    description: 'Owner 2026-10-05 («Продвижение»): may create demo accounts.',
+  })
+  demoAccess!: boolean;
+
+  @ApiProperty({
+    type: AdminPartnerExternalDto,
+    nullable: true,
+    description: 'Set for a partner without an app account (blogger).',
+  })
+  external!: AdminPartnerExternalDto | null;
 }
 
 export class AdminPartnerReferredUserDto extends PartnerReferredUserDto {
@@ -612,9 +632,35 @@ class PartnerFieldsDto {
 }
 
 export class CreatePartnerDto extends PartnerFieldsDto {
-  @ApiProperty({ format: 'uuid', description: 'Any existing user account.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'An existing user account. Leave out and give externalName for a blogger without an account.',
+  })
+  @IsOptional()
   @IsUUID('all')
-  userId!: string;
+  userId?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 120,
+    description: 'Owner 2026-10-05: partner without an app account (blogger).',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  externalName?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 200,
+    description: 'Instagram, phone, e-mail…',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(200)
+  externalContact?: string;
 
   @ApiPropertyOptional({
     description:
@@ -647,6 +693,29 @@ export class UpdatePartnerDto extends PartnerFieldsDto {
   @IsOptional()
   @IsBoolean()
   w9Received?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Owner 2026-10-05 («Продвижение»): may create demo accounts.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  demoAccess?: boolean;
+
+  @ApiPropertyOptional({ maxLength: 120, nullable: true, type: String })
+  @IsOptional()
+  @Transform(trim)
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(120)
+  externalName?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 200, nullable: true, type: String })
+  @IsOptional()
+  @Transform(trim)
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(200)
+  externalContact?: string | null;
 
   @ApiPropertyOptional({ type: String, maxLength: 300 })
   @IsOptional()
@@ -743,4 +812,18 @@ export class AdminPartnerStatsDto {
 
   @ApiProperty({ type: 'integer' })
   thisMonthCents!: number;
+}
+
+/** Owner 2026-10-05: attach a real account to a partner created without one. */
+export class LinkPartnerUserDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  userId!: string;
+
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  reason = '';
 }

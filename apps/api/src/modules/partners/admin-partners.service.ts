@@ -30,6 +30,7 @@ import type {
   AdminPartnerStatsDto,
   AdminPartnerUserDto,
   CreatePartnerDto,
+  LinkPartnerUserDto,
   PartnerSettingsDto,
   UpdatePartnerDto,
 } from './partners.dto';
@@ -241,15 +242,41 @@ export class AdminPartnersService {
     admin: AdminActor,
     dto: CreatePartnerDto,
   ): Promise<AdminPartnerRowDto> {
+    // Owner 2026-10-05: a blogger without an app account gets a
+    // placeholder user row (cannot sign in, hidden from the people lists)
+    // so the code, the referrals and the commissions have an owner; the
+    // real account is attached later with linkUser().
+    const external = !dto.userId;
+    if (external && !dto.externalName) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Give a user or the name of the partner without an account.',
+        details: { field: 'externalName' },
+      });
+    }
+    const userId =
+      dto.userId ??
+      (
+        await this.prisma.user.create({
+          data: {
+            role: null,
+            status: 'active',
+            first_name: dto.externalName!.slice(0, 120),
+            last_name: null,
+            placeholder_kind: 'external_partner',
+          },
+          select: { id: true },
+        })
+      ).id;
     const user = await this.prisma.user.findUnique({
-      where: { id: dto.userId },
+      where: { id: userId },
       select: { id: true, status: true, deleted_at: true },
     });
     if (!user || user.deleted_at || user.status === 'deleted') {
       throw notFound('User not found.');
     }
     const existing = await this.prisma.partner.findUnique({
-      where: { user_id: dto.userId },
+      where: { user_id: userId },
     });
     if (existing && existing.status !== 'ended') {
       throw invalidState('This user is already a partner.');
@@ -274,11 +301,13 @@ export class AdminPartnersService {
         hold_days: dto.holdDays ?? null,
         created_by: admin.id,
         ended_at: null,
+        external_name: external ? (dto.externalName ?? null) : null,
+        external_contact: external ? (dto.externalContact ?? null) : null,
       };
       const row = existing
         ? await tx.partner.update({ where: { id: existing.id }, data })
-        : await tx.partner.create({ data: { ...data, user_id: dto.userId } });
-      if (code) await this.setCode(tx, dto.userId, code);
+        : await tx.partner.create({ data: { ...data, user_id: userId } });
+      if (code) await this.setCode(tx, userId, code);
       await this.audit.record(
         {
           adminId: admin.id,
@@ -319,6 +348,13 @@ export class AdminPartnersService {
       data.w9_received_at = dto.w9Received
         ? (before.w9_received_at ?? new Date())
         : null;
+    }
+    if (dto.demoAccess !== undefined) data.demo_access = dto.demoAccess;
+    if (dto.externalName !== undefined && before.external_name !== null) {
+      data.external_name = dto.externalName;
+    }
+    if (dto.externalContact !== undefined && before.external_name !== null) {
+      data.external_contact = dto.externalContact;
     }
     if (dto.status !== undefined && dto.status !== before.status) {
       data.status = dto.status;
@@ -778,9 +814,95 @@ export class AdminPartnersService {
         termsAcceptedAt: p.terms_accepted_at?.toISOString() ?? null,
         termsVersion: p.terms_version,
         w9ReceivedAt: p.w9_received_at?.toISOString() ?? null,
+        demoAccess: p.demo_access,
+        external: p.external_name
+          ? { name: p.external_name, contact: p.external_contact }
+          : null,
       });
     }
     return out;
+  }
+
+  /** Owner 2026-10-05: the blogger registered — move the partner, the
+   * code, the referrals and the commissions from the placeholder user to
+   * the real account and retire the placeholder. */
+  async linkUser(
+    admin: AdminActor,
+    id: string,
+    dto: LinkPartnerUserDto,
+  ): Promise<AdminPartnerRowDto> {
+    const before = await this.prisma.partner.findUnique({ where: { id } });
+    if (!before) throw notFound('Partner not found.');
+    if (!before.external_name) {
+      throw invalidState('This partner already has an account.');
+    }
+    const target = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+      select: {
+        id: true,
+        status: true,
+        deleted_at: true,
+        placeholder_kind: true,
+      },
+    });
+    if (
+      !target ||
+      target.deleted_at ||
+      target.status === 'deleted' ||
+      target.placeholder_kind
+    ) {
+      throw notFound('User not found.');
+    }
+    const taken = await this.prisma.partner.findUnique({
+      where: { user_id: dto.userId },
+    });
+    if (taken && taken.id !== id) {
+      throw invalidState('This user is already a partner.');
+    }
+    const placeholderId = before.user_id;
+    const partner = await withTxRetry(this.prisma, async (tx) => {
+      if (taken) await tx.partner.delete({ where: { id: taken.id } });
+      await tx.referralCode.deleteMany({ where: { user_id: dto.userId } });
+      await tx.referralCode.updateMany({
+        where: { user_id: placeholderId },
+        data: { user_id: dto.userId },
+      });
+      await tx.referral.updateMany({
+        where: { referrer_id: placeholderId },
+        data: { referrer_id: dto.userId },
+      });
+      await tx.partnerCommission.updateMany({
+        where: { partner_user_id: placeholderId },
+        data: { partner_user_id: dto.userId },
+      });
+      const row = await tx.partner.update({
+        where: { id },
+        data: {
+          user_id: dto.userId,
+          external_name: null,
+          external_contact: null,
+        },
+      });
+      await tx.user.update({
+        where: { id: placeholderId },
+        data: { status: 'deleted', deleted_at: new Date() },
+      });
+      await this.audit.record(
+        {
+          adminId: admin.id,
+          action: PARTNER_AUDIT.update,
+          targetType: 'partner',
+          targetId: row.id,
+          before: toJson(before),
+          after: toJson(row),
+          ip: admin.ip,
+          justification: dto.reason,
+        },
+        tx,
+      );
+      return row;
+    });
+    return (await this.present([partner]))[0];
   }
 
   private async presentCommissions(

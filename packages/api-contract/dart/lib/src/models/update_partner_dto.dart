@@ -22,6 +22,9 @@ class UpdatePartnerDto {
     this.holdDays,
     this.status,
     this.w9Received,
+    this.demoAccess,
+    this.externalName,
+    this.externalContact,
   });
 
   factory UpdatePartnerDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +43,11 @@ class UpdatePartnerDto {
 
   /// true = W-9 received now; false = clear it.
   final bool? w9Received;
+
+  /// Owner 2026-10-05 («Продвижение»): may create demo accounts.
+  final bool? demoAccess;
+  final String? externalName;
+  final String? externalContact;
   final String reason;
 
   Map<String, Object?> toJson() => _$UpdatePartnerDtoToJson(this);

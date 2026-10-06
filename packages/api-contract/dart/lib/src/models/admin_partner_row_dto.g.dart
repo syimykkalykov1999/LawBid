@@ -16,6 +16,12 @@ AdminPartnerRowDto _$AdminPartnerRowDtoFromJson(Map<String, dynamic> json) =>
       rates: PartnerRatesDto.fromJson(json['rates'] as Map<String, dynamic>),
       totals: PartnerTotalsDto.fromJson(json['totals'] as Map<String, dynamic>),
       createdAt: DateTime.parse(json['createdAt'] as String),
+      demoAccess: json['demoAccess'] as bool,
+      externalValue: json['external'] == null
+          ? null
+          : AdminPartnerExternalDto.fromJson(
+              json['external'] as Map<String, dynamic>,
+            ),
       label: json['label'] as String?,
       note: json['note'] as String?,
       attorneyRateCents: (json['attorneyRateCents'] as num?)?.toInt(),
@@ -56,4 +62,6 @@ Map<String, dynamic> _$AdminPartnerRowDtoToJson(AdminPartnerRowDto instance) =>
       'termsAcceptedAt': ?instance.termsAcceptedAt?.toIso8601String(),
       'termsVersion': ?instance.termsVersion,
       'w9ReceivedAt': ?instance.w9ReceivedAt?.toIso8601String(),
+      'demoAccess': instance.demoAccess,
+      'external': ?instance.externalValue?.toJson(),
     };
