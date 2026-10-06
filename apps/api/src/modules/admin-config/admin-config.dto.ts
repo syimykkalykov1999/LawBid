@@ -14,6 +14,12 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { AUTOSCALE_MAX_VALUE } from '../../common/cost-guard/cost-autoscale.rules';
+import {
+  COST_PROVIDERS,
+  type CostProvider,
+  type CostWindow,
+} from '../../common/cost-guard/cost-guard.constants';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -221,4 +227,97 @@ export class LegalDocumentAdminDto {
   })
   consents!: number;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+// ---- spend limits «Лимиты расходов» (owner 2026-10-05) ---------------------
+
+export const BUDGET_PROVIDERS = COST_PROVIDERS;
+export const BUDGET_WINDOWS = ['minute', 'daily', 'monthly'] as const;
+export const BUDGET_MODES = ['auto', 'manual'] as const;
+
+export class BudgetLimitParamDto {
+  @ApiProperty({ enum: BUDGET_PROVIDERS })
+  @IsIn(BUDGET_PROVIDERS)
+  provider!: CostProvider;
+
+  @ApiProperty({ enum: BUDGET_WINDOWS })
+  @IsIn(BUDGET_WINDOWS)
+  window!: CostWindow;
+}
+
+export class UpdateBudgetLimitDto {
+  @ApiProperty({
+    enum: BUDGET_MODES,
+    description:
+      'auto: the cap follows real usage hourly within [floor, ceiling]; manual: the cap is `value`.',
+  })
+  @IsIn(BUDGET_MODES)
+  mode!: (typeof BUDGET_MODES)[number];
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: AUTOSCALE_MAX_VALUE,
+    description: 'Auto mode: the cap never goes below this.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(AUTOSCALE_MAX_VALUE)
+  floor?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: AUTOSCALE_MAX_VALUE,
+    description: 'Auto mode: safety ceiling, the cap never goes above this.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(AUTOSCALE_MAX_VALUE)
+  ceiling?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: AUTOSCALE_MAX_VALUE,
+    description:
+      'Manual mode: the cap (0 switches the provider off). Omitted keeps the current cap.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(AUTOSCALE_MAX_VALUE)
+  value?: number;
+}
+
+export class BudgetLimitDto {
+  @ApiProperty({ enum: BUDGET_PROVIDERS }) provider!: CostProvider;
+  @ApiProperty({ enum: BUDGET_WINDOWS }) window!: CostWindow;
+  @ApiProperty({ enum: BUDGET_MODES }) mode!: (typeof BUDGET_MODES)[number];
+  @ApiProperty({ type: 'integer' }) floor!: number;
+  @ApiProperty({ type: 'integer' }) ceiling!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Cap in force now (0 = provider switched off).',
+  })
+  cap!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Server default (BUDGET_* env).',
+  })
+  envDefault!: number;
+  @ApiProperty({ type: 'integer' }) usedToday!: number;
+  @ApiProperty({ type: 'integer' }) usedThisMonth!: number;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Last automatic recompute of this provider.',
+  })
+  lastAutoAt!: string | null;
 }

@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { FeatureFlagsModule } from '../../modules/feature-flags/feature-flags.module';
+import { CostAutoscaleService } from './cost-autoscale.service';
 import { CostGuardService } from './cost-guard.service';
 
 /**
@@ -11,7 +12,9 @@ import { CostGuardService } from './cost-guard.service';
 @Global()
 @Module({
   imports: [FeatureFlagsModule],
-  providers: [CostGuardService],
-  exports: [CostGuardService],
+  // Owner 2026-10-05: caps in mode «Авто» follow real usage (hourly
+  // `cost.autoscale` cron + once after boot).
+  providers: [CostGuardService, CostAutoscaleService],
+  exports: [CostGuardService, CostAutoscaleService],
 })
 export class CostGuardModule {}

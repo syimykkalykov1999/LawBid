@@ -89,6 +89,10 @@ export const envSchema = z
     // case_journal only) used by the monthly journal retention job. Unset
     // (dev / e2e): the job runs on DATABASE_URL and logs a warning.
     RETENTION_DATABASE_URL: z.string().min(1).optional(),
+    // Owner 2026-10-05 (demo mode, src/common/demo): the demo world's own
+    // database. Unset → `<DATABASE_URL database>_demo`, created and
+    // migrated by the API itself; `off` → no demo world.
+    DEMO_DATABASE_URL: z.string().min(1).optional(),
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()

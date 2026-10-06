@@ -8,7 +8,6 @@ part of 'create_partner_dto.dart';
 
 CreatePartnerDto _$CreatePartnerDtoFromJson(Map<String, dynamic> json) =>
     CreatePartnerDto(
-      userId: json['userId'] as String,
       reason: json['reason'] as String? ?? '',
       label: json['label'] as String?,
       note: json['note'] as String?,
@@ -19,6 +18,9 @@ CreatePartnerDto _$CreatePartnerDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : PartnerClientRule.fromJson(json['clientRule'] as String),
       holdDays: (json['holdDays'] as num?)?.toInt(),
+      userId: json['userId'] as String?,
+      externalName: json['externalName'] as String?,
+      externalContact: json['externalContact'] as String?,
       code: json['code'] as String?,
     );
 
@@ -31,7 +33,9 @@ Map<String, dynamic> _$CreatePartnerDtoToJson(CreatePartnerDto instance) =>
       'monthlyBaseCents': ?instance.monthlyBaseCents,
       'clientRule': ?instance.clientRule?.toJson(),
       'holdDays': ?instance.holdDays,
-      'userId': instance.userId,
+      'userId': ?instance.userId,
+      'externalName': ?instance.externalName,
+      'externalContact': ?instance.externalContact,
       'code': ?instance.code,
       'reason': instance.reason,
     };

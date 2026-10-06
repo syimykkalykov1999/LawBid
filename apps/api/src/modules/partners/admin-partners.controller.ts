@@ -39,6 +39,7 @@ import {
   AdminPartnersQueryDto,
   AdminPartnerStatsDto,
   CreatePartnerDto,
+  LinkPartnerUserDto,
   PartnerSettingsDto,
   UpdatePartnerDto,
 } from './partners.dto';
@@ -231,6 +232,24 @@ export class AdminPartnersController {
     @Body() dto: UpdatePartnerDto,
   ): Promise<AdminPartnerRowDto> {
     return this.partners.update(admin, p.id, dto);
+  }
+
+  @Roles('super_admin', 'finance')
+  @Post(':id/link-user')
+  @SkipAutoAudit()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Attach a real account to a partner created without one (code and earnings move with it)',
+  })
+  @ApiEnvelopeResponse(AdminPartnerRowDto)
+  @ApiErrors(MUTATION_ERRORS)
+  linkAdminPartnerUser(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminPartnerIdParamDto,
+    @Body() dto: LinkPartnerUserDto,
+  ): Promise<AdminPartnerRowDto> {
+    return this.partners.linkUser(admin, p.id, dto);
   }
 
   @Roles('super_admin', 'finance')

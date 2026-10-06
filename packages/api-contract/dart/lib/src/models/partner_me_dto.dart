@@ -6,10 +6,10 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'partner_commission_dto.dart';
 import 'partner_join_mode.dart';
+import 'partner_me_texts_dto.dart';
 import 'partner_rates_dto.dart';
 import 'partner_referred_user_dto.dart';
 import 'partner_status.dart';
-import 'partner_texts_dto.dart';
 import 'partner_totals_dto.dart';
 
 part 'partner_me_dto.g.dart';
@@ -28,7 +28,11 @@ class PartnerMeDto {
     required this.referred,
     required this.commissions,
     required this.texts,
+    required this.termsVersion,
+    required this.w9Required,
+    required this.w9Received,
     this.status,
+    this.termsAcceptedVersion,
   });
 
   factory PartnerMeDto.fromJson(Map<String, Object?> json) =>
@@ -59,8 +63,20 @@ class PartnerMeDto {
   /// Newest first, up to 200.
   final List<PartnerCommissionDto> commissions;
 
-  /// Owner's words in the user's language.
-  final PartnerTextsDto texts;
+  /// Owner's words, the disclosure and the rules in the user's language.
+  final PartnerMeTextsDto texts;
+
+  /// Current version of the partner rules.
+  final String termsVersion;
+
+  /// Version the partner accepted; null = not accepted yet (the app shows the rules with an Accept button, POST /partners/me/accept-terms).
+  final String? termsAcceptedVersion;
+
+  /// A W-9 (or W-8) is needed before the first payout.
+  final bool w9Required;
+
+  /// The admin marked the W-9 as received.
+  final bool w9Received;
 
   Map<String, Object?> toJson() => _$PartnerMeDtoToJson(this);
 }

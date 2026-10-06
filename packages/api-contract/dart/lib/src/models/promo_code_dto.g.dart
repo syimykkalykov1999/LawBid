@@ -27,6 +27,9 @@ PromoCodeDto _$PromoCodeDtoFromJson(Map<String, dynamic> json) => PromoCodeDto(
   active: json['active'] as bool,
   status: PromoCodeStatus.fromJson(json['status'] as String),
   stripeCouponId: json['stripeCouponId'] as String?,
+  archivedAt: json['archivedAt'] == null
+      ? null
+      : DateTime.parse(json['archivedAt'] as String),
   createdBy: json['createdBy'] as String,
   createdAt: DateTime.parse(json['createdAt'] as String),
 );
@@ -49,6 +52,7 @@ Map<String, dynamic> _$PromoCodeDtoToJson(PromoCodeDto instance) =>
       'active': instance.active,
       'status': instance.status.toJson(),
       'stripeCouponId': ?instance.stripeCouponId,
+      'archivedAt': ?instance.archivedAt?.toIso8601String(),
       'createdBy': instance.createdBy,
       'createdAt': instance.createdAt.toIso8601String(),
     };

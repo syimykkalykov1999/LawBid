@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-139 tables.
+142 tables.
 
 ```mermaid
 erDiagram
@@ -33,7 +33,9 @@ erDiagram
     String full_name_lower "nullable"
     DateTime created_at
     DateTime updated_at
+    String placeholder_kind "nullable"
     String country_code FK
+    Int copyright_strikes
   }
   files {
     String id PK
@@ -703,6 +705,30 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  dmca_notices {
+    String id PK
+    String report_id FK "nullable"
+    enum_ReportTargetType target_type "nullable"
+    String target_id "nullable"
+    String infringing_url "nullable"
+    String complainant_name
+    String complainant_email
+    String complainant_address
+    String complainant_phone "nullable"
+    String work_description
+    Boolean good_faith
+    Boolean accuracy_sworn
+    String signature
+    String status
+    String submitted_by_user_id FK "nullable"
+    String author_user_id "nullable"
+    Json counter "nullable"
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
+    String decision_note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   moderation_actions {
     String id PK
     String report_id FK "nullable"
@@ -1209,6 +1235,7 @@ erDiagram
     DateTime starts_at "nullable"
     DateTime expires_at "nullable"
     Boolean active
+    DateTime archived_at "nullable"
     String stripe_coupon_id "nullable"
     String created_by
     DateTime created_at
@@ -1269,9 +1296,16 @@ erDiagram
     String client_rule "nullable"
     Int hold_days "nullable"
     String created_by "nullable"
+    String external_name "nullable"
+    String external_contact "nullable"
+    Boolean demo_access
     DateTime created_at
     DateTime updated_at
     DateTime ended_at "nullable"
+    DateTime terms_accepted_at "nullable"
+    String terms_version "nullable"
+    String terms_ip "nullable"
+    DateTime w9_received_at "nullable"
   }
   partner_commissions {
     String id PK
@@ -1317,6 +1351,11 @@ erDiagram
     DateTime last_activity_at "nullable"
     DateTime next_action_at "nullable"
     String note "nullable"
+    DateTime do_not_contact_at "nullable"
+    String do_not_contact_reason "nullable"
+    String source_note "nullable"
+    Int emails_sent
+    DateTime last_email_at "nullable"
     String created_by
     DateTime created_at
     DateTime updated_at
@@ -1342,6 +1381,14 @@ erDiagram
     String created_by
     DateTime created_at
     DateTime updated_at
+  }
+  outreach_suppressions {
+    String id PK
+    String kind
+    String value
+    String note "nullable"
+    String created_by
+    DateTime created_at
   }
   case_promotions {
     String id PK
@@ -1729,6 +1776,20 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  demo_accounts {
+    String id PK
+    String demo_user_id UK
+    String role
+    String display_name
+    String label "nullable"
+    String created_by_user_id "nullable"
+    String created_by_admin_id "nullable"
+    String invite_code_hash UK "nullable"
+    DateTime invite_expires_at "nullable"
+    DateTime last_seen_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   storage_snapshots {
     String id PK
     DateTime day UK
@@ -1882,6 +1943,8 @@ erDiagram
   payments }o--|| users : "user_id"
   reports }o--|| users : "reporter_id"
   reports }o--o| users : "handled_by"
+  dmca_notices }o--o| reports : "report_id"
+  dmca_notices }o--o| users : "submitted_by_user_id"
   moderation_actions }o--o| reports : "report_id"
   moderation_actions }o--|| users : "admin_id"
   admin_profiles |o--|| users : "user_id"

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,9 +11,11 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/referrals/application/install_referrer.dart';
 
 /// Shell scaffold for the 4 `StatefulShellRoute.indexedStack` branches
 /// (Лента/Поиск/Моё/Профиль), hosting [AppBottomNav]. The "+" tab is not a
@@ -40,6 +44,12 @@ class _MainShellState extends ConsumerState<MainShell> {
     // Owner 2026-09-30 (reverses the 2026-09-29 decision): the system
     // status bar (clock, network, battery) stays visible in-app too.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    // docs/ops/demo-world.md: the shell is only reachable fully onboarded —
+    // apply a pending install-referrer code / ask for one, once.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(referralOnboardingHookProvider).run(context));
+    });
   }
 
   @override
@@ -56,8 +66,14 @@ class _MainShellState extends ConsumerState<MainShell> {
       ..listen(sessionServicesProvider, (_, __) {});
 
     return Scaffold(
-      body:
-          _TabFade(index: navigationShell.currentIndex, child: navigationShell),
+      // docs/ops/demo-world.md: floating «Демо-режим» banner over the tabs
+      // while in a demo session (a no-op wrapper otherwise).
+      body: DemoBannerHost(
+        child: _TabFade(
+          index: navigationShell.currentIndex,
+          child: navigationShell,
+        ),
+      ),
       bottomNavigationBar: AppBottomNav(
         tabs: tabs,
         currentIndex: navigationShell.currentIndex,

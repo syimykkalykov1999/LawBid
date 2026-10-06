@@ -32,6 +32,10 @@ class OutreachLeadRowDto {
     required this.lastActivityAt,
     required this.nextActionAt,
     required this.note,
+    required this.doNotContact,
+    required this.doNotContactReason,
+    required this.sourceNote,
+    required this.emailsSent,
     required this.createdAt,
   });
 
@@ -56,6 +60,18 @@ class OutreachLeadRowDto {
   final DateTime? lastActivityAt;
   final DateTime? nextActionAt;
   final String? note;
+
+  /// Do-not-contact (TCPA / DNC): phone and email are hidden, no calls or emails.
+  final bool doNotContact;
+
+  /// manual | not_interested | wrong_number | unsubscribed | suppression | retention
+  final String? doNotContactReason;
+
+  /// Where the contact came from and on what basis we may write.
+  final String? sourceNote;
+
+  /// Cold emails sent to this lead so far.
+  final num emailsSent;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$OutreachLeadRowDtoToJson(this);

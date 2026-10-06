@@ -560,8 +560,9 @@ resource "aws_cloudwatch_log_metric_filter" "db_latency" {
 
 resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
   for_each = {
-    cost_ceiling = "CostCeilingReached"
-    backup_stale = "BackupStale"
+    cost_ceiling        = "CostCeilingReached"
+    backup_stale        = "BackupStale"
+    cost_budget_ceiling = "CostBudgetCeiling"
   }
   name           = "${var.name}-ops-${replace(each.key, "_", "-")}"
   log_group_name = var.worker_log_group
@@ -722,6 +723,23 @@ resource "aws_cloudwatch_metric_alarm" "treasury" {
   threshold           = 1
   statistic           = "Sum"
   metric_name         = each.value.metric
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
+# Owner 2026-10-05: spend caps in mode «Авто» (src/common/cost-guard/
+# cost-autoscale.service.ts) want to grow past their safety ceiling.
+resource "aws_cloudwatch_metric_alarm" "cost_budget_ceiling" {
+  alarm_name          = "${var.name}-cost-budget-ceiling"
+  alarm_description   = "LawBid: Автоматический лимит расходов (SMS, письма, проверки, загрузки, перевод или видео) упёрся в потолок безопасности. Что делать: если пользователей действительно стало больше — админка → Система → Настройки → Лимиты расходов → поднимите «Потолок». Если роста не было — возможно, это злоупотребление, и лимит вас защищает: напишите Claude «лимиты». (EN: cost autoscale target clamped by its ceiling.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = "CostBudgetCeiling"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
   alarm_actions       = local.ops

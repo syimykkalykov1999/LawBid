@@ -11,10 +11,12 @@ import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
+import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
+import 'package:lawbid/core/l10n/strings/legal_strings.dart';
 import 'package:lawbid/core/l10n/strings/partner_strings.dart';
 import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
@@ -1110,6 +1112,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...auditChatRu,
         ...auditSocialRu,
         ...partnerRu,
+        ...demoRu,
         ...reelsDocsRu,
         ...templatesRu,
         ...storageRu,
@@ -1123,6 +1126,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...inviteRu,
         ...caseDossierRu,
         ...trustRu,
+        ...legalRu,
         ...clientFraudRu,
       };
 }
@@ -2490,6 +2494,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...auditChatEn,
         ...auditSocialEn,
         ...partnerEn,
+        ...demoEn,
         ...reelsDocsEn,
         ...templatesEn,
         ...storageEn,
@@ -2503,6 +2508,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...inviteEn,
         ...caseDossierEn,
         ...trustEn,
+        ...legalEn,
         ...clientFraudEn,
       };
 }

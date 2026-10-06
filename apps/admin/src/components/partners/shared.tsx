@@ -1,15 +1,34 @@
 "use client";
 
-import { CheckCircle, X } from "@phosphor-icons/react";
+import { CheckCircle, UserCircleMinus, X } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import { Badge } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
+import type { PartnerRowExt } from "@/lib/api/demo";
 import type { components } from "@/lib/api/schema";
 import { CLIENT_RULE, label, ROLE_TEXT } from "@/lib/labels";
 
-export type PartnerRow = components["schemas"]["AdminPartnerRowDto"];
+/** Row as the API returns it today plus the §4/§5 fields (`user` may be
+ * null for a partner without an account). Cast once with `extend()`. */
+export type PartnerRow = PartnerRowExt;
+export function extend(
+  p: components["schemas"]["AdminPartnerRowDto"] | PartnerRowExt,
+): PartnerRowExt {
+  return p as PartnerRowExt;
+}
+/** Display name: label, then account, then the external name. */
+export function partnerName(p: PartnerRowExt): string {
+  return (
+    p.label ||
+    p.user?.name ||
+    p.user?.email ||
+    p.external?.name ||
+    p.id.slice(0, 8)
+  );
+}
 export type PartnerUser = components["schemas"]["AdminPartnerUserDto"];
 export type Commission = components["schemas"]["AdminPartnerCommissionRowDto"];
 export type CommissionStatus =
@@ -68,6 +87,38 @@ export function PersonCell({
       >
         {role ? label(ROLE_TEXT, role) : null}
         {u.email && u.email !== name ? `${role ? " · " : ""}${u.email}` : ""}
+      </div>
+    </div>
+  );
+}
+
+/** «Без аккаунта» for a blogger outside the app (§5). */
+export function NoAccountBadge() {
+  return (
+    <Badge tone="warning">
+      <UserCircleMinus size={12} weight="light" /> Без аккаунта
+    </Badge>
+  );
+}
+
+/** Account cell of a partner row: the person, or the external contact. */
+export function PartnerPerson({
+  p,
+  link,
+}: {
+  p: PartnerRowExt;
+  link: boolean;
+}) {
+  if (p.user) return <PersonCell u={p.user} role={p.user.role} link={link} />;
+  return (
+    <div className="min-w-0">
+      <NoAccountBadge />
+      <div
+        className="mt-1 max-w-[220px] truncate text-xs text-faint"
+        title={p.external?.contact ?? undefined}
+      >
+        {p.external?.name}
+        {p.external?.contact ? ` · ${p.external.contact}` : ""}
       </div>
     </div>
   );

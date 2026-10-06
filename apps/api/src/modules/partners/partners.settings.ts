@@ -7,6 +7,13 @@
  */
 export const PARTNER_SETTINGS_KEY = 'partners.program';
 
+/**
+ * Owner 2026-10-05 (legal): version of the partner rules (the
+ * `partnerTerms` text in legal.settings). A partner accepts a version;
+ * bump it when the rules change materially so everyone re-accepts.
+ */
+export const PARTNER_TERMS_VERSION = '2026-10-05';
+
 /** When a referred CLIENT earns the partner a commission. */
 export const CLIENT_RULES = ['case_published', 'bid_accepted'] as const;
 export type ClientRule = (typeof CLIENT_RULES)[number];
@@ -66,6 +73,9 @@ export interface PartnerProgramSettings {
   clientRule: ClientRule;
   /** Anti-fraud hold before an accrual can be paid; 0 = approve at once. */
   holdDays: number;
+  /** Owner 2026-10-05 (legal): a W-9 (or W-8) must be on file before the
+   * first payout (IRS 1099-NEC reporting from $600 a year). */
+  requireW9: boolean;
   texts: PartnerTextsByLang;
 }
 
@@ -76,12 +86,12 @@ export const DEFAULT_PARTNER_TEXTS: PartnerTextsByLang = {
   en: {
     title: 'Partner program',
     summary:
-      'Share your link. You earn a fixed amount for every attorney who buys a subscription and every client who hires an attorney through LawBid. Earnings are held for a short check and then paid out.',
+      'Share your link. You earn a fixed amount for every attorney who buys a subscription and for every client who joins and becomes active on LawBid (the exact event is shown in the rates below). Earnings are held for a short check and then paid out.',
   },
   ru: {
     title: 'Партнёрская программа',
     summary:
-      'Делитесь своей ссылкой. Вы получаете фиксированную сумму за каждого адвоката, купившего подписку, и за каждого клиента, нанявшего адвоката через LawBid. Начисления проходят короткую проверку и затем выплачиваются.',
+      'Делитесь своей ссылкой. Вы получаете фиксированную сумму за каждого адвоката, купившего подписку, и за каждого клиента, который присоединился и стал активным в LawBid (точное событие указано в ставках ниже). Начисления проходят короткую проверку и затем выплачиваются.',
   },
 };
 
@@ -89,9 +99,16 @@ export const DEFAULT_PARTNER_SETTINGS: PartnerProgramSettings = {
   enabled: true,
   joinMode: 'open',
   attorneyRateCents: 5_000, // $50 per paying attorney
-  clientRateCents: 1_000, // $10 per client who hired
-  clientRule: 'bid_accepted',
+  clientRateCents: 1_000, // $10 per client who became active
+  // Owner 2026-10-05 (legal): the safe default is the client's first
+  // published case, never the hire. A payment that depends on a client
+  // *hiring* an attorney reads as paid referral of legal work ("running
+  // and capping"), which is forbidden to non-lawyers in several states
+  // (CA Bus. & Prof. Code §6152, TX Penal Code §38.12). The admin may
+  // still pick bid_accepted knowingly.
+  clientRule: 'case_published',
   holdDays: 14,
+  requireW9: true,
   texts: DEFAULT_PARTNER_TEXTS,
 };
 
@@ -142,6 +159,7 @@ export function parsePartnerSettings(raw: unknown): PartnerProgramSettings {
       ? (r.clientRule as ClientRule)
       : d.clientRule,
     holdDays: nonNegInt(r.holdDays, MAX_HOLD_DAYS) ? r.holdDays : d.holdDays,
+    requireW9: typeof r.requireW9 === 'boolean' ? r.requireW9 : d.requireW9,
     texts: parsePartnerTexts(r.texts),
   };
 }

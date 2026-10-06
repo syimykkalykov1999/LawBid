@@ -161,6 +161,68 @@ const MAX_VALUE: Record<RewardType, number> = {
   promotion_days: 30,
 };
 
+/** Owner 2026-10-05: small rewards («0.5 дня», «$0.05»). balance_cents
+ * stays whole cents (so $0.05 = 5), percent stays whole, promotion days
+ * take up to two decimals (0.01 day ≈ 15 minutes, 0.5 = 12 hours). */
+export const REWARD_DECIMALS: Record<RewardType, number> = {
+  balance_cents: 0,
+  percent_first_invoice: 0,
+  promotion_days: 2,
+};
+
+/** Whole days for the integer `*Days` / `value` API fields (older app
+ * builds); the exact number travels in the `*Exact` / `amount` fields. */
+export function wholeDays(n: number): number {
+  return Math.floor(roundDays(n));
+}
+
+/** Reward as the API returns it: `value` stays an integer (whole days
+ * for promotion_days), `amount` is the exact value. */
+export function presentReward(r: ReferralReward): {
+  type: RewardType;
+  value: number;
+  amount: number;
+} {
+  return {
+    type: r.type,
+    value: r.type === 'promotion_days' ? wholeDays(r.value) : r.value,
+    amount: r.type === 'promotion_days' ? roundDays(r.value) : r.value,
+  };
+}
+
+/** Settings as the API returns them (rewards through presentReward). */
+export function presentReferralSettings(s: ReferralProgramSettings) {
+  return {
+    ...s,
+    attorneyReferrerReward: presentReward(s.attorneyReferrerReward),
+    attorneyRefereeReward: presentReward(s.attorneyRefereeReward),
+    clientReferrerReward: presentReward(s.clientReferrerReward),
+    clientRefereeReward: presentReward(s.clientRefereeReward),
+  };
+}
+
+/** Request reward → stored reward: `amount` (exact) wins over `value`. */
+export function rewardFromInput(r: {
+  type: RewardType;
+  value: number;
+  amount?: number;
+}): ReferralReward {
+  return {
+    type: r.type,
+    value: typeof r.amount === 'number' ? r.amount : r.value,
+  };
+}
+
+/** Rounds days to 0.01 (float sums of 0.1 + 0.2 never show 0.30000004). */
+export function roundDays(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function hasDecimals(value: number, decimals: number): boolean {
+  const scaled = value * 10 ** decimals;
+  return Math.abs(scaled - Math.round(scaled)) < 1e-6;
+}
+
 /** Returns a human error, or null when the reward fits its slot. */
 export function validateReward(
   side: 'referrer' | 'referee',
@@ -170,12 +232,16 @@ export function validateReward(
   if (!ALLOWED_REWARDS[side][role].includes(reward.type)) {
     return `${role} ${side} reward must be one of ${ALLOWED_REWARDS[side][role].join(', ')}`;
   }
+  const decimals = REWARD_DECIMALS[reward.type];
   if (
-    !Number.isInteger(reward.value) ||
+    !Number.isFinite(reward.value) ||
+    !hasDecimals(reward.value, decimals) ||
     reward.value < 0 ||
     reward.value > MAX_VALUE[reward.type]
   ) {
-    return `${reward.type} value must be an integer 0–${MAX_VALUE[reward.type]}`;
+    return decimals === 0
+      ? `${reward.type} value must be an integer 0–${MAX_VALUE[reward.type]}`
+      : `${reward.type} value must be 0–${MAX_VALUE[reward.type]} with at most ${decimals} decimals`;
   }
   return null;
 }
@@ -263,5 +329,5 @@ export function snapshotOf(v: unknown): ReferralRewardSnapshot | null {
 export function remainingDays(s: ReferralRewardSnapshot | null): number {
   if (!s || s.type !== 'promotion_days') return 0;
   const used = Object.values(s.uses ?? {}).reduce((a, b) => a + b, 0);
-  return Math.max(0, s.value - used);
+  return Math.max(0, roundDays(s.value - used));
 }

@@ -68,6 +68,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: partner commissions past their hold → approved,
    * monthly base accrued. */
   partnersSweep: 'partners.sweep',
+  /** Owner 2026-10-05: demo accounts idle past the TTL are deleted; an
+   * empty demo world is reseeded. */
+  demoSweep: 'demo.sweep',
   /** Owner 2026-10-05: reminders before a case's date; date passed. */
   caseDeadlineReminder: 'cases.deadline-reminder',
   /** Owner 2026-10-05: support 24/7 — late answers flagged and escalated,
@@ -78,6 +81,8 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: nightly safety net — attorney trust levels follow
    * the facts (registry flags, Stripe, decisions) even if a hook was missed. */
   trustRecompute: 'trust.recompute',
+  /** Owner 2026-10-05 (legal): stale unconverted outreach leads deleted. */
+  outreachRetention: 'outreach.retention',
   /** Owner 2026-10-05 (storage like Telegram): unused files and abandoned
    * uploads removed; old technical logs trimmed; a daily usage snapshot
    * with the growth alert. */
@@ -93,6 +98,9 @@ export const CRON_JOBS = {
   opsCostCheck: 'ops.cost-check',
   /** Newest CockroachDB Cloud backup is fresh. */
   opsBackupCheck: 'ops.backup-check',
+  /** Owner 2026-10-05: spend caps in mode «Авто» follow real usage
+   * (CostAutoscaleService). */
+  costAutoscale: 'cost.autoscale',
   /** Owner 2026-10-05 «Прибыль и резерв»: payout statuses, a change of the
    * banks in Stripe, and the monthly split on its payout day. */
   treasuryDaily: 'treasury.daily',
@@ -149,12 +157,14 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 15:00 UTC ≈ 08:00 Pacific / 11:00 Eastern: a morning reminder.
   { name: CRON_JOBS.casePaymentsRemind, pattern: '0 15 * * *' },
   { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
+  { name: CRON_JOBS.demoSweep, pattern: '7 * * * *' },
   // 15:10 UTC = morning across the US: a reminder, not a night push.
   { name: CRON_JOBS.caseDeadlineReminder, pattern: '10 15 * * *' },
   { name: CRON_JOBS.supportSweep, pattern: '1-56/5 * * * *' },
   // 14:30 UTC ≈ 07:30 Pacific: the day after a period ends.
   { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },
   { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
+  { name: CRON_JOBS.outreachRetention, pattern: '25 3 * * *' },
   { name: CRON_JOBS.storageCleanup, pattern: '17 * * * *' },
   { name: CRON_JOBS.storageRetention, pattern: '35 4 * * *' },
   { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },
@@ -162,6 +172,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },
+  { name: CRON_JOBS.costAutoscale, pattern: '17 * * * *' },
   // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
 ];

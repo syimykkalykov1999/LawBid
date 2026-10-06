@@ -10,9 +10,11 @@ import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
+import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 
 typedef DraftChange = void Function(CaseDraft Function(CaseDraft d) change);
 
@@ -470,6 +472,15 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
             _touchedDescription = true;
             widget.onChange((x) => x.copyWith(description: v));
           },
+        ),
+        // Owner 2026-10-05 (legal): LawBid is not a law firm; nothing
+        // confidential in a public case (text from /legal/settings).
+        const SizedBox(height: AppSpacing.md),
+        InlineNotice(
+          key: const ValueKey('case-legal-notice'),
+          tone: NoticeTone.info,
+          icon: AppIcons.infoOutlineRounded,
+          message: ref.watch(legalTextsProvider).caseCreate,
         ),
         if (widget.footer != null) ...[
           const SizedBox(height: AppSpacing.lg),

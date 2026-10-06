@@ -31,6 +31,8 @@ import { RuleBasedModerationHook } from './rule-based-moderation.hook';
     ModerationService,
     AdminModerationService,
   ],
-  exports: [CONTENT_MODERATION_HOOK, ModerationService],
+  // Owner 2026-10-05 (legal): the DMCA decision removes / restores content
+  // through the same audited, notified moderation action.
+  exports: [CONTENT_MODERATION_HOOK, ModerationService, AdminModerationService],
 })
 export class ModerationModule {}

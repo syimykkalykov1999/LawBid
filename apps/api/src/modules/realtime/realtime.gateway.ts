@@ -27,6 +27,7 @@ import {
   userRoom,
   viewingKey,
 } from './realtime-publisher.service';
+import { demoContext } from '../../common/demo/demo-context';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -155,6 +156,21 @@ export class RealtimeGateway
       socket.disconnect(true);
       return;
     }
+    // Owner 2026-10-05 (demo mode): a demo session's socket works in the
+    // demo database for its whole life — the rest of this handshake and
+    // every later packet run inside the demo context (src/common/demo).
+    const demo = claims.demo === true;
+    socket.use((_packet, next) => demoContext.run(demo, () => next()));
+    return demoContext.run(demo, () =>
+      this.finishConnection(socket, claims, token),
+    );
+  }
+
+  private async finishConnection(
+    socket: Socket,
+    claims: AccessTokenClaims,
+    token: string,
+  ): Promise<void> {
     socket.data = { user: claims, viewing: new Set<string>() } as SocketState;
     this.armExpiry(socket, token);
     state(socket).revocationTimer = setInterval(() => {
@@ -232,6 +248,11 @@ export class RealtimeGateway
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {
+    const demo = (socket.data as SocketState | undefined)?.user?.demo === true;
+    return demoContext.run(demo, () => this.finishDisconnect(socket));
+  }
+
+  private async finishDisconnect(socket: Socket): Promise<void> {
     this.gauge();
     const s = state(socket);
     if (!s?.user) return;

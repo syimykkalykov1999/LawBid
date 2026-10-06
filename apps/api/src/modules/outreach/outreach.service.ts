@@ -45,11 +45,19 @@ import {
   OUTREACH_SETTINGS_KEY,
   parseOutreachSettings,
   type ActivityKind,
+  type ContactBlockReason,
+  type DoNotContactReason,
   type LeadKind,
   type LeadSource,
   type LeadStatus,
   type OutreachSettings,
 } from './outreach.settings';
+import {
+  callWindow,
+  describeCallWindow,
+  hhmm,
+  type CallWindow,
+} from './state-timezones';
 
 /** Email provider without the admin-template override hook (the content
  * of a cold email is final; it is not one of the transactional emails). */
@@ -74,6 +82,109 @@ export function invalidState(message: string): ConflictException {
 
 export function newUnsubscribeToken(): string {
   return randomBytes(24).toString('base64url');
+}
+
+/** 409 OUTREACH_CONTACT_BLOCKED: a call/email is not allowed right now. */
+export function contactBlocked(message: string): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.OUTREACH_CONTACT_BLOCKED,
+    message,
+  });
+}
+
+/** 409 OUTREACH_CLIENTS_DISABLED: consumer leads are switched off. */
+export function clientsDisabled(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.OUTREACH_CLIENTS_DISABLED,
+    message:
+      'Client (consumer) leads are switched off: enable them in Outreach → Settings after the Do-Not-Call check (TCPA).',
+  });
+}
+
+export interface ContactState {
+  /** Why a call is blocked now; null = allowed. */
+  callBlocked: ContactBlockReason | null;
+  /** Why an email is blocked now; null = allowed. */
+  emailBlocked: ContactBlockReason | null;
+  /** "08:00–21:00 America/New_York, now 22:15". */
+  callWindow: string;
+  window: CallWindow;
+}
+
+/**
+ * Owner 2026-10-05 (legal): what may be done with a lead right now.
+ * Calls: do-not-contact → clients switched off → outside the local call
+ * window (TCPA 8–21 local). Emails: do-not-contact → clients switched
+ * off → unsubscribed → per-lead cap → cooldown between emails.
+ */
+export function contactState(
+  lead: Pick<
+    OutreachLead,
+    | 'kind'
+    | 'state_code'
+    | 'do_not_contact_at'
+    | 'unsubscribed_at'
+    | 'emails_sent'
+    | 'last_email_at'
+  >,
+  settings: OutreachSettings,
+  now = new Date(),
+): ContactState {
+  const window = callWindow(lead.state_code, settings, now);
+  const dnc = !!lead.do_not_contact_at;
+  const clientOff = lead.kind === 'client' && !settings.clientLeadsEnabled;
+  const callBlocked: ContactBlockReason | null = dnc
+    ? 'dnc'
+    : clientOff
+      ? 'client_disabled'
+      : window.allowed
+        ? null
+        : 'hours';
+  const cooldownMs = settings.emailCooldownDays * 86_400_000;
+  const emailBlocked: ContactBlockReason | null = dnc
+    ? 'dnc'
+    : clientOff
+      ? 'client_disabled'
+      : lead.unsubscribed_at
+        ? 'unsubscribed'
+        : settings.maxEmailsPerLead > 0 &&
+            lead.emails_sent >= settings.maxEmailsPerLead
+          ? 'email_limit'
+          : lead.last_email_at &&
+              cooldownMs > 0 &&
+              now.getTime() - lead.last_email_at.getTime() < cooldownMs
+            ? 'email_cooldown'
+            : null;
+  return {
+    callBlocked,
+    emailBlocked,
+    callWindow: describeCallWindow(window),
+    window,
+  };
+}
+
+/** Plain-English reason for a 409 message. */
+export function blockMessage(
+  reason: ContactBlockReason,
+  state: ContactState,
+  settings: OutreachSettings,
+): string {
+  switch (reason) {
+    case 'dnc':
+      return 'This lead is on the do-not-contact list.';
+    case 'client_disabled':
+      return 'Client (consumer) leads are switched off in Outreach → Settings (TCPA / Do-Not-Call).';
+    case 'hours': {
+      const w = state.window;
+      return `Calls to this lead are not allowed now: local time ${w.localTime}, window ${hhmm(w.start)}–${hhmm(w.end)} (${w.zone ?? 'US, state unknown'}).`;
+    }
+    case 'unsubscribed':
+      return 'This person unsubscribed from emails.';
+    case 'email_limit':
+      return `This lead already received ${settings.maxEmailsPerLead} cold email(s), the maximum.`;
+    case 'email_cooldown':
+      return `The last email went out less than ${settings.emailCooldownDays} day(s) ago.`;
+  }
 }
 
 /**
@@ -185,8 +296,13 @@ export class OutreachService {
     );
   }
 
-  async presentDetail(lead: LeadWithPartner): Promise<OutreachLeadDetailDto> {
+  async presentDetail(
+    lead: LeadWithPartner,
+    now = new Date(),
+  ): Promise<OutreachLeadDetailDto> {
     const [row] = await this.presentLeads([lead]);
+    const settings = await this.settings();
+    const state = contactState(lead, settings, now);
     const acts = await this.prisma.outreachActivity.findMany({
       where: { lead_id: lead.id },
       orderBy: { created_at: 'desc' },
@@ -211,13 +327,48 @@ export class OutreachService {
           null,
       ]),
     );
+    // Owner 2026-10-05 (legal): the number is withheld whenever a call is
+    // not allowed, so nobody dials it "by hand" outside the rules.
+    const phone = state.callBlocked ? null : row.phone;
     return {
       ...row,
+      phone,
+      phoneHidden: !!lead.phone && phone === null,
       activities: acts.map((a) =>
         activityDto(a, actorName.get(a.actor_admin_id ?? '') ?? null),
       ),
-      canEmail: !!lead.email && !lead.unsubscribed_at,
+      canEmail: !!lead.email && state.emailBlocked === null,
+      callAllowed: state.callBlocked === null,
+      callWindow: state.callWindow,
+      callBlocked: state.callBlocked,
+      emailBlocked: state.emailBlocked,
     };
+  }
+
+  /**
+   * Marks a lead do-not-contact (idempotent) and logs a system activity.
+   * Returns false when it already was.
+   */
+  async markDoNotContact(
+    db: Db,
+    lead: Pick<OutreachLead, 'id' | 'partner_id' | 'do_not_contact_at'>,
+    reason: DoNotContactReason,
+    input: { actorAdminId?: string | null; now?: Date } = {},
+  ): Promise<boolean> {
+    if (lead.do_not_contact_at) return false;
+    const now = input.now ?? new Date();
+    await db.outreachLead.update({
+      where: { id: lead.id },
+      data: { do_not_contact_at: now, do_not_contact_reason: reason },
+    });
+    await this.log(db, lead, {
+      kind: 'system',
+      outcome: 'do_not_contact',
+      body: `Marked do-not-contact (${reason})`,
+      actorAdminId: input.actorAdminId ?? null,
+      now,
+    });
+    return true;
   }
 
   // ---- activities & status --------------------------------------------------
@@ -386,6 +537,9 @@ export class OutreachService {
         body: 'Unsubscribed from emails',
       });
     }
+    // Owner 2026-10-05 (legal): an unsubscribe is a do-not-contact for
+    // calls as well — the person said no.
+    await this.markDoNotContact(this.prisma, lead, 'unsubscribed');
     return true;
   }
 
@@ -462,8 +616,11 @@ export class OutreachService {
   ): Promise<OutreachSendEmailResultDto> {
     const settings = await this.settings();
     if (!lead.email) throw invalidState('This lead has no email address.');
-    if (lead.unsubscribed_at)
-      throw invalidState('This person unsubscribed from emails.');
+    // Owner 2026-10-05 (legal): do-not-contact, clients switched off,
+    // unsubscribed, per-lead cap, cooldown — in that order.
+    const state = contactState(lead, settings, now);
+    if (state.emailBlocked)
+      throw invalidState(blockMessage(state.emailBlocked, state, settings));
     if (!template.active) throw invalidState('This template is switched off.');
     if (template.kind !== 'any' && template.kind !== lead.kind) {
       throw invalidState(`This template is for ${template.kind} leads.`);
@@ -515,7 +672,16 @@ export class OutreachService {
       link,
       settings,
     });
-    const message: EmailMessage = { to: lead.email, ...rendered };
+    const unsubscribeUrl = `${settings.apiPublicUrl}/api/v1/outreach/unsubscribe/${lead.unsubscribe_token}`;
+    const message: EmailMessage = {
+      to: lead.email,
+      ...rendered,
+      // RFC 8058 one-click unsubscribe (Gmail/Yahoo bulk-sender rules).
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    };
     try {
       await this.email.sendEmail(message);
     } catch (e) {
@@ -538,6 +704,10 @@ export class OutreachService {
       });
       lead = { ...lead, partner_id: partner.id, partner };
     }
+    await this.prisma.outreachLead.update({
+      where: { id: lead.id },
+      data: { emails_sent: { increment: 1 }, last_email_at: now },
+    });
     await this.log(this.prisma, lead, {
       kind: 'email',
       outcome: 'sent',
@@ -558,6 +728,9 @@ export function leadRow(
   l: OutreachLead,
   partner: OutreachPartnerDto | null,
 ): OutreachLeadRowDto {
+  // Owner 2026-10-05 (legal): a do-not-contact lead shows no phone/email
+  // anywhere (list, detail, CSV export).
+  const dnc = !!l.do_not_contact_at;
   return {
     id: l.id,
     kind: l.kind as LeadKind,
@@ -567,8 +740,8 @@ export function leadRow(
     stateCode: l.state_code,
     city: l.city,
     practice: l.practice,
-    phone: l.phone,
-    email: l.email,
+    phone: dnc ? null : l.phone,
+    email: dnc ? null : l.email,
     source: l.source as LeadSource,
     status: l.status as LeadStatus,
     partner,
@@ -577,6 +750,10 @@ export function leadRow(
     lastActivityAt: l.last_activity_at?.toISOString() ?? null,
     nextActionAt: l.next_action_at?.toISOString() ?? null,
     note: l.note,
+    doNotContact: dnc,
+    doNotContactReason: l.do_not_contact_reason,
+    sourceNote: l.source_note,
+    emailsSent: l.emails_sent,
     createdAt: l.created_at.toISOString(),
   };
 }
