@@ -608,6 +608,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   'review.remove': 'Отзыв удалён',
   'integration.create_version': 'Новая версия ключей',
   'integration.test': 'Проверка ключей',
+  'integration.reveal': 'Ключи показаны целиком (владелец)',
   'integration.activate': 'Ключи включены',
   'integration.rollback': 'Откат ключей',
   'integration.delete': 'Ключи удалены',

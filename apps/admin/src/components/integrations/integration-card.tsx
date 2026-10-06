@@ -1,8 +1,22 @@
 'use client';
 
-import { ArrowDown, ArrowUp, ArrowSquareOut, CaretDown, Copy, FileArrowUp, Key, Plus, Question, Sparkle, Warning } from '@phosphor-icons/react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowSquareOut,
+  CaretDown,
+  Copy,
+  Eye,
+  EyeSlash,
+  FileArrowUp,
+  Key,
+  Plus,
+  Question,
+  Sparkle,
+  Warning,
+} from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn } from '@/components/legacy/fade-in';
 import type { useReason } from '@/components/reason-dialog';
@@ -233,6 +247,25 @@ function SlotBox({
   const p = { params: { path: { provider: it.provider } } };
   const slotPath = { params: { path: { provider: it.provider, slot: slot.slot } } };
   const name = slotName(slot);
+  const [revealed, setRevealed] = useState<Record<string, string> | null>(null);
+
+  // Owner 2026-10-06: the eye shows the saved keys in full (fresh 2FA /
+  // password, written to the audit log); they hide again after a minute.
+  useEffect(() => {
+    if (!revealed) return;
+    const t = setTimeout(() => setRevealed(null), 60_000);
+    return () => clearTimeout(t);
+  }, [revealed]);
+  const reveal = (version: number) =>
+    guarded(
+      async () => {
+        const r = await api.POST('/admin/integrations/{provider}/versions/{version}/reveal', {
+          params: { path: { provider: it.provider, version } },
+        });
+        setRevealed(r.data?.data.values ?? {});
+      },
+      { success: 'Ключи показаны на 1 минуту. Это записано в журнал.' },
+    );
 
   const test = useMutation({
     mutationFn: async (v: number) =>
@@ -371,12 +404,25 @@ function SlotBox({
               <dd className="truncate font-mono text-xs text-ink">{shown[f.name] ?? <span className="text-faint">—</span>}</dd>
             </div>
           ))}
+          <div className="flex justify-end">
+            {revealed ? (
+              <Button size="sm" variant="ghost" onClick={() => setRevealed(null)}>
+                <EyeSlash size={14} /> Скрыть ключи
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => reveal(slot.active!.version)}>
+                <Eye size={14} /> Показать ключи целиком
+              </Button>
+            )}
+          </div>
           <div className="flex justify-between gap-3 text-xs text-faint">
             <dt>Отпечаток для сверки</dt>
             <dd className="font-mono">{slot.active.fingerprint}</dd>
           </div>
         </dl>
       ) : null}
+
+      {revealed ? <Revealed it={it} values={revealed} /> : null}
 
       {pending ? (
         <div className="mt-3 rounded-xl border border-line bg-accent-soft p-3">
@@ -449,6 +495,7 @@ function KeyForm({
   const [label, setLabel] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const file = useRef<HTMLInputElement>(null);
+  const [visible, setVisible] = useState<Record<string, boolean>>({});
 
   const set = (name: string, v: string) => {
     setValues((prev) => ({ ...prev, [name]: v }));
@@ -564,11 +611,32 @@ function KeyForm({
                 {f.label}
                 {f.required ? '' : ' (необязательно)'}
               </label>
-              {g?.generate ? (
-                <Button type="button" size="sm" variant="ghost" onClick={() => set(f.name, generated(g.generate!))}>
-                  <Sparkle size={14} /> {g.generate === 'whsec' ? 'Сгенерировать временный' : 'Сгенерировать'}
-                </Button>
-              ) : null}
+              <span className="flex flex-wrap gap-1">
+                {f.secret && !g?.multiline ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-pressed={!!visible[f.name]}
+                    onClick={() => setVisible((v) => ({ ...v, [f.name]: !v[f.name] }))}
+                  >
+                    {visible[f.name] ? <EyeSlash size={14} /> : <Eye size={14} />} {visible[f.name] ? 'Скрыть' : 'Показать'}
+                  </Button>
+                ) : null}
+                {g?.generate ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      set(f.name, generated(g.generate!));
+                      setVisible((v) => ({ ...v, [f.name]: true }));
+                    }}
+                  >
+                    <Sparkle size={14} /> {g.generate === 'whsec' ? 'Сгенерировать временный' : 'Сгенерировать'}
+                  </Button>
+                ) : null}
+              </span>
             </div>
             {g?.multiline ? (
               <Textarea
@@ -581,10 +649,11 @@ function KeyForm({
               <Input
                 id={`${it.provider}-${f.name}`}
                 {...common}
-                type={f.secret && !(g?.generate && values[f.name]) ? 'password' : 'text'}
+                type={f.secret && !visible[f.name] ? 'password' : 'text'}
                 onChange={(e) => set(f.name, e.target.value)}
               />
             )}
+            {values[f.name] ? <Edges value={values[f.name]} /> : null}
             {err ? (
               <p className="mt-1 break-words text-xs text-danger">{err}</p>
             ) : g ? (
@@ -606,6 +675,59 @@ function KeyForm({
         <Button type="submit">Сохранить</Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Owner 2026-10-06: «откуда начинается и где заканчивается ключ» — under
+ * a typed value: its first and last characters and its length, so a
+ * half-copied key is visible before saving.
+ */
+function Edges({ value }: { value: string }) {
+  const v = value.trim();
+  if (v.length < 12) return null;
+  const head = v.slice(0, 12).replace(/\n/g, '⏎');
+  const tail = v.slice(-8).replace(/\n/g, '⏎');
+  return (
+    <p className="mt-1 break-all text-xs text-muted">
+      Начало: <code className="text-ink">{head}…</code> · конец: <code className="text-ink">…{tail}</code> · символов: {v.length}
+    </p>
+  );
+}
+
+/** Saved keys in full (owner's eye): each value with a copy button. */
+function Revealed({ it, values }: { it: Integration; values: Record<string, string> }) {
+  const toast = useToast();
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-gold/40 bg-surface-2 p-3">
+      <p className="text-xs text-muted">Видно только вам. Скроется само через минуту.</p>
+      {it.fields.map((f) =>
+        values[f.name] ? (
+          <div key={f.name} className="text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0 break-words text-muted">{f.label}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-label={`Скопировать: ${f.label}`}
+                onClick={() =>
+                  void navigator.clipboard
+                    ?.writeText(values[f.name])
+                    .then(() => toast.success('Скопировано целиком'))
+                    .catch(() => toast.error('Не удалось скопировать — выделите текст и скопируйте вручную'))
+                }
+              >
+                <Copy size={14} />
+              </Button>
+            </div>
+            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-surface p-2 font-mono text-[11px] text-ink">
+              {values[f.name]}
+            </pre>
+          </div>
+        ) : null,
+      )}
+    </div>
   );
 }
 

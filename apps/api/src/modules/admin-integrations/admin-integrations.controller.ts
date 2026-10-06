@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpException,
   HttpStatus,
@@ -38,6 +39,7 @@ import {
   UpdateIntegrationSlotDto,
   CreateIntegrationVersionDto,
   IntegrationsOverviewDto,
+  IntegrationRevealDto,
   IntegrationVersionDto,
   ProviderParamDto,
   RemoveIntegrationDto,
@@ -107,6 +109,31 @@ export class AdminIntegrationsController {
     );
     await this.log(admin, 'integration.create_version', p.provider, v);
     return v;
+  }
+
+  /**
+   * Owner 2026-10-06: «я должен видеть ключ целиком, откуда начинается и
+   * где заканчивается». The saved values in full — super_admin only (the
+   * whole controller), behind a fresh 2FA code or password, every reveal
+   * in the audit log (field names only, never values), never cached.
+   */
+  @Post(':provider/versions/:version/reveal')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Show the saved values of this version in full' })
+  @ApiEnvelopeResponse(IntegrationRevealDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.NOT_FOUND] })
+  async revealIntegrationVersion(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: VersionParamDto,
+  ): Promise<IntegrationRevealDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    const values = await this.secrets.reveal(p.provider, p.version);
+    await this.log(admin, 'integration.reveal', p.provider, {
+      version: p.version,
+      fields: Object.keys(values).join(','),
+    });
+    return { version: p.version, values };
   }
 
   @Post(':provider/versions/:version/test')

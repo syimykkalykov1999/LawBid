@@ -840,6 +840,25 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     return rows.length;
   }
 
+  /**
+   * Owner 2026-10-06: the full saved values of one version, for the owner's
+   * «показать» eye (super_admin + fresh 2FA/password, audited by the
+   * caller). Only the fields of the definition; never cached or logged.
+   */
+  async reveal(
+    provider: string,
+    version: number,
+  ): Promise<Record<string, string>> {
+    this.needEnvelope();
+    const def = await this.def(provider);
+    const fields = this.fieldsOf(await this.row(provider, version));
+    const out: Record<string, string> = {};
+    for (const f of def.fields) {
+      if (fields[f.name] !== undefined) out[f.name] = fields[f.name];
+    }
+    return out;
+  }
+
   private async row(provider: string, version: number) {
     const row = await this.prisma.integrationCredential.findUnique({
       where: { provider_version: { provider, version } },

@@ -9,6 +9,7 @@ import '../models/activate_integration_dto.dart';
 import '../models/create_custom_integration_dto.dart';
 import '../models/create_integration_version_dto.dart';
 import '../models/custom_integration_created_envelope.dart';
+import '../models/integration_reveal_envelope.dart';
 import '../models/integration_version_envelope.dart';
 import '../models/integration_version_list_envelope.dart';
 import '../models/integrations_overview_envelope.dart';
@@ -42,6 +43,14 @@ abstract class AdminIntegrationsClient {
   Future<IntegrationVersionEnvelope> createIntegrationVersion({
     @Path('provider') required String provider,
     @Body() required CreateIntegrationVersionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Show the saved values of this version in full
+  @POST('/admin/integrations/{provider}/versions/{version}/reveal')
+  Future<IntegrationRevealEnvelope> revealIntegrationVersion({
+    @Path('provider') required String provider,
+    @Path('version') required num version,
     @Extras() Map<String, dynamic>? extras,
   });
 
