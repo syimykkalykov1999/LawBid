@@ -12,3 +12,8 @@
 # Owner 2026-10-05 (approved by the owner): a practice-area i18n key in the
 # case-urgency e2e fixture, not a secret.
 acd09f1ad5b44e40d30c81fe759858932311daa3:apps/api/test/owner-case-urgency.e2e-spec.ts:generic-api-key:65
+# Owner 2026-10-06 (PR #82): synthetic PEM in the paste-cleanup spec — the
+# body is 100 × "A", not a key.
+b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:4
+b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:20
+b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:28
