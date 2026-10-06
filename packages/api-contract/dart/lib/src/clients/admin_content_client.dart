@@ -9,6 +9,7 @@ import '../models/admin_bid_row_list_envelope.dart';
 import '../models/admin_bid_status.dart';
 import '../models/admin_bulk_content_dto.dart';
 import '../models/admin_bulk_result_envelope.dart';
+import '../models/admin_classify_posts_dto.dart';
 import '../models/admin_client_review_row_list_envelope.dart';
 import '../models/admin_comment_row_list_envelope.dart';
 import '../models/admin_comment_thread.dart';
@@ -27,6 +28,7 @@ import '../models/create_broadcast_dto.dart';
 import '../models/create_practice_area_dto.dart';
 import '../models/export_entity.dart';
 import '../models/media.dart';
+import '../models/post_content_class.dart';
 import '../models/update_practice_area_dto.dart';
 
 part 'admin_content_client.g.dart';
@@ -52,6 +54,8 @@ abstract class AdminContentClient {
   /// [to] - Created before (exclusive).
   ///
   /// [media] - Only posts that carry a video (the former "reels").
+  ///
+  /// [contentClass] - Owner 2026-10-05: legal or general (personal) posts only.
   @GET('/admin/content/posts')
   Future<AdminPostRowListEnvelope> listAdminPosts({
     @Query('q') String? q,
@@ -61,6 +65,7 @@ abstract class AdminContentClient {
     @Query('to') DateTime? to,
     @Query('kind') AdminPostKind? kind,
     @Query('media') Media? media,
+    @Query('contentClass') PostContentClass? contentClass,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -69,6 +74,13 @@ abstract class AdminContentClient {
   Future<void> removeAdminPost({
     @Path('id') required String id,
     @Body() required AdminRemoveDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark posts legal or general (kept through author edits), or back to automatic
+  @POST('/admin/content/posts/classify')
+  Future<AdminBulkResultEnvelope> classifyAdminPosts({
+    @Body() required AdminClassifyPostsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

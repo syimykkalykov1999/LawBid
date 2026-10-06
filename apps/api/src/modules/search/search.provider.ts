@@ -46,6 +46,8 @@ export interface PostSearchFilters {
   since?: Date;
   withPhotos?: boolean;
   sort?: 'relevance' | 'newest' | 'popular';
+  /** Owner 2026-10-05: only legal posts ("Legal only" viewers). */
+  contentClass?: 'legal' | 'general';
 }
 
 /**
