@@ -553,9 +553,20 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     await setTerm('attorney_monthly', 'posts_per_day', null);
   });
 
-  it('case promotion: a client plan term', async () => {
+  it('case promotion: a client plan term only when the admin requires one', async () => {
     const c = await user('client');
     await setTerm('client_free', 'case_promotion', false);
+    // Owner 2026-10-05: promotion needs no subscription by default.
+    const free = await api().get('/api/v1/promotions/quote?days=1').set(c.auth);
+    expect(free.status).toBe(200);
+    await prisma.appConfig.upsert({
+      where: { key: 'promotions.settings' },
+      create: {
+        key: 'promotions.settings',
+        value: { requireSubscription: true },
+      },
+      update: { value: { requireSubscription: true } },
+    });
     const denied = await api()
       .get('/api/v1/promotions/quote?days=1')
       .set(c.auth);
@@ -564,5 +575,6 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     await setTerm('client_free', 'case_promotion', true);
     const ok = await api().get('/api/v1/promotions/quote?days=1').set(c.auth);
     expect(ok.status).toBe(200);
+    await prisma.appConfig.delete({ where: { key: 'promotions.settings' } });
   });
 });

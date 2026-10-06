@@ -12693,6 +12693,210 @@
         ]
       }
     },
+    "/admin/config/budgets": {
+      "get": {
+        "operationId": "listBudgetLimits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetLimitListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Spend caps per provider and window: mode (auto/manual), floor, ceiling, cap in force, usage",
+        "tags": [
+          "admin-config"
+        ]
+      }
+    },
+    "/admin/config/budgets/{provider}/{window}": {
+      "put": {
+        "operationId": "updateBudgetLimit",
+        "parameters": [
+          {
+            "name": "provider",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sms",
+                "email",
+                "id_check",
+                "storage",
+                "translate",
+                "video"
+              ]
+            }
+          },
+          {
+            "name": "window",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "minute",
+                "daily",
+                "monthly"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBudgetLimitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetLimitEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Auto: store floor/ceiling and recompute now; manual: set the cap (0 = off)",
+        "tags": [
+          "admin-config"
+        ]
+      }
+    },
     "/admin/config/{key}": {
       "put": {
         "operationId": "updateAppConfig",
@@ -33834,6 +34038,101 @@
         "tags": [
           "admin-billing"
         ]
+      },
+      "delete": {
+        "operationId": "deletePromoCode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoDeleteResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Delete a promo code: removed for good when unused, archived (off + hidden) when already used",
+        "tags": [
+          "admin-billing"
+        ]
       }
     },
     "/admin/billing/promo-codes/{id}/deactivate": {
@@ -33928,6 +34227,103 @@
           }
         ],
         "summary": "Switch a promo code off",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/promo-codes/{id}/restore": {
+      "post": {
+        "operationId": "restorePromoCode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoCodeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Bring an archived promo code back (switched off)",
         "tags": [
           "admin-billing"
         ]
@@ -48877,6 +49273,16 @@
             }
           },
           {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search: code prefix, or name / email of either side (owner 2026-10-05).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -49873,6 +50279,16 @@
       "post": {
         "operationId": "joinPartnerProgram",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinPartnerDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -49880,6 +50296,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PartnerMeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -49951,6 +50377,83 @@
           }
         ],
         "summary": "Become a partner myself (program and self-enrolment on); returns the dashboard with my link",
+        "tags": [
+          "partners"
+        ]
+      }
+    },
+    "/partners/me/accept-terms": {
+      "post": {
+        "operationId": "acceptPartnerTerms",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerMeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept the current partner rules (existing partners; termsAcceptedVersion was null)",
         "tags": [
           "partners"
         ]
@@ -51813,6 +52316,932 @@
         ]
       }
     },
+    "/legal/settings": {
+      "get": {
+        "operationId": "getLegalSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalPublicEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Legal texts in my language (case form, unverified attorney, support, partner disclosure and rules), the DMCA agent and the partner rules version",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca-agent": {
+      "get": {
+        "operationId": "getDmcaAgent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaAgentEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The designated DMCA agent (public, for the website; empty until registered)",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca": {
+      "post": {
+        "operationId": "createDmcaNotice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDmcaNoticeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaNoticeCreatedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "File a DMCA takedown notice (a target on LawBid or a URL); with a target a `copyright` report is filed too",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca/mine": {
+      "get": {
+        "operationId": "getMyDmcaNotices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaMineEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My DMCA notices and the notices against my content",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca/{id}/counter": {
+      "post": {
+        "operationId": "counterDmcaNotice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DmcaCounterNoticeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaNoticeBriefEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DMCA_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "File a counter-notice (17 U.S.C. §512(g)) — only the author of the removed content",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/admin/legal/settings": {
+      "get": {
+        "operationId": "getAdminLegalSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "DMCA agent, incident contact, strikes threshold and the legal texts (en/ru)",
+        "tags": [
+          "admin-legal"
+        ]
+      },
+      "put": {
+        "operationId": "updateAdminLegalSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Replace the legal settings (audited)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/dmca": {
+      "get": {
+        "operationId": "listAdminDmcaNotices",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DmcaStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDmcaNoticeRowListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "DMCA notices, newest first (50 per page)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/dmca/{id}": {
+      "get": {
+        "operationId": "getAdminDmcaNotice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDmcaNoticeDetailEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One notice with the moderation card of its target and the author strikes",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/dmca/{id}/decide": {
+      "post": {
+        "operationId": "decideAdminDmcaNotice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DmcaDecideDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDmcaNoticeRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DMCA_INVALID_STATE, MODERATION_ACTION_NOT_APPLICABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "remove (takes the content down, a strike for the author, suspension at the threshold) / reject / restore (after a counter-notice; the strike goes back)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
     "/demo/me": {
       "get": {
         "operationId": "getDemoMe",
@@ -53269,7 +54698,7 @@
             "admin": []
           }
         ],
-        "summary": "Daily email limit, sender name, postal address, public API URL",
+        "summary": "Email limits, sender name, postal address, public API URL, TCPA/DNC rules, retention",
         "tags": [
           "admin-outreach"
         ]
@@ -53606,7 +55035,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -53828,6 +55257,17 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "sourceNote",
+            "required": false,
+            "in": "query",
+            "description": "Required for CSV: where the contacts come from and on what basis we may write; stored on every lead.",
+            "schema": {
+              "minLength": 3,
+              "maxLength": 300,
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -53883,6 +55323,16 @@
           },
           "403": {
             "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54318,7 +55768,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54445,7 +55895,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54572,7 +56022,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54618,6 +56068,178 @@
           }
         ],
         "summary": "Send one cold email from a template with the partner link",
+        "tags": [
+          "admin-outreach"
+        ]
+      }
+    },
+    "/admin/outreach/suppressions": {
+      "get": {
+        "operationId": "outreachSuppressions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachSuppressionsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Stop-list (do not call / write): count and the latest entries",
+        "tags": [
+          "admin-outreach"
+        ]
+      },
+      "post": {
+        "operationId": "outreachAddSuppressions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutreachSuppressionsAddDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachSuppressionsAddResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add phones / e-mails to the stop-list; matching leads become do-not-contact (managers)",
         "tags": [
           "admin-outreach"
         ]
@@ -54924,6 +56546,25 @@
               "minimum": 1,
               "maximum": 365,
               "type": "integer"
+            }
+          },
+          {
+            "name": "dailyBudgetCents",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: daily budget; default from the admin.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000000,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "target",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PromotionTarget"
             }
           }
         ],
@@ -55243,6 +56884,500 @@
         ]
       }
     },
+    "/posts/{id}/promotion": {
+      "get": {
+        "operationId": "getPostPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePromotionStateEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My post's current / last promotion and a quote (author)",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/posts/{id}/promotions": {
+      "post": {
+        "operationId": "createPostPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required: a retry with the same key and body returns the first result instead of a second checkout.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePromotionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePromotionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, PROMO_CODE_INVALID, IDEMPOTENCY_KEY_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, PROMOTION_ALREADY_ACTIVE, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Promote my post (Instagram-style): free with credits / a 100 % code, else a checkout URL",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/me/promotions": {
+      "get": {
+        "operationId": "listMyPromotions",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyPromotionListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My promotions with reach, clicks and progress",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/promotions/{id}/stop": {
+      "post": {
+        "operationId": "stopPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePromotionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PROMOTION_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop my running / unpaid promotion early",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/promotions/{id}/click": {
+      "post": {
+        "operationId": "clickPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionClickResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A promoted post / case was opened (stats)",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
     "/admin/promotions": {
       "get": {
         "operationId": "listAdminPromotions",
@@ -55256,7 +57391,24 @@
             }
           },
           {
+            "name": "target",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PromotionTarget"
+            }
+          },
+          {
             "name": "caseId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "postId",
             "required": false,
             "in": "query",
             "schema": {
@@ -55671,7 +57823,7 @@
             }
           },
           "404": {
-            "description": "Not found: CASE_NOT_FOUND",
+            "description": "Not found: CASE_NOT_FOUND, POST_NOT_FOUND",
             "content": {
               "application/json": {
                 "schema": {
@@ -55726,7 +57878,7 @@
             "admin": []
           }
         ],
-        "summary": "Promote a case for free",
+        "summary": "Promote a case or post for free",
         "tags": [
           "admin-promotions"
         ]
@@ -55808,7 +57960,7 @@
             }
           },
           "409": {
-            "description": "Conflict: PROMOTION_INVALID_STATE",
+            "description": "Conflict: PROMOTION_INVALID_STATE, REFUND_NOT_ALLOWED",
             "content": {
               "application/json": {
                 "schema": {
@@ -55853,7 +58005,134 @@
             "admin": []
           }
         ],
-        "summary": "Cancel a promotion (a paid one is refunded from the Payments screen)",
+        "summary": "Cancel a promotion; refund none / the unspent part / all of it",
+        "tags": [
+          "admin-promotions"
+        ]
+      }
+    },
+    "/admin/promotions/{id}/review": {
+      "post": {
+        "operationId": "reviewAdminPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminReviewPromotionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPromotionActionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PROMOTION_INVALID_STATE, REFUND_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Approve or reject a promotion waiting for a check (reject refunds it)",
         "tags": [
           "admin-promotions"
         ]
@@ -70040,7 +72319,10 @@
           "OUTREACH_IMPORT_INVALID",
           "OUTREACH_INVALID_STATE",
           "OUTREACH_EMAIL_LIMIT",
+          "OUTREACH_CONTACT_BLOCKED",
+          "OUTREACH_CLIENTS_DISABLED",
           "COUNTRY_NOT_AVAILABLE",
+          "DMCA_INVALID_STATE",
           "DEMO_DISABLED",
           "DEMO_LIMIT_REACHED",
           "DEMO_UNAVAILABLE",
@@ -76594,6 +78876,140 @@
           "data"
         ]
       },
+      "BudgetLimitDto": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "enum": [
+              "sms",
+              "email",
+              "id_check",
+              "storage",
+              "translate",
+              "video"
+            ],
+            "type": "string"
+          },
+          "window": {
+            "enum": [
+              "minute",
+              "daily",
+              "monthly"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "floor": {
+            "type": "integer"
+          },
+          "ceiling": {
+            "type": "integer"
+          },
+          "cap": {
+            "type": "integer",
+            "description": "Cap in force now (0 = provider switched off)."
+          },
+          "envDefault": {
+            "type": "integer",
+            "description": "Server default (BUDGET_* env)."
+          },
+          "usedToday": {
+            "type": "integer"
+          },
+          "usedThisMonth": {
+            "type": "integer"
+          },
+          "lastAutoAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Last automatic recompute of this provider."
+          }
+        },
+        "required": [
+          "provider",
+          "window",
+          "mode",
+          "floor",
+          "ceiling",
+          "cap",
+          "envDefault",
+          "usedToday",
+          "usedThisMonth",
+          "lastAutoAt"
+        ]
+      },
+      "BudgetLimitListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BudgetLimitDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateBudgetLimitDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string",
+            "description": "auto: the cap follows real usage hourly within [floor, ceiling]; manual: the cap is `value`."
+          },
+          "floor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000,
+            "description": "Auto mode: the cap never goes below this."
+          },
+          "ceiling": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000,
+            "description": "Auto mode: safety ceiling, the cap never goes above this."
+          },
+          "value": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000,
+            "description": "Manual mode: the cap (0 switches the provider off). Omitted keeps the current cap."
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "BudgetLimitEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BudgetLimitDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "UpdateConfigDto": {
         "type": "object",
         "properties": {
@@ -80315,6 +82731,12 @@
             "type": "string",
             "nullable": true,
             "description": "\"Изменено\" (§3.3)."
+          },
+          "promotionId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-05: set on a paid promoted post in the feed — the app\nshows «Реклама» and reports the open to POST /promotions/:id/click.",
+            "format": "uuid"
           }
         },
         "required": [
@@ -87643,7 +90065,8 @@
           "scheduled",
           "expired",
           "exhausted",
-          "inactive"
+          "inactive",
+          "archived"
         ]
       },
       "PromoCodeDto": {
@@ -87724,6 +90147,12 @@
             "type": "string",
             "nullable": true
           },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Set when the code was deleted after being used."
+          },
           "createdBy": {
             "type": "string",
             "format": "uuid"
@@ -87750,6 +90179,7 @@
           "active",
           "status",
           "stripeCouponId",
+          "archivedAt",
           "createdBy",
           "createdAt"
         ]
@@ -87759,7 +90189,8 @@
         "enum": [
           "active",
           "expired",
-          "inactive"
+          "inactive",
+          "archived"
         ]
       },
       "PromoCodeListEnvelope": {
@@ -87891,6 +90322,49 @@
             "description": "null = never expires."
           }
         }
+      },
+      "PromoDeleteOutcome": {
+        "type": "string",
+        "enum": [
+          "deleted",
+          "archived"
+        ],
+        "description": "deleted: never used, removed for good (the code can be reused); archived: already used, hidden and switched off so payment history stays intact."
+      },
+      "PromoDeleteResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "description": "deleted: never used, removed for good (the code can be reused); archived: already used, hidden and switched off so payment history stays intact.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromoDeleteOutcome"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "outcome"
+        ]
+      },
+      "PromoDeleteResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromoDeleteResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
       },
       "PromoRedemptionDto": {
         "type": "object",
@@ -94280,7 +96754,8 @@
           "harassment",
           "hate_speech",
           "personal_info",
-          "fraud"
+          "fraud",
+          "copyright"
         ]
       },
       "ReportReviewDto": {
@@ -95565,7 +98040,13 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100000,
-            "description": "balance_cents: cents of credit; percent_first_invoice: percent; promotion_days: days."
+            "description": "balance_cents: cents of credit; percent_first_invoice: percent; promotion_days: whole days (see amount)."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000,
+            "description": "Exact value (owner 2026-10-05): promotion_days may be fractional, up to 2 decimals (0.5 = 12 hours). Always set in responses; in requests it wins over value."
           }
         },
         "required": [
@@ -95727,6 +98208,10 @@
             "type": "integer",
             "description": "Free case-promotion days."
           },
+          "promotionCreditDaysExact": {
+            "type": "number",
+            "description": "Free case-promotion days, exact (may be fractional: 0.5 = 12 hours)."
+          },
           "pendingDiscountPercent": {
             "type": "integer",
             "description": "Percent off the first subscription invoice (0 = none)."
@@ -95768,6 +98253,7 @@
           "rewarded",
           "rewards",
           "promotionCreditDays",
+          "promotionCreditDaysExact",
           "pendingDiscountPercent",
           "applyWindowDays",
           "canApply",
@@ -96006,6 +98492,14 @@
           "promotionDaysUsed": {
             "type": "integer",
             "description": "Promotion days spent."
+          },
+          "promotionDaysIssuedExact": {
+            "type": "number",
+            "description": "Promotion days issued, exact (may be fractional)."
+          },
+          "promotionDaysUsedExact": {
+            "type": "number",
+            "description": "Promotion days spent, exact (may be fractional)."
           }
         },
         "required": [
@@ -96014,7 +98508,9 @@
           "byRole",
           "balanceCentsIssued",
           "promotionDaysIssued",
-          "promotionDaysUsed"
+          "promotionDaysUsed",
+          "promotionDaysIssuedExact",
+          "promotionDaysUsedExact"
         ]
       },
       "AdminReferralStatsEnvelope": {
@@ -96491,7 +98987,7 @@
           "createdAt"
         ]
       },
-      "PartnerTextsDto": {
+      "PartnerMeTextsDto": {
         "type": "object",
         "properties": {
           "title": {
@@ -96501,11 +98997,21 @@
           "summary": {
             "type": "string",
             "maxLength": 600
+          },
+          "disclosure": {
+            "type": "string",
+            "description": "Say it is a paid link in every post (FTC Endorsement Guides)."
+          },
+          "terms": {
+            "type": "string",
+            "description": "The partner rules, plain text."
           }
         },
         "required": [
           "title",
-          "summary"
+          "summary",
+          "disclosure",
+          "terms"
         ]
       },
       "PartnerMeDto": {
@@ -96567,12 +99073,29 @@
             }
           },
           "texts": {
-            "description": "Owner's words in the user's language.",
+            "description": "Owner's words, the disclosure and the rules in the user's language.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/PartnerTextsDto"
+                "$ref": "#/components/schemas/PartnerMeTextsDto"
               }
             ]
+          },
+          "termsVersion": {
+            "type": "string",
+            "description": "Current version of the partner rules."
+          },
+          "termsAcceptedVersion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Version the partner accepted; null = not accepted yet (the app shows the rules with an Accept button, POST /partners/me/accept-terms)."
+          },
+          "w9Required": {
+            "type": "boolean",
+            "description": "A W-9 (or W-8) is needed before the first payout."
+          },
+          "w9Received": {
+            "type": "boolean",
+            "description": "The admin marked the W-9 as received."
           }
         },
         "required": [
@@ -96586,7 +99109,10 @@
           "totals",
           "referred",
           "commissions",
-          "texts"
+          "texts",
+          "termsVersion",
+          "w9Required",
+          "w9Received"
         ]
       },
       "PartnerMeEnvelope": {
@@ -96601,6 +99127,18 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "JoinPartnerDto": {
+        "type": "object",
+        "properties": {
+          "termsAccepted": {
+            "type": "boolean",
+            "description": "The partner read and accepts the partner rules (GET /legal/settings texts.partnerTerms). Must be true."
+          }
+        },
+        "required": [
+          "termsAccepted"
         ]
       },
       "AdminPartnerUserDto": {
@@ -96716,6 +99254,22 @@
             "nullable": true,
             "format": "date-time"
           },
+          "termsAcceptedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the partner accepted the rules in the app."
+          },
+          "termsVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "w9ReceivedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "W-9 (or W-8) received; null blocks payouts while requireW9 is on."
+          },
           "demoAccess": {
             "type": "boolean",
             "description": "Owner 2026-10-05 («Продвижение»): may create demo accounts."
@@ -96815,6 +99369,23 @@
           "data"
         ]
       },
+      "PartnerTextsDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 600
+          }
+        },
+        "required": [
+          "title",
+          "summary"
+        ]
+      },
       "PartnerTextsByLangDto": {
         "type": "object",
         "properties": {
@@ -96865,6 +99436,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 180
+          },
+          "requireW9": {
+            "type": "boolean",
+            "description": "Require a W-9 (or W-8) before the first payout. Omitted = keep the current value."
           },
           "texts": {
             "$ref": "#/components/schemas/PartnerTextsByLangDto"
@@ -97299,6 +99874,10 @@
               }
             ]
           },
+          "w9Received": {
+            "type": "boolean",
+            "description": "true = W-9 received now; false = clear it."
+          },
           "demoAccess": {
             "type": "boolean",
             "description": "Owner 2026-10-05 («Продвижение»): may create demo accounts."
@@ -97381,6 +99960,728 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminPartnerPayResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaAgentDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Empty until registered with the Copyright Office."
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "address"
+        ]
+      },
+      "LegalTextsDto": {
+        "type": "object",
+        "properties": {
+          "caseCreate": {
+            "type": "string",
+            "maxLength": 600
+          },
+          "attorneyUnverified": {
+            "type": "string",
+            "maxLength": 600
+          },
+          "supportNote": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "partnerDisclosure": {
+            "type": "string",
+            "maxLength": 600
+          },
+          "partnerTerms": {
+            "type": "string",
+            "maxLength": 6000,
+            "description": "Plain text (no markdown), numbered rules."
+          }
+        },
+        "required": [
+          "caseCreate",
+          "attorneyUnverified",
+          "supportNote",
+          "partnerDisclosure",
+          "partnerTerms"
+        ]
+      },
+      "LegalPublicDto": {
+        "type": "object",
+        "properties": {
+          "dmcaAgent": {
+            "$ref": "#/components/schemas/DmcaAgentDto"
+          },
+          "texts": {
+            "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "partnerTermsVersion": {
+            "type": "string",
+            "description": "Current partner rules version (partners re-accept on change)."
+          }
+        },
+        "required": [
+          "dmcaAgent",
+          "texts",
+          "partnerTermsVersion"
+        ]
+      },
+      "LegalPublicEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LegalPublicDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaAgentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaAgentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaStatus": {
+        "type": "string",
+        "enum": [
+          "new",
+          "removed",
+          "rejected",
+          "counter_received",
+          "restored"
+        ]
+      },
+      "DmcaNoticeCreatedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      },
+      "DmcaTargetType": {
+        "type": "string",
+        "enum": [
+          "post",
+          "comment",
+          "case_comment",
+          "message"
+        ]
+      },
+      "CreateDmcaNoticeDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaTargetType"
+              }
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "infringingUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Where the infringing material is, when no target is given."
+          },
+          "complainantName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "complainantEmail": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "complainantAddress": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500,
+            "description": "Postal address."
+          },
+          "complainantPhone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "workDescription": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 4000,
+            "description": "The copyrighted work and how it is infringed."
+          },
+          "goodFaith": {
+            "type": "boolean",
+            "description": "Good-faith belief that the use is not authorized by the owner, its agent or the law (must be true)."
+          },
+          "accuracySworn": {
+            "type": "boolean",
+            "description": "The information is accurate and, under penalty of perjury, the complainant is the owner or authorized to act (must be true)."
+          },
+          "signature": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200,
+            "description": "Full name."
+          }
+        },
+        "required": [
+          "complainantName",
+          "complainantEmail",
+          "complainantAddress",
+          "workDescription",
+          "goodFaith",
+          "accuracySworn",
+          "signature"
+        ]
+      },
+      "DmcaNoticeCreatedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaNoticeCreatedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaNoticeBriefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaStatus"
+              }
+            ]
+          },
+          "targetType": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaTargetType"
+              }
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "infringingUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "decisionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "counterSubmittedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the author filed a counter-notice."
+          },
+          "canCounter": {
+            "type": "boolean",
+            "description": "The viewer is the content author and may file a counter-notice now."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "createdAt",
+          "canCounter"
+        ]
+      },
+      "DmcaMineDto": {
+        "type": "object",
+        "properties": {
+          "submitted": {
+            "description": "Notices I submitted, newest first (≤ 50).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmcaNoticeBriefDto"
+            }
+          },
+          "against": {
+            "description": "Notices against my content, newest first (≤ 50).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmcaNoticeBriefDto"
+            }
+          }
+        },
+        "required": [
+          "submitted",
+          "against"
+        ]
+      },
+      "DmcaMineEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaMineDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaCounterNoticeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "address": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "consentJurisdiction": {
+            "type": "boolean",
+            "description": "Consent to the jurisdiction of the federal district court for the address (must be true)."
+          },
+          "sworn": {
+            "type": "boolean",
+            "description": "Sworn under penalty of perjury that the removal was a mistake or misidentification (must be true)."
+          },
+          "signature": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "email",
+          "consentJurisdiction",
+          "sworn",
+          "signature"
+        ]
+      },
+      "DmcaNoticeBriefEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaNoticeBriefDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "IncidentContactDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "email",
+          "phone"
+        ]
+      },
+      "LegalTextsByLangDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/LegalTextsDto"
+          }
+        },
+        "required": [
+          "en",
+          "ru"
+        ]
+      },
+      "LegalSettingsDto": {
+        "type": "object",
+        "properties": {
+          "dmcaAgent": {
+            "$ref": "#/components/schemas/DmcaAgentDto"
+          },
+          "incidentContact": {
+            "$ref": "#/components/schemas/IncidentContactDto"
+          },
+          "dmcaStrikesToSuspend": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "DMCA removals after which the author is suspended; 0 = never automatically."
+          },
+          "texts": {
+            "$ref": "#/components/schemas/LegalTextsByLangDto"
+          }
+        },
+        "required": [
+          "dmcaAgent",
+          "incidentContact",
+          "dmcaStrikesToSuspend",
+          "texts"
+        ]
+      },
+      "LegalSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LegalSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDmcaCounterDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string"
+          },
+          "consentJurisdiction": {
+            "type": "boolean"
+          },
+          "sworn": {
+            "type": "boolean"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "email",
+          "consentJurisdiction",
+          "sworn",
+          "signature",
+          "submittedAt"
+        ]
+      },
+      "AdminDmcaNoticeRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaStatus"
+              }
+            ]
+          },
+          "reportId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "targetType": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaTargetType"
+              }
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "infringingUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "complainantName": {
+            "type": "string"
+          },
+          "complainantEmail": {
+            "type": "string"
+          },
+          "complainantAddress": {
+            "type": "string"
+          },
+          "complainantPhone": {
+            "type": "string",
+            "nullable": true
+          },
+          "workDescription": {
+            "type": "string"
+          },
+          "goodFaith": {
+            "type": "boolean"
+          },
+          "accuracySworn": {
+            "type": "boolean"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "submittedByUserId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "authorUserId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The content author at decision time."
+          },
+          "counter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminDmcaCounterDto"
+              }
+            ]
+          },
+          "decidedBy": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "decisionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "complainantName",
+          "complainantEmail",
+          "complainantAddress",
+          "workDescription",
+          "goodFaith",
+          "accuracySworn",
+          "signature",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AdminDmcaNoticeRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDmcaNoticeRowDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDmcaNoticeDetailDto": {
+        "type": "object",
+        "properties": {
+          "notice": {
+            "$ref": "#/components/schemas/AdminDmcaNoticeRowDto"
+          },
+          "target": {
+            "nullable": true,
+            "description": "The moderation card of the target; null for a URL-only notice or a vanished object.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationCardDto"
+              }
+            ]
+          },
+          "authorStrikes": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The content author's DMCA strikes so far (null without an author)."
+          },
+          "strikesToSuspend": {
+            "type": "integer",
+            "description": "Strikes after which the author is suspended (0 = never)."
+          }
+        },
+        "required": [
+          "notice",
+          "strikesToSuspend"
+        ]
+      },
+      "AdminDmcaNoticeDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDmcaNoticeDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaDecision": {
+        "type": "string",
+        "enum": [
+          "remove",
+          "reject",
+          "restore"
+        ]
+      },
+      "DmcaDecideDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaDecision"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "AdminDmcaNoticeRowEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDmcaNoticeRowDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -98005,6 +101306,49 @@
             "maxLength": 200,
             "pattern": "^(https:\\/\\/[a-z0-9.-]+(:\\d+)?(\\/[\\w./-]*[\\w-])?)?$",
             "description": "Public https base of the API for unsubscribe links, e.g. https://api.lawbid.dev."
+          },
+          "clientLeadsEnabled": {
+            "type": "boolean",
+            "description": "Allow client (consumer) leads; requires dncConfirmed. Off by default."
+          },
+          "dncConfirmed": {
+            "type": "boolean",
+            "description": "Consumer numbers are scrubbed against the National Do-Not-Call registry."
+          },
+          "dncSan": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "DNC registry Subscription Account Number (informational)."
+          },
+          "callHoursStart": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 23,
+            "description": "Calls allowed from this local hour of the lead's state."
+          },
+          "callHoursEnd": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 24,
+            "description": "Calls allowed until this local hour (exclusive); > start."
+          },
+          "maxEmailsPerLead": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "Cold emails one lead may receive in total; 0 = no cap."
+          },
+          "emailCooldownDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 365,
+            "description": "Days between two cold emails to the same lead."
+          },
+          "leadRetentionDays": {
+            "type": "number",
+            "minimum": 30,
+            "maximum": 3650,
+            "description": "Unconverted leads with no activity for this long are deleted daily."
           }
         },
         "required": [
@@ -98309,6 +101653,24 @@
             "type": "string",
             "nullable": true
           },
+          "doNotContact": {
+            "type": "boolean",
+            "description": "Do-not-contact (TCPA / DNC): phone and email are hidden, no calls or emails."
+          },
+          "doNotContactReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "manual | not_interested | wrong_number | unsubscribed | suppression | retention"
+          },
+          "sourceNote": {
+            "type": "string",
+            "nullable": true,
+            "description": "Where the contact came from and on what basis we may write."
+          },
+          "emailsSent": {
+            "type": "number",
+            "description": "Cold emails sent to this lead so far."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -98333,6 +101695,10 @@
           "lastActivityAt",
           "nextActionAt",
           "note",
+          "doNotContact",
+          "doNotContactReason",
+          "sourceNote",
+          "emailsSent",
           "createdAt"
         ]
       },
@@ -98428,6 +101794,18 @@
           "createdAt"
         ]
       },
+      "OutreachContactBlockReason": {
+        "type": "string",
+        "enum": [
+          "dnc",
+          "client_disabled",
+          "hours",
+          "unsubscribed",
+          "email_limit",
+          "email_cooldown"
+        ],
+        "description": "Why a call is blocked now; null = allowed."
+      },
       "OutreachLeadDetailDto": {
         "type": "object",
         "properties": {
@@ -98519,6 +101897,24 @@
             "type": "string",
             "nullable": true
           },
+          "doNotContact": {
+            "type": "boolean",
+            "description": "Do-not-contact (TCPA / DNC): phone and email are hidden, no calls or emails."
+          },
+          "doNotContactReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "manual | not_interested | wrong_number | unsubscribed | suppression | retention"
+          },
+          "sourceNote": {
+            "type": "string",
+            "nullable": true,
+            "description": "Where the contact came from and on what basis we may write."
+          },
+          "emailsSent": {
+            "type": "number",
+            "description": "Cold emails sent to this lead so far."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -98531,7 +101927,38 @@
           },
           "canEmail": {
             "type": "boolean",
-            "description": "Cold emails this lead may still receive (not unsubscribed, has an email)."
+            "description": "Cold emails this lead may still receive (emailBlocked === null)."
+          },
+          "callAllowed": {
+            "type": "boolean",
+            "description": "A call may be logged now (not do-not-contact, clients enabled, inside the local call window)."
+          },
+          "callWindow": {
+            "type": "string",
+            "nullable": true,
+            "description": "The local call window and time, e.g. \"08:00–21:00 America/New_York, now 22:15\"."
+          },
+          "callBlocked": {
+            "nullable": true,
+            "description": "Why a call is blocked now; null = allowed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachContactBlockReason"
+              }
+            ]
+          },
+          "emailBlocked": {
+            "nullable": true,
+            "description": "Why an email is blocked now; null = allowed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachContactBlockReason"
+              }
+            ]
+          },
+          "phoneHidden": {
+            "type": "boolean",
+            "description": "A phone exists but is withheld (callBlocked / do-not-contact)."
           }
         },
         "required": [
@@ -98553,9 +101980,18 @@
           "lastActivityAt",
           "nextActionAt",
           "note",
+          "doNotContact",
+          "doNotContactReason",
+          "sourceNote",
+          "emailsSent",
           "createdAt",
           "activities",
-          "canEmail"
+          "canEmail",
+          "callAllowed",
+          "callWindow",
+          "callBlocked",
+          "emailBlocked",
+          "phoneHidden"
         ]
       },
       "OutreachLeadInputDto": {
@@ -98631,6 +102067,16 @@
                 "$ref": "#/components/schemas/OutreachLeadStatus"
               }
             ]
+          },
+          "sourceNote": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300,
+            "description": "Where the contact came from and on what basis we may write; required for client leads."
+          },
+          "doNotContact": {
+            "type": "boolean",
+            "description": "true = mark do-not-contact (reason manual); false clears it (managers only)."
           }
         }
       },
@@ -98670,6 +102116,10 @@
             "type": "number",
             "description": "Email or phone already in the base."
           },
+          "suppressed": {
+            "type": "number",
+            "description": "Email or phone on the stop-list; not created."
+          },
           "skipped": {
             "type": "number",
             "description": "Rows without any contact."
@@ -98693,6 +102143,7 @@
           "rows",
           "created",
           "duplicates",
+          "suppressed",
           "skipped",
           "columns",
           "problems"
@@ -98926,6 +102377,135 @@
           "data"
         ]
       },
+      "OutreachSuppressionKind": {
+        "type": "string",
+        "enum": [
+          "phone",
+          "email"
+        ]
+      },
+      "OutreachSuppressionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachSuppressionKind"
+              }
+            ]
+          },
+          "value": {
+            "type": "string",
+            "description": "Masked except the last 4 characters."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "kind",
+          "value",
+          "note",
+          "createdAt"
+        ]
+      },
+      "OutreachSuppressionsDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "latest": {
+            "description": "Newest ≤ 50.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutreachSuppressionDto"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "latest"
+        ]
+      },
+      "OutreachSuppressionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OutreachSuppressionsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "OutreachSuppressionsAddResultDto": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "number",
+            "description": "New stop-list entries."
+          },
+          "leadsMarked": {
+            "type": "number",
+            "description": "Existing leads marked do-not-contact."
+          },
+          "invalid": {
+            "type": "number",
+            "description": "Values that are neither a phone nor an email."
+          }
+        },
+        "required": [
+          "added",
+          "leadsMarked",
+          "invalid"
+        ]
+      },
+      "OutreachSuppressionsAddDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "minItems": 1,
+            "maxItems": 5000,
+            "description": "Phones or e-mails, one per item (normalized server-side).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 254
+            }
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "values"
+        ]
+      },
+      "OutreachSuppressionsAddResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OutreachSuppressionsAddResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "OutreachTemplateKind": {
         "type": "string",
         "enum": [
@@ -99062,15 +102642,66 @@
             "description": "If credits are used."
           },
           "creditDaysAvailable": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Whole credit days."
           },
           "creditDaysUsed": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Whole credit days."
+          },
+          "creditDaysAvailableExact": {
+            "type": "number",
+            "description": "Referral credit days, exact (owner 2026-10-05: may be fractional, 0.5 = 12 hours)."
+          },
+          "creditDaysUsedExact": {
+            "type": "number",
+            "description": "Credit days used, exact."
           },
           "maxDays": {
             "type": "integer"
           },
           "enabled": {
+            "type": "boolean",
+            "description": "This target can be promoted (admin switch)."
+          },
+          "dailyBudgetCents": {
+            "type": "integer"
+          },
+          "minDailyBudgetCents": {
+            "type": "integer"
+          },
+          "maxDailyBudgetCents": {
+            "type": "integer"
+          },
+          "budgetPresetsCents": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "durationPresets": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "cpmCents": {
+            "type": "integer",
+            "description": "Price of 1 000 impressions."
+          },
+          "estImpressions": {
+            "type": "integer"
+          },
+          "estReachMin": {
+            "type": "integer"
+          },
+          "estReachMax": {
+            "type": "integer"
+          },
+          "postsEnabled": {
+            "type": "boolean"
+          },
+          "casesEnabled": {
             "type": "boolean"
           }
         },
@@ -99081,8 +102712,28 @@
           "totalCents",
           "creditDaysAvailable",
           "creditDaysUsed",
+          "creditDaysAvailableExact",
+          "creditDaysUsedExact",
           "maxDays",
-          "enabled"
+          "enabled",
+          "dailyBudgetCents",
+          "minDailyBudgetCents",
+          "maxDailyBudgetCents",
+          "budgetPresetsCents",
+          "durationPresets",
+          "cpmCents",
+          "estImpressions",
+          "estReachMin",
+          "estReachMax",
+          "postsEnabled",
+          "casesEnabled"
+        ]
+      },
+      "PromotionTarget": {
+        "type": "string",
+        "enum": [
+          "case",
+          "post"
         ]
       },
       "PromotionQuoteEnvelope": {
@@ -99103,10 +102754,59 @@
         "type": "string",
         "enum": [
           "pending_payment",
+          "pending_review",
           "active",
           "finished",
           "canceled",
-          "refunded"
+          "refunded",
+          "rejected"
+        ]
+      },
+      "PromotionAudienceDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "all",
+              "attorneys",
+              "clients"
+            ],
+            "type": "string",
+            "default": "all"
+          },
+          "states": {
+            "maxItems": 60,
+            "description": "US state codes.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "countries": {
+            "maxItems": 50,
+            "description": "Country codes.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "topics": {
+            "maxItems": 30,
+            "description": "Practice category codes.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,40}$"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "states",
+          "countries",
+          "topics"
         ]
       },
       "CasePromotionDto": {
@@ -99116,8 +102816,21 @@
             "type": "string",
             "format": "uuid"
           },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
           "caseId": {
             "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "status": {
@@ -99150,6 +102863,31 @@
           "impressions": {
             "type": "integer"
           },
+          "reach": {
+            "type": "integer",
+            "description": "Distinct people reached."
+          },
+          "clicks": {
+            "type": "integer"
+          },
+          "targetImpressions": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Impressions the budget buys (null = no cap)."
+          },
+          "audience": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionAudienceDto"
+              }
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -99157,12 +102895,14 @@
         },
         "required": [
           "id",
-          "caseId",
+          "targetType",
           "status",
           "days",
           "priceCentsPerDay",
           "totalCents",
           "impressions",
+          "reach",
+          "clicks",
           "createdAt"
         ]
       },
@@ -99181,7 +102921,7 @@
           },
           "canPromote": {
             "type": "boolean",
-            "description": "The case can be promoted now."
+            "description": "The case / post can be promoted now."
           },
           "quote": {
             "description": "Quote for 1 day.",
@@ -99234,7 +102974,12 @@
             "type": "integer"
           },
           "creditDaysUsed": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Whole credit days."
+          },
+          "creditDaysUsedExact": {
+            "type": "number",
+            "description": "Credit days used, exact (may be fractional)."
           },
           "promotion": {
             "$ref": "#/components/schemas/CasePromotionDto"
@@ -99245,6 +102990,7 @@
           "status",
           "totalCents",
           "creditDaysUsed",
+          "creditDaysUsedExact",
           "promotion"
         ]
       },
@@ -99255,6 +103001,15 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 365
+          },
+          "dailyBudgetCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "Owner 2026-10-05: daily budget; default from the admin."
+          },
+          "audience": {
+            "$ref": "#/components/schemas/PromotionAudienceDto"
           },
           "useCredits": {
             "type": "boolean",
@@ -99285,15 +103040,28 @@
           "data"
         ]
       },
-      "AdminPromotionRowDto": {
+      "MyPromotionDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
           "caseId": {
             "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "status": {
@@ -99326,12 +103094,208 @@
           "impressions": {
             "type": "integer"
           },
+          "reach": {
+            "type": "integer",
+            "description": "Distinct people reached."
+          },
+          "clicks": {
+            "type": "integer"
+          },
+          "targetImpressions": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Impressions the budget buys (null = no cap)."
+          },
+          "audience": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionAudienceDto"
+              }
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string",
+            "description": "Case title / post title or text start."
+          }
+        },
+        "required": [
+          "id",
+          "targetType",
+          "status",
+          "days",
+          "priceCentsPerDay",
+          "totalCents",
+          "impressions",
+          "reach",
+          "clicks",
+          "createdAt",
+          "title"
+        ]
+      },
+      "MyPromotionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MyPromotionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CasePromotionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CasePromotionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PromotionClickResultDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "PromotionClickResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromotionClickResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPromotionRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
+          "caseId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "postId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CasePromotionStatus"
+              }
+            ]
+          },
+          "days": {
+            "type": "integer"
+          },
+          "priceCentsPerDay": {
+            "type": "integer"
+          },
+          "totalCents": {
+            "type": "integer",
+            "description": "Charged amount."
+          },
+          "startsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "impressions": {
+            "type": "integer"
+          },
+          "reach": {
+            "type": "integer",
+            "description": "Distinct people reached."
+          },
+          "clicks": {
+            "type": "integer"
+          },
+          "targetImpressions": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Impressions the budget buys (null = no cap)."
+          },
+          "audience": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionAudienceDto"
+              }
+            ]
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
           },
           "caseTitle": {
-            "type": "string"
+            "type": "string",
+            "description": "Case title, or the post title / text."
+          },
+          "reviewedBy": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "refundedCents": {
+            "type": "integer"
+          },
+          "cpmCents": {
+            "type": "integer",
+            "nullable": true
           },
           "caseStatus": {
             "type": "string"
@@ -99362,22 +103326,21 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
-          },
-          "cancelReason": {
-            "type": "string",
-            "nullable": true
           }
         },
         "required": [
           "id",
-          "caseId",
+          "targetType",
           "status",
           "days",
           "priceCentsPerDay",
           "totalCents",
           "impressions",
+          "reach",
+          "clicks",
           "createdAt",
           "caseTitle",
+          "refundedCents",
           "caseStatus",
           "ownerId"
         ]
@@ -99431,13 +103394,39 @@
             "items": {
               "$ref": "#/components/schemas/PromotionStatusCountDto"
             }
+          },
+          "activePosts": {
+            "type": "integer"
+          },
+          "activeCases": {
+            "type": "integer"
+          },
+          "pendingReview": {
+            "type": "integer",
+            "description": "Waiting for a staff check."
+          },
+          "impressions30d": {
+            "type": "integer",
+            "description": "Impressions, last 30 days."
+          },
+          "reach30d": {
+            "type": "integer"
+          },
+          "clicks30d": {
+            "type": "integer"
           }
         },
         "required": [
           "activeCount",
           "revenue30dCents",
           "paid30dCount",
-          "byStatus"
+          "byStatus",
+          "activePosts",
+          "activeCases",
+          "pendingReview",
+          "impressions30d",
+          "reach30d",
+          "clicks30d"
         ]
       },
       "AdminPromotionStatsEnvelope": {
@@ -99475,13 +103464,84 @@
             "minimum": 1,
             "maximum": 1,
             "default": 1
+          },
+          "postsEnabled": {
+            "type": "boolean"
+          },
+          "cpmCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Price of 1 000 impressions."
+          },
+          "minDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 1000000
+          },
+          "maxDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 10000000
+          },
+          "budgetPresetsCents": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "durationPresets": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "feedEveryN": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 50
+          },
+          "caseFeedSlots": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "frequencyCapPerDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "impressionsPerPerson": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "autoApprove": {
+            "type": "boolean"
+          },
+          "requireSubscription": {
+            "type": "boolean"
           }
         },
         "required": [
           "enabled",
           "priceCentsPerDay",
           "maxDays",
-          "maxActivePerCase"
+          "maxActivePerCase",
+          "postsEnabled",
+          "cpmCents",
+          "minDailyBudgetCents",
+          "maxDailyBudgetCents",
+          "budgetPresetsCents",
+          "durationPresets",
+          "feedEveryN",
+          "caseFeedSlots",
+          "frequencyCapPerDay",
+          "impressionsPerPerson",
+          "autoApprove",
+          "requireSubscription"
         ]
       },
       "PromotionSettingsEnvelope": {
@@ -99517,9 +103577,24 @@
       "AdminGrantPromotionDto": {
         "type": "object",
         "properties": {
+          "target": {
+            "default": "case",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionTarget"
+              }
+            ]
+          },
           "caseId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Case id or post id."
+          },
+          "dailyBudgetCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "Daily budget it is worth (reach); default from settings."
           },
           "days": {
             "type": "integer",
@@ -99551,6 +103626,15 @@
           "data"
         ]
       },
+      "PromotionRefundMode": {
+        "type": "string",
+        "enum": [
+          "none",
+          "unspent",
+          "full"
+        ],
+        "description": "Owner 2026-10-05: give money back right away."
+      },
       "AdminCancelPromotionDto": {
         "type": "object",
         "properties": {
@@ -99558,8 +103642,37 @@
             "type": "string",
             "default": "",
             "maxLength": 500
+          },
+          "refund": {
+            "default": "none",
+            "description": "Owner 2026-10-05: give money back right away.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionRefundMode"
+              }
+            ]
           }
         }
+      },
+      "AdminReviewPromotionDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "default": "",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "decision"
+        ]
       },
       "AdminExtendPromotionDto": {
         "type": "object",

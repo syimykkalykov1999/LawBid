@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -45,6 +46,7 @@ import {
   CreateRefundDto,
   ExtendContractGrantDto,
   PromoCodeDto,
+  PromoDeleteResultDto,
   PromoRedemptionDto,
   RefundDto,
   UpdatePromoCodeDto,
@@ -232,6 +234,34 @@ export class AdminBillingController {
     @Param() p: AdminBillingIdParamDto,
   ): Promise<PromoCodeDto> {
     return this.promos.deactivate(admin, p.id);
+  }
+
+  @Delete('promo-codes/:id')
+  @Roles('super_admin', 'finance')
+  @ApiOperation({
+    summary:
+      'Delete a promo code: removed for good when unused, archived (off + hidden) when already used',
+  })
+  @ApiEnvelopeResponse(PromoDeleteResultDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  deletePromoCode(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminBillingIdParamDto,
+  ): Promise<PromoDeleteResultDto> {
+    return this.promos.remove(admin, p.id);
+  }
+
+  @Post('promo-codes/:id/restore')
+  @Roles('super_admin', 'finance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bring an archived promo code back (switched off)' })
+  @ApiEnvelopeResponse(PromoCodeDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  restorePromoCode(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminBillingIdParamDto,
+  ): Promise<PromoCodeDto> {
+    return this.promos.restore(admin, p.id);
   }
 
   @Get('promo-codes/:id/redemptions')

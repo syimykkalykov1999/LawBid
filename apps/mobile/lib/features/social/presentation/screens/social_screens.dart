@@ -11,6 +11,8 @@ import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
+import 'package:lawbid/features/promotions/domain/promotion_models.dart';
+import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
@@ -18,6 +20,7 @@ import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Post skeletons for list loading states.
@@ -319,6 +322,14 @@ class _PostScreenState extends ConsumerState<PostScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   PostCard(post: p, inDetail: true),
+                                  // Owner 2026-10-05 (screenshot 6): "Promote"
+                                  // under my post, before the comments.
+                                  if (p.isMine &&
+                                      !ref.watch(isAssistantProvider))
+                                    PromoteCard(
+                                      target: PromotionTarget.post,
+                                      id: p.id,
+                                    ),
                                   const SizedBox(height: AppSpacing.md),
                                   const PostDisclaimer(),
                                 ],

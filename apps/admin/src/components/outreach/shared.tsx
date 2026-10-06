@@ -15,6 +15,33 @@ export type OutreachTemplate = components['schemas']['OutreachTemplateDto'];
 export type OutreachSettings = components['schemas']['OutreachSettingsDto'];
 export type OutreachStats = components['schemas']['OutreachStatsDto'];
 export type ImportReport = components['schemas']['OutreachImportReportDto'];
+export type ContactBlockReason = components['schemas']['OutreachContactBlockReason'];
+export type Suppressions = components['schemas']['OutreachSuppressionsDto'];
+
+/** Owner 2026-10-05 (legal): why a call / an email is refused right now. */
+export const CONTACT_BLOCK: Record<string, string> = {
+  dnc: 'лид в списке «не беспокоить»',
+  client_disabled: 'работа с клиентами-физлицами выключена',
+  hours: 'местное время вне окна звонков',
+  unsubscribed: 'отписался от писем',
+  email_limit: 'лимит писем одному человеку исчерпан',
+  email_cooldown: 'пауза между письмами ещё не прошла',
+};
+
+export function contactBlockText(reason: string | null | undefined, callWindow?: string | null): string | null {
+  if (!reason) return null;
+  const base = CONTACT_BLOCK[reason] ?? reason;
+  return reason === 'hours' && callWindow ? `${base} (${callWindow})` : base;
+}
+
+export const DO_NOT_CONTACT_REASON: Record<string, string> = {
+  manual: 'отмечен вручную',
+  not_interested: 'не заинтересован',
+  wrong_number: 'неверный номер',
+  unsubscribed: 'отписался',
+  suppression: 'стоп-лист',
+  retention: 'срок хранения',
+};
 
 export const LEAD_STATUSES: readonly LeadStatus[] = [
   'new',
@@ -67,11 +94,13 @@ export function formatPhone(digits: string | null | undefined): string {
 /** The i18n import pattern: multipart through the proxy, dry-run first. */
 export async function importLeadsCsv(
   file: File,
-  q: { mode: 'dry-run' | 'apply'; kind: LeadKind; partnerId?: string },
+  q: { mode: 'dry-run' | 'apply'; kind: LeadKind; partnerId?: string; sourceNote: string },
 ): Promise<ImportReport> {
   const form = new FormData();
   form.append('file', file);
-  const qs = new URLSearchParams({ mode: q.mode, kind: q.kind });
+  // Owner 2026-10-05 (legal): where the contacts come from and on what
+  // basis they may be contacted — required, stored on every lead.
+  const qs = new URLSearchParams({ mode: q.mode, kind: q.kind, sourceNote: q.sourceNote });
   if (q.partnerId) qs.set('partnerId', q.partnerId);
   const res = await fetch(`/api/proxy/outreach/leads/import?${qs}`, { method: 'POST', body: form });
   const body = (await res.json().catch(() => ({}))) as {

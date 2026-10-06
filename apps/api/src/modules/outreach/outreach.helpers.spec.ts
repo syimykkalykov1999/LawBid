@@ -1,5 +1,7 @@
+import { maskSuppression } from './admin-outreach.service';
 import { leadsFromCsv, parseCsv } from './lead-csv';
 import { leadsFromRegistry } from './ny-registry.source';
+import { blockMessage, contactState, leadRow } from './outreach.service';
 import {
   advance,
   normalizeEmail,
@@ -116,5 +118,178 @@ describe('outreach: normalizers and status ladder', () => {
     expect(s.dailyEmailLimit).toBeLessThanOrEqual(1000);
     expect(s.fromName).toBe('LawBid');
     expect(s.apiPublicUrl).toBe('https://api.lawbid.dev');
+  });
+});
+
+describe('outreach: compliance (TCPA / DNC)', () => {
+  const base = {
+    dailyEmailLimit: 50,
+    fromName: 'LawBid',
+    footerAddress: '',
+    apiPublicUrl: '',
+  };
+
+  it('parses the compliance settings with safe defaults', () => {
+    const d = parseOutreachSettings({});
+    expect(d).toMatchObject({
+      clientLeadsEnabled: false,
+      dncConfirmed: false,
+      dncSan: '',
+      callHoursStart: 8,
+      callHoursEnd: 21,
+      maxEmailsPerLead: 2,
+      emailCooldownDays: 14,
+      leadRetentionDays: 365,
+    });
+    // clientLeadsEnabled never survives without dncConfirmed.
+    expect(
+      parseOutreachSettings({ clientLeadsEnabled: true }).clientLeadsEnabled,
+    ).toBe(false);
+    expect(
+      parseOutreachSettings({ clientLeadsEnabled: true, dncConfirmed: true })
+        .clientLeadsEnabled,
+    ).toBe(true);
+    // An inverted window falls back to the default one.
+    expect(
+      parseOutreachSettings({ callHoursStart: 20, callHoursEnd: 9 }),
+    ).toMatchObject({ callHoursStart: 8, callHoursEnd: 21 });
+    expect(
+      parseOutreachSettings({ leadRetentionDays: 10, maxEmailsPerLead: 99 }),
+    ).toMatchObject({ leadRetentionDays: 365, maxEmailsPerLead: 2 });
+  });
+
+  const settings = parseOutreachSettings({ ...base });
+  const lead = (p: Partial<Parameters<typeof contactState>[0]> = {}) => ({
+    kind: 'attorney',
+    state_code: 'NY',
+    do_not_contact_at: null,
+    unsubscribed_at: null,
+    emails_sent: 0,
+    last_email_at: null,
+    ...p,
+  });
+  const noonEst = new Date('2026-01-15T17:00:00Z');
+  const nightEst = new Date('2026-01-16T03:15:00Z'); // 22:15 EST
+
+  it('blocks calls by do-not-contact, clients switched off, then local hours', () => {
+    expect(contactState(lead(), settings, noonEst)).toMatchObject({
+      callBlocked: null,
+      emailBlocked: null,
+      callWindow: '08:00–21:00 America/New_York, now 12:00',
+    });
+    expect(
+      contactState(lead({ do_not_contact_at: noonEst }), settings, noonEst),
+    ).toMatchObject({ callBlocked: 'dnc', emailBlocked: 'dnc' });
+    expect(
+      contactState(lead({ kind: 'client' }), settings, noonEst),
+    ).toMatchObject({
+      callBlocked: 'client_disabled',
+      emailBlocked: 'client_disabled',
+    });
+    const on = parseOutreachSettings({
+      ...base,
+      clientLeadsEnabled: true,
+      dncConfirmed: true,
+    });
+    expect(contactState(lead({ kind: 'client' }), on, noonEst)).toMatchObject({
+      callBlocked: null,
+      emailBlocked: null,
+    });
+    const night = contactState(lead(), settings, nightEst);
+    expect(night).toMatchObject({ callBlocked: 'hours', emailBlocked: null });
+    expect(blockMessage('hours', night, settings)).toBe(
+      'Calls to this lead are not allowed now: local time 22:15, window 08:00–21:00 (America/New_York).',
+    );
+  });
+
+  it('blocks emails by unsubscribe, the per-lead cap and the cooldown', () => {
+    expect(
+      contactState(lead({ unsubscribed_at: noonEst }), settings, noonEst)
+        .emailBlocked,
+    ).toBe('unsubscribed');
+    expect(
+      contactState(lead({ emails_sent: 2 }), settings, noonEst).emailBlocked,
+    ).toBe('email_limit');
+    expect(
+      contactState(
+        lead({
+          emails_sent: 1,
+          last_email_at: new Date('2026-01-10T00:00:00Z'),
+        }),
+        settings,
+        noonEst,
+      ).emailBlocked,
+    ).toBe('email_cooldown');
+    expect(
+      contactState(
+        lead({
+          emails_sent: 1,
+          last_email_at: new Date('2025-12-01T00:00:00Z'),
+        }),
+        settings,
+        noonEst,
+      ).emailBlocked,
+    ).toBeNull();
+    // 0 = no cap.
+    const uncapped = parseOutreachSettings({ ...base, maxEmailsPerLead: 0 });
+    expect(
+      contactState(lead({ emails_sent: 9 }), uncapped, noonEst).emailBlocked,
+    ).toBeNull();
+  });
+
+  it('hides phone and email of a do-not-contact lead in the row DTO', () => {
+    const row = {
+      id: 'l1',
+      kind: 'attorney',
+      first_name: 'A',
+      last_name: 'B',
+      company: null,
+      state_code: 'NY',
+      city: null,
+      practice: null,
+      phone: '12125550100',
+      email: 'a@b.co',
+      source: 'manual',
+      source_ref: null,
+      status: 'new',
+      partner_id: null,
+      converted_user_id: null,
+      unsubscribe_token: 't',
+      unsubscribed_at: null,
+      last_activity_at: null,
+      next_action_at: null,
+      note: null,
+      do_not_contact_at: null,
+      do_not_contact_reason: null,
+      source_note: 'Bar directory',
+      emails_sent: 1,
+      last_email_at: null,
+      created_by: 'u',
+      created_at: noonEst,
+      updated_at: noonEst,
+    };
+    expect(leadRow(row, null)).toMatchObject({
+      phone: '12125550100',
+      email: 'a@b.co',
+      doNotContact: false,
+      sourceNote: 'Bar directory',
+      emailsSent: 1,
+    });
+    expect(
+      leadRow(
+        { ...row, do_not_contact_at: noonEst, do_not_contact_reason: 'manual' },
+        null,
+      ),
+    ).toMatchObject({
+      phone: null,
+      email: null,
+      doNotContact: true,
+      doNotContactReason: 'manual',
+    });
+  });
+
+  it('masks stop-list entries except the last 4 characters', () => {
+    expect(maskSuppression('12125550100')).toBe('•••••••0100');
+    expect(maskSuppression('a@b.co')).toBe('••b.co');
   });
 });

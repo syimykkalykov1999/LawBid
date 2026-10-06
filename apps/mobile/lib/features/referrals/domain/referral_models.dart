@@ -22,7 +22,17 @@ class Reward {
   const Reward({required this.type, required this.value});
 
   final RewardType type;
-  final int value;
+
+  /// balance: whole cents; percent and promotion days may be fractional
+  /// (owner 2026-10-05: «0.5 дня», «0.5 %»).
+  final num value;
+}
+
+/// 3 → "3", 0.5 → "0.5", 1.25 → "1.25" (never "3.0").
+String formatRewardNumber(num v) {
+  if (v == v.roundToDouble()) return v.round().toString();
+  final s = v.toStringAsFixed(2);
+  return s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
 }
 
 @immutable
@@ -72,8 +82,8 @@ class ReferralMe {
   final int qualified;
   final int rewarded;
   final List<ReferralInvite> invites;
-  final int promotionCreditDays;
-  final int pendingDiscountPercent;
+  final num promotionCreditDays;
+  final num pendingDiscountPercent;
   final int applyWindowDays;
   final bool canApply;
   final Reward inviterReward;

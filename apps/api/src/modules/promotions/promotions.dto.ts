@@ -1,20 +1,27 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import {
   PROMOTION_STATUSES,
+  PROMOTION_TARGETS,
   type PromotionStatus,
+  type PromotionTarget,
 } from './promotions.settings';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -28,6 +35,18 @@ export class PromotionCaseIdParamDto {
   id!: string;
 }
 
+export class PromotionPostIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+}
+
+export class PromotionIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+}
+
 export class PromotionQuoteQueryDto {
   @ApiProperty({ type: 'integer', minimum: 1, maximum: 365 })
   @Type(() => Number)
@@ -35,6 +54,51 @@ export class PromotionQuoteQueryDto {
   @Min(1)
   @Max(365)
   days!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description: 'Owner 2026-10-05: daily budget; default from the admin.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(10_000_000)
+  dailyBudgetCents?: number;
+
+  @ApiPropertyOptional({
+    enum: PROMOTION_TARGETS,
+    enumName: 'PromotionTarget',
+    default: 'case',
+  })
+  @IsOptional()
+  @IsIn(PROMOTION_TARGETS)
+  target?: PromotionTarget;
+}
+
+/** Owner 2026-10-05: who sees a promoted post (empty = everyone). */
+export class PromotionAudienceDto {
+  @ApiProperty({ enum: ['all', 'attorneys', 'clients'], default: 'all' })
+  @IsIn(['all', 'attorneys', 'clients'])
+  role!: 'all' | 'attorneys' | 'clients';
+
+  @ApiProperty({ type: [String], description: 'US state codes.' })
+  @IsArray()
+  @ArrayMaxSize(60)
+  @Matches(/^[A-Z]{2}$/, { each: true })
+  states!: string[];
+
+  @ApiProperty({ type: [String], description: 'Country codes.' })
+  @IsArray()
+  @ArrayMaxSize(50)
+  @Matches(/^[A-Z]{2}$/, { each: true })
+  countries!: string[];
+
+  @ApiProperty({ type: [String], description: 'Practice category codes.' })
+  @IsArray()
+  @ArrayMaxSize(30)
+  @Matches(/^[a-z0-9_]{1,40}$/, { each: true })
+  topics!: string[];
 }
 
 export class CreatePromotionDto {
@@ -43,6 +107,22 @@ export class CreatePromotionDto {
   @Min(1)
   @Max(365)
   days!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description: 'Owner 2026-10-05: daily budget; default from the admin.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10_000_000)
+  dailyBudgetCents?: number;
+
+  @ApiPropertyOptional({ type: PromotionAudienceDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PromotionAudienceDto)
+  audience?: PromotionAudienceDto;
 
   @ApiPropertyOptional({
     default: true,
@@ -74,25 +154,75 @@ export class PromotionQuoteDto {
   @ApiProperty({ type: 'integer', description: 'If credits are used.' })
   totalCents!: number;
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysAvailable!: number;
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysUsed!: number;
+
+  @ApiProperty({
+    type: 'number',
+    description:
+      'Referral credit days, exact (owner 2026-10-05: may be fractional, 0.5 = 12 hours).',
+  })
+  creditDaysAvailableExact!: number;
+
+  @ApiProperty({ type: 'number', description: 'Credit days used, exact.' })
+  creditDaysUsedExact!: number;
 
   @ApiProperty({ type: 'integer' })
   maxDays!: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'This target can be promoted (admin switch).' })
   enabled!: boolean;
+
+  // ---- owner 2026-10-05: Instagram-style budget and reach ----
+  @ApiProperty({ type: 'integer' })
+  dailyBudgetCents!: number;
+
+  @ApiProperty({ type: 'integer' })
+  minDailyBudgetCents!: number;
+
+  @ApiProperty({ type: 'integer' })
+  maxDailyBudgetCents!: number;
+
+  @ApiProperty({ type: 'integer', isArray: true })
+  budgetPresetsCents!: number[];
+
+  @ApiProperty({ type: 'integer', isArray: true })
+  durationPresets!: number[];
+
+  @ApiProperty({ type: 'integer', description: 'Price of 1 000 impressions.' })
+  cpmCents!: number;
+
+  @ApiProperty({ type: 'integer' })
+  estImpressions!: number;
+
+  @ApiProperty({ type: 'integer' })
+  estReachMin!: number;
+
+  @ApiProperty({ type: 'integer' })
+  estReachMax!: number;
+
+  @ApiProperty()
+  postsEnabled!: boolean;
+
+  @ApiProperty()
+  casesEnabled!: boolean;
 }
 
 export class CasePromotionDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
-  @ApiProperty({ format: 'uuid' })
-  caseId!: string;
+  @ApiProperty({ enum: PROMOTION_TARGETS, enumName: 'PromotionTarget' })
+  targetType!: PromotionTarget;
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  caseId!: string | null;
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  postId!: string | null;
 
   @ApiProperty({ enum: PROMOTION_STATUSES, enumName: 'CasePromotionStatus' })
   status!: PromotionStatus;
@@ -115,8 +245,46 @@ export class CasePromotionDto {
   @ApiProperty({ type: 'integer' })
   impressions!: number;
 
+  @ApiProperty({ type: 'integer', description: 'Distinct people reached.' })
+  reach!: number;
+
+  @ApiProperty({ type: 'integer' })
+  clicks!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Impressions the budget buys (null = no cap).',
+  })
+  targetImpressions!: number | null;
+
+  @ApiPropertyOptional({ type: PromotionAudienceDto, nullable: true })
+  audience!: PromotionAudienceDto | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  cancelReason!: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+}
+
+/** A row of "My promotions" (owner 2026-10-05). */
+export class MyPromotionDto extends CasePromotionDto {
+  @ApiProperty({ description: 'Case title / post title or text start.' })
+  title!: string;
+}
+
+export class MyPromotionsQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  cursor?: string;
+}
+
+export class PromotionClickResultDto {
+  @ApiProperty()
+  ok!: boolean;
 }
 
 export class CasePromotionStateDto {
@@ -127,7 +295,7 @@ export class CasePromotionStateDto {
   })
   promotion!: CasePromotionDto | null;
 
-  @ApiProperty({ description: 'The case can be promoted now.' })
+  @ApiProperty({ description: 'The case / post can be promoted now.' })
   canPromote!: boolean;
 
   @ApiProperty({ type: PromotionQuoteDto, description: 'Quote for 1 day.' })
@@ -151,8 +319,14 @@ export class CreatePromotionResultDto {
   @ApiProperty({ type: 'integer' })
   totalCents!: number;
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysUsed!: number;
+
+  @ApiProperty({
+    type: 'number',
+    description: 'Credit days used, exact (may be fractional).',
+  })
+  creditDaysUsedExact!: number;
 
   @ApiProperty({ type: CasePromotionDto })
   promotion!: CasePromotionDto;
@@ -175,10 +349,20 @@ export class AdminPromotionsQueryDto {
   @IsIn(PROMOTION_STATUSES)
   status?: PromotionStatus;
 
+  @ApiPropertyOptional({ enum: PROMOTION_TARGETS, enumName: 'PromotionTarget' })
+  @IsOptional()
+  @IsIn(PROMOTION_TARGETS)
+  target?: PromotionTarget;
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID('all')
   caseId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  postId?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
@@ -193,8 +377,17 @@ export class AdminPromotionsQueryDto {
 }
 
 export class AdminPromotionRowDto extends CasePromotionDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Case title, or the post title / text.' })
   caseTitle!: string;
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  reviewedBy!: string | null;
+
+  @ApiProperty({ type: 'integer' })
+  refundedCents!: number;
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  cpmCents!: number | null;
 
   @ApiProperty()
   caseStatus!: string;
@@ -216,9 +409,6 @@ export class AdminPromotionRowDto extends CasePromotionDto {
 
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   grantedBy!: string | null;
-
-  @ApiPropertyOptional({ type: String, nullable: true })
-  cancelReason!: string | null;
 }
 
 export class AdminPromotionActionResultDto {
@@ -253,12 +443,50 @@ export class AdminPromotionStatsDto {
 
   @ApiProperty({ type: [PromotionStatusCountDto] })
   byStatus!: PromotionStatusCountDto[];
+
+  // ---- owner 2026-10-05 ----
+  @ApiProperty({ type: 'integer' })
+  activePosts!: number;
+
+  @ApiProperty({ type: 'integer' })
+  activeCases!: number;
+
+  @ApiProperty({ type: 'integer', description: 'Waiting for a staff check.' })
+  pendingReview!: number;
+
+  @ApiProperty({ type: 'integer', description: 'Impressions, last 30 days.' })
+  impressions30d!: number;
+
+  @ApiProperty({ type: 'integer' })
+  reach30d!: number;
+
+  @ApiProperty({ type: 'integer' })
+  clicks30d!: number;
 }
 
 export class AdminGrantPromotionDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({
+    enum: PROMOTION_TARGETS,
+    enumName: 'PromotionTarget',
+    default: 'case',
+  })
+  @IsOptional()
+  @IsIn(PROMOTION_TARGETS)
+  target?: PromotionTarget;
+
+  @ApiProperty({ format: 'uuid', description: 'Case id or post id.' })
   @IsUUID('all')
   caseId!: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description: 'Daily budget it is worth (reach); default from settings.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10_000_000)
+  dailyBudgetCents?: number;
 
   @ApiProperty({ type: 'integer', minimum: 1, maximum: 365 })
   @IsInt()
@@ -289,7 +517,33 @@ export class AdminExtendPromotionDto {
   reason = '';
 }
 
+export const PROMOTION_REFUND_MODES = ['none', 'unspent', 'full'] as const;
+export type PromotionRefundMode = (typeof PROMOTION_REFUND_MODES)[number];
+
 export class AdminCancelPromotionDto {
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(500)
+  reason = '';
+
+  @ApiPropertyOptional({
+    enum: PROMOTION_REFUND_MODES,
+    enumName: 'PromotionRefundMode',
+    default: 'none',
+    description: 'Owner 2026-10-05: give money back right away.',
+  })
+  @IsOptional()
+  @IsIn(PROMOTION_REFUND_MODES)
+  refund?: PromotionRefundMode;
+}
+
+export class AdminReviewPromotionDto {
+  @ApiProperty({ enum: ['approve', 'reject'] })
+  @IsIn(['approve', 'reject'])
+  decision!: 'approve' | 'reject';
+
   @ApiPropertyOptional({ type: String, maxLength: 500 })
   @IsOptional()
   @Transform(trim)
@@ -320,4 +574,75 @@ export class PromotionSettingsDto {
   @Min(1)
   @Max(1)
   maxActivePerCase!: number;
+
+  // ---- owner 2026-10-05: Instagram-style boost ----
+  @ApiProperty()
+  @IsBoolean()
+  postsEnabled!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    description: 'Price of 1 000 impressions.',
+  })
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  cpmCents!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 50 })
+  @IsInt()
+  @Min(50)
+  @Max(1_000_000)
+  minDailyBudgetCents!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 50 })
+  @IsInt()
+  @Min(50)
+  @Max(10_000_000)
+  maxDailyBudgetCents!: number;
+
+  @ApiProperty({ type: 'integer', isArray: true })
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsInt({ each: true })
+  budgetPresetsCents!: number[];
+
+  @ApiProperty({ type: 'integer', isArray: true })
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsInt({ each: true })
+  durationPresets!: number[];
+
+  @ApiProperty({ type: 'integer', minimum: 2, maximum: 50 })
+  @IsInt()
+  @Min(2)
+  @Max(50)
+  feedEveryN!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 0, maximum: 10 })
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  caseFeedSlots!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 50 })
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  frequencyCapPerDay!: number;
+
+  @ApiProperty({ minimum: 1, maximum: 10 })
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  impressionsPerPerson!: number;
+
+  @ApiProperty()
+  @IsBoolean()
+  autoApprove!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  requireSubscription!: boolean;
 }

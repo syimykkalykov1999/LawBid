@@ -54,6 +54,9 @@ import {
   OutreachSettingsDto,
   OutreachStatsDto,
   OutreachStatsQueryDto,
+  OutreachSuppressionsAddDto,
+  OutreachSuppressionsAddResultDto,
+  OutreachSuppressionsDto,
   OutreachTemplateDto,
   OutreachTemplateIdParamDto,
   OutreachTemplateInputDto,
@@ -67,7 +70,11 @@ const LEAD_ERRORS = {
   400: [E.VALIDATION_ERROR],
   403: [E.FORBIDDEN],
   404: [E.NOT_FOUND],
-  409: [E.OUTREACH_INVALID_STATE],
+  409: [
+    E.OUTREACH_INVALID_STATE,
+    E.OUTREACH_CONTACT_BLOCKED,
+    E.OUTREACH_CLIENTS_DISABLED,
+  ],
 };
 
 /**
@@ -96,7 +103,8 @@ export class AdminOutreachController {
   @Put('settings')
   @Roles('super_admin')
   @ApiOperation({
-    summary: 'Daily email limit, sender name, postal address, public API URL',
+    summary:
+      'Email limits, sender name, postal address, public API URL, TCPA/DNC rules, retention',
   })
   @ApiEnvelopeResponse(OutreachSettingsDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
@@ -184,6 +192,7 @@ export class AdminOutreachController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.OUTREACH_IMPORT_INVALID],
     403: [E.FORBIDDEN],
+    409: [E.OUTREACH_CLIENTS_DISABLED],
     413: [E.VALIDATION_ERROR],
   })
   @UseInterceptors(
@@ -283,6 +292,34 @@ export class AdminOutreachController {
     @Body() dto: OutreachSendEmailDto,
   ): Promise<OutreachSendEmailResultDto> {
     return this.outreach.sendEmail(admin, p.id, dto);
+  }
+
+  @Get('suppressions')
+  @ApiOperation({
+    summary: 'Stop-list (do not call / write): count and the latest entries',
+  })
+  @ApiEnvelopeResponse(OutreachSuppressionsDto)
+  @ApiErrors({ 403: [E.FORBIDDEN] })
+  outreachSuppressions(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<OutreachSuppressionsDto> {
+    return this.outreach.suppressions(admin);
+  }
+
+  @Post('suppressions')
+  @ApiOperation({
+    summary:
+      'Add phones / e-mails to the stop-list; matching leads become do-not-contact (managers)',
+  })
+  @ApiEnvelopeResponse(OutreachSuppressionsAddResultDto, {
+    status: HttpStatus.CREATED,
+  })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  outreachAddSuppressions(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: OutreachSuppressionsAddDto,
+  ): Promise<OutreachSuppressionsAddResultDto> {
+    return this.outreach.addSuppressions(admin, dto);
   }
 
   @Get('templates')

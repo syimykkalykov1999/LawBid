@@ -34,6 +34,7 @@ import '../models/plan_kind.dart';
 import '../models/promo_code_envelope.dart';
 import '../models/promo_code_filter.dart';
 import '../models/promo_code_list_envelope.dart';
+import '../models/promo_delete_result_envelope.dart';
 import '../models/promo_redemption_list_envelope.dart';
 import '../models/refund_envelope.dart';
 import '../models/refund_list_envelope.dart';
@@ -158,9 +159,23 @@ abstract class AdminBillingClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Delete a promo code: removed for good when unused, archived (off + hidden) when already used
+  @DELETE('/admin/billing/promo-codes/{id}')
+  Future<PromoDeleteResultEnvelope> deletePromoCode({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Switch a promo code off
   @POST('/admin/billing/promo-codes/{id}/deactivate')
   Future<PromoCodeEnvelope> deactivatePromoCode({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bring an archived promo code back (switched off)
+  @POST('/admin/billing/promo-codes/{id}/restore')
+  Future<PromoCodeEnvelope> restorePromoCode({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

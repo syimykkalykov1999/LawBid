@@ -23,6 +23,7 @@ class ReferralMeDto {
     required this.rewarded,
     required this.rewards,
     required this.promotionCreditDays,
+    required this.promotionCreditDaysExact,
     required this.pendingDiscountPercent,
     required this.applyWindowDays,
     required this.canApply,
@@ -51,6 +52,9 @@ class ReferralMeDto {
 
   /// Free case-promotion days.
   final int promotionCreditDays;
+
+  /// Free case-promotion days, exact (may be fractional: 0.5 = 12 hours).
+  final num promotionCreditDaysExact;
 
   /// Percent off the first subscription invoice (0 = none).
   final int pendingDiscountPercent;

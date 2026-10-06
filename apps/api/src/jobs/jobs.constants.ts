@@ -81,6 +81,8 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: nightly safety net — attorney trust levels follow
    * the facts (registry flags, Stripe, decisions) even if a hook was missed. */
   trustRecompute: 'trust.recompute',
+  /** Owner 2026-10-05 (legal): stale unconverted outreach leads deleted. */
+  outreachRetention: 'outreach.retention',
   /** Owner 2026-10-05 (storage like Telegram): unused files and abandoned
    * uploads removed; old technical logs trimmed; a daily usage snapshot
    * with the growth alert. */
@@ -96,6 +98,9 @@ export const CRON_JOBS = {
   opsCostCheck: 'ops.cost-check',
   /** Newest CockroachDB Cloud backup is fresh. */
   opsBackupCheck: 'ops.backup-check',
+  /** Owner 2026-10-05: spend caps in mode «Авто» follow real usage
+   * (CostAutoscaleService). */
+  costAutoscale: 'cost.autoscale',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -156,6 +161,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 14:30 UTC ≈ 07:30 Pacific: the day after a period ends.
   { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },
   { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
+  { name: CRON_JOBS.outreachRetention, pattern: '25 3 * * *' },
   { name: CRON_JOBS.storageCleanup, pattern: '17 * * * *' },
   { name: CRON_JOBS.storageRetention, pattern: '35 4 * * *' },
   { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },
@@ -163,6 +169,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },
+  { name: CRON_JOBS.costAutoscale, pattern: '17 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

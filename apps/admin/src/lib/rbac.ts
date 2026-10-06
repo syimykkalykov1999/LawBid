@@ -40,7 +40,7 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'email_templates', label: 'Шаблоны писем', hint: 'тексты писем и пушей' },
   { key: 'localization', label: 'Локализация', hint: 'языки, переводы и страны' },
   { key: 'settings', label: 'Функции и настройки', hint: 'флаги, лимиты, версии приложения' },
-  { key: 'legal', label: 'Юр. документы', hint: 'версии документов' },
+  { key: 'legal', label: 'Юр. документы', hint: 'версии документов; право и жалобы (DMCA, дисклеймеры)' },
   { key: 'data_requests', label: 'Запросы госорганов', hint: 'обращения и ответы' },
   { key: 'exports', label: 'Выгрузки CSV', hint: 'кроме платежей' },
   { key: 'sanctions', label: 'Санкции', hint: 'блокировки и баны по телефону, e-mail, устройству' },
@@ -170,7 +170,7 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/cases', label: 'Кейсы', icon: 'briefcase', area: 'cases', hint: 'кейсы, споры, «не могу связаться»' },
       { href: '/bids', label: 'Ставки', icon: 'gavel', area: 'cases' },
-      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платный буст кейсов ~$10/день' },
+      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платное продвижение постов и кейсов, как в Instagram' },
     ],
   },
   {
@@ -225,6 +225,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/i18n', label: 'Локализация', icon: 'translate', area: 'localization' },
       { href: '/countries', label: 'Страны', icon: 'globe', area: 'localization', hint: 'где работает приложение' },
       { href: '/legal', label: 'Юр. документы', icon: 'file-text', area: 'legal' },
+      // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.
+      { href: '/legal-settings', label: 'Право и жалобы', icon: 'scales', area: 'legal', hint: 'DMCA, дисклеймеры, контакт при инцидентах' },
       { href: '/exports', label: 'Выгрузки CSV', icon: 'download-simple', area: 'exports' },
     ],
   },

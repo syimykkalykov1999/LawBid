@@ -21,10 +21,14 @@ PartnerMeDto _$PartnerMeDtoFromJson(Map<String, dynamic> json) => PartnerMeDto(
   commissions: (json['commissions'] as List<dynamic>)
       .map((e) => PartnerCommissionDto.fromJson(e as Map<String, dynamic>))
       .toList(),
-  texts: PartnerTextsDto.fromJson(json['texts'] as Map<String, dynamic>),
+  texts: PartnerMeTextsDto.fromJson(json['texts'] as Map<String, dynamic>),
+  termsVersion: json['termsVersion'] as String,
+  w9Required: json['w9Required'] as bool,
+  w9Received: json['w9Received'] as bool,
   status: json['status'] == null
       ? null
       : PartnerStatus.fromJson(json['status'] as String),
+  termsAcceptedVersion: json['termsAcceptedVersion'] as String?,
 );
 
 Map<String, dynamic> _$PartnerMeDtoToJson(PartnerMeDto instance) =>
@@ -41,4 +45,8 @@ Map<String, dynamic> _$PartnerMeDtoToJson(PartnerMeDto instance) =>
       'referred': instance.referred.map((e) => e.toJson()).toList(),
       'commissions': instance.commissions.map((e) => e.toJson()).toList(),
       'texts': instance.texts.toJson(),
+      'termsVersion': instance.termsVersion,
+      'termsAcceptedVersion': ?instance.termsAcceptedVersion,
+      'w9Required': instance.w9Required,
+      'w9Received': instance.w9Received,
     };

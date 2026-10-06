@@ -14,9 +14,11 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/negotiation_timeline.dart';
+import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
@@ -61,6 +63,11 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
     }
   }
 
+  /// Trust level 0: the attorney's licence is self-declared, not checked
+  /// (the bid row's attorney summary, or the one from GET /bids/:id).
+  bool _unverifiedAttorney(CaseBid bid) =>
+      (widget.listed?.attorney ?? bid.attorney)?.trustLevel == 0;
+
   Future<void> _accept(CaseBid bid) async {
     final t = ref.read(translatorProvider);
     final client = _viewer == PartyRole.client;
@@ -84,6 +91,10 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
             t.t('cases.outsideStates.clientNoList'),
           if (bid.outsidePractice) t.t('cases.outsidePractice.client'),
         ],
+        // Owner 2026-10-05 (legal): a self-declared licence is repeated in
+        // the confirmation so the client accepts knowingly.
+        if (client && _unverifiedAttorney(bid))
+          t.t('cases.accept.unverifiedLine'),
       ].join('\n\n'),
       confirmLabel: t.t('cases.accept.confirm'),
     );
@@ -186,6 +197,13 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
             viewer: viewer,
             t: t,
             formats: formats,
+            // Owner 2026-10-05 (legal): warn the client before accepting
+            // an unverified attorney's bid.
+            unverifiedNotice: viewer == PartyRole.client &&
+                    b.isActive &&
+                    _unverifiedAttorney(b)
+                ? ref.watch(legalTextsProvider).attorneyUnverified
+                : null,
           ),
         ),
       ),
@@ -253,6 +271,7 @@ class _BidBody extends StatelessWidget {
     required this.viewer,
     required this.t,
     required this.formats,
+    this.unverifiedNotice,
   });
 
   final CaseBid bid;
@@ -260,6 +279,10 @@ class _BidBody extends StatelessWidget {
   final PartyRole viewer;
   final Translator t;
   final L10nFormats formats;
+
+  /// Shown above the accept button when the attorney's licence is
+  /// self-declared (trust level 0); null otherwise.
+  final String? unverifiedNotice;
 
   @override
   Widget build(BuildContext context) {
@@ -423,6 +446,14 @@ class _BidBody extends StatelessWidget {
             formats: formats,
           ),
         ),
+        if (unverifiedNotice != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          NoticeCard(
+            key: const ValueKey('bid-unverified-notice'),
+            icon: AppIcons.warningAmberRounded,
+            message: unverifiedNotice!,
+          ),
+        ],
       ],
     );
   }

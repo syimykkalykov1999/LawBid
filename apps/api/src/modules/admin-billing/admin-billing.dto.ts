@@ -197,17 +197,18 @@ export const PROMO_STATUSES = [
   'expired',
   'exhausted',
   'inactive',
+  'archived',
 ] as const;
 export type PromoStatus = (typeof PROMO_STATUSES)[number];
 
 export class AdminPromoQueryDto extends AdminBillingCursorQueryDto {
   @ApiPropertyOptional({
-    enum: ['active', 'expired', 'inactive'],
+    enum: ['active', 'expired', 'inactive', 'archived'],
     enumName: 'PromoCodeFilter',
   })
   @IsOptional()
-  @IsIn(['active', 'expired', 'inactive'])
-  status?: 'active' | 'expired' | 'inactive';
+  @IsIn(['active', 'expired', 'inactive', 'archived'])
+  status?: 'active' | 'expired' | 'inactive' | 'archived';
 
   @ApiPropertyOptional({ description: 'Code prefix.', maxLength: 40 })
   @IsOptional()
@@ -375,8 +376,27 @@ export class PromoCodeDto {
   @ApiProperty({ enum: PROMO_STATUSES, enumName: 'PromoCodeStatus' })
   status!: PromoStatus;
   @ApiProperty({ type: String, nullable: true }) stripeCouponId!: string | null;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Set when the code was deleted after being used.',
+  })
+  archivedAt!: string | null;
   @ApiProperty({ format: 'uuid' }) createdBy!: string;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+/** DELETE /admin/billing/promo-codes/:id — what happened to the code. */
+export class PromoDeleteResultDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({
+    enum: ['deleted', 'archived'],
+    enumName: 'PromoDeleteOutcome',
+    description:
+      'deleted: never used, removed for good (the code can be reused); archived: already used, hidden and switched off so payment history stays intact.',
+  })
+  outcome!: 'deleted' | 'archived';
 }
 
 export class PromoRedemptionDto {

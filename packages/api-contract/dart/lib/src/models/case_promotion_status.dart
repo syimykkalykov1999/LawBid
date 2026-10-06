@@ -8,6 +8,8 @@ import 'package:json_annotation/json_annotation.dart';
 enum CasePromotionStatus {
   @JsonValue('pending_payment')
   pendingPayment('pending_payment'),
+  @JsonValue('pending_review')
+  pendingReview('pending_review'),
   @JsonValue('active')
   active('active'),
   @JsonValue('finished')
@@ -16,6 +18,8 @@ enum CasePromotionStatus {
   canceled('canceled'),
   @JsonValue('refunded')
   refunded('refunded'),
+  @JsonValue('rejected')
+  rejected('rejected'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

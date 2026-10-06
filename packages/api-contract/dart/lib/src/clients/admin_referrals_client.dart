@@ -27,12 +27,15 @@ abstract class AdminReferralsClient {
   /// Referrals, newest first.
   ///
   /// [role] - Referee's role.
+  ///
+  /// [q] - Search: code prefix, or name / email of either side (owner 2026-10-05).
   @GET('/admin/referrals')
   Future<AdminReferralRowListEnvelope> listAdminReferrals({
     @Query('status') ReferralStatus? status,
     @Query('role') Role2? role,
     @Query('referrerId') String? referrerId,
     @Query('refereeId') String? refereeId,
+    @Query('q') String? q,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

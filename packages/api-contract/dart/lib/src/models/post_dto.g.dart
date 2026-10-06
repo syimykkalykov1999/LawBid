@@ -42,6 +42,7 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
       ? null
       : PostVideoDto.fromJson(json['video'] as Map<String, dynamic>),
   editedAt: json['editedAt'] as String?,
+  promotionId: json['promotionId'] as String?,
 );
 
 Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
@@ -68,4 +69,5 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'isMine': instance.isMine,
   'createdAt': instance.createdAt,
   'editedAt': ?instance.editedAt,
+  'promotionId': ?instance.promotionId,
 };

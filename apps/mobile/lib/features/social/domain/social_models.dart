@@ -188,7 +188,12 @@ class Post {
     this.locationName,
     this.commentsEnabled = true,
     this.attachments = const [],
+    this.promotionId,
   });
+
+  /// Owner 2026-10-05: set on a paid promoted post in the feed — the card
+  /// says «Реклама» and an open is reported for the owner's stats.
+  final String? promotionId;
 
   /// Owner 2026-10-05: up to 9 documents readers download.
   final List<PostAttachment> attachments;
@@ -272,6 +277,7 @@ class Post {
         locationName: locationName,
         commentsEnabled: commentsEnabled,
         attachments: attachments,
+        promotionId: promotionId,
       );
 }
 
@@ -435,6 +441,10 @@ enum ReportReason {
 
   /// Owner 2026-10-05: a fake attorney — counts as a trust complaint.
   fraud,
+
+  /// Owner 2026-10-05 (legal): copyright — the report sheet opens the DMCA
+  /// form (features/legal) instead of calling `POST /reports` directly.
+  copyright,
 }
 
 enum ReportTarget { post, comment, message, user, stickerPack }
