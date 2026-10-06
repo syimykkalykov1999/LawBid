@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -125,14 +126,15 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     ..invalidate(reviewsListProvider)
     ..invalidate(myAttorneyReviewProvider(p.id));
 
-  /// Owner 2026-10-01 (Google-style): anyone writes / edits their review.
+  /// Owner 2026-10-06: a client who completed a case with this attorney
+  /// writes / edits their review.
   Future<void> _writeReview(Translator t, Review? mine) async {
     final saved = await showClientReviewSheet(
       context,
       rating: mine?.rating ?? 0,
       body: mine?.body ?? '',
       titleKey: 'reviews.write.title',
-      hintKey: 'reviews.write.hint',
+      hintKey: 'reviews.write.hintCase',
       photos: [
         for (final ph in mine?.photos ?? const <ReviewPhoto>[])
           (fileId: ph.fileId, url: ph.previewUrl),
@@ -291,13 +293,23 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         // Posts/News grids sit flush under the tabs (owner 2026-10-01);
         // the reviews tab keeps its breathing room.
         SizedBox(height: reviewsTab ? AppSpacing.lg : 2),
-        // Owner 2026-10-01: anyone (client, attorney, assistant) reviews.
+        // Owner 2026-10-06: only a client who completed a case with this
+        // attorney reviews them; everyone else sees why instead.
         if (reviewsTab && !p.isSelf)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Builder(
               builder: (context) {
-                final mine = ref.watch(myAttorneyReviewProvider(p.id)).value;
+                final mineAsync = ref.watch(myAttorneyReviewProvider(p.id));
+                if (mineAsync.isLoading && !mineAsync.hasValue) {
+                  return const SizedBox.shrink();
+                }
+                final error = mineAsync.error;
+                if (error is ApiException &&
+                    error.code == ApiErrorCodes.reviewCaseNotClosed) {
+                  return const _ReviewOnlyAfterCaseHint();
+                }
+                final mine = mineAsync.value;
                 return AppButton(
                   key: const ValueKey('review-write'),
                   label: t.t(
@@ -461,6 +473,33 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-06: why there is no "Write a review" button — only
+/// clients who completed a case with this attorney review them.
+class _ReviewOnlyAfterCaseHint extends ConsumerWidget {
+  const _ReviewOnlyAfterCaseHint();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Row(
+      key: const ValueKey('review-only-after-case'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppIcon(AppIcons.infoOutlineRounded, color: colors.textSecondary),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            t.t('reviews.write.onlyAfterCase'),
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 }

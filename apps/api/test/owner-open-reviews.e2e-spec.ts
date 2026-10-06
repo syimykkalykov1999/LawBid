@@ -8,14 +8,14 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
- * Owner 2026-10-01: anyone reviews anyone — clients, attorneys and
- * assistants review attorneys without a shared case (one open review per
- * author), and clients / assistants are reviewed too. Removal: the author
- * deletes; the reviewed attorney appeals (admin decides, 30 days → gone).
+ * Owner 2026-10-06: an attorney is reviewed only by a client who completed
+ * a case with them (one review per client, tied to that case); clients and
+ * assistants are still reviewed by anyone (owner 2026-10-01). Removal: the
+ * author deletes; the reviewed attorney appeals (admin decides).
  */
 jest.setTimeout(120_000);
 
-describe('Open reviews (e2e, owner 2026-10-01)', () => {
+describe('Reviews by who worked together (e2e, owner 2026-10-06)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let tokens: TokenService;
@@ -88,10 +88,75 @@ describe('Open reviews (e2e, owner 2026-10-01)', () => {
     return u.id;
   }
 
-  it('anyone reviews an attorney; appeal and delete work', async () => {
+  let practiceAreaId = '';
+  /** A closed case of [clientId] with [attorneyId]'s bid accepted. */
+  async function completedCase(
+    clientId: string,
+    attorneyId: string,
+    status: 'closed' | 'in_progress' = 'closed',
+  ): Promise<string> {
+    if (!practiceAreaId) {
+      await prisma.state.upsert({
+        where: { code: 'NY' },
+        create: { code: 'NY', name: 'New York', is_active: true },
+        update: {},
+      });
+      const area = await prisma.practiceArea.upsert({
+        where: { code: 'e2e_open_reviews_leaf' },
+        create: {
+          code: 'e2e_open_reviews_leaf',
+          name_en: 'E2E open reviews',
+          i18n_key: 'practice.e2e_open_reviews_leaf',
+          sort: 1,
+        },
+        update: {},
+      });
+      practiceAreaId = area.id;
+    }
+    const c = await prisma.case.create({
+      data: {
+        client_id: clientId,
+        title: 'Lease review',
+        description: 'Review my apartment lease.',
+        practice_area_id: practiceAreaId,
+        primary_state_code: 'NY',
+        budget_mode: 'clarify_later',
+        status,
+        closed_at: status === 'closed' ? new Date() : null,
+      },
+    });
+    const bid = await prisma.bid.create({
+      data: {
+        case_id: c.id,
+        attorney_id: attorneyId,
+        status: 'accepted',
+        fee_type: 'fixed',
+        amount_cents: 50_000,
+        message: 'I can help.',
+        start_availability: 'immediately',
+        turn: 'client',
+        decided_at: new Date(),
+      },
+    });
+    await prisma.case.update({
+      where: { id: c.id },
+      data: { accepted_bid_id: bid.id },
+    });
+    return c.id;
+  }
+
+  it('only clients who completed a case review an attorney', async () => {
     const a = await attorney();
     const b = await attorney();
     const c = await person('client');
+    const c2 = await person('client');
+    const c3 = await person('client');
+    const stranger = await person('client');
+    const ongoing = await person('client');
+    const caseId = await completedCase(c, a);
+    await completedCase(c2, a);
+    await completedCase(c3, a);
+    await completedCase(ongoing, a, 'in_progress');
     const ownAssistant = await person('assistant');
     const otherAssistant = await person('assistant');
     await prisma.assistantMembership.create({
@@ -151,22 +216,36 @@ describe('Open reviews (e2e, owner 2026-10-01)', () => {
     expect(r1.body.data.photos[0].fileId).toBe(photo.id);
     expect(r1.body.data.authorReviewCount).toBe(1);
     expect(r1.body.data).toMatchObject({
-      caseId: null,
-      fromCase: false,
+      caseId,
+      fromCase: true,
       authorRole: 'client',
     });
-    // One open review per author: a second PUT edits it.
+    // One review per client and attorney: a second PUT edits it.
     await put(c, 'client', 4, 'Still great').expect(200);
-    await put(b, 'attorney', 2).expect(200);
-    const r3 = await put(otherAssistant, 'assistant', 3).expect(200);
-    expect(r3.body.data.authorRole).toBe('assistant');
-    // Not yourself, not an assistant about their own attorney.
+    await put(c2, 'client', 2).expect(200);
+    await put(c3, 'client', 3).expect(200);
+    // Never worked together (or not finished yet) → 403, with the reason
+    // already on GET .../mine so the app hides the button.
+    for (const [who, role] of [
+      [stranger, 'client'],
+      [ongoing, 'client'],
+      [b, 'attorney'],
+      [otherAssistant, 'assistant'],
+      [ownAssistant, 'assistant'],
+    ] as const) {
+      const res = await put(who, role, 5).expect(403);
+      expect(res.body.error.code).toBe('REVIEW_CASE_NOT_CLOSED');
+    }
+    const why = await api()
+      .get(`/api/v1/attorneys/${a}/reviews/mine`)
+      .set(bearer(stranger, 'client'))
+      .expect(403);
+    expect(why.body.error.code).toBe('REVIEW_CASE_NOT_CLOSED');
     await api()
       .put(`/api/v1/attorneys/${a}/reviews/mine`)
       .set(bearer(a, 'attorney'))
       .send({ rating: 5 })
       .expect(403);
-    await put(ownAssistant, 'assistant', 5).expect(403);
 
     const summary = await api()
       .get(`/api/v1/attorneys/${a}/reviews/summary`)
@@ -180,10 +259,10 @@ describe('Open reviews (e2e, owner 2026-10-01)', () => {
     expect(list.body.data).toHaveLength(3);
     const items = list.body.data as {
       id: string;
-      authorRole: string;
+      rating: number;
       isMine: boolean;
     }[];
-    const byB = items.find((x) => x.authorRole === 'attorney')!;
+    const byB = items.find((x) => x.rating === 2)!;
 
     // Google-style: the attorney can't delete it — they reply publicly.
     await api()
@@ -237,7 +316,7 @@ describe('Open reviews (e2e, owner 2026-10-01)', () => {
       .expect(201);
     await api()
       .post(`/api/v1/reviews/${byB.id}/report`)
-      .set(bearer(b, 'attorney'))
+      .set(bearer(c2, 'client'))
       .send({ reason: 'spam' })
       .expect(403); // the author edits or deletes instead
     expect(

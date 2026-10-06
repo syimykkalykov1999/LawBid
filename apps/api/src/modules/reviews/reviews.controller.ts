@@ -150,8 +150,9 @@ export class ReviewsController {
     return this.reviews.summary(params.id);
   }
 
-  // Owner 2026-10-01: anyone reviews any attorney (assistants as
-  // themselves, not as their attorney).
+  // Owner 2026-10-06: only a client who completed a case with this
+  // attorney (403 REVIEW_CASE_NOT_CLOSED otherwise; the review is tied to
+  // that case).
   @AssistantSelf()
   @Put('attorneys/:id/reviews/mine')
   @ApiOperation({ summary: 'Write / edit my open review of an attorney' })
