@@ -20,6 +20,7 @@ import {
   type ProviderSubscription,
   WebhookSignatureError,
 } from './payment-provider';
+import { demoDenyProxy } from '../../common/demo/demo-guards';
 
 /**
  * docs/06 §1.4–1.6 over the official SDK. Period boundaries are read from
@@ -42,13 +43,17 @@ export class StripePaymentProvider implements PaymentProvider {
      * (events of connected accounts); falls back to [webhookSecret]. */
     private readonly connectWebhookSecret?: string,
   ) {
-    this.stripe = new Stripe(secretKey, {
-      typescript: true,
-      maxNetworkRetries: 2,
-      // A hung Stripe call fails in seconds, not minutes: the admin sees a
-      // clear "check the Stripe key" instead of a timed-out request.
-      timeout: 20_000,
-    });
+    // Demo accounts can never reach Stripe (src/common/demo).
+    this.stripe = demoDenyProxy(
+      new Stripe(secretKey, {
+        typescript: true,
+        maxNetworkRetries: 2,
+        // A hung Stripe call fails in seconds, not minutes: the admin sees a
+        // clear "check the Stripe key" instead of a timed-out request.
+        timeout: 20_000,
+      }),
+      'Payments',
+    );
     this.live = /^(sk|rk)_live_/.test(secretKey);
   }
 

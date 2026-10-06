@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 
 /// Attaches `Authorization: Bearer <accessToken>` to every request that
@@ -26,11 +27,19 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (options.extra['skipAuth'] != true) {
-      final session = _ref.read(sessionControllerProvider);
-      if (session != null) {
-        options.headers['Authorization'] = 'Bearer ${session.accessToken}';
-      }
+    final session = _ref.read(sessionControllerProvider);
+    final skipAuth = options.extra[RequestFlags.skipAuth] == true;
+    if (!skipAuth && session != null) {
+      options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    }
+    // Owner 2026-10-05 (docs/ops/demo-world.md): a demo session marks every
+    // bearer request (logout included). Token-issuing calls (`skipAuth`,
+    // i.e. refresh) say so themselves via `RequestFlags.demo` — the cold
+    // start of a stored demo token has no session in memory yet, and the
+    // real account's restore from inside a demo session must NOT be marked.
+    if (options.extra[RequestFlags.demo] == true ||
+        (!skipAuth && (session?.isDemo ?? false))) {
+      options.headers[RequestFlags.demoHeader] = '1';
     }
     handler.next(options);
   }

@@ -9,6 +9,7 @@ import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/social_login_result.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -258,6 +259,13 @@ class OnboardingFlow extends _$OnboardingFlow {
       // Best effort — the server consumes the link token anyway.
     }
     await ref.read(currentUserControllerProvider.notifier).ensureLoaded();
+    if (isNewUser) {
+      // docs/ops/demo-world.md: a brand-new account is owed the one-time
+      // «Есть код приглашения?» sheet once onboarding is done (MainShell).
+      try {
+        await ref.read(pendingReferralStoreProvider).markAskPending();
+      } catch (_) {}
+    }
     state = state.copyWith(
       isSubmitting: false,
       step: isNewUser ? OnboardingStep.role : OnboardingStep.completed,

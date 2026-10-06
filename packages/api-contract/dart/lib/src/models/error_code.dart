@@ -372,6 +372,14 @@ enum ErrorCode {
   outreachEmailLimit('OUTREACH_EMAIL_LIMIT'),
   @JsonValue('COUNTRY_NOT_AVAILABLE')
   countryNotAvailable('COUNTRY_NOT_AVAILABLE'),
+  @JsonValue('DEMO_DISABLED')
+  demoDisabled('DEMO_DISABLED'),
+  @JsonValue('DEMO_LIMIT_REACHED')
+  demoLimitReached('DEMO_LIMIT_REACHED'),
+  @JsonValue('DEMO_UNAVAILABLE')
+  demoUnavailable('DEMO_UNAVAILABLE'),
+  @JsonValue('DEMO_CODE_INVALID')
+  demoCodeInvalid('DEMO_CODE_INVALID'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -414,4 +414,12 @@ export enum ErrorCode {
   // Owner 2026-10-05 — countries. 403: LawBid is not switched on in this
   // country yet (sign-up, profile, new case); details.countryCode.
   COUNTRY_NOT_AVAILABLE = 'COUNTRY_NOT_AVAILABLE',
+  // Owner 2026-10-05 — demo mode («Продвижение»). 403: switched off or the
+  // partner has no demo right; 409: the partner holds the most demo
+  // accounts allowed; 503: the demo database is not ready; 404: unknown
+  // or expired demo invite code.
+  DEMO_DISABLED = 'DEMO_DISABLED',
+  DEMO_LIMIT_REACHED = 'DEMO_LIMIT_REACHED',
+  DEMO_UNAVAILABLE = 'DEMO_UNAVAILABLE',
+  DEMO_CODE_INVALID = 'DEMO_CODE_INVALID',
 }

@@ -12,6 +12,7 @@ import {
   type CostProvider,
   type CostWindow,
 } from './cost-guard.constants';
+import { assertNotDemo } from '../demo/demo-guards';
 
 // One atomic round trip for all windows of one provider.
 // KEYS: n counter keys, then n warn-flag keys, then n exhausted-flag keys.
@@ -116,6 +117,9 @@ export class CostGuardService {
     if (!Number.isInteger(units) || units < 1) {
       throw new Error(`CostGuardService.consume: invalid units ${units}`);
     }
+    // Owner 2026-10-05 (demo mode): no paid provider ever works for a demo
+    // account; only storage (small, quota-capped uploads) is allowed.
+    if (provider !== 'storage') assertNotDemo('This service');
     const caps = await this.resolveCaps(provider);
     const now = this.now();
     const n = COST_WINDOWS.length;

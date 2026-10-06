@@ -105,6 +105,13 @@ dependencies:
   just_audio: ^0.10.6
   path_provider: ^2.1.6
   flutter_webrtc: ^1.6.2+hotfix.3
+  # Owner 2026-10-05 (docs/ops/demo-world.md): Android Play Install Referrer —
+  # `lawbid_ref=<CODE>` from the store link becomes the pending referral
+  # code applied once after onboarding (features/referrals/application/
+  # install_referrer.dart). MIT. NOTE: pub.dev marks 0.4.0 (Apr 2024) as the
+  # final release and points to `play_install_referrer` (same API, class
+  # `PlayInstallReferrer`) as its successor — swap when convenient.
+  android_play_install_referrer: ^0.4.0
   flutter_callkit_incoming: ^3.1.6
   font_awesome_flutter: ^11.0.0
   video_player: ^2.14.0

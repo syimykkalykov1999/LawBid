@@ -41,6 +41,7 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { DemoService } from '../modules/demo/demo.service';
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
@@ -79,6 +80,7 @@ export class CronProcessor {
     private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
+    @Optional() private readonly demo: DemoService | undefined,
     private readonly caseDeadlineReminder: CaseDeadlineReminderJob,
     private readonly trust: AttorneyTrustService,
     private readonly fraud: ClientFraudService,
@@ -163,6 +165,8 @@ export class CronProcessor {
         return this.casePayments.remind();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.demoSweep:
+        return this.demo?.sweep();
       case CRON_JOBS.caseDeadlineReminder:
         return this.caseDeadlineReminder.run();
       case CRON_JOBS.trustRecompute:

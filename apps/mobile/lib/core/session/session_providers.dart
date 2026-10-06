@@ -47,12 +47,22 @@ class SessionController extends _$SessionController {
   Future<SessionBootstrapResult> bootstrap() async {
     final store = ref.read(tokenSecureStoreProvider);
     final refreshToken = await store.readRefreshToken();
-    if (refreshToken == null) return SessionBootstrapResult.signedOut;
+    if (refreshToken == null) {
+      // Demo mode: the demo session is gone (deleted / reset by the admin)
+      // but the real account's token is still parked — go back to it.
+      return await restoreRealSession()
+          ? SessionBootstrapResult.signedIn
+          : SessionBootstrapResult.signedOut;
+    }
+    final isDemo = await store.readRefreshTokenIsDemo();
     try {
-      await _refresh(refreshToken);
+      await _refresh(refreshToken, isDemo: isDemo);
       return SessionBootstrapResult.signedIn;
     } on ApiException catch (e) {
       if (e.isNetworkError) return SessionBootstrapResult.offline;
+      if (isDemo && await restoreRealSession()) {
+        return SessionBootstrapResult.signedIn;
+      }
       return SessionBootstrapResult.signedOut;
     } catch (_) {
       state = null;
@@ -67,10 +77,50 @@ class SessionController extends _$SessionController {
   /// state), reconstructed from the refresh token on every cold start via
   /// [bootstrap].
   Future<void> applyTokens(AuthTokensResult tokens) async {
-    state = _decode(tokens);
+    final decoded = _decode(tokens);
+    state = decoded;
     await ref
         .read(tokenSecureStoreProvider)
-        .writeRefreshToken(tokens.refreshToken);
+        .writeRefreshToken(tokens.refreshToken, isDemo: decoded.isDemo);
+  }
+
+  /// Owner 2026-10-05, demo mode (docs/ops/demo-world.md): replaces the
+  /// current session with [tokens] in place (no signed-out gap for the
+  /// router). The caller (`DemoSessionController`) parks/restores the real
+  /// refresh token and resets `GET /users/me` so the guard waits on the
+  /// splash instead of routing by the previous account for a frame; the
+  /// realtime socket and pushes re-key on `sub` by themselves.
+  Future<void> switchSession(AuthTokensResult tokens) => applyTokens(tokens);
+
+  /// Demo mode: brings the parked REAL account back (`lawbid.realRefreshToken`
+  /// → `/auth/refresh`). Returns false when nothing was parked (a blogger
+  /// who came in with a demo code) or the real token was rejected; a
+  /// network failure keeps the token for the next attempt and also
+  /// returns false. Never throws.
+  Future<bool> restoreRealSession() async {
+    final store = ref.read(tokenSecureStoreProvider);
+    final String? real;
+    try {
+      real = await store.readRealRefreshToken();
+    } catch (_) {
+      return false;
+    }
+    if (real == null) return false;
+    try {
+      await store.clearRealRefreshToken();
+      await _refresh(real);
+      return true;
+    } on ApiException catch (e) {
+      if (e.isNetworkError) {
+        // Keep it: the next cold start / exit attempt can still succeed.
+        try {
+          await store.writeRealRefreshToken(real);
+        } catch (_) {}
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Single-flight refresh (docs/01_FOUNDATION_AUTH.md §15 manual QA item
@@ -87,11 +137,13 @@ class SessionController extends _$SessionController {
       if (refreshToken == null) {
         throw StateError('No refresh token available to refresh a session.');
       }
-      return _refresh(refreshToken);
+      final isDemo =
+          state?.isDemo ?? await store.readRefreshTokenIsDemo();
+      return _refresh(refreshToken, isDemo: isDemo);
     });
   }
 
-  Future<String> _refresh(String refreshToken) async {
+  Future<String> _refresh(String refreshToken, {bool isDemo = false}) async {
     final store = ref.read(tokenSecureStoreProvider);
     try {
       final client = ref.read(authApiClientProvider);
@@ -99,6 +151,7 @@ class SessionController extends _$SessionController {
       final tokens = await client.refresh(
         refreshToken: refreshToken,
         deviceInfo: deviceInfo,
+        isDemo: isDemo,
       );
       await applyTokens(tokens);
       return tokens.accessToken;
@@ -124,14 +177,35 @@ class SessionController extends _$SessionController {
   /// `AuthRepository.logout()` first (see `RealAuthRepository`) — this
   /// method only ever touches local state, so it's also what
   /// `AuthInterceptor` calls when a refresh irrecoverably fails.
+  ///
+  /// Demo mode (docs/ops/demo-world.md): when the session being cleared is a
+  /// DEMO one and a real account is parked (its refresh token in
+  /// `lawbid.realRefreshToken`), the real account comes back instead of a
+  /// sign-out — a demo world reset by the admin must not throw a partner
+  /// out of their own account. Clearing a real session also drops any
+  /// parked token (there is nothing to come back to after a real sign-out).
   Future<void> clear() async {
-    state = null;
-    await ref.read(tokenSecureStoreProvider).clear();
+    final wasDemo = state?.isDemo ?? false;
+    final store = ref.read(tokenSecureStoreProvider);
+    // Demo → real in one step (the real session replaces the demo one in
+    // memory and in the store), so the router never sees a signed-out gap.
+    final restored = wasDemo && await restoreRealSession();
+    if (!restored) {
+      state = null;
+      await store.clear();
+    }
     // A pending email magic-link verifier must not outlive the session.
     try {
       await ref.read(magicLinkVerifierStoreProvider).clear();
     } catch (_) {
       // Best effort — it is single-use server-side anyway.
+    }
+    if (!wasDemo) {
+      try {
+        await store.clearRealRefreshToken();
+      } catch (_) {
+        // Best effort.
+      }
     }
   }
 
@@ -152,6 +226,8 @@ class SessionController extends _$SessionController {
       subscriptionStatus: payload['subscriptionStatus'] as String,
       accessTokenExpiresAt:
           DateTime.now().add(Duration(seconds: tokens.accessTokenExpiresIn)),
+      // docs/ops/demo-world.md: claim `demo: true` marks a demo session.
+      isDemo: payload['demo'] == true,
     );
   }
 }
