@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -71,5 +72,13 @@ void main() {
       paymentPageLaunchMode(TargetPlatform.android),
       LaunchMode.inAppBrowserView,
     );
+  });
+
+  test('release builds offer only social logins they can complete', () {
+    expect(AppConfig.appleSignInSupported(TargetPlatform.iOS), isTrue);
+    expect(AppConfig.appleSignInSupported(TargetPlatform.android), isFalse);
+    // No GOOGLE_* dart-defines in `flutter test`: not configured anywhere.
+    expect(AppConfig.googleSignInConfigured(TargetPlatform.iOS), isFalse);
+    expect(AppConfig.googleSignInConfigured(TargetPlatform.android), isFalse);
   });
 }

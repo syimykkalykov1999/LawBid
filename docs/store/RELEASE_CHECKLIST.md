@@ -21,6 +21,7 @@ for SES production access. Owner-facing steps in Russian, field by field:
 | R8 rules for Stripe, WebRTC, CallKit | `android/app/proguard-rules.pro` |
 | Stripe pages (checkout, portal) open in Safari on iOS | `lib/shared/domain/payment_page_launch_mode.dart` |
 | AASA with Team ID 78T56RPM74, `/delete-account` page | LawBidSite PR #17 |
+| Release builds hide Sign in with Apple on Android and Google sign-in when its client id is not set (no button that only errors) | `AppConfig.appleSignInSupported` / `googleSignInConfigured`, welcome + account screens |
 | Guard tests | `test/release/store_release_config_test.dart` |
 
 ## 2. The one final build (Mac; owner rule: build once, at the end)
@@ -31,7 +32,7 @@ Run only after `https://api.lawbid.dev/api/v1/health` answers.
 2. `config/prod.json` (gitignored): copy `config/prod.example.json`, then fill
    `STRIPE_PUBLISHABLE_KEY=pk_live_…` (same Stripe account as the server's
    live key), `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_SERVER_CLIENT_ID` (empty hides
-   Google sign-in). `APP_STORE_ID` stays empty until App Store Connect shows
+   Google sign-in in a release build; v1 ships without it). `APP_STORE_ID` stays empty until App Store Connect shows
    the app's Apple ID. Check that an older local `prod.json` does not still
    say `lawbid.app`.
 3. Firebase prod files (project `lawbid-6e5ff`, gitignored):
