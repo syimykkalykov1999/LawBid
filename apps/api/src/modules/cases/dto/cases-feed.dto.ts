@@ -81,6 +81,17 @@ export class ListCasesFeedQueryDto {
   state?: string;
 
   @ApiPropertyOptional({
+    example: 'NJ,NY',
+    description:
+      'Owner 2026-10-06: several states at once (comma-separated) — cases in any of them; joins `state` when both are sent.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  @Matches(/^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$/)
+  states?: string;
+
+  @ApiPropertyOptional({
     enum: ['licensed', 'all'],
     default: 'licensed',
     description:

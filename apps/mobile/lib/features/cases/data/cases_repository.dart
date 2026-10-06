@@ -142,6 +142,8 @@ abstract interface class CasesRepository {
     String? state,
     CaseFeedExtras extras = const CaseFeedExtras(),
     bool mineOnly = true,
+    // Owner 2026-10-06: several states at once.
+    List<String> states = const [],
   });
   Future<FeedCase> attorneyCase(String caseId);
   Future<void> recordView(String caseId);
@@ -452,6 +454,8 @@ class ApiCasesRepository implements CasesRepository {
     String? state,
     CaseFeedExtras extras = const CaseFeedExtras(),
     bool mineOnly = true,
+    // Owner 2026-10-06: several states at once.
+    List<String> states = const [],
   }) async {
     final env = await guardApiCall(
       () => _cases.listCaseFeed(
@@ -463,6 +467,7 @@ class ApiCasesRepository implements CasesRepository {
         // not.
         practice: practiceCategory,
         state: state,
+        states: states.isEmpty ? null : states.join(','),
         // Audit 2026-10-01: the Search tab's filters, on the server.
         period:
             extras.period == null ? null : api.Period.fromJson(extras.period!),

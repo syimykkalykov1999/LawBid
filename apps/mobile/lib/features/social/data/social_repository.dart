@@ -175,6 +175,10 @@ abstract interface class SocialRepository {
     bool popular = false,
     // Owner 2026-10-05: the "Posts" topic — general (personal) posts only.
     bool generalOnly = false,
+    // Owner 2026-10-06: several states at once, and «Юр. посты» →
+    // «Только мои темы» (any of these qualifications).
+    List<String> states = const [],
+    List<String> practices = const [],
   });
   Future<Post> createPost(PostDraft draft);
   Future<Post> updatePost(
@@ -379,10 +383,14 @@ class ApiSocialRepository implements SocialRepository {
     bool withPhotos = false,
     bool popular = false,
     bool generalOnly = false,
+    List<String> states = const [],
+    List<String> practices = const [],
   }) async {
     final env = await guardApiCall(
       () => _search.latestPosts(
         state: state,
+        states: states.isEmpty ? null : states.join(','),
+        practices: practices.isEmpty ? null : practices.join(','),
         cursor: cursor,
         practice: practice,
         tag: tag,

@@ -21394,6 +21394,18 @@
             }
           },
           {
+            "name": "states",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-06: several states at once (comma-separated) — cases in any of them; joins `state` when both are sent.",
+            "schema": {
+              "maxLength": 180,
+              "pattern": "^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$",
+              "example": "NJ,NY",
+              "type": "string"
+            }
+          },
+          {
             "name": "scope",
             "required": false,
             "in": "query",
@@ -48057,6 +48069,30 @@
               "minLength": 2,
               "maxLength": 2,
               "example": "IL",
+              "type": "string"
+            }
+          },
+          {
+            "name": "states",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-06: several states at once (comma-separated) — posts of\nattorneys licensed in any of them. Joins `state` when both are sent.",
+            "schema": {
+              "maxLength": 180,
+              "pattern": "^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$",
+              "example": "IL,NY",
+              "type": "string"
+            }
+          },
+          {
+            "name": "practices",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of\nthese qualifications (comma-separated; a category includes its\nsubcategories).",
+            "schema": {
+              "maxLength": 4000,
+              "pattern": "^[a-z0-9_.]{2,120}(,[a-z0-9_.]{2,120}){0,99}$",
+              "example": "immigration,traffic.tickets",
               "type": "string"
             }
           },

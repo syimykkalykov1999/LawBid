@@ -78,3 +78,38 @@ final feedContentModeProvider =
     NotifierProvider<FeedContentModeNotifier, FeedContentMode>(
   FeedContentModeNotifier.new,
 );
+
+/// Owner 2026-10-06: what «Юр. посты» shows — every legal post (a post
+/// with a qualification), or only those of the qualifications picked in
+/// «Выберите темы». Picked inside «Выберите темы»; kept on the device, like
+/// the topics themselves.
+enum FeedLegalScope { all, mine }
+
+const _scopeKey = 'feed.legalScope.v1';
+
+class FeedLegalScopeNotifier extends Notifier<FeedLegalScope> {
+  @override
+  FeedLegalScope build() {
+    try {
+      final saved = ref.read(sharedPreferencesProvider).getString(_scopeKey);
+      if (saved == FeedLegalScope.mine.name) return FeedLegalScope.mine;
+    } on Object {
+      // Tests / previews without preferences: the default.
+    }
+    return FeedLegalScope.all;
+  }
+
+  void set(FeedLegalScope scope) {
+    state = scope;
+    try {
+      ref.read(sharedPreferencesProvider).setString(_scopeKey, scope.name);
+    } on Object {
+      // Not persisted without preferences; the in-memory choice still works.
+    }
+  }
+}
+
+final feedLegalScopeProvider =
+    NotifierProvider<FeedLegalScopeNotifier, FeedLegalScope>(
+  FeedLegalScopeNotifier.new,
+);

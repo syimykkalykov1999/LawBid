@@ -48,6 +48,8 @@ class FakeCasesRepository implements CasesRepository {
     String? state,
     CaseFeedExtras extras = const CaseFeedExtras(),
     bool mineOnly = true,
+    // Owner 2026-10-06: several states at once.
+    List<String> states = const [],
   }) async =>
       _empty();
 

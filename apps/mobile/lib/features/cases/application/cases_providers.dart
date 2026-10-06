@@ -104,6 +104,8 @@ final bidProvider = FutureProvider.autoDispose.family<CaseBid, String>(
 /// — a practice category from the topic slider and a state.
 typedef FeedFilter = ({
   String? practiceCategory,
+  // Owner 2026-10-06: one state or several, comma-separated ("NJ,NY") so
+  // the key compares by value.
   String? state,
   bool mineOnly,
 });
@@ -118,7 +120,10 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
       ref.read(casesRepositoryProvider).feed(
             cursor: cursor,
             practiceCategory: filter.practiceCategory,
-            state: filter.state,
+            states: [
+              for (final c in (filter.state ?? '').split(','))
+                if (c.isNotEmpty) c,
+            ],
             mineOnly: filter.mineOnly,
           );
 

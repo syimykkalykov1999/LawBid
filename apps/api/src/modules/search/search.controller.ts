@@ -153,6 +153,8 @@ export class SearchController {
     @Query() q: LatestPostsQueryDto,
   ): Promise<PostPage> {
     return this.search.latestPosts(user, q.state, q.cursor, {
+      states: splitList(q.states)?.map((c) => c.toUpperCase()),
+      practices: splitList(q.practices),
       practice: q.practice,
       tag: q.tag,
       kind: q.kind,
@@ -162,4 +164,11 @@ export class SearchController {
       contentClass: q.contentClass,
     });
   }
+}
+
+/** "IL,NY" → ['IL', 'NY'] (validated by the DTO); absent → undefined. */
+function splitList(raw?: string): string[] | undefined {
+  if (!raw) return undefined;
+  const items = [...new Set(raw.split(',').filter(Boolean))];
+  return items.length ? items : undefined;
 }

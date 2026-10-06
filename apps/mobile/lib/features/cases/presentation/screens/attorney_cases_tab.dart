@@ -37,7 +37,9 @@ class AttorneyCasesTab extends ConsumerStatefulWidget {
 class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
   /// Practice category from the topic slider (null = all).
   String? _category;
-  String? _state;
+  // Owner 2026-10-06: several states at once (kMyLicensedStates = all my
+  // licensed states).
+  Set<String> _states = {};
 
   @override
   Widget build(BuildContext context) {
@@ -69,10 +71,11 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
         if (l.status == LicenseState.verified) l.state.code,
     ];
 
-    final mine = _state == kMyLicensedStates;
+    final mine = _states.contains(kMyLicensedStates);
+    final codes = _states.where((c) => c != kMyLicensedStates).toList()..sort();
     final filter = (
       practiceCategory: _category,
-      state: mine ? null : _state,
+      state: codes.isEmpty ? null : codes.join(','),
       mineOnly: mine,
     );
     final value = ref.watch(caseFeedProvider(filter));
@@ -85,8 +88,8 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
         TopicFilterBar(
           category: _category,
           onCategory: (v) => setState(() => _category = v),
-          stateCode: _state,
-          onState: (v) => setState(() => _state = v),
+          stateCodes: _states,
+          onStates: (v) => setState(() => _states = v),
           showNews: false,
           showNotSure: true,
           allowedStates: licensed.isEmpty ? null : licensed,
@@ -105,7 +108,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
                 onRetryMore: n.retryLoadMore,
                 // Audit 2026-10-01: the empty state names the active filters
                 // and offers to clear them.
-                empty: _category == null && _state == null
+                empty: _category == null && _states.isEmpty
                     ? AppEmptyState(
                         title: t.t('cases.feed.emptyTitle'),
                         message: t.t('cases.feed.emptyMessage'),
@@ -119,10 +122,8 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
                             _category == kNotSureTopic
                                 ? t.t('feed.topics.notSure')
                                 : topicName(ref, _category!),
-                          if (_state == kMyLicensedStates)
-                            t.t('cases.feed.allLicensedStates')
-                          else if (_state != null)
-                            usStateByCode(_state)?.name ?? _state!,
+                          if (mine) t.t('cases.feed.allLicensedStates'),
+                          for (final c in codes) usStateByCode(c)?.name ?? c,
                         ].join(' · '),
                         action: AppButton(
                           key: const ValueKey('cases-clear-filters'),
@@ -131,7 +132,7 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
                           height: AppSizes.touchTarget,
                           onPressed: () => setState(() {
                             _category = null;
-                            _state = null;
+                            _states = {};
                           }),
                         ),
                       ),
