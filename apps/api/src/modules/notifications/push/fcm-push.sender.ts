@@ -26,6 +26,7 @@ export class FcmTemporaryError extends Error {}
  * already got it, so a partial failure never duplicates on the others.
  * UNREGISTERED / invalid tokens are deleted. Logs ids only.
  */
+import { normalizePem } from '../../../common/secrets/provider-registry';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 @Injectable()
 export class FcmPushSender implements PushSender {
@@ -42,7 +43,8 @@ export class FcmPushSender implements PushSender {
     this.url = `https://fcm.googleapis.com/v1/projects/${creds.projectId}/messages:send`;
     this.jwt = new JWT({
       email: creds.clientEmail,
-      key: creds.privateKey.replace(/\\n/g, '\n'),
+      // Any paste shape: real breaks, literal \\n, or one line.
+      key: normalizePem(creds.privateKey),
       scopes: [SCOPE],
     });
   }

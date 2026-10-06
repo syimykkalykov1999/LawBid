@@ -1,19 +1,34 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Key, Plus, Warning } from '@phosphor-icons/react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowSquareOut,
+  CaretDown,
+  Copy,
+  Eye,
+  EyeSlash,
+  FileArrowUp,
+  Key,
+  Plus,
+  Question,
+  Sparkle,
+  Warning,
+} from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn } from '@/components/legacy/fade-in';
 import type { useReason } from '@/components/reason-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
-import { Input } from '@/components/ui/input';
+import { Input, Textarea } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { generated, guideFor, rejectText, webhookUrl, type ProviderGuide } from '@/lib/integration-guides';
 import { formatDateTime } from '@/lib/utils';
 import { TranslateZones } from './translate-zones';
 
@@ -130,6 +145,8 @@ export function IntegrationCard({
         </p>
       ) : null}
 
+      <Guide it={it} />
+
       {it.provider === 'google_translate' ? <TranslateZones configured={!!inUse || it.source === 'env'} /> : null}
 
       {it.source === 'env' && it.envMasked ? (
@@ -230,6 +247,25 @@ function SlotBox({
   const p = { params: { path: { provider: it.provider } } };
   const slotPath = { params: { path: { provider: it.provider, slot: slot.slot } } };
   const name = slotName(slot);
+  const [revealed, setRevealed] = useState<Record<string, string> | null>(null);
+
+  // Owner 2026-10-06: the eye shows the saved keys in full (fresh 2FA /
+  // password, written to the audit log); they hide again after a minute.
+  useEffect(() => {
+    if (!revealed) return;
+    const t = setTimeout(() => setRevealed(null), 60_000);
+    return () => clearTimeout(t);
+  }, [revealed]);
+  const reveal = (version: number) =>
+    guarded(
+      async () => {
+        const r = await api.POST('/admin/integrations/{provider}/versions/{version}/reveal', {
+          params: { path: { provider: it.provider, version } },
+        });
+        setRevealed(r.data?.data.values ?? {});
+      },
+      { success: 'Ключи показаны на 1 минуту. Это записано в журнал.' },
+    );
 
   const test = useMutation({
     mutationFn: async (v: number) =>
@@ -368,12 +404,25 @@ function SlotBox({
               <dd className="truncate font-mono text-xs text-ink">{shown[f.name] ?? <span className="text-faint">—</span>}</dd>
             </div>
           ))}
+          <div className="flex justify-end">
+            {revealed ? (
+              <Button size="sm" variant="ghost" onClick={() => setRevealed(null)}>
+                <EyeSlash size={14} /> Скрыть ключи
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => reveal(slot.active!.version)}>
+                <Eye size={14} /> Показать ключи целиком
+              </Button>
+            )}
+          </div>
           <div className="flex justify-between gap-3 text-xs text-faint">
             <dt>Отпечаток для сверки</dt>
             <dd className="font-mono">{slot.active.fingerprint}</dd>
           </div>
         </dl>
       ) : null}
+
+      {revealed ? <Revealed it={it} values={revealed} /> : null}
 
       {pending ? (
         <div className="mt-3 rounded-xl border border-line bg-accent-soft p-3">
@@ -440,8 +489,59 @@ function KeyForm({
   guarded: Guarded;
   onClose: () => void;
 }) {
+  const toast = useToast();
+  const guide = guideFor(it.provider);
   const [values, setValues] = useState<Record<string, string>>({});
   const [label, setLabel] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const file = useRef<HTMLInputElement>(null);
+  const [visible, setVisible] = useState<Record<string, boolean>>({});
+
+  const set = (name: string, v: string) => {
+    setValues((prev) => ({ ...prev, [name]: v }));
+    setErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+  };
+
+  /** Owner 2026-10-06: the rejected field says what is wrong, in Russian. */
+  const fieldError = (e: unknown): boolean => {
+    if (!(e instanceof ApiError) || e.code !== 'VALIDATION_ERROR') return false;
+    const name = e.details?.field;
+    const f = it.fields.find((x) => x.name === name);
+    if (!f) return false;
+    const text = rejectText(f.label, e.details?.reason, guide?.fields[f.name]?.example ?? f.hint);
+    setErrors({ [f.name]: text });
+    toast.error(text);
+    return true;
+  };
+
+  /** Fills the fields from a downloaded key file (Firebase service account). Read in the browser only. */
+  const loadJson = async (picked: File | undefined) => {
+    if (!picked || !guide?.jsonFile) return;
+    try {
+      const json = JSON.parse(await picked.text()) as Record<string, unknown>;
+      const filled: Record<string, string> = {};
+      for (const [key, field] of Object.entries(guide.jsonFile.map)) {
+        if (typeof json[key] === 'string') filled[field] = json[key];
+      }
+      if (Object.keys(filled).length === 0) {
+        toast.error('В этом файле нет нужных строк. Скачайте файл заново: Project settings → Service accounts → Generate new private key.');
+        return;
+      }
+      setValues((prev) => ({ ...prev, ...filled }));
+      setErrors({});
+      toast.success('Поля заполнены из файла. Нажмите «Сохранить».');
+    } catch {
+      toast.error('Это не файл .json от Firebase. Выберите скачанный файл ключа.');
+    } finally {
+      if (file.current) file.current.value = '';
+    }
+  };
+
   const save = () =>
     guarded(
       async () => {
@@ -451,7 +551,7 @@ function KeyForm({
         });
         onClose();
       },
-      { success: 'Сохранено как новая версия — проверьте и включите её' },
+      { success: 'Сохранено как новая версия — проверьте и включите её', onError: fieldError },
     );
   return (
     <form
@@ -461,6 +561,21 @@ function KeyForm({
         save();
       }}
     >
+      {guide?.jsonFile ? (
+        <div className="rounded-xl bg-surface-2 p-3 text-sm">
+          <input
+            ref={file}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => void loadJson(e.target.files?.[0])}
+          />
+          <Button type="button" size="sm" variant="gold" onClick={() => file.current?.click()}>
+            <FileArrowUp size={14} /> {guide.jsonFile.button}
+          </Button>
+          <p className="mt-2 break-words text-xs text-muted">Самый простой способ: выберите скачанный файл — поля заполнятся сами.</p>
+        </div>
+      ) : null}
       {isNew && slot !== MAIN ? (
         <label className="block text-sm">
           <span className="text-muted">Название (видно только в админке)</span>
@@ -473,22 +588,83 @@ function KeyForm({
           />
         </label>
       ) : null}
-      {it.fields.map((f) => (
-        <label key={f.name} className="block text-sm">
-          <span className="text-muted">
-            {f.label}
-            {f.hint ? ` — ${f.hint}` : ''}
-          </span>
-          <Input
-            className="mt-1 font-mono text-xs"
-            type={f.secret ? 'password' : 'text'}
-            autoComplete="off"
-            placeholder={f.secret ? (masked[f.name] ? 'оставьте пустым, чтобы не менять' : 'введите значение') : (masked[f.name] ?? '')}
-            value={values[f.name] ?? ''}
-            onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
-          />
-        </label>
-      ))}
+      {it.fields.map((f) => {
+        const g = guide?.fields[f.name];
+        const err = errors[f.name];
+        const placeholder = f.secret
+          ? masked[f.name]
+            ? 'оставьте пустым, чтобы не менять'
+            : (g?.example ?? 'вставьте значение')
+          : (masked[f.name] ?? g?.example ?? '');
+        const common = {
+          className: `mt-1 font-mono text-xs ${err ? 'border-danger' : ''}`,
+          autoComplete: 'off',
+          spellCheck: false,
+          placeholder,
+          'aria-invalid': err ? true : undefined,
+          value: values[f.name] ?? '',
+        };
+        return (
+          <div key={f.name} className="text-sm">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <label htmlFor={`${it.provider}-${f.name}`} className="min-w-0 break-words text-muted">
+                {f.label}
+                {f.required ? '' : ' (необязательно)'}
+              </label>
+              <span className="flex flex-wrap gap-1">
+                {f.secret && !g?.multiline ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-pressed={!!visible[f.name]}
+                    onClick={() => setVisible((v) => ({ ...v, [f.name]: !v[f.name] }))}
+                  >
+                    {visible[f.name] ? <EyeSlash size={14} /> : <Eye size={14} />} {visible[f.name] ? 'Скрыть' : 'Показать'}
+                  </Button>
+                ) : null}
+                {g?.generate ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      set(f.name, generated(g.generate!));
+                      setVisible((v) => ({ ...v, [f.name]: true }));
+                    }}
+                  >
+                    <Sparkle size={14} /> {g.generate === 'whsec' ? 'Сгенерировать временный' : 'Сгенерировать'}
+                  </Button>
+                ) : null}
+              </span>
+            </div>
+            {g?.multiline ? (
+              <Textarea
+                id={`${it.provider}-${f.name}`}
+                {...common}
+                rows={4}
+                onChange={(e) => set(f.name, e.target.value)}
+              />
+            ) : (
+              <Input
+                id={`${it.provider}-${f.name}`}
+                {...common}
+                type={f.secret && !visible[f.name] ? 'password' : 'text'}
+                onChange={(e) => set(f.name, e.target.value)}
+              />
+            )}
+            {values[f.name] ? <Edges value={values[f.name]} /> : null}
+            {err ? (
+              <p className="mt-1 break-words text-xs text-danger">{err}</p>
+            ) : g ? (
+              <p className="mt-1 break-words text-xs text-faint">{g.how}</p>
+            ) : f.hint ? (
+              <p className="mt-1 break-words text-xs text-faint">Формат: {f.hint}</p>
+            ) : null}
+          </div>
+        );
+      })}
+      {guide?.webhookPath ? <WebhookBox guide={guide} values={values} /> : null}
       <p className="text-xs text-muted">
         Сохранится как новая версия. Приложение продолжит работать на текущих ключах, пока вы не проверите и не включите новые.
       </p>
@@ -499,6 +675,147 @@ function KeyForm({
         <Button type="submit">Сохранить</Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Owner 2026-10-06: «откуда начинается и где заканчивается ключ» — under
+ * a typed value: its first and last characters and its length, so a
+ * half-copied key is visible before saving.
+ */
+function Edges({ value }: { value: string }) {
+  const v = value.trim();
+  if (v.length < 12) return null;
+  const head = v.slice(0, 12).replace(/\n/g, '⏎');
+  const tail = v.slice(-8).replace(/\n/g, '⏎');
+  return (
+    <p className="mt-1 break-all text-xs text-muted">
+      Начало: <code className="text-ink">{head}…</code> · конец: <code className="text-ink">…{tail}</code> · символов: {v.length}
+    </p>
+  );
+}
+
+/** Saved keys in full (owner's eye): each value with a copy button. */
+function Revealed({ it, values }: { it: Integration; values: Record<string, string> }) {
+  const toast = useToast();
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-gold/40 bg-surface-2 p-3">
+      <p className="text-xs text-muted">Видно только вам. Скроется само через минуту.</p>
+      {it.fields.map((f) =>
+        values[f.name] ? (
+          <div key={f.name} className="text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0 break-words text-muted">{f.label}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-label={`Скопировать: ${f.label}`}
+                onClick={() =>
+                  void navigator.clipboard
+                    ?.writeText(values[f.name])
+                    .then(() => toast.success('Скопировано целиком'))
+                    .catch(() => toast.error('Не удалось скопировать — выделите текст и скопируйте вручную'))
+                }
+              >
+                <Copy size={14} />
+              </Button>
+            </div>
+            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-surface p-2 font-mono text-[11px] text-ink">
+              {values[f.name]}
+            </pre>
+          </div>
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+/** The address to paste at the vendor (Stripe / Bunny webhooks), with a copy button. */
+function WebhookBox({ guide, values }: { guide: ProviderGuide; values: Record<string, string> }) {
+  const toast = useToast();
+  const url = webhookUrl(guide.webhookPath!, values);
+  return (
+    <div className="rounded-xl bg-surface-2 p-3 text-xs">
+      <div className="text-muted">Адрес вебхука (вставить на сайте сервиса после переезда на AWS):</div>
+      <div className="mt-1 flex items-start gap-2">
+        <code className="min-w-0 flex-1 break-all text-ink">{url}</code>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          aria-label="Скопировать адрес"
+          onClick={() =>
+            void navigator.clipboard
+              ?.writeText(url)
+              .then(() => toast.success('Адрес скопирован'))
+              .catch(() => toast.error('Не удалось скопировать — выделите адрес и скопируйте вручную'))
+          }
+        >
+          <Copy size={14} />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Owner 2026-10-06: «Где взять ключи?» — the step-by-step for this service,
+ * so the owner adds keys alone. Collapsed by default; opens itself while
+ * the service has no keys yet.
+ */
+function Guide({ it }: { it: Integration }) {
+  const guide = guideFor(it.provider);
+  const [open, setOpen] = useState(it.slots.length === 0 && it.source !== 'env');
+  if (!guide) return null;
+  return (
+    <div className="mt-3 rounded-xl border border-line">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium text-heading"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <Question size={16} className="shrink-0 text-gold-600" />
+          <span className="break-words">Где взять ключи? Пошагово</span>
+        </span>
+        <CaretDown size={14} className={`shrink-0 text-faint transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-line px-3 py-3 text-sm">
+          <ol className="list-decimal space-y-1.5 pl-5 text-ink">
+            {guide.steps.map((step) => (
+              <li key={step} className="break-words">
+                {step}
+              </li>
+            ))}
+          </ol>
+          {guide.note ? <p className="break-words rounded-lg bg-accent-soft p-2 text-xs text-ink">{guide.note}</p> : null}
+          {guide.webhookPath ? (
+            <p className="break-all text-xs text-muted">
+              Адрес вебхука: <code className="text-ink">{webhookUrl(guide.webhookPath, {})}</code>
+            </p>
+          ) : null}
+          {guide.links.length ? (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {guide.links.map((l) => (
+                <a
+                  key={l.url}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg bg-surface-2 px-2.5 py-1 text-xs text-gold-600 hover:underline"
+                >
+                  {l.label} <ArrowSquareOut size={12} />
+                </a>
+              ))}
+            </div>
+          ) : null}
+          <p className="text-xs text-faint">Затем нажмите «Добавить ключи» ниже: под каждым полем написано, что именно туда вставить.</p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

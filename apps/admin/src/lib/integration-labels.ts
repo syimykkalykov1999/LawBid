@@ -27,6 +27,10 @@ export const PROVIDER_RU: Record<string, { label: string; description: string; w
   persona: { label: 'Persona (проверка личности)', description: 'Проверка личности адвокатов.' },
   google_signin: { label: 'Вход через Google', description: 'OAuth-идентификаторы приложений iOS, Android и веба.' },
   apple_signin: { label: 'Вход через Apple', description: 'Вход через Apple на iPhone (bundle id приложений).' },
+  ny_registry: {
+    label: 'Реестр адвокатов Нью-Йорка (data.ny.gov)',
+    description: 'Автоматическая проверка номеров лицензий Нью-Йорка. Работает без ключа; ключ data.ny.gov только поднимает лимит.',
+  },
   bar_lookup: {
     label: 'Проверка лицензий адвокатов',
     description: 'Автоматическая проверка лицензий адвокатов в коллегиях штатов.',
@@ -53,6 +57,8 @@ const FIELD_BY_NAME: Record<string, string> = {
   webhookToken: 'Токен вебхука (любая длинная случайная строка)',
   secretKey: 'Секретный ключ',
   webhookSecret: 'Секрет подписи вебхука',
+  connectWebhookSecret: 'Секрет вебхука Connect (оплаты клиент → адвокат)',
+  appToken: 'App token',
   priceId: 'ID цены (месяц)',
   priceSeatId: 'ID цены места помощника',
   priceYearlyId: 'ID цены (год, Prime)',

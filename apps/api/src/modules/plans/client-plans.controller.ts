@@ -23,6 +23,7 @@ import {
   ClientPlanCompleteDto,
   ClientPlanMeDto,
 } from './client-plans.dto';
+import { PortalSessionDto } from '../billing/billing.dto';
 import { ClientPlansService } from './client-plans.service';
 
 const E = ErrorCode;
@@ -74,6 +75,23 @@ export class ClientPlansController {
     @Body() dto: ClientPlanCompleteDto,
   ): Promise<ClientPlanMeDto> {
     return this.plans.completeCheckout(user, dto.sessionId);
+  }
+
+  @Post('portal-session')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Stripe Customer Portal URL of the client (card, invoices)',
+  })
+  @ApiEnvelopeResponse(PortalSessionDto)
+  @ApiErrors({
+    403: [E.FORBIDDEN],
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    503: [E.PAYMENTS_NOT_CONFIGURED],
+  })
+  clientPlanPortalSession(
+    @CurrentUser() user: RequestUser,
+  ): Promise<PortalSessionDto> {
+    return this.plans.portalSession(user);
   }
 
   @Post('cancel')

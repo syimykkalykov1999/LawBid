@@ -12,6 +12,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/client_plan/application/client_plan_providers.dart';
 import 'package:lawbid/features/client_plan/domain/client_plan_models.dart';
+import 'package:lawbid/features/client_plan/presentation/client_payment_portal.dart';
 import 'package:lawbid/features/plans/domain/plan_models.dart';
 import 'package:lawbid/features/plans/presentation/plan_features.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
@@ -34,6 +35,7 @@ class ClientPlanScreen extends ConsumerStatefulWidget {
 class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
     with WidgetsBindingObserver {
   String? _selectedCode;
+  bool _portalBusy = false;
 
   @override
   void initState() {
@@ -57,6 +59,16 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
   }
 
   Translator get _t => ref.read(translatorProvider);
+
+  Future<void> _openPortal() async {
+    if (_portalBusy) return;
+    setState(() => _portalBusy = true);
+    try {
+      await openClientPaymentPortal(context, ref);
+    } finally {
+      if (mounted) setState(() => _portalBusy = false);
+    }
+  }
 
   Future<void> _refreshQuietly() async {
     try {
@@ -217,6 +229,8 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
             formats: formats,
             onCancel: () => _cancel(s),
             onResume: _resume,
+            portalBusy: _portalBusy,
+            onUpdateCard: _openPortal,
           ),
         ),
       section(
@@ -281,6 +295,8 @@ class ClientPlanStatusCard extends StatelessWidget {
     required this.formats,
     required this.onCancel,
     required this.onResume,
+    this.onUpdateCard,
+    this.portalBusy = false,
     super.key,
   });
 
@@ -289,6 +305,11 @@ class ClientPlanStatusCard extends StatelessWidget {
   final L10nFormats formats;
   final VoidCallback onCancel;
   final VoidCallback onResume;
+
+  /// Owner 2026-10-06: «Обновить карту» — the Stripe portal (card,
+  /// invoices). Hidden once the subscription has ended.
+  final VoidCallback? onUpdateCard;
+  final bool portalBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -341,6 +362,21 @@ class ClientPlanStatusCard extends StatelessWidget {
               icon: AppIcons.replayRounded,
               height: AppSizes.touchTarget,
               onPressed: onResume,
+            ),
+          ],
+          if (onUpdateCard != null &&
+              s.status != SubscriptionStatus.canceled) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppButton(
+              key: const ValueKey('client-plan-update-card'),
+              label: t.t('subscription.action.updateCard'),
+              icon: AppIcons.openInNewRounded,
+              variant: s.status == SubscriptionStatus.pastDue
+                  ? AppButtonVariant.primary
+                  : AppButtonVariant.secondary,
+              height: AppSizes.touchTarget,
+              isLoading: portalBusy,
+              onPressed: onUpdateCard,
             ),
           ],
         ],

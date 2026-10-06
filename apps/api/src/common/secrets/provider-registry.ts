@@ -14,6 +14,60 @@ export interface ProviderField {
   pattern?: RegExp;
   patternHint?: string;
   env?: string;
+  /**
+   * Owner 2026-10-06: fixes the usual paste slips before the format check
+   * (a CDN hostname pasted with https://, a PEM key that lost its line
+   * breaks in a one-line input…), so a correct key is never rejected.
+   */
+  normalize?: (v: string) => string;
+}
+
+/** Quotes / a trailing comma around a pasted value (copied from JSON). */
+export function cleanPasted(v: string): string {
+  let s = v.trim();
+  if (s.endsWith(',')) s = s.slice(0, -1).trim();
+  if (s.length >= 2 && /^(["'`]).*\1$/s.test(s)) s = s.slice(1, -1).trim();
+  return s;
+}
+
+const PEM = /-----BEGIN ([A-Z ]+)-----([\s\S]*?)-----END \1-----/;
+
+/**
+ * A PEM private key in any of the shapes a paste produces: real line
+ * breaks, literal "\n" (copied from the Firebase JSON), or everything on
+ * one line with spaces (a single-line input drops the breaks). Returns the
+ * canonical multi-line PEM; anything that is not a PEM is left unchanged.
+ */
+export function normalizePem(v: string): string {
+  const text = cleanPasted(v).replace(/\\n/g, '\n').replace(/\r/g, '');
+  const m = PEM.exec(text);
+  if (!m) return text;
+  const body = m[2].replace(/\s+/g, '');
+  if (!/^[A-Za-z0-9+/=]+$/.test(body)) return text;
+  const lines = body.match(/.{1,64}/g) ?? [];
+  return `-----BEGIN ${m[1]}-----\n${lines.join('\n')}\n-----END ${m[1]}-----\n`;
+}
+
+/** "https://vz-abc.b-cdn.net/" → "vz-abc.b-cdn.net". */
+function hostOnly(v: string): string {
+  return cleanPasted(v)
+    .replace(/^[a-z]+:\/\//i, '')
+    .replace(/[/?#].*$/, '')
+    .toLowerCase();
+}
+
+/** "a, b ,c" → "a,b,c". */
+function commaList(v: string): string {
+  return cleanPasted(v)
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .join(',');
+}
+
+/** "+1 (218) 551-6788" → "+12185516788". */
+function phone(v: string): string {
+  return cleanPasted(v).replace(/[\s().-]/g, '');
 }
 
 export interface ProviderDefinition {
@@ -76,6 +130,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         pattern: /^[a-z0-9.-]+\.[a-z]{2,}$/i,
         patternHint: 'e.g. vz-abc123.b-cdn.net',
         env: 'BUNNY_CDN_HOSTNAME',
+        normalize: hostOnly,
       },
       {
         name: 'apiKey',
@@ -224,6 +279,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         pattern: /^\+[1-9]\d{7,14}$/,
         patternHint: '+15551234567',
         env: 'TWILIO_FROM_NUMBER',
+        normalize: phone,
       },
       {
         name: 'messagingServiceSid',
@@ -306,6 +362,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /^[a-z][a-z0-9-]{4,}$/,
         env: 'FCM_PROJECT_ID',
+        normalize: (v) => cleanPasted(v).toLowerCase(),
       },
       {
         name: 'clientEmail',
@@ -322,6 +379,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /-----BEGIN PRIVATE KEY-----/,
         env: 'FCM_PRIVATE_KEY',
+        normalize: normalizePem,
       },
     ],
   },
@@ -339,6 +397,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /^turns?:[^,\s]+(,turns?:[^,\s]+)*$/,
         env: 'TURN_URLS',
+        normalize: commaList,
       },
       {
         name: 'secret',
@@ -355,6 +414,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: false,
         pattern: /^stuns?:[^,\s]+(,stuns?:[^,\s]+)*$/,
         env: 'STUN_URLS',
+        normalize: commaList,
       },
     ],
   },
@@ -390,6 +450,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         pattern:
           /^\d+-[\w]+\.apps\.googleusercontent\.com(,\d+-[\w]+\.apps\.googleusercontent\.com)*$/,
         env: 'GOOGLE_CLIENT_IDS',
+        normalize: commaList,
       },
     ],
   },
@@ -406,6 +467,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         pattern: /^[\w.-]+(,[\w.-]+)*$/,
         patternHint: 'com.lawbid.app',
         env: 'APPLE_BUNDLE_IDS',
+        normalize: commaList,
       },
       {
         name: 'teamId',
@@ -414,6 +476,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: false,
         pattern: /^[A-Z0-9]{10}$/,
         env: 'APPLE_TEAM_ID',
+        normalize: (v) => cleanPasted(v).toUpperCase(),
       },
     ],
   },
@@ -541,6 +604,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         pattern: /^[0-9a-f-]{36}$/,
         patternHint: '00000000-0000-0000-0000-000000000000',
         env: 'COCKROACH_CLUSTER_ID',
+        normalize: (v) => cleanPasted(v).toLowerCase(),
       },
     ],
     test: (f) =>

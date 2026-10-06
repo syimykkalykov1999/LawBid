@@ -17,6 +17,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
+  cleanPasted,
   PROVIDERS,
   providerById,
   type ProviderDefinition,
@@ -477,14 +478,17 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     const previous = latestInSlot ? this.fieldsOf(latestInSlot) : {};
     const values: Record<string, string> = {};
     for (const f of def.fields) {
-      const raw = (input[f.name] ?? '').trim();
+      const typed = cleanPasted(input[f.name] ?? '');
+      const raw = typed && f.normalize ? f.normalize(typed) : typed;
       const v = raw.length > 0 ? raw : (previous[f.name] ?? '');
+      // details.reason lets the admin say in plain words what is wrong
+      // under the exact field (owner 2026-10-06).
       if (!v) {
         if (f.required) {
           throw new BadRequestException({
             code: ErrorCode.VALIDATION_ERROR,
             message: `${f.label} is required.`,
-            details: { field: f.name },
+            details: { field: f.name, reason: 'required' },
           });
         }
         continue;
@@ -495,7 +499,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
           message: `${f.label} has the wrong format${
             f.patternHint ? ` (${f.patternHint})` : ''
           }.`,
-          details: { field: f.name },
+          details: { field: f.name, reason: 'format' },
         });
       }
       values[f.name] = v;
@@ -509,7 +513,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Live Stripe keys are allowed only in production.',
-        details: { field: 'secretKey' },
+        details: { field: 'secretKey', reason: 'live_not_allowed' },
       });
     }
     const secretPart: Record<string, string> = {};
@@ -834,6 +838,25 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
       await this.changed(p);
     }
     return rows.length;
+  }
+
+  /**
+   * Owner 2026-10-06: the full saved values of one version, for the owner's
+   * «показать» eye (super_admin + fresh 2FA/password, audited by the
+   * caller). Only the fields of the definition; never cached or logged.
+   */
+  async reveal(
+    provider: string,
+    version: number,
+  ): Promise<Record<string, string>> {
+    this.needEnvelope();
+    const def = await this.def(provider);
+    const fields = this.fieldsOf(await this.row(provider, version));
+    const out: Record<string, string> = {};
+    for (const f of def.fields) {
+      if (fields[f.name] !== undefined) out[f.name] = fields[f.name];
+    }
+    return out;
   }
 
   private async row(provider: string, version: number) {

@@ -181,6 +181,13 @@ export class IntegrationFieldDto {
   @ApiPropertyOptional({ type: String, nullable: true }) hint!: string | null;
 }
 
+/** Owner 2026-10-06: the full saved values (owner's eye button only). */
+export class IntegrationRevealDto {
+  @ApiProperty() version!: number;
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'string' } })
+  values!: Record<string, string>;
+}
+
 export class IntegrationVersionDto {
   @ApiProperty() id!: string;
   @ApiProperty() version!: number;

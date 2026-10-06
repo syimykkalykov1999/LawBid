@@ -948,6 +948,8 @@ export 'models/integrations_overview_envelope.dart';
 export 'models/integration_version_list_envelope.dart';
 export 'models/create_integration_version_dto.dart';
 export 'models/integration_version_envelope.dart';
+export 'models/integration_reveal_dto.dart';
+export 'models/integration_reveal_envelope.dart';
 export 'models/activate_integration_dto.dart';
 export 'models/slot_body_dto.dart';
 export 'models/remove_integration_dto.dart';

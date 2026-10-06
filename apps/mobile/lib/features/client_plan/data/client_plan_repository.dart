@@ -22,6 +22,10 @@ abstract interface class ClientPlanRepository {
 
   /// Undo a cancel before the period ends.
   Future<ClientPlanOverview> resume();
+
+  /// Owner 2026-10-06: Stripe Customer Portal of the client (update the
+  /// card, invoices) — shared by the plan and the gold badge.
+  Future<Uri> portalUrl();
 }
 
 class ApiClientPlanRepository implements ClientPlanRepository {
@@ -98,4 +102,17 @@ class ApiClientPlanRepository implements ClientPlanRepository {
   @override
   Future<ClientPlanOverview> resume() async =>
       _overview((await guardApiCall(_api.clientPlanResume)).data);
+
+  @override
+  Future<Uri> portalUrl() async {
+    final d = (await guardApiCall(_api.clientPlanPortalSession)).data;
+    final uri = Uri.tryParse(d.url);
+    if (uri == null || !uri.hasScheme) {
+      throw const ApiException(
+        code: ApiException.networkErrorCode,
+        message: 'Unexpected portal URL from the server.',
+      );
+    }
+    return uri;
+  }
 }
