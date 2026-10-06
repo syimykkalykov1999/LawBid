@@ -20,7 +20,7 @@ Redis, S3 (документы и медиа) + CloudFront, Secrets Manager, KMS,
 ## 0. Инструменты на Mac (Claude)
 
 ```sh
-brew install awscli terraform
+brew install awscli hashicorp/tap/terraform
 cd /Users/sima/Desktop/iT/Process/LawBid && git checkout main && git pull
 ```
 
