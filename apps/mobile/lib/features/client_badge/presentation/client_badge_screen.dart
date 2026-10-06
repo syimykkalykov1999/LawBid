@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
 import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
+import 'package:lawbid/features/client_plan/presentation/client_payment_portal.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
@@ -206,6 +207,25 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
                 isLoading: _busy,
                 onPressed: () => _cancel(cancel: !sub.cancelAtPeriodEnd),
               ),
+              // Owner 2026-10-06: change the saved card (Stripe portal).
+              if (sub.status != 'canceled') ...[
+                const SizedBox(height: AppSpacing.md),
+                AppButton(
+                  key: const ValueKey('client-badge-update-card'),
+                  label: t.t('subscription.action.updateCard'),
+                  icon: AppIcons.openInNewRounded,
+                  variant: AppButtonVariant.secondary,
+                  isLoading: _busy,
+                  onPressed: () async {
+                    setState(() => _busy = true);
+                    try {
+                      await openClientPaymentPortal(context, ref);
+                    } finally {
+                      if (mounted) setState(() => _busy = false);
+                    }
+                  },
+                ),
+              ],
             ],
           ],
         );

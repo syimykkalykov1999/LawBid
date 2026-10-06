@@ -298,6 +298,31 @@ export class ClientPlansService {
     }
   }
 
+  /**
+   * Owner 2026-10-06: «Обновить карту / Управлять оплатой» for a client —
+   * the Stripe Customer Portal of the client's customer (the plan and the
+   * gold badge share it): change the card, see invoices, cancel. Only a
+   * client who has paid before has a customer; nothing is created here.
+   */
+  async portalSession(user: RequestUser): Promise<{ url: string }> {
+    this.requireClient(user);
+    const customer = await this.prisma.stripeCustomer.findUnique({
+      where: { user_id: user.sub },
+    });
+    if (!customer) {
+      throw new NotFoundException({
+        code: ErrorCode.SUBSCRIPTION_NOT_FOUND,
+        message: 'No saved card yet: buy a plan or the badge first.',
+      });
+    }
+    return {
+      url: await this.provider.createPortalSession(
+        customer.stripe_customer_id,
+        `${this.returnBase}/plan`,
+      ),
+    };
+  }
+
   // ---- helpers --------------------------------------------------------------------
 
   private requireClient(user: RequestUser): void {

@@ -12,6 +12,7 @@ import '../models/client_plan_complete_dto.dart';
 import '../models/client_plan_me_envelope.dart';
 import '../models/my_entitlements_envelope.dart';
 import '../models/plans_list_envelope.dart';
+import '../models/portal_session_envelope.dart';
 
 part 'plans_client.g.dart';
 
@@ -49,6 +50,12 @@ abstract class PlansClient {
   @POST('/client-plans/checkout/complete')
   Future<ClientPlanMeEnvelope> clientPlanCheckoutComplete({
     @Body() required ClientPlanCompleteDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Stripe Customer Portal URL of the client (card, invoices)
+  @POST('/client-plans/portal-session')
+  Future<PortalSessionEnvelope> clientPlanPortalSession({
     @Extras() Map<String, dynamic>? extras,
   });
 
