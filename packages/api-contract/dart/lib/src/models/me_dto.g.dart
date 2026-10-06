@@ -21,6 +21,9 @@ MeDto _$MeDtoFromJson(Map<String, dynamic> json) => MeDto(
   avatarFileId: json['avatarFileId'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   requiredConsentsGranted: json['requiredConsentsGranted'] as bool,
+  pendingLegalDocuments: (json['pendingLegalDocuments'] as List<dynamic>)
+      .map((e) => PendingLegalDocumentDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   onboarding: OnboardingStateDto.fromJson(
     json['onboarding'] as Map<String, dynamic>,
   ),
@@ -47,6 +50,9 @@ Map<String, dynamic> _$MeDtoToJson(MeDto instance) => <String, dynamic>{
   'avatarFileId': ?instance.avatarFileId,
   'avatarUrl': ?instance.avatarUrl,
   'requiredConsentsGranted': instance.requiredConsentsGranted,
+  'pendingLegalDocuments': instance.pendingLegalDocuments
+      .map((e) => e.toJson())
+      .toList(),
   'onboarding': instance.onboarding.toJson(),
   'profile': ?instance.profile?.toJson(),
   'missing': instance.missing.map((e) => e.toJson()).toList(),

@@ -15,7 +15,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { Public } from '../auth/decorators/public.decorator';
 import { AdminAuditInterceptor } from './admin-audit.interceptor';
 import { AdminAuthGuard } from './admin-auth.guard';
-import type { AdminPermissions } from './admin-permissions';
+import type { AdminPermissions, PartnerMembership } from './admin-permissions';
 
 export const ADMIN_ROLES_KEY = 'lawbid:admin-roles';
 export const JUSTIFICATION_KEY = 'lawbid:admin-justification';
@@ -96,6 +96,8 @@ export interface RequestAdmin {
   permissions?: AdminPermissions;
   /** The super admin gave this admin the right to manage other admins. */
   manageAdmins?: boolean;
+  /** Owner 2026-10-06: the country partner team this admin belongs to. */
+  partner?: PartnerMembership | null;
   /** Owner 2026-10-05: countries this admin's lists are limited to on
    * this request (assigned countries narrowed by the picked tab); null or
    * absent = every country. */

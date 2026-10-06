@@ -814,15 +814,20 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       'documents',
     ]);
     expect(strict.body.data.bidsGate.ok).toBe(false);
-    expect(
-      await prisma.notification.count({
+    // The preset's own background recompute may be the one that drops the
+    // badge (then ours sees no change); its notice can land a moment later.
+    const told = () =>
+      prisma.notification.count({
         where: {
           user_id: a.id,
           type: 'verification_update',
           payload: { path: ['kind'], equals: 'trust_requirements_changed' },
         },
-      }),
-    ).toBe(1);
+      });
+    for (let i = 0; i < 50 && (await told()) === 0; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(await told()).toBe(1);
 
     // Staff review off: the documents requirement (staff-only) is ignored.
     const auto = await api()

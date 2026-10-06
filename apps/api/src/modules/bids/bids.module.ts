@@ -1,4 +1,5 @@
 import { ChatSystemModule } from '../chat/chat-system.module';
+import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { Module } from '@nestjs/common';
 import { CaseStateMachine } from '../cases/domain/case-state-machine';
@@ -30,6 +31,7 @@ import { BidStateMachine } from './domain/bid-state-machine';
 @Module({
   imports: [
     JournalModule,
+    LegalAcceptanceModule,
     NotificationsModule,
     SubscriptionsModule,
     ChatSystemModule,

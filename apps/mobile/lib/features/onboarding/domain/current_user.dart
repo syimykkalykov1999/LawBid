@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
@@ -153,6 +154,7 @@ class CurrentUser {
     this.clientProfile,
     this.attorneyProfile,
     this.avatarUrl,
+    this.pendingLegalDocuments = const [],
   });
 
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
@@ -183,6 +185,12 @@ class CurrentUser {
       uiLanguage: json['uiLanguage'] as String? ?? 'en',
       theme: json['theme'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      pendingLegalDocuments: json['pendingLegalDocuments'] is List
+          ? (json['pendingLegalDocuments'] as List)
+              .map(PendingLegalDocument.tryParse)
+              .whereType<PendingLegalDocument>()
+              .toList(growable: false)
+          : const [],
       requiredConsentsGranted:
           json['requiredConsentsGranted'] as bool? ?? false,
       onboarding: OnboardingProgress.fromJson(
@@ -226,6 +234,12 @@ class CurrentUser {
   /// Short-lived signed link to the profile photo (docs/03 §4.1, 1024 px
   /// JPEG); null when no photo is set.
   final String? avatarUrl;
+
+  /// Owner 2026-10-05: legal documents of the user's role not accepted at
+  /// their current version. Not empty → the guard shows the acceptance
+  /// screen; publishing a case and placing a bid answer
+  /// LEGAL_REACCEPT_REQUIRED meanwhile.
+  final List<PendingLegalDocument> pendingLegalDocuments;
 
   bool get isClient => role == UserRole.client;
   bool get isAttorney => role == UserRole.attorney;

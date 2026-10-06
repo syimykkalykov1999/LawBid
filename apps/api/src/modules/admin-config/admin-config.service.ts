@@ -27,6 +27,7 @@ import type {
   UpdateFlagDto,
   UpdateLanguageDto,
 } from './admin-config.dto';
+import { LEGAL_DOC_TYPES } from './admin-config.dto';
 import { configSchema, validateConfigValue } from './config-schema';
 
 export const CONFIG_AUDIT = {
@@ -374,6 +375,8 @@ export class AdminConfigService {
 
   async listLegalDocuments(): Promise<LegalDocumentAdminDto[]> {
     const rows = await this.prisma.legalDocument.findMany({
+      // The newer documents are managed under /admin/legal/documents.
+      where: { doc_type: { in: [...LEGAL_DOC_TYPES] } },
       orderBy: [{ doc_type: 'asc' }, { locale: 'asc' }, { created_at: 'desc' }],
       include: { _count: { select: { consents: true } } },
     });
@@ -426,6 +429,7 @@ export class AdminConfigService {
           content_md: dto.contentMd ?? null,
           content_url: dto.contentUrl ?? null,
           is_current: false,
+          status: 'draft',
         },
         include: { _count: { select: { consents: true } } },
       });
@@ -475,12 +479,13 @@ export class AdminConfigService {
       });
       await tx.legalDocument.updateMany({
         where: { doc_type: doc.doc_type, locale: doc.locale, is_current: true },
-        data: { is_current: false },
+        data: { is_current: false, status: 'archived' },
       });
       const published = await tx.legalDocument.update({
         where: { id },
         data: {
           is_current: true,
+          status: 'published',
           published_at: doc.published_at ?? new Date(),
         },
         include: { _count: { select: { consents: true } } },

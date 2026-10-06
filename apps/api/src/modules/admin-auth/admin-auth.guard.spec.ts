@@ -124,6 +124,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       justification: null,
       permissions: { verification: 'manage' },
       manageAdmins: false,
+      partner: null,
       assignedCountries: [],
       countries: null,
     });

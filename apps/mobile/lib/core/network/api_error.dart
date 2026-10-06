@@ -162,6 +162,9 @@ abstract final class ApiErrorCodes {
   static const caseContainsContactInfo = 'CASE_CONTAINS_CONTACT_INFO';
   static const clientContactSharingConsentRequired =
       'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED';
+  // Owner 2026-10-05 (legal documents): publishing a case / placing a bid
+  // needs the updated legal documents to be accepted first.
+  static const legalReacceptRequired = 'LEGAL_REACCEPT_REQUIRED';
   // Subscription / Stripe (docs/06 §1, stage 6.7)
   static const paymentsNotConfigured = 'PAYMENTS_NOT_CONFIGURED';
   static const subscriptionAlreadyActive = 'SUBSCRIPTION_ALREADY_ACTIVE';
@@ -369,6 +372,7 @@ abstract final class ApiErrorCodes {
     inviteLimitReached,
     caseContainsContactInfo,
     clientContactSharingConsentRequired,
+    legalReacceptRequired,
     paymentsNotConfigured,
     subscriptionAlreadyActive,
     subscriptionTrialUnavailable,

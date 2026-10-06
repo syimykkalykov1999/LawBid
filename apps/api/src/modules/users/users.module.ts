@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { FilesModule } from '../files/files.module';
+import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { UsersController } from './controllers/users.controller';
 import { ContactsService } from './services/contacts.service';
 import { ConsentsService } from './services/consents.service';
@@ -19,7 +20,7 @@ import { UsernameRegistry } from './services/username-registry.service';
  * not per-module copies.
  */
 @Module({
-  imports: [AuthModule, FilesModule],
+  imports: [AuthModule, FilesModule, LegalAcceptanceModule],
   controllers: [UsersController],
   providers: [
     ContactsService,

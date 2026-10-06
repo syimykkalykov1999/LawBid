@@ -19,6 +19,8 @@ COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /repo/apps/api/dist ./apps/api/dist
 COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
+# PDF fonts and the default legal texts (assets/legal/*.md) are read at runtime.
+COPY --from=build /repo/apps/api/assets ./apps/api/assets
 COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
 USER app
 WORKDIR /repo/apps/api

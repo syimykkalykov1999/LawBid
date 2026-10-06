@@ -5,7 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConsentType, Prisma, type User } from '@prisma/client';
+import {
+  ConsentType,
+  Prisma,
+  type LegalDocType,
+  type User,
+} from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { startNameRecheckIfVerified } from './attorney-name-recheck';
@@ -22,6 +27,14 @@ import {
   type ProfileView,
 } from './user-profiles.service';
 import { FilesService } from '../../files/files.service';
+import {
+  docLocaleOf,
+  requiredDocTypes,
+} from '../../legal-documents/legal-documents.constants';
+import {
+  LegalAcceptanceService,
+  type PendingLegalDocument,
+} from '../../legal-documents/legal-acceptance.service';
 
 /** docs/01_FOUNDATION_AUTH.md §10.2 H: consents that must be granted
  * before anything else in onboarding. */
@@ -62,6 +75,10 @@ export interface MeView {
   avatarFileId: string | null;
   avatarUrl: string | null;
   requiredConsentsGranted: boolean;
+  /** Owner 2026-10-05: the legal documents of the user's role that they
+   * have not accepted at the current version (the app shows the
+   * acceptance screen; empty = nothing to accept). */
+  pendingLegalDocuments: PendingLegalDocument[];
   onboarding: {
     currentStep: string | null;
     completedAt: string | null;
@@ -88,6 +105,7 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly profiles: UserProfilesService,
     private readonly files: FilesService,
+    private readonly legalAcceptance: LegalAcceptanceService,
   ) {}
 
   async getMe(userId: string): Promise<MeView> {
@@ -98,12 +116,18 @@ export class OnboardingService {
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
-    const [consentsOk, facts, avatarUrl, avatarClean] = await Promise.all([
-      this.requiredConsentsGranted(userId, user.ui_language),
-      this.profiles.facts(userId, user.role, user.onboarding_state?.data),
-      this.files.mediaUrl(user.avatar_file_id),
-      this.files.isCleanAvatar(user.avatar_file_id, userId),
-    ]);
+    const [consentsOk, facts, avatarUrl, avatarClean, pendingLegal] =
+      await Promise.all([
+        this.requiredConsentsGranted(userId, user.ui_language),
+        this.profiles.facts(userId, user.role, user.onboarding_state?.data),
+        this.files.mediaUrl(user.avatar_file_id),
+        this.files.isCleanAvatar(user.avatar_file_id, userId),
+        this.legalAcceptance.pendingFor(
+          userId,
+          requiredDocTypes(user.role),
+          docLocaleOf(user.ui_language),
+        ),
+      ]);
     return {
       id: user.id,
       role: user.role,
@@ -119,6 +143,7 @@ export class OnboardingService {
       avatarFileId: user.avatar_file_id,
       avatarUrl,
       requiredConsentsGranted: consentsOk,
+      pendingLegalDocuments: pendingLegal,
       onboarding: {
         currentStep: user.onboarding_state?.current_step ?? null,
         completedAt: user.onboarding_state?.completed_at?.toISOString() ?? null,
@@ -266,55 +291,38 @@ export class OnboardingService {
   /**
    * Current consent state = latest row per (user, type) (docs/02 §4.A).
    * docs/06 §2.3 item 10: for consents that point at a legal document
-   * (terms, privacy, disclaimer) the accepted version must be the current
-   * one for the user's locale (falling back to `en`); a newer published
-   * version puts `consents` back into `missing`, so the app's guard sends
+   * (terms, privacy, disclaimer) a newer published version that was
+   * flagged `requires_reacceptance` puts `consents` back into `missing`, so the app's guard sends
    * the user to the consents step on the next sign-in.
    */
   private async requiredConsentsGranted(
     userId: string,
     locale = 'en',
   ): Promise<boolean> {
-    const [rows, current] = await Promise.all([
-      this.prisma.userConsent.findMany({
-        where: {
-          user_id: userId,
-          consent_type: { in: [...REQUIRED_CONSENTS] },
-        },
-        orderBy: { created_at: 'desc' },
-        distinct: ['consent_type'],
-        select: {
-          consent_type: true,
-          granted: true,
-          document: { select: { doc_type: true, version: true } },
-        },
-      }),
-      this.prisma.legalDocument.findMany({
-        where: { is_current: true },
-        select: { doc_type: true, locale: true, version: true },
-      }),
-    ]);
-    const requiredVersion = (docType: string): string | null => {
-      const forLocale = current.find(
-        (d) => d.doc_type === docType && d.locale === locale,
-      );
-      const en = current.find(
-        (d) => d.doc_type === docType && d.locale === 'en',
-      );
-      const any = current.find((d) => d.doc_type === docType);
-      return (forLocale ?? en ?? any)?.version ?? null;
-    };
-    return REQUIRED_CONSENTS.every((t) => {
-      const row = rows.find((r) => r.consent_type === t);
-      if (row?.granted !== true) return false;
-      if (!DOCUMENT_CONSENTS.has(t)) return true;
-      const required = requiredVersion(t);
-      // No published document for this type, or a consent recorded without
-      // a document (before versions existed): nothing to re-accept. Only a
-      // consent that points at a superseded version is stale.
-      if (required === null || !row.document) return true;
-      return row.document.version === required;
+    const rows = await this.prisma.userConsent.findMany({
+      where: {
+        user_id: userId,
+        consent_type: { in: [...REQUIRED_CONSENTS] },
+      },
+      orderBy: { created_at: 'desc' },
+      distinct: ['consent_type'],
+      select: { consent_type: true, granted: true },
     });
+    const allGranted = REQUIRED_CONSENTS.every(
+      (t) => rows.find((r) => r.consent_type === t)?.granted === true,
+    );
+    if (!allGranted) return false;
+    // Owner 2026-10-05: a newer version asks again only when it was
+    // published as a material change (requires_reacceptance); a consent
+    // without a document (before versions existed) still counts.
+    const stale = await this.legalAcceptance.pendingFor(
+      userId,
+      REQUIRED_CONSENTS.filter((t) =>
+        DOCUMENT_CONSENTS.has(t),
+      ) as LegalDocType[],
+      docLocaleOf(locale),
+    );
+    return stale.length === 0;
   }
 }
 

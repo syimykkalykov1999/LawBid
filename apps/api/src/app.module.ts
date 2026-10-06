@@ -36,6 +36,7 @@ import { CasePaymentsModule } from './modules/case-payments/case-payments.module
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { PartnersModule } from './modules/partners/partners.module';
 import { LegalModule } from './modules/legal/legal.module';
+import { LegalDocumentsModule } from './modules/legal-documents/legal-documents.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
@@ -80,6 +81,7 @@ import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
 import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
+import { CountryPartnersModule } from './modules/country-partners/country-partners.module';
 import { SupportModule } from './modules/support/support.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TreasuryModule } from './modules/treasury/treasury.module';
@@ -264,6 +266,7 @@ const isDev =
     LegalModule,
     // Owner 2026-10-05: demo world for bloggers («Продвижение»).
     DemoModule,
+    LegalDocumentsModule,
     OutreachModule,
     PromotionsModule,
     // Owner 2026-10-05: client → attorney payments via Stripe Connect.
@@ -301,6 +304,8 @@ const isDev =
     ProfilesModule,
     ReviewsModule,
     ClientFraudModule,
+    // Owner 2026-10-06: Деньги → Партнёры стран.
+    CountryPartnersModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
     // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
     // runs the same module as the dedicated worker service.

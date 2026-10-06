@@ -21,6 +21,8 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
   ),
   hasSecurityQuestion: json['hasSecurityQuestion'] as bool,
   canManageAdmins: json['canManageAdmins'] as bool,
+  countryPartnerId: json['countryPartnerId'] as String?,
+  partnerLead: json['partnerLead'] as bool,
   countries: (json['countries'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
@@ -46,6 +48,8 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'permissions': instance.permissions.map((k, e) => MapEntry(k, e.toJson())),
   'hasSecurityQuestion': instance.hasSecurityQuestion,
   'canManageAdmins': instance.canManageAdmins,
+  'countryPartnerId': ?instance.countryPartnerId,
+  'partnerLead': instance.partnerLead,
   'countries': instance.countries,
   'countryTabs': instance.countryTabs.map((e) => e.toJson()).toList(),
   'securityQuestion': ?instance.securityQuestion,

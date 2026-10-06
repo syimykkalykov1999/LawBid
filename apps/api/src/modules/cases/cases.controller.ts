@@ -13,6 +13,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { RequireLegalAcceptance } from '../legal-documents/legal-acceptance.guard';
 import type { Request } from 'express';
 import {
   ApiBearerAuth,
@@ -67,6 +68,7 @@ export class CasesController {
   constructor(private readonly cases: CasesService) {}
 
   @Post('cases')
+  @RequireLegalAcceptance()
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Publish a case (client, docs/04 §3.1-§3.4)' })
@@ -89,6 +91,7 @@ export class CasesController {
       E.ONBOARDING_INCOMPLETE,
       E.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED,
       E.COUNTRY_NOT_AVAILABLE,
+      E.LEGAL_REACCEPT_REQUIRED,
     ],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
   })
