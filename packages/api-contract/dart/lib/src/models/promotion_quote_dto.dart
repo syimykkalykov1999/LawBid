@@ -19,6 +19,17 @@ class PromotionQuoteDto {
     required this.creditDaysUsedExact,
     required this.maxDays,
     required this.enabled,
+    required this.dailyBudgetCents,
+    required this.minDailyBudgetCents,
+    required this.maxDailyBudgetCents,
+    required this.budgetPresetsCents,
+    required this.durationPresets,
+    required this.cpmCents,
+    required this.estImpressions,
+    required this.estReachMin,
+    required this.estReachMax,
+    required this.postsEnabled,
+    required this.casesEnabled,
   });
 
   factory PromotionQuoteDto.fromJson(Map<String, Object?> json) =>
@@ -45,7 +56,22 @@ class PromotionQuoteDto {
   /// Credit days used, exact.
   final num creditDaysUsedExact;
   final int maxDays;
+
+  /// This target can be promoted (admin switch).
   final bool enabled;
+  final int dailyBudgetCents;
+  final int minDailyBudgetCents;
+  final int maxDailyBudgetCents;
+  final List<int> budgetPresetsCents;
+  final List<int> durationPresets;
+
+  /// Price of 1 000 impressions.
+  final int cpmCents;
+  final int estImpressions;
+  final int estReachMin;
+  final int estReachMax;
+  final bool postsEnabled;
+  final bool casesEnabled;
 
   Map<String, Object?> toJson() => _$PromotionQuoteDtoToJson(this);
 }

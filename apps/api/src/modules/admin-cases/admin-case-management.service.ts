@@ -481,6 +481,7 @@ export class AdminCaseManagementService {
     });
     const out = new Map<string, Date>();
     for (const r of rows) {
+      if (!r.case_id) continue;
       const end = r.ends_at ?? now;
       const prev = out.get(r.case_id);
       if (!prev || end > prev) out.set(r.case_id, end);
