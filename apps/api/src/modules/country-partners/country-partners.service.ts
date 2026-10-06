@@ -5,10 +5,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PayrollAccrualsService } from '../admin-payroll/payroll-accruals.service';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
 import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
+import { AdminSessionService } from '../admin-auth/admin-session.service';
 import {
+  contractCutoff,
+  contractEnded,
   COUNTRY_PARTNERS_SETTINGS_KEY,
   type CountryPartnerSettings,
   finishedPeriods,
+  settleUntil,
   goalState,
   type GoalState,
   type PartnerGoal,
@@ -50,6 +54,9 @@ export interface GoalView extends PartnerGoal {
  * owner and the partnership active, the share goes to payroll (one
  * accrual per settlement) and is paid with the next «Выплатить» / payday;
  * otherwise it waits («held»). Missed goals e-mail the owner once.
+ * When the contract ends («Договор до»), the sweep switches the partner
+ * off on its own: the team is signed out, revenue after the last day is
+ * not counted, and what was earned up to it is still paid.
  */
 @Injectable()
 export class CountryPartnersService {
@@ -59,6 +66,7 @@ export class CountryPartnersService {
     private readonly prisma: PrismaService,
     private readonly accruals: PayrollAccrualsService,
     @Optional() @Inject(EMAIL_PROVIDER) private readonly email?: EmailProvider,
+    @Optional() private readonly sessions?: AdminSessionService,
   ) {}
 
   async settings(): Promise<CountryPartnerSettings> {
@@ -68,7 +76,8 @@ export class CountryPartnersService {
     return readCountryPartnerSettings(row?.value);
   }
 
-  /** Daily: settle finished months, release what may be paid, goals. */
+  /** Daily: end expired contracts, settle finished months, release what
+   * may be paid, goals. */
   async sweep(now = new Date()): Promise<{
     settled: number;
     accrued: number;
@@ -79,14 +88,15 @@ export class CountryPartnersService {
     let settled = 0;
     let accrued = 0;
     let alerts = 0;
-    for (const p of partners) {
+    for (const row of partners) {
       try {
+        const p = (await this.expireContract(row, now)) ?? row;
         settled += await this.settlePartner(p, settings, now);
         accrued += await this.release(p);
         alerts += await this.checkGoals(p, now);
       } catch (e) {
         this.logger.error(
-          `country partner ${p.id} sweep failed: ${e instanceof Error ? e.message : String(e)}`,
+          `country partner ${row.id} sweep failed: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
     }
@@ -100,7 +110,12 @@ export class CountryPartnersService {
     now = new Date(),
   ): Promise<number> {
     const start = p.contract_starts_at ?? p.created_at;
-    const periods = finishedPeriods(start, now, p.disabled_at);
+    const periods = finishedPeriods(
+      start,
+      now,
+      settleUntil(p.disabled_at, p.contract_ends_at),
+    );
+    const cutoff = contractCutoff(p.contract_ends_at);
     if (periods.length === 0) return 0;
     const done = await this.prisma.countryPartnerSettlement.findMany({
       where: { partner_id: p.id, period: { in: periods } },
@@ -109,9 +124,12 @@ export class CountryPartnersService {
     const have = new Set(done.map((d) => d.period));
     let n = 0;
     for (const period of periods.filter((x) => !have.has(x))) {
-      const byCurrency = await this.revenue(
+      // The contract's last month counts only up to its last day.
+      const { from, to } = periodBounds(period);
+      const byCurrency = await this.revenueBetween(
         p.country_code,
-        period,
+        from,
+        cutoff && cutoff < to ? cutoff : to,
         settings,
         p.share_bps,
       );
@@ -229,9 +247,104 @@ export class CountryPartnersService {
     return out;
   }
 
+  /**
+   * Owner 2026-10-06: the contract's last day has passed → the partner is
+   * switched off like «Отключить» in the admin (the whole team is blocked
+   * and signed out), the owner and the partner get an e-mail. Already
+   * accrued money is not taken back. Returns the updated partner, or null
+   * when nothing had to be done.
+   */
+  async expireContract(
+    p: CountryPartner,
+    now = new Date(),
+  ): Promise<CountryPartner | null> {
+    if (
+      p.status === 'disabled' ||
+      p.contract_expired_at ||
+      !contractEnded(p.contract_ends_at, now)
+    ) {
+      return null;
+    }
+    const team = await this.prisma.user.findMany({
+      where: {
+        role: 'admin',
+        deleted_at: null,
+        status: 'active',
+        admin_profile: {
+          permissions: { path: ['country_partner'], equals: p.id },
+        },
+      },
+      select: { id: true },
+      take: 200,
+    });
+    const ids = team.map((t) => t.id);
+    if (ids.length) {
+      await this.prisma.user.updateMany({
+        where: { id: { in: ids } },
+        data: { status: 'suspended' },
+      });
+      for (const id of ids) await this.sessions?.revokeAllForUser(id);
+    }
+    const after = await this.prisma.countryPartner.update({
+      where: { id: p.id },
+      data: {
+        status: 'disabled',
+        disabled_at: now,
+        contract_expired_at: now,
+        suspended_admin_ids: [...new Set([...p.suspended_admin_ids, ...ids])],
+      },
+    });
+    await this.mailContractEnded(after);
+    return after;
+  }
+
+  private async mailContractEnded(p: CountryPartner): Promise<void> {
+    if (!this.email) return;
+    const day = p.contract_ends_at?.toISOString().slice(0, 10) ?? '';
+    const [owners, lead] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          deleted_at: null,
+          admin_profile: { admin_role: 'super_admin' },
+        },
+        select: { email: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: p.lead_admin_id },
+        select: { email: true },
+      }),
+    ]);
+    const mails: { to: string; subject: string; text: string }[] = [];
+    for (const o of owners) {
+      if (!o.email) continue;
+      mails.push({
+        to: o.email,
+        subject: `LawBid: договор с партнёром ${p.name} (${p.country_code}) закончился`,
+        text: `Договор с ${p.name} (${p.country_code}) закончился ${day}. Партнёр отключён автоматически: команда вышла из админки, выручка после ${day} ему не начисляется. Заработанное до этой даты будет выплачено как обычно.\n\nЧтобы продолжить работу: Админка → Деньги → Партнёры стран → продлите «Договор до» и нажмите «Включить».`,
+      });
+    }
+    if (lead?.email) {
+      mails.push({
+        to: lead.email,
+        subject: 'LawBid: your country partner agreement has ended',
+        text: `Your LawBid country partner agreement for ${p.country_code} ended on ${day}. Admin access for you and your team is closed. Revenue after ${day} is not counted; amounts earned up to that date will be paid out as usual. To continue, please contact LawBid.`,
+      });
+    }
+    for (const m of mails) {
+      try {
+        await this.email.sendEmail(m);
+      } catch (e) {
+        this.logger.warn(`contract-end e-mail failed: ${String(e)}`);
+      }
+    }
+  }
+
   /** Held settlements → payroll, when the owner allows it. */
   async release(p: CountryPartner): Promise<number> {
-    if (p.status !== 'active' || !p.payouts_enabled) return 0;
+    if (!p.payouts_enabled) return 0;
+    // A partner whose contract ended still gets what was earned before.
+    const ended = p.status === 'disabled' && p.contract_expired_at !== null;
+    if (p.status !== 'active' && !ended) return 0;
     const held = await this.prisma.countryPartnerSettlement.findMany({
       where: { partner_id: p.id, status: 'held', amount_cents: { gt: 0 } },
       orderBy: { period: 'asc' },

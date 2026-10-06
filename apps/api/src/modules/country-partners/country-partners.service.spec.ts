@@ -25,6 +25,7 @@ function partner(over: Partial<CountryPartner> = {}): CountryPartner {
     created_at: new Date('2026-09-10T00:00:00Z'),
     updated_at: new Date(),
     disabled_at: null,
+    contract_expired_at: null,
     ...over,
   };
 }
@@ -95,8 +96,15 @@ function build() {
       return Promise.resolve('canceled');
     }),
   };
-  const svc = new CountryPartnersService(prisma as never, payroll as never);
-  return { svc, prisma, payroll, settlements, accruals };
+  const email = { sendEmail: jest.fn().mockResolvedValue(undefined) };
+  const sessions = { revokeAllForUser: jest.fn().mockResolvedValue(undefined) };
+  const svc = new CountryPartnersService(
+    prisma as never,
+    payroll as never,
+    email,
+    sessions as never,
+  );
+  return { svc, prisma, payroll, settlements, accruals, email, sessions };
 }
 
 describe('CountryPartnersService', () => {
@@ -127,5 +135,99 @@ describe('CountryPartnersService', () => {
     await svc.release(on);
     expect(settlements[0].accrual_ref).not.toBe(first);
     expect(payroll.accrue).toHaveBeenCalledTimes(4);
+  });
+
+  describe('contract end («Договор до»)', () => {
+    it('switches the partner off once the last day has passed', async () => {
+      const { svc, prisma, email, sessions } = build();
+      (prisma.user as Record<string, jest.Mock>).findMany = jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'lead-1' }, { id: 'staff-1' }])
+        .mockResolvedValueOnce([{ email: 'owner@x.io' }]);
+      (prisma.user as Record<string, jest.Mock>).updateMany = jest
+        .fn()
+        .mockResolvedValue({ count: 2 });
+      prisma.countryPartner.update = jest.fn(
+        ({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve(
+            partner({
+              contract_ends_at: new Date('2026-10-15T00:00:00Z'),
+              ...data,
+            }),
+          ),
+      );
+      const p = partner({ contract_ends_at: new Date('2026-10-15T00:00:00Z') });
+
+      const after = await svc.expireContract(p, now);
+
+      expect(after?.status).toBe('disabled');
+      expect(after?.contract_expired_at).toEqual(now);
+      expect(prisma.countryPartner.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: expect.objectContaining({
+          status: 'disabled',
+          suspended_admin_ids: ['lead-1', 'staff-1'],
+        }),
+      });
+      expect(sessions.revokeAllForUser).toHaveBeenCalledTimes(2);
+      // The owner and the partner both hear about it.
+      expect(email.sendEmail).toHaveBeenCalledTimes(2);
+    });
+
+    it('does nothing on the last day itself, without a date or when already off', async () => {
+      const { svc, prisma } = build();
+      const lastDay = new Date('2026-11-02T00:00:00Z');
+      expect(
+        await svc.expireContract(partner({ contract_ends_at: lastDay }), now),
+      ).toBeNull();
+      expect(await svc.expireContract(partner(), now)).toBeNull();
+      expect(
+        await svc.expireContract(
+          partner({
+            status: 'disabled',
+            contract_ends_at: new Date('2026-10-01T00:00:00Z'),
+          }),
+          now,
+        ),
+      ).toBeNull();
+      expect(prisma.countryPartner.update).not.toHaveBeenCalled();
+    });
+
+    it('counts revenue only up to the last day and no month after it', async () => {
+      const { svc, prisma, settlements } = build();
+      const p = partner({ contract_ends_at: new Date('2026-09-20T00:00:00Z') });
+      await svc.settlePartner(p, await svc.settings(), now);
+      expect(settlements.map((x) => x.period)).toEqual(['2026-09']);
+      expect(prisma.payment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            paid_at: {
+              gte: new Date('2026-09-01T00:00:00Z'),
+              lt: new Date('2026-09-21T00:00:00Z'),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('still pays what was earned when the contract ended, not after a manual switch-off', async () => {
+      const { svc } = build();
+      const ended = partner({
+        status: 'disabled',
+        contract_ends_at: new Date('2026-10-31T00:00:00Z'),
+        contract_expired_at: new Date('2026-11-01T03:00:00Z'),
+        disabled_at: new Date('2026-11-01T03:00:00Z'),
+      });
+      await svc.settlePartner(ended, await svc.settings(), now);
+      expect(await svc.release(ended)).toBe(2);
+
+      const { svc: svc2 } = build();
+      const manual = partner({
+        status: 'disabled',
+        disabled_at: new Date('2026-11-01T03:00:00Z'),
+      });
+      await svc2.settlePartner(manual, await svc2.settings(), now);
+      expect(await svc2.release(manual)).toBe(0);
+    });
   });
 });

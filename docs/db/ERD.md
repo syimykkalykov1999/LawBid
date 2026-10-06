@@ -1886,6 +1886,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     DateTime disabled_at "nullable"
+    DateTime contract_expired_at "nullable"
   }
   country_partner_settlements {
     String id PK

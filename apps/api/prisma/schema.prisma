@@ -4527,6 +4527,9 @@ model CountryPartner {
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @updatedAt @db.Timestamptz
   disabled_at          DateTime? @db.Timestamptz
+  /// Set when the daily sweep switched the partner off because the
+  /// contract ended («Договор до»); what was earned before is still paid.
+  contract_expired_at  DateTime? @db.Timestamptz
 
   settlements CountryPartnerSettlement[]
 

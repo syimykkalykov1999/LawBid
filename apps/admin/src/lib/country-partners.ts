@@ -58,3 +58,12 @@ export function dateInput(iso: string | null | undefined): string {
 export function dateToIso(v: string): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : null;
 }
+
+/** Owner 2026-10-06: «Договор до» is the last day; the API switches the
+ * partner off once it has passed (same rule as the API's contractEnded). */
+export function contractEnded(endsAtIso: string | null | undefined, now: Date = new Date()): boolean {
+  if (!endsAtIso) return false;
+  const d = new Date(endsAtIso);
+  if (Number.isNaN(d.getTime())) return false;
+  return now.getTime() >= Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+}
