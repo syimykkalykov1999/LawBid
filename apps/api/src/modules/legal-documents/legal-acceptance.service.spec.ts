@@ -38,6 +38,16 @@ const d = (id: string, doc_type: string, over: object = {}) => ({
 });
 
 describe('LegalAcceptanceService', () => {
+  it('treats an enum value that is not yet public as nothing to accept, other errors still fail', async () => {
+    const { svc, prisma } = setup({ role: 'client', docs: [] });
+    prisma.legalDocument.findMany.mockRejectedValueOnce(
+      new Error('cannot use enum value "eula": enum value is not yet public'),
+    );
+    await expect(svc.pending('u1')).resolves.toEqual([]);
+    prisma.legalDocument.findMany.mockRejectedValueOnce(new Error('boom'));
+    await expect(svc.pending('u1')).rejects.toThrow('boom');
+  });
+
   it('asks an attorney for the attorney agreement, terms, privacy and the EULA', async () => {
     const { svc } = setup({
       role: 'attorney',
