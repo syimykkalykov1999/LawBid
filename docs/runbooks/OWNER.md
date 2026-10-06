@@ -35,6 +35,10 @@
 | `journal-integrity` | **Важно:** нарушен журнал кейсов | Ничего не удалять, сразу написать Claude «журнал кейсов». |
 | `sms-spend`, `cost-budget` | Платный сервис упёрся в лимит | Это защита от больших счетов. Поднять лимит: Система → Настройки (`budget.*`). |
 | `ses-bounce-rate`, `ses-complaint-rate` | Письма не доходят / жалобы на спам | См. [ses.md](ses.md). |
+| `treasury-setup-needed` | Деньги не поделены на «Прибыль» и «Расходы» | Stripe → Settings → Payouts → **Manual** (один раз). См. [treasury.md](treasury.md). |
+| `treasury-low` | На Stripe мало денег на месяц расходов | Ничего срочного: расходы получили сколько было. Мало на карте для расходов — пополнить один раз. |
+| `treasury-payout-failed` | Банк не принял выплату | Stripe → Balances → Payouts: проверить банк. Деньги остались в Stripe. |
+| `treasury-bank-changed` | **Важно:** в Stripe поменялись банки | Не вы — сразу в Stripe: удалить чужой банк, сменить пароль. См. [treasury.md](treasury.md). |
 
 Письмо **GitHub «Run failed: Self-check (production)»** — откройте его: в отчёте по-русски написано, что именно не так (✅ / ❌) и что делать.
 
@@ -52,6 +56,7 @@
 
 ## Что делает только человек
 
+- Один раз для «Прибыль и резерв» (Деньги): в Stripe поставить выплаты на **Manual** и добавить второй банк для расходов. См. [treasury.md](treasury.md).
 - Раз в квартал — **учебное восстановление базы** ([restore-drill.md](restore-drill.md), скрипт `scripts/ops/restore-drill.sh`). Можно поручить Claude.
 - Подтвердить письмо **«AWS Notification - Subscription Confirmation»** после первого запуска (иначе тревоги не придут; утренняя самопроверка напомнит).
 - В CockroachDB Cloud выставить **лимит расходов** (Spend limit) и включить их собственные письма об авариях (Alerts) на ту же почту.

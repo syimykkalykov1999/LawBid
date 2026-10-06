@@ -44,6 +44,7 @@ import { JournalRetentionService } from '../modules/privacy/journal-retention.se
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
+import { TreasuryService } from '../modules/treasury/treasury.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -89,6 +90,7 @@ export class CronProcessor {
     @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly opsState?: OpsStateService,
+    @Optional() private readonly treasury?: TreasuryService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -185,6 +187,8 @@ export class CronProcessor {
         return this.opsGuard?.costCheck();
       case CRON_JOBS.opsBackupCheck:
         return this.opsGuard?.backupCheck();
+      case CRON_JOBS.treasuryDaily:
+        return this.treasury?.daily() ?? null;
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

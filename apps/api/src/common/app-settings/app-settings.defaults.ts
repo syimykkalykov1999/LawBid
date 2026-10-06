@@ -398,6 +398,23 @@ export const OWNER_OPS_SETTINGS = {
   'ops.backup_max_age_hours': 26,
 };
 
+/** Owner 2026-10-05 «Прибыль и резерв» (Деньги): the monthly split of the
+ * Stripe balance into «Расходы» (services, salaries paid from the bank),
+ * a reserve that stays on Stripe and «Прибыль» for the owner. */
+export const OWNER_TREASURY_SETTINGS = {
+  /** Run the split on its own every month (off: only the button). */
+  'treasury.auto': true,
+  /** Day of the month (1…28, UTC). The 25th: the money for next month's
+   * bills is in the expense account before they come. */
+  'treasury.payout_day': 25,
+  /** Safety cushion kept on Stripe: percent of a month of all costs. */
+  'treasury.buffer_percent': 50,
+  /** Kept on Stripe for refunds and disputes, dollars. */
+  'treasury.refund_buffer_usd': 200,
+  /** Profit smaller than this waits for the next month, dollars. */
+  'treasury.min_profit_usd': 50,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -424,6 +441,7 @@ export const APP_SETTINGS = {
   ...OWNER_STORAGE_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_OPS_SETTINGS,
+  ...OWNER_TREASURY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

@@ -667,3 +667,55 @@ resource "aws_cloudwatch_metric_alarm" "storage_growth" {
   alarm_actions       = local.ops
   tags                = var.tags
 }
+
+# Owner 2026-10-05 «Прибыль и резерв»: the daily treasury.daily job logs
+# an `alert` when the monthly split of the Stripe balance needs the owner.
+locals {
+  treasury_alerts = {
+    treasury_setup_needed = {
+      metric = "TreasurySetupNeeded"
+      text   = "LawBid: Деление денег на «Прибыль» и «Расходы» не сработало: в Stripe выплаты всё ещё автоматические. Что делать: Stripe → Settings → Payouts → Payout schedule → Manual. Пока это не сделано, Stripe сам переводит всё на основной банк. Инструкция: ${var.runbook_base_url}/treasury.md (EN: Stripe payouts are not on Manual.)"
+    }
+    treasury_low = {
+      metric = "TreasuryLow"
+      text   = "LawBid: На Stripe не хватает денег на месяц расходов и резерв. Счёт «Расходы» получил столько, сколько было, прибыль в этом месяце не выплачена. Что делать: ничего срочного. Если на карте для расходов мало денег, пополните её один раз сами. Подробности: админка → Деньги → Прибыль и резерв. Инструкция: ${var.runbook_base_url}/treasury.md (EN: Stripe balance below a month of costs plus the reserve.)"
+    }
+    treasury_payout_failed = {
+      metric = "TreasuryPayoutFailed"
+      text   = "LawBid: Банк не принял выплату из Stripe (прибыль или расходы). Что делать: Stripe → Balances → Payouts, откройте неудачную выплату и проверьте реквизиты банка. Деньги остались на балансе Stripe и уйдут при следующем делении. Инструкция: ${var.runbook_base_url}/treasury.md (EN: a treasury payout failed.)"
+    }
+    treasury_bank_changed = {
+      metric = "TreasuryBankChanged"
+      text   = "LawBid: В Stripe изменились банки для выплат. Если это сделали вы, всё в порядке. Если нет: срочно войдите в Stripe, удалите чужой банк, смените пароль Stripe и включите в админке «Прибыль и резерв» → «авто» выключено, пока не разберётесь. Инструкция: ${var.runbook_base_url}/treasury.md (EN: the payout banks in Stripe changed.)"
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "treasury" {
+  for_each       = local.treasury_alerts
+  name           = "${var.name}-${replace(each.key, "_", "-")}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.alert = \"${each.key}\" }"
+  metric_transformation {
+    name      = each.value.metric
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "treasury" {
+  for_each            = local.treasury_alerts
+  alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
+  alarm_description   = each.value.text
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = each.value.metric
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}

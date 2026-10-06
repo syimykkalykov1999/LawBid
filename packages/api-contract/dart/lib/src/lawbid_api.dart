@@ -50,6 +50,7 @@ import 'clients/admin_payroll_client.dart';
 import 'clients/support_client.dart';
 import 'clients/admin_support_client.dart';
 import 'clients/admin_storage_client.dart';
+import 'clients/admin_treasury_client.dart';
 import 'clients/admin_rewards_client.dart';
 import 'clients/admin_workspace_client.dart';
 import 'clients/admin_email_templates_client.dart';
@@ -146,6 +147,7 @@ class LawbidApi {
   SupportClient? _support;
   AdminSupportClient? _adminSupport;
   AdminStorageClient? _adminStorage;
+  AdminTreasuryClient? _adminTreasury;
   AdminRewardsClient? _adminRewards;
   AdminWorkspaceClient? _adminWorkspace;
   AdminEmailTemplatesClient? _adminEmailTemplates;
@@ -314,6 +316,9 @@ class LawbidApi {
 
   AdminStorageClient get adminStorage =>
       _adminStorage ??= AdminStorageClient(_dio, baseUrl: _baseUrl);
+
+  AdminTreasuryClient get adminTreasury =>
+      _adminTreasury ??= AdminTreasuryClient(_dio, baseUrl: _baseUrl);
 
   AdminRewardsClient get adminRewards =>
       _adminRewards ??= AdminRewardsClient(_dio, baseUrl: _baseUrl);

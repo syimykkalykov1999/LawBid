@@ -81,6 +81,7 @@ import { AdminBillingModule } from './modules/admin-billing/admin-billing.module
 import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { SupportModule } from './modules/support/support.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { TreasuryModule } from './modules/treasury/treasury.module';
 import { RewardsModule } from './modules/rewards/rewards.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import {
@@ -218,6 +219,8 @@ const isDev =
     SupportModule,
     // Owner 2026-10-05: Система → Хранилище (storage like Telegram).
     StorageModule,
+    // Owner 2026-10-05: Деньги → «Прибыль и резерв».
+    TreasuryModule,
     // Owner 2026-10-05: «Лучший сотрудник» and every admin's workspace.
     RewardsModule,
     WorkspaceModule,
