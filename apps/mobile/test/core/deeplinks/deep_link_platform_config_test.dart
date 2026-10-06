@@ -62,14 +62,17 @@ void main() {
         ((aasa['applinks'] as Map<String, dynamic>)['details'] as List).single
             as Map<String, dynamic>;
     expect(details['appIDs'], {
-      'TEAM_ID.com.lawbid.lawbid',
-      'TEAM_ID.com.lawbid.lawbid.staging',
-      'TEAM_ID.com.lawbid.lawbid.dev',
+      '78T56RPM74.com.lawbid.lawbid',
+      '78T56RPM74.com.lawbid.lawbid.staging',
+      '78T56RPM74.com.lawbid.lawbid.dev',
     });
     final paths = (details['components'] as List)
         .map((c) => (c as Map<String, dynamic>)['/'])
         .toSet();
-    expect(paths, {'/case/*', '/lawyer/*', '/post/*', '/auth/email-code'});
+    expect(
+      paths,
+      {'/r/*', '/case/*', '/lawyer/*', '/post/*', '/auth/email-code'},
+    );
 
     final assetlinks =
         jsonDecode(read('../../docs/deeplinks/assetlinks.json')) as List;
