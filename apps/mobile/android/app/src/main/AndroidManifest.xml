@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Store release 2026-10-06: release builds must declare network
+         access themselves (the template only adds it to debug/profile). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Biometric reauth (Phase 4 of the auth networking work,
          docs/CHANGELOG.md): required by local_auth for
          BiometricPrompt/fingerprint on Android. -->
@@ -57,11 +60,11 @@
                 <data android:scheme="lawbid" />
             </intent-filter>
             <!-- Android App Links (docs/01_FOUNDATION_AUTH.md §12):
-                 https://lawbid.app/case/:id, /lawyer/:username, /post/:id and
+                 https://lawbid.dev/case/:id, /lawyer/:username, /post/:id and
                  the magic sign-in link /auth/email-code. Verified against
                  https://<deepLinkHost>/.well-known/assetlinks.json (template:
                  docs/deeplinks/assetlinks.json). The host is the Gradle
-                 property lawbid.deepLinkHost (default lawbid.app). -->
+                 property lawbid.deepLinkHost (default lawbid.dev). -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

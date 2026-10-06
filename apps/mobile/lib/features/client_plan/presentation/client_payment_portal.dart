@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/client_plan/application/client_plan_providers.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-06: «Обновить карту» for a client (plan and gold badge):
@@ -18,7 +19,7 @@ Future<void> openClientPaymentPortal(
     final url = await ref.read(clientPlanRepositoryProvider).portalUrl();
     if (!context.mounted) return;
     final opened = url.scheme == 'https' &&
-        await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+        await launchUrl(url, mode: paymentPageLaunchMode());
     if (!opened && context.mounted) {
       showAppSnackBar(context, t.t('subscription.portal.cantOpen'));
     }

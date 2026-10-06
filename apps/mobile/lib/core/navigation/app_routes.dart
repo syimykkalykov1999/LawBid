@@ -61,7 +61,7 @@ abstract final class AppRoutes {
   /// the redirect target of AppRouterGuard for unverified attorneys.
   static const verificationRequired = '/create/verification-required';
 
-  /// Public attorney profile — same path as the `lawbid.app/lawyer/:username`
+  /// Public attorney profile — same path as the `lawbid.dev/lawyer/:username`
   /// deep link (docs/01 §12, DeepLinkRoutes.lawyerPath).
   static String lawyer(String username) =>
       '/lawyer/${Uri.encodeComponent(username)}';
@@ -117,7 +117,7 @@ abstract final class AppRoutes {
   static const bidPattern = '/bid/:id';
   static String bid(String id) => '/bid/${Uri.encodeComponent(id)}';
 
-  /// Attorney case detail — the `lawbid.app/case/:id` deep-link path
+  /// Attorney case detail — the `lawbid.dev/case/:id` deep-link path
   /// (DeepLinkRoutes.casePath); the owner is redirected to [myCase].
   static String caseDetail(String id) => '/case/${Uri.encodeComponent(id)}';
 

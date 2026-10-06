@@ -7,7 +7,7 @@ import 'package:lawbid/features/case_payments/presentation/payout_account_screen
 
 /// Owner 2026-10-05: Settings → «Приём оплат» (attorney) and «Платежи по
 /// делам» (both roles), plus the return pages of Stripe's hosted flows
-/// (`lawbid.app/payment/success|cancel`, `/payout/return|refresh`).
+/// (`lawbid.dev/payment/success|cancel`, `/payout/return|refresh`).
 abstract final class CasePaymentsRoutes {
   static const payoutAccount = '/profile/settings/payouts';
   static const history = '/profile/settings/case-payments';

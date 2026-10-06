@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Build-time client configuration — the ONE place the app reads
 /// environment-specific ids from (docs/KEYS_SETUP.md).
 ///
@@ -42,6 +44,21 @@ abstract final class AppConfig {
   static const String stripePublishableKey = String.fromEnvironment(
     'STRIPE_PUBLISHABLE_KEY',
   );
+
+  /// Store release 2026-10-06: whether this build can finish a Google
+  /// sign-in on [platform] (iOS needs GOOGLE_IOS_CLIENT_ID, Android
+  /// GOOGLE_SERVER_CLIENT_ID).
+  static bool googleSignInConfigured(TargetPlatform platform) =>
+      switch (platform) {
+        TargetPlatform.iOS => googleIosClientId.isNotEmpty,
+        TargetPlatform.android => googleServerClientId.isNotEmpty,
+        _ => false,
+      };
+
+  /// Sign in with Apple runs natively on iOS only; Android would need an
+  /// Apple Services ID + web redirect, which this app does not configure.
+  static bool appleSignInSupported(TargetPlatform platform) =>
+      platform == TargetPlatform.iOS;
 
   /// `null` for an empty define, so callers can pass it straight to SDKs
   /// that treat `null` as "not provided".

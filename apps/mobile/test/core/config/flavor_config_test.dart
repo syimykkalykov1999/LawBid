@@ -25,7 +25,7 @@ void main() {
     }
     expect(
       AppEnvironment.defaultApiBaseUrl(AppFlavor.prod),
-      'https://api.lawbid.app/api/v1',
+      'https://api.lawbid.dev/api/v1',
     );
     expect(
       AppEnvironment.forFlavor(

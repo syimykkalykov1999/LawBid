@@ -6,7 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 
-/// Landing screen for a `lawbid.app/case/:id`, `/lawyer/:username` or
+/// Landing screen for a `lawbid.dev/case/:id`, `/lawyer/:username` or
 /// `/post/:id` link (docs/01_FOUNDATION_AUTH.md §12) until the real
 /// screens exist (files 03–05, see DeepLinkRoutes' TODO). A calm "coming
 /// soon" state with a way back — never a crash or a blank route.

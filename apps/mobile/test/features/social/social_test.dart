@@ -263,8 +263,8 @@ void main() {
   test('compact counters', () {
     // 12.5K style past ten thousand.
     expect(
-      SocialFormat.postLink('lawbid.app', 'p 1'),
-      'https://lawbid.app/post/p%201',
+      SocialFormat.postLink('lawbid.dev', 'p 1'),
+      'https://lawbid.dev/post/p%201',
     );
   });
 }

@@ -26,7 +26,7 @@ String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
     );
 
 /// §4 "Поделиться" (owner 2026-10-01): the LawBid share sheet — social
-/// networks, copy link, the system sheet — with `lawbid.app/post/:id`.
+/// networks, copy link, the system sheet — with `lawbid.dev/post/:id`.
 Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
   final shared = await showShareSheet(
     context,

@@ -38,8 +38,8 @@ flutter build ipa       --flavor prod -t lib/main_prod.dart --dart-define-from-f
 
 A plain `flutter run` builds **dev**, because `pubspec.yaml` sets `default-flavor: dev`.
 
-- `API_BASE_URL` defaults to the flavor's own value (`lib/core/config/app_environment.dart`). The dev default is the Android emulator's `10.0.2.2`. The staging and prod defaults (`https://staging-api.lawbid.app/api/v1`, `https://api.lawbid.app/api/v1`) are placeholders until the owner confirms the real hosts. The value in `config/<flavor>.json` always wins.
+- `API_BASE_URL` defaults to the flavor's own value (`lib/core/config/app_environment.dart`). The dev default is the Android emulator's `10.0.2.2`. The staging and prod defaults (`https://staging-api.lawbid.dev/api/v1`, `https://api.lawbid.dev/api/v1`) are the real hosts (staging is not deployed). The value in `config/<flavor>.json` always wins.
 - Android: `productFlavors` (dimension `env`) in `android/app/build.gradle.kts`. The app name comes from the `app_name` resValue, used as `@string/app_name` in the manifest.
 - iOS: build configurations `Debug-/Profile-/Release-<flavor>` and schemes `dev`/`staging`/`prod`. `PRODUCT_BUNDLE_IDENTIFIER` and `APP_DISPLAY_NAME` are set per configuration on the Runner target. `ios/Flutter/<config>.xcconfig` includes CocoaPods and `Common.xcconfig`.
 - Verify all three: `node tool/verify_flavors.mjs android` and `node tool/verify_flavors.mjs ios`. Each builds every flavor and checks the package or bundle id and the app label.
-- Deep links (`lawbid://…`, `https://lawbid.app/…`) are covered in `docs/deeplinks/README.md`.
+- Deep links (`lawbid://…`, `https://lawbid.dev/…`) are covered in `docs/deeplinks/README.md`.

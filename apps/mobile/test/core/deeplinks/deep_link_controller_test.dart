@@ -172,7 +172,7 @@ void main() {
   testWidgets('cold-start link waits for the splash sequence, then runs',
       (tester) async {
     source = FakeLinkSource(
-      initial: Uri.parse('https://lawbid.app/auth/email-code?token=$_token'),
+      initial: Uri.parse('https://lawbid.dev/auth/email-code?token=$_token'),
     );
     final c = await container(startup: StartupStatus.running);
     await c.read(deepLinkControllerProvider.notifier).start();
@@ -219,7 +219,7 @@ void main() {
     final c = await container();
     c
         .read(deepLinkControllerProvider.notifier)
-        .handleUri(Uri.parse('https://lawbid.app/case/abc-123'));
+        .handleUri(Uri.parse('https://lawbid.dev/case/abc-123'));
     await tester.pump();
     expect(navigations, isEmpty); // signed out: kept
 

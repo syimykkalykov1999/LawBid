@@ -9,7 +9,7 @@
 // Associated Domains entitlement (applinks:$(DEEP_LINK_HOST)) in
 // Runner/Runner.entitlements; the domain must serve
 // docs/deeplinks/apple-app-site-association. Override in Secrets.xcconfig.
-DEEP_LINK_HOST = lawbid.app
+DEEP_LINK_HOST = lawbid.dev
 
 // Per-developer/secret-ish build settings (docs/KEYS_SETUP.md). Default
 // first, then the gitignored Secrets.xcconfig overrides it when present.

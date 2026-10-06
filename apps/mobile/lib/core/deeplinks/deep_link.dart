@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 const String deepLinkScheme = 'lawbid';
 
 /// A parsed, validated deep link (docs/01_FOUNDATION_AUTH.md §12:
-/// `lawbid.app/case/:id`, `/lawyer/:username`, `/post/:id`, magic sign-in
+/// `lawbid.dev/case/:id`, `/lawyer/:username`, `/post/:id`, magic sign-in
 /// links). Everything else is ignored — a link is untrusted input from
 /// outside the app, so only these exact shapes are ever acted on.
 @immutable

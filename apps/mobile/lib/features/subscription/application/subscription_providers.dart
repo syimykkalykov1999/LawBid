@@ -10,6 +10,7 @@ import 'package:lawbid/features/subscription/data/subscription_repository_impl.d
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
@@ -105,7 +106,7 @@ enum SubscribePhase {
 typedef CheckoutLauncher = Future<bool> Function(Uri url);
 
 final checkoutLauncherProvider = Provider<CheckoutLauncher>(
-  (ref) => (url) => launchUrl(url, mode: LaunchMode.inAppBrowserView),
+  (ref) => (url) => launchUrl(url, mode: paymentPageLaunchMode()),
 );
 
 /// How often the open checkout session is checked; tests shorten it.

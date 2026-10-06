@@ -28,9 +28,8 @@ enum AppFlavor {
 ///   --dart-define-from-file=config/dev.json   # or --dart-define=API_BASE_URL=…
 /// ```
 ///
-/// The prod/staging defaults are PLACEHOLDERS the owner confirms once the
-/// real hosts exist (docs/changelog.d/leaf-1.4.md) — the value that ships is
-/// whatever `config/prod.json`'s `API_BASE_URL` says at build time.
+/// The prod default is the live API on lawbid.dev (owner 2026-10-06, store
+/// release); `config/prod.json`'s `API_BASE_URL` still wins at build time.
 class AppEnvironment {
   const AppEnvironment({
     required this.flavor,
@@ -62,18 +61,18 @@ class AppEnvironment {
       String.fromEnvironment('DEEP_LINK_HOST');
 
   /// docs/01_FOUNDATION_AUTH.md §12: universal/app links live on
-  /// `lawbid.app`. Must match the iOS `DEEP_LINK_HOST` build setting and
+  /// `lawbid.dev`. Must match the iOS `DEEP_LINK_HOST` build setting and
   /// the Android `lawbid.deepLinkHost` Gradle property.
-  static const String defaultDeepLinkHost = 'lawbid.app';
+  static const String defaultDeepLinkHost = 'lawbid.dev';
 
   /// Per-flavor API defaults. dev: `10.0.2.2` is the Android emulator's
   /// alias for the host's `localhost` (iOS simulator: pass
   /// `API_BASE_URL=http://localhost:3000/api/v1`; a device needs a LAN IP).
-  /// staging/prod: owner-configurable placeholders.
+  /// prod: the AWS API behind api.lawbid.dev (staging is not deployed).
   static String defaultApiBaseUrl(AppFlavor flavor) => switch (flavor) {
         AppFlavor.dev => 'http://10.0.2.2:3000/api/v1',
-        AppFlavor.staging => 'https://staging-api.lawbid.app/api/v1',
-        AppFlavor.prod => 'https://api.lawbid.app/api/v1',
+        AppFlavor.staging => 'https://staging-api.lawbid.dev/api/v1',
+        AppFlavor.prod => 'https://api.lawbid.dev/api/v1',
       };
 
   final AppFlavor flavor;

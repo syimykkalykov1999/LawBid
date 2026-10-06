@@ -1,7 +1,9 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -110,6 +112,15 @@ class WelcomeScreen extends ConsumerWidget {
     // of email_login: it has no real handler to gate yet either way).
     final flags = ref.watch(featureFlagsControllerProvider);
     final phoneLoginEnabled = flags.isEnabled('phone_login');
+    // Store release 2026-10-06: a release build hides a social button this
+    // build cannot complete (store reviewers reject a button that only
+    // shows an error). Debug/tests keep showing it so a missing id is
+    // noticed during development.
+    final platform = Theme.of(context).platform;
+    final appleLoginEnabled = flags.isEnabled('apple_login') &&
+        (!kReleaseMode || AppConfig.appleSignInSupported(platform));
+    final googleLoginEnabled = flags.isEnabled('google_login') &&
+        (!kReleaseMode || AppConfig.googleSignInConfigured(platform));
     final isDark = themeMode == ThemeMode.dark ||
         (themeMode == ThemeMode.system &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
@@ -128,7 +139,7 @@ class WelcomeScreen extends ConsumerWidget {
             onPressed: () => context.push(AuthRoutes.email),
           ),
         ),
-      if (flags.isEnabled('apple_login'))
+      if (appleLoginEnabled)
         Expanded(
           child: GavelStrikeIconButton(
             icon: const AppleGlyph(),
@@ -139,7 +150,7 @@ class WelcomeScreen extends ConsumerWidget {
             ),
           ),
         ),
-      if (flags.isEnabled('google_login'))
+      if (googleLoginEnabled)
         Expanded(
           child: GavelStrikeIconButton(
             icon: const GoogleGlyph(),

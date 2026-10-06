@@ -6,7 +6,7 @@ import 'package:lawbid/features/profile/presentation/screens/client_public_profi
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 /// Routes the §12 content deep links land on (docs/01_FOUNDATION_AUTH.md:
-/// `lawbid.app/case/:id`, `/lawyer/:username`, `/post/:id`).
+/// `lawbid.dev/case/:id`, `/lawyer/:username`, `/post/:id`).
 ///
 /// `/lawyer/:username` opens the real public attorney profile (docs/03
 /// stage 3.9), `/case/:id` the real case screen (docs/04), `/post/:id` the

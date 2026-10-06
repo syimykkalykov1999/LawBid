@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -260,14 +262,22 @@ class _AccountBody extends StatelessWidget {
                           : AccountContactMode.primary,
                     ),
           ),
-          if (!_has(IdentifierProvider.apple))
+          // Store release 2026-10-06: release builds offer only the
+          // social logins this build can complete (see welcome_screen).
+          if (!_has(IdentifierProvider.apple) &&
+              (!kReleaseMode ||
+                  AppConfig.appleSignInSupported(Theme.of(context).platform)))
             AccountTile(
               glyph: const AppleGlyph(),
               title: t.t('account.link.apple'),
               loading: linking == IdentifierProvider.apple,
               onTap: busy ? null : () => onLinkSocial(IdentifierProvider.apple),
             ),
-          if (!_has(IdentifierProvider.google))
+          if (!_has(IdentifierProvider.google) &&
+              (!kReleaseMode ||
+                  AppConfig.googleSignInConfigured(
+                    Theme.of(context).platform,
+                  )))
             AccountTile(
               glyph: const GoogleGlyph(),
               title: t.t('account.link.google'),
