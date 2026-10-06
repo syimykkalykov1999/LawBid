@@ -13,6 +13,7 @@ CreatePromotionResultDto _$CreatePromotionResultDtoFromJson(
   status: CasePromotionStatus.fromJson(json['status'] as String),
   totalCents: (json['totalCents'] as num).toInt(),
   creditDaysUsed: (json['creditDaysUsed'] as num).toInt(),
+  creditDaysUsedExact: json['creditDaysUsedExact'] as num,
   promotion: CasePromotionDto.fromJson(
     json['promotion'] as Map<String, dynamic>,
   ),
@@ -27,5 +28,6 @@ Map<String, dynamic> _$CreatePromotionResultDtoToJson(
   'checkoutUrl': ?instance.checkoutUrl,
   'totalCents': instance.totalCents,
   'creditDaysUsed': instance.creditDaysUsed,
+  'creditDaysUsedExact': instance.creditDaysUsedExact,
   'promotion': instance.promotion.toJson(),
 };

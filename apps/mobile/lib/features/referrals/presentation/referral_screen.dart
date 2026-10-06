@@ -18,12 +18,14 @@ import 'package:lawbid/shared/presentation/share_sheet.dart';
 String rewardText(Translator t, L10nFormats f, Reward r) => switch (r.type) {
       RewardType.balanceCents => t.t(
           'referral.reward.balance',
-          {'amount': f.currencyFromCents(r.value)},
+          {'amount': f.currencyFromCents(r.value.round())},
         ),
-      RewardType.percentFirstInvoice =>
-        t.t('referral.reward.percent', {'percent': '${r.value}'}),
+      RewardType.percentFirstInvoice => t.t(
+          'referral.reward.percent',
+          {'percent': formatRewardNumber(r.value)},
+        ),
       RewardType.promotionDays =>
-        t.t('referral.reward.days', {'days': '${r.value}'}),
+        t.t('referral.reward.days', {'days': formatRewardNumber(r.value)}),
       RewardType.unknown => '',
     };
 
@@ -256,14 +258,16 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                         if (me.pendingDiscountPercent > 0)
                           Text(
                             t.t('referral.pendingDiscount', {
-                              'percent': '${me.pendingDiscountPercent}',
+                              'percent':
+                                  formatRewardNumber(me.pendingDiscountPercent),
                             }),
                             style: type.body.copyWith(color: colors.text),
                           ),
                         if (me.promotionCreditDays > 0)
                           Text(
                             t.t('referral.credits', {
-                              'days': '${me.promotionCreditDays}',
+                              'days':
+                                  formatRewardNumber(me.promotionCreditDays),
                             }),
                             style: type.body.copyWith(color: colors.text),
                           ),

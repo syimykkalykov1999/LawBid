@@ -1235,6 +1235,7 @@ erDiagram
     DateTime starts_at "nullable"
     DateTime expires_at "nullable"
     Boolean active
+    DateTime archived_at "nullable"
     String stripe_coupon_id "nullable"
     String created_by
     DateTime created_at

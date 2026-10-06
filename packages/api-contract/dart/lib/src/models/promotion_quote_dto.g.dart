@@ -14,6 +14,8 @@ PromotionQuoteDto _$PromotionQuoteDtoFromJson(Map<String, dynamic> json) =>
       totalCents: (json['totalCents'] as num).toInt(),
       creditDaysAvailable: (json['creditDaysAvailable'] as num).toInt(),
       creditDaysUsed: (json['creditDaysUsed'] as num).toInt(),
+      creditDaysAvailableExact: json['creditDaysAvailableExact'] as num,
+      creditDaysUsedExact: json['creditDaysUsedExact'] as num,
       maxDays: (json['maxDays'] as num).toInt(),
       enabled: json['enabled'] as bool,
     );
@@ -26,6 +28,8 @@ Map<String, dynamic> _$PromotionQuoteDtoToJson(PromotionQuoteDto instance) =>
       'totalCents': instance.totalCents,
       'creditDaysAvailable': instance.creditDaysAvailable,
       'creditDaysUsed': instance.creditDaysUsed,
+      'creditDaysAvailableExact': instance.creditDaysAvailableExact,
+      'creditDaysUsedExact': instance.creditDaysUsedExact,
       'maxDays': instance.maxDays,
       'enabled': instance.enabled,
     };

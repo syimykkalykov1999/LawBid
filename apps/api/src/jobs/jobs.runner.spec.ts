@@ -221,7 +221,8 @@ describe('JobsRunner', () => {
     // + nightly fraud.sweep (repeat accounts).
     // + hourly storage.gc, nightly storage.retention and storage.snapshot
     // (storage like Telegram), + daily outreach.retention (legal).
-    expect(upserts).toHaveLength(44);
+    // Owner 2026-10-05: + hourly cost.autoscale (spend caps follow usage).
+    expect(upserts).toHaveLength(45);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

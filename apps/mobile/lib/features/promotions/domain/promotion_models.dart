@@ -34,8 +34,10 @@ class PromotionQuote {
   final int priceCentsPerDay;
   final int grossCents;
   final int totalCents;
-  final int creditDaysAvailable;
-  final int creditDaysUsed;
+
+  /// Referral credit days; may be fractional (0.5 = 12 hours).
+  final num creditDaysAvailable;
+  final num creditDaysUsed;
   final int maxDays;
   final bool enabled;
 }
@@ -85,7 +87,7 @@ class PromotionPurchase {
 
   final PromotionStatus status;
   final int totalCents;
-  final int creditDaysUsed;
+  final num creditDaysUsed;
 
   /// Stripe's page when something is left to pay (null = fully covered by
   /// credits, already active).

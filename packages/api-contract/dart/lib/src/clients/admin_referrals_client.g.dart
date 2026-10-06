@@ -26,6 +26,7 @@ class _AdminReferralsClient implements AdminReferralsClient {
     Role2? role,
     String? referrerId,
     String? refereeId,
+    String? q,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -36,6 +37,7 @@ class _AdminReferralsClient implements AdminReferralsClient {
       r'role': role?.toJson(),
       r'referrerId': referrerId,
       r'refereeId': refereeId,
+      r'q': q,
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
