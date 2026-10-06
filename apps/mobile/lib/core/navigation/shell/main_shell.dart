@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
+import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -37,6 +38,30 @@ class MainShell extends ConsumerStatefulWidget {
 
 class _MainShellState extends ConsumerState<MainShell> {
   StatefulNavigationShell get navigationShell => widget.navigationShell;
+
+  // The tabs' content, walked by [scrollToTopAndRefresh] on a re-tap.
+  final _bodyKey = GlobalKey();
+  bool _reselecting = false;
+
+  void _onTabSelected(int index) {
+    final reselect = index == navigationShell.currentIndex;
+    navigationShell.goBranch(index, initialLocation: reselect);
+    if (reselect) unawaited(_scrollToTopAndRefresh());
+  }
+
+  /// Owner 2026-10-06 (Instagram-style): a tap on the tab already open
+  /// scrolls it to the top and refreshes it; repeat taps while that runs
+  /// are ignored.
+  Future<void> _scrollToTopAndRefresh() async {
+    final body = _bodyKey.currentContext;
+    if (_reselecting || body == null) return;
+    _reselecting = true;
+    try {
+      await scrollToTopAndRefresh(body, reduceMotion: context.reduceMotion);
+    } finally {
+      _reselecting = false;
+    }
+  }
 
   @override
   void initState() {
@@ -71,16 +96,13 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: DemoBannerHost(
         child: _TabFade(
           index: navigationShell.currentIndex,
-          child: navigationShell,
+          child: KeyedSubtree(key: _bodyKey, child: navigationShell),
         ),
       ),
       bottomNavigationBar: AppBottomNav(
         tabs: tabs,
         currentIndex: navigationShell.currentIndex,
-        onTabSelected: (index) => navigationShell.goBranch(
-          index,
-          initialLocation: index == navigationShell.currentIndex,
-        ),
+        onTabSelected: _onTabSelected,
         onCreatePressed: () => context.push(AppRoutes.create),
         createSemanticLabel: translator.t('nav.create'),
       ),
