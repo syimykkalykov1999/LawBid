@@ -7,6 +7,7 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
 import 'package:lawbid/features/feed/application/feed_content.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -130,8 +131,12 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
     final legalOnly =
         ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
     // "Legal only" hides general posts, so their topic falls back to All.
-    final category =
-        legalOnly && _category == kGeneralPostsTopic ? null : _category;
+    // Owner 2026-10-06: News off → its topic falls back to All too.
+    final newsOff = !ref.watch(newsEnabledProvider);
+    final category = (legalOnly && _category == kGeneralPostsTopic) ||
+            (newsOff && _category == kNewsTopic)
+        ? null
+        : _category;
     final state = _state;
     return Column(
       children: [

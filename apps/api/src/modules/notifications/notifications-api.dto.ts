@@ -28,6 +28,9 @@ export const CATEGORIES = [
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
 
+export const NOTIFICATION_GROUPS = ['important', 'other'] as const;
+export type NotificationGroup = (typeof NOTIFICATION_GROUPS)[number];
+
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export class NotificationsQueryDto {
@@ -36,6 +39,17 @@ export class NotificationsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+
+  /** Owner 2026-10-06: the bell's "Важные" / "Остальные" tabs. */
+  @ApiPropertyOptional({
+    enum: NOTIFICATION_GROUPS,
+    enumName: 'NotificationGroup',
+    description:
+      'important: bids, cases, payments, account; other: likes, follows, comments, logins. Omit for all.',
+  })
+  @IsOptional()
+  @IsIn(NOTIFICATION_GROUPS)
+  group?: NotificationGroup;
 }
 
 export class NotificationActorDto {

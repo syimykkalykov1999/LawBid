@@ -66786,6 +66786,15 @@
               "maxLength": 300,
               "type": "string"
             }
+          },
+          {
+            "name": "group",
+            "required": false,
+            "in": "query",
+            "description": "important: bids, cases, payments, account; other: likes, follows, comments, logins. Omit for all.",
+            "schema": {
+              "$ref": "#/components/schemas/NotificationGroup"
+            }
           }
         ],
         "responses": {
@@ -111992,6 +112001,13 @@
           "payload",
           "aggregateCount",
           "createdAt"
+        ]
+      },
+      "NotificationGroup": {
+        "type": "string",
+        "enum": [
+          "important",
+          "other"
         ]
       },
       "NotificationListEnvelope": {

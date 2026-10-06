@@ -196,6 +196,22 @@ void main() {
       AppRoutes.workCase('k1'),
     );
     expect(r('bid_accepted', {'bidId': 'b1'}), AppRoutes.bid('b1'));
+    // Owner 2026-10-06: an accepted bid opens the chat with that person.
+    expect(
+      r(
+        'bid_accepted',
+        {'caseId': 'k1', 'bidId': 'b1', 'conversationId': 'c9'},
+      ),
+      '/chat/c9',
+    );
+    expect(
+      r(
+        'offer_accepted',
+        {'caseId': 'k1', 'bidId': 'b1', 'conversationId': 'c9'},
+        attorney: false,
+      ),
+      '/chat/c9',
+    );
     expect(
       r('offer_accepted', {'caseId': 'k1', 'bidId': 'b1'}, attorney: false),
       AppRoutes.bid('b1'),

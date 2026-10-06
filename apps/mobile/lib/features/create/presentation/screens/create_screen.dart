@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/screens/create_case_screen.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -62,6 +63,10 @@ class _Chooser extends ConsumerWidget {
     final canPost = ref.watch(canDoProvider(AssistantDuty.posts)) ||
         ref.watch(canDoProvider(AssistantDuty.publish));
     final direct = ref.watch(canDoProvider(AssistantDuty.publish));
+    // Owner 2026-10-06: "a post or news" only while News is on.
+    final postSub = ref.watch(newsEnabledProvider)
+        ? 'create.post.subAttorney'
+        : 'create.post.sub';
 
     Widget option(_Kind kind, IconData icon, String title, String sub) =>
         Semantics(
@@ -146,9 +151,7 @@ class _Chooser extends ConsumerWidget {
                     AppIcons.editNoteRounded,
                     t.t('create.post'),
                     t.t(
-                      direct
-                          ? 'create.post.subAttorney'
-                          : 'assistant.plus.post.hint',
+                      direct ? postSub : 'assistant.plus.post.hint',
                     ),
                   ),
                 ],
@@ -159,7 +162,7 @@ class _Chooser extends ConsumerWidget {
                       _Kind.post,
                       AppIcons.editNoteRounded,
                       t.t('create.post'),
-                      t.t('create.post.subAttorney'),
+                      t.t(postSub),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     option(

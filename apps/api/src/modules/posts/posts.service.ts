@@ -40,6 +40,7 @@ import {
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { extractHashtags } from './hashtags';
 import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
 
@@ -50,6 +51,9 @@ export function safeFileName(name: string): string {
   const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim();
   return (clean || 'document').slice(0, 120);
 }
+
+/** Owner 2026-10-06: the whole News system, off by default. */
+export const NEWS_FLAG = 'news_posts';
 
 export function postNotFound(): NotFoundException {
   return new NotFoundException({
@@ -77,19 +81,30 @@ export class PostsService {
     private readonly notifications: NotificationsService,
     private readonly settings: AppSettingsService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
+
+  /** Owner 2026-10-06: News is switched off for now (flag `news_posts`,
+   * default off): the code stays, a News post lands as a regular legal
+   * post (older apps and approved assistant requests keep working). */
+  async newsEnabled(): Promise<boolean> {
+    return (await this.flags?.isEnabled(NEWS_FLAG, false)) ?? false;
+  }
 
   /** POST /posts (§3.1). */
   async create(user: RequestUser, dto: CreatePostDto): Promise<PostDto> {
     await this.assertCanPost(user);
     // Owner 2026-09-30: News comes from attorneys only.
-    const kind = dto.kind ?? 'post';
+    let kind = dto.kind ?? 'post';
     if (kind === 'news' && user.role !== 'attorney') {
       throw new ForbiddenException({
         code: ErrorCode.POST_NOT_ALLOWED,
         message: 'Only attorneys publish news.',
       });
     }
+    // Owner 2026-10-06: News off → the same text as a legal post.
+    const newsOff = kind === 'news' && !(await this.newsEnabled());
+    if (newsOff) kind = 'post';
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
@@ -147,9 +162,11 @@ export class PostsService {
                 hasPractice: !!practice,
                 kind,
                 // An assistant's approved request arrives unvalidated.
-                requested: isPostContentClass(dto.contentClass)
-                  ? dto.contentClass
-                  : undefined,
+                requested: newsOff
+                  ? 'legal'
+                  : isPostContentClass(dto.contentClass)
+                    ? dto.contentClass
+                    : undefined,
               }),
               body: dto.body,
               status: st,

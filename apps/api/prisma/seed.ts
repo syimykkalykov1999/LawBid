@@ -300,6 +300,13 @@ async function seedFeatureFlags(): Promise<void> {
       description:
         'Retired: bar lookups are enabled per state in Admin → Integrations → state registries',
     },
+    {
+      // Owner 2026-10-06: the News system is switched off (kept in code).
+      key: 'news_posts',
+      enabled: false,
+      description:
+        'News: the News topic, the Post/News switch and the profile News tab',
+    },
     { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
     { key: 'email_login', enabled: true, description: 'Email OTP login' },
     { key: 'apple_login', enabled: true, description: 'Sign in with Apple' },

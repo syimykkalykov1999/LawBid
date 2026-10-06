@@ -18,11 +18,13 @@ import {
   CATEGORIES,
   type CategorySettingDto,
   type NotificationDto,
+  type NotificationGroup,
   type NotificationSettingsDto,
   type QuietHoursDto,
   NewCaseAlertsDto,
   UpdateNewCaseAlertsDto,
 } from './notifications-api.dto';
+import { notificationTypesOf } from './notifications.service';
 
 const PAGE = 20;
 
@@ -55,13 +57,20 @@ export class NotificationsApiService {
   async list(
     userId: string,
     cursor?: string,
+    group?: NotificationGroup,
   ): Promise<{ items: NotificationDto[]; nextCursor: string | null }> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const rows = await this.prisma.notification.findMany({
       where: {
         user_id: userId,
         // new_message is never stored; guard old rows anyway (§9.2).
-        type: { not: 'new_message' },
+        type: group
+          ? {
+              in: notificationTypesOf(group === 'important').filter(
+                (t) => t !== 'new_message',
+              ),
+            }
+          : { not: 'new_message' },
         ...(c
           ? {
               OR: [

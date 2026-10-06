@@ -17,6 +17,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -112,7 +113,17 @@ Future<void> showAttorneyMoreSheet(
 }
 
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
-  late AttorneyProfileTab _tab = widget.initialTab;
+  late AttorneyProfileTab _picked = widget.initialTab;
+
+  /// Owner 2026-10-06: without News (flag off) its tab is gone.
+  List<AttorneyProfileTab> get _tabs => [
+        for (final tab in AttorneyProfileTab.values)
+          if (tab != AttorneyProfileTab.news || ref.watch(newsEnabledProvider))
+            tab,
+      ];
+
+  AttorneyProfileTab get _tab =>
+      _tabs.contains(_picked) ? _picked : AttorneyProfileTab.posts;
 
   /// Reviews tab: star filter (null = all) and date order.
   int? _stars;
@@ -287,8 +298,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         ],
         const SizedBox(height: AppSpacing.md),
         _Tabs(
+          tabs: _tabs,
           selected: _tab,
-          onChanged: (tab) => setState(() => _tab = tab),
+          onChanged: (tab) => setState(() => _picked = tab),
         ),
         // Posts/News grids sit flush under the tabs (owner 2026-10-01);
         // the reviews tab keeps its breathing room.
@@ -424,8 +436,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
 
     return TabSwipe<AttorneyProfileTab>(
       value: _tab,
-      values: AttorneyProfileTab.values,
-      onChanged: (v) => setState(() => _tab = v),
+      values: _tabs,
+      onChanged: (v) => setState(() => _picked = v),
       child: AppPaginatedListView<Review>(
         items: items,
         itemKey: (r) => r.id,
@@ -1261,8 +1273,13 @@ class _QuietButton extends StatelessWidget {
 }
 
 class _Tabs extends ConsumerWidget {
-  const _Tabs({required this.selected, required this.onChanged});
+  const _Tabs({
+    required this.tabs,
+    required this.selected,
+    required this.onChanged,
+  });
 
+  final List<AttorneyProfileTab> tabs;
   final AttorneyProfileTab selected;
   final ValueChanged<AttorneyProfileTab> onChanged;
 
@@ -1271,23 +1288,27 @@ class _Tabs extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final reduce = context.reduceMotion;
-    final tabs = [
-      (
-        AttorneyProfileTab.posts,
-        t.t('profile.tab.posts'),
-        AppIcons.gridOnRounded
-      ),
-      (
-        AttorneyProfileTab.news,
-        t.t('profile.tab.news'),
-        AppIcons.newspaperRounded
-      ),
-      (
-        AttorneyProfileTab.reviews,
-        t.t('profile.tab.reviews'),
-        AppIcons.starBorderRounded
-      ),
+    final items = [
+      for (final tab in tabs)
+        switch (tab) {
+          AttorneyProfileTab.posts => (
+              tab,
+              t.t('profile.tab.posts'),
+              AppIcons.gridOnRounded
+            ),
+          AttorneyProfileTab.news => (
+              tab,
+              t.t('profile.tab.news'),
+              AppIcons.newspaperRounded
+            ),
+          AttorneyProfileTab.reviews => (
+              tab,
+              t.t('profile.tab.reviews'),
+              AppIcons.starBorderRounded
+            ),
+        },
     ];
+    final index = tabs.indexOf(selected).clamp(0, tabs.length - 1);
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.border)),
@@ -1296,7 +1317,7 @@ class _Tabs extends ConsumerWidget {
         children: [
           Row(
             children: [
-              for (final (tab, label, icon) in tabs)
+              for (final (tab, label, icon) in items)
                 Expanded(
                   child: Semantics(
                     button: true,
@@ -1325,16 +1346,15 @@ class _Tabs extends ConsumerWidget {
           ),
           Positioned.fill(
             child: AnimatedAlign(
-              alignment: switch (selected) {
-                // Directional: the tab Row flips in RTL, so must the bar.
-                AttorneyProfileTab.posts => AlignmentDirectional.bottomStart,
-                AttorneyProfileTab.news => AlignmentDirectional.bottomCenter,
-                AttorneyProfileTab.reviews => AlignmentDirectional.bottomEnd,
-              },
+              // Directional: the tab Row flips in RTL, so must the bar.
+              alignment: AlignmentDirectional(
+                tabs.length < 2 ? -1 : -1 + 2 * index / (tabs.length - 1),
+                1,
+              ),
               duration: reduce ? Duration.zero : AppMotion.stateChange,
               curve: AppMotion.enterCurve,
               child: FractionallySizedBox(
-                widthFactor: 1 / 3,
+                widthFactor: 1 / tabs.length,
                 child: Container(height: 2, color: colors.gold),
               ),
             ),
