@@ -52,3 +52,26 @@ describe('menu sections with tabs', () => {
     expect(canOpen({ role: 'super_admin' }, '/rewards')).toBe(true);
   });
 });
+
+describe('country partner team (owner 2026-10-06)', () => {
+  const lead = {
+    role: 'support' as const,
+    countryPartnerId: 'p1',
+    partnerLead: true,
+    permissions: { verification: 'manage' as const, users: 'manage' as const, settings: 'manage' as const },
+  };
+  it('sees its page, its admins, simple sections only; never money or settings', () => {
+    const hrefs = groupsFor(lead).flatMap((g) => g.items.map((s) => s.href));
+    expect(hrefs).toContain('/partner');
+    expect(hrefs).toContain('/admins');
+    expect(hrefs).toContain('/verification');
+    expect(hrefs).not.toContain('/country-partners');
+    expect(hrefs).not.toContain('/flags');
+    expect(hrefs).not.toContain('/payroll');
+    expect(canOpen(lead, '/users')).toBe(true);
+  });
+  it('LawBid staff never see the partner page', () => {
+    const staff = { role: 'support' as const, permissions: { support: 'manage' as const } };
+    expect(canOpen(staff, '/partner')).toBe(false);
+  });
+});

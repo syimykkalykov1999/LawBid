@@ -18,6 +18,7 @@ import {
   parsePermissions,
   readCountries,
   readManageAdmins,
+  readPartner,
   storePermissions,
 } from '../admin-auth/admin-permissions';
 import type { AdminAccountDto, AdminRoleName } from './admin.dto';
@@ -83,8 +84,16 @@ export class AdminsService {
       orderBy: { created_at: 'asc' },
       take: 500,
     });
+    // Owner 2026-10-06: a country partner sees only their own team.
+    const visible = actor.partner
+      ? rows.filter(
+          (r) =>
+            readPartner(r.admin_profile?.permissions)?.partnerId ===
+            actor.partner?.partnerId,
+        )
+      : rows;
     // A manager never reads the login of an admin outside their reach.
-    return rows.map((r) => {
+    return visible.map((r) => {
       const dto = present(r);
       return reaches(actor, r) ? dto : { ...dto, login: null };
     });
@@ -114,19 +123,29 @@ export class AdminsService {
         throw outsideReach();
       }
     }
+    // Owner 2026-10-06: a country partner hires into their own team, up to
+    // the limit the owner set, only while the partnership is active.
+    const team = actor.partner?.lead
+      ? await this.assertPartnerSeat(actor.partner.partnerId)
+      : null;
     const asked =
       role === 'super_admin'
         ? {}
         : permissions
           ? parsePermissions(permissions)
-          : defaultPermissionsForRole(role);
+          : partnerDefaults(role, team !== null);
     // A manager's role defaults are capped at what they hold themselves.
     const perms = isSuper(actor) ? asked : intersect(own, asked);
     const stored = storePermissions(
       perms,
       isSuper(actor) && role !== 'super_admin' && canManageAdmins === true,
       // A manager who works with some countries hires for those.
-      isSuper(actor) ? [] : (actor.assignedCountries ?? []),
+      team
+        ? [team.country_code]
+        : isSuper(actor)
+          ? []
+          : (actor.assignedCountries ?? []),
+      team ? { partnerId: team.id, lead: false } : null,
     );
     const normalized = email.trim().toLowerCase();
     const created = await withTxRetry(this.prisma, async (tx) => {
@@ -275,6 +294,7 @@ export class AdminsService {
         next,
         manager,
         readCountries(before.admin_profile?.permissions),
+        readPartner(before.admin_profile?.permissions),
       );
       const after = await tx.user.update({
         where: { id },
@@ -336,6 +356,13 @@ export class AdminsService {
       }
       this.assertManageable(actor, before);
       const raw = before.admin_profile?.permissions;
+      // A partner's team always works in the partner's country only.
+      if (readPartner(raw)) {
+        throw new ForbiddenException({
+          code: ErrorCode.FORBIDDEN,
+          message: "A country partner's team works in the partner's country.",
+        });
+      }
       const stored = storePermissions(
         parsePermissions(raw),
         readManageAdmins(raw),
@@ -409,6 +436,33 @@ export class AdminsService {
     await this.sessions.revokeAllForUser(id);
   }
 
+  /** The partner's row when the lead may hire one more person; 403
+   * otherwise (paused or disabled partnership, or the team is full). */
+  private async assertPartnerSeat(
+    partnerId: string,
+  ): Promise<{ id: string; country_code: string }> {
+    const partner = await this.prisma.countryPartner.findUnique({
+      where: { id: partnerId },
+      select: { id: true, country_code: true, status: true, max_admins: true },
+    });
+    if (!partner || partner.status !== 'active') throw outsideReach();
+    const team = await this.prisma.adminProfile.findMany({
+      where: {
+        permissions: { path: ['country_partner'], equals: partnerId },
+        user: { deleted_at: null },
+      },
+      select: { permissions: true },
+    });
+    const staff = team.filter((t) => !readPartner(t.permissions)?.lead).length;
+    if (staff >= partner.max_admins) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: `Your team is full (${partner.max_admins} people). Ask LawBid to raise the limit.`,
+      });
+    }
+    return partner;
+  }
+
   /** Reload one account for the response after a credentials change. */
   async get(id: string): Promise<AdminAccountDto> {
     return present(await this.load(this.prisma, id));
@@ -476,9 +530,22 @@ function present(u: AdminRow): AdminAccountDto {
     permissions: parsePermissions(u.admin_profile?.permissions),
     canManageAdmins: readManageAdmins(u.admin_profile?.permissions),
     countries: readCountries(u.admin_profile?.permissions),
+    countryPartnerId:
+      readPartner(u.admin_profile?.permissions)?.partnerId ?? null,
+    partnerLead: readPartner(u.admin_profile?.permissions)?.lead ?? false,
     lastLoginAt: u.admin_credential?.last_login_at?.toISOString() ?? null,
     createdAt: u.created_at.toISOString(),
   };
+}
+
+/** Role defaults; inside a partner team the accountant (finance) reads
+ * the country's revenue report instead of payroll. */
+function partnerDefaults(role: AdminRoleName, partnerTeam: boolean) {
+  const base = defaultPermissionsForRole(role);
+  if (!partnerTeam) return base;
+  if (role === 'finance')
+    return { dashboard: 'view', partner_report: 'view' } as const;
+  return base;
 }
 
 const isSuper = (actor: AdminActor): boolean =>
@@ -491,6 +558,16 @@ function reaches(actor: AdminActor, target: AdminRow): boolean {
   const prof = target.admin_profile;
   if (!prof || prof.admin_role === 'super_admin') return false;
   if (readManageAdmins(prof.permissions)) return false;
+  // Owner 2026-10-06: a country partner reaches only their own staff; the
+  // owner's deputy never touches a partner's team (the owner does).
+  const theirTeam = readPartner(prof.permissions);
+  if (actor.partner) {
+    if (!actor.partner.lead) return false;
+    if (theirTeam?.partnerId !== actor.partner.partnerId) return false;
+    if (theirTeam.lead) return false;
+  } else if (theirTeam) {
+    return false;
+  }
   // A manager limited to some countries reaches only staff of those.
   const own = actor.assignedCountries ?? [];
   if (own.length > 0) {

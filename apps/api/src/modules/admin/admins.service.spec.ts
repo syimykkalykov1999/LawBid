@@ -294,3 +294,133 @@ describe('AdminsService delegated management', () => {
     expect(boss.login).toBeNull();
   });
 });
+
+describe('AdminsService — country partner team (owner 2026-10-06)', () => {
+  const PARTNER = '11111111-2222-3333-4444-555555555555';
+  const lead = {
+    id: 'lead-1',
+    ip: null,
+    adminRole: 'support',
+    manageAdmins: false,
+    partner: { partnerId: PARTNER, lead: true },
+    assignedCountries: ['CA'],
+    permissions: {
+      dashboard: 'view',
+      users: 'view',
+      verification: 'manage',
+      support: 'manage',
+      partner_report: 'view',
+    },
+  } as unknown as AdminActor;
+
+  function withPartner(
+    status = 'active',
+    staff = 0,
+    target = row({
+      admin_profile: {
+        admin_role: 'verifier',
+        permissions: {
+          verification: 'manage',
+          country_partner: PARTNER,
+          countries: ['CA'],
+        },
+      },
+    }),
+  ) {
+    const b = build(target);
+    Object.assign(b.prisma, {
+      countryPartner: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: PARTNER,
+          country_code: 'CA',
+          status,
+          max_admins: 2,
+        }),
+      },
+      adminProfile: {
+        findMany: jest.fn().mockResolvedValue([
+          { permissions: { country_partner: PARTNER, partner_lead: true } },
+          ...Array.from({ length: staff }, () => ({
+            permissions: { country_partner: PARTNER },
+          })),
+        ]),
+      },
+    });
+    return b;
+  }
+
+  it('hires into the own team, own country, inside the partner limits', async () => {
+    const { svc, prisma } = withPartner();
+    await svc.create(lead, 'v@x.io', 'verifier');
+    const stored =
+      prisma.user.create.mock.calls[0][0].data.admin_profile.create.permissions;
+    expect(stored).toEqual({
+      dashboard: 'view',
+      verification: 'manage',
+      users: 'view',
+      countries: ['CA'],
+      country_partner: PARTNER,
+    });
+  });
+
+  it('the accountant reads only the revenue report', async () => {
+    const { svc, prisma } = withPartner();
+    await svc.create(lead, 'f@x.io', 'finance');
+    const stored =
+      prisma.user.create.mock.calls[0][0].data.admin_profile.create.permissions;
+    expect(stored).toEqual({
+      dashboard: 'view',
+      partner_report: 'view',
+      countries: ['CA'],
+      country_partner: PARTNER,
+    });
+  });
+
+  it('refuses past the staff limit or while not active', async () => {
+    await expect(
+      withPartner('active', 2).svc.create(lead, 'v@x.io', 'verifier'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      withPartner('paused').svc.create(lead, 'v@x.io', 'verifier'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      withPartner().svc.create(lead, 'v@x.io', 'verifier', {
+        settings: 'manage',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('reaches only its own staff, never the owner staff or another partner', async () => {
+    await expect(
+      withPartner().svc.setEnabled(lead, 'u2', false),
+    ).resolves.toBeDefined();
+    const owners = withPartner('active', 0, row());
+    await expect(
+      owners.svc.setEnabled(lead, 'u2', false),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    const other = withPartner(
+      'active',
+      0,
+      row({
+        admin_profile: {
+          admin_role: 'verifier',
+          permissions: {
+            verification: 'manage',
+            country_partner: '99999999-2222-3333-4444-555555555555',
+            countries: ['CA'],
+          },
+        },
+      }),
+    );
+    await expect(
+      other.svc.setEnabled(lead, 'u2', false),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("the owner's deputy can't touch a partner's team", async () => {
+    const { svc } = withPartner();
+    await expect(svc.setEnabled(manager, 'u2', false)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});

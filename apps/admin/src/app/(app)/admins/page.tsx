@@ -20,6 +20,7 @@ import { useMe } from '@/lib/hooks';
 import {
   GRANTABLE_AREAS,
   LOCKED_AREAS,
+  PARTNER_TEAM_AREAS,
   ROLE_LABEL,
   covers,
   type AccessLevel,
@@ -81,10 +82,18 @@ export default function AdminsPage() {
     queryFn: async () => (await api.GET('/admin/admins/templates')).data!.data,
   });
   const isSuper = me?.role === 'super_admin';
+  // Owner 2026-10-06: a country partner manages only their own staff.
+  const partnerLead = me?.partnerLead === true;
   // Mirrors the API: a manager only reaches non-super, non-manager admins
   // whose access fits inside their own.
   const reach = (a: Account) =>
-    isSuper || (a.role !== 'super_admin' && !a.canManageAdmins && covers(me?.permissions ?? {}, a.permissions));
+    isSuper ||
+    (partnerLead
+      ? a.countryPartnerId === me?.countryPartnerId && !a.partnerLead
+      : a.role !== 'super_admin' &&
+        !a.canManageAdmins &&
+        !a.countryPartnerId &&
+        covers(me?.permissions ?? {}, a.permissions));
   const roles = isSuper ? ROLES : ROLES.filter((r) => r !== 'super_admin');
 
   const tpl = (templates.data ?? []).find((t) => t.id === tplId);
@@ -96,7 +105,7 @@ export default function AdminsPage() {
         body: {
           email: email.trim(),
           role,
-          ...(tplId && tpl ? { permissions: fitTemplate(tpl, me) } : {}),
+          ...(tplId && tpl && !partnerLead ? { permissions: fitTemplate(tpl, me) } : {}),
           ...(isSuper && manager ? { canManageAdmins: true } : {}),
         },
       }),
@@ -180,7 +189,9 @@ export default function AdminsPage() {
         eyebrow="Система"
         title="Администраторы"
         subtitle={
-          isSuper
+          partnerLead
+            ? 'Ваша команда в вашей стране. Принимайте сотрудников в пределах лимита, выдавайте им простые разделы (проверка, модерация, поддержка, борьба с мошенниками, привлечение, бухгалтер только для просмотра), задавайте логин и пароль, отключайте. Деньги, цены, ключи, юр. документы и другие страны закрыты.'
+            : isSuper
             ? 'Создание сотрудников, права по разделам, логин и пароль, отключение, удаление. Регистрации нет: аккаунты заводите вы или те, кому вы дали право управлять админами. Деньги и ключи сервисов обычным админам недоступны никогда.'
             : 'Вы можете принимать сотрудников, выдавать им доступ в рамках своего, задавать логин и пароль, отключать и удалять. Деньги, журнал аудита и сессии вы видите только для просмотра, ключи сервисов недоступны, а право заместителя выдаёт только супер-админ.'
         }
@@ -206,7 +217,7 @@ export default function AdminsPage() {
             ))}
           </Select>
         </div>
-        <div className="w-56 space-y-1.5">
+        <div className={partnerLead ? 'hidden' : 'w-56 space-y-1.5'}>
           <Label htmlFor="new-tpl">Шаблон прав</Label>
           <Select id="new-tpl" value={tplId} onChange={(e) => setTplId(e.target.value)}>
             <option value="">По роли (стандартные)</option>
@@ -234,13 +245,13 @@ export default function AdminsPage() {
         </Button>
       </form>
       {isSuper ? <ReasonPolicyCard /> : null}
-      <TemplatesCard
+      {partnerLead ? null : <TemplatesCard
         templates={templates.data ?? []}
         loading={templates.isPending}
         onNew={() => setEditTpl('new')}
         onEdit={(t) => setEditTpl(t)}
         onChanged={() => void qc.invalidateQueries({ queryKey: ['admin-templates'] })}
-      />
+      />}
       <TemplateDialog
         key={editTpl === null ? 'none' : editTpl === 'new' ? 'new' : editTpl.id}
         target={editTpl}
@@ -315,6 +326,11 @@ export default function AdminsPage() {
                           : 'нет разделов'}
                       </Badge>
                       {a.canManageAdmins ? <Badge tone="gold">заместитель</Badge> : null}
+                      {a.partnerLead ? (
+                        <Badge tone="gold">партнёр страны</Badge>
+                      ) : a.countryPartnerId ? (
+                        <Badge tone="info">команда партнёра</Badge>
+                      ) : null}
                       {(a.countries ?? []).length ? (
                         <Badge tone="neutral" title={(a.countries ?? []).join(', ')}>
                           {(a.countries ?? []).length > 3 ? `${(a.countries ?? []).length} стран` : (a.countries ?? []).join(' · ')}
@@ -413,7 +429,7 @@ function RightsDialog({
   onSaved,
 }: {
   account: Account | null;
-  me: { role: AdminRole; permissions: Permissions } | undefined;
+  me: { role: AdminRole; permissions: Permissions; partnerLead?: boolean } | undefined;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -505,7 +521,7 @@ function RightsForm({
   onError,
 }: {
   account: Account;
-  me: { role: AdminRole; permissions: Permissions } | undefined;
+  me: { role: AdminRole; permissions: Permissions; partnerLead?: boolean } | undefined;
   onCancel: () => void;
   onSaved: () => void;
   onError: (e: unknown) => void;
@@ -513,8 +529,15 @@ function RightsForm({
   const isSuper = me?.role === 'super_admin';
   // A manager hands out only what they hold themselves (the API checks too).
   const own = me?.permissions ?? {};
-  const areas = isSuper ? GRANTABLE_AREAS : GRANTABLE_AREAS.filter((a) => own[a.key]);
-  const cap = (key: string): AccessLevel[] => (isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view']);
+  // Owner 2026-10-06: a country partner's team gets only the partner areas.
+  const partnerTeam = !!account.countryPartnerId;
+  const pool = partnerTeam ? PARTNER_TEAM_AREAS : GRANTABLE_AREAS;
+  const areas = isSuper ? pool : pool.filter((a) => own[a.key]);
+  const cap = (key: string): AccessLevel[] => {
+    const max = PARTNER_TEAM_AREAS.find((a) => a.key === key)?.max;
+    if (partnerTeam && max === 'view') return ['view'];
+    return isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view'];
+  };
   const [perms, setPerms] = useState<Record<string, AccessLevel>>({ ...account.permissions });
   const [manager, setManager] = useState(account.canManageAdmins);
   const [countries, setCountries] = useState<string[]>(account.countries ?? []);
@@ -550,7 +573,7 @@ function RightsForm({
 
   return (
     <div>
-      {(templates.data ?? []).length > 0 ? (
+      {(templates.data ?? []).length > 0 && !partnerTeam ? (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Label htmlFor="rights-tpl" className="mb-0">
             Шаблон
@@ -586,8 +609,12 @@ function RightsForm({
         </Button>
       </div>
       <AreaToggles areas={areas} cap={cap} perms={perms} set={set} />
-      <CountriesPicker value={countries} onChange={setCountries} />
-      {isSuper ? (
+      {partnerTeam ? (
+        <p className="mt-3 text-xs text-muted">Страна: {(account.countries ?? []).join(', ')} (страна партнёра, не меняется).</p>
+      ) : (
+        <CountriesPicker value={countries} onChange={setCountries} />
+      )}
+      {isSuper && !partnerTeam ? (
         <label className="mt-3 flex items-start gap-2.5 rounded-[var(--radius-md)] border border-line px-3.5 py-3 text-sm">
           <input
             type="checkbox"

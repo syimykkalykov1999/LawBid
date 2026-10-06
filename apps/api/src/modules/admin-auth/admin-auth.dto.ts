@@ -214,6 +214,21 @@ export class AdminMeDto {
   canManageAdmins!: boolean;
 
   @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Owner 2026-10-06: the country partner whose team this admin is in (null = LawBid staff).',
+  })
+  countryPartnerId!: string | null;
+
+  @ApiProperty({
+    description:
+      'This admin is the country partner themself (hires their team).',
+  })
+  partnerLead!: boolean;
+
+  @ApiProperty({
     type: [String],
     description:
       'Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.',
