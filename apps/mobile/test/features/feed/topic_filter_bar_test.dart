@@ -70,4 +70,15 @@ void main() {
     await pump(tester, news: true);
     expect(find.text('News'), findsOneWidget);
   });
+
+  // Owner 2026-10-06: the pills already pick "All" / "Legal posts", so the
+  // filter sheet has no separate "Content" row.
+  testWidgets('filter sheet: topics and state only', (tester) async {
+    await pump(tester, news: false);
+    await tester.tap(find.bySemanticsLabel('Filters'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose topics'), findsOneWidget);
+    expect(find.text('Choose state'), findsOneWidget);
+    expect(find.text('Content'), findsNothing);
+  });
 }
