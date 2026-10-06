@@ -34,6 +34,17 @@ describe('feed mixing (docs/05 §2.2.3)', () => {
     expect(recoSlotsFor(10, false)).toBe(10);
   });
 
+  it('no follows but own posts: own posts are mixed in, not dropped', () => {
+    expect(mixPage(f(2), r(10), 6, false)).toEqual([
+      'f0',
+      'f1',
+      'r0',
+      'r1',
+      'r2',
+      'r3',
+    ]);
+  });
+
   it('followed posts run out → recommendations fill the rest', () => {
     expect(mixPage(f(2), r(10), 6, true)).toEqual([
       'f0',

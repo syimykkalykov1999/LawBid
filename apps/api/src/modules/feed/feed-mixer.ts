@@ -17,7 +17,10 @@ export function mixPage<T>(
   limit: number,
   hasFollows: boolean,
 ): T[] {
-  if (!hasFollows) return reco.slice(0, limit);
+  // An attorney who follows nobody still has the own-posts stream (the
+  // service adds the viewer to the followed authors): those must lead the
+  // page, otherwise a fresh post of their own never shows up in their feed.
+  if (!hasFollows && following.length === 0) return reco.slice(0, limit);
   const out: T[] = [];
   let f = 0;
   let r = 0;

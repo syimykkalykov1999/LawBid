@@ -245,7 +245,13 @@ export class FeedService implements FeedProvider {
     // Owner 2026-10-02: a viewer who has already been shown every
     // recommendation (a small catalog, or someone who follows nobody) must
     // not open on "Your feed is empty" — start the rotation over.
-    if (first && following.length === 0 && reco.posts.length === 0) {
+    // An attorney's own posts count as "followed" here, so test `hasFollows`
+    // as well: with no follows the own posts must not stop the rotation.
+    if (
+      first &&
+      reco.posts.length === 0 &&
+      (following.length === 0 || !hasFollows)
+    ) {
       await this.redis.del(seenKey(viewer.sub));
       reco = await this.recommendations(
         viewer,
