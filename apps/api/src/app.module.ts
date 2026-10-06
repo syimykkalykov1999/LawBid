@@ -217,8 +217,6 @@ const isDev =
     DocumentTemplatesModule,
     AdminBillingModule,
     AdminPayrollModule,
-    // Owner 2026-10-06: Деньги → Партнёры стран.
-    CountryPartnersModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,
     // Owner 2026-10-05: Система → Хранилище (storage like Telegram).
@@ -298,6 +296,8 @@ const isDev =
     ProfilesModule,
     ReviewsModule,
     ClientFraudModule,
+    // Owner 2026-10-06: Деньги → Партнёры стран.
+    CountryPartnersModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
     // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
     // runs the same module as the dedicated worker service.

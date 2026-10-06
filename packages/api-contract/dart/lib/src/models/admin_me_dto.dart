@@ -23,6 +23,8 @@ class AdminMeDto {
     required this.permissions,
     required this.hasSecurityQuestion,
     required this.canManageAdmins,
+    required this.countryPartnerId,
+    required this.partnerLead,
     required this.countries,
     required this.countryTabs,
     required this.securityQuestion,
@@ -52,6 +54,12 @@ class AdminMeDto {
 
   /// May create and manage other admins (the super admin always can).
   final bool canManageAdmins;
+
+  /// Owner 2026-10-06: the country partner whose team this admin is in (null = LawBid staff).
+  final String? countryPartnerId;
+
+  /// This admin is the country partner themself (hires their team).
+  final bool partnerLead;
 
   /// Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.
   final List<String> countries;
