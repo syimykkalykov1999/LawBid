@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
-import { PayrollAccrualsService } from '../admin-payroll/payroll-accruals.service';
+import { AdminPayrollModule } from '../admin-payroll/admin-payroll.module';
 import { AuthModule } from '../auth/auth.module';
 import {
   AdminCountryPartnersController,
@@ -10,11 +10,10 @@ import { AdminCountryPartnersService } from './admin-country-partners.service';
 import { CountryPartnersService } from './country-partners.service';
 
 /** Settlements and goals — imported by the worker (daily sweep) too.
- * PayrollAccrualsService is stateless for accrue/cancel, so its own copy
- * here writes to the same payroll ledger. */
+ * Uses the one shared PayrollAccrualsService so payout listeners fire. */
 @Module({
-  imports: [AuthModule],
-  providers: [CountryPartnersService, PayrollAccrualsService],
+  imports: [AuthModule, AdminPayrollModule],
+  providers: [CountryPartnersService],
   exports: [CountryPartnersService],
 })
 export class CountryPartnersCoreModule {}
