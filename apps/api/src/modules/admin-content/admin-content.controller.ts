@@ -30,6 +30,7 @@ import {
   AdminBulkContentDto,
   AdminBulkResultDto,
   AdminBidRowDto,
+  AdminClassifyPostsDto,
   AdminBidsQueryDto,
   AdminClientReviewRowDto,
   AdminClientReviewsQueryDto,
@@ -102,6 +103,21 @@ export class AdminContentController {
     @Body() dto: AdminRemoveDto,
   ): Promise<void> {
     return this.content.removePost(p.id, dto.reason);
+  }
+
+  @Roles('super_admin', 'moderator')
+  @Post('content/posts/classify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Mark posts legal or general (kept through author edits), or back to automatic',
+  })
+  @ApiEnvelopeResponse(AdminBulkResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  classifyAdminPosts(
+    @Body() dto: AdminClassifyPostsDto,
+  ): Promise<AdminBulkResultDto> {
+    return this.content.classifyPosts(dto.ids, dto.contentClass);
   }
 
   @Roles('super_admin', 'moderator')

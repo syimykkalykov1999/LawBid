@@ -27456,6 +27456,15 @@
                 "video"
               ]
             }
+          },
+          {
+            "name": "contentClass",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: legal or general (personal) posts only.",
+            "schema": {
+              "$ref": "#/components/schemas/PostContentClass"
+            }
           }
         ],
         "responses": {
@@ -27626,6 +27635,103 @@
           }
         ],
         "summary": "Remove a post (reason goes to the audit log)",
+        "tags": [
+          "admin-content"
+        ]
+      }
+    },
+    "/admin/content/posts/classify": {
+      "post": {
+        "operationId": "classifyAdminPosts",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminClassifyPostsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBulkResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Mark posts legal or general (kept through author edits), or back to automatic",
         "tags": [
           "admin-content"
         ]
@@ -40420,6 +40526,566 @@
         ]
       }
     },
+    "/admin/treasury": {
+      "get": {
+        "operationId": "getTreasury",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Stripe balance, reserve, next split, expenses, payouts",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
+    "/admin/treasury/settings": {
+      "put": {
+        "operationId": "updateTreasurySettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTreasurySettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Auto split, payout day, buffers, pay day (needs step-up)",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
+    "/admin/treasury/run": {
+      "post": {
+        "operationId": "runTreasuryNow",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryRunResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Split the balance now: the computed amounts only (step-up)",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
+    "/admin/treasury/expenses": {
+      "post": {
+        "operationId": "createTreasuryExpense",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTreasuryExpenseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add a service the expense card pays monthly",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
+    "/admin/treasury/expenses/{id}": {
+      "patch": {
+        "operationId": "updateTreasuryExpense",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTreasuryExpenseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change a monthly expense or switch it off",
+        "tags": [
+          "admin-treasury"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteTreasuryExpense",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Remove a monthly expense",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
     "/admin/rewards/settings": {
       "get": {
         "operationId": "getRewardsSettings",
@@ -44300,6 +44966,158 @@
         ]
       }
     },
+    "/feed/preferences": {
+      "get": {
+        "operationId": "getPreferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPreferencesEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My feed content: every post or legal posts only",
+        "tags": [
+          "feed"
+        ]
+      },
+      "put": {
+        "operationId": "setPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedPreferencesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedPreferencesEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Show every post or legal posts only",
+        "tags": [
+          "feed"
+        ]
+      }
+    },
     "/cases/{id}/client-review": {
       "put": {
         "operationId": "upsertClientReview",
@@ -47207,6 +48025,15 @@
             "description": "popular = likes + comments, then newest (offset cursor).",
             "schema": {
               "$ref": "#/components/schemas/LatestPostsSort"
+            }
+          },
+          {
+            "name": "contentClass",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only legal or only general (personal) posts — the\n\"Posts\" topic lists general ones. Absent = the viewer's feed setting.",
+            "schema": {
+              "$ref": "#/components/schemas/PostContentClass"
             }
           }
         ],
@@ -82393,6 +83220,14 @@
           "i18nKey"
         ]
       },
+      "PostContentClass": {
+        "type": "string",
+        "enum": [
+          "legal",
+          "general"
+        ],
+        "description": "Owner 2026-10-05: legal or general (personal) post."
+      },
       "PostAuthorDto": {
         "type": "object",
         "properties": {
@@ -82652,6 +83487,14 @@
               }
             ]
           },
+          "contentClass": {
+            "description": "Owner 2026-10-05: legal or general (personal) post.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
+              }
+            ]
+          },
           "author": {
             "$ref": "#/components/schemas/PostAuthorDto"
           },
@@ -82743,6 +83586,7 @@
           "id",
           "commentsEnabled",
           "kind",
+          "contentClass",
           "author",
           "body",
           "media",
@@ -82802,6 +83646,14 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/PostKind"
+              }
+            ]
+          },
+          "contentClass": {
+            "description": "Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or\nNews is always legal; without one the author picks (default general).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
               }
             ]
           },
@@ -82873,6 +83725,14 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 120
+          },
+          "contentClass": {
+            "description": "Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or\nNews is always legal; without one the author picks (default general).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
+              }
+            ]
           },
           "body": {
             "type": "string",
@@ -87915,6 +88775,17 @@
               "removed"
             ]
           },
+          "contentClass": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostContentClass"
+              }
+            ]
+          },
+          "contentClassLocked": {
+            "type": "boolean",
+            "description": "Set by moderation (author edits keep it)."
+          },
           "likes": {
             "type": "integer"
           },
@@ -87946,6 +88817,8 @@
           "authorId",
           "authorName",
           "status",
+          "contentClass",
+          "contentClassLocked",
           "likes",
           "comments",
           "deleted",
@@ -87988,6 +88861,40 @@
             "maxLength": 500
           }
         }
+      },
+      "AdminPostClassAction": {
+        "type": "string",
+        "enum": [
+          "legal",
+          "general",
+          "auto"
+        ]
+      },
+      "AdminClassifyPostsDto": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "contentClass": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminPostClassAction"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ids",
+          "contentClass"
+        ]
       },
       "AdminCommentRowDto": {
         "type": "object",
@@ -94369,6 +95276,575 @@
           "data"
         ]
       },
+      "TreasurySetupDto": {
+        "type": "object",
+        "properties": {
+          "stripeConnected": {
+            "type": "boolean",
+            "description": "Stripe keys are saved (or the dev stand-in)."
+          },
+          "manualPayouts": {
+            "type": "boolean",
+            "description": "Stripe payouts are on «Manual», so LawBid decides when."
+          },
+          "payoutInterval": {
+            "type": "string",
+            "nullable": true,
+            "example": "daily"
+          },
+          "banksListed": {
+            "type": "boolean",
+            "description": "Stripe listed the banks."
+          },
+          "bankCount": {
+            "type": "integer"
+          },
+          "separateExpenseBank": {
+            "type": "boolean",
+            "description": "A second bank (not the default) is in Stripe for «Расходы». Stripe allows one USD bank, so usually false: the expense payout goes to the default bank as its own payout."
+          }
+        },
+        "required": [
+          "stripeConnected",
+          "manualPayouts",
+          "payoutInterval",
+          "banksListed",
+          "bankCount",
+          "separateExpenseBank"
+        ]
+      },
+      "TreasuryBankDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "example": "Chase"
+          },
+          "last4": {
+            "type": "string",
+            "example": "6789"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Stripe's default bank for USD payouts."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "last4",
+          "isDefault"
+        ]
+      },
+      "TreasuryPlanDto": {
+        "type": "object",
+        "properties": {
+          "servicesCents": {
+            "type": "integer"
+          },
+          "expenseAllowanceCents": {
+            "type": "integer"
+          },
+          "stripeObligationsCents": {
+            "type": "integer"
+          },
+          "cushionCents": {
+            "type": "integer"
+          },
+          "reserveTargetCents": {
+            "type": "integer"
+          },
+          "monthlyCostCents": {
+            "type": "integer"
+          },
+          "expensePayoutCents": {
+            "type": "integer"
+          },
+          "profitPayoutCents": {
+            "type": "integer"
+          },
+          "heldProfitCents": {
+            "type": "integer"
+          },
+          "shortfallCents": {
+            "type": "integer"
+          },
+          "coverMonths": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "servicesCents",
+          "expenseAllowanceCents",
+          "stripeObligationsCents",
+          "cushionCents",
+          "reserveTargetCents",
+          "monthlyCostCents",
+          "expensePayoutCents",
+          "profitPayoutCents",
+          "heldProfitCents",
+          "shortfallCents",
+          "coverMonths"
+        ]
+      },
+      "TreasuryExpenseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "monthlyCents": {
+            "type": "integer",
+            "description": "What the owner entered."
+          },
+          "effectiveCents": {
+            "type": "integer",
+            "description": "What the split counts: for AWS the higher of the entry and this month's AWS forecast."
+          },
+          "source": {
+            "enum": [
+              "manual",
+              "aws"
+            ],
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "sort": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "monthlyCents",
+          "effectiveCents",
+          "source",
+          "active",
+          "sort"
+        ]
+      },
+      "TreasuryCostLineDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "enum": [
+              "payroll_stripe",
+              "payroll_bank",
+              "owed",
+              "refund_buffer"
+            ],
+            "type": "string"
+          },
+          "monthlyCents": {
+            "type": "integer"
+          },
+          "via": {
+            "enum": [
+              "stripe",
+              "bank"
+            ],
+            "type": "string",
+            "description": "Stays on Stripe, or goes to the «Расходы» bank."
+          }
+        },
+        "required": [
+          "key",
+          "monthlyCents",
+          "via"
+        ]
+      },
+      "TreasurySettingsDto": {
+        "type": "object",
+        "properties": {
+          "auto": {
+            "type": "boolean",
+            "description": "The split runs by itself every month."
+          },
+          "payoutDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          },
+          "bufferPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 300
+          },
+          "refundBufferUsd": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minProfitUsd": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "payrollAuto": {
+            "type": "boolean",
+            "description": "Salaries go out by themselves on the pay day."
+          },
+          "payrollDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          },
+          "payrollWarnDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "auto",
+          "payoutDay",
+          "bufferPercent",
+          "refundBufferUsd",
+          "minProfitUsd",
+          "payrollAuto",
+          "payrollDay",
+          "payrollWarnDays"
+        ]
+      },
+      "TreasuryPayoutDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period": {
+            "type": "string",
+            "example": "2026-10"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "expenses",
+              "profit"
+            ]
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "manual"
+            ]
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "destinationLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_transit",
+              "paid",
+              "failed",
+              "canceled"
+            ]
+          },
+          "failure": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "period",
+          "kind",
+          "trigger",
+          "amountCents",
+          "destinationLabel",
+          "status",
+          "failure",
+          "createdAt"
+        ]
+      },
+      "TreasuryPayrollDto": {
+        "type": "object",
+        "properties": {
+          "stripeReady": {
+            "type": "boolean",
+            "description": "Flag payroll_stripe_payouts on and Stripe keys saved."
+          },
+          "nextPayAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paidThisPeriod": {
+            "type": "boolean",
+            "description": "This month's pay day already ran."
+          },
+          "dueCents": {
+            "type": "integer",
+            "description": "What the next pay day takes from Stripe, cents."
+          },
+          "people": {
+            "type": "integer",
+            "description": "People paid automatically."
+          },
+          "notLinked": {
+            "description": "People on a salary not linked to Stripe (paid by hand).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "shortCents": {
+            "type": "integer",
+            "description": "Missing on Stripe for the next pay day, cents (0: enough)."
+          }
+        },
+        "required": [
+          "stripeReady",
+          "nextPayAt",
+          "paidThisPeriod",
+          "dueCents",
+          "people",
+          "notLinked",
+          "shortCents"
+        ]
+      },
+      "TreasuryOverviewDto": {
+        "type": "object",
+        "properties": {
+          "availableCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Stripe balance available for payout (null: no Stripe)."
+          },
+          "pendingCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "setup": {
+            "$ref": "#/components/schemas/TreasurySetupDto"
+          },
+          "profitBank": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TreasuryBankDto"
+              }
+            ]
+          },
+          "expenseBank": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TreasuryBankDto"
+              }
+            ]
+          },
+          "plan": {
+            "$ref": "#/components/schemas/TreasuryPlanDto"
+          },
+          "expenses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreasuryExpenseDto"
+            }
+          },
+          "costLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreasuryCostLineDto"
+            }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/TreasurySettingsDto"
+          },
+          "payouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreasuryPayoutDto"
+            }
+          },
+          "nextRunAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ranThisPeriod": {
+            "type": "boolean",
+            "description": "This month's split already ran."
+          },
+          "payroll": {
+            "$ref": "#/components/schemas/TreasuryPayrollDto"
+          }
+        },
+        "required": [
+          "availableCents",
+          "pendingCents",
+          "setup",
+          "profitBank",
+          "expenseBank",
+          "plan",
+          "expenses",
+          "costLines",
+          "settings",
+          "payouts",
+          "nextRunAt",
+          "ranThisPeriod",
+          "payroll"
+        ]
+      },
+      "TreasuryOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TreasuryOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateTreasurySettingsDto": {
+        "type": "object",
+        "properties": {
+          "auto": {
+            "type": "boolean"
+          },
+          "payoutDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          },
+          "bufferPercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 300
+          },
+          "refundBufferUsd": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "minProfitUsd": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "payrollAuto": {
+            "type": "boolean"
+          },
+          "payrollDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          },
+          "payrollWarnDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          }
+        }
+      },
+      "TreasuryRunResultDto": {
+        "type": "object",
+        "properties": {
+          "skipped": {
+            "nullable": true,
+            "enum": [
+              "no_stripe",
+              "not_manual",
+              "busy"
+            ],
+            "type": "string",
+            "description": "Why nothing was sent (null: the split ran)."
+          },
+          "expensesCents": {
+            "type": "integer"
+          },
+          "profitCents": {
+            "type": "integer"
+          },
+          "shortfallCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "skipped",
+          "expensesCents",
+          "profitCents",
+          "shortfallCents"
+        ]
+      },
+      "TreasuryRunResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TreasuryRunResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreateTreasuryExpenseDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80,
+            "example": "Twilio (SMS)"
+          },
+          "monthlyCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000,
+            "description": "A month, cents."
+          }
+        },
+        "required": [
+          "name",
+          "monthlyCents"
+        ]
+      },
+      "UpdateTreasuryExpenseDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "monthlyCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
       "RewardDepartmentSettingsDto": {
         "type": "object",
         "properties": {
@@ -96484,6 +97960,42 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/StickerDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "FeedContentMode": {
+        "type": "string",
+        "enum": [
+          "all",
+          "legal_only"
+        ]
+      },
+      "FeedPreferencesDto": {
+        "type": "object",
+        "properties": {
+          "contentMode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeedContentMode"
+              }
+            ]
+          }
+        },
+        "required": [
+          "contentMode"
+        ]
+      },
+      "FeedPreferencesEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FeedPreferencesDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

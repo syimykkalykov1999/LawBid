@@ -76,6 +76,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     ..addListener(_onDocs);
   late String? _practice = widget.editing?.practice?.code;
   late bool _news = widget.editing?.isNews ?? widget.news;
+
+  /// Owner 2026-10-05: without a topic a post is general (personal); the
+  /// author can mark it legal. A topic or News makes it legal anyway.
+  late bool _legal = widget.editing != null && !widget.editing!.isGeneral;
+
+  bool get _markedLegal => _practice == null && !_news && _legal;
   bool _publishing = false;
   bool _triedPublish = false;
 
@@ -221,6 +227,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               title: _title.text.trim(),
               body: _text.text.trim(),
               practiceCode: _practice,
+              markedLegal: _practice == null ? _legal : null,
             );
         // ignore: only_throw_errors
         if (error != null) throw error;
@@ -238,6 +245,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             'body': _text.text.trim(),
             if (_practice != null) 'practiceCode': _practice,
             'kind': _news ? 'news' : 'post',
+            if (_markedLegal) 'contentClass': 'legal',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
             if (_docs.items.isNotEmpty)
               'attachments': [
@@ -259,6 +267,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               body: _text.text.trim(),
               practiceCode: _practice,
               isNews: _news,
+              markedLegal: _markedLegal,
               mediaFileIds: [for (final p in _photos) p.fileId!],
               attachments: _docs.refs,
             ),
@@ -358,6 +367,41 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     error: false,
                     onTap: _pickPractice,
                   ),
+                  // Owner 2026-10-05: no topic = a general (personal) post
+                  // unless the author says it is about law.
+                  if (practice == null && !_news) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    MergeSemantics(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.t('post.create.legal'),
+                                  style: type.body,
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  t.t('post.create.legalHint'),
+                                  style: type.caption
+                                      .copyWith(color: colors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Switch.adaptive(
+                            key: const ValueKey('post-legal-switch'),
+                            value: _legal,
+                            activeTrackColor: colors.gold,
+                            onChanged: (v) => setState(() => _legal = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   label(
                     t.t('post.create.titleField'),

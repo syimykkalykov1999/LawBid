@@ -11,6 +11,7 @@ import '../models/latest_posts_sort.dart';
 import '../models/min_urgency.dart';
 import '../models/period.dart';
 import '../models/person_item_list_envelope.dart';
+import '../models/post_content_class.dart';
 import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
 import '../models/role2.dart';
@@ -164,6 +165,9 @@ abstract class SearchClient {
   /// [withPhotos] - Only posts with photos.
   ///
   /// [sort] - popular = likes + comments, then newest (offset cursor).
+  ///
+  /// [contentClass] - Owner 2026-10-05: only legal or only general (personal) posts — the.
+  /// "Posts" topic lists general ones. Absent = the viewer's feed setting.
   @GET('/search/latest-posts')
   Future<PostListEnvelope> latestPosts({
     @Query('period') Period? period = Period.all,
@@ -174,6 +178,7 @@ abstract class SearchClient {
     @Query('kind') PostKind? kind,
     @Query('withPhotos') bool? withPhotos,
     @Query('sort') LatestPostsSort? sort,
+    @Query('contentClass') PostContentClass? contentClass,
     @Extras() Map<String, dynamic>? extras,
   });
 }

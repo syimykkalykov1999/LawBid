@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_post_row_dto_kind.dart';
 import 'admin_post_row_dto_status.dart';
+import 'post_content_class.dart';
 
 part 'admin_post_row_dto.g.dart';
 
@@ -18,6 +19,8 @@ class AdminPostRowDto {
     required this.authorId,
     required this.authorName,
     required this.status,
+    required this.contentClass,
+    required this.contentClassLocked,
     required this.likes,
     required this.comments,
     required this.deleted,
@@ -40,6 +43,10 @@ class AdminPostRowDto {
   final String authorName;
   final String? practice;
   final AdminPostRowDtoStatus status;
+  final PostContentClass contentClass;
+
+  /// Set by moderation (author edits keep it).
+  final bool contentClassLocked;
   final int likes;
   final int comments;
   final bool deleted;
