@@ -32,7 +32,7 @@ CREATE TABLE "dmca_notices" (
     "decided_at" TIMESTAMPTZ,
     "decision_note" STRING(1000),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "dmca_notices_pkey" PRIMARY KEY ("id")
 );
