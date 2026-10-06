@@ -31,7 +31,7 @@ class TreasurySetupDto {
   final bool banksListed;
   final int bankCount;
 
-  /// A second bank (not the default) is in Stripe for «Расходы». Without it the expense money goes to the default bank too.
+  /// A second bank (not the default) is in Stripe for «Расходы». Stripe allows one USD bank, so usually false: the expense payout goes to the default bank as its own payout.
   final bool separateExpenseBank;
 
   Map<String, Object?> toJson() => _$TreasurySetupDtoToJson(this);

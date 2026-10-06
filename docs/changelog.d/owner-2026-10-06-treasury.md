@@ -10,7 +10,8 @@ owner's bank. Switch «авто» on by default (admin Деньги → Приб
   `treasury.payout_day` (default 25, a missed day runs the next day) the
   split: «Расходы» = active `treasury_expenses` (AWS = max(entry, this
   month's AWS budget forecast)) + payroll paid from the bank (+ owed
-  commissions when Stripe payroll is off) → the one non-default bank in
+  commissions when Stripe payroll is off) → its own payout to Stripe's
+  bank (Stripe allows one USD bank; a second one, if ever added, is used) in
   Stripe; reserve = Stripe payroll + owed commissions (Stripe payroll on)
   + `treasury.refund_buffer_usd` + `treasury.buffer_percent` of a month of
   everything; «Прибыль» = the rest above `treasury.min_profit_usd` →

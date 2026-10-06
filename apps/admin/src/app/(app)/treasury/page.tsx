@@ -52,7 +52,7 @@ const dateOnly = (iso: string) =>
 /**
  * Owner 2026-10-05 «на карту — только чистая прибыль»: Деньги → «Прибыль
  * и резерв». Once a month the system splits the Stripe balance by itself:
- * a month of expenses to the expense bank, the reserve stays on Stripe,
+ * a month of expenses as a separate payout, the reserve stays on Stripe,
  * the rest to the owner's bank. Banks are only the ones in Stripe itself.
  */
 export default function TreasuryPage() {
@@ -216,12 +216,19 @@ export default function TreasuryPage() {
             />
             <BankRow
               title="Расходы"
-              hint="Второй банк в Stripe, его карта платит за сервисы"
-              value={bankText(
-                t.expenseBank,
-                "Нет второго банка: пока туда же, на основной",
-              )}
+              hint="Отдельная выплата «LawBid expenses»: переведите её на карту для расходов"
+              value={
+                t.expenseBank
+                  ? bankText(t.expenseBank, "")
+                  : bankText(t.profitBank, "Основной банк в Stripe")
+              }
             />
+            <div className="break-words p-4 text-xs text-muted">
+              Stripe принимает только один долларовый счёт, поэтому расходы
+              приходят туда же, но отдельной выплатой с пометкой «LawBid
+              expenses». Переведите эту сумму на счёт, чья карта платит за
+              сервисы, или поставьте в банке автоперевод раз в месяц.
+            </div>
             <div className="flex items-start gap-2 p-4 text-xs text-muted">
               <ShieldCheck size={16} className="mt-px shrink-0 text-success" />
               <span className="min-w-0 break-words">

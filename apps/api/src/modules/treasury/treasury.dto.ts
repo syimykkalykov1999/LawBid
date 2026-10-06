@@ -40,7 +40,7 @@ export class TreasurySetupDto {
   @ApiProperty({ type: 'integer' }) bankCount!: number;
   @ApiProperty({
     description:
-      'A second bank (not the default) is in Stripe for «Расходы». Without it the expense money goes to the default bank too.',
+      'A second bank (not the default) is in Stripe for «Расходы». Stripe allows one USD bank, so usually false: the expense payout goes to the default bank as its own payout.',
   })
   separateExpenseBank!: boolean;
 }
