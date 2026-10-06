@@ -2,6 +2,7 @@ import { PostsModule } from '../modules/posts/posts.module';
 import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
 import { PartnersCoreModule } from '../modules/partners/partners.module';
+import { CountryPartnersCoreModule } from '../modules/country-partners/country-partners.module';
 import { RewardsModule } from '../modules/rewards/rewards.module';
 import { SupportModule } from '../modules/support/support.module';
 import { StorageCoreModule } from '../modules/storage/storage.module';
@@ -75,6 +76,8 @@ export class JobsModule {
         CasePaymentsCoreModule,
         // Owner 2026-10-05: `partners.sweep`.
         PartnersCoreModule,
+        // Owner 2026-10-06: `country-partners.sweep`.
+        CountryPartnersCoreModule,
         DemoCoreModule,
         // Owner 2026-10-05: `support.sweep`, `rewards.award`.
         SupportModule,

@@ -68,6 +68,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: partner commissions past their hold → approved,
    * monthly base accrued. */
   partnersSweep: 'partners.sweep',
+  /** Owner 2026-10-06: country partners — finished months settled, held
+   * shares sent to payroll, missed goals e-mailed to the owner. */
+  countryPartnersSweep: 'country-partners.sweep',
   /** Owner 2026-10-05: demo accounts idle past the TTL are deleted; an
    * empty demo world is reseeded. */
   demoSweep: 'demo.sweep',
@@ -149,6 +152,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 15:00 UTC ≈ 08:00 Pacific / 11:00 Eastern: a morning reminder.
   { name: CRON_JOBS.casePaymentsRemind, pattern: '0 15 * * *' },
   { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
+  // 04:25 UTC daily: the 1st settles the month just finished.
+  { name: CRON_JOBS.countryPartnersSweep, pattern: '25 4 * * *' },
   { name: CRON_JOBS.demoSweep, pattern: '7 * * * *' },
   // 15:10 UTC = morning across the US: a reminder, not a night push.
   { name: CRON_JOBS.caseDeadlineReminder, pattern: '10 15 * * *' },

@@ -28,6 +28,9 @@ export const ADMIN_AREAS = [
   // Owner 2026-10-05: staff salaries (finance admin); the super admin and
   // the deputy who manages admins always have it.
   'payroll',
+  // Owner 2026-10-06: a country partner's accountant — their country's
+  // revenue report and settlements, read only. Only inside a partner team.
+  'partner_report',
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number];
 
@@ -46,7 +49,13 @@ export const SUPER_ONLY_AREAS = [
 ] as const;
 export type SuperOnlyArea = (typeof SUPER_ONLY_AREAS)[number];
 
-type RouteArea = AdminArea | SuperOnlyArea | 'auth' | 'workspace' | 'unknown';
+type RouteArea =
+  | AdminArea
+  | SuperOnlyArea
+  | 'auth'
+  | 'workspace'
+  | 'partner_portal'
+  | 'unknown';
 
 /** Sections whose every view is written to the audit log (who looked at
  * money). Exports are audited by the export endpoint itself. */
@@ -98,6 +107,10 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   promotions: 'money',
   referrals: 'money',
   partners: 'money',
+  // Owner 2026-10-06: the owner's page of country partners.
+  'country-partners': 'money',
+  // …and the partner team's own page (report, goals, contract).
+  'country-partner': 'partner_portal',
   'case-payments': 'money', // client → attorney payments (Stripe Connect)
   integrations: 'keys',
   admins: 'admins',
@@ -152,15 +165,65 @@ export function readCountries(raw: unknown): string[] {
   ].sort();
 }
 
+/** Owner 2026-10-06: keys inside `admin_profiles.permissions` of a
+ * country partner's team. `country_partner` = the partner's id (every
+ * member, the lead included); `partner_lead` = the partner themself, who
+ * hires and manages their own team only. */
+export const COUNTRY_PARTNER_KEY = 'country_partner';
+export const PARTNER_LEAD_KEY = 'partner_lead';
+
+export interface PartnerMembership {
+  partnerId: string;
+  lead: boolean;
+}
+
+/** Stored JSON → the partner team this admin belongs to (null = staff of
+ * the owner). */
+export function readPartner(raw: unknown): PartnerMembership | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const id = r[COUNTRY_PARTNER_KEY];
+  if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+  return { partnerId: id, lead: r[PARTNER_LEAD_KEY] === true };
+}
+
+/**
+ * The most a country partner's team can ever hold (owner 2026-10-06):
+ * the simple day-to-day work in their own country. Prices, payouts,
+ * keys, legal texts, flags, settings, translations of every language,
+ * broadcasts, admins of the owner and other countries stay closed; user
+ * accounts are read only (no deleting people or money).
+ */
+export const PARTNER_TEAM_MAX: AdminPermissions = {
+  dashboard: 'view',
+  users: 'view',
+  verification: 'manage',
+  moderation: 'manage',
+  content: 'manage',
+  media: 'manage',
+  cases: 'manage',
+  support: 'manage',
+  outreach: 'manage',
+  partner_report: 'view',
+};
+
 /** The JSON stored in `admin_profiles.permissions`. */
 export function storePermissions(
   areas: AdminPermissions,
   manageAdmins: boolean,
   countries: readonly string[] = [],
+  partner: PartnerMembership | null = null,
 ): Record<string, string | boolean | string[]> {
-  const out: Record<string, string | boolean | string[]> = { ...areas };
-  if (manageAdmins) out[MANAGE_ADMINS_KEY] = true;
+  const out: Record<string, string | boolean | string[]> = {
+    ...(partner ? intersect(PARTNER_TEAM_MAX, areas) : areas),
+  };
+  // A partner's team never gets the owner's deputy right.
+  if (manageAdmins && !partner) out[MANAGE_ADMINS_KEY] = true;
   if (countries.length > 0) out[COUNTRIES_KEY] = [...countries];
+  if (partner) {
+    out[COUNTRY_PARTNER_KEY] = partner.partnerId;
+    if (partner.lead) out[PARTNER_LEAD_KEY] = true;
+  }
   return out;
 }
 
@@ -251,11 +314,23 @@ export function canAccess(
   path: string,
   method: string,
   manageAdmins = false,
+  partner: PartnerMembership | null = null,
 ): boolean {
   if (role === 'super_admin') return true;
   const area = routeArea(path);
   if (!area || area === 'unknown') return false;
   if (area === 'auth' || area === 'workspace') return true;
+  // Owner 2026-10-06: a country partner's team works only inside the
+  // partner limits, whatever was stored; the lead manages their own team
+  // (AdminsService narrows it to that team).
+  if (partner) {
+    if (area === 'partner_portal') return true;
+    if (area === 'admins') return partner.lead;
+    if (isSuperOnlyArea(area)) return false;
+    const capped = intersect(PARTNER_TEAM_MAX, perms);
+    return grants(capped, area, levelForMethod(method));
+  }
+  if (area === 'partner_portal') return false;
   // Admin management: only an admin the super admin gave that right; the
   // service narrows it further (what they may grant or touch).
   if (area === 'admins') return manageAdmins;

@@ -3,6 +3,7 @@ import { CRON_JOBS } from './jobs.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
 import { PartnersService } from '../modules/partners/partners.service';
+import { CountryPartnersService } from '../modules/country-partners/country-partners.service';
 import { RewardsService } from '../modules/rewards/rewards.service';
 import { SupportDeskService } from '../modules/support/support-desk.service';
 import { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
@@ -91,6 +92,7 @@ export class CronProcessor {
     @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly opsState?: OpsStateService,
+    @Optional() private readonly countryPartners?: CountryPartnersService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -165,6 +167,8 @@ export class CronProcessor {
         return this.casePayments.remind();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.countryPartnersSweep:
+        return this.countryPartners?.sweep();
       case CRON_JOBS.demoSweep:
         return this.demo?.sweep();
       case CRON_JOBS.caseDeadlineReminder:

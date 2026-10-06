@@ -79,6 +79,7 @@ import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
 import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
+import { CountryPartnersModule } from './modules/country-partners/country-partners.module';
 import { SupportModule } from './modules/support/support.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { RewardsModule } from './modules/rewards/rewards.module';
@@ -216,6 +217,8 @@ const isDev =
     DocumentTemplatesModule,
     AdminBillingModule,
     AdminPayrollModule,
+    // Owner 2026-10-06: Деньги → Партнёры стран.
+    CountryPartnersModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,
     // Owner 2026-10-05: Система → Хранилище (storage like Telegram).
