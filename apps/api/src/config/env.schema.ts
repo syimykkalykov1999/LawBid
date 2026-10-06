@@ -94,6 +94,10 @@ export const envSchema = z
     // migrated by the API itself; `off` → no demo world.
     DEMO_DATABASE_URL: z.string().min(1).optional(),
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
+    // How long one Redis command may wait before failing. The e2e harness
+    // raises it: a busy CI runner stalls the event loop past 2 s while an
+    // app boots, and the timer then fires before the reply is read.
+    REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()
       .int()
