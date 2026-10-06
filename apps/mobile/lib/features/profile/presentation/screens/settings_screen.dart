@@ -12,6 +12,8 @@ import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_plan/client_plan_routes.dart';
+import 'package:lawbid/features/demo/application/demo_providers.dart';
+import 'package:lawbid/features/demo/presentation/demo_settings_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
@@ -65,6 +67,9 @@ class SettingsScreen extends ConsumerWidget {
     // into captioned, elevated sections (same rows, same order, same
     // handlers) with icon medallions, and each section staggers in.
     final sections = <Widget>[
+      // Owner 2026-10-05 (docs/ops/demo-world.md): «Вы в демо-аккаунте» on top
+      // while in a demo session.
+      if (ref.watch(isDemoSessionProvider)) const DemoSettingsCard(),
       AppListSection(
         title: t.t('settings.section.account'),
         children: [

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useState } from 'react';
+import { BudgetLimitsCard, isBudgetKey } from '@/components/budget-limits-card';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -117,21 +118,6 @@ const KEY_TEXT: Record<string, string> = {
 
 function keyText(e: { key: string; description: string | null }): string | null {
   if (KEY_TEXT[e.key]) return KEY_TEXT[e.key];
-  const budget = /^budget\.(\w+)\.(per_minute_max|daily_max|monthly_max)$/.exec(e.key);
-  if (budget) {
-    const what: Record<string, string> = {
-      sms: 'SMS',
-      email: 'писем',
-      id_check: 'проверок документов',
-      storage: 'хранилища',
-    };
-    const per: Record<string, string> = {
-      per_minute_max: 'в минуту',
-      daily_max: 'в день',
-      monthly_max: 'в месяц',
-    };
-    return `Лимит расходов: ${what[budget[1]] ?? budget[1]} ${per[budget[2]]}; 0 — отключить.`;
-  }
   return e.description;
 }
 
@@ -210,8 +196,9 @@ export default function ConfigPage() {
     onError: (e) => toast.error(e),
   });
   const f = filter.trim().toLowerCase();
+  // Spend caps (`budget.*`) are managed by the «Лимиты расходов» card.
   const rows = (q.data ?? []).filter(
-    (e) => !f || e.key.toLowerCase().includes(f) || (keyText(e) ?? '').toLowerCase().includes(f),
+    (e) => !isBudgetKey(e.key) && (!f || e.key.toLowerCase().includes(f) || (keyText(e) ?? '').toLowerCase().includes(f)),
   );
 
   return (
@@ -233,6 +220,7 @@ export default function ConfigPage() {
           </div>
         }
       />
+      <BudgetLimitsCard />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>

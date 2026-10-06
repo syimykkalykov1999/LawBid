@@ -53,3 +53,5 @@ POST /admin/promotions/{id}/extend the response property `data/promotion/caseId`
 POST /admin/promotions/{id}/extend the response property `data/promotion/caseId` became optional for the status `200`
 POST /cases/{id}/promotions the response property `data/promotion/caseId` became nullable for the status `201`
 POST /cases/{id}/promotions the response property `data/promotion/caseId` became optional for the status `201`
+# Legal PR (2026-10-05): joining the partner program now requires accepting the partner rules; old app builds get a 400 and are told to update
+POST /partners/me/join added required request body

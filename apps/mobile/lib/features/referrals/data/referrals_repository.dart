@@ -28,7 +28,7 @@ class ReferralsRepository {
             createdAt: r.createdAt,
           ),
       ],
-      promotionCreditDays: d.promotionCreditDays,
+      promotionCreditDays: d.promotionCreditDaysExact,
       pendingDiscountPercent: d.pendingDiscountPercent,
       applyWindowDays: d.applyWindowDays,
       canApply: d.canApply,
@@ -54,5 +54,5 @@ class ReferralsRepository {
       );
 
   static Reward _reward(api.ReferralRewardDto d) =>
-      Reward(type: RewardType.parse(d.type.json), value: d.value);
+      Reward(type: RewardType.parse(d.type.json), value: d.amount ?? d.value);
 }

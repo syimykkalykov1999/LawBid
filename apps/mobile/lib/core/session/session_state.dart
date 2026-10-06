@@ -23,6 +23,10 @@ abstract class SessionState with _$SessionState {
     required bool verified,
     required String subscriptionStatus,
     required DateTime accessTokenExpiresAt,
+    /// Owner 2026-10-05 (docs/ops/demo-world.md): access-token claim `demo` —
+    /// this session lives in the separate demo database. Every request
+    /// then carries `X-LawBid-Demo: 1` (AuthInterceptor).
+    @Default(false) bool isDemo,
   }) = _SessionState;
   const SessionState._();
 

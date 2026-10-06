@@ -32,6 +32,8 @@ enum ReportReason {
   personalInfo('personal_info'),
   @JsonValue('fraud')
   fraud('fraud'),
+  @JsonValue('copyright')
+  copyright('copyright'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

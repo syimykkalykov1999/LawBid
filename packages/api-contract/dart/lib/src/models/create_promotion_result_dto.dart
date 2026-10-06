@@ -16,6 +16,7 @@ class CreatePromotionResultDto {
     required this.status,
     required this.totalCents,
     required this.creditDaysUsed,
+    required this.creditDaysUsedExact,
     required this.promotion,
     this.checkoutUrl,
   });
@@ -29,7 +30,12 @@ class CreatePromotionResultDto {
   /// Open in the browser to pay; null when nothing to pay.
   final String? checkoutUrl;
   final int totalCents;
+
+  /// Whole credit days.
   final int creditDaysUsed;
+
+  /// Credit days used, exact (may be fractional).
+  final num creditDaysUsedExact;
   final CasePromotionDto promotion;
 
   Map<String, Object?> toJson() => _$CreatePromotionResultDtoToJson(this);

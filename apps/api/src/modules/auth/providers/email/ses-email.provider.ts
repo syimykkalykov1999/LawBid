@@ -1,6 +1,11 @@
 import { PinoLogger } from 'nestjs-pino';
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import {
+  SESClient,
+  SendEmailCommand,
+  SendRawEmailCommand,
+} from '@aws-sdk/client-ses';
 import type { EmailMessage, EmailProvider } from './email-provider.interface';
+import { buildMimeMessage } from './mime-message';
 
 /**
  * Real provider, selected by config/provider-selection.ts once SES_REGION
@@ -41,6 +46,34 @@ export class SesEmailProvider implements EmailProvider {
   }
 
   async sendEmail(message: EmailMessage): Promise<void> {
+    if (message.headers && Object.keys(message.headers).length > 0) {
+      // Owner 2026-10-05 (legal): SendEmail cannot set custom headers
+      // (List-Unsubscribe on cold emails), so such messages go as raw MIME.
+      await this.client.send(
+        new SendRawEmailCommand({
+          Source: this.fromAddress,
+          Destinations: [message.to],
+          RawMessage: {
+            Data: Buffer.from(
+              buildMimeMessage({
+                from: this.fromAddress,
+                to: message.to,
+                subject: message.subject,
+                text: message.text,
+                html: message.html,
+                headers: message.headers,
+              }),
+              'utf8',
+            ),
+          },
+        }),
+      );
+      this.logger.info(
+        { toEmailDomain: message.to.split('@')[1], raw: true },
+        'SES email sent',
+      );
+      return;
+    }
     await this.client.send(
       new SendEmailCommand({
         Source: this.fromAddress,

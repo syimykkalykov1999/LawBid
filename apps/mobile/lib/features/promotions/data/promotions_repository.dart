@@ -86,7 +86,7 @@ class PromotionsRepository {
     return PromotionPurchase(
       status: PromotionStatus.parse(d.status.json),
       totalCents: d.totalCents,
-      creditDaysUsed: d.creditDaysUsed,
+      creditDaysUsed: d.creditDaysUsedExact,
       checkoutUrl: d.checkoutUrl,
     );
   }
@@ -160,8 +160,8 @@ class PromotionsRepository {
         priceCentsPerDay: d.priceCentsPerDay,
         grossCents: d.grossCents,
         totalCents: d.totalCents,
-        creditDaysAvailable: d.creditDaysAvailable,
-        creditDaysUsed: d.creditDaysUsed,
+        creditDaysAvailable: d.creditDaysAvailableExact,
+        creditDaysUsed: d.creditDaysUsedExact,
         maxDays: d.maxDays,
         enabled: d.enabled,
         dailyBudgetCents: d.dailyBudgetCents,

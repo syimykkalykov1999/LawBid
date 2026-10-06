@@ -26,6 +26,7 @@ import type {
   ProviderCheckoutSession,
 } from '../billing/payment-provider';
 import { ReferralsService } from '../referrals/referrals.service';
+import { wholeDays } from '../referrals/referrals.settings';
 import type {
   CasePromotionDto,
   CasePromotionStateDto,
@@ -192,8 +193,10 @@ export class PromotionsService {
       priceCentsPerDay: q.priceCentsPerDay,
       grossCents: q.grossCents,
       totalCents: q.totalCents,
-      creditDaysAvailable,
-      creditDaysUsed: q.creditDaysUsed,
+      creditDaysAvailable: wholeDays(creditDaysAvailable),
+      creditDaysUsed: wholeDays(q.creditDaysUsed),
+      creditDaysAvailableExact: creditDaysAvailable,
+      creditDaysUsedExact: q.creditDaysUsed,
       maxDays: settings.maxDays,
       enabled: target === 'post' ? settings.postsEnabled : settings.enabled,
       dailyBudgetCents: daily,
@@ -402,7 +405,8 @@ export class PromotionsService {
         status: row.status as PromotionStatus,
         checkoutUrl: null,
         totalCents: 0,
-        creditDaysUsed,
+        creditDaysUsed: wholeDays(creditDaysUsed),
+        creditDaysUsedExact: creditDaysUsed,
         promotion: toPromotionDto(row),
       };
     }
@@ -451,7 +455,8 @@ export class PromotionsService {
       status: 'pending_payment',
       checkoutUrl: session.url,
       totalCents: row.total_cents,
-      creditDaysUsed,
+      creditDaysUsed: wholeDays(creditDaysUsed),
+      creditDaysUsedExact: creditDaysUsed,
       promotion: toPromotionDto(updated),
     };
   }

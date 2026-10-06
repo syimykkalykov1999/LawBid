@@ -4,6 +4,7 @@ import {
   CheckCircle,
   Coins,
   Gift,
+  MagnifyingGlass,
   Prohibit,
   RocketLaunch,
   ShareNetwork,
@@ -17,10 +18,10 @@ import {
 } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Kpi, KpiSkeletons } from "@/components/billing/kpi";
 import { fadeUp, LoadMore, plural } from "@/components/billing/shared";
-import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
+import { ErrorNote, PageHeader } from "@/components/page-header";
 import { useReason } from "@/components/reason-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,6 +52,31 @@ type RewardType = components["schemas"]["ReferralRewardType"];
 type Settings = components["schemas"]["ReferralSettingsDto"];
 type Tab = "all" | ReferralStatus;
 type Action = "qualify" | "reward" | "reject";
+type Section = "invites" | "settings" | "codes";
+const SECTIONS: Section[] = ["invites", "settings", "codes"];
+const SECTION_KEY = "admin.referrals.section";
+
+/** ?tab=settings deep link, else the last tab this admin opened. */
+function initialSection(): Section {
+  if (typeof window === "undefined") return "invites";
+  const fromUrl = new URLSearchParams(window.location.search).get("tab");
+  if (SECTIONS.includes(fromUrl as Section)) return fromUrl as Section;
+  try {
+    const saved = window.localStorage.getItem(SECTION_KEY);
+    if (SECTIONS.includes(saved as Section)) return saved as Section;
+  } catch {
+    // storage blocked: default tab
+  }
+  return "invites";
+}
+
+function rememberSection(s: Section) {
+  try {
+    window.localStorage.setItem(SECTION_KEY, s);
+  } catch {
+    // storage blocked: nothing to remember
+  }
+}
 
 const STATUSES: ReferralStatus[] = [
   "pending",
@@ -111,7 +137,7 @@ const MAX_VALUE: Record<RewardType, number> = {
 function rewardText(r: Reward): string {
   if (r.type === "balance_cents") return `${usd(r.value)} на баланс`;
   if (r.type === "percent_first_invoice") return `−${r.value}% на первый счёт`;
-  return `${r.value} ${plural(r.value, "день", "дня", "дней")} продвижения`;
+  return `${daysText(exact(r))} продвижения`;
 }
 
 /** Referral program: how it works, stats, list with actions, settings. */
@@ -127,13 +153,20 @@ export default function ReferralsPage() {
     me?.role === "moderator";
   const { ask, dialog } = useReason();
   const [tab, setTab] = useState<Tab>("all");
+  // Owner 2026-10-05: with thousands of invites the settings were out of
+  // reach at the bottom — each part now has its own tab.
+  const [section, setSection] = useState<Section>("invites");
+  useEffect(() => setSection(initialSection()), []);
+  const [draft, setDraft] = useState("");
+  const [search, setSearch] = useState("");
 
   const stats = useQuery({
     queryKey: ["referrals-stats"],
     queryFn: async () => (await api.GET("/admin/referrals/stats")).data!.data,
   });
   const list = useInfiniteQuery({
-    queryKey: ["referrals", tab],
+    queryKey: ["referrals", tab, search],
+    enabled: section === "invites",
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       (
@@ -142,6 +175,7 @@ export default function ReferralsPage() {
             query: {
               cursor: pageParam,
               status: tab === "all" ? undefined : tab,
+              q: search || undefined,
             },
           },
         })
@@ -269,155 +303,208 @@ export default function ReferralsPage() {
               i={3}
               icon={RocketLaunch}
               title="Дни продвижения"
-              value={stats.data.promotionDaysIssued}
-              hint={`использовано: ${stats.data.promotionDaysUsed}`}
+              value={stats.data.promotionDaysIssuedExact}
+              format={(n) => String(Math.round(n * 100) / 100)}
+              hint={`использовано: ${stats.data.promotionDaysUsedExact}`}
             />
           </>
         ) : null}
       </div>
       <ErrorNote text={stats.error ? errorText(stats.error) : null} />
 
-      <SectionTitle>Приглашения</SectionTitle>
-      <div className="mb-4">
+      <div className="mt-8 mb-5 border-b border-line pb-4">
         <Tabs
-          value={tab}
-          onChange={setTab}
+          value={section}
+          onChange={(v) => {
+            setSection(v);
+            rememberSection(v);
+          }}
           items={[
-            { value: "all" as Tab, label: "Все" },
-            ...STATUSES.map((s) => ({
-              value: s as Tab,
-              label: REFERRAL_STATUS[s],
-              count: s === "qualified" ? byStatus[s] : null,
-            })),
+            { value: "invites" as Section, label: "Приглашения" },
+            { value: "settings" as Section, label: "Настройки программы" },
+            { value: "codes" as Section, label: "Коды и ссылки" },
           ]}
         />
       </div>
-      <ErrorNote text={list.error ? errorText(list.error) : null} />
-      {!list.isPending && !list.error && rows.length === 0 ? (
-        <EmptyState
-          icon={ShareNetwork}
-          title="Приглашений нет"
-          text={
-            tab === "all"
-              ? "Они появятся, когда пользователи начнут вводить коды друзей."
-              : "В этом статусе ничего нет."
-          }
-        />
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Пригласил</Th>
-              <Th>Приглашённый</Th>
-              <Th>Статус</Th>
-              <Th>Награды</Th>
-              <Th>Создано</Th>
-              <Th>Итог</Th>
-              {canWrite ? <Th /> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {list.isPending ? (
-              <TableEmpty colSpan={cols} loading />
-            ) : (
-              rows.map((r) => (
-                <tr key={r.id}>
-                  <Td>
-                    <Person
-                      u={r.referrer}
-                      role={r.referrerRole}
-                      link={canOpenUsers}
-                    />
-                    <div className="mt-0.5 font-mono text-[11px] text-faint">
-                      {r.code}
-                    </div>
-                  </Td>
-                  <Td>
-                    <Person
-                      u={r.referee}
-                      role={r.refereeRole}
-                      link={canOpenUsers}
-                    />
-                  </Td>
-                  <Td>
-                    <StatusPill map={REFERRAL_STATUS} value={r.status} />
-                    {r.rejectedReason ? (
-                      <div className="mt-1 max-w-[200px] text-xs text-faint">
-                        {r.rejectedReason}
-                      </div>
-                    ) : null}
-                  </Td>
-                  <Td className="text-xs">
-                    <RewardLine
-                      who="пригласившему"
-                      r={r.referrerReward}
-                      issued={r.referrerRewardIssued}
-                    />
-                    <RewardLine
-                      who="приглашённому"
-                      r={r.refereeReward}
-                      issued={r.refereeRewardIssued}
-                    />
-                  </Td>
-                  <Td className="min-w-24 text-xs text-muted">
-                    {formatDateTime(r.createdAt)}
-                  </Td>
-                  <Td className="text-xs text-muted">
-                    {formatDateTime(r.qualifiedAt)}
-                    <br />
-                    {formatDateTime(r.rewardedAt)}
-                  </Td>
-                  {canWrite ? (
-                    <Td className="text-right">
-                      <div className="flex flex-col items-end gap-1.5">
-                        {r.status === "pending" ? (
-                          <Button
-                            size="sm"
-                            variant="soft"
-                            disabled={act.isPending}
-                            onClick={() => act.mutate({ r, action: "qualify" })}
-                          >
-                            <CheckCircle size={14} /> Засчитать
-                          </Button>
-                        ) : null}
-                        {r.status === "qualified" ? (
-                          <Button
-                            size="sm"
-                            variant="soft"
-                            disabled={act.isPending}
-                            onClick={() => act.mutate({ r, action: "reward" })}
-                          >
-                            <Gift size={14} /> Выдать
-                          </Button>
-                        ) : null}
-                        {r.status === "pending" || r.status === "qualified" ? (
-                          <Button
-                            size="sm"
-                            variant="danger-soft"
-                            disabled={act.isPending}
-                            onClick={() => act.mutate({ r, action: "reject" })}
-                          >
-                            <Prohibit size={14} /> Отклонить
-                          </Button>
-                        ) : null}
-                      </div>
-                    </Td>
-                  ) : null}
+
+      {section === "invites" ? (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <form
+              className="relative min-w-56 flex-1 sm:max-w-xs"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSearch(draft.trim());
+              }}
+            >
+              <MagnifyingGlass
+                size={16}
+                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint"
+              />
+              <Input
+                className="pl-9"
+                placeholder="Код, имя или почта — Enter"
+                value={draft}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  if (e.target.value === "") setSearch("");
+                }}
+              />
+            </form>
+            <Tabs
+              value={tab}
+              onChange={setTab}
+              items={[
+                { value: "all" as Tab, label: "Все" },
+                ...STATUSES.map((s) => ({
+                  value: s as Tab,
+                  label: REFERRAL_STATUS[s],
+                  count: s === "qualified" ? byStatus[s] : null,
+                })),
+              ]}
+            />
+          </div>
+          <ErrorNote text={list.error ? errorText(list.error) : null} />
+          {!list.isPending && !list.error && rows.length === 0 ? (
+            <EmptyState
+              icon={ShareNetwork}
+              title={
+                search ? `Ничего не найдено по «${search}»` : "Приглашений нет"
+              }
+              text={
+                search
+                  ? "Попробуйте начало кода, имя или почту."
+                  : tab === "all"
+                    ? "Они появятся, когда пользователи начнут вводить коды друзей."
+                    : "В этом статусе ничего нет."
+              }
+            />
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Пригласил</Th>
+                  <Th>Приглашённый</Th>
+                  <Th>Статус</Th>
+                  <Th>Награды</Th>
+                  <Th>Создано</Th>
+                  <Th>Итог</Th>
+                  {canWrite ? <Th /> : null}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </Table>
-      )}
-      <LoadMore q={list} />
+              </thead>
+              <tbody>
+                {list.isPending ? (
+                  <TableEmpty colSpan={cols} loading />
+                ) : (
+                  rows.map((r) => (
+                    <tr key={r.id}>
+                      <Td>
+                        <Person
+                          u={r.referrer}
+                          role={r.referrerRole}
+                          link={canOpenUsers}
+                        />
+                        <div className="mt-0.5 font-mono text-[11px] text-faint">
+                          {r.code}
+                        </div>
+                      </Td>
+                      <Td>
+                        <Person
+                          u={r.referee}
+                          role={r.refereeRole}
+                          link={canOpenUsers}
+                        />
+                      </Td>
+                      <Td>
+                        <StatusPill map={REFERRAL_STATUS} value={r.status} />
+                        {r.rejectedReason ? (
+                          <div className="mt-1 max-w-[200px] text-xs text-faint">
+                            {r.rejectedReason}
+                          </div>
+                        ) : null}
+                      </Td>
+                      <Td className="text-xs">
+                        <RewardLine
+                          who="пригласившему"
+                          r={r.referrerReward}
+                          issued={r.referrerRewardIssued}
+                        />
+                        <RewardLine
+                          who="приглашённому"
+                          r={r.refereeReward}
+                          issued={r.refereeRewardIssued}
+                        />
+                      </Td>
+                      <Td className="min-w-24 text-xs text-muted">
+                        {formatDateTime(r.createdAt)}
+                      </Td>
+                      <Td className="text-xs text-muted">
+                        {formatDateTime(r.qualifiedAt)}
+                        <br />
+                        {formatDateTime(r.rewardedAt)}
+                      </Td>
+                      {canWrite ? (
+                        <Td className="text-right">
+                          <div className="flex flex-col items-end gap-1.5">
+                            {r.status === "pending" ? (
+                              <Button
+                                size="sm"
+                                variant="soft"
+                                disabled={act.isPending}
+                                onClick={() =>
+                                  act.mutate({ r, action: "qualify" })
+                                }
+                              >
+                                <CheckCircle size={14} /> Засчитать
+                              </Button>
+                            ) : null}
+                            {r.status === "qualified" ? (
+                              <Button
+                                size="sm"
+                                variant="soft"
+                                disabled={act.isPending}
+                                onClick={() =>
+                                  act.mutate({ r, action: "reward" })
+                                }
+                              >
+                                <Gift size={14} /> Выдать
+                              </Button>
+                            ) : null}
+                            {r.status === "pending" ||
+                            r.status === "qualified" ? (
+                              <Button
+                                size="sm"
+                                variant="danger-soft"
+                                disabled={act.isPending}
+                                onClick={() =>
+                                  act.mutate({ r, action: "reject" })
+                                }
+                              >
+                                <Prohibit size={14} /> Отклонить
+                              </Button>
+                            ) : null}
+                          </div>
+                        </Td>
+                      ) : null}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </Table>
+          )}
+          <LoadMore q={list} />
+        </>
+      ) : null}
 
-      <SectionTitle>Настройки программы</SectionTitle>
-      <SettingsCard canEdit={me?.role === "super_admin"} />
+      {section === "settings" ? (
+        <SettingsCard canEdit={me?.role === "super_admin"} />
+      ) : null}
 
-      <SectionTitle>Коды и ссылки</SectionTitle>
-      <CodesCard
-        canEdit={me?.role === "super_admin" || me?.role === "finance"}
-      />
+      {section === "codes" ? (
+        <CodesCard
+          canEdit={me?.role === "super_admin" || me?.role === "finance"}
+        />
+      ) : null}
     </>
   );
 }
@@ -500,15 +587,40 @@ function SettingsCard({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-/** Value as typed in the form: dollars for balance_cents, a whole number otherwise. */
+/** The exact reward: `amount` carries fractional days, `value` whole ones. */
+const exact = (r: Reward) => r.amount ?? r.value;
+
+/** Value as typed in the form: dollars for balance_cents, the number otherwise. */
 const toInput = (r: Reward) =>
-  r.type === "balance_cents" ? String(r.value / 100) : String(r.value);
+  r.type === "balance_cents" ? String(r.value / 100) : String(exact(r));
+/**
+ * Owner 2026-10-05: small rewards are allowed — $0.01 (one cent) and
+ * 0.01 day (0.5 = 12 hours); percent stays whole. Commas, spaces and
+ * «$ % д» are ignored.
+ */
 function fromInput(type: RewardType, text: string): number | null {
-  const n = Number(text.replace(",", ".").trim());
-  if (!Number.isFinite(n) || n < 0 || text.trim() === "") return null;
-  const v = type === "balance_cents" ? Math.round(n * 100) : n;
-  if (!Number.isInteger(v) || v > MAX_VALUE[type]) return null;
+  const clean = text.replace(",", ".").replace(/[\s$%a-zа-яё]/gi, "");
+  if (clean === "" || !/^\d*\.?\d*$/.test(clean)) return null;
+  const n = Number(clean);
+  if (!Number.isFinite(n) || n < 0) return null;
+  // Dollars → whole cents; days keep two decimals; percent is whole.
+  const v =
+    type === "balance_cents"
+      ? Math.round(n * 100)
+      : type === "promotion_days"
+        ? Math.round(n * 100) / 100
+        : n;
+  if (!Number.isFinite(v) || v > MAX_VALUE[type]) return null;
+  if (type === "percent_first_invoice" && !Number.isInteger(v)) return null;
   return v;
+}
+
+function daysText(n: number): string {
+  if (n > 0 && n < 1) {
+    const h = Math.round(n * 24 * 10) / 10;
+    return `${h} ч`;
+  }
+  return `${n} ${plural(n, "день", "дня", "дней")}`;
 }
 
 type SlotState = { type: RewardType; value: string };
@@ -570,7 +682,13 @@ function SettingsForm({
         clientReferrerReward: { type: "promotion_days", value: 0 },
         clientRefereeReward: { type: "promotion_days", value: 0 },
       };
-      for (const p of parsed) body[p.key] = { type: p.type, value: p.value! };
+      // `value` must stay whole; the exact days go in `amount`.
+      for (const p of parsed)
+        body[p.key] = {
+          type: p.type,
+          value: Math.floor(p.value!),
+          amount: p.value!,
+        };
       return (await api.PUT("/admin/referrals/settings", { body })).data!.data;
     },
     onSuccess: (data) => {
@@ -702,11 +820,22 @@ function SettingsForm({
                     </Field>
                   </div>
                   <p className="mt-2 text-xs text-faint">
-                    {st.type === "balance_cents"
-                      ? "До $1000."
-                      : st.type === "percent_first_invoice"
-                        ? "От 0 до 100."
-                        : "До 30 дней."}{" "}
+                    {bad
+                      ? st.type === "balance_cents"
+                        ? "Число от 0 до 1000, например 0.05."
+                        : st.type === "percent_first_invoice"
+                          ? "Целое число от 0 до 100."
+                          : "Число от 0 до 30, например 0.5."
+                      : st.type === "balance_cents"
+                        ? "От $0.01 до $1000."
+                        : st.type === "percent_first_invoice"
+                          ? "От 1 до 100 %."
+                          : (() => {
+                              const v = fromInput(st.type, st.value) ?? 0;
+                              return v > 0 && v < 1
+                                ? `Это ${daysText(v)}. Можно от 0.01 до 30 дней.`
+                                : "От 0.01 до 30 дней, 0.5 = 12 часов.";
+                            })()}{" "}
                     0 — без награды.
                   </p>
                 </div>

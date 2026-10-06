@@ -193,6 +193,29 @@ export class PartnerTextsByLangDto {
 
 // ---- app --------------------------------------------------------------
 
+/** POST /partners/me/join. */
+export class JoinPartnerDto {
+  @ApiProperty({
+    description:
+      'The partner read and accepts the partner rules (GET /legal/settings texts.partnerTerms). Must be true.',
+  })
+  @IsBoolean()
+  termsAccepted!: boolean;
+}
+
+/** Owner 2026-10-05 (legal): the partner's words plus the FTC disclosure
+ * and the rules (from legal.settings, in the user's language). */
+export class PartnerMeTextsDto extends PartnerTextsDto {
+  @ApiProperty({
+    description:
+      'Say it is a paid link in every post (FTC Endorsement Guides).',
+  })
+  disclosure!: string;
+
+  @ApiProperty({ description: 'The partner rules, plain text.' })
+  terms!: string;
+}
+
 export class PartnerMeDto {
   @ApiProperty({
     description:
@@ -248,10 +271,30 @@ export class PartnerMeDto {
   commissions!: PartnerCommissionDto[];
 
   @ApiProperty({
-    type: PartnerTextsDto,
-    description: "Owner's words in the user's language.",
+    type: PartnerMeTextsDto,
+    description:
+      "Owner's words, the disclosure and the rules in the user's language.",
   })
-  texts!: PartnerTextsDto;
+  texts!: PartnerMeTextsDto;
+
+  @ApiProperty({ description: 'Current version of the partner rules.' })
+  termsVersion!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Version the partner accepted; null = not accepted yet (the app shows the rules with an Accept button, POST /partners/me/accept-terms).',
+  })
+  termsAcceptedVersion!: string | null;
+
+  @ApiProperty({
+    description: 'A W-9 (or W-8) is needed before the first payout.',
+  })
+  w9Required!: boolean;
+
+  @ApiProperty({ description: 'The admin marked the W-9 as received.' })
+  w9Received!: boolean;
 }
 
 // ---- admin ------------------------------------------------------------
@@ -293,6 +336,14 @@ export class PartnerSettingsDto {
   @Max(MAX_HOLD_DAYS)
   holdDays!: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Require a W-9 (or W-8) before the first payout. Omitted = keep the current value.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  requireW9?: boolean;
+
   @ApiProperty({ type: PartnerTextsByLangDto })
   @ValidateNested()
   @Type(() => PartnerTextsByLangDto)
@@ -326,6 +377,14 @@ export class AdminPartnerUserDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   role!: string | null;
+}
+
+export class AdminPartnerExternalDto {
+  @ApiProperty({ description: 'How the admin knows the blogger.' })
+  name!: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  contact!: string | null;
 }
 
 export class AdminPartnerRowDto {
@@ -384,6 +443,38 @@ export class AdminPartnerRowDto {
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   endedAt!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'When the partner accepted the rules in the app.',
+  })
+  termsAcceptedAt!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  termsVersion!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'W-9 (or W-8) received; null blocks payouts while requireW9 is on.',
+  })
+  w9ReceivedAt!: string | null;
+
+  @ApiProperty({
+    description: 'Owner 2026-10-05 («Продвижение»): may create demo accounts.',
+  })
+  demoAccess!: boolean;
+
+  @ApiProperty({
+    type: AdminPartnerExternalDto,
+    nullable: true,
+    description: 'Set for a partner without an app account (blogger).',
+  })
+  external!: AdminPartnerExternalDto | null;
 }
 
 export class AdminPartnerReferredUserDto extends PartnerReferredUserDto {
@@ -541,9 +632,35 @@ class PartnerFieldsDto {
 }
 
 export class CreatePartnerDto extends PartnerFieldsDto {
-  @ApiProperty({ format: 'uuid', description: 'Any existing user account.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'An existing user account. Leave out and give externalName for a blogger without an account.',
+  })
+  @IsOptional()
   @IsUUID('all')
-  userId!: string;
+  userId?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 120,
+    description: 'Owner 2026-10-05: partner without an app account (blogger).',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(120)
+  externalName?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 200,
+    description: 'Instagram, phone, e-mail…',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(200)
+  externalContact?: string;
 
   @ApiPropertyOptional({
     description:
@@ -569,6 +686,36 @@ export class UpdatePartnerDto extends PartnerFieldsDto {
   @IsOptional()
   @IsIn(PARTNER_STATUSES)
   status?: PartnerStatus;
+
+  @ApiPropertyOptional({
+    description: 'true = W-9 received now; false = clear it.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  w9Received?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Owner 2026-10-05 («Продвижение»): may create demo accounts.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  demoAccess?: boolean;
+
+  @ApiPropertyOptional({ maxLength: 120, nullable: true, type: String })
+  @IsOptional()
+  @Transform(trim)
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(120)
+  externalName?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 200, nullable: true, type: String })
+  @IsOptional()
+  @Transform(trim)
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(200)
+  externalContact?: string | null;
 
   @ApiPropertyOptional({ type: String, maxLength: 300 })
   @IsOptional()
@@ -665,4 +812,18 @@ export class AdminPartnerStatsDto {
 
   @ApiProperty({ type: 'integer' })
   thisMonthCents!: number;
+}
+
+/** Owner 2026-10-05: attach a real account to a partner created without one. */
+export class LinkPartnerUserDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  userId!: string;
+
+  @ApiPropertyOptional({ type: String, maxLength: 300 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  reason = '';
 }

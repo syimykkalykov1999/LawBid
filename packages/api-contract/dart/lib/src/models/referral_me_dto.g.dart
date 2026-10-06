@@ -18,6 +18,7 @@ ReferralMeDto _$ReferralMeDtoFromJson(Map<String, dynamic> json) =>
           .map((e) => ReferralInviteDto.fromJson(e as Map<String, dynamic>))
           .toList(),
       promotionCreditDays: (json['promotionCreditDays'] as num).toInt(),
+      promotionCreditDaysExact: json['promotionCreditDaysExact'] as num,
       pendingDiscountPercent: (json['pendingDiscountPercent'] as num).toInt(),
       applyWindowDays: (json['applyWindowDays'] as num).toInt(),
       canApply: json['canApply'] as bool,
@@ -44,6 +45,7 @@ Map<String, dynamic> _$ReferralMeDtoToJson(ReferralMeDto instance) =>
       'rewards': instance.rewards.map((e) => e.toJson()).toList(),
       'referredBy': ?instance.referredBy?.toJson(),
       'promotionCreditDays': instance.promotionCreditDays,
+      'promotionCreditDaysExact': instance.promotionCreditDaysExact,
       'pendingDiscountPercent': instance.pendingDiscountPercent,
       'applyWindowDays': instance.applyWindowDays,
       'canApply': instance.canApply,

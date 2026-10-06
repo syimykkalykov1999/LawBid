@@ -15,6 +15,7 @@ class OutreachImportReportDto {
     required this.rows,
     required this.created,
     required this.duplicates,
+    required this.suppressed,
     required this.skipped,
     required this.columns,
     required this.problems,
@@ -33,6 +34,9 @@ class OutreachImportReportDto {
 
   /// Email or phone already in the base.
   final num duplicates;
+
+  /// Email or phone on the stop-list; not created.
+  final num suppressed;
 
   /// Rows without any contact.
   final num skipped;

@@ -19,6 +19,8 @@ AdminReferralStatsDto _$AdminReferralStatsDtoFromJson(
   balanceCentsIssued: (json['balanceCentsIssued'] as num).toInt(),
   promotionDaysIssued: (json['promotionDaysIssued'] as num).toInt(),
   promotionDaysUsed: (json['promotionDaysUsed'] as num).toInt(),
+  promotionDaysIssuedExact: json['promotionDaysIssuedExact'] as num,
+  promotionDaysUsedExact: json['promotionDaysUsedExact'] as num,
 );
 
 Map<String, dynamic> _$AdminReferralStatsDtoToJson(
@@ -30,4 +32,6 @@ Map<String, dynamic> _$AdminReferralStatsDtoToJson(
   'balanceCentsIssued': instance.balanceCentsIssued,
   'promotionDaysIssued': instance.promotionDaysIssued,
   'promotionDaysUsed': instance.promotionDaysUsed,
+  'promotionDaysIssuedExact': instance.promotionDaysIssuedExact,
+  'promotionDaysUsedExact': instance.promotionDaysUsedExact,
 };

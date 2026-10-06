@@ -23,7 +23,7 @@ export function normalizeReferralCode(raw: string): string {
   return raw.replace(/[\s-]/g, '').toUpperCase();
 }
 
-const DEEP_LINK_BASE = 'lawbid://referral';
+const DEFAULT_LINK_BASE = 'https://lawbid.dev';
 
 /** The invite link for a code: `${APP_LINK_BASE_URL}/r/CODE` when the
  * universal-link base is configured, else the app's deep link. */
@@ -31,7 +31,8 @@ export function referralShareUrl(
   base: string | undefined,
   code: string,
 ): string {
-  return base
-    ? `${base.replace(/\/+$/, '')}/r/${code}`
-    : `${DEEP_LINK_BASE}/${code}`;
+  // Owner 2026-10-05: a link Instagram/TikTok can open — the website's
+  // /r/<CODE> page opens the app or shows the code and the store buttons.
+  const root = base || DEFAULT_LINK_BASE;
+  return `${root.replace(/\/+$/, '')}/r/${code}`;
 }

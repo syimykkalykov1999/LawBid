@@ -235,6 +235,11 @@ const _keys = <String, String>{
   ApiErrorCodes.usernameTaken: 'error.api.USERNAME_TAKEN',
   ApiErrorCodes.usernameReserved: 'error.api.USERNAME_RESERVED',
   ApiErrorCodes.usernameChangeTooSoon: 'error.api.USERNAME_CHANGE_TOO_SOON',
+  // Owner 2026-10-05: demo mode (docs/ops/demo-world.md).
+  ApiErrorCodes.demoDisabled: 'error.api.DEMO_DISABLED',
+  ApiErrorCodes.demoLimitReached: 'error.api.DEMO_LIMIT_REACHED',
+  ApiErrorCodes.demoUnavailable: 'error.api.DEMO_UNAVAILABLE',
+  ApiErrorCodes.demoCodeInvalid: 'error.api.DEMO_CODE_INVALID',
   // Client-side synthetic code (contact_verification_controller.dart).
   'NO_REAUTH_CONTACT': 'error.api.NO_REAUTH_CONTACT',
 };

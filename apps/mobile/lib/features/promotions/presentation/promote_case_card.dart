@@ -15,6 +15,7 @@ import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sh
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
+import 'package:lawbid/features/referrals/domain/referral_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -691,7 +692,7 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.sm),
                   child: Text(
-                    t.t('promote.credits', {'days': '${q.creditDaysUsed}'}),
+                    t.t('promote.credits', {'days': formatRewardNumber(q.creditDaysUsed)}),
                     textAlign: TextAlign.center,
                     style: type.caption.copyWith(color: colors.success),
                   ),

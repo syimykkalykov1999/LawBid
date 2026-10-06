@@ -41,6 +41,9 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { CostAutoscaleService } from '../common/cost-guard/cost-autoscale.service';
+import { OutreachRetentionService } from '../modules/outreach/outreach-retention.service';
+import { DemoService } from '../modules/demo/demo.service';
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
@@ -79,16 +82,20 @@ export class CronProcessor {
     private readonly taskArchivePurge: TaskArchivePurgeJob,
     private readonly casePayments: CasePaymentsService,
     private readonly partners: PartnersService,
+    @Optional() private readonly demo: DemoService | undefined,
     private readonly caseDeadlineReminder: CaseDeadlineReminderJob,
     private readonly trust: AttorneyTrustService,
     private readonly fraud: ClientFraudService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
+    // Owner 2026-10-05 (legal): `outreach.retention`.
+    @Optional() private readonly outreachRetention?: OutreachRetentionService,
     @Optional() private readonly storageCleanup?: StorageCleanupService,
     @Optional() private readonly dataRetention?: DataRetentionService,
     @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly opsState?: OpsStateService,
+    @Optional() private readonly costAutoscale?: CostAutoscaleService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -163,6 +170,8 @@ export class CronProcessor {
         return this.casePayments.remind();
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
+      case CRON_JOBS.demoSweep:
+        return this.demo?.sweep();
       case CRON_JOBS.caseDeadlineReminder:
         return this.caseDeadlineReminder.run();
       case CRON_JOBS.trustRecompute:
@@ -179,12 +188,16 @@ export class CronProcessor {
         return this.storageStats?.snapshot() ?? null;
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
+      case CRON_JOBS.outreachRetention:
+        return this.outreachRetention?.run();
       case CRON_JOBS.opsGuard:
         return this.opsGuard?.guard();
       case CRON_JOBS.opsCostCheck:
         return this.opsGuard?.costCheck();
       case CRON_JOBS.opsBackupCheck:
         return this.opsGuard?.backupCheck();
+      case CRON_JOBS.costAutoscale:
+        return this.costAutoscale?.run();
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

@@ -154,11 +154,21 @@ export class PromotionQuoteDto {
   @ApiProperty({ type: 'integer', description: 'If credits are used.' })
   totalCents!: number;
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysAvailable!: number;
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysUsed!: number;
+
+  @ApiProperty({
+    type: 'number',
+    description:
+      'Referral credit days, exact (owner 2026-10-05: may be fractional, 0.5 = 12 hours).',
+  })
+  creditDaysAvailableExact!: number;
+
+  @ApiProperty({ type: 'number', description: 'Credit days used, exact.' })
+  creditDaysUsedExact!: number;
 
   @ApiProperty({ type: 'integer' })
   maxDays!: number;
@@ -309,8 +319,14 @@ export class CreatePromotionResultDto {
   @ApiProperty({ type: 'integer' })
   totalCents!: number;
 
-  @ApiProperty({ type: 'integer' })
+  @ApiProperty({ type: 'integer', description: 'Whole credit days.' })
   creditDaysUsed!: number;
+
+  @ApiProperty({
+    type: 'number',
+    description: 'Credit days used, exact (may be fractional).',
+  })
+  creditDaysUsedExact!: number;
 
   @ApiProperty({ type: CasePromotionDto })
   promotion!: CasePromotionDto;

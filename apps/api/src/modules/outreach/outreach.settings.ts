@@ -85,6 +85,29 @@ export interface OutreachSettings {
    * unsubscribe link in every cold email points here. Sending is refused
    * while it is empty. */
   apiPublicUrl: string;
+  /**
+   * Owner 2026-10-05 (legal): calls and emails to consumers (kind
+   * 'client') fall under the TCPA and the National Do-Not-Call registry
+   * ($500–1,500 per call). Off by default: creating/importing client
+   * leads and calling/emailing existing ones is refused while false.
+   */
+  clientLeadsEnabled: boolean;
+  /** The owner confirms consumer numbers are scrubbed against the
+   * National DNC registry; required before clientLeadsEnabled. */
+  dncConfirmed: boolean;
+  /** Subscription Account Number of the DNC registry (informational). */
+  dncSan: string;
+  /** Local hours of the lead's state in which calls are allowed
+   * (TCPA: 8:00–21:00; start < end). */
+  callHoursStart: number;
+  callHoursEnd: number;
+  /** Cold emails one lead may receive in total (0 = no cap) and the
+   * pause between two of them, in days. */
+  maxEmailsPerLead: number;
+  emailCooldownDays: number;
+  /** Unconverted leads with no activity for this long are deleted by the
+   * daily `outreach.retention` job (data minimization). */
+  leadRetentionDays: number;
 }
 
 export const DEFAULT_OUTREACH_SETTINGS: OutreachSettings = {
@@ -92,6 +115,14 @@ export const DEFAULT_OUTREACH_SETTINGS: OutreachSettings = {
   fromName: 'LawBid',
   footerAddress: '',
   apiPublicUrl: '',
+  clientLeadsEnabled: false,
+  dncConfirmed: false,
+  dncSan: '',
+  callHoursStart: 8,
+  callHoursEnd: 21,
+  maxEmailsPerLead: 2,
+  emailCooldownDays: 14,
+  leadRetentionDays: 365,
 };
 
 export const MAX_DAILY_EMAILS = 1000;
@@ -99,7 +130,35 @@ export const OUTREACH_TEXT_LIMITS = {
   fromName: 80,
   footerAddress: 300,
   apiPublicUrl: 200,
+  dncSan: 40,
+  sourceNote: 300,
 } as const;
+export const OUTREACH_LIMITS = {
+  maxEmailsPerLead: 10,
+  emailCooldownDays: 365,
+  leadRetentionDaysMin: 30,
+  leadRetentionDaysMax: 3650,
+} as const;
+
+/** Why a lead must not be contacted; stored in do_not_contact_reason. */
+export const DO_NOT_CONTACT_REASONS = [
+  'manual',
+  'not_interested',
+  'wrong_number',
+  'unsubscribed',
+  'suppression',
+  'retention',
+] as const;
+export type DoNotContactReason = (typeof DO_NOT_CONTACT_REASONS)[number];
+
+/** What blocks a call or an email to a lead right now. */
+export type ContactBlockReason =
+  | 'dnc'
+  | 'client_disabled'
+  | 'hours'
+  | 'unsubscribed'
+  | 'email_limit'
+  | 'email_cooldown';
 
 function str(v: unknown, max: number, fallback: string): string {
   return typeof v === 'string' ? v.trim().slice(0, max) : fallback;
@@ -108,6 +167,9 @@ function int(v: unknown, min: number, max: number, fallback: number): number {
   return typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
     ? v
     : fallback;
+}
+function bool(v: unknown, fallback: boolean): boolean {
+  return typeof v === 'boolean' ? v : fallback;
 }
 
 export function parseOutreachSettings(raw: unknown): OutreachSettings {
@@ -132,6 +194,59 @@ export function parseOutreachSettings(raw: unknown): OutreachSettings {
       OUTREACH_TEXT_LIMITS.apiPublicUrl,
       d.apiPublicUrl,
     ).replace(/\/+$/, ''),
+    ...parseComplianceSettings(o),
+  };
+}
+
+/** The TCPA / DNC part of the settings; clientLeadsEnabled never survives
+ * without dncConfirmed, and the call window is reset to the default when
+ * start is not before end. */
+function parseComplianceSettings(
+  o: Partial<Record<keyof OutreachSettings, unknown>>,
+): Pick<
+  OutreachSettings,
+  | 'clientLeadsEnabled'
+  | 'dncConfirmed'
+  | 'dncSan'
+  | 'callHoursStart'
+  | 'callHoursEnd'
+  | 'maxEmailsPerLead'
+  | 'emailCooldownDays'
+  | 'leadRetentionDays'
+> {
+  const d = DEFAULT_OUTREACH_SETTINGS;
+  const dncConfirmed = bool(o.dncConfirmed, d.dncConfirmed);
+  let callHoursStart = int(o.callHoursStart, 0, 23, d.callHoursStart);
+  let callHoursEnd = int(o.callHoursEnd, 1, 24, d.callHoursEnd);
+  if (callHoursStart >= callHoursEnd) {
+    callHoursStart = d.callHoursStart;
+    callHoursEnd = d.callHoursEnd;
+  }
+  return {
+    clientLeadsEnabled:
+      dncConfirmed && bool(o.clientLeadsEnabled, d.clientLeadsEnabled),
+    dncConfirmed,
+    dncSan: str(o.dncSan, OUTREACH_TEXT_LIMITS.dncSan, d.dncSan),
+    callHoursStart,
+    callHoursEnd,
+    maxEmailsPerLead: int(
+      o.maxEmailsPerLead,
+      0,
+      OUTREACH_LIMITS.maxEmailsPerLead,
+      d.maxEmailsPerLead,
+    ),
+    emailCooldownDays: int(
+      o.emailCooldownDays,
+      0,
+      OUTREACH_LIMITS.emailCooldownDays,
+      d.emailCooldownDays,
+    ),
+    leadRetentionDays: int(
+      o.leadRetentionDays,
+      OUTREACH_LIMITS.leadRetentionDaysMin,
+      OUTREACH_LIMITS.leadRetentionDaysMax,
+      d.leadRetentionDays,
+    ),
   };
 }
 

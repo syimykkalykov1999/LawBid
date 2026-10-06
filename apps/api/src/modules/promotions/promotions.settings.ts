@@ -250,14 +250,19 @@ export function quotePromotion(input: {
 }): PromotionQuote {
   const { days, priceCentsPerDay } = input;
   const grossCents = days * priceCentsPerDay;
+  // Referral credit may be fractional (owner 2026-10-05: «0.5 дня»).
   const creditDaysUsed = input.useCredits
-    ? Math.max(0, Math.min(days, input.creditDaysAvailable))
+    ? Math.round(Math.max(0, Math.min(days, input.creditDaysAvailable)) * 100) /
+      100
     : 0;
   const creditDay = Math.min(
     priceCentsPerDay,
     input.creditDayValueCents ?? priceCentsPerDay,
   );
-  const payableCents = Math.max(0, grossCents - creditDaysUsed * creditDay);
+  const payableCents = Math.max(
+    0,
+    Math.round(grossCents - creditDaysUsed * creditDay),
+  );
   let promoDiscountCents = 0;
   const promo = input.promo;
   if (promo && payableCents > 0) {
@@ -270,7 +275,9 @@ export function quotePromotion(input: {
     } else if (promo.discountType === 'free_days' && promo.freeDays) {
       promoDiscountCents = Math.min(
         payableCents,
-        Math.min(days, promo.freeDays) * priceCentsPerDay,
+        Math.round(
+          Math.min(days - creditDaysUsed, promo.freeDays) * priceCentsPerDay,
+        ),
       );
     }
   }

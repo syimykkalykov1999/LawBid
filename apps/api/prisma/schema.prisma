@@ -583,6 +583,9 @@ enum ReportReason {
   // Owner 2026-10-05: a client paid an attorney who vanished / used
   // someone else's bar number (attorney trust levels).
   fraud
+  // Owner 2026-10-05 (legal): a DMCA / copyright notice; the report is
+  // created by POST /legal/dmca together with a dmca_notices row.
+  copyright
 
   @@map("report_reason")
 }
@@ -764,8 +767,18 @@ model User {
   /// Owner 2026-10-05: the country the person works in (from the phone
   /// number at sign-up, then from the state/province they pick). Admin
   /// staff assigned to a country see only its people.
+  // Owner 2026-10-05: a row that stands for a person outside the app (an
+  // external partner — a blogger whose referral code the admin hands out
+  // before they register). No identifiers, cannot sign in, hidden from
+  // the people lists. Values: external_partner.
+  placeholder_kind            String?                        @db.String(24)
   country_code                String                         @default("US") @db.Char(2)
   country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
+  /// Owner 2026-10-05 (legal): DMCA removals counted against the author;
+  /// at legal.settings.dmcaStrikesToSuspend the account is suspended
+  /// (repeat-infringer policy, 17 U.S.C. §512(i)). A restore takes one back.
+  copyright_strikes           Int                            @default(0)
+  dmca_notices_submitted      DmcaNotice[]                   @relation("DmcaSubmitter")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -2199,7 +2212,8 @@ model Report {
   created_at  DateTime         @default(now()) @db.Timestamptz
   updated_at  DateTime         @updatedAt @db.Timestamptz
 
-  actions ModerationAction[]
+  actions      ModerationAction[]
+  dmca_notices DmcaNotice[]
 
   @@index([status, created_at])
   // Duplicate-report lookup per target and "my reports" (stage 4.1
@@ -2207,6 +2221,48 @@ model Report {
   @@index([target_type, target_id, status])
   @@index([reporter_id])
   @@map("reports")
+}
+
+/// Owner 2026-10-05 (legal): a DMCA takedown notice (17 U.S.C. §512(c)(3))
+/// with the statutory elements — identification of the work, the location
+/// (our target or a URL), contact details, the good-faith statement, the
+/// accuracy statement under penalty of perjury and a signature — and the
+/// counter-notice (§512(g)) the content's author may file after a removal.
+/// new → removed | rejected; removed → counter_received → restored.
+model DmcaNotice {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id            String?           @db.Uuid
+  report               Report?           @relation(fields: [report_id], references: [id], onDelete: SetNull)
+  target_type          ReportTargetType?
+  target_id            String?           @db.Uuid
+  infringing_url       String?           @db.String(1000)
+  complainant_name     String            @db.String(200)
+  complainant_email    String            @db.String(254)
+  complainant_address  String            @db.String(500)
+  complainant_phone    String?           @db.String(40)
+  work_description     String            @db.String(4000)
+  good_faith           Boolean
+  accuracy_sworn       Boolean
+  signature            String            @db.String(200)
+  // new | removed | rejected | counter_received | restored
+  status               String            @default("new") @db.String(24)
+  submitted_by_user_id String?           @db.Uuid
+  submitted_by         User?             @relation("DmcaSubmitter", fields: [submitted_by_user_id], references: [id], onDelete: SetNull)
+  // The content's author at decision time (who gets the strike and may
+  // file the counter-notice).
+  author_user_id       String?           @db.Uuid
+  // {name, address, phone, email, consentJurisdiction, sworn, signature, submittedAt}
+  counter              Json?
+  decided_by           String?           @db.Uuid
+  decided_at           DateTime?         @db.Timestamptz
+  decision_note        String?           @db.String(1000)
+  created_at           DateTime          @default(now()) @db.Timestamptz
+  updated_at           DateTime          @updatedAt @db.Timestamptz
+
+  @@index([status, created_at])
+  @@index([submitted_by_user_id])
+  @@index([target_type, target_id])
+  @@map("dmca_notices")
 }
 
 model ModerationAction {
@@ -3257,6 +3313,9 @@ model PromoCode {
   starts_at        DateTime? @db.Timestamptz
   expires_at       DateTime? @db.Timestamptz
   active           Boolean   @default(true)
+  // Owner 2026-10-05: «удалить» a code that was already used archives it
+  // (history of payments keeps pointing at it); unused codes are deleted.
+  archived_at      DateTime? @db.Timestamptz
   stripe_coupon_id String?
   created_by       String    @db.Uuid
   created_at       DateTime  @default(now()) @db.Timestamptz
@@ -3352,9 +3411,25 @@ model Partner {
   client_rule         String?   @db.String(24)
   hold_days           Int?      @db.Int2
   created_by          String?   @db.Uuid
+  // Owner 2026-10-05: partner without an app account (user is a placeholder
+  // row, users.placeholder_kind = external_partner): who they are and how
+  // to reach them, admin only. Cleared when a real account is linked.
+  external_name       String?   @db.String(120)
+  external_contact    String?   @db.String(200)
+  // Owner 2026-10-05 («Продвижение»): may create demo accounts for videos.
+  demo_access         Boolean   @default(false)
   created_at          DateTime  @default(now()) @db.Timestamptz
   updated_at          DateTime  @updatedAt @db.Timestamptz
   ended_at            DateTime? @db.Timestamptz
+  // Owner 2026-10-05 (legal): the partner rules (FTC disclosure, no spam,
+  // independent contractor, ...) accepted in the app — when, which
+  // version (PARTNER_TERMS_VERSION) and from which IP.
+  terms_accepted_at   DateTime? @db.Timestamptz
+  terms_version       String?   @db.String(16)
+  terms_ip            String?   @db.String(45)
+  // A W-9 (or W-8) on file; required before the first payout when
+  // partners.program.requireW9 is on (IRS 1099 reporting).
+  w9_received_at      DateTime? @db.Timestamptz
 
   commissions PartnerCommission[]
   leads       OutreachLead[]
@@ -3432,6 +3507,18 @@ model OutreachLead {
   last_activity_at  DateTime? @db.Timestamptz
   next_action_at    DateTime? @db.Timestamptz
   note              String?   @db.String(2000)
+  // Owner 2026-10-05 (legal): do-not-contact (TCPA / DNC). Reason:
+  // manual | not_interested | wrong_number | unsubscribed | suppression |
+  // retention. While set, phone and email are hidden and no call/email
+  // may be logged or sent.
+  do_not_contact_at     DateTime? @db.Timestamptz
+  do_not_contact_reason String?   @db.String(24)
+  // Where the contact came from and on what basis we may reach out
+  // (required for CSV imports and for client leads).
+  source_note       String?   @db.String(300)
+  // Cold emails sent to this lead (cap + cooldown in outreach settings).
+  emails_sent       Int       @default(0) @db.Int4
+  last_email_at     DateTime? @db.Timestamptz
   created_by        String    @db.Uuid
   created_at        DateTime  @default(now()) @db.Timestamptz
   updated_at        DateTime  @updatedAt @db.Timestamptz
@@ -3443,6 +3530,7 @@ model OutreachLead {
   @@index([state_code, kind])
   @@index([converted_user_id])
   @@index([next_action_at])
+  @@index([do_not_contact_at])
   @@map("outreach_leads")
 }
 
@@ -3483,6 +3571,22 @@ model OutreachTemplate {
 
   @@index([active, kind])
   @@map("outreach_templates")
+}
+
+/// Owner 2026-10-05 (legal): outreach stop-list — phones (digits only) and
+/// e-mails (lower-cased) that must never be called or written to, from
+/// the admin's manual list and from deleted do-not-contact leads.
+model OutreachSuppression {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // phone | email
+  kind       String   @db.String(8)
+  value      String   @db.String(254)
+  note       String?  @db.String(200)
+  created_by String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([kind, value])
+  @@map("outreach_suppressions")
 }
 
 // Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.
@@ -4172,6 +4276,35 @@ model ClientSubscription {
 
   @@index([status, current_period_end], map: "client_subscriptions_status_idx")
   @@map("client_subscriptions")
+}
+
+// Owner 2026-10-05 («Продвижение»): registry of demo accounts. The demo
+// user itself (and everything it does) lives in the DEMO database
+// (src/common/demo); this row in the real database says who created it,
+// when it was last used and the one-time code a blogger without an app
+// account enters to get in. Deleting the row deletes the demo user.
+model DemoAccount {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // users.id inside the demo database.
+  demo_user_id        String    @unique @db.Uuid
+  // client | attorney | assistant
+  role                String    @db.String(16)
+  display_name        String    @db.String(120)
+  // Admin's note: "блогер Иван, Instagram".
+  label               String?   @db.String(200)
+  // The partner (real user) who created it from the app; null when the
+  // admin created it for a blogger without an account.
+  created_by_user_id  String?   @db.Uuid
+  created_by_admin_id String?   @db.Uuid
+  invite_code_hash    String?   @unique @db.String(64)
+  invite_expires_at   DateTime? @db.Timestamptz
+  last_seen_at        DateTime? @db.Timestamptz
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+
+  @@index([created_by_user_id, created_at])
+  @@index([last_seen_at])
+  @@map("demo_accounts")
 }
 
 /// Owner 2026-10-05 (storage like Telegram): one row a day — how much the

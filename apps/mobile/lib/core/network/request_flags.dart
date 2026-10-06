@@ -16,6 +16,15 @@ abstract final class RequestFlags {
   /// retry would re-send a paid SMS even with a key).
   static const noRetry = 'noRetry';
 
+  /// Owner 2026-10-05 (docs/ops/demo-world.md): this request belongs to a demo
+  /// session even though no demo session is in memory yet — the refresh of
+  /// a stored demo refresh token. AuthInterceptor adds [demoHeader].
+  static const demo = 'demo';
+
+  /// Every request of a demo session carries `X-LawBid-Demo: 1`; a demo
+  /// token without it (or a real token with it) is a 401 server-side.
+  static const demoHeader = 'X-LawBid-Demo';
+
   /// Internal: attempt counter RetryInterceptor keeps across re-fetches.
   static const retryAttempt = 'retryAttempt';
 

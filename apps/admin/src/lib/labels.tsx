@@ -49,6 +49,8 @@ export const REPORT_REASON: Record<string, string> = {
   profanity: 'нецензурная лексика',
   harassment: 'травля или оскорбления',
   hate_speech: 'дискриминация / разжигание ненависти',
+  // Owner 2026-10-05 (legal): a DMCA notice from the report sheet.
+  copyright: 'нарушение авторских прав (DMCA)',
   personal_info: 'личные данные',
 };
 

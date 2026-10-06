@@ -23,6 +23,8 @@ import {
   ALL_ADMIN_ROLES,
 } from '../admin-auth/admin-auth.decorators';
 import {
+  BudgetLimitDto,
+  BudgetLimitParamDto,
   ConfigEntryDto,
   ConfigKeyParamDto,
   CreateLegalDocumentDto,
@@ -32,10 +34,12 @@ import {
   LanguageCodeParamDto,
   LegalDocumentAdminDto,
   LegalDocumentIdParamDto,
+  UpdateBudgetLimitDto,
   UpdateConfigDto,
   UpdateFlagDto,
   UpdateLanguageDto,
 } from './admin-config.dto';
+import { AdminBudgetsService } from './admin-budgets.service';
 import { AdminConfigService } from './admin-config.service';
 
 const E = ErrorCode;
@@ -47,7 +51,10 @@ const E = ErrorCode;
 @SkipAutoAudit()
 @Controller('admin')
 export class AdminConfigController {
-  constructor(private readonly config: AdminConfigService) {}
+  constructor(
+    private readonly config: AdminConfigService,
+    private readonly budgets: AdminBudgetsService,
+  ) {}
 
   @Get('feature-flags')
   @ApiOperation({ summary: 'Feature flags with the paid-service key check' })
@@ -82,6 +89,32 @@ export class AdminConfigController {
   @ApiEnvelopeResponse(ConfigEntryDto, { isArray: true })
   listAppConfig(): Promise<ConfigEntryDto[]> {
     return this.config.listConfig();
+  }
+
+  // Owner 2026-10-05 «Лимиты расходов»: declared before `config/:key`.
+  @Get('config/budgets')
+  @ApiOperation({
+    summary:
+      'Spend caps per provider and window: mode (auto/manual), floor, ceiling, cap in force, usage',
+  })
+  @ApiEnvelopeResponse(BudgetLimitDto, { isArray: true })
+  listBudgetLimits(): Promise<BudgetLimitDto[]> {
+    return this.budgets.list();
+  }
+
+  @Put('config/budgets/:provider/:window')
+  @ApiOperation({
+    summary:
+      'Auto: store floor/ceiling and recompute now; manual: set the cap (0 = off)',
+  })
+  @ApiEnvelopeResponse(BudgetLimitDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  updateBudgetLimit(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: BudgetLimitParamDto,
+    @Body() dto: UpdateBudgetLimitDto,
+  ): Promise<BudgetLimitDto> {
+    return this.budgets.update(admin, params.provider, params.window, dto);
   }
 
   @Put('config/:key')

@@ -12,6 +12,7 @@ import {
   applyEmailTemplateOverride,
   type EmailTemplateLoader,
 } from './email-template-overrides';
+import { demoNoop } from '../../../../common/demo/demo-guards';
 
 /**
  * SES when configured, else the mock (docs/KEYS_SETUP.md). Shared by the
@@ -42,20 +43,23 @@ export function createEmailProvider(
     new MockEmailProvider(config, logger),
     secrets,
   );
-  if (!prisma) return delivery;
-  return new TemplateOverrideEmailProvider(
-    delivery,
-    (key, locale) =>
-      prisma.emailTemplate.findUnique({
-        where: { key_locale: { key, locale } },
-        select: {
-          subject: true,
-          text_body: true,
-          html_body: true,
-          enabled: true,
-        },
-      }),
-    logger,
+  if (!prisma) return demoNoop(delivery, ['sendEmail']);
+  return demoNoop(
+    new TemplateOverrideEmailProvider(
+      delivery,
+      (key, locale) =>
+        prisma.emailTemplate.findUnique({
+          where: { key_locale: { key, locale } },
+          select: {
+            subject: true,
+            text_body: true,
+            html_body: true,
+            enabled: true,
+          },
+        }),
+      logger,
+    ),
+    ['sendEmail'],
   );
 }
 

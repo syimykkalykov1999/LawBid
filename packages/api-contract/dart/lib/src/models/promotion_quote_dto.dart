@@ -15,6 +15,8 @@ class PromotionQuoteDto {
     required this.totalCents,
     required this.creditDaysAvailable,
     required this.creditDaysUsed,
+    required this.creditDaysAvailableExact,
+    required this.creditDaysUsedExact,
     required this.maxDays,
     required this.enabled,
     required this.dailyBudgetCents,
@@ -41,8 +43,18 @@ class PromotionQuoteDto {
 
   /// If credits are used.
   final int totalCents;
+
+  /// Whole credit days.
   final int creditDaysAvailable;
+
+  /// Whole credit days.
   final int creditDaysUsed;
+
+  /// Referral credit days, exact (owner 2026-10-05: may be fractional, 0.5 = 12 hours).
+  final num creditDaysAvailableExact;
+
+  /// Credit days used, exact.
+  final num creditDaysUsedExact;
   final int maxDays;
 
   /// This target can be promoted (admin switch).
