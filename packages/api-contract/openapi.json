@@ -9529,7 +9529,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN, SUBSCRIPTION_REQUIRED",
+            "description": "Forbidden: FORBIDDEN, SUBSCRIPTION_REQUIRED, LEGAL_REACCEPT_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -20986,7 +20986,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN, CLIENT_CONTACTS_INCOMPLETE, ONBOARDING_INCOMPLETE, CLIENT_CONTACT_SHARING_CONSENT_REQUIRED, COUNTRY_NOT_AVAILABLE",
+            "description": "Forbidden: FORBIDDEN, CLIENT_CONTACTS_INCOMPLETE, ONBOARDING_INCOMPLETE, CLIENT_CONTACT_SHARING_CONSENT_REQUIRED, COUNTRY_NOT_AVAILABLE, LEGAL_REACCEPT_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54124,6 +54124,1200 @@
         ]
       }
     },
+    "/legal/documents": {
+      "get": {
+        "operationId": "listCurrentLegalDocuments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentBriefListEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Every current legal document (type, language, version, date; public, for the website and the app)",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/documents/{type}": {
+      "get": {
+        "operationId": "getCurrentLegalDocument",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "attorney_agreement",
+                "client_agreement",
+                "eula",
+                "disclaimer",
+                "client_contact_sharing",
+                "refund",
+                "cookies",
+                "third_party_services",
+                "partner_terms",
+                "dmca_policy"
+              ]
+            }
+          },
+          {
+            "name": "locale",
+            "required": false,
+            "in": "query",
+            "description": "Falls back to English when there is no text in this language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "ru"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentPublicEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The current text of one legal document in Markdown (public); English when there is no text in the language",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/pending": {
+      "get": {
+        "operationId": "getPendingLegalDocuments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingLegalDocumentListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Legal documents of my role that I have not accepted at the current version",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/accept": {
+      "post": {
+        "operationId": "acceptLegalDocuments",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptLegalDocumentsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingLegalDocumentListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept the current versions the user ticked (an append-only consent with document, IP and device); returns what is still pending",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/admin/legal/documents": {
+      "get": {
+        "operationId": "listAdminLegalDocuments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalDocumentRowListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Every legal document by type with the state of each language",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/documents/version/{id}": {
+      "get": {
+        "operationId": "getAdminLegalVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalVersionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One version with the full text",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/documents/version/{id}/rollback": {
+      "post": {
+        "operationId": "rollbackAdminLegalVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishLegalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalVersionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: LEGAL_DOCUMENT_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Rollback (super admin): publish an old version’s text as a new version; nothing is deleted",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/documents/{type}": {
+      "get": {
+        "operationId": "getAdminLegalDocument",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "attorney_agreement",
+                "client_agreement",
+                "eula",
+                "disclaimer",
+                "client_contact_sharing",
+                "refund",
+                "cookies",
+                "third_party_services",
+                "partner_terms",
+                "dmca_policy"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalDocumentDetailEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Current version and draft of both languages, with the texts",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/documents/{type}/{locale}/history": {
+      "get": {
+        "operationId": "getAdminLegalHistory",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "attorney_agreement",
+                "client_agreement",
+                "eula",
+                "disclaimer",
+                "client_contact_sharing",
+                "refund",
+                "cookies",
+                "third_party_services",
+                "partner_terms",
+                "dmca_policy"
+              ]
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "ru"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalVersionListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Published and archived versions, newest first (no texts)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/documents/{type}/{locale}/draft": {
+      "put": {
+        "operationId": "saveAdminLegalDraft",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "attorney_agreement",
+                "client_agreement",
+                "eula",
+                "disclaimer",
+                "client_contact_sharing",
+                "refund",
+                "cookies",
+                "third_party_services",
+                "partner_terms",
+                "dmca_policy"
+              ]
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "ru"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveLegalDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalVersionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create or replace the draft (Markdown)",
+        "tags": [
+          "admin-legal"
+        ]
+      },
+      "delete": {
+        "operationId": "discardAdminLegalDraft",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "attorney_agreement",
+                "client_agreement",
+                "eula",
+                "disclaimer",
+                "client_contact_sharing",
+                "refund",
+                "cookies",
+                "third_party_services",
+                "partner_terms",
+                "dmca_policy"
+              ]
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "ru"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Throw the draft away (published versions stay)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/documents/{type}/{locale}/publish": {
+      "post": {
+        "operationId": "publishAdminLegalDocument",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "attorney_agreement",
+                "client_agreement",
+                "eula",
+                "disclaimer",
+                "client_contact_sharing",
+                "refund",
+                "cookies",
+                "third_party_services",
+                "partner_terms",
+                "dmca_policy"
+              ]
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "ru"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishLegalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLegalVersionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: LEGAL_DOCUMENT_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Publish the draft (super admin): next version number, the previous one is archived; optionally asks users to accept again",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
     "/admin/outreach/context": {
       "get": {
         "operationId": "outreachContext",
@@ -71263,7 +72457,8 @@
           "DEMO_DISABLED",
           "DEMO_LIMIT_REACHED",
           "DEMO_UNAVAILABLE",
-          "DEMO_CODE_INVALID"
+          "DEMO_CODE_INVALID",
+          "LEGAL_REACCEPT_REQUIRED"
         ]
       },
       "ErrorBodyDto": {
@@ -71343,7 +72538,15 @@
           "terms",
           "privacy",
           "disclaimer",
-          "client_contact_sharing"
+          "client_contact_sharing",
+          "attorney_agreement",
+          "client_agreement",
+          "eula",
+          "refund",
+          "cookies",
+          "third_party_services",
+          "partner_terms",
+          "dmca_policy"
         ]
       },
       "BootstrapLegalDocumentDto": {
@@ -84534,6 +85737,68 @@
           "dark"
         ]
       },
+      "PendingLegalDocumentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "docType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "attorney_agreement",
+              "client_agreement",
+              "eula",
+              "disclaimer",
+              "client_contact_sharing",
+              "refund",
+              "cookies",
+              "third_party_services",
+              "partner_terms",
+              "dmca_policy"
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ru"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "2026-10-05.1"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "reason": {
+            "enum": [
+              "new",
+              "updated"
+            ],
+            "type": "string",
+            "description": "`new` — never accepted; `updated` — a material change."
+          }
+        },
+        "required": [
+          "id",
+          "docType",
+          "locale",
+          "version",
+          "title",
+          "publishedAt",
+          "reason"
+        ]
+      },
       "OnboardingStateDto": {
         "type": "object",
         "properties": {
@@ -84713,6 +85978,13 @@
           "requiredConsentsGranted": {
             "type": "boolean"
           },
+          "pendingLegalDocuments": {
+            "description": "Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingLegalDocumentDto"
+            }
+          },
           "onboarding": {
             "$ref": "#/components/schemas/OnboardingStateDto"
           },
@@ -84749,6 +86021,7 @@
           "avatarFileId",
           "avatarUrl",
           "requiredConsentsGranted",
+          "pendingLegalDocuments",
           "onboarding",
           "profile",
           "missing"
@@ -85277,6 +86550,9 @@
               "privacy",
               "disclaimer",
               "client_contact_sharing",
+              "attorney_agreement",
+              "client_agreement",
+              "eula",
               "age_18",
               "marketing_email",
               "marketing_push",
@@ -99969,6 +101245,555 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "LegalDocumentBriefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "docType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "attorney_agreement",
+              "client_agreement",
+              "eula",
+              "disclaimer",
+              "client_contact_sharing",
+              "refund",
+              "cookies",
+              "third_party_services",
+              "partner_terms",
+              "dmca_policy"
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ru"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "2026-10-05.1"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "docType",
+          "locale",
+          "version",
+          "title",
+          "publishedAt"
+        ]
+      },
+      "LegalDocumentBriefListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegalDocumentBriefDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "LegalDocumentPublicDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "docType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "attorney_agreement",
+              "client_agreement",
+              "eula",
+              "disclaimer",
+              "client_contact_sharing",
+              "refund",
+              "cookies",
+              "third_party_services",
+              "partner_terms",
+              "dmca_policy"
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ru"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "example": "2026-10-05.1"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "contentMd": {
+            "type": "string",
+            "description": "Markdown."
+          },
+          "requiresReacceptance": {
+            "type": "boolean",
+            "description": "Users who accepted an older version were asked to accept this one again."
+          }
+        },
+        "required": [
+          "id",
+          "docType",
+          "locale",
+          "version",
+          "title",
+          "publishedAt",
+          "contentMd",
+          "requiresReacceptance"
+        ]
+      },
+      "LegalDocumentPublicEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LegalDocumentPublicDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PendingLegalDocumentListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingLegalDocumentDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AcceptLegalDocumentsDto": {
+        "type": "object",
+        "properties": {
+          "documentIds": {
+            "minItems": 1,
+            "maxItems": 12,
+            "description": "Ids of the current versions the user ticked.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "deviceId": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "documentIds"
+        ]
+      },
+      "AdminLegalLocaleStateDto": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ru"
+            ]
+          },
+          "currentVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "hasDraft": {
+            "type": "boolean"
+          },
+          "draftUpdatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "state": {
+            "enum": [
+              "none",
+              "draft",
+              "published",
+              "published_draft"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "currentVersion",
+          "publishedAt",
+          "hasDraft",
+          "draftUpdatedAt",
+          "state"
+        ]
+      },
+      "AdminLegalDocumentRowDto": {
+        "type": "object",
+        "properties": {
+          "docType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "attorney_agreement",
+              "client_agreement",
+              "eula",
+              "disclaimer",
+              "client_contact_sharing",
+              "refund",
+              "cookies",
+              "third_party_services",
+              "partner_terms",
+              "dmca_policy"
+            ]
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "titleRu": {
+            "type": "string"
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminLegalLocaleStateDto"
+            }
+          }
+        },
+        "required": [
+          "docType",
+          "titleEn",
+          "titleRu",
+          "locales"
+        ]
+      },
+      "AdminLegalDocumentRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminLegalDocumentRowDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminLegalVersionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "docType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "attorney_agreement",
+              "client_agreement",
+              "eula",
+              "disclaimer",
+              "client_contact_sharing",
+              "refund",
+              "cookies",
+              "third_party_services",
+              "partner_terms",
+              "dmca_policy"
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ru"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "`draft` for the draft, else 2026-10-05.1"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "requiresReacceptance": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "changeNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "changedBy": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "changedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "rollbackOfId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "consents": {
+            "type": "number",
+            "description": "Consents recorded against this version."
+          },
+          "length": {
+            "type": "integer"
+          },
+          "contentMd": {
+            "type": "string",
+            "nullable": true,
+            "description": "Markdown; only in the detail calls."
+          }
+        },
+        "required": [
+          "id",
+          "docType",
+          "locale",
+          "version",
+          "status",
+          "isCurrent",
+          "requiresReacceptance",
+          "publishedAt",
+          "updatedAt",
+          "changeNote",
+          "changedBy",
+          "changedByName",
+          "rollbackOfId",
+          "consents",
+          "length",
+          "contentMd"
+        ]
+      },
+      "AdminLegalVersionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLegalVersionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PublishLegalDto": {
+        "type": "object",
+        "properties": {
+          "requiresReacceptance": {
+            "type": "boolean",
+            "default": true,
+            "description": "Ask users who accepted an older version to accept this one again (material change). Default on."
+          },
+          "changeNote": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "AdminLegalLocaleDetailDto": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ru"
+            ]
+          },
+          "current": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminLegalVersionDto"
+              }
+            ]
+          },
+          "draft": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminLegalVersionDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "locale",
+          "current",
+          "draft"
+        ]
+      },
+      "AdminLegalDocumentDetailDto": {
+        "type": "object",
+        "properties": {
+          "docType": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "attorney_agreement",
+              "client_agreement",
+              "eula",
+              "disclaimer",
+              "client_contact_sharing",
+              "refund",
+              "cookies",
+              "third_party_services",
+              "partner_terms",
+              "dmca_policy"
+            ]
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "titleRu": {
+            "type": "string"
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminLegalLocaleDetailDto"
+            }
+          }
+        },
+        "required": [
+          "docType",
+          "titleEn",
+          "titleRu",
+          "locales"
+        ]
+      },
+      "AdminLegalDocumentDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLegalDocumentDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminLegalVersionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminLegalVersionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SaveLegalDraftDto": {
+        "type": "object",
+        "properties": {
+          "contentMd": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 200000,
+            "description": "Markdown."
+          },
+          "changeNote": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "contentMd"
         ]
       },
       "OutreachPartnerDto": {

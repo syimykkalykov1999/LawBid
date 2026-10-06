@@ -386,6 +386,8 @@ enum ErrorCode {
   demoUnavailable('DEMO_UNAVAILABLE'),
   @JsonValue('DEMO_CODE_INVALID')
   demoCodeInvalid('DEMO_CODE_INVALID'),
+  @JsonValue('LEGAL_REACCEPT_REQUIRED')
+  legalReacceptRequired('LEGAL_REACCEPT_REQUIRED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
