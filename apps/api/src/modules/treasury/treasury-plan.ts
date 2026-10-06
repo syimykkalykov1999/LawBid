@@ -161,3 +161,13 @@ export function nextRunDate(
     day,
   );
 }
+
+/** Whole days from today (UTC) to `date` (0 on the day itself). */
+export function daysUntil(now: Date, date: Date): number {
+  const today = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  return Math.max(0, Math.round((date.getTime() - today) / 86_400_000));
+}

@@ -17,6 +17,16 @@ owner's bank. Switch «авто» on by default (admin Деньги → Приб
   Stripe's default bank. Expenses first; a short balance logs
   `alert: treasury_low`. Payout failures log `alert: treasury_payout_failed`;
   Stripe payouts not on Manual log `alert: treasury_setup_needed`.
+- Automatic pay day (owner 2026-10-06): `treasury.payroll_auto` (on),
+  `treasury.payroll_day` (1), `treasury.payroll_warn_days` (5). In the same
+  daily job, before the split: on the pay day the dollar payroll linked to
+  Stripe (flag `payroll_stripe_payouts`) is paid like «Выплатить» with
+  method Stripe and note «Авто» (salary once a month + pending
+  commissions), from the reserve on Stripe. A Stripe balance below what is
+  due logs `alert: payroll_funds_low` once, `payroll_warn_days` before,
+  and on the pay day (nothing sent; retried daily). Refused transfers log
+  `alert: payroll_auto_failed`. People not linked are listed (paid by
+  hand). `AdminPayrollCoreModule` split out for the worker.
 - Security: no bank is added, picked or typed in LawBid — the destinations
   are the banks in Stripe itself; amounts are computed server-side; the
   expense payout goes out at most once a month; one run at a time (Redis
@@ -32,8 +42,11 @@ owner's bank. Switch «авто» on by default (admin Деньги → Приб
 - Деньги → «Прибыль и резерв»: one-time Stripe steps, balance, reserve
   and how many months it covers, next split and its amounts, where the
   money goes (banks from Stripe), monthly expenses (editable) and computed
-  lines (salaries, partners, refunds), settings, «Поделить сейчас», history.
+  lines (salaries, partners, refunds), «Зарплаты сами» (switch, pay day,
+  warn days, next pay date and sum, enough on Stripe or not, who is paid
+  by hand), settings, «Поделить сейчас», history.
 
 ### Infra / docs
-- CloudWatch metric filters + alarms for the four `treasury_*` alerts
+- CloudWatch metric filters + alarms for the four `treasury_*` and two
+  `payroll_*` alerts
   (plain-language e-mails). Runbook `docs/runbooks/treasury.md`; OWNER.md.

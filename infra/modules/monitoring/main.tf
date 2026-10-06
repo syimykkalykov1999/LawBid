@@ -688,6 +688,14 @@ locals {
       metric = "TreasuryBankChanged"
       text   = "LawBid: В Stripe изменились банки для выплат. Если это сделали вы, всё в порядке. Если нет: срочно войдите в Stripe, удалите чужой банк, смените пароль Stripe и включите в админке «Прибыль и резерв» → «авто» выключено, пока не разберётесь. Инструкция: ${var.runbook_base_url}/treasury.md (EN: the payout banks in Stripe changed.)"
     }
+    payroll_funds_low = {
+      metric = "PayrollFundsLow"
+      text   = "LawBid: На Stripe не хватает денег на ближайшую зарплату. Зарплаты уходят сами в день выплаты, но только когда денег хватает; система проверяет каждый день. Что делать: подождите поступлений от клиентов или пополните баланс Stripe (Stripe → Balances → Add funds). Сумма и дата: админка → Деньги → Прибыль и резерв → «Зарплаты сами». Инструкция: ${var.runbook_base_url}/treasury.md (EN: Stripe balance below the salaries due.)"
+    }
+    payroll_auto_failed = {
+      metric = "PayrollAutoFailed"
+      text   = "LawBid: Stripe не принял автоматическую выплату зарплаты кому-то из сотрудников. Что делать: админка → Деньги → Зарплаты → История: у кого «Не прошло», попросите человека заново открыть свою ссылку Stripe и проверить банк, потом нажмите «Выплатить». Инструкция: ${var.runbook_base_url}/treasury.md (EN: an automatic payroll transfer failed.)"
+    }
   }
 }
 

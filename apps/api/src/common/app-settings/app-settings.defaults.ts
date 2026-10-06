@@ -413,6 +413,14 @@ export const OWNER_TREASURY_SETTINGS = {
   'treasury.refund_buffer_usd': 200,
   /** Profit smaller than this waits for the next month, dollars. */
   'treasury.min_profit_usd': 50,
+  /** Owner 2026-10-06: salaries linked to Stripe go out by themselves on
+   * the pay day, from the reserve on Stripe (off: «Выплатить» by hand). */
+  'treasury.payroll_auto': true,
+  /** Pay day of the month (1…28, UTC); a missed day runs the next day. */
+  'treasury.payroll_day': 1,
+  /** Warn this many days before the pay day when Stripe holds less than
+   * the salaries due. */
+  'treasury.payroll_warn_days': 5,
 };
 
 export const APP_SETTINGS = {

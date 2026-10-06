@@ -1,4 +1,4 @@
-# Прибыль и резерв (treasury-setup-needed, treasury-low, treasury-payout-failed, treasury-bank-changed)
+# Прибыль и резерв (treasury-setup-needed, treasury-low, treasury-payout-failed, treasury-bank-changed, payroll-funds-low, payroll-auto-failed)
 
 **Для владельца.** Деньги платформы (подписки, галочки, продвижение)
 приходят на баланс Stripe; Stripe уже взял свою комиссию. Раз в месяц
@@ -14,6 +14,15 @@
 
 Сначала оплачиваются расходы. Денег мало — расходы получают сколько есть,
 прибыль в этом месяце 0, приходит письмо `treasury-low`.
+
+**Зарплаты сами.** В день выплаты (по умолчанию 1-го) сотрудники,
+подключившие свою ссылку Stripe, получают зарплату и начисления из
+запаса на Stripe — так же, как кнопка «Выплатить» в «Зарплаты», один раз
+в месяц на человека. За 5 дней до этого, если на Stripe меньше, чем
+нужно, приходит письмо `payroll-funds-low`; в сам день выплаты без денег
+ничего не уходит, система проверяет снова каждый день. Кто без Stripe,
+показан списком — им платите сами. Включается флагом
+`payroll_stripe_payouts` (Система → Функции) и ключами Stripe.
 
 **Один раз настроить (бесплатно):**
 1. Откройте второй бесплатный бизнес-счёт на SIMA LLC (например, Mercury
@@ -36,7 +45,10 @@
 `treasury_setup_needed` (Stripe payout schedule not `manual` on the run
 day), `treasury_low` (balance below a month of costs + reserve),
 `treasury_payout_failed` (Stripe refused or the bank returned a payout),
-`treasury_bank_changed` (external accounts fingerprint changed) →
+`treasury_bank_changed` (external accounts fingerprint changed),
+`payroll_funds_low` (Stripe available < payroll due, `treasury.payroll_warn_days`
+before and on `treasury.payroll_day`), `payroll_auto_failed` (a Stripe
+transfer of the automatic pay day was refused) →
 `infra/modules/monitoring` metric filters + alarms.
 
 **Check.** Admin Деньги → Прибыль и резерв (balance, reserve, banks,
@@ -49,6 +61,10 @@ payout history). Stripe → Balances → Payouts for the payout itself.
   low. Raising prices or lowering costs is a business decision.
 - `treasury-payout-failed` → fix the bank in Stripe; the money stays on the
   balance and goes out on the next split (or press «Поделить сейчас»).
+- `payroll-funds-low` → wait for incoming money or top up the Stripe
+  balance; the pay day retries daily until it can pay everyone.
+- `payroll-auto-failed` → Зарплаты → history: the person reopens their
+  Stripe link and fixes the bank; then «Выплатить» (or wait for next month).
 - `treasury-bank-changed` not by the owner → Stripe: remove the unknown
   bank, change the Stripe password, review Team members; turn «авто» off in
   the admin until it is clear.

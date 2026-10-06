@@ -33,6 +33,7 @@ TreasuryOverviewDto _$TreasuryOverviewDtoFromJson(
       .toList(),
   nextRunAt: DateTime.parse(json['nextRunAt'] as String),
   ranThisPeriod: json['ranThisPeriod'] as bool,
+  payroll: TreasuryPayrollDto.fromJson(json['payroll'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$TreasuryOverviewDtoToJson(
@@ -50,4 +51,5 @@ Map<String, dynamic> _$TreasuryOverviewDtoToJson(
   'payouts': instance.payouts.map((e) => e.toJson()).toList(),
   'nextRunAt': instance.nextRunAt.toIso8601String(),
   'ranThisPeriod': instance.ranThisPeriod,
+  'payroll': instance.payroll.toJson(),
 };

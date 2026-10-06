@@ -40192,7 +40192,7 @@
             "admin": []
           }
         ],
-        "summary": "Auto split, payout day, buffers (needs step-up)",
+        "summary": "Auto split, payout day, buffers, pay day (needs step-up)",
         "tags": [
           "admin-treasury"
         ]
@@ -91247,6 +91247,20 @@
           "minProfitUsd": {
             "type": "integer",
             "minimum": 0
+          },
+          "payrollAuto": {
+            "type": "boolean",
+            "description": "Salaries go out by themselves on the pay day."
+          },
+          "payrollDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          },
+          "payrollWarnDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
           }
         },
         "required": [
@@ -91254,7 +91268,10 @@
           "payoutDay",
           "bufferPercent",
           "refundBufferUsd",
-          "minProfitUsd"
+          "minProfitUsd",
+          "payrollAuto",
+          "payrollDay",
+          "payrollWarnDays"
         ]
       },
       "TreasuryPayoutDto": {
@@ -91318,6 +91335,51 @@
           "status",
           "failure",
           "createdAt"
+        ]
+      },
+      "TreasuryPayrollDto": {
+        "type": "object",
+        "properties": {
+          "stripeReady": {
+            "type": "boolean",
+            "description": "Flag payroll_stripe_payouts on and Stripe keys saved."
+          },
+          "nextPayAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paidThisPeriod": {
+            "type": "boolean",
+            "description": "This month's pay day already ran."
+          },
+          "dueCents": {
+            "type": "integer",
+            "description": "What the next pay day takes from Stripe, cents."
+          },
+          "people": {
+            "type": "integer",
+            "description": "People paid automatically."
+          },
+          "notLinked": {
+            "description": "People on a salary not linked to Stripe (paid by hand).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "shortCents": {
+            "type": "integer",
+            "description": "Missing on Stripe for the next pay day, cents (0: enough)."
+          }
+        },
+        "required": [
+          "stripeReady",
+          "nextPayAt",
+          "paidThisPeriod",
+          "dueCents",
+          "people",
+          "notLinked",
+          "shortCents"
         ]
       },
       "TreasuryOverviewDto": {
@@ -91384,6 +91446,9 @@
           "ranThisPeriod": {
             "type": "boolean",
             "description": "This month's split already ran."
+          },
+          "payroll": {
+            "$ref": "#/components/schemas/TreasuryPayrollDto"
           }
         },
         "required": [
@@ -91398,7 +91463,8 @@
           "settings",
           "payouts",
           "nextRunAt",
-          "ranThisPeriod"
+          "ranThisPeriod",
+          "payroll"
         ]
       },
       "TreasuryOverviewEnvelope": {
@@ -91440,6 +91506,19 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100000
+          },
+          "payrollAuto": {
+            "type": "boolean"
+          },
+          "payrollDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28
+          },
+          "payrollWarnDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
           }
         }
       },

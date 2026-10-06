@@ -64,7 +64,9 @@ export class AdminTreasuryController {
   }
 
   @Put('settings')
-  @ApiOperation({ summary: 'Auto split, payout day, buffers (needs step-up)' })
+  @ApiOperation({
+    summary: 'Auto split, payout day, buffers, pay day (needs step-up)',
+  })
   @ApiEnvelopeResponse(TreasuryOverviewDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
   async updateTreasurySettings(
@@ -78,6 +80,9 @@ export class AdminTreasuryController {
       'treasury.buffer_percent': dto.bufferPercent,
       'treasury.refund_buffer_usd': dto.refundBufferUsd,
       'treasury.min_profit_usd': dto.minProfitUsd,
+      'treasury.payroll_auto': dto.payrollAuto,
+      'treasury.payroll_day': dto.payrollDay,
+      'treasury.payroll_warn_days': dto.payrollWarnDays,
     });
     return this.treasury.overview();
   }

@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, type TreasuryPayout } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -8,9 +13,11 @@ import { OpsStateService } from '../../common/ops/ops-state.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
+import { AdminPayrollService } from '../admin-payroll/admin-payroll.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import {
   computePlan,
+  daysUntil,
   nextRunDate,
   periodOf,
   runDue,
@@ -29,6 +36,7 @@ import type {
   TreasuryExpenseDto,
   TreasuryOverviewDto,
   TreasuryPayoutDto,
+  TreasuryPayrollDto,
   TreasuryRunResultDto,
   TreasurySettingsDto,
   UpdateTreasuryExpenseDto,
@@ -39,6 +47,10 @@ const PAYROLL_STRIPE_FLAG = 'payroll_stripe_payouts';
 const LOCK_KEY = 'treasury:run:lock';
 const RAN_KEY = (period: string) => `treasury:ran:${period}`;
 const BANKS_KEY = 'treasury:banks';
+const PAYROLL_LOCK_KEY = 'treasury:payroll:lock';
+const PAYROLL_RAN_KEY = (period: string) => `treasury:payroll:ran:${period}`;
+const PAYROLL_WARNED_KEY = (period: string) =>
+  `treasury:payroll:warned:${period}`;
 const OPEN_STATUSES = ['pending', 'in_transit'];
 
 interface Gathered {
@@ -79,6 +91,7 @@ export class TreasuryService {
     private readonly flags: FeatureFlagsService,
     private readonly opsState: OpsStateService,
     private readonly audit: AuditLogService,
+    private readonly payroll: AdminPayrollService,
     private readonly logger: PinoLogger,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
@@ -90,13 +103,14 @@ export class TreasuryService {
   async overview(now: Date = new Date()): Promise<TreasuryOverviewDto> {
     const g = await this.gather();
     const period = periodOf(now);
-    const [expensesPaid, ran, payouts] = await Promise.all([
+    const [expensesPaid, ran, payouts, payroll] = await Promise.all([
       this.expensesPaid(period),
       this.ranThisPeriod(period),
       this.prisma.treasuryPayout.findMany({
         orderBy: { created_at: 'desc' },
         take: 36,
       }),
+      this.payrollOverview(g, now),
     ]);
     const plan = computePlan({
       ...g.input,
@@ -124,6 +138,7 @@ export class TreasuryService {
       payouts: payouts.map(payoutDto),
       nextRunAt: nextRunDate(now, g.settings.payoutDay, ran).toISOString(),
       ranThisPeriod: ran,
+      payroll,
     };
   }
 
@@ -142,15 +157,128 @@ export class TreasuryService {
     if (!state) return { skipped: 'no_stripe' };
     await this.refreshPayouts();
     await this.watchBanks(state.banks);
+    // Salaries first: on the pay day they leave the reserve before a split.
+    const payroll = await this.payrollDaily(state.availableCents, now);
     const [auto, day] = await Promise.all([
       this.settings.boolean('treasury.auto'),
       this.settings.number('treasury.payout_day'),
     ]);
-    if (!auto) return { skipped: 'manual_mode' };
+    if (!auto) return { payroll, split: { skipped: 'manual_mode' } };
     if (!runDue(now, day, await this.ranThisPeriod(periodOf(now)))) {
-      return { skipped: 'not_due' };
+      return { payroll, split: { skipped: 'not_due' } };
     }
-    return this.run('auto', null, now);
+    return { payroll, split: await this.run('auto', null, now) };
+  }
+
+  /**
+   * Owner 2026-10-06 «зарплаты платятся сами из резерва, а если денег не
+   * хватает — предупреди заранее». With `treasury.payroll_auto` on, on the
+   * pay day (`treasury.payroll_day`, a missed day runs the next day) the
+   * people linked to Stripe get their salary and pending commissions —
+   * the same payment as «Выплатить» in Зарплаты, method Stripe, one per
+   * person per month. `treasury.payroll_warn_days` before it, and on the
+   * day itself, a Stripe balance below what is due logs
+   * `alert: payroll_funds_low` (an e-mail); on the day nothing is sent
+   * until the money is there (checked again every day). A refused
+   * transfer logs `alert: payroll_auto_failed`.
+   */
+  async payrollDaily(
+    availableCents: number,
+    now: Date = new Date(),
+  ): Promise<Record<string, unknown>> {
+    const [auto, day, warnDays] = await Promise.all([
+      this.settings.boolean('treasury.payroll_auto'),
+      this.settings.number('treasury.payroll_day'),
+      this.settings.number('treasury.payroll_warn_days'),
+    ]);
+    if (!auto) return { skipped: 'manual_mode' };
+    const period = periodOf(now);
+    const ran = (await this.redis.get(PAYROLL_RAN_KEY(period))) !== null;
+    if (!runDue(now, day, ran)) {
+      const next = nextRunDate(now, day, ran);
+      const left = daysUntil(now, next);
+      if (left > warnDays) return { skipped: 'not_due' };
+      const nextPeriod = periodOf(next);
+      const due = await this.payroll.autoDue(nextPeriod);
+      if (!due.stripeReady || availableCents >= due.dueCents) {
+        return { skipped: 'not_due', dueCents: due.dueCents };
+      }
+      const warned = await this.redis.set(
+        PAYROLL_WARNED_KEY(nextPeriod),
+        '1',
+        'EX',
+        40 * 86_400,
+        'NX',
+      );
+      if (warned === 'OK') {
+        this.logger.warn(
+          {
+            alert: 'payroll_funds_low',
+            stage: 'soon',
+            daysLeft: left,
+            dueCents: due.dueCents,
+            availableCents,
+          },
+          'payroll: not enough on Stripe for the coming pay day',
+        );
+      }
+      return { skipped: 'not_due', warned: true, dueCents: due.dueCents };
+    }
+    const locked = await this.redis.set(PAYROLL_LOCK_KEY, '1', 'EX', 300, 'NX');
+    if (locked !== 'OK') return { skipped: 'busy' };
+    try {
+      const due = await this.payroll.autoDue(period);
+      if (!due.stripeReady) return { skipped: 'stripe_off' };
+      if (due.employeeIds.length === 0) {
+        await this.markPayrollRan(period);
+        return { paid: 0 };
+      }
+      if (availableCents < due.dueCents) {
+        // Not marked: tried again tomorrow, when the money may be there.
+        this.logger.warn(
+          {
+            alert: 'payroll_funds_low',
+            stage: 'pay_day',
+            dueCents: due.dueCents,
+            availableCents,
+          },
+          'payroll: pay day, but not enough on Stripe — nothing sent',
+        );
+        return { skipped: 'funds_low', dueCents: due.dueCents };
+      }
+      const res = await this.payroll
+        .payBulk(null, {
+          employeeIds: due.employeeIds,
+          period,
+          method: 'stripe',
+          note: 'Авто',
+        })
+        .catch((e: unknown) => {
+          // Everyone already paid by hand this month: nothing left to do.
+          if (!(e instanceof ConflictException)) throw e;
+          this.logger.info({ err: e.message }, 'payroll: nothing to pay');
+          return null;
+        });
+      await this.markPayrollRan(period);
+      if (res && res.failed.length > 0) {
+        this.logger.warn(
+          { alert: 'payroll_auto_failed', failed: res.failed.length },
+          'payroll: Stripe refused some salary transfers',
+        );
+      }
+      this.logger.info(
+        {
+          metric: 'payroll_auto',
+          paid: res?.count ?? 0,
+          failed: res?.failed.length ?? 0,
+          totalCents: res?.totals.usd ?? 0,
+        },
+        'payroll: automatic pay day',
+      );
+      return { paid: res?.count ?? 0, failed: res?.failed.length ?? 0 };
+    } finally {
+      await this.redis.del(PAYROLL_LOCK_KEY);
+    }
   }
 
   /** One split now. `manual` (the 2FA button) sends the same computed
@@ -326,15 +454,35 @@ export class TreasuryService {
   }
 
   async readSettings(): Promise<TreasurySettingsDto> {
-    const [auto, payoutDay, bufferPercent, refundBufferUsd, minProfitUsd] =
-      await Promise.all([
-        this.settings.boolean('treasury.auto'),
-        this.settings.number('treasury.payout_day'),
-        this.settings.number('treasury.buffer_percent'),
-        this.settings.number('treasury.refund_buffer_usd'),
-        this.settings.number('treasury.min_profit_usd'),
-      ]);
-    return { auto, payoutDay, bufferPercent, refundBufferUsd, minProfitUsd };
+    const [
+      auto,
+      payoutDay,
+      bufferPercent,
+      refundBufferUsd,
+      minProfitUsd,
+      payrollAuto,
+      payrollDay,
+      payrollWarnDays,
+    ] = await Promise.all([
+      this.settings.boolean('treasury.auto'),
+      this.settings.number('treasury.payout_day'),
+      this.settings.number('treasury.buffer_percent'),
+      this.settings.number('treasury.refund_buffer_usd'),
+      this.settings.number('treasury.min_profit_usd'),
+      this.settings.boolean('treasury.payroll_auto'),
+      this.settings.number('treasury.payroll_day'),
+      this.settings.number('treasury.payroll_warn_days'),
+    ]);
+    return {
+      auto,
+      payoutDay,
+      bufferPercent,
+      refundBufferUsd,
+      minProfitUsd,
+      payrollAuto,
+      payrollDay,
+      payrollWarnDays,
+    };
   }
 
   // ---- internals -------------------------------------------------------------
@@ -422,6 +570,30 @@ export class TreasuryService {
         minProfitCents: settings.minProfitUsd * 100,
       },
     };
+  }
+
+  /** The pay day card: when, how much, enough on Stripe or not. */
+  private async payrollOverview(
+    g: Gathered,
+    now: Date,
+  ): Promise<TreasuryPayrollDto> {
+    const ran = (await this.redis.get(PAYROLL_RAN_KEY(periodOf(now)))) !== null;
+    const next = nextRunDate(now, g.settings.payrollDay, ran);
+    const due = await this.payroll.autoDue(periodOf(next));
+    const available = g.state?.availableCents ?? 0;
+    return {
+      stripeReady: due.stripeReady,
+      nextPayAt: next.toISOString(),
+      paidThisPeriod: ran,
+      dueCents: due.dueCents,
+      people: due.employeeIds.length,
+      notLinked: due.notLinked,
+      shortCents: due.stripeReady ? Math.max(0, due.dueCents - available) : 0,
+    };
+  }
+
+  private async markPayrollRan(period: string): Promise<void> {
+    await this.redis.set(PAYROLL_RAN_KEY(period), '1', 'EX', 40 * 86_400);
   }
 
   /** This month's AWS forecast from the budget (`ops.cost-check`), cents. */

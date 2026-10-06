@@ -803,6 +803,7 @@ export 'models/treasury_expense_dto.dart';
 export 'models/treasury_cost_line_dto.dart';
 export 'models/treasury_settings_dto.dart';
 export 'models/treasury_payout_dto.dart';
+export 'models/treasury_payroll_dto.dart';
 export 'models/treasury_overview_dto.dart';
 export 'models/treasury_overview_envelope.dart';
 export 'models/update_treasury_settings_dto.dart';

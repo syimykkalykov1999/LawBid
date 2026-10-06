@@ -24,7 +24,7 @@ abstract class AdminTreasuryClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Auto split, payout day, buffers (needs step-up)
+  /// Auto split, payout day, buffers, pay day (needs step-up)
   @PUT('/admin/treasury/settings')
   Future<TreasuryOverviewEnvelope> updateTreasurySettings({
     @Body() required UpdateTreasurySettingsDto body,

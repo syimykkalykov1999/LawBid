@@ -8,6 +8,7 @@ import 'treasury_bank_dto.dart';
 import 'treasury_cost_line_dto.dart';
 import 'treasury_expense_dto.dart';
 import 'treasury_payout_dto.dart';
+import 'treasury_payroll_dto.dart';
 import 'treasury_plan_dto.dart';
 import 'treasury_settings_dto.dart';
 import 'treasury_setup_dto.dart';
@@ -29,6 +30,7 @@ class TreasuryOverviewDto {
     required this.payouts,
     required this.nextRunAt,
     required this.ranThisPeriod,
+    required this.payroll,
   });
 
   factory TreasuryOverviewDto.fromJson(Map<String, Object?> json) =>
@@ -49,6 +51,7 @@ class TreasuryOverviewDto {
 
   /// This month's split already ran.
   final bool ranThisPeriod;
+  final TreasuryPayrollDto payroll;
 
   Map<String, Object?> toJson() => _$TreasuryOverviewDtoToJson(this);
 }

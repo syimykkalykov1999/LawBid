@@ -13,6 +13,9 @@ TreasurySettingsDto _$TreasurySettingsDtoFromJson(Map<String, dynamic> json) =>
       bufferPercent: (json['bufferPercent'] as num).toInt(),
       refundBufferUsd: (json['refundBufferUsd'] as num).toInt(),
       minProfitUsd: (json['minProfitUsd'] as num).toInt(),
+      payrollAuto: json['payrollAuto'] as bool,
+      payrollDay: (json['payrollDay'] as num).toInt(),
+      payrollWarnDays: (json['payrollWarnDays'] as num).toInt(),
     );
 
 Map<String, dynamic> _$TreasurySettingsDtoToJson(
@@ -23,4 +26,7 @@ Map<String, dynamic> _$TreasurySettingsDtoToJson(
   'bufferPercent': instance.bufferPercent,
   'refundBufferUsd': instance.refundBufferUsd,
   'minProfitUsd': instance.minProfitUsd,
+  'payrollAuto': instance.payrollAuto,
+  'payrollDay': instance.payrollDay,
+  'payrollWarnDays': instance.payrollWarnDays,
 };

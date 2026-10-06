@@ -14,6 +14,9 @@ class TreasurySettingsDto {
     required this.bufferPercent,
     required this.refundBufferUsd,
     required this.minProfitUsd,
+    required this.payrollAuto,
+    required this.payrollDay,
+    required this.payrollWarnDays,
   });
 
   factory TreasurySettingsDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +28,11 @@ class TreasurySettingsDto {
   final int bufferPercent;
   final int refundBufferUsd;
   final int minProfitUsd;
+
+  /// Salaries go out by themselves on the pay day.
+  final bool payrollAuto;
+  final int payrollDay;
+  final int payrollWarnDays;
 
   Map<String, Object?> toJson() => _$TreasurySettingsDtoToJson(this);
 }

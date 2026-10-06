@@ -113,6 +113,40 @@ export class TreasurySettingsDto {
   bufferPercent!: number;
   @ApiProperty({ type: 'integer', minimum: 0 }) refundBufferUsd!: number;
   @ApiProperty({ type: 'integer', minimum: 0 }) minProfitUsd!: number;
+  @ApiProperty({ description: 'Salaries go out by themselves on the pay day.' })
+  payrollAuto!: boolean;
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 28 })
+  payrollDay!: number;
+  @ApiProperty({ type: 'integer', minimum: 0, maximum: 20 })
+  payrollWarnDays!: number;
+}
+
+/** Owner 2026-10-06: the automatic pay day. */
+export class TreasuryPayrollDto {
+  @ApiProperty({
+    description: 'Flag payroll_stripe_payouts on and Stripe keys saved.',
+  })
+  stripeReady!: boolean;
+  @ApiProperty({ format: 'date-time' }) nextPayAt!: string;
+  @ApiProperty({ description: "This month's pay day already ran." })
+  paidThisPeriod!: boolean;
+  @ApiProperty({
+    type: 'integer',
+    description: 'What the next pay day takes from Stripe, cents.',
+  })
+  dueCents!: number;
+  @ApiProperty({ type: 'integer', description: 'People paid automatically.' })
+  people!: number;
+  @ApiProperty({
+    type: [String],
+    description: 'People on a salary not linked to Stripe (paid by hand).',
+  })
+  notLinked!: string[];
+  @ApiProperty({
+    type: 'integer',
+    description: 'Missing on Stripe for the next pay day, cents (0: enough).',
+  })
+  shortCents!: number;
 }
 
 export class TreasuryOverviewDto {
@@ -140,6 +174,7 @@ export class TreasuryOverviewDto {
   @ApiProperty({ format: 'date-time' }) nextRunAt!: string;
   @ApiProperty({ description: "This month's split already ran." })
   ranThisPeriod!: boolean;
+  @ApiProperty({ type: TreasuryPayrollDto }) payroll!: TreasuryPayrollDto;
 }
 
 export class TreasuryRunResultDto {
@@ -189,6 +224,24 @@ export class UpdateTreasurySettingsDto {
   @Min(0)
   @Max(100_000)
   minProfitUsd?: number;
+
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() payrollAuto?: boolean;
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 28 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(28)
+  payrollDay?: number;
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 0, maximum: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(20)
+  payrollWarnDays?: number;
 }
 
 export class CreateTreasuryExpenseDto {
