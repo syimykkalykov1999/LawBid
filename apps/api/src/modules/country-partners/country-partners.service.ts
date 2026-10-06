@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { CountryPartner, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -253,7 +254,7 @@ export class CountryPartnersService {
         if (prev?.status === 'canceled') ref = null;
       }
       if (!ref) {
-        ref = `${SETTLEMENT_REF}${s.id}:${Date.now()}`;
+        ref = `${SETTLEMENT_REF}${s.id}:${randomUUID()}`;
         await this.prisma.countryPartnerSettlement.update({
           where: { id: s.id },
           data: { accrual_ref: ref },
