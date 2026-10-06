@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-140 tables.
+143 tables.
 
 ```mermaid
 erDiagram
@@ -27,6 +27,7 @@ erDiagram
     String suspended_reason "nullable"
     DateTime last_active_at "nullable"
     Boolean show_activity_status
+    String feed_content_mode "nullable"
     DateTime deletion_requested_at "nullable"
     DateTime deleted_at "nullable"
     DateTime anonymized_at "nullable"
@@ -464,6 +465,8 @@ erDiagram
     Float location_lat "nullable"
     Float location_lng "nullable"
     Boolean comments_enabled
+    String content_class
+    Boolean content_class_locked
     enum_ContentStatus status
     Int like_count
     Int comment_count
@@ -1392,7 +1395,9 @@ erDiagram
   }
   case_promotions {
     String id PK
-    String case_id
+    String target_type
+    String case_id "nullable"
+    String post_id "nullable"
     String user_id
     Int days
     Int price_cents_per_day
@@ -1407,8 +1412,26 @@ erDiagram
     String canceled_by "nullable"
     String cancel_reason "nullable"
     Int impressions
+    Int cpm_cents "nullable"
+    Int target_impressions "nullable"
+    Int reach
+    Int clicks
+    Json audience "nullable"
+    Int refunded_cents
+    String reviewed_by "nullable"
+    DateTime reviewed_at "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  promotion_views {
+    String promotion_id PK,FK
+    String user_id PK
+    Int impressions
+    String day_key
+    Int day_count
+    Boolean clicked
+    DateTime first_seen_at
+    DateTime last_seen_at
   }
   support_tickets {
     String id PK
@@ -1602,6 +1625,34 @@ erDiagram
     DateTime created_at
     DateTime paid_at "nullable"
     DateTime canceled_at "nullable"
+  }
+  treasury_expenses {
+    String id PK
+    String name
+    Int monthly_cents
+    String source
+    Boolean active
+    Int sort
+    DateTime created_at
+    DateTime updated_at
+  }
+  treasury_payouts {
+    String id PK
+    String key UK
+    String period
+    String kind
+    String trigger
+    Int amount_cents
+    String currency
+    String destination_id "nullable"
+    String destination_label "nullable"
+    String stripe_payout_id "nullable"
+    String status
+    String failure "nullable"
+    Json plan "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
   }
   payout_accounts {
     String user_id PK
@@ -1973,6 +2024,7 @@ erDiagram
   partner_commissions }o--|| partners : "partner_id"
   outreach_leads }o--o| partners : "partner_id"
   outreach_activities }o--|| outreach_leads : "lead_id"
+  promotion_views }o--|| case_promotions : "promotion_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"
   stickers |o--|| files : "file_id"

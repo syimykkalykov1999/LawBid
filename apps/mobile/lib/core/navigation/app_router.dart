@@ -43,6 +43,7 @@ import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart
 import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
+import 'package:lawbid/features/promotions/presentation/my_promotions_screen.dart';
 import 'package:lawbid/features/referrals/presentation/referral_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
@@ -351,6 +352,12 @@ GoRouter appRouter(Ref ref) {
           state,
           ReferralScreen(initialCode: state.uri.queryParameters['code']),
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.myPromotions,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const MyPromotionsScreen()),
       ),
       GoRoute(
         path: AppRoutes.partner,

@@ -24,6 +24,10 @@ import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
 import { CasesFeedService } from '../cases/services/cases-feed.service';
 import type { AttorneyListPage } from '../follows/follows.dto';
 import { FollowsService } from '../follows/follows.service';
+import {
+  ContentFilterService,
+  type PostContentClass,
+} from '../posts/content-filter.service';
 import type { PostDto, PostPage } from '../posts/dto/posts.dto';
 import {
   PostPresenter,
@@ -134,7 +138,16 @@ export class SearchService {
     private readonly blocks: BlocksService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly contentFilter?: ContentFilterService,
   ) {}
+
+  /** Owner 2026-10-05: a "Legal only" viewer never sees general posts. */
+  private async viewerOnly(
+    viewerId: string,
+  ): Promise<PostContentClass | undefined> {
+    const mode = await this.contentFilter?.modeOf(viewerId);
+    return mode === 'legal_only' ? 'legal' : undefined;
+  }
 
   /**
    * GET /search/people (OQ-026): attorneys and clients by @username and
@@ -284,6 +297,7 @@ export class SearchService {
       since: span ? new Date(Date.now() - span) : undefined,
       withPhotos: dto?.withPhotos,
       sort: dto?.sort,
+      contentClass: await this.viewerOnly(user.sub),
     };
     const ids = await this.ranked(
       'p',
@@ -344,8 +358,11 @@ export class SearchService {
       period?: SearchPeriod;
       withPhotos?: boolean;
       sort?: 'newest' | 'popular';
+      contentClass?: PostContentClass;
     } = {},
   ): Promise<PostPage> {
+    const contentClass =
+      filter.contentClass ?? (await this.viewerOnly(user.sub));
     const popular = filter.sort === 'popular';
     // Popular pages by offset; newest keeps the keyset cursor.
     const offset = popular && cursor ? Number(cursor) || 0 : 0;
@@ -366,6 +383,7 @@ export class SearchService {
             author_id: { notIn: [...(await this.blocks.hiddenIds(user.sub))] },
           },
           ...(filter.kind ? [{ kind: filter.kind }] : []),
+          ...(contentClass ? [{ content_class: contentClass }] : []),
           ...(span
             ? [{ created_at: { gte: new Date(Date.now() - span) } }]
             : []),
@@ -450,6 +468,7 @@ export class SearchService {
         })
       : null;
     if (!tag) return { items: [], nextCursor: null };
+    const contentClass = await this.viewerOnly(user.sub);
     // Owner 2026-09-30 (OQ-034): a state filter always lists newest first.
     if (sort === 'new' || state || videoOnly) {
       const c = cursor ? decodeCursor(cursor) : undefined;
@@ -466,6 +485,7 @@ export class SearchService {
             },
           ],
           tags: { some: { tag_id: tag.id } },
+          ...(contentClass ? { content_class: contentClass } : {}),
           ...(videoOnly ? { video_asset_id: { not: null } } : {}),
           ...(c
             ? {
@@ -494,7 +514,7 @@ export class SearchService {
     );
     const { slice, next } = this.pageOf(ids, cursor);
     return {
-      items: await this.presentPosts(slice, user.sub),
+      items: await this.presentPosts(slice, user.sub, contentClass),
       nextCursor: next,
     };
   }
@@ -563,10 +583,15 @@ export class SearchService {
   private async presentPosts(
     ids: string[],
     viewerId: string,
+    contentClass?: PostContentClass,
   ): Promise<PostDto[]> {
     if (ids.length === 0) return [];
     const rows = await this.prisma.post.findMany({
-      where: { ...VISIBLE_POST_WHERE, id: { in: ids } },
+      where: {
+        ...VISIBLE_POST_WHERE,
+        ...(contentClass ? { content_class: contentClass } : {}),
+        id: { in: ids },
+      },
     });
     const hidden = await this.blocks.hiddenIds(viewerId);
     const byId = new Map(

@@ -9,6 +9,7 @@ part of 'post_dto.dart';
 PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   id: json['id'] as String,
   kind: PostKind.fromJson(json['kind'] as String),
+  contentClass: PostContentClass.fromJson(json['contentClass'] as String),
   author: PostAuthorDto.fromJson(json['author'] as Map<String, dynamic>),
   body: json['body'] as String,
   media: (json['media'] as List<dynamic>)
@@ -42,6 +43,7 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
       ? null
       : PostVideoDto.fromJson(json['video'] as Map<String, dynamic>),
   editedAt: json['editedAt'] as String?,
+  promotionId: json['promotionId'] as String?,
 );
 
 Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
@@ -51,6 +53,7 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'title': ?instance.title,
   'kind': instance.kind.toJson(),
   'practice': ?instance.practice?.toJson(),
+  'contentClass': instance.contentClass.toJson(),
   'author': instance.author.toJson(),
   'body': instance.body,
   'media': instance.media.map((e) => e.toJson()).toList(),
@@ -68,4 +71,5 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'isMine': instance.isMine,
   'createdAt': instance.createdAt,
   'editedAt': ?instance.editedAt,
+  'promotionId': ?instance.promotionId,
 };

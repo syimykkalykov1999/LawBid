@@ -27,6 +27,7 @@ import {
   AdminCancelPromotionDto,
   AdminExtendPromotionDto,
   AdminGrantPromotionDto,
+  AdminReviewPromotionDto,
   AdminPromotionActionResultDto,
   AdminPromotionIdParamDto,
   AdminPromotionRowDto,
@@ -87,18 +88,21 @@ export class AdminPromotionsController {
   @Roles('super_admin', 'finance')
   @Post('grant')
   @SkipAutoAudit()
-  @ApiOperation({ summary: 'Promote a case for free' })
+  @ApiOperation({ summary: 'Promote a case or post for free' })
   @ApiEnvelopeResponse(AdminPromotionActionResultDto, { status: 201 })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
-    404: [E.CASE_NOT_FOUND],
+    404: [E.CASE_NOT_FOUND, E.POST_NOT_FOUND],
     409: [E.CASE_INVALID_STATE, E.PROMOTION_ALREADY_ACTIVE],
   })
   grantAdminPromotion(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminGrantPromotionDto,
   ): Promise<AdminPromotionActionResultDto> {
-    return this.promotions.grant(admin, dto.caseId, dto.days, dto.reason);
+    return this.promotions.grant(admin, dto.caseId, dto.days, dto.reason, {
+      target: dto.target ?? 'case',
+      dailyBudgetCents: dto.dailyBudgetCents,
+    });
   }
 
   @Roles('super_admin', 'finance')
@@ -106,21 +110,42 @@ export class AdminPromotionsController {
   @HttpCode(HttpStatus.OK)
   @SkipAutoAudit()
   @ApiOperation({
-    summary:
-      'Cancel a promotion (a paid one is refunded from the Payments screen)',
+    summary: 'Cancel a promotion; refund none / the unspent part / all of it',
   })
   @ApiEnvelopeResponse(AdminPromotionActionResultDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     404: [E.NOT_FOUND],
-    409: [E.PROMOTION_INVALID_STATE],
+    409: [E.PROMOTION_INVALID_STATE, E.REFUND_NOT_ALLOWED],
   })
   cancelAdminPromotion(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminPromotionIdParamDto,
     @Body() dto: AdminCancelPromotionDto,
   ): Promise<AdminPromotionActionResultDto> {
-    return this.promotions.cancel(admin, p.id, dto.reason);
+    return this.promotions.cancel(admin, p.id, dto.reason, dto.refund);
+  }
+
+  @Roles('super_admin', 'finance', 'moderator')
+  @Post(':id/review')
+  @HttpCode(HttpStatus.OK)
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      'Approve or reject a promotion waiting for a check (reject refunds it)',
+  })
+  @ApiEnvelopeResponse(AdminPromotionActionResultDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [E.PROMOTION_INVALID_STATE, E.REFUND_NOT_ALLOWED],
+  })
+  reviewAdminPromotion(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminPromotionIdParamDto,
+    @Body() dto: AdminReviewPromotionDto,
+  ): Promise<AdminPromotionActionResultDto> {
+    return this.promotions.review(admin, p.id, dto.decision, dto.reason);
   }
 
   @Roles('super_admin', 'finance')

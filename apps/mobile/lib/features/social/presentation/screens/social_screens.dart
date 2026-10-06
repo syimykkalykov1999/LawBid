@@ -11,6 +11,8 @@ import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
+import 'package:lawbid/features/promotions/domain/promotion_models.dart';
+import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
@@ -18,6 +20,7 @@ import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Post skeletons for list loading states.
@@ -135,6 +138,7 @@ class FilteredPostsView extends ConsumerWidget {
     this.practice,
     this.stateCode,
     this.newsOnly = false,
+    this.generalOnly = false,
     super.key,
   });
 
@@ -142,10 +146,18 @@ class FilteredPostsView extends ConsumerWidget {
   final String? stateCode;
   final bool newsOnly;
 
+  /// Owner 2026-10-05: the "Posts" topic — general (personal) posts.
+  final bool generalOnly;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final key = (state: stateCode, practice: practice, news: newsOnly);
+    final key = (
+      state: stateCode,
+      practice: practice,
+      news: newsOnly,
+      general: generalOnly,
+    );
     final notifier = ref.read(filteredPostsProvider(key).notifier);
     return LayoutBuilder(
       builder: (context, box) {
@@ -162,7 +174,13 @@ class FilteredPostsView extends ConsumerWidget {
           itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
           empty: AppEmptyState(
             icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
-            message: t.t(newsOnly ? 'feed.news.empty' : 'feed.practice.empty'),
+            message: t.t(
+              newsOnly
+                  ? 'feed.news.empty'
+                  : generalOnly
+                      ? 'feed.posts.empty'
+                      : 'feed.practice.empty',
+            ),
           ),
           onRefresh: notifier.refresh,
           onLoadMore: notifier.loadMore,
@@ -319,6 +337,14 @@ class _PostScreenState extends ConsumerState<PostScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   PostCard(post: p, inDetail: true),
+                                  // Owner 2026-10-05 (screenshot 6): "Promote"
+                                  // under my post, before the comments.
+                                  if (p.isMine &&
+                                      !ref.watch(isAssistantProvider))
+                                    PromoteCard(
+                                      target: PromotionTarget.post,
+                                      id: p.id,
+                                    ),
                                   const SizedBox(height: AppSpacing.md),
                                   const PostDisclaimer(),
                                 ],

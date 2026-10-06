@@ -16,6 +16,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -137,7 +138,18 @@ class PostCard extends ConsumerWidget {
   }) {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final (title, rest) = _titleAndRest(p);
-    void open() => context.push(SocialRoutes.post(p.id));
+    // Owner 2026-10-05: a promoted post reports the open for the owner's
+    // stats (reach / clicks), like Instagram.
+    final promotionId = post.promotionId;
+    void open() {
+      if (promotionId != null) {
+        ProviderScope.containerOf(context)
+            .read(promotionsRepositoryProvider)
+            .click(promotionId);
+      }
+      context.push(SocialRoutes.post(p.id));
+    }
+
     // Owner 2026-09-30: the author's photos (up to 9) or, when there are
     // none, the default art of the post's practice — full card width.
     // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
@@ -172,7 +184,7 @@ class PostCard extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AuthorRow(post: p),
+        _AuthorRow(post: p, sponsored: post.promotionId != null),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -302,7 +314,7 @@ class PostCard extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AuthorRow(post: p),
+        _AuthorRow(post: p, sponsored: post.promotionId != null),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -954,9 +966,12 @@ class _TopicChips extends ConsumerWidget {
 }
 
 class _AuthorRow extends ConsumerWidget {
-  const _AuthorRow({required this.post});
+  const _AuthorRow({required this.post, this.sponsored = false});
 
   final Post post;
+
+  /// Owner 2026-10-05: a paid promoted post says «Реклама» under the name.
+  final bool sponsored;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1015,12 +1030,15 @@ class _AuthorRow extends ConsumerWidget {
                             ],
                           ),
                           Text(
-                            post.locationName ??
-                                (a.isClient
-                                    ? '@${a.username} · ${t.t('person.client')}'
-                                    : a.verified
-                                        ? t.t('post.licensedAttorney')
-                                        : '@${a.username}'),
+                            sponsored
+                                ? t.t('promote.sponsored')
+                                : post.locationName ??
+                                    (a.isClient
+                                        ? '@${a.username} · '
+                                            '${t.t('person.client')}'
+                                        : a.verified
+                                            ? t.t('post.licensedAttorney')
+                                            : '@${a.username}'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: type.caption

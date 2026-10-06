@@ -12,3 +12,16 @@ final casePromotionProvider =
     FutureProvider.autoDispose.family<CasePromotionState, String>(
   (ref, caseId) => ref.watch(promotionsRepositoryProvider).state(caseId),
 );
+
+/// Owner 2026-10-05: the promotion state of one of my posts.
+final postPromotionProvider =
+    FutureProvider.autoDispose.family<CasePromotionState, String>(
+  (ref, postId) => ref
+      .watch(promotionsRepositoryProvider)
+      .state(postId, target: PromotionTarget.post),
+);
+
+/// Owner 2026-10-05: "My promotions" (first page; enough for a person).
+final myPromotionsProvider = FutureProvider.autoDispose<PromotionPage>(
+  (ref) => ref.watch(promotionsRepositoryProvider).mine(),
+);

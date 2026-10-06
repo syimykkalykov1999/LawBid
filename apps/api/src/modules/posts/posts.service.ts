@@ -9,6 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { ContentStatus, File, Prisma } from '@prisma/client';
+import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -141,6 +142,15 @@ export class PostsService {
               title: dto.title,
               practice_area_id: practice?.id ?? null,
               kind,
+              // Owner 2026-10-05: legal vs general (personal) post.
+              content_class: classifyPost({
+                hasPractice: !!practice,
+                kind,
+                // An assistant's approved request arrives unvalidated.
+                requested: isPostContentClass(dto.contentClass)
+                  ? dto.contentClass
+                  : undefined,
+              }),
               body: dto.body,
               status: st,
               video_asset_id: video?.id ?? null,
@@ -351,6 +361,21 @@ export class PostsService {
           body,
           title,
           ...(practice ? { practice_area_id: practice.id } : {}),
+          // A moderator's classification stays; otherwise the topic (or
+          // the author's choice) decides again.
+          ...(current.content_class_locked
+            ? {}
+            : {
+                content_class: classifyPost({
+                  hasPractice: !!(practice ?? current.practice_area_id),
+                  kind: current.kind,
+                  requested:
+                    dto.contentClass ??
+                    (isPostContentClass(current.content_class)
+                      ? current.content_class
+                      : undefined),
+                }),
+              }),
           edited_at: new Date(),
           // A held edit hides the post; moderation never re-publishes here.
           ...(verdict === 'hidden' ? { status: 'hidden' as const } : {}),
