@@ -15,7 +15,8 @@ import { REDIS_CLIENT } from './redis.constants';
         // stalling requests (throttler fails open, cost guard fails closed).
         return new Redis(url as string, {
           maxRetriesPerRequest: 3,
-          commandTimeout: 2000,
+          commandTimeout:
+            config.get<number>('REDIS_COMMAND_TIMEOUT_MS') ?? 2000,
         });
       },
     },

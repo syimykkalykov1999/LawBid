@@ -29,5 +29,29 @@ POST /admin/verification/requests/{id}/licenses/{licenseId}/decision added the n
 POST /admin/verification/requests/{id}/reject added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
 POST /admin/verification/requests/{id}/request-info added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
 POST /admin/verification/requests/{id}/take added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+# PR #75 (Instagram-style promotion): a promotion is of a post or a case, so caseId is null for posts; admin and app read it as optional in the same PR
+# PR #75: the admin promotion settings form gains its new fields in the same PR (PUT body is the full settings object)
+GET /admin/promotions the response property `data/items/caseId` became nullable for the status `200`
+GET /admin/promotions the response property `data/items/caseId` became optional for the status `200`
+POST /admin/promotions/grant the response property `data/promotion/caseId` became nullable for the status `201`
+POST /admin/promotions/grant the response property `data/promotion/caseId` became optional for the status `201`
+PUT /admin/promotions/settings added the new required request property `autoApprove`
+PUT /admin/promotions/settings added the new required request property `budgetPresetsCents`
+PUT /admin/promotions/settings added the new required request property `caseFeedSlots`
+PUT /admin/promotions/settings added the new required request property `cpmCents`
+PUT /admin/promotions/settings added the new required request property `durationPresets`
+PUT /admin/promotions/settings added the new required request property `feedEveryN`
+PUT /admin/promotions/settings added the new required request property `frequencyCapPerDay`
+PUT /admin/promotions/settings added the new required request property `impressionsPerPerson`
+PUT /admin/promotions/settings added the new required request property `maxDailyBudgetCents`
+PUT /admin/promotions/settings added the new required request property `minDailyBudgetCents`
+PUT /admin/promotions/settings added the new required request property `postsEnabled`
+PUT /admin/promotions/settings added the new required request property `requireSubscription`
+POST /admin/promotions/{id}/cancel the response property `data/promotion/caseId` became nullable for the status `200`
+POST /admin/promotions/{id}/cancel the response property `data/promotion/caseId` became optional for the status `200`
+POST /admin/promotions/{id}/extend the response property `data/promotion/caseId` became nullable for the status `200`
+POST /admin/promotions/{id}/extend the response property `data/promotion/caseId` became optional for the status `200`
+POST /cases/{id}/promotions the response property `data/promotion/caseId` became nullable for the status `201`
+POST /cases/{id}/promotions the response property `data/promotion/caseId` became optional for the status `201`
 # Legal PR (2026-10-05): joining the partner program now requires accepting the partner rules; old app builds get a 400 and are told to update
 POST /partners/me/join added required request body

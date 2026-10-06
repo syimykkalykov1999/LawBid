@@ -1,3 +1,4 @@
+import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { CasePhotosService } from './services/case-photos.service';
 import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
@@ -61,6 +62,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     PostsModule,
     // Owner 2026-10-02: referral qualification on the first case.
     ReferralsCoreModule,
+    // Owner 2026-10-05: promoted cases in the feed (budget, reach, cap).
+    PromotionsCoreModule,
   ],
   controllers: [
     CasesController,

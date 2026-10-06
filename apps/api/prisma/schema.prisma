@@ -3620,14 +3620,23 @@ model OutreachSuppression {
 }
 
 // Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.
+// Owner 2026-10-05: also posts (Instagram-style boost, no subscription):
+// target_type = case | post; the owner picks a daily budget and days, the
+// budget buys target_impressions at the admin's CPM, and an optional
+// audience (role, states, countries, topics) narrows who sees a post.
 model CasePromotion {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id             String    @db.Uuid
+  // case | post
+  target_type         String    @default("case") @db.String(8)
+  case_id             String?   @db.Uuid
+  post_id             String?   @db.Uuid
   user_id             String    @db.Uuid
   days                Int       @db.Int2
+  // The chosen daily budget (= price per day).
   price_cents_per_day Int
   total_cents         Int
-  // pending_payment | active | finished | canceled | refunded
+  // pending_payment | pending_review | active | paused | finished |
+  // canceled | refunded | rejected
   status              String    @db.String(20)
   starts_at           DateTime? @db.Timestamptz
   ends_at             DateTime? @db.Timestamptz
@@ -3639,13 +3648,48 @@ model CasePromotion {
   canceled_by         String?   @db.Uuid
   cancel_reason       String?   @db.String(500)
   impressions         Int       @default(0)
+  // Owner 2026-10-05: delivery. cpm_cents frozen at purchase; null target
+  // = no cap (older rows). reach = distinct people shown it.
+  cpm_cents           Int?
+  target_impressions  Int?
+  reach               Int       @default(0)
+  clicks              Int       @default(0)
+  audience            Json?
+  // Refunded part (admin cancel with refund).
+  refunded_cents      Int       @default(0)
+  // Who approved it (null = automatic) and when.
+  reviewed_by         String?   @db.Uuid
+  reviewed_at         DateTime? @db.Timestamptz
   created_at          DateTime  @default(now()) @db.Timestamptz
   updated_at          DateTime  @updatedAt @db.Timestamptz
 
+  views PromotionView[]
+
   @@index([status, ends_at])
   @@index([case_id])
+  @@index([post_id])
+  @@index([target_type, status, ends_at])
   @@index([user_id, created_at(sort: Desc)])
   @@map("case_promotions")
+}
+
+// Owner 2026-10-05: who saw a promotion — unique reach, the per-person
+// daily frequency cap and clicks. One row per (promotion, viewer).
+model PromotionView {
+  promotion_id  String        @db.Uuid
+  promotion     CasePromotion @relation(fields: [promotion_id], references: [id], onDelete: Cascade)
+  user_id       String        @db.Uuid
+  impressions   Int           @default(0)
+  // Impressions on day_key (UTC date) for the daily cap.
+  day_key       String        @db.String(10)
+  day_count     Int           @default(0)
+  clicked       Boolean       @default(false)
+  first_seen_at DateTime      @default(now()) @db.Timestamptz
+  last_seen_at  DateTime      @default(now()) @db.Timestamptz
+
+  @@id([promotion_id, user_id])
+  @@index([user_id, last_seen_at(sort: Desc)])
+  @@map("promotion_views")
 }
 
 // Support tickets from the app (any user) answered in the admin.

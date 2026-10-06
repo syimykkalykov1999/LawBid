@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import type { Post } from '@prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -18,6 +23,7 @@ import {
   type FeedCursor,
 } from './feed-mixer';
 import type { FeedProvider } from './feed.provider';
+import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 
 export const RECO_CURRENT_KEY = 'feed:reco:current';
 export const recoKey = (version: string) => `feed:reco:${version}`;
@@ -56,9 +62,72 @@ export class FeedService implements FeedProvider {
     private readonly prisma: PrismaService,
     private readonly presenter: PostPresenter,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
   ) {}
 
+  /** The organic page plus paid promoted posts (owner 2026-10-05):
+   * one after every N-th post, marked with their promotionId. */
   async page(
+    viewer: RequestUser,
+    rawCursor: string | undefined,
+    limit: number,
+  ): Promise<PostPage> {
+    const organic = await this.organicPage(viewer, rawCursor, limit);
+    return this.withPromoted(viewer, organic);
+  }
+
+  private async withPromoted(
+    viewer: RequestUser,
+    page: PostPage,
+  ): Promise<PostPage> {
+    const delivery = this.promoDelivery;
+    if (!delivery || page.items.length === 0) return page;
+    try {
+      const settings = await delivery.settings();
+      if (!settings.postsEnabled) return page;
+      const every = settings.feedEveryN;
+      const slots = Math.floor(page.items.length / (every - 1));
+      if (slots < 1) return page;
+      const candidates = await delivery.eligible('post', viewer.sub, {
+        excludeUserIds: await this.blockedAuthors(viewer),
+      });
+      const onPage = new Set(page.items.map((p) => p.id));
+      const wanted = candidates
+        .filter((c) => c.postId && !onPage.has(c.postId))
+        .slice(0, slots * 2);
+      if (wanted.length === 0) return page;
+      const rows = await this.prisma.post.findMany({
+        where: {
+          ...VISIBLE_POST_WHERE,
+          id: { in: wanted.map((c) => c.postId!) },
+        },
+      });
+      const byId = new Map(rows.map((p) => [p.id, p]));
+      const picked = wanted.filter((c) => byId.has(c.postId!)).slice(0, slots);
+      if (picked.length === 0) return page;
+      const presented = await this.presenter.present(
+        picked.map((c) => byId.get(c.postId!)!),
+        viewer.sub,
+      );
+      const ads = presented.map((dto, i) => ({
+        ...dto,
+        promotionId: picked[i].id,
+      }));
+      const items = [...page.items];
+      ads.forEach((ad, i) => {
+        items.splice(Math.min(items.length, (i + 1) * every - 1), 0, ad);
+      });
+      delivery.recordImpressions(
+        viewer.sub,
+        picked.map((c) => c.id),
+      );
+      return { ...page, items };
+    } catch {
+      return page;
+    }
+  }
+
+  private async organicPage(
     viewer: RequestUser,
     rawCursor: string | undefined,
     limit: number,

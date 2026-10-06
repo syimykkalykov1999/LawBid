@@ -495,6 +495,7 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           referralOffOverride,
+          promotionsOffOverride,
           partnerOffOverride,
           l10nDatabaseProvider.overrideWithValue(l10nDb),
           currentUserControllerProvider.overrideWith(

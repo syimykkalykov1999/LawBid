@@ -136,8 +136,9 @@ String? notificationRoute({
           'partner_declined':
       return AppRoutes.partner;
     case 'promotion_started' || 'promotion_ended':
-      if (caseId == null) return null;
-      return AppRoutes.myCase(caseId);
+      if (caseId != null) return AppRoutes.myCase(caseId);
+      // Owner 2026-10-05: a promoted post → "My promotions".
+      return AppRoutes.myPromotions;
     // Owner 2026-10-05: client → attorney payments.
     case 'case_payment_received' || 'case_payment_disputed':
       if (caseId == null) return CasePaymentsRoutes.history;

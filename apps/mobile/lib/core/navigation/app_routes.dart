@@ -151,6 +151,8 @@ abstract final class AppRoutes {
   // Owner 2026-10-02: About LawBid + the website link.
   static const about = '/profile/settings/about';
   static const referral = '/profile/settings/referral';
+  // Owner 2026-10-05: my promoted posts / cases (reach, clicks, stop).
+  static const myPromotions = '/profile/settings/promotions';
   // Owner 2026-10-05: partner program (shown to partners only).
   static const partner = '/profile/settings/partner';
 
