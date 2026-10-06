@@ -1,5 +1,7 @@
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
+import 'package:lawbid/features/promotions/application/promotions_providers.dart';
+import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
@@ -59,3 +61,9 @@ final partnerOffOverride = partnerMeProvider.overrideWith(
 /// The settings goldens were drawn on a Mac before the document templates
 /// row existed; they keep that layout until they are regenerated there.
 final templatesOffOverride = templatesEnabledProvider.overrideWithValue(false);
+
+/// Owner 2026-10-05: no promotions yet — Settings hides «Мои продвижения»
+/// and nothing goes to the network.
+final promotionsOffOverride = myPromotionsProvider.overrideWith(
+  (ref) async => const PromotionPage(items: []),
+);

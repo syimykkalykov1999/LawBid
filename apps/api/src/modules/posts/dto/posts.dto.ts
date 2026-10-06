@@ -425,6 +425,11 @@ export class PostDto {
     description: '"Изменено" (§3.3).',
   })
   editedAt!: string | null;
+
+  /** Owner 2026-10-05: set on a paid promoted post in the feed — the app
+   * shows «Реклама» and reports the open to POST /promotions/:id/click. */
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  promotionId?: string | null;
 }
 
 export class PostDeletedDto {

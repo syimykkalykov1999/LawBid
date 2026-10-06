@@ -12,6 +12,18 @@ class PromotionSettingsDto {
     required this.enabled,
     required this.priceCentsPerDay,
     required this.maxDays,
+    required this.postsEnabled,
+    required this.cpmCents,
+    required this.minDailyBudgetCents,
+    required this.maxDailyBudgetCents,
+    required this.budgetPresetsCents,
+    required this.durationPresets,
+    required this.feedEveryN,
+    required this.caseFeedSlots,
+    required this.frequencyCapPerDay,
+    required this.impressionsPerPerson,
+    required this.autoApprove,
+    required this.requireSubscription,
     this.maxActivePerCase = 1,
   });
 
@@ -22,6 +34,20 @@ class PromotionSettingsDto {
   final int priceCentsPerDay;
   final int maxDays;
   final int maxActivePerCase;
+  final bool postsEnabled;
+
+  /// Price of 1 000 impressions.
+  final int cpmCents;
+  final int minDailyBudgetCents;
+  final int maxDailyBudgetCents;
+  final List<int> budgetPresetsCents;
+  final List<int> durationPresets;
+  final int feedEveryN;
+  final int caseFeedSlots;
+  final int frequencyCapPerDay;
+  final num impressionsPerPerson;
+  final bool autoApprove;
+  final bool requireSubscription;
 
   Map<String, Object?> toJson() => _$PromotionSettingsDtoToJson(this);
 }

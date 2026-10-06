@@ -44,6 +44,7 @@ class PostDto {
     this.practice,
     this.video,
     this.editedAt,
+    this.promotionId,
   });
 
   factory PostDto.fromJson(Map<String, Object?> json) =>
@@ -89,6 +90,10 @@ class PostDto {
 
   /// "Изменено" (§3.3).
   final String? editedAt;
+
+  /// Owner 2026-10-05: set on a paid promoted post in the feed — the app.
+  /// shows «Реклама» and reports the open to POST /promotions/:id/click.
+  final String? promotionId;
 
   Map<String, Object?> toJson() => _$PostDtoToJson(this);
 }

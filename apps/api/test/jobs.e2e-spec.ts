@@ -1,7 +1,7 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PrismaClient } from '@prisma/client';
-import { QueueEvents, type Job } from 'bullmq';
+import { QueueEvents, type Job, type Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { WorkerModule } from '../src/jobs/worker.module';
@@ -88,13 +88,13 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
       expect(s.pattern).toBe(want.pattern);
       expect(s.tz).toBe('UTC');
     }
-    // One pending (delayed) run per scheduler, not one per instance.
-    expect(await queue.getDelayedCount()).toBe(CRON_SCHEDULES.length);
+    // One pending run per scheduler, not one per instance.
+    await expectOnePendingRunPerScheduler(queue);
 
     // A third boot (rolling deploy) is still idempotent.
     await boot();
     expect((await queue.getJobSchedulers()).length).toBe(CRON_SCHEDULES.length);
-    expect(await queue.getDelayedCount()).toBe(CRON_SCHEDULES.length);
+    await expectOnePendingRunPerScheduler(queue);
   });
 
   it('sessions.cleanup removes expired and long-revoked sessions, keeps live and rotated ones', async () => {
@@ -264,3 +264,27 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     );
   });
 });
+
+/**
+ * Every scheduler has its next run queued, and none has two. A run that
+ * comes due mid-test leaves «delayed» for waiting/active (and the scheduler
+ * queues the following one), so counting only delayed jobs is flaky near a
+ * minute boundary.
+ */
+async function expectOnePendingRunPerScheduler(queue: Queue): Promise<void> {
+  const delayed = await queue.getJobs(['delayed']);
+  const perKey = new Map<string, number>();
+  for (const j of delayed) {
+    const key = j.repeatJobKey ?? j.name;
+    perKey.set(key, (perKey.get(key) ?? 0) + 1);
+  }
+  expect([...perKey.values()].filter((n) => n > 1)).toEqual([]);
+  const pending = await queue.getJobs([
+    'delayed',
+    'waiting',
+    'active',
+    'prioritized',
+  ]);
+  const covered = new Set(pending.map((j) => j.repeatJobKey ?? j.name));
+  for (const c of CRON_SCHEDULES) expect(covered.has(c.name)).toBe(true);
+}
