@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
+import 'package:lawbid/features/feed/application/feed_content.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -104,20 +105,33 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
 /// The topic slider above the post stream ("All" = the regular feed; a
 /// state narrows to attorneys licensed there — OQ-034).
-class _TopicFeed extends StatefulWidget {
+class _TopicFeed extends ConsumerStatefulWidget {
   const _TopicFeed();
 
   @override
-  State<_TopicFeed> createState() => _TopicFeedState();
+  ConsumerState<_TopicFeed> createState() => _TopicFeedState();
 }
 
-class _TopicFeedState extends State<_TopicFeed> {
+class _TopicFeedState extends ConsumerState<_TopicFeed> {
   String? _category;
   String? _state;
 
   @override
+  void initState() {
+    super.initState();
+    // Owner 2026-10-05: the "Content" setting as the server has it.
+    Future.microtask(() {
+      if (mounted) ref.read(feedContentModeProvider.notifier).sync();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final category = _category;
+    final legalOnly =
+        ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
+    // "Legal only" hides general posts, so their topic falls back to All.
+    final category =
+        legalOnly && _category == kGeneralPostsTopic ? null : _category;
     final state = _state;
     return Column(
       children: [
@@ -133,8 +147,12 @@ class _TopicFeedState extends State<_TopicFeed> {
           child: category != null
               ? FilteredPostsView(
                   key: ValueKey('$category|$state'),
-                  practice: category == kNewsTopic ? null : category,
+                  practice:
+                      category == kNewsTopic || category == kGeneralPostsTopic
+                          ? null
+                          : category,
                   newsOnly: category == kNewsTopic,
+                  generalOnly: category == kGeneralPostsTopic,
                   stateCode: state,
                 )
               : state != null

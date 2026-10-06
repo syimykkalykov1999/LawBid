@@ -398,6 +398,12 @@ export const OWNER_OPS_SETTINGS = {
   'ops.backup_max_age_hours': 26,
 };
 
+// Owner 2026-10-05: legal posts vs general (personal) posts. What a person
+// who never chose sees: 'all' or 'legal_only' (general posts hidden).
+export const OWNER_FEED_SETTINGS = {
+  'feed.default_content_mode': 'all',
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -424,6 +430,7 @@ export const APP_SETTINGS = {
   ...OWNER_STORAGE_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_OPS_SETTINGS,
+  ...OWNER_FEED_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

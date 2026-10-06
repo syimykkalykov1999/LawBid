@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsIn,
@@ -17,6 +18,10 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import {
+  POST_CONTENT_CLASSES,
+  type PostContentClass,
+} from '../posts/content-filter.service';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -80,6 +85,37 @@ export class AdminPostsQueryDto extends AdminContentFilterQueryDto {
   @IsOptional()
   @IsIn(['video'])
   media?: 'video';
+
+  /** Owner 2026-10-05: legal or general (personal) posts only. */
+  @ApiPropertyOptional({
+    enum: POST_CONTENT_CLASSES,
+    enumName: 'PostContentClass',
+  })
+  @IsOptional()
+  @IsIn(POST_CONTENT_CLASSES)
+  contentClass?: PostContentClass;
+}
+
+export const ADMIN_POST_CLASS_ACTIONS = ['legal', 'general', 'auto'] as const;
+export type AdminPostClassAction = (typeof ADMIN_POST_CLASS_ACTIONS)[number];
+
+/** Owner 2026-10-05: moderation reclassifies posts. legal / general sticks
+ * (the author's edits no longer change it); auto = back to the topic rule. */
+export class AdminClassifyPostsDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 200 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  ids!: string[];
+
+  @ApiProperty({
+    enum: ADMIN_POST_CLASS_ACTIONS,
+    enumName: 'AdminPostClassAction',
+  })
+  @IsIn(ADMIN_POST_CLASS_ACTIONS)
+  contentClass!: AdminPostClassAction;
 }
 
 export class AdminCommentsQueryDto extends AdminContentFilterQueryDto {
@@ -142,6 +178,10 @@ export class AdminPostRowDto {
   @ApiPropertyOptional({ type: String, nullable: true }) practice!:
     string | null;
   @ApiProperty({ enum: ['published', 'hidden', 'removed'] }) status!: string;
+  @ApiProperty({ enum: POST_CONTENT_CLASSES, enumName: 'PostContentClass' })
+  contentClass!: PostContentClass;
+  @ApiProperty({ description: 'Set by moderation (author edits keep it).' })
+  contentClassLocked!: boolean;
   @ApiProperty({ type: 'integer' }) likes!: number;
   @ApiProperty({ type: 'integer' }) comments!: number;
   @ApiProperty() deleted!: boolean;

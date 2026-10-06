@@ -8,6 +8,7 @@ import 'content_status.dart';
 import 'mention_dto.dart';
 import 'post_attachment_dto.dart';
 import 'post_author_dto.dart';
+import 'post_content_class.dart';
 import 'post_kind.dart';
 import 'post_location_dto.dart';
 import 'post_media_dto.dart';
@@ -21,6 +22,7 @@ class PostDto {
   const PostDto({
     required this.id,
     required this.kind,
+    required this.contentClass,
     required this.author,
     required this.body,
     required this.media,
@@ -56,6 +58,9 @@ class PostDto {
   final String? title;
   final PostKind kind;
   final PostPracticeDto? practice;
+
+  /// Owner 2026-10-05: legal or general (personal) post.
+  final PostContentClass contentClass;
   final PostAuthorDto author;
   final String body;
   final List<PostMediaDto> media;

@@ -1,3 +1,7 @@
+import {
+  POST_CONTENT_CLASSES,
+  type PostContentClass,
+} from '../posts/content-filter.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -353,4 +357,14 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @IsOptional()
   @IsIn(['newest', 'popular'])
   sort?: 'newest' | 'popular';
+
+  /** Owner 2026-10-05: only legal or only general (personal) posts — the
+   * "Posts" topic lists general ones. Absent = the viewer's feed setting. */
+  @ApiPropertyOptional({
+    enum: POST_CONTENT_CLASSES,
+    enumName: 'PostContentClass',
+  })
+  @IsOptional()
+  @IsIn(POST_CONTENT_CLASSES)
+  contentClass?: PostContentClass;
 }
