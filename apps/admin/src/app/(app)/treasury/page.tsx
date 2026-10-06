@@ -216,7 +216,7 @@ export default function TreasuryPage() {
             />
             <BankRow
               title="Расходы"
-              hint="Отдельная выплата «LawBid expenses»: переведите её на карту для расходов"
+              hint="Тот же счёт, отдельной выплатой «LawBid expenses»"
               value={
                 t.expenseBank
                   ? bankText(t.expenseBank, "")
@@ -224,10 +224,9 @@ export default function TreasuryPage() {
               }
             />
             <div className="break-words p-4 text-xs text-muted">
-              Stripe принимает только один долларовый счёт, поэтому расходы
-              приходят туда же, но отдельной выплатой с пометкой «LawBid
-              expenses». Переведите эту сумму на счёт, чья карта платит за
-              сервисы, или поставьте в банке автоперевод раз в месяц.
+              Все деньги идут на один счёт; расходы и прибыль разделены в
+              отчёте. Сервисы (AWS, Twilio, Bunny…) списывают оплату с карты
+              этого же счёта.
             </div>
             <div className="flex items-start gap-2 p-4 text-xs text-muted">
               <ShieldCheck size={16} className="mt-px shrink-0 text-success" />
