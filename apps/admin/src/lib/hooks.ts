@@ -14,6 +14,10 @@ export interface Me {
   hasPassword: boolean;
   permissions: Permissions;
   canManageAdmins: boolean;
+  /** Owner 2026-10-06: member of a country partner's team (null = staff). */
+  countryPartnerId?: string | null;
+  /** The country partner themself. */
+  partnerLead?: boolean;
   hasSecurityQuestion: boolean;
   securityQuestion: string | null;
   /** Owner 2026-10-05: sections where this admin must write a reason. */

@@ -155,6 +155,18 @@ export class AdminAccountDto {
   })
   countries!: string[];
 
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Owner 2026-10-06: the country partner whose team this admin is in (null = LawBid staff).',
+  })
+  countryPartnerId!: string | null;
+
+  @ApiProperty({ description: 'This admin is the country partner themself.' })
+  partnerLead!: boolean;
+
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLoginAt!: string | null;
 
