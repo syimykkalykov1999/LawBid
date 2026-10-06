@@ -69,6 +69,12 @@ const MIRRORED_MODELS = [
 
 const LOCK_KEY = 'demo:world:lock';
 const LOCK_TTL_SECONDS = 15 * 60;
+// api, worker and every new task boot together on AWS: one process replays
+// the demo migrations, the others wait and then find nothing pending
+// (two replays at once fail with "relation … already exists").
+const MIGRATE_LOCK_KEY = 'demo:world:migrate-lock';
+const MIGRATE_LOCK_TTL_SECONDS = 15 * 60;
+const MIGRATE_LOCK_POLL_MS = 3000;
 
 @Injectable()
 export class DemoDatabaseService implements OnApplicationBootstrap {
@@ -143,7 +149,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
         return;
       }
       await demo.$connect();
-      await this.applyMigrations(demo);
+      await this.withMigrateLock(() => this.applyMigrations(demo));
       routingOf(this.prisma).markDemoReady(true, 'ready');
       this.state.ready = true;
       this.state.reason = null;
@@ -186,6 +192,32 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
   }
 
   // ---- migrations ------------------------------------------------------
+
+  private async withMigrateLock(run: () => Promise<void>): Promise<void> {
+    const token = randomUUID();
+    const deadline = Date.now() + MIGRATE_LOCK_TTL_SECONDS * 1000;
+    for (;;) {
+      const locked = await this.redis.set(
+        MIGRATE_LOCK_KEY,
+        token,
+        'EX',
+        MIGRATE_LOCK_TTL_SECONDS,
+        'NX',
+      );
+      if (locked === 'OK') break;
+      if (Date.now() > deadline) {
+        throw new Error('demo migrations are still running in another process');
+      }
+      await new Promise((r) => setTimeout(r, MIGRATE_LOCK_POLL_MS));
+    }
+    try {
+      await run();
+    } finally {
+      if ((await this.redis.get(MIGRATE_LOCK_KEY)) === token) {
+        await this.redis.del(MIGRATE_LOCK_KEY);
+      }
+    }
+  }
 
   private migrationsDir(): string | null {
     const candidates = [

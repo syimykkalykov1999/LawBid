@@ -54,6 +54,16 @@ variable "worker_memory" {
   type    = number
   default = 1024
 }
+variable "clamav_image" {
+  type        = string
+  default     = "clamav/clamav:1.4"
+  description = "Antivirus sidecar of the worker (uploads stay «pending» without it)."
+}
+variable "clamav_memory" {
+  type        = number
+  default     = 2560
+  description = "MiB reserved for clamd inside the worker task (signatures ≈ 1.2 GB, twice that while reloading)."
+}
 variable "admin_cpu" {
   type    = number
   default = 256
@@ -116,7 +126,7 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
 }
 
 resource "aws_cloudwatch_log_group" "svc" {
-  for_each          = toset(["api", "worker", "admin", "migrate"])
+  for_each          = toset(["api", "worker", "clamav", "admin", "migrate"])
   name              = "/lawbid/${var.name}/${each.key}"
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
@@ -182,7 +192,7 @@ resource "aws_iam_role" "task_minimal" {
 locals {
   api_environment = [for k, v in var.api_env : { name = k, value = v }]
   api_secrets     = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
-  log_config = { for svc in ["api", "worker", "admin", "migrate"] : svc => {
+  log_config = { for svc in ["api", "worker", "clamav", "admin", "migrate"] : svc => {
     logDriver = "awslogs"
     options = {
       awslogs-group         = aws_cloudwatch_log_group.svc[svc].name
@@ -230,12 +240,15 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
   container_definitions = jsonencode([{
-    name        = "worker"
-    image       = var.api_image
-    essential   = true
-    command     = ["node", "dist/src/worker.js"]
-    environment = local.api_environment
+    name      = "worker"
+    image     = var.api_image
+    essential = true
+    command   = ["node", "dist/src/worker.js"]
+    # Uploads are scanned by the clamd sidecar below (same task, localhost):
+    # without a scanner every photo/document stays scan_status=pending.
+    environment = concat(local.api_environment, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }])
     secrets     = local.api_secrets
+    dependsOn   = [{ containerName = "clamav", condition = "HEALTHY" }]
     stopTimeout = 120
     # Zero maintenance (owner 2026-10-05): the worker touches this file every
     # 30 s while its job loop runs (src/jobs/jobs.runner.ts); a hung or
@@ -248,6 +261,22 @@ resource "aws_ecs_task_definition" "worker" {
       startPeriod = 120
     }
     logConfiguration = local.log_config["worker"]
+    }, {
+    # Official ClamAV image: freshclam downloads the signatures at start
+    # and every 2 h, clamd listens on 3310. Essential: a dead scanner
+    # replaces the whole task.
+    name              = "clamav"
+    image             = var.clamav_image
+    essential         = true
+    memoryReservation = var.clamav_memory
+    healthCheck = {
+      command     = ["CMD-SHELL", "clamdcheck.sh"]
+      interval    = 30
+      timeout     = 10
+      retries     = 10
+      startPeriod = 300
+    }
+    logConfiguration = local.log_config["clamav"]
   }])
   tags = var.tags
 }

@@ -53,6 +53,13 @@ variables without an override keep the full-size defaults of
 
 ## Apply
 
+**Prod first launch: follow [docs/runbooks/PROD_LAUNCH.md](../docs/runbooks/PROD_LAUNCH.md)**
+(`infra/bootstrap` creates the prerequisites below; `scripts/deploy/prod-*.sh`
+fill the secrets, set up the database and seed it). The prod API connects
+as `lawbid_app` (the migration `20261007000000_prod_role_privileges` gives
+that role every table, now and future); CockroachDB Cloud **Basic** is the
+launch plan, not the dedicated cluster of «Prerequisites».
+
 ```sh
 cd infra/envs/staging
 cp backend.hcl.example backend.hcl && cp terraform.tfvars.example terraform.tfvars   # fill in

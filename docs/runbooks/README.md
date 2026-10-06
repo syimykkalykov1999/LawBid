@@ -1,7 +1,8 @@
 # Runbooks (docs/06 §8)
 
 **Владельцу: начните с [OWNER.md](OWNER.md)** — какое письмо что значит и
-что делать, простыми словами. Всё остальное ниже — для инженера.
+что делать, простыми словами. Первый запуск на AWS — [PROD_LAUNCH.md](PROD_LAUNCH.md).
+Всё остальное ниже — для инженера.
 
 One page per alert of `infra/modules/monitoring` (the alarm description
 names its runbook). Every page follows the same shape: **Signal → Check →
