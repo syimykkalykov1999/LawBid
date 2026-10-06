@@ -155,6 +155,13 @@ abstract class SearchClient {
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
+  /// [states] - Owner 2026-10-06: several states at once (comma-separated) — posts of.
+  /// attorneys licensed in any of them. Joins `state` when both are sent.
+  ///
+  /// [practices] - Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of.
+  /// these qualifications (comma-separated; a category includes its.
+  /// subcategories).
+  ///
   /// [practice] - Owner 2026-09-30: a practice category or subcategory code; a.
   /// category includes its subcategories.
   ///
@@ -173,6 +180,8 @@ abstract class SearchClient {
     @Query('period') Period? period = Period.all,
     @Query('cursor') String? cursor,
     @Query('state') String? state,
+    @Query('states') String? states,
+    @Query('practices') String? practices,
     @Query('practice') String? practice,
     @Query('tag') String? tag,
     @Query('kind') PostKind? kind,

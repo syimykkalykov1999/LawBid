@@ -24,12 +24,43 @@ export interface VisibleCasesQueryInput {
    * practice (view only; bidding still needs a verified licence there). */
   browseAll?: boolean;
   state?: string;
+  /** Owner 2026-10-06: several states at once (with [state], any of them). */
+  states?: string[];
   cursor?: FeedCursor;
   limit: number;
   /** docs/05 §7.4 search: full-text match on title + description
    * (cases.search_tsv) and a publication window. Absent = the §4.2 feed. */
   text?: string;
   since?: Date;
+}
+
+/** The state codes to filter by: [state] plus [states], upper-cased. */
+function stateCodes(state?: string, states?: string[]): string[] {
+  return [
+    ...new Set(
+      [...(state ? [state] : []), ...(states ?? [])].map((s) =>
+        s.toUpperCase(),
+      ),
+    ),
+  ];
+}
+
+/** `= 'NJ'` for one state (the plan the EXPLAIN tests pin), `IN (...)` for
+ * several (owner 2026-10-06). */
+function inStates(column: Prisma.Sql, codes: string[]): Prisma.Sql {
+  return codes.length === 1
+    ? Prisma.sql`${column} = ${codes[0]}`
+    : Prisma.sql`${column} IN (${Prisma.join(codes)})`;
+}
+
+/** The case's primary or any additional state is one of [codes]. */
+function anyStateOf(codes: string[]): Prisma.Sql {
+  return codes.length
+    ? Prisma.sql`AND (${inStates(Prisma.sql`c.primary_state_code`, codes)}
+        OR EXISTS (SELECT 1 FROM case_states s2
+                   WHERE s2.case_id = c.id
+                     AND ${inStates(Prisma.sql`s2.state_code`, codes)}))`
+    : Prisma.empty;
 }
 
 /**
@@ -70,6 +101,7 @@ export function buildVisibleCasesSql(
     practiceAreaId,
     practiceCategory,
     state,
+    states,
     cursor,
     limit,
     text,
@@ -92,14 +124,15 @@ export function buildVisibleCasesSql(
       : Prisma.empty
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty}`;
 
-  const primaryStateFilter = state
-    ? Prisma.sql`AND c.primary_state_code = ${state}`
+  const codes = stateCodes(state, states);
+  const primaryStateFilter = codes.length
+    ? Prisma.sql`AND ${inStates(Prisma.sql`c.primary_state_code`, codes)}`
     : Prisma.empty;
   const primaryPracticeFilter = practiceAreaId
     ? Prisma.sql`AND c.practice_area_id = ${practiceAreaId}::UUID`
     : Prisma.empty;
-  const secondaryStateFilter = state
-    ? Prisma.sql`AND cs.state_code = ${state}`
+  const secondaryStateFilter = codes.length
+    ? Prisma.sql`AND ${inStates(Prisma.sql`cs.state_code`, codes)}`
     : Prisma.empty;
   const secondaryPracticeFilter = practiceAreaId
     ? Prisma.sql`AND c.practice_area_id = ${practiceAreaId}::UUID`
@@ -110,11 +143,7 @@ export function buildVisibleCasesSql(
     : Prisma.empty;
 
   if (browseAll) {
-    const anyState = state
-      ? Prisma.sql`AND (c.primary_state_code = ${state}
-          OR EXISTS (SELECT 1 FROM case_states s2
-                     WHERE s2.case_id = c.id AND s2.state_code = ${state}))`
-      : Prisma.empty;
+    const anyState = anyStateOf(codes);
     return Prisma.sql`
       SELECT c.id, c.created_at FROM cases c
       WHERE c.status = 'open' AND c.deleted_at IS NULL
@@ -187,6 +216,8 @@ export interface PracticeCasesQueryInput {
    * subcategories. */
   practice: string;
   state?: string;
+  /** Owner 2026-10-06: several states at once (with [state], any of them). */
+  states?: string[];
   cursor?: FeedCursor;
   limit: number;
   /** Audit 2026-10-01: search uses the same rule (text, period, extras). */
@@ -210,6 +241,7 @@ export function buildPracticeCasesSql(
     attorneyId,
     practice,
     state,
+    states,
     cursor,
     limit,
     text,
@@ -224,11 +256,7 @@ export function buildPracticeCasesSql(
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty} ${
     extra ?? Prisma.empty
   }`;
-  const stateFilter = state
-    ? Prisma.sql`AND (c.primary_state_code = ${state}
-        OR EXISTS (SELECT 1 FROM case_states s2
-                   WHERE s2.case_id = c.id AND s2.state_code = ${state}))`
-    : Prisma.empty;
+  const stateFilter = anyStateOf(stateCodes(state, states));
   const cursorFilter = cursor
     ? Prisma.sql`AND (c.created_at < ${cursor.createdAt}
         OR (c.created_at = ${cursor.createdAt} AND c.id < ${cursor.id}::UUID))`

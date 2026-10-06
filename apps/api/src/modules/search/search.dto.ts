@@ -309,6 +309,25 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @Length(2, 2)
   state?: string;
 
+  /** Owner 2026-10-06: several states at once (comma-separated) — posts of
+   * attorneys licensed in any of them. Joins `state` when both are sent. */
+  @ApiPropertyOptional({ example: 'IL,NY' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  @Matches(/^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$/)
+  states?: string;
+
+  /** Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of
+   * these qualifications (comma-separated; a category includes its
+   * subcategories). */
+  @ApiPropertyOptional({ example: 'immigration,traffic.tickets' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  @Matches(/^[a-z0-9_.]{2,120}(,[a-z0-9_.]{2,120}){0,99}$/)
+  practices?: string;
+
   /** Owner 2026-09-30: a practice category or subcategory code; a
    * category includes its subcategories. */
   @ApiPropertyOptional({ example: 'civil_litigation' })

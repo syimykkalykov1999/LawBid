@@ -6,6 +6,10 @@
 
 const newsOffRu = <String, String>{
   'feed.legalPosts': 'Юр. посты',
+  'feed.legal.all': 'Все юр. посты',
+  'feed.legal.mine': 'Только мои темы',
+  'feed.legal.mineEmpty':
+      'Отметьте темы в «Выберите темы» — здесь появятся их юр. посты',
   'post.create.media': 'Фото и видео',
   'post.create.mediaHint':
       'До 9 фото или одно видео. Без фото карточка получит нашу картинку по квалификации.',
@@ -27,6 +31,10 @@ const newsOffRu = <String, String>{
 
 const newsOffEn = <String, String>{
   'feed.legalPosts': 'Legal posts',
+  'feed.legal.all': 'All legal posts',
+  'feed.legal.mine': 'Only my topics',
+  'feed.legal.mineEmpty':
+      'Pick topics in “Choose topics” to see their legal posts here',
   'post.create.media': 'Photos and videos',
   'post.create.mediaHint':
       'Up to 9 photos or one video. Without photos, the card gets our picture for the qualification.',

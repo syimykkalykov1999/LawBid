@@ -115,7 +115,8 @@ class _TopicFeed extends ConsumerStatefulWidget {
 
 class _TopicFeedState extends ConsumerState<_TopicFeed> {
   String? _category;
-  String? _state;
+  // Owner 2026-10-06: several states at once (none = every state).
+  Set<String> _states = {};
 
   @override
   void initState() {
@@ -137,18 +138,28 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
             (newsOff && _category == kNewsTopic)
         ? null
         : _category;
-    final state = _state;
+    final codes = _states.toList()..sort();
+    final state = codes.isEmpty ? null : codes.join(',');
+    // Owner 2026-10-06: «Юр. посты» → «Только мои темы» = legal posts of
+    // the qualifications picked in «Выберите темы».
+    final mine = legalOnly &&
+        category == null &&
+        ref.watch(feedLegalScopeProvider) == FeedLegalScope.mine;
+    final myTopics = [
+      for (final c in ref.watch(feedTopicsProvider))
+        if (c != kNewsTopic && c != kGeneralPostsTopic) c,
+    ];
     return Column(
       children: [
         TopicFilterBar(
           category: category,
           onCategory: (v) => setState(() => _category = v),
-          stateCode: state,
-          onState: (v) => setState(() => _state = v),
+          stateCodes: _states,
+          onStates: (v) => setState(() => _states = v),
         ),
         Expanded(
           // Owner 2026-09-30: News, or one qualification (with its
-          // subcategories), optionally in a state.
+          // subcategories), optionally in states.
           child: category != null
               ? FilteredPostsView(
                   key: ValueKey('$category|$state'),
@@ -160,9 +171,23 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
                   generalOnly: category == kGeneralPostsTopic,
                   stateCode: state,
                 )
-              : state != null
-                  ? LatestPostsView(key: ValueKey(state), stateCode: state)
-                  : const PostsFeedView(),
+              : mine
+                  ? myTopics.isEmpty
+                      ? AppEmptyState(
+                          key: const ValueKey('feed-legal-mine-empty'),
+                          icon: AppIcons.gavelRounded,
+                          message: ref
+                              .watch(translatorProvider)
+                              .t('feed.legal.mineEmpty'),
+                        )
+                      : FilteredPostsView(
+                          key: ValueKey('mine|${myTopics.join(',')}|$state'),
+                          practices: myTopics,
+                          stateCode: state,
+                        )
+                  : state != null
+                      ? LatestPostsView(key: ValueKey(state), stateCode: state)
+                      : const PostsFeedView(),
         ),
       ],
     );

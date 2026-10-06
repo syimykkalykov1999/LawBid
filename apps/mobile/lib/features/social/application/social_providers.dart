@@ -220,10 +220,14 @@ class LatestPostsNotifier extends PagedNotifier<Post> {
 
   final String stateCode;
 
+  /// Owner 2026-10-06: one state or several, comma-separated ("IL,NY").
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) => ref
-      .read(socialRepositoryProvider)
-      .latestPosts(stateCode.isEmpty ? null : stateCode, cursor: cursor);
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      ref.read(socialRepositoryProvider).latestPosts(
+            null,
+            cursor: cursor,
+            states: splitCodes(stateCode),
+          );
 
   @override
   Object idOf(Post item) => item.id;
@@ -239,12 +243,22 @@ final latestPostsProvider = AsyncNotifierProvider.autoDispose
 /// subcategories, or a subcategory) and/or only News, optionally of
 /// attorneys licensed in a state.
 typedef FilteredPostsKey = ({
+  // Owner 2026-10-06: one state or several, comma-separated ("IL,NY").
   String? state,
   String? practice,
   bool news,
   // Owner 2026-10-05: the "Posts" topic — general (personal) posts.
   bool general,
+  // Owner 2026-10-06: «Юр. посты» → «Только мои темы», comma-separated
+  // qualification codes (a String so the key compares by value).
+  String? practices,
 });
+
+/// "IL,NY" → ['IL', 'NY']; null or empty → [].
+List<String> splitCodes(String? joined) => [
+      for (final c in (joined ?? '').split(','))
+        if (c.isNotEmpty) c,
+    ];
 
 class FilteredPostsNotifier extends PagedNotifier<Post> {
   FilteredPostsNotifier(this.key);
@@ -255,9 +269,11 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
   Future<CursorPage<Post>> fetch(String? cursor) {
     final practice = key.practice;
     return ref.read(socialRepositoryProvider).latestPosts(
-          key.state,
+          null,
           cursor: cursor,
+          states: splitCodes(key.state),
           practice: practice,
+          practices: splitCodes(key.practices),
           // Older posts without a qualification: the category's hashtag.
           tag: practice != null && !practice.contains('.')
               ? topicTagFor(practice)

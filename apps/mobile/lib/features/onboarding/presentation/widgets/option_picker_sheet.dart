@@ -13,6 +13,7 @@ class PickerOption {
     this.sublabel,
     this.group,
     this.nested = false,
+    this.exclusive = false,
   });
 
   final String value;
@@ -26,6 +27,11 @@ class PickerOption {
   /// Owner 2026-10-05: a subcategory — kept inside its parent's
   /// collapsible group when the list is not searched.
   final bool nested;
+
+  /// Owner 2026-10-06: on a group head — its nested options are one choice
+  /// (exactly one stays picked, no "Select all"), e.g. «Юр. посты»: «Все
+  /// юр. посты» or «Только мои темы». The head itself is never picked.
+  final bool exclusive;
 }
 
 /// Owner 2026-10-05: an option followed by its nested options — one
@@ -133,6 +139,15 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
   String _query = '';
   final Set<String> _expanded = {};
 
+  /// One-of choices (an [PickerOption.exclusive] head's options) → their
+  /// siblings.
+  late final Map<String, Set<String>> _oneOf = {
+    for (final g in groupOptions(widget.options))
+      if (g.head.exclusive)
+        for (final o in g.children)
+          o.value: {for (final c in g.children) c.value},
+  };
+
   @override
   void dispose() {
     _search.dispose();
@@ -145,9 +160,19 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
       return;
     }
     setState(() {
+      final siblings = _oneOf[value];
+      if (siblings != null) {
+        // One of them always stays picked.
+        _selected
+          ..removeAll(siblings)
+          ..add(value);
+        return;
+      }
       if (!_selected.remove(value)) _selected.add(value);
     });
   }
+
+  int get _counted => _selected.where((v) => !_oneOf.containsKey(v)).length;
 
   /// Owner 2026-10-05: not searching — categories as collapsible cards
   /// (tap to open, pick what is needed), like the qualification editor.
@@ -264,9 +289,10 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
               if (widget.multi) ...[
                 const SizedBox(height: AppSpacing.md),
                 AppButton(
-                  label: _selected.isEmpty
+                  // A one-of choice is a setting, not a pick: not counted.
+                  label: _counted == 0
                       ? t.t('common.done')
-                      : '${t.t('common.done')} · ${_selected.length}',
+                      : '${t.t('common.done')} · $_counted',
                   onPressed: () => Navigator.of(context).pop(_selected),
                 ),
               ],
@@ -303,26 +329,36 @@ class _PickerGroupCard extends StatelessWidget {
     final reduce = context.reduceMotion;
     final head = group.head;
     final headPicked = selected.contains(head.value);
-    final picked = (headPicked ? 1 : 0) +
-        group.children.where((o) => selected.contains(o.value)).length;
+    // A one-of choice shows what is chosen instead of a count.
+    final choice = head.exclusive
+        ? group.children.where((o) => selected.contains(o.value)).firstOrNull
+        : null;
+    final picked = head.exclusive
+        ? 0
+        : (headPicked ? 1 : 0) +
+            group.children.where((o) => selected.contains(o.value)).length;
 
     return AnimatedContainer(
       duration: reduce ? Duration.zero : AppMotion.stateChange,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadii.card),
-        border:
-            Border.all(color: picked > 0 ? colors.goldStroke : colors.border),
+        border: Border.all(
+          color:
+              picked > 0 || choice != null ? colors.goldStroke : colors.border,
+        ),
       ),
       child: Column(
         children: [
           Semantics(
             button: true,
             expanded: expanded,
-            label: picked > 0
-                ? '${head.label}. '
-                    '${t.t('practices.pickedCount', {'count': '$picked'})}'
-                : head.label,
+            label: choice != null
+                ? '${head.label}. ${choice.label}'
+                : picked > 0
+                    ? '${head.label}. '
+                        '${t.t('practices.pickedCount', {'count': '$picked'})}'
+                    : head.label,
             excludeSemantics: true,
             onTap: onExpand,
             child: InkWell(
@@ -341,10 +377,21 @@ class _PickerGroupCard extends StatelessWidget {
                     children: [
                       // Long names wrap; the badge and chevron stay put.
                       Expanded(
-                        child: Text(
-                          head.label,
-                          style:
-                              typography.roleTitle.copyWith(color: colors.text),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              head.label,
+                              style: typography.roleTitle
+                                  .copyWith(color: colors.text),
+                            ),
+                            if (choice != null)
+                              Text(
+                                choice.label,
+                                style: typography.bodySmall
+                                    .copyWith(color: colors.goldStroke),
+                              ),
+                          ],
                         ),
                       ),
                       if (picked > 0)
@@ -398,14 +445,16 @@ class _PickerGroupCard extends StatelessWidget {
                     child: Column(
                       children: [
                         Divider(height: 1, color: colors.border),
-                        // The category itself: everything in it.
-                        PickerCheckRow(
-                          key: ValueKey('picker-all-${head.value}'),
-                          label: t.t('practices.selectAll'),
-                          checked: headPicked,
-                          emphasized: true,
-                          onTap: () => onToggle(head.value),
-                        ),
+                        // The category itself: everything in it (not for
+                        // a one-of choice).
+                        if (!head.exclusive)
+                          PickerCheckRow(
+                            key: ValueKey('picker-all-${head.value}'),
+                            label: t.t('practices.selectAll'),
+                            checked: headPicked,
+                            emphasized: true,
+                            onTap: () => onToggle(head.value),
+                          ),
                         for (final o in group.children)
                           PickerCheckRow(
                             key: ValueKey('picker-option-${o.value}'),

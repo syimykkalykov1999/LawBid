@@ -46,6 +46,8 @@ abstract class CasesClient {
   ///
   /// [state] - Two-letter state code.
   ///
+  /// [states] - Owner 2026-10-06: several states at once (comma-separated) — cases in any of them; joins `state` when both are sent.
+  ///
   /// [scope] - Owner 2026-10-04: "licensed" = cases in states with a verified licence (default); "all" = browse open cases of own practices in every state (view only).
   ///
   /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
@@ -71,6 +73,7 @@ abstract class CasesClient {
     @Query('cursor') String? cursor,
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('state') String? state,
+    @Query('states') String? states,
     @Query('practiceCategory') String? practiceCategory,
     @Query('practice') String? practice,
     @Query('budgetMin') num? budgetMin,

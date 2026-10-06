@@ -95,10 +95,11 @@ class PostsFeedView extends ConsumerWidget {
 }
 
 /// OQ-034: "All" topics with a state chosen — newest posts of attorneys
-/// licensed in that state.
+/// licensed in that state (owner 2026-10-06: or in any of several states).
 class LatestPostsView extends ConsumerWidget {
   const LatestPostsView({required this.stateCode, super.key});
 
+  /// One state code, or several comma-separated ("IL,NY").
   final String stateCode;
 
   @override
@@ -136,6 +137,7 @@ class LatestPostsView extends ConsumerWidget {
 class FilteredPostsView extends ConsumerWidget {
   const FilteredPostsView({
     this.practice,
+    this.practices,
     this.stateCode,
     this.newsOnly = false,
     this.generalOnly = false,
@@ -143,6 +145,12 @@ class FilteredPostsView extends ConsumerWidget {
   });
 
   final String? practice;
+
+  /// Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of
+  /// these qualifications.
+  final List<String>? practices;
+
+  /// One state code, or several comma-separated ("IL,NY").
   final String? stateCode;
   final bool newsOnly;
 
@@ -157,6 +165,7 @@ class FilteredPostsView extends ConsumerWidget {
       practice: practice,
       news: newsOnly,
       general: generalOnly,
+      practices: practices?.join(','),
     );
     final notifier = ref.read(filteredPostsProvider(key).notifier);
     return LayoutBuilder(

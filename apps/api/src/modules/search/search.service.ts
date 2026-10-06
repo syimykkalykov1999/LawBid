@@ -352,6 +352,8 @@ export class SearchService {
     state: string | undefined,
     cursor?: string,
     filter: {
+      states?: string[];
+      practices?: string[];
       practice?: string;
       tag?: string;
       kind?: 'post' | 'news';
@@ -377,7 +379,22 @@ export class SearchService {
         // suspended) and the practice clause shared the `AND` key.
         AND: [
           VISIBLE_POST_WHERE,
-          authorStateWhere(state),
+          authorStateWhere([
+            ...(state ? [state] : []),
+            ...(filter.states ?? []),
+          ]),
+          // Owner 2026-10-06: «Только мои темы» — any of the picked
+          // qualifications, each with its subcategories.
+          ...(filter.practices?.length
+            ? [
+                {
+                  OR: filter.practices.flatMap((p) => [
+                    { practice_area: { code: p } },
+                    { practice_area: { code: { startsWith: `${p}.` } } },
+                  ]),
+                },
+              ]
+            : []),
           // Audit 2026-10-01: nothing of people blocked either way.
           {
             author_id: { notIn: [...(await this.blocks.hiddenIds(user.sub))] },
@@ -477,7 +494,7 @@ export class SearchService {
           // Audit 2026-10-01: AND so the state filter keeps the author checks.
           AND: [
             VISIBLE_POST_WHERE,
-            authorStateWhere(state),
+            authorStateWhere(state ? [state] : []),
             {
               author_id: {
                 notIn: [...(await this.blocks.hiddenIds(user.sub))],
@@ -608,13 +625,16 @@ export class SearchService {
 }
 
 /** Posts whose author holds a verified license in [state] (none = any). */
-function authorStateWhere(state?: string): Prisma.PostWhereInput {
-  if (!state) return {};
+/** Posts of attorneys with a verified licence in any of [states]
+ * (owner 2026-10-06: several states at once); none = no state filter. */
+function authorStateWhere(states: string[]): Prisma.PostWhereInput {
+  const codes = [...new Set(states.map((s) => s.toUpperCase()))];
+  if (codes.length === 0) return {};
   return {
     author: {
       attorney_profile: {
         licenses: {
-          some: { state_code: state.toUpperCase(), license_status: 'verified' },
+          some: { state_code: { in: codes }, license_status: 'verified' },
         },
       },
     },
