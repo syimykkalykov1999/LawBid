@@ -46,7 +46,8 @@ abstract interface class ReviewsRepository {
     ReviewsSort sort = ReviewsSort.newest,
   });
 
-  // Owner 2026-10-01 (Google-style): anyone reviews an attorney; the author
+  // Owner 2026-10-06: a client who completed a case reviews the attorney;
+  // throws REVIEW_CASE_NOT_CLOSED for anyone else. The author
   // edits / deletes; the attorney replies; anyone marks "Helpful" / flags.
   Future<Review?> mine(String attorneyId);
   Future<Review> saveMine(
@@ -276,6 +277,11 @@ class ApiReviewsRepository implements ReviewsRepository {
       return ProfileMappers.ownReview(
         (await guardApiCall(() => _client.mine(id: attorneyId))).data,
       );
+    } on ApiException catch (e) {
+      // Owner 2026-10-06: never finished a case with this attorney — the
+      // profile shows why there is no "Write a review" button.
+      if (e.code == ApiErrorCodes.reviewCaseNotClosed) rethrow;
+      return null;
     } on Object {
       // `data: null` (no review yet) can't be parsed by the envelope.
       return null;
