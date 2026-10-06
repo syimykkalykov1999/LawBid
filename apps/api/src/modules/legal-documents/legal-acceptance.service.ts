@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import type { ConsentType, LegalDocType } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -40,6 +41,8 @@ export interface AcceptMeta {
  */
 @Injectable()
 export class LegalAcceptanceService {
+  private readonly logger = new Logger(LegalAcceptanceService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   /** What this user must accept now (their role's documents). */
@@ -64,6 +67,32 @@ export class LegalAcceptanceService {
     if (types.length === 0) return [];
     const consentTypes = types.filter(isAcceptableDocType) as ConsentType[];
     // Only acceptable types have a consent (the others are read-only).
+    let rows;
+    try {
+      rows = await this.loadRows(userId, types, consentTypes);
+    } catch (e) {
+      // A CockroachDB enum value added by a migration is unusable until its
+      // schema change finishes («enum value is not yet public»); on a
+      // damaged restore that never happens. Everyone's /users/me would 500,
+      // so treat it as "nothing to accept" and say so in the log.
+      if (!String((e as Error)?.message).includes('is not yet public')) throw e;
+      this.logger.warn('legal documents skipped: enum value not yet public');
+      return [];
+    }
+    const { docs, consents } = rows;
+    return computePending({
+      types,
+      locale,
+      docs: docs,
+      consents: consents,
+    }).map((p) => present(p));
+  }
+
+  private async loadRows(
+    userId: string,
+    types: readonly LegalDocType[],
+    consentTypes: ConsentType[],
+  ) {
     const [docs, consents] = await Promise.all([
       this.prisma.legalDocument.findMany({
         where: {
@@ -94,12 +123,7 @@ export class LegalAcceptanceService {
         },
       }),
     ]);
-    return computePending({
-      types,
-      locale,
-      docs: docs,
-      consents: consents,
-    }).map((p) => present(p));
+    return { docs, consents };
   }
 
   /** Throws LEGAL_REACCEPT_REQUIRED while something is pending. */
