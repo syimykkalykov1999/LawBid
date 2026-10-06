@@ -116,38 +116,6 @@ class TopicFilterBar extends ConsumerWidget {
     onState(v.isEmpty ? null : v);
   }
 
-  /// Owner 2026-10-05: every post, or legal posts only (general posts
-  /// hidden everywhere: feed, topics, search, recommendations).
-  Future<void> _pickContent(BuildContext context, WidgetRef ref) async {
-    final t = ref.read(translatorProvider);
-    final mode = ref.read(feedContentModeProvider);
-    final picked = await OptionPickerSheet.show(
-      context,
-      title: t.t('feed.content.title'),
-      initial: {mode.name},
-      options: [
-        PickerOption(
-          value: FeedContentMode.all.name,
-          label: t.t('feed.content.optionAll'),
-          sublabel: t.t('feed.content.optionAllHint'),
-        ),
-        PickerOption(
-          value: FeedContentMode.legalOnly.name,
-          label: t.t('feed.content.optionLegal'),
-          sublabel: t.t('feed.content.optionLegalHint'),
-        ),
-      ],
-    );
-    if (picked == null || picked.isEmpty || !context.mounted) return;
-    await _setContent(
-      context,
-      ref,
-      picked.first == FeedContentMode.legalOnly.name
-          ? FeedContentMode.legalOnly
-          : FeedContentMode.all,
-    );
-  }
-
   Future<void> _setContent(
     BuildContext context,
     WidgetRef ref,
@@ -168,8 +136,6 @@ class TopicFilterBar extends ConsumerWidget {
   Future<void> _openFilters(BuildContext context, WidgetRef ref) async {
     final t = ref.read(translatorProvider);
     final count = ref.read(feedTopicsProvider).length;
-    final legalOnly =
-        ref.read(feedContentModeProvider) == FeedContentMode.legalOnly;
     final choice = await showAppBottomSheet<String>(
       context: context,
       builder: (sheet) => SafeArea(
@@ -191,15 +157,6 @@ class TopicFilterBar extends ConsumerWidget {
                   : stateCode ?? t.t('cases.feed.allStates'),
               onTap: () => Navigator.of(sheet).pop('state'),
             ),
-            if (showNews)
-              AppListRow(
-                icon: AppIcons.gavelRounded,
-                label: t.t('feed.content.title'),
-                trailingText: t.t(
-                  legalOnly ? 'feed.legalPosts' : 'feed.content.all',
-                ),
-                onTap: () => Navigator.of(sheet).pop('content'),
-              ),
             const SizedBox(height: AppSpacing.md),
           ],
         ),
@@ -209,8 +166,6 @@ class TopicFilterBar extends ConsumerWidget {
     if (choice == 'topics') await _pickTopics(context, ref);
     // ignore: use_build_context_synchronously
     if (choice == 'state') await _pickState(context, ref);
-    // ignore: use_build_context_synchronously
-    if (choice == 'content') await _pickContent(context, ref);
   }
 
   @override
