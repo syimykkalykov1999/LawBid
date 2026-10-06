@@ -250,3 +250,52 @@ export const IMAGE_MIMES: ReadonlySet<string> = new Set([
   FILE_MIME.webp,
   FILE_MIME.gif,
 ]);
+
+/** Every variant size the scan worker ever stores next to an object —
+ * removing a file removes these too (`<key>_w256`, `_w320`, `_w1080`). */
+export const ALL_VARIANT_PX: readonly number[] = [
+  ...new Set([...AVATAR_VARIANT_PX, ...POST_IMAGE_VARIANT_PX]),
+];
+
+/**
+ * Owner 2026-10-05 (storage like Telegram): files that end up as the same
+ * stored object for the same bytes. An identical upload of a purpose in
+ * the same group and bucket reuses the stored object instead of keeping a
+ * second copy (FileScanProcessor). Identity documents, data exports and
+ * video are never shared.
+ * - avatar: square 1024 px + 256 px;
+ * - fitted: photos shrunk to 2048 px with 320 / 1080 px previews
+ *   (documents in these purposes pass through unchanged);
+ * - raw: stored as uploaded.
+ */
+export type DedupProfile = 'avatar' | 'fitted' | 'raw';
+export const DEDUP_PROFILE: Partial<Record<FilePurpose, DedupProfile>> = {
+  avatar: 'avatar',
+  post_image: 'fitted',
+  review_photo: 'fitted',
+  case_photo: 'fitted',
+  case_attachment: 'fitted',
+  chat_attachment: 'fitted',
+  sticker: 'raw',
+  post_attachment: 'raw',
+  document_template: 'raw',
+  chat_voice: 'raw',
+  task_attachment: 'raw',
+};
+
+/** Purposes sharing [profile] (the dedup lookup searches all of them). */
+export function purposesOfProfile(profile: DedupProfile): FilePurpose[] {
+  return (Object.keys(DEDUP_PROFILE) as FilePurpose[]).filter(
+    (p) => DEDUP_PROFILE[p] === profile,
+  );
+}
+
+/** Purposes the orphan cleanup never touches: identity documents (kept
+ * for the verification history), data exports (their own expiry job) and
+ * video (Bunny's own sweep). */
+export const CLEANUP_EXEMPT_PURPOSES: readonly FilePurpose[] = [
+  'verification_document',
+  'verification_selfie',
+  'data_export',
+  'post_video',
+];

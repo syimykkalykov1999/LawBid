@@ -84,7 +84,7 @@ describe('DB schema — stage 2.2 acceptance', () => {
     expect(event.user_id).toBe(user.id);
   });
 
-  it('stores a file, links it as avatar, and keeps s3_key unique', async () => {
+  it('stores a file, links it as avatar; rows may share one s3_key (dedup)', async () => {
     const owner = await prisma.user.create({ data: {} });
     const s3_key = `avatars/${randomUUID()}.jpg`;
     const file = await prisma.file.create({
@@ -105,18 +105,19 @@ describe('DB schema — stage 2.2 acceptance', () => {
       where: { id: owner.id },
       data: { avatar_file_id: file.id },
     });
-    await expect(
-      prisma.file.create({
-        data: {
-          owner_user_id: owner.id,
-          purpose: 'avatar',
-          s3_bucket: 'lawbid-media',
-          s3_key,
-          mime: 'image/jpeg',
-          size_bytes: 1n,
-          sha256: 'b'.repeat(64),
-        },
-      }),
-    ).rejects.toMatchObject(UNIQUE_VIOLATION);
+    // Owner 2026-10-05 (storage like Telegram): identical uploads share
+    // one stored object, so a second row may point at the same key.
+    const twin = await prisma.file.create({
+      data: {
+        owner_user_id: owner.id,
+        purpose: 'avatar',
+        s3_bucket: 'lawbid-media',
+        s3_key,
+        mime: 'image/jpeg',
+        size_bytes: 1024n,
+        sha256: 'a'.repeat(64),
+      },
+    });
+    expect(twin.s3_key).toBe(s3_key);
   });
 });

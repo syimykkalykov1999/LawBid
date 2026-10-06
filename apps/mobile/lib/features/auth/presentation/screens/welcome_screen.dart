@@ -10,6 +10,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/demo/presentation/demo_code_sheet.dart';
 
 /// `/welcome` (file 07 §6.1). Layout, 2026-09-22 revision (owner request,
 /// this conversation, after seeing it run on-device): title text first,
@@ -271,6 +272,22 @@ class WelcomeScreen extends ConsumerWidget {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: typography.body.copyWith(
+                                  color: colors.textSecondary,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                            // Owner 2026-10-05 (docs/ops/demo-world.md): a blogger
+                            // enters the demo with the admin's 8-character code.
+                            TextButton(
+                              key: const ValueKey('welcome-demo-code'),
+                              onPressed: () => DemoCodeSheet.show(context),
+                              child: Text(
+                                t.t('demo.code.entry'),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: typography.caption.copyWith(
                                   color: colors.textSecondary,
                                   decoration: TextDecoration.underline,
                                 ),

@@ -80,6 +80,7 @@ import { DocumentTemplatesModule } from './modules/document-templates/document-t
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
 import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
 import { SupportModule } from './modules/support/support.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { RewardsModule } from './modules/rewards/rewards.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import {
@@ -96,6 +97,8 @@ import {
   RequestIdMiddleware,
   resolveRequestId,
 } from './common/middleware/request-id.middleware';
+import { DemoHeaderMiddleware } from './common/demo/demo-header.middleware';
+import { DemoModule } from './modules/demo/demo.module';
 
 /**
  * pino-http options for LoggerModule. Exported so src/app.module.spec.ts
@@ -215,6 +218,8 @@ const isDev =
     AdminPayrollModule,
     // Owner 2026-10-02: support tickets + transactional email editor.
     SupportModule,
+    // Owner 2026-10-05: Система → Хранилище (storage like Telegram).
+    StorageModule,
     // Owner 2026-10-05: «Лучший сотрудник» and every admin's workspace.
     RewardsModule,
     WorkspaceModule,
@@ -251,6 +256,8 @@ const isDev =
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,
     PartnersModule,
+    // Owner 2026-10-05: demo world for bloggers («Продвижение»).
+    DemoModule,
     OutreachModule,
     PromotionsModule,
     // Owner 2026-10-05: client → attorney payments via Stripe Connect.
@@ -303,6 +310,8 @@ const isDev =
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware).forRoutes('*');
+    // Demo mode (owner 2026-10-05): the demo header decides the database
+    // for the whole request; it must wrap everything that follows.
+    consumer.apply(RequestIdMiddleware, DemoHeaderMiddleware).forRoutes('*');
   }
 }

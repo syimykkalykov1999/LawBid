@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-136 tables.
+138 tables.
 
 ```mermaid
 erDiagram
@@ -17,6 +17,7 @@ erDiagram
     String first_name "nullable"
     String last_name "nullable"
     String avatar_file_id FK "nullable"
+    Int storage_quota_mb "nullable"
     String email UK "nullable"
     DateTime email_verified_at "nullable"
     String phone_e164 UK "nullable"
@@ -32,6 +33,7 @@ erDiagram
     String full_name_lower "nullable"
     DateTime created_at
     DateTime updated_at
+    String placeholder_kind "nullable"
     String country_code FK
   }
   files {
@@ -39,15 +41,18 @@ erDiagram
     String owner_user_id FK
     enum_FilePurpose purpose
     String s3_bucket
-    String s3_key UK
+    String s3_key
     String mime
     BigInt size_bytes
     String sha256
+    String source_sha256 "nullable"
     Int width "nullable"
     Int height "nullable"
     enum_ScanStatus scan_status
     Boolean is_public
     DateTime deleted_at "nullable"
+    String deleted_reason "nullable"
+    DateTime purged_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1265,6 +1270,9 @@ erDiagram
     String client_rule "nullable"
     Int hold_days "nullable"
     String created_by "nullable"
+    String external_name "nullable"
+    String external_contact "nullable"
+    Boolean demo_access
     DateTime created_at
     DateTime updated_at
     DateTime ended_at "nullable"
@@ -1696,6 +1704,31 @@ erDiagram
     Json entitlements "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  demo_accounts {
+    String id PK
+    String demo_user_id UK
+    String role
+    String display_name
+    String label "nullable"
+    String created_by_user_id "nullable"
+    String created_by_admin_id "nullable"
+    String invite_code_hash UK "nullable"
+    DateTime invite_expires_at "nullable"
+    DateTime last_seen_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  storage_snapshots {
+    String id PK
+    DateTime day UK
+    BigInt files_bytes
+    BigInt stored_bytes
+    Int files_count
+    Json by_purpose
+    Json db_tables
+    BigInt db_bytes
+    DateTime created_at
   }
   identity_fingerprints {
     String id PK

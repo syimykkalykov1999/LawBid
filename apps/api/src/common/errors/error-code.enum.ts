@@ -136,6 +136,12 @@ export enum ErrorCode {
   FILE_NOT_ATTACHABLE = 'FILE_NOT_ATTACHABLE',
   // 503: file storage (S3) is not configured or not reachable.
   FILE_STORAGE_UNAVAILABLE = 'FILE_STORAGE_UNAVAILABLE',
+  // Owner 2026-10-05: 400 — the user's files would exceed their storage
+  // cap (details.quotaBytes, details.usedBytes).
+  STORAGE_QUOTA_EXCEEDED = 'STORAGE_QUOTA_EXCEEDED',
+  // Owner 2026-10-05: 400 — this chat already holds storage.chat_quota_mb
+  // of files (details.quotaBytes, details.usedBytes).
+  CHAT_STORAGE_FULL = 'CHAT_STORAGE_FULL',
   // Verification (docs/03_VERIFICATION_PROFILES.md §2, stages 3.3–3.4)
   // 409: the attorney already has a draft/submitted/in_review/
   // needs_more_info request (§2.3: one at a time).
@@ -408,4 +414,12 @@ export enum ErrorCode {
   // Owner 2026-10-05 — countries. 403: LawBid is not switched on in this
   // country yet (sign-up, profile, new case); details.countryCode.
   COUNTRY_NOT_AVAILABLE = 'COUNTRY_NOT_AVAILABLE',
+  // Owner 2026-10-05 — demo mode («Продвижение»). 403: switched off or the
+  // partner has no demo right; 409: the partner holds the most demo
+  // accounts allowed; 503: the demo database is not ready; 404: unknown
+  // or expired demo invite code.
+  DEMO_DISABLED = 'DEMO_DISABLED',
+  DEMO_LIMIT_REACHED = 'DEMO_LIMIT_REACHED',
+  DEMO_UNAVAILABLE = 'DEMO_UNAVAILABLE',
+  DEMO_CODE_INVALID = 'DEMO_CODE_INVALID',
 }

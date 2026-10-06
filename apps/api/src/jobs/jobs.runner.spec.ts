@@ -170,6 +170,7 @@ function processor() {
           Promise.resolve({ approved: 0, reversed: 0, monthlyBase: 0 }),
         ),
       } as unknown as PartnersService,
+      undefined,
       deadline as unknown as CaseDeadlineReminderJob,
       {
         recomputeAll: jest.fn(() =>
@@ -216,9 +217,12 @@ describe('JobsRunner', () => {
     // + support.sweep every 5 min and the daily rewards.award.
     // Owner 2026-10-05 zero maintenance: + ops.guard every minute,
     // hourly ops.cost-check and ops.backup-check.
+    // Owner 2026-10-05: + hourly demo.sweep (demo accounts past their TTL).
     // + nightly fraud.sweep (repeat accounts).
+    // + hourly storage.gc, nightly storage.retention and storage.snapshot
+    // (storage like Telegram).
     // Owner 2026-10-05: + hourly cost.autoscale (spend caps follow usage).
-    expect(upserts).toHaveLength(40);
+    expect(upserts).toHaveLength(44);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

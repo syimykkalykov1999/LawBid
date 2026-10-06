@@ -122,9 +122,9 @@ describe('referral codes', () => {
     await expect(service.ensureCode('u1')).rejects.toThrow(/unique/);
   });
 
-  it('share URL: app link when configured, else the deep link', () => {
+  it('share URL: app link when configured, else lawbid.dev', () => {
     const { service, config } = setup();
-    expect(service.shareUrl('ABCDEFG')).toBe('lawbid://referral/ABCDEFG');
+    expect(service.shareUrl('ABCDEFG')).toBe('https://lawbid.dev/r/ABCDEFG');
     (config.get as jest.Mock).mockReturnValue('https://lawbid.app/');
     expect(service.shareUrl('ABCDEFG')).toBe('https://lawbid.app/r/ABCDEFG');
   });

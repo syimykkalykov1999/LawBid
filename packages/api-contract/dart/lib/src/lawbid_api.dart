@@ -49,6 +49,7 @@ import 'clients/billing_client.dart';
 import 'clients/admin_payroll_client.dart';
 import 'clients/support_client.dart';
 import 'clients/admin_support_client.dart';
+import 'clients/admin_storage_client.dart';
 import 'clients/admin_rewards_client.dart';
 import 'clients/admin_workspace_client.dart';
 import 'clients/admin_email_templates_client.dart';
@@ -70,6 +71,8 @@ import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
 import 'clients/partners_client.dart';
 import 'clients/admin_partners_client.dart';
+import 'clients/demo_client.dart';
+import 'clients/admin_demo_client.dart';
 import 'clients/admin_outreach_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
@@ -144,6 +147,7 @@ class LawbidApi {
   AdminPayrollClient? _adminPayroll;
   SupportClient? _support;
   AdminSupportClient? _adminSupport;
+  AdminStorageClient? _adminStorage;
   AdminRewardsClient? _adminRewards;
   AdminWorkspaceClient? _adminWorkspace;
   AdminEmailTemplatesClient? _adminEmailTemplates;
@@ -165,6 +169,8 @@ class LawbidApi {
   AdminReferralsClient? _adminReferrals;
   PartnersClient? _partners;
   AdminPartnersClient? _adminPartners;
+  DemoClient? _demo;
+  AdminDemoClient? _adminDemo;
   AdminOutreachClient? _adminOutreach;
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
@@ -310,6 +316,9 @@ class LawbidApi {
   AdminSupportClient get adminSupport =>
       _adminSupport ??= AdminSupportClient(_dio, baseUrl: _baseUrl);
 
+  AdminStorageClient get adminStorage =>
+      _adminStorage ??= AdminStorageClient(_dio, baseUrl: _baseUrl);
+
   AdminRewardsClient get adminRewards =>
       _adminRewards ??= AdminRewardsClient(_dio, baseUrl: _baseUrl);
 
@@ -369,6 +378,11 @@ class LawbidApi {
 
   AdminPartnersClient get adminPartners =>
       _adminPartners ??= AdminPartnersClient(_dio, baseUrl: _baseUrl);
+
+  DemoClient get demo => _demo ??= DemoClient(_dio, baseUrl: _baseUrl);
+
+  AdminDemoClient get adminDemo =>
+      _adminDemo ??= AdminDemoClient(_dio, baseUrl: _baseUrl);
 
   AdminOutreachClient get adminOutreach =>
       _adminOutreach ??= AdminOutreachClient(_dio, baseUrl: _baseUrl);

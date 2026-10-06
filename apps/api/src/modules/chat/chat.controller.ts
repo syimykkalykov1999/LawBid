@@ -37,6 +37,7 @@ import {
   type ConversationPage,
   type MessagePage,
   ChatFolderCountsDto,
+  ChatStorageDto,
   OrganizeConversationDto,
 } from './chat.dto';
 import { ChatService } from './chat.service';
@@ -154,11 +155,28 @@ export class ChatController {
     return this.chat.messages(user, p.id, q.cursor, q.afterId, q.only);
   }
 
+  @Get(':id/storage')
+  @ApiOperation({
+    summary: 'Files in this chat: how many of each kind, bytes, the cap',
+  })
+  @ApiEnvelopeResponse(ChatStorageDto)
+  @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
+  getConversationStorage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+  ): Promise<ChatStorageDto> {
+    return this.chat.storage(user, p.id);
+  }
+
   @Post(':id/messages')
   @ApiOperation({ summary: 'Send, idempotent on clientMessageId (§8.4)' })
   @ApiEnvelopeResponse(MessageDto, { status: 201 })
   @ApiErrors({
-    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.MESSAGE_TOO_LONG],
+    400: [
+      ErrorCode.VALIDATION_ERROR,
+      ErrorCode.MESSAGE_TOO_LONG,
+      ErrorCode.CHAT_STORAGE_FULL,
+    ],
     403: [ErrorCode.SUBSCRIPTION_REQUIRED, ErrorCode.MESSAGE_REQUEST_DECLINED],
     404: [ErrorCode.CONVERSATION_NOT_FOUND],
     409: [ErrorCode.CONVERSATION_CLOSED, ErrorCode.MESSAGE_REQUEST_LIMIT],

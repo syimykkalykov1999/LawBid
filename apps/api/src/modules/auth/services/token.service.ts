@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { randomBytes, createHash } from 'node:crypto';
 import { parseJwtKeys } from './jwt-keys.util';
+import { demoContext } from '../../../common/demo/demo-context';
 
 export interface AccessTokenClaims {
   sub: string;
@@ -14,6 +15,10 @@ export interface AccessTokenClaims {
   sid: string; // session_chain_id, stable across refresh rotation
   verified: boolean;
   subscriptionStatus: string;
+  /** Owner 2026-10-05: the session belongs to a demo account that lives in
+   * the demo database (src/common/demo). Signed into the token, and every
+   * request with it must carry `X-LawBid-Demo: 1` (JwtAuthGuard). */
+  demo?: boolean;
   /** OQ-048: set by JwtAuthGuard (never signed into a token) when an
    * assistant acts inside the attorney's account — `sub` is then the
    * attorney. */
@@ -97,8 +102,12 @@ export class TokenService {
 
   signAccessToken(claims: AccessTokenClaims): string {
     const secret = this.activeSecret();
+    // Owner 2026-10-05 (demo mode): a token minted while serving a demo
+    // request (sign-in into a demo account, refresh with the demo header)
+    // is a demo token; the guard then requires the header on every use.
+    const demo = claims.demo ?? (demoContext.isDemo() ? true : undefined);
     return this.jwt.sign(
-      { ...claims, typ: 'access' },
+      { ...claims, ...(demo ? { demo: true } : {}), typ: 'access' },
       {
         secret,
         keyid: this.activeKid,

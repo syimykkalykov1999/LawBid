@@ -8,6 +8,7 @@ import { createEmailProvider } from '../auth/providers/email/email-provider.fact
 import { PrismaService } from '../../prisma/prisma.service';
 import { CaseLifecycleModule } from '../cases/lifecycle/case-lifecycle.module';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import { FileReleaseService } from '../files/storage/file-release.service';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
@@ -51,6 +52,7 @@ export class PrivacyModule {
       providers: [
         { provide: PRIVACY_OPTIONS, useValue: options },
         S3StorageService,
+        FileReleaseService,
         {
           provide: NOTIFICATION_EMAIL,
           inject: [ConfigService, PinoLogger, SecretsService, PrismaService],

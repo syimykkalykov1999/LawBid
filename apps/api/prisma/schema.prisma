@@ -649,6 +649,9 @@ model User {
   last_name               String?
   avatar_file_id          String?                 @db.Uuid
   avatar_file             File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  /// Owner 2026-10-05: a personal storage cap in MB set by an admin
+  /// (null = storage.user_quota_mb, 0 = no cap).
+  storage_quota_mb        Int?
   // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
   // number of NULLs in CockroachDB, which is exactly the §8 stage-2.2
   // acceptance ("несколько NULL допускаются"); a partial index can't be
@@ -761,6 +764,11 @@ model User {
   /// Owner 2026-10-05: the country the person works in (from the phone
   /// number at sign-up, then from the state/province they pick). Admin
   /// staff assigned to a country see only its people.
+  // Owner 2026-10-05: a row that stands for a person outside the app (an
+  // external partner — a blogger whose referral code the admin hands out
+  // before they register). No identifiers, cannot sign in, hidden from
+  // the people lists. Values: external_partner.
+  placeholder_kind            String?                        @db.String(24)
   country_code                String                         @default("US") @db.Char(2)
   country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
 
@@ -771,6 +779,8 @@ model User {
   // scan must not walk the whole table.
   @@index([created_at])
   @@index([status, deletion_requested_at])
+  // Owner 2026-10-05: the storage cleanup asks "is this file an avatar?".
+  @@index([avatar_file_id])
   @@index([country_code])
   @@map("users")
 }
@@ -778,22 +788,34 @@ model User {
 // docs/02_DATABASE.md §4.A (stage 2.2). Binary content lives only in S3
 // (§1.6); this row is the reference. Soft delete via deleted_at.
 model File {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  owner_user_id String      @db.Uuid
-  owner         User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
-  purpose       FilePurpose
-  s3_bucket     String
-  s3_key        String      @unique
-  mime          String
-  size_bytes    BigInt
-  sha256        String
-  width         Int?
-  height        Int?
-  scan_status   ScanStatus  @default(pending)
-  is_public     Boolean     @default(false)
-  deleted_at    DateTime?   @db.Timestamptz
-  created_at    DateTime    @default(now()) @db.Timestamptz
-  updated_at    DateTime    @updatedAt @db.Timestamptz
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id  String      @db.Uuid
+  owner          User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
+  purpose        FilePurpose
+  s3_bucket      String
+  /// Owner 2026-10-05 (storage like Telegram): one object can back many
+  /// rows — identical uploads share it (no longer unique). The object is
+  /// removed only when no live row points at it (FileReleaseService).
+  s3_key         String
+  mime           String
+  size_bytes     BigInt
+  sha256         String
+  /// SHA-256 of the bytes as uploaded (sha256 above describes the stored,
+  /// processed object). The deduplication key together with the bucket.
+  source_sha256  String?
+  width          Int?
+  height         Int?
+  scan_status    ScanStatus  @default(pending)
+  is_public      Boolean     @default(false)
+  deleted_at     DateTime?   @db.Timestamptz
+  /// Why the row was deleted: orphan (never attached / detached), released
+  /// (its owner entity went away), infected, failed.
+  deleted_reason String?     @db.String(16)
+  /// The S3 object (and its variants) is gone; the row stays only while
+  /// something still references it.
+  purged_at      DateTime?   @db.Timestamptz
+  created_at     DateTime    @default(now()) @db.Timestamptz
+  updated_at     DateTime    @updatedAt @db.Timestamptz
 
   avatar_of User[] @relation("UserAvatar")
 
@@ -808,6 +830,9 @@ model File {
   document_template DocumentTemplate?
 
   @@index([owner_user_id])
+  @@index([s3_bucket, s3_key])
+  @@index([s3_bucket, source_sha256])
+  @@index([deleted_at, created_at])
   @@map("files")
 }
 
@@ -1655,6 +1680,8 @@ model Review {
   helpful_votes ReviewHelpfulVote[]
 
   @@index([attorney_id, created_at(sort: Desc)])
+  // Owner 2026-10-05: the storage cleanup looks photos up by id.
+  @@index([photo_ids], map: "reviews_photo_ids_idx", type: Gin)
   @@map("reviews")
 }
 
@@ -1752,6 +1779,7 @@ model PostMedia {
   created_at DateTime  @default(now()) @db.Timestamptz
 
   @@unique([post_id, position])
+  @@index([file_id])
   @@map("post_media")
 }
 
@@ -2464,6 +2492,7 @@ model ClientReview {
   @@unique([case_id, attorney_id])
   @@index([client_id, created_at(sort: Desc)])
   @@index([client_id, attorney_id])
+  @@index([photo_ids], map: "client_reviews_photo_ids_idx", type: Gin)
   @@map("client_reviews")
 }
 
@@ -2593,6 +2622,8 @@ model AssistantActivity {
 
   @@index([attorney_id, created_at(sort: Desc)])
   @@index([membership_id, created_at(sort: Desc)])
+  // Owner 2026-10-05: the nightly retention removes old rows by date.
+  @@index([created_at])
   @@map("assistant_activity")
 }
 
@@ -2735,6 +2766,7 @@ model AttorneyTask {
   @@index([attorney_id, status, due_at])
   @@index([remind_at], map: "attorney_tasks_remind_idx")
   @@index([archived_at], map: "attorney_tasks_archived_idx")
+  @@index([file_ids], map: "attorney_tasks_file_ids_idx", type: Gin)
   @@map("attorney_tasks")
 }
 
@@ -3328,6 +3360,13 @@ model Partner {
   client_rule         String?   @db.String(24)
   hold_days           Int?      @db.Int2
   created_by          String?   @db.Uuid
+  // Owner 2026-10-05: partner without an app account (user is a placeholder
+  // row, users.placeholder_kind = external_partner): who they are and how
+  // to reach them, admin only. Cleared when a real account is linked.
+  external_name       String?   @db.String(120)
+  external_contact    String?   @db.String(200)
+  // Owner 2026-10-05 («Продвижение»): may create demo accounts for videos.
+  demo_access         Boolean   @default(false)
   created_at          DateTime  @default(now()) @db.Timestamptz
   updated_at          DateTime  @updatedAt @db.Timestamptz
   ended_at            DateTime? @db.Timestamptz
@@ -4106,6 +4145,57 @@ model ClientSubscription {
   @@map("client_subscriptions")
 }
 
+// Owner 2026-10-05 («Продвижение»): registry of demo accounts. The demo
+// user itself (and everything it does) lives in the DEMO database
+// (src/common/demo); this row in the real database says who created it,
+// when it was last used and the one-time code a blogger without an app
+// account enters to get in. Deleting the row deletes the demo user.
+model DemoAccount {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // users.id inside the demo database.
+  demo_user_id        String    @unique @db.Uuid
+  // client | attorney | assistant
+  role                String    @db.String(16)
+  display_name        String    @db.String(120)
+  // Admin's note: "блогер Иван, Instagram".
+  label               String?   @db.String(200)
+  // The partner (real user) who created it from the app; null when the
+  // admin created it for a blogger without an account.
+  created_by_user_id  String?   @db.Uuid
+  created_by_admin_id String?   @db.Uuid
+  invite_code_hash    String?   @unique @db.String(64)
+  invite_expires_at   DateTime? @db.Timestamptz
+  last_seen_at        DateTime? @db.Timestamptz
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+
+  @@index([created_by_user_id, created_at])
+  @@index([last_seen_at])
+  @@map("demo_accounts")
+}
+
+/// Owner 2026-10-05 (storage like Telegram): one row a day — how much the
+/// files take by type, how much deduplication saved, the biggest tables.
+/// The admin «Хранилище» page draws growth from these; the growth alert
+/// compares the newest two.
+model StorageSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  day          DateTime @unique @db.Date
+  /// Sum of live files as users see them (each copy counted).
+  files_bytes  BigInt
+  /// What S3 really keeps (shared objects counted once).
+  stored_bytes BigInt
+  files_count  Int
+  /// { purpose: { bytes, count } }
+  by_purpose   Json
+  /// [{ table, rows, bytes }] — estimates from CockroachDB statistics.
+  db_tables    Json
+  db_bytes     BigInt   @default(0)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@map("storage_snapshots")
+}
+
 /// Owner 2026-10-05 (docs/CLIENT_FRAUD.md): hashed identity signals of an
 /// account — phone, e-mail, Apple / Google subject, on-device key, card,
 /// IP, case text. HMAC-SHA256 only, never the value. A sign-in sharing a
@@ -4131,24 +4221,24 @@ model IdentityFingerprint {
 /// Owner 2026-10-05: one client's risk score and fraud status
 /// (ok | review | restricted | banned), recomputed on every signal.
 model ClientFraudProfile {
-  user_id         String    @id @db.Uuid
-  score           Int       @default(0)
-  status          String    @default("ok") @db.String(16)
+  user_id        String    @id @db.Uuid
+  score          Int       @default(0)
+  status         String    @default("ok") @db.String(16)
   /// [{ code, points, count }] — what the score is made of.
-  signals         Json      @default("[]")
+  signals        Json      @default("[]")
   /// The blocked account a sign-in matched, if any.
-  linked_user_id  String?   @db.Uuid
+  linked_user_id String?   @db.Uuid
   /// What put the account in the queue: 'score' | 'linked' | 'staff'.
-  queue_reason    String?   @db.String(16)
-  queued_at       DateTime? @db.Timestamptz
+  queue_reason   String?   @db.String(16)
+  queued_at      DateTime? @db.Timestamptz
   /// A staff «Снять» freezes the score: automatic actions return only when
   /// the score grows past it.
-  cleared_score   Int?
-  cleared_by      String?   @db.Uuid
-  cleared_at      DateTime? @db.Timestamptz
-  computed_at     DateTime  @default(now()) @db.Timestamptz
-  created_at      DateTime  @default(now()) @db.Timestamptz
-  updated_at      DateTime  @updatedAt @db.Timestamptz
+  cleared_score  Int?
+  cleared_by     String?   @db.Uuid
+  cleared_at     DateTime? @db.Timestamptz
+  computed_at    DateTime  @default(now()) @db.Timestamptz
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @updatedAt @db.Timestamptz
 
   @@index([status, score(sort: Desc)])
   @@map("client_fraud_profiles")

@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { BUNNY_TUS_ENDPOINT } from './bunny-signing';
+import { assertNotDemo } from '../../common/demo/demo-guards';
 
 export interface BunnyKeys {
   libraryId: string;
@@ -153,6 +154,7 @@ export class BunnyStreamClient {
     body?: unknown,
     allow404 = false,
   ): Promise<Response> {
+    assertNotDemo('Video upload');
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
