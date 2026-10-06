@@ -1,13 +1,16 @@
 'use client';
 
-import { ArrowLeft, EnvelopeSimple, NotePencil, Phone } from '@phosphor-icons/react';
+import { ArrowLeft, EnvelopeSimple, NotePencil, Phone, Prohibit } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { TonePill } from '@/components/billing/shared';
+import { useConfirm } from '@/components/legacy/confirm';
 import {
   CALL_OUTCOMES,
+  contactBlockText,
+  DO_NOT_CONTACT_REASON,
   formatPhone,
   fromLocalInput,
   LEAD_STATUSES,
@@ -24,7 +27,7 @@ import {
 } from '@/components/outreach/shared';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
@@ -65,6 +68,7 @@ export default function LeadPage() {
 function Body({ lead, ctx }: { lead: LeadDetail; ctx: OutreachContext }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const { confirm, dialog } = useConfirm();
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['outreach-lead', lead.id] });
     void qc.invalidateQueries({ queryKey: ['outreach-leads'] });
@@ -116,26 +120,60 @@ function Body({ lead, ctx }: { lead: LeadDetail; ctx: OutreachContext }) {
     onError: (e) => toast.error(e),
   });
 
-  const emailBlock = !lead.email
-    ? 'нет email'
-    : lead.unsubscribed
-      ? 'отписался от писем'
-      : ctx.settings.dailyEmailLimit === 0
-        ? 'письма выключены в настройках'
-        : !ctx.settings.footerAddress || !ctx.settings.apiPublicUrl
-          ? 'заполните адрес и публичный URL в настройках'
-          : ctx.emailsLeftToday <= 0
-            ? 'дневной лимит писем исчерпан'
-            : null;
+  // Owner 2026-10-05 (legal): do-not-contact is set by hand, by a call
+  // outcome, by an unsubscribe or by the stop-list; only a manager clears it.
+  const dnc = useMutation({
+    mutationFn: async (value: boolean) => {
+      const ok = await confirm({
+        title: value ? 'Отметить «не беспокоить»?' : 'Снять «не беспокоить»?',
+        description: value
+          ? 'Телефон и email скроются, звонки и письма станут невозможны. Снять отметку сможет только руководитель.'
+          : 'Контакт снова можно будет звонить и писать. Делайте это только если человек сам попросил связаться.',
+        confirm: value ? 'Не беспокоить' : 'Снять',
+        danger: value,
+      });
+      if (!ok) return null;
+      return (await api.PATCH('/admin/outreach/leads/{id}', { params: { path: { id: lead.id } }, body: { doNotContact: value } })).data!.data;
+    },
+    onSuccess: (r) => {
+      if (!r) return;
+      toast.success(r.doNotContact ? 'Отмечен «не беспокоить»' : 'Отметка «не беспокоить» снята');
+      refresh();
+    },
+    onError: (e) => toast.error(e),
+  });
+
+  const callBlock = lead.callBlocked ? contactBlockText(lead.callBlocked, lead.callWindow) : null;
+  const emailBlock = lead.doNotContact
+    ? 'лид в списке «не беспокоить»'
+    : !lead.email
+      ? 'нет email'
+      : lead.unsubscribed
+        ? 'отписался от писем'
+        : lead.emailBlocked
+          ? contactBlockText(lead.emailBlocked)
+          : ctx.settings.dailyEmailLimit === 0
+            ? 'письма выключены в настройках'
+            : !ctx.settings.footerAddress || !ctx.settings.apiPublicUrl
+              ? 'заполните адрес и публичный URL в настройках'
+              : ctx.emailsLeftToday <= 0
+                ? 'дневной лимит писем исчерпан'
+                : null;
 
   return (
     <>
+      {dialog}
       <PageHeader
         eyebrow={`${LEAD_KIND[lead.kind]} · ${LEAD_SOURCE[lead.source]}`}
         title={leadName(lead)}
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-2">
             <TonePill map={LEAD_STATUS} tones={LEAD_TONE} value={lead.status} />
+            {lead.doNotContact ? (
+              <Badge tone="danger" dot>
+                Не беспокоить{lead.doNotContactReason ? `: ${DO_NOT_CONTACT_REASON[lead.doNotContactReason] ?? lead.doNotContactReason}` : ''}
+              </Badge>
+            ) : null}
             <span>сотрудник: {partnerName(lead.partner)}</span>
             {lead.convertedUserId ? (
               <Link href={`/users/${lead.convertedUserId}`} className="text-gold-600 underline-offset-2 hover:underline">
@@ -146,7 +184,12 @@ function Body({ lead, ctx }: { lead: LeadDetail; ctx: OutreachContext }) {
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant={action === 'call' ? 'default' : 'outline'} onClick={() => setAction(action === 'call' ? null : 'call')} disabled={!lead.phone}>
+            <Button
+              variant={action === 'call' ? 'default' : 'outline'}
+              onClick={() => setAction(action === 'call' ? null : 'call')}
+              disabled={!lead.phone || !!lead.callBlocked}
+              title={callBlock ? `Звонить нельзя: ${callBlock}` : !lead.phone ? 'нет телефона' : undefined}
+            >
               <Phone size={16} /> Звонок
             </Button>
             <Button variant={action === 'note' ? 'default' : 'outline'} onClick={() => setAction(action === 'note' ? null : 'note')}>
@@ -155,10 +198,22 @@ function Body({ lead, ctx }: { lead: LeadDetail; ctx: OutreachContext }) {
             <Button variant={action === 'email' ? 'default' : 'gold'} onClick={() => setAction(action === 'email' ? null : 'email')} disabled={!!emailBlock} title={emailBlock ?? undefined}>
               <EnvelopeSimple size={16} /> Письмо
             </Button>
+            {lead.doNotContact ? (
+              ctx.manager ? (
+                <Button variant="outline" loading={dnc.isPending} onClick={() => dnc.mutate(false)}>
+                  <Prohibit size={16} /> Снять «не беспокоить»
+                </Button>
+              ) : null
+            ) : (
+              <Button variant="danger-soft" loading={dnc.isPending} onClick={() => dnc.mutate(true)}>
+                <Prohibit size={16} /> Не беспокоить
+              </Button>
+            )}
           </div>
         }
       />
-      {emailBlock && lead.email ? <p className="-mt-4 mb-4 text-xs text-muted">Письмо: {emailBlock}.</p> : null}
+      {lead.phoneHidden ? <p className="-mt-4 mb-2 text-xs text-warning">Телефон скрыт: {callBlock ?? 'звонить сейчас нельзя'}.</p> : null}
+      {emailBlock && (lead.email || lead.doNotContact) ? <p className={`${lead.phoneHidden ? '' : '-mt-4 '}mb-4 text-xs text-muted`}>Письмо: {emailBlock}.</p> : null}
 
       {action === 'call' || action === 'note' ? (
         <Card className="mb-6 p-5">
@@ -229,7 +284,11 @@ function Body({ lead, ctx }: { lead: LeadDetail; ctx: OutreachContext }) {
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         <div>
           <SectionTitle>Данные</SectionTitle>
-          <EditForm key={lead.id + lead.status + lead.note} lead={lead} ctx={ctx} onSaved={refresh} />
+          <EditForm key={lead.id + lead.status + lead.note + String(lead.phoneHidden)} lead={lead} ctx={ctx} onSaved={refresh} />
+          <p className="mt-3 text-xs text-muted">
+            Источник / согласие: <span className="text-ink">{lead.sourceNote || 'не указан'}</span>
+            {lead.callWindow ? <span className="text-faint"> · окно звонков: {lead.callWindow}</span> : null}
+          </p>
         </div>
         <div>
           <SectionTitle>История</SectionTitle>
@@ -259,7 +318,14 @@ function Body({ lead, ctx }: { lead: LeadDetail; ctx: OutreachContext }) {
 }
 
 function outcomeText(o: string): string {
-  const map: Record<string, string> = { sent: 'отправлено', failed: 'не отправлено', assigned: 'назначен', unassigned: 'снят' };
+  const map: Record<string, string> = {
+    sent: 'отправлено',
+    failed: 'не отправлено',
+    assigned: 'назначен',
+    unassigned: 'снят',
+    do_not_contact: 'отмечен «не беспокоить»',
+    contact_allowed: 'отметка «не беспокоить» снята',
+  };
   return map[o] ?? o;
 }
 
@@ -276,6 +342,7 @@ function EditForm({ lead, ctx, onSaved }: { lead: LeadDetail; ctx: OutreachConte
     phone: lead.phone ? formatPhone(lead.phone) : '',
     email: lead.email ?? '',
     note: lead.note ?? '',
+    sourceNote: lead.sourceNote ?? '',
     nextActionAt: toLocalInput(lead.nextActionAt),
     partnerId: lead.partner?.id ?? '',
     status: lead.status as LeadStatus,
@@ -295,9 +362,12 @@ function EditForm({ lead, ctx, onSaved }: { lead: LeadDetail; ctx: OutreachConte
             stateCode: f.stateCode || null,
             city: f.city || null,
             practice: f.practice || null,
-            phone: f.phone || null,
+            // Owner 2026-10-05 (legal): a withheld phone is not in the form;
+            // sending it would erase the stored number.
+            ...(lead.phoneHidden ? {} : { phone: f.phone || null }),
             email: f.email || null,
             note: f.note || null,
+            sourceNote: f.sourceNote.trim() || null,
             nextActionAt: f.nextActionAt ? fromLocalInput(f.nextActionAt) : null,
             ...(ctx.manager ? { partnerId: f.partnerId || null } : {}),
             ...(!systemStatus && f.status !== lead.status ? { status: f.status } : {}),
@@ -341,9 +411,15 @@ function EditForm({ lead, ctx, onSaved }: { lead: LeadDetail; ctx: OutreachConte
         <Field label="Практика" htmlFor="le-practice">
           <Input id="le-practice" value={f.practice} onChange={set('practice')} />
         </Field>
-        <Field label="Телефон" htmlFor="le-phone">
-          <Input id="le-phone" value={f.phone} onChange={set('phone')} />
-        </Field>
+        {lead.phoneHidden ? (
+          <Field label="Телефон" htmlFor="le-phone-hidden" hint="скрыт, пока звонить нельзя; номер сохранён">
+            <Input id="le-phone-hidden" value="скрыт" disabled />
+          </Field>
+        ) : (
+          <Field label="Телефон" htmlFor="le-phone">
+            <Input id="le-phone" value={f.phone} onChange={set('phone')} />
+          </Field>
+        )}
         <Field label="Email" htmlFor="le-email" hint={lead.unsubscribed ? 'отписался — письма не уйдут' : undefined}>
           <Input id="le-email" type="email" value={f.email} onChange={set('email')} />
         </Field>
@@ -369,6 +445,9 @@ function EditForm({ lead, ctx, onSaved }: { lead: LeadDetail; ctx: OutreachConte
           </Field>
         ) : null}
       </div>
+      <Field label="Источник и согласие" htmlFor="le-source" className="mt-4" hint="откуда контакт и на каком основании можно связаться; обязательно для клиентов-физлиц">
+        <Textarea id="le-source" rows={2} value={f.sourceNote} onChange={set('sourceNote')} maxLength={300} />
+      </Field>
       <Field label="Заметка" htmlFor="le-note" className="mt-4">
         <Textarea id="le-note" rows={3} value={f.note} onChange={set('note')} />
       </Field>

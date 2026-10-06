@@ -20,6 +20,7 @@ class PartnerSettingsDto {
     required this.holdDays,
     required this.texts,
     this.joinMode,
+    this.requireW9,
   });
 
   factory PartnerSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -33,6 +34,9 @@ class PartnerSettingsDto {
   final int clientRateCents;
   final PartnerClientRule clientRule;
   final int holdDays;
+
+  /// Require a W-9 (or W-8) before the first payout. Omitted = keep the current value.
+  final bool? requireW9;
   final PartnerTextsByLangDto texts;
 
   Map<String, Object?> toJson() => _$PartnerSettingsDtoToJson(this);

@@ -62,6 +62,7 @@ describe('Partner program (e2e)', () => {
   });
 
   const api = () => request(base);
+  const JOIN = { termsAccepted: true };
 
   function auth(id: string, role: 'client' | 'attorney') {
     const t = tokens.signAccessToken({
@@ -106,6 +107,9 @@ describe('Partner program (e2e)', () => {
         clientRateCents: 1_500,
         monthlyBaseCents: 0,
         holdDays: 0,
+        // Owner 2026-10-05 (legal): the program default is case_published
+        // (never the hire); this partner knowingly pays on the hire.
+        clientRule: 'bid_accepted',
         reason: REASON,
       })
       .expect(201);
@@ -113,6 +117,8 @@ describe('Partner program (e2e)', () => {
     expect(created.body.data.code).toBe(code);
     expect(created.body.data.rates.attorneyRateCents).toBe(7_000);
     expect(created.body.data.rates.clientRule).toBe('bid_accepted');
+    expect(created.body.data.w9ReceivedAt).toBeNull();
+    expect(created.body.data.termsAcceptedAt).toBeNull();
     // Twice is refused.
     await api()
       .post('/api/v1/admin/partners')
@@ -181,6 +187,34 @@ describe('Partner program (e2e)', () => {
     expect(detail.body.data.partner.totals.approvedCents).toBe(7_000);
     expect(detail.body.data.referred[0].email).toBeNull();
     const attCommission = detail.body.data.commissions[0].id as string;
+
+    // Owner 2026-10-05 (legal): no payout before the W-9 is on file.
+    await api()
+      .post(`/api/v1/admin/partners/${partnerId}/pay`)
+      .set(admin.auth)
+      .send({ reason: REASON, payoutRef: 'ACH-0001' })
+      .expect(409);
+    const w9 = await api()
+      .patch(`/api/v1/admin/partners/${partnerId}`)
+      .set(admin.auth)
+      .send({ w9Received: true, reason: REASON })
+      .expect(200);
+    expect(w9.body.data.w9ReceivedAt).not.toBeNull();
+    // The partner has not accepted the rules yet: the app shows them.
+    const meTerms = await api()
+      .get('/api/v1/partners/me')
+      .set(auth(blogger.id, 'client'))
+      .expect(200);
+    expect(meTerms.body.data.termsAcceptedVersion).toBeNull();
+    expect(meTerms.body.data.w9Received).toBe(true);
+    expect(meTerms.body.data.texts.terms).toContain('W-9');
+    const accepted = await api()
+      .post('/api/v1/partners/me/accept-terms')
+      .set(auth(blogger.id, 'client'))
+      .expect(200);
+    expect(accepted.body.data.termsAcceptedVersion).toBe(
+      accepted.body.data.termsVersion,
+    );
 
     // Pay everything approved.
     const paid = await api()
@@ -328,11 +362,24 @@ describe('Partner program (e2e)', () => {
     });
     expect(before.body.data.rates.attorneyRateCents).toBe(5_000);
 
+    // Owner 2026-10-05 (legal): the rules must be accepted to join.
+    await api()
+      .post('/api/v1/partners/me/join')
+      .set(auth(self.id, 'attorney'))
+      .send({ termsAccepted: false })
+      .expect(400);
     const joined = await api()
       .post('/api/v1/partners/me/join')
       .set(auth(self.id, 'attorney'))
+      .send(JOIN)
       .expect(200);
     expect(joined.body.data.isPartner).toBe(true);
+    expect(joined.body.data.termsAcceptedVersion).toBe(
+      joined.body.data.termsVersion,
+    );
+    expect(
+      await prisma.partner.findUniqueOrThrow({ where: { user_id: self.id } }),
+    ).toMatchObject({ terms_version: joined.body.data.termsVersion });
     expect(joined.body.data.canJoin).toBe(false);
     const selfCode = joined.body.data.code as string;
     expect(selfCode).toMatch(/^[A-Z0-9]{4,24}$/);
@@ -341,6 +388,7 @@ describe('Partner program (e2e)', () => {
     await api()
       .post('/api/v1/partners/me/join')
       .set(auth(self.id, 'attorney'))
+      .send(JOIN)
       .expect(409);
     const list = await api()
       .get('/api/v1/admin/partners?q=Selfmade')
@@ -362,6 +410,7 @@ describe('Partner program (e2e)', () => {
     const asked = await api()
       .post('/api/v1/partners/me/join')
       .set(auth(applicant.id, 'client'))
+      .send(JOIN)
       .expect(200);
     expect(asked.body.data).toMatchObject({
       isPartner: true,
@@ -416,6 +465,7 @@ describe('Partner program (e2e)', () => {
     await api()
       .post('/api/v1/partners/me/join')
       .set(auth(other.id, 'client'))
+      .send(JOIN)
       .expect(403);
 
     // Master switch off: the section disappears for everyone and the code
@@ -439,6 +489,7 @@ describe('Partner program (e2e)', () => {
     await api()
       .post('/api/v1/partners/me/join')
       .set(auth(other.id, 'client'))
+      .send(JOIN)
       .expect(403);
 
     // Back on: joining works again.
@@ -450,6 +501,7 @@ describe('Partner program (e2e)', () => {
     await api()
       .post('/api/v1/partners/me/join')
       .set(auth(other.id, 'client'))
+      .send(JOIN)
       .expect(200);
   });
 

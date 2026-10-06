@@ -654,6 +654,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [client, setClient] = useState(centsToText(initial.clientRateCents));
   const [rule, setRule] = useState<ClientRule>(initial.clientRule);
   const [hold, setHold] = useState(String(initial.holdDays));
+  // Owner 2026-10-05 (legal): a W-9 (or W-8) before the first payout.
+  const [requireW9, setRequireW9] = useState(initial.requireW9 ?? true);
   const [texts, setTexts] = useState(initial.texts);
   const attorneyCents = textToCents(attorney);
   const clientCents = textToCents(client);
@@ -671,6 +673,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             clientRateCents: clientCents ?? 0,
             clientRule: rule,
             holdDays: holdDays ?? 14,
+            requireW9,
             texts,
           },
         })
@@ -759,7 +762,11 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         <Field label="За клиента, $" htmlFor="ps-cl">
           <Input id="ps-cl" inputMode="decimal" value={client} disabled={!canEdit} onChange={(e) => setClient(e.target.value)} />
         </Field>
-        <Field label="Условие по клиенту" htmlFor="ps-rule">
+        <Field
+          label="Условие по клиенту"
+          htmlFor="ps-rule"
+          hint="Рекомендуется «опубликовал кейс»: выплата партнёру не должна зависеть от найма адвоката (законы о посредниках, CA §6152 / TX §38.12)"
+        >
           <Select id="ps-rule" value={rule} disabled={!canEdit} onChange={(e) => setRule(e.target.value as ClientRule)}>
             {CLIENT_RULES.map((r) => (
               <option key={r} value={r}>
@@ -771,6 +778,15 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         <Field label="Проверка, дней" htmlFor="ps-hold" hint="0 — к выплате сразу, до 180">
           <Input id="ps-hold" inputMode="numeric" value={hold} disabled={!canEdit} onChange={(e) => setHold(e.target.value.replace(/\D/g, ""))} />
         </Field>
+      </div>
+      <div className="mt-4 flex items-start gap-3 rounded-[var(--radius-md)] border border-line-strong bg-surface-2 p-3">
+        <Switch checked={requireW9} onChange={setRequireW9} disabled={!canEdit} label="Требовать W-9 до первой выплаты" />
+        <div>
+          <p className="text-sm font-medium text-heading">Требовать W-9 до первой выплаты</p>
+          <p className="mt-1 text-sm text-muted">
+            Партнёр — независимый подрядчик: от $600 в год нужна форма 1099-NEC, а для неё — W-9 (W-8 для нерезидентов). Пока форма не отмечена полученной на странице партнёра, кнопка «Выплатить» не сработает.
+          </p>
+        </div>
       </div>
       <h4 className="mt-6 text-sm font-medium text-heading">Что видит партнёр в приложении</h4>
       <div className="mt-3 grid gap-4 md:grid-cols-2">

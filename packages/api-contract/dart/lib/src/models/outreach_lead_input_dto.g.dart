@@ -28,6 +28,8 @@ OutreachLeadInputDto _$OutreachLeadInputDtoFromJson(
   status: json['status'] == null
       ? null
       : OutreachLeadStatus.fromJson(json['status'] as String),
+  sourceNote: json['sourceNote'] as String?,
+  doNotContact: json['doNotContact'] as bool?,
 );
 
 Map<String, dynamic> _$OutreachLeadInputDtoToJson(
@@ -46,4 +48,6 @@ Map<String, dynamic> _$OutreachLeadInputDtoToJson(
   'nextActionAt': ?instance.nextActionAt?.toIso8601String(),
   'partnerId': ?instance.partnerId,
   'status': ?instance.status?.toJson(),
+  'sourceNote': ?instance.sourceNote,
+  'doNotContact': ?instance.doNotContact,
 };

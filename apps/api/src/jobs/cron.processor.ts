@@ -41,6 +41,7 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { OutreachRetentionService } from '../modules/outreach/outreach-retention.service';
 import { DemoService } from '../modules/demo/demo.service';
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
@@ -86,6 +87,8 @@ export class CronProcessor {
     private readonly fraud: ClientFraudService,
     @Optional() private readonly supportDesk?: SupportDeskService,
     @Optional() private readonly rewards?: RewardsService,
+    // Owner 2026-10-05 (legal): `outreach.retention`.
+    @Optional() private readonly outreachRetention?: OutreachRetentionService,
     @Optional() private readonly storageCleanup?: StorageCleanupService,
     @Optional() private readonly dataRetention?: DataRetentionService,
     @Optional() private readonly storageStats?: StorageStatsService,
@@ -183,6 +186,8 @@ export class CronProcessor {
         return this.storageStats?.snapshot() ?? null;
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
+      case CRON_JOBS.outreachRetention:
+        return this.outreachRetention?.run();
       case CRON_JOBS.opsGuard:
         return this.opsGuard?.guard();
       case CRON_JOBS.opsCostCheck:

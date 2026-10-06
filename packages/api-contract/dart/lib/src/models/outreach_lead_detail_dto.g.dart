@@ -33,11 +33,24 @@ OutreachLeadDetailDto _$OutreachLeadDetailDtoFromJson(
       ? null
       : DateTime.parse(json['nextActionAt'] as String),
   note: json['note'] as String?,
+  doNotContact: json['doNotContact'] as bool,
+  doNotContactReason: json['doNotContactReason'] as String?,
+  sourceNote: json['sourceNote'] as String?,
+  emailsSent: json['emailsSent'] as num,
   createdAt: DateTime.parse(json['createdAt'] as String),
   activities: (json['activities'] as List<dynamic>)
       .map((e) => OutreachActivityDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   canEmail: json['canEmail'] as bool,
+  callAllowed: json['callAllowed'] as bool,
+  callWindow: json['callWindow'] as String?,
+  callBlocked: json['callBlocked'] == null
+      ? null
+      : OutreachContactBlockReason.fromJson(json['callBlocked'] as String),
+  emailBlocked: json['emailBlocked'] == null
+      ? null
+      : OutreachContactBlockReason.fromJson(json['emailBlocked'] as String),
+  phoneHidden: json['phoneHidden'] as bool,
 );
 
 Map<String, dynamic> _$OutreachLeadDetailDtoToJson(
@@ -61,7 +74,16 @@ Map<String, dynamic> _$OutreachLeadDetailDtoToJson(
   'lastActivityAt': ?instance.lastActivityAt?.toIso8601String(),
   'nextActionAt': ?instance.nextActionAt?.toIso8601String(),
   'note': ?instance.note,
+  'doNotContact': instance.doNotContact,
+  'doNotContactReason': ?instance.doNotContactReason,
+  'sourceNote': ?instance.sourceNote,
+  'emailsSent': instance.emailsSent,
   'createdAt': instance.createdAt.toIso8601String(),
   'activities': instance.activities.map((e) => e.toJson()).toList(),
   'canEmail': instance.canEmail,
+  'callAllowed': instance.callAllowed,
+  'callWindow': ?instance.callWindow,
+  'callBlocked': ?instance.callBlocked?.toJson(),
+  'emailBlocked': ?instance.emailBlocked?.toJson(),
+  'phoneHidden': instance.phoneHidden,
 };

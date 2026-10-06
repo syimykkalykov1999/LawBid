@@ -33,7 +33,7 @@ import {
 } from '@/components/outreach/shared';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
@@ -115,7 +115,12 @@ export default function OutreachPage() {
           {tab === 'leads' ? <Leads ctx={ctx.data} /> : null}
           {tab === 'team' ? <Team manager={manager} /> : null}
           {tab === 'templates' && manager ? <Templates /> : null}
-          {tab === 'settings' && isSuper ? <SettingsForm key={JSON.stringify(ctx.data.settings)} initial={ctx.data.settings} /> : null}
+          {tab === 'settings' && isSuper ? (
+            <div className="space-y-6">
+              <SettingsForm key={JSON.stringify(ctx.data.settings)} initial={ctx.data.settings} />
+              {manager ? <SuppressionsCard /> : null}
+            </div>
+          ) : null}
         </>
       ) : null}
     </>
@@ -280,10 +285,15 @@ function Leads({ ctx }: { ctx: OutreachContext }) {
                       {l.company && (l.firstName || l.lastName) ? ` · ${l.company}` : ''}
                       {l.practice ? ` · ${l.practice}` : ''}
                     </div>
+                    {l.doNotContact ? (
+                      <Badge tone="danger" className="mt-1">
+                        Не беспокоить
+                      </Badge>
+                    ) : null}
                   </Td>
                   <Td className="text-xs text-muted">
-                    {l.phone ? <div className="text-ink">{formatPhone(l.phone)}</div> : null}
-                    {l.email ? <div className={l.unsubscribed ? 'line-through' : ''}>{l.email}</div> : null}
+                    {l.phone ? <div className="text-ink">{formatPhone(l.phone)}</div> : l.doNotContact ? <div className="text-faint">телефон скрыт</div> : null}
+                    {l.email ? <div className={l.unsubscribed ? 'line-through' : ''}>{l.email}</div> : l.doNotContact ? <div className="text-faint">email скрыт</div> : null}
                     {l.unsubscribed ? <div className="text-faint">отписался от писем</div> : null}
                   </Td>
                   <Td className="text-xs text-muted">
@@ -374,6 +384,7 @@ function ReportCard({ r }: { r: ImportReport }) {
         </li>
         <li>Уже есть в базе (email или телефон): {r.duplicates}</li>
         <li>Без email и телефона (пропущено): {r.skipped}</li>
+        {r.suppressed > 0 ? <li>В стоп-листе (пропущено): {r.suppressed}</li> : null}
       </ul>
       {r.columns.length ? <div className="mt-2 text-xs text-faint">Колонки: {r.columns.join(', ')}</div> : null}
       {r.problems.length ? (
@@ -393,9 +404,12 @@ function ImportCsvDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: b
   const [file, setFile] = useState<File | null>(null);
   const [kind, setKind] = useState<LeadKind>('attorney');
   const [partnerId, setPartnerId] = useState('');
+  const [sourceNote, setSourceNote] = useState('');
   const [report, setReport] = useState<ImportReport | null>(null);
+  const clientsOff = !ctx.settings.clientLeadsEnabled;
+  const sourceOk = sourceNote.trim().length >= 3;
   const run = useMutation({
-    mutationFn: (mode: 'dry-run' | 'apply') => importLeadsCsv(file!, { mode, kind, partnerId: partnerId || undefined }),
+    mutationFn: (mode: 'dry-run' | 'apply') => importLeadsCsv(file!, { mode, kind, partnerId: partnerId || undefined, sourceNote: sourceNote.trim() }),
     onSuccess: (r) => {
       setReport(r);
       if (r.mode === 'apply') {
@@ -408,6 +422,7 @@ function ImportCsvDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: b
   const close = () => {
     setFile(null);
     setReport(null);
+    setSourceNote('');
     onClose();
   };
   return (
@@ -431,16 +446,21 @@ function ImportCsvDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: b
           />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Кто в файле" htmlFor="oc-kind">
+          <Field label="Кто в файле" htmlFor="oc-kind" hint={clientsOff ? 'клиенты-физлица выключены в настройках (TCPA / Do-Not-Call)' : undefined}>
             <Select id="oc-kind" value={kind} onChange={(e) => setKind(e.target.value as LeadKind)}>
               <option value="attorney">Адвокаты</option>
-              <option value="client">Клиенты</option>
+              <option value="client" disabled={clientsOff}>
+                Клиенты{clientsOff ? ' (выключено)' : ''}
+              </option>
             </Select>
           </Field>
           <Field label="Назначить сотруднику" htmlFor="oc-partner">
             <PartnerSelect id="oc-partner" ctx={ctx} value={partnerId} onChange={setPartnerId} />
           </Field>
         </div>
+        <Field label="Источник и согласие" htmlFor="oc-source" hint="откуда контакты и на каком основании можно писать; обязательное поле, хранится у каждого лида">
+          <Input id="oc-source" value={sourceNote} onChange={(e) => setSourceNote(e.target.value)} maxLength={300} placeholder="Справочник коллегии адвокатов штата NY, открытые данные" />
+        </Field>
         {report ? <ReportCard r={report} /> : null}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={close}>
@@ -451,7 +471,7 @@ function ImportCsvDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: b
               Импортировать {report.created}
             </Button>
           ) : report?.mode === 'apply' ? null : (
-            <Button disabled={!file} loading={run.isPending} onClick={() => run.mutate('dry-run')}>
+            <Button disabled={!file || !sourceOk} loading={run.isPending} onClick={() => run.mutate('dry-run')}>
               Проверить файл
             </Button>
           )}
@@ -546,7 +566,7 @@ function RegistryDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: bo
   );
 }
 
-const EMPTY_LEAD = { firstName: '', lastName: '', company: '', stateCode: '', city: '', practice: '', phone: '', email: '', note: '' };
+const EMPTY_LEAD = { firstName: '', lastName: '', company: '', stateCode: '', city: '', practice: '', phone: '', email: '', note: '', sourceNote: '' };
 
 function ManualLeadDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
@@ -554,6 +574,7 @@ function ManualLeadDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: 
   const [kind, setKind] = useState<LeadKind>('attorney');
   const [f, setF] = useState(EMPTY_LEAD);
   const [partnerId, setPartnerId] = useState('');
+  const clientsOff = !ctx.settings.clientLeadsEnabled;
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
   const create = useMutation({
     mutationFn: async () =>
@@ -570,6 +591,7 @@ function ManualLeadDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: 
             phone: f.phone || null,
             email: f.email || null,
             note: f.note || null,
+            sourceNote: f.sourceNote.trim() || null,
             ...(ctx.manager ? { partnerId: partnerId || null } : {}),
           },
         })
@@ -582,15 +604,18 @@ function ManualLeadDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: 
     },
     onError: (e) => toast.error(e),
   });
-  const valid = f.phone.trim() || f.email.trim();
+  // Owner 2026-10-05 (legal): a consumer lead needs its source / consent.
+  const valid = (f.phone.trim() || f.email.trim()) && (kind !== 'client' || f.sourceNote.trim().length >= 3);
   return (
     <Dialog open={open} onClose={onClose} eyebrow="Вручную" title="Новый контакт" description="Нужен телефон или email — иначе связаться не с кем.">
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Кто" htmlFor="ol-kind">
+          <Field label="Кто" htmlFor="ol-kind" hint={clientsOff ? 'клиенты-физлица выключены в настройках (TCPA / Do-Not-Call)' : undefined}>
             <Select id="ol-kind" value={kind} onChange={(e) => setKind(e.target.value as LeadKind)}>
               <option value="attorney">Адвокат</option>
-              <option value="client">Клиент</option>
+              <option value="client" disabled={clientsOff}>
+                Клиент{clientsOff ? ' (выключено)' : ''}
+              </option>
             </Select>
           </Field>
           {ctx.manager ? (
@@ -623,6 +648,9 @@ function ManualLeadDialog({ ctx, open, onClose }: { ctx: OutreachContext; open: 
             <Input id="ol-city" value={f.city} onChange={set('city')} />
           </Field>
         </div>
+        <Field label="Источник и согласие" htmlFor="ol-source" hint={kind === 'client' ? 'обязательно для клиента-физлица: откуда контакт и на каком основании можно связаться' : 'откуда контакт и на каком основании можно связаться'}>
+          <Textarea id="ol-source" rows={2} value={f.sourceNote} onChange={set('sourceNote')} maxLength={300} />
+        </Field>
         <Field label="Заметка" htmlFor="ol-note">
           <Textarea id="ol-note" rows={2} value={f.note} onChange={set('note')} />
         </Field>
@@ -914,6 +942,12 @@ function TemplateDialog({ t, onClose }: { t: OutreachTemplate | null; onClose: (
 
 // ---- settings -----------------------------------------------------------------
 
+const intIn = (v: string, min: number, max: number): number | null => {
+  if (!/^\d+$/.test(v)) return null;
+  const n = Number(v);
+  return n >= min && n <= max ? n : null;
+};
+
 function SettingsForm({ initial }: { initial: OutreachSettings }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -921,13 +955,43 @@ function SettingsForm({ initial }: { initial: OutreachSettings }) {
   const [fromName, setFromName] = useState(initial.fromName);
   const [address, setAddress] = useState(initial.footerAddress);
   const [url, setUrl] = useState(initial.apiPublicUrl);
+  // Owner 2026-10-05 (legal): TCPA / Do-Not-Call guard rails.
+  const [clientLeads, setClientLeads] = useState(initial.clientLeadsEnabled ?? false);
+  const [dnc, setDnc] = useState(initial.dncConfirmed ?? false);
+  const [san, setSan] = useState(initial.dncSan ?? '');
+  const [hoursStart, setHoursStart] = useState(String(initial.callHoursStart ?? 8));
+  const [hoursEnd, setHoursEnd] = useState(String(initial.callHoursEnd ?? 21));
+  const [perLead, setPerLead] = useState(String(initial.maxEmailsPerLead ?? 2));
+  const [cooldown, setCooldown] = useState(String(initial.emailCooldownDays ?? 14));
+  const [retention, setRetention] = useState(String(initial.leadRetentionDays ?? 365));
   const limitN = /^\d+$/.test(limit) ? Number(limit) : null;
-  const valid = limitN !== null && limitN <= 1000 && fromName.trim().length >= 2 && address.trim().length >= 10 && /^https:\/\/[^\s/]+/.test(url.trim());
+  const startN = intIn(hoursStart, 0, 23);
+  const endN = intIn(hoursEnd, 1, 24);
+  const perLeadN = intIn(perLead, 0, 10);
+  const cooldownN = intIn(cooldown, 0, 365);
+  const retentionN = intIn(retention, 30, 3650);
+  const hoursOk = startN !== null && endN !== null && startN < endN;
+  const dncError = clientLeads && !dnc ? 'Сначала подтвердите проверку номеров по реестру Do-Not-Call.' : null;
+  const emailOk = limitN !== null && limitN <= 1000 && fromName.trim().length >= 2 && address.trim().length >= 10 && /^https:\/\/[^\s/]+/.test(url.trim());
+  const valid = emailOk && hoursOk && perLeadN !== null && cooldownN !== null && retentionN !== null && !dncError && san.trim().length <= 40;
   const save = useMutation({
     mutationFn: async () =>
       (
         await api.PUT('/admin/outreach/settings', {
-          body: { dailyEmailLimit: limitN ?? 50, fromName: fromName.trim(), footerAddress: address.trim(), apiPublicUrl: url.trim().replace(/\/+$/, '') },
+          body: {
+            dailyEmailLimit: limitN ?? 50,
+            fromName: fromName.trim(),
+            footerAddress: address.trim(),
+            apiPublicUrl: url.trim().replace(/\/+$/, ''),
+            clientLeadsEnabled: clientLeads,
+            dncConfirmed: dnc,
+            dncSan: san.trim(),
+            callHoursStart: startN ?? 8,
+            callHoursEnd: endN ?? 21,
+            maxEmailsPerLead: perLeadN ?? 2,
+            emailCooldownDays: cooldownN ?? 14,
+            leadRetentionDays: retentionN ?? 365,
+          },
         })
       ).data!.data,
     onSuccess: () => {
@@ -936,30 +1000,155 @@ function SettingsForm({ initial }: { initial: OutreachSettings }) {
     },
     onError: (e) => toast.error(e),
   });
+  const saveButton = (
+    <div className="mt-4 flex justify-end">
+      <Button disabled={!valid} loading={save.isPending} onClick={() => save.mutate()}>
+        Сохранить
+      </Button>
+    </div>
+  );
+  return (
+    <>
+      <Card className="p-5">
+        <h3 className="font-medium text-heading">Письма</h3>
+        <p className="mt-1 text-sm text-muted">
+          Закон CAN-SPAM требует в каждом коммерческом письме почтовый адрес отправителя и работающую ссылку «отписаться». Пока адрес и публичный адрес API не заполнены, письма не отправляются. Письма уходят через подключённый почтовый сервис (SES) — отдельный ключ не нужен.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Field label="Лимит писем в день на сотрудника" htmlFor="os-limit" hint="0 — письма выключены; до 1000. Небольшие порции не портят репутацию домена.">
+            <Input id="os-limit" inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value)} />
+          </Field>
+          <Field label="Имя отправителя" htmlFor="os-from" hint="в подписи письма">
+            <Input id="os-from" value={fromName} onChange={(e) => setFromName(e.target.value)} maxLength={80} />
+          </Field>
+          <Field label="Почтовый адрес компании" htmlFor="os-address" hint="обязательная строка в подписи (CAN-SPAM)">
+            <Input id="os-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="1106 N Plum Grove Rd, Schaumburg, IL 60173" maxLength={300} />
+          </Field>
+          <Field label="Публичный адрес API" htmlFor="os-url" hint="для ссылки «отписаться», например https://api.lawbid.dev">
+            <Input id="os-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.lawbid.dev" />
+          </Field>
+        </div>
+        {saveButton}
+      </Card>
+
+      <Card className="p-5">
+        <h3 className="font-medium text-heading">Звонки и защита от штрафов (TCPA / Do-Not-Call)</h3>
+        <p className="mt-1 text-sm text-muted">
+          Адвокаты и фирмы — деловые контакты. Физлица — потребители: звонки и письма им подпадают под TCPA и национальный реестр Do-Not-Call, штраф $500–1 500 за каждый звонок. Телефон лида скрывается, пока звонить нельзя; звонок вне окна система не запишет.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div className="flex items-start gap-3">
+            <Switch checked={clientLeads} onChange={setClientLeads} label="Разрешить работу с клиентами-физлицами" />
+            <div>
+              <div className="text-sm text-ink">Разрешить работу с клиентами-физлицами</div>
+              <div className="text-xs text-muted">звонки и письма потребителям подпадают под TCPA/DNC; штраф $500–1 500 за звонок</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Switch checked={dnc} onChange={setDnc} label="Номера клиентов проверены по национальному реестру Do-Not-Call" />
+            <div>
+              <div className="text-sm text-ink">Номера клиентов проверены по национальному реестру Do-Not-Call</div>
+              <div className="text-xs text-muted">обязательно, чтобы включить работу с физлицами; проверку повторяют каждые 31 день</div>
+            </div>
+          </div>
+          {dncError ? <p className="text-xs text-danger">{dncError}</p> : null}
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="SAN (номер подписки на реестр DNC)" htmlFor="os-san" hint="выдаётся на telemarketing.donotcall.gov; для справки">
+            <Input id="os-san" value={san} onChange={(e) => setSan(e.target.value)} maxLength={40} />
+          </Field>
+          <Field label="Часы звонков по местному времени лида" htmlFor="os-hours-start" hint={hoursOk ? 'по времени штата лида; федеральный минимум 8:00–21:00, Флорида — до 20:00' : 'с 0 до 23, до 1 до 24; «с» раньше «до»'}>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted">с</span>
+              <Input id="os-hours-start" inputMode="numeric" value={hoursStart} onChange={(e) => setHoursStart(e.target.value)} className="w-20" aria-label="Часы звонков: с" />
+              <span className="text-xs text-muted">до</span>
+              <Input inputMode="numeric" value={hoursEnd} onChange={(e) => setHoursEnd(e.target.value)} className="w-20" aria-label="Часы звонков: до" />
+            </div>
+          </Field>
+          <Field label="Писем одному человеку, макс." htmlFor="os-per-lead" hint="0 — без ограничения; до 10">
+            <Input id="os-per-lead" inputMode="numeric" value={perLead} onChange={(e) => setPerLead(e.target.value)} />
+          </Field>
+          <Field label="Пауза между письмами, дней" htmlFor="os-cooldown" hint="до 365">
+            <Input id="os-cooldown" inputMode="numeric" value={cooldown} onChange={(e) => setCooldown(e.target.value)} />
+          </Field>
+          <Field label="Хранить лиды без ответа, дней" htmlFor="os-retention" hint="30–3650; неотвеченные контакты без активности удаляются сами, «не беспокоить» попадают в стоп-лист">
+            <Input id="os-retention" inputMode="numeric" value={retention} onChange={(e) => setRetention(e.target.value)} />
+          </Field>
+        </div>
+        {saveButton}
+      </Card>
+    </>
+  );
+}
+
+/** Owner 2026-10-05 (legal): numbers and emails that are never contacted
+ * again — unsubscribes, complaints, the company's own DNC list. */
+function SuppressionsCard() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [values, setValues] = useState('');
+  const [note, setNote] = useState('');
+  const list = useQuery({
+    queryKey: ['outreach-suppressions'],
+    queryFn: async () => (await api.GET('/admin/outreach/suppressions')).data!.data,
+  });
+  const lines = values
+    .split(/[\n,;]+/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const add = useMutation({
+    mutationFn: async () =>
+      (await api.POST('/admin/outreach/suppressions', { body: { values: lines.slice(0, 5000), note: note.trim() || null } })).data!.data,
+    onSuccess: (r) => {
+      toast.success(`В стоп-лист добавлено: ${r.added}; отмечено лидов «не беспокоить»: ${r.leadsMarked}${r.invalid ? `; не распознано: ${r.invalid}` : ''}`);
+      setValues('');
+      setNote('');
+      void qc.invalidateQueries({ queryKey: ['outreach-suppressions'] });
+      void qc.invalidateQueries({ queryKey: ['outreach-leads'] });
+    },
+    onError: (e) => toast.error(e),
+  });
   return (
     <Card className="p-5">
-      <h3 className="font-medium text-heading">Письма</h3>
+      <h3 className="font-medium text-heading">Стоп-лист (не звонить / не писать)</h3>
       <p className="mt-1 text-sm text-muted">
-        Закон CAN-SPAM требует в каждом коммерческом письме почтовый адрес отправителя и работающую ссылку «отписаться». Пока адрес и публичный адрес API не заполнены, письма не отправляются. Письма уходят через подключённый почтовый сервис (SES) — отдельный ключ не нужен.
+        Номера и email, с которыми связываться нельзя: кто попросил не беспокоить, пожаловался или отписался. Совпадающие контакты в базе сразу помечаются «не беспокоить», новые при импорте пропускаются. Удалённые по сроку хранения «не беспокоить» лиды попадают сюда сами.
       </p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Field label="Лимит писем в день на сотрудника" htmlFor="os-limit" hint="0 — письма выключены; до 1000. Небольшие порции не портят репутацию домена.">
-          <Input id="os-limit" inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value)} />
-        </Field>
-        <Field label="Имя отправителя" htmlFor="os-from" hint="в подписи письма">
-          <Input id="os-from" value={fromName} onChange={(e) => setFromName(e.target.value)} maxLength={80} />
-        </Field>
-        <Field label="Почтовый адрес компании" htmlFor="os-address" hint="обязательная строка в подписи (CAN-SPAM)">
-          <Input id="os-address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="1106 N Plum Grove Rd, Schaumburg, IL 60173" maxLength={300} />
-        </Field>
-        <Field label="Публичный адрес API" htmlFor="os-url" hint="для ссылки «отписаться», например https://api.lawbid.dev">
-          <Input id="os-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://api.lawbid.dev" />
-        </Field>
-      </div>
-      <div className="mt-4 flex justify-end">
-        <Button disabled={!valid} loading={save.isPending} onClick={() => save.mutate()}>
-          Сохранить
-        </Button>
+      <ErrorNote text={list.error ? errorText(list.error) : null} />
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="space-y-3">
+          <Field label="Номера или email, по одному в строке" htmlFor="osl-values" hint={`до 5000 за раз${lines.length ? ` · распознано строк: ${lines.length}` : ''}`}>
+            <Textarea id="osl-values" rows={6} value={values} onChange={(e) => setValues(e.target.value)} placeholder={'+1 212 555 0100\nsomeone@example.com'} />
+          </Field>
+          <Field label="Заметка" htmlFor="osl-note" hint="необязательно: откуда список">
+            <Input id="osl-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+          </Field>
+          <div className="flex justify-end">
+            <Button disabled={lines.length === 0} loading={add.isPending} onClick={() => add.mutate()}>
+              <Plus size={14} /> Добавить
+            </Button>
+          </div>
+        </div>
+        <div>
+          <div className="text-sm text-muted">
+            В стоп-листе: <span className="font-medium text-ink">{list.data?.count ?? '…'}</span>
+          </div>
+          {list.data && list.data.latest.length > 0 ? (
+            <ul className="mt-2 max-h-64 divide-y divide-line overflow-auto rounded-[var(--radius)] border border-line text-xs">
+              {list.data.latest.map((s) => (
+                <li key={`${s.kind}:${s.value}:${s.createdAt}`} className="flex items-center justify-between gap-3 px-3 py-1.5">
+                  <span className="font-mono text-ink">{s.value}</span>
+                  <span className="text-faint">
+                    {s.kind === 'phone' ? 'телефон' : 'email'}
+                    {s.note ? ` · ${s.note}` : ''} · {formatDateTime(s.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : list.data ? (
+            <p className="mt-2 text-xs text-faint">Пока пусто.</p>
+          ) : null}
+        </div>
       </div>
     </Card>
   );

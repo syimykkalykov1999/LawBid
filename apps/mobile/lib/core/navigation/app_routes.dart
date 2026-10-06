@@ -81,6 +81,21 @@ abstract final class AppRoutes {
   static const legal = '/legal/:docType';
   static String legalDoc(String docType) => '$legalPrefix$docType';
 
+  /// Owner 2026-10-05 (legal): the DMCA takedown form. `targetType` /
+  /// `targetId` name the content on LawBid (from the report sheet); without
+  /// them the form asks for a URL. Registered BEFORE [legal] so the static
+  /// path wins over `:docType`.
+  static const dmcaNotice = '/legal/dmca';
+  static String dmcaNoticeFor({String? targetType, String? targetId}) {
+    if (targetType == null || targetId == null || targetId.isEmpty) {
+      return dmcaNotice;
+    }
+    return Uri(
+      path: dmcaNotice,
+      queryParameters: {'targetType': targetType, 'targetId': targetId},
+    ).toString();
+  }
+
   // --- docs/04 cases & bids (stages 4.9/4.10) — ROOT navigator.
 
   /// The client's own case (docs/04 §11.1).

@@ -36,6 +36,8 @@ export class MockEmailProvider implements EmailProvider {
       subject: message.subject,
       text: message.text,
       html: message.html,
+      // Owner 2026-10-05 (legal): List-Unsubscribe etc. on cold emails.
+      ...(message.headers ? { headers: message.headers } : {}),
     });
     this.logger.info(
       { toEmailDomain: message.to.split('@')[1] },
