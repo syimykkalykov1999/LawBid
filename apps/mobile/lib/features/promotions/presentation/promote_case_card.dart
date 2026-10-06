@@ -692,7 +692,9 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.sm),
                   child: Text(
-                    t.t('promote.credits', {'days': formatRewardNumber(q.creditDaysUsed)}),
+                    t.t('promote.credits', {
+                      'days': formatRewardNumber(q.creditDaysUsed),
+                    }),
                     textAlign: TextAlign.center,
                     style: type.caption.copyWith(color: colors.success),
                   ),
