@@ -29,7 +29,12 @@ import type {
 import { PartnersService } from '../partners/partners.service';
 import { ReferralsService } from './referrals.service';
 import {
+  presentReferralSettings,
+  presentReward,
   REFERRAL_SETTINGS_KEY,
+  rewardFromInput,
+  roundDays,
+  wholeDays,
   snapshotOf,
   validateReward,
   type ReferralProgramSettings,
@@ -63,6 +68,8 @@ function invalidState(message: string): ConflictException {
 }
 
 /** Owner 2026-10-02: the admin side of the referral program. */
+type ReferralSettingsView = ReturnType<typeof presentReferralSettings>;
+
 @Injectable()
 export class AdminReferralsService {
   constructor(
@@ -72,20 +79,21 @@ export class AdminReferralsService {
     @Optional() private readonly partners?: PartnersService,
   ) {}
 
-  getSettings(): Promise<ReferralProgramSettings> {
-    return this.referrals.settings();
+  async getSettings(): Promise<ReferralSettingsView> {
+    return presentReferralSettings(await this.referrals.settings());
   }
 
   async updateSettings(
     admin: AdminActor,
     dto: ReferralSettingsDto,
-  ): Promise<ReferralProgramSettings> {
+  ): Promise<ReferralSettingsView> {
+    // Owner 2026-10-05: `amount` carries fractional days («0.5 дня»).
     const next: ReferralProgramSettings = {
       enabled: dto.enabled,
-      attorneyReferrerReward: { ...dto.attorneyReferrerReward },
-      attorneyRefereeReward: { ...dto.attorneyRefereeReward },
-      clientReferrerReward: { ...dto.clientReferrerReward },
-      clientRefereeReward: { ...dto.clientRefereeReward },
+      attorneyReferrerReward: rewardFromInput(dto.attorneyReferrerReward),
+      attorneyRefereeReward: rewardFromInput(dto.attorneyRefereeReward),
+      clientReferrerReward: rewardFromInput(dto.clientReferrerReward),
+      clientRefereeReward: rewardFromInput(dto.clientRefereeReward),
       applyWindowDays: dto.applyWindowDays,
       maxInvitesPerReferrer: dto.maxInvitesPerReferrer,
       texts: { en: { ...dto.texts.en }, ru: { ...dto.texts.ru } },
@@ -139,13 +147,28 @@ export class AdminReferralsService {
         tx,
       );
     });
-    return next;
+    return presentReferralSettings(next);
   }
 
   async list(q: AdminReferralsQueryDto): Promise<Page<AdminReferralRowDto>> {
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
+    const term = q.q?.trim();
+    const ids = term ? await this.userIdsMatching(term) : [];
     const rows = await this.prisma.referral.findMany({
       where: {
+        ...(term
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { code: { startsWith: normalizeReferralCode(term) } },
+                    { referrer_id: { in: ids } },
+                    { referee_id: { in: ids } },
+                  ],
+                },
+              ],
+            }
+          : {}),
         ...(q.status ? { status: q.status } : {}),
         ...(q.role ? { referee_role: q.role } : {}),
         ...(q.referrerId ? { referrer_id: q.referrerId } : {}),
@@ -182,20 +205,25 @@ export class AdminReferralsService {
         _count: { _all: true },
       }),
       // Issued rewards live in the JSON snapshots (issuedAt set).
-      this.prisma.$queryRaw<{ balance: bigint | null; days: bigint | null }[]>`
+      this.prisma.$queryRaw<
+        {
+          balance: bigint | string | number | null;
+          days: bigint | string | number | null;
+        }[]
+      >`
         SELECT
           COALESCE(SUM(CASE WHEN referrer_reward->>'type' = 'balance_cents'
             AND referrer_reward->>'issuedAt' IS NOT NULL
-            THEN (referrer_reward->>'value')::INT8 ELSE 0 END), 0)
+            THEN (referrer_reward->>'value')::DECIMAL ELSE 0 END), 0)
           + COALESCE(SUM(CASE WHEN referee_reward->>'type' = 'balance_cents'
             AND referee_reward->>'issuedAt' IS NOT NULL
-            THEN (referee_reward->>'value')::INT8 ELSE 0 END), 0) AS balance,
+            THEN (referee_reward->>'value')::DECIMAL ELSE 0 END), 0) AS balance,
           COALESCE(SUM(CASE WHEN referrer_reward->>'type' = 'promotion_days'
             AND referrer_reward->>'issuedAt' IS NOT NULL
-            THEN (referrer_reward->>'value')::INT8 ELSE 0 END), 0)
+            THEN (referrer_reward->>'value')::DECIMAL ELSE 0 END), 0)
           + COALESCE(SUM(CASE WHEN referee_reward->>'type' = 'promotion_days'
             AND referee_reward->>'issuedAt' IS NOT NULL
-            THEN (referee_reward->>'value')::INT8 ELSE 0 END), 0) AS days
+            THEN (referee_reward->>'value')::DECIMAL ELSE 0 END), 0) AS days
         FROM referrals WHERE status <> 'rejected'`,
     ]);
     const used = await this.daysUsed();
@@ -206,9 +234,11 @@ export class AdminReferralsService {
         key: r.referee_role,
         count: r._count._all,
       })),
-      balanceCentsIssued: Number(sums[0]?.balance ?? 0),
-      promotionDaysIssued: Number(sums[0]?.days ?? 0),
-      promotionDaysUsed: used,
+      balanceCentsIssued: Math.round(Number(sums[0]?.balance ?? 0)),
+      promotionDaysIssued: wholeDays(Number(sums[0]?.days ?? 0)),
+      promotionDaysUsed: wholeDays(used),
+      promotionDaysIssuedExact: roundDays(Number(sums[0]?.days ?? 0)),
+      promotionDaysUsedExact: roundDays(used),
     };
   }
 
@@ -387,12 +417,16 @@ export class AdminReferralsService {
         referee: user(r.referee_id),
         referrerRole: r.referrer_role,
         refereeRole: r.referee_role,
-        referrerReward: rr
-          ? { type: rr.type, value: rr.value }
-          : { type: 'promotion_days', value: 0 },
-        refereeReward: re
-          ? { type: re.type, value: re.value }
-          : { type: 'promotion_days', value: 0 },
+        referrerReward: presentReward(
+          rr
+            ? { type: rr.type, value: rr.value }
+            : { type: 'promotion_days', value: 0 },
+        ),
+        refereeReward: presentReward(
+          re
+            ? { type: re.type, value: re.value }
+            : { type: 'promotion_days', value: 0 },
+        ),
         referrerRewardIssued: !!rr?.issuedAt,
         refereeRewardIssued: !!re?.issuedAt,
         qualifiedAt: r.qualified_at?.toISOString() ?? null,

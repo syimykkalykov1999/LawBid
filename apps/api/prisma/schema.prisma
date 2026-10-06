@@ -3343,6 +3343,9 @@ model PromoCode {
   starts_at        DateTime? @db.Timestamptz
   expires_at       DateTime? @db.Timestamptz
   active           Boolean   @default(true)
+  // Owner 2026-10-05: «удалить» a code that was already used archives it
+  // (history of payments keeps pointing at it); unused codes are deleted.
+  archived_at      DateTime? @db.Timestamptz
   stripe_coupon_id String?
   created_by       String    @db.Uuid
   created_at       DateTime  @default(now()) @db.Timestamptz

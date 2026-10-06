@@ -21,6 +21,7 @@ import type { PaymentProvider } from '../billing/payment-provider';
 import type {
   CreatePromoCodeDto,
   PromoCodeDto,
+  PromoDeleteResultDto,
   PromoRedemptionDto,
   PromoStatus,
   PromoValidationDto,
@@ -44,6 +45,7 @@ import {
 } from './promo-rules';
 
 export function promoStatus(p: PromoCode, now = new Date()): PromoStatus {
+  if (p.archived_at) return 'archived';
   if (!p.active) return 'inactive';
   if (p.expires_at && p.expires_at <= now) return 'expired';
   if (p.max_redemptions !== null && p.redeemed_count >= p.max_redemptions)
@@ -69,22 +71,28 @@ export class PromoCodesService {
   ) {}
 
   async list(q: {
-    status?: 'active' | 'expired' | 'inactive';
+    status?: 'active' | 'expired' | 'inactive' | 'archived';
     q?: string;
     cursor?: string;
   }): Promise<Page<PromoCodeDto>> {
     const now = new Date();
+    // Archived (deleted after use) codes show only under their own filter.
     const status: Prisma.PromoCodeWhereInput =
-      q.status === 'active'
-        ? {
-            active: true,
-            OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-          }
-        : q.status === 'expired'
-          ? { expires_at: { lte: now } }
-          : q.status === 'inactive'
-            ? { active: false }
-            : {};
+      q.status === 'archived'
+        ? { archived_at: { not: null } }
+        : {
+            archived_at: null,
+            ...(q.status === 'active'
+              ? {
+                  active: true,
+                  OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+                }
+              : q.status === 'expired'
+                ? { expires_at: { lte: now } }
+                : q.status === 'inactive'
+                  ? { active: false }
+                  : {}),
+          };
     const rows = await this.prisma.promoCode.findMany({
       where: {
         AND: [
@@ -164,6 +172,13 @@ export class PromoCodesService {
     dto: UpdatePromoCodeDto,
   ): Promise<PromoCodeDto> {
     const before = await this.must(id);
+    if (before.archived_at && dto.active === true) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Restore the archived promo code first.',
+        details: { field: 'active' },
+      });
+    }
     const data: Prisma.PromoCodeUpdateInput = {};
     if (dto.description !== undefined)
       data.description = dto.description || null;
@@ -201,6 +216,66 @@ export class PromoCodesService {
 
   deactivate(admin: AdminActor, id: string): Promise<PromoCodeDto> {
     return this.update(admin, id, { active: false });
+  }
+
+  /**
+   * Owner 2026-10-05: «удалить» from the card menu. A code nobody used
+   * (no redemption, no case promotion pointing at it) is removed for good
+   * and its name becomes free; a used one is archived — switched off,
+   * hidden from the lists, kept for the payment history and the audit.
+   */
+  async remove(admin: AdminActor, id: string): Promise<PromoDeleteResultDto> {
+    const before = await this.must(id);
+    const [redemptions, promotions] = await Promise.all([
+      this.prisma.promoRedemption.count({ where: { promo_id: id } }),
+      this.prisma.casePromotion.count({ where: { promo_code_id: id } }),
+    ]);
+    const used = before.redeemed_count > 0 || redemptions > 0 || promotions > 0;
+    if (before.stripe_coupon_id) await this.dropCoupon(before.stripe_coupon_id);
+    let after: PromoCode | null = null;
+    if (used) {
+      after = await this.prisma.promoCode.update({
+        where: { id },
+        data: {
+          active: false,
+          archived_at: before.archived_at ?? new Date(),
+          stripe_coupon_id: null,
+        },
+      });
+    } else {
+      await this.prisma.promoCode.delete({ where: { id } });
+    }
+    const outcome = used ? 'archived' : 'deleted';
+    await this.audit.record({
+      adminId: admin.id,
+      action: `billing.promo_code.${outcome === 'archived' ? 'archive' : 'delete'}`,
+      targetType: 'promo_code',
+      targetId: id,
+      before: snapshot(before),
+      after: after ? snapshot(after) : undefined,
+      ip: admin.ip,
+    });
+    return { id, outcome };
+  }
+
+  /** Brings an archived code back as switched off (inactive). */
+  async restore(admin: AdminActor, id: string): Promise<PromoCodeDto> {
+    const before = await this.must(id);
+    if (!before.archived_at) return presentPromo(before);
+    const row = await this.prisma.promoCode.update({
+      where: { id },
+      data: { archived_at: null, active: false },
+    });
+    await this.audit.record({
+      adminId: admin.id,
+      action: 'billing.promo_code.restore',
+      targetType: 'promo_code',
+      targetId: id,
+      before: snapshot(before),
+      after: snapshot(row),
+      ip: admin.ip,
+    });
+    return presentPromo(row);
   }
 
   async redemptions(
@@ -326,6 +401,7 @@ function snapshot(p: PromoCode): Prisma.InputJsonObject {
     maxRedemptions: p.max_redemptions,
     expiresAt: p.expires_at?.toISOString() ?? null,
     active: p.active,
+    archivedAt: p.archived_at?.toISOString() ?? null,
   };
 }
 
@@ -347,6 +423,7 @@ export function presentPromo(p: PromoCode, now = new Date()): PromoCodeDto {
     active: p.active,
     status: promoStatus(p, now),
     stripeCouponId: p.stripe_coupon_id,
+    archivedAt: p.archived_at?.toISOString() ?? null,
     createdBy: p.created_by,
     createdAt: p.created_at.toISOString(),
   };

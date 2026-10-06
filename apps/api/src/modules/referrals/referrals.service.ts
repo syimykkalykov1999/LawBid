@@ -32,7 +32,10 @@ import {
   parseReferralSettings,
   QUALIFYING_EVENT_FOR_ROLE,
   REFERRAL_SETTINGS_KEY,
+  presentReward,
   remainingDays,
+  roundDays,
+  wholeDays,
   renderReferralText,
   rewardFor,
   snapshotOf,
@@ -212,11 +215,13 @@ export class ReferralsService {
             reward: plainReward(snapshotOf(own.referee_reward)),
           }
         : null,
-      promotionCreditDays: await this.promotionCreditDays(userId),
+      ...(await this.creditDaysFields(userId)),
       pendingDiscountPercent: await this.pendingReferralDiscountPercent(userId),
       applyWindowDays: settings.applyWindowDays,
       canApply: settings.enabled && !own && !!role && withinWindow,
-      inviterReward: rewardFor(settings, 'referrer', role ?? 'client'),
+      inviterReward: presentReward(
+        rewardFor(settings, 'referrer', role ?? 'client'),
+      ),
     };
   }
 
@@ -367,7 +372,10 @@ export class ReferralsService {
     });
     return {
       status: (after?.status ?? created.status) as ReferralStatus,
-      reward: { type: refereeReward.type, value: refereeReward.value },
+      reward: presentReward({
+        type: refereeReward.type,
+        value: refereeReward.value,
+      }),
     };
   }
 
@@ -581,7 +589,21 @@ export class ReferralsService {
     db: Db = this.prisma,
   ): Promise<number> {
     const rows = await this.creditRows(db, userId);
-    return rows.reduce((sum, row) => sum + remainingDays(row.snap), 0);
+    return roundDays(
+      rows.reduce((sum, row) => sum + remainingDays(row.snap), 0),
+    );
+  }
+
+  /** Credit days for GET /referrals/me: whole (older builds) + exact. */
+  private async creditDaysFields(userId: string): Promise<{
+    promotionCreditDays: number;
+    promotionCreditDaysExact: number;
+  }> {
+    const exact = await this.promotionCreditDays(userId);
+    return {
+      promotionCreditDays: wholeDays(exact),
+      promotionCreditDaysExact: exact,
+    };
   }
 
   /** Spends up to [days] credit days on a promotion; returns how many. */
@@ -594,7 +616,7 @@ export class ReferralsService {
     let left = days;
     for (const row of await this.creditRows(tx, userId)) {
       if (left <= 0) break;
-      const take = Math.min(left, remainingDays(row.snap));
+      const take = roundDays(Math.min(left, remainingDays(row.snap)));
       if (take <= 0) continue;
       const snap = {
         ...row.snap,
@@ -607,9 +629,9 @@ export class ReferralsService {
             ? { referrer_reward: json(snap) }
             : { referee_reward: json(snap) },
       });
-      left -= take;
+      left = roundDays(left - take);
     }
-    return days - left;
+    return roundDays(days - left);
   }
 
   /** Gives back the days a promotion took (it never ran). */
@@ -671,11 +693,10 @@ export class ReferralsService {
   }
 }
 
-function plainReward(s: ReferralRewardSnapshot | null): {
-  type: ReferralRewardSnapshot['type'];
-  value: number;
-} {
-  return s
-    ? { type: s.type, value: s.value }
-    : { type: 'promotion_days', value: 0 };
+function plainReward(
+  s: ReferralRewardSnapshot | null,
+): ReturnType<typeof presentReward> {
+  return presentReward(
+    s ? { type: s.type, value: s.value } : { type: 'promotion_days', value: 0 },
+  );
 }

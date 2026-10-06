@@ -161,8 +161,9 @@ export const PROMO_STATUS: Record<string, string> = {
   expired: 'истёк',
   exhausted: 'лимит исчерпан',
   inactive: 'выключен',
+  archived: 'в архиве',
 };
-export const PROMO_TONE: Record<string, Tone> = { active: 'success', scheduled: 'info', expired: 'neutral', exhausted: 'warning', inactive: 'neutral' };
+export const PROMO_TONE: Record<string, Tone> = { active: 'success', scheduled: 'info', expired: 'neutral', exhausted: 'warning', inactive: 'neutral', archived: 'neutral' };
 
 export const PROMO_AUDIENCE: Record<string, string> = { all: 'все', attorney: 'адвокаты', client: 'клиенты' };
 export const PROMO_APPLIES: Record<string, string> = {

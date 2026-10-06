@@ -34,7 +34,6 @@ import {
   ReferralSettingsDto,
   SetReferralCodeDto,
 } from './referrals.dto';
-import type { ReferralProgramSettings } from './referrals.settings';
 
 const E = ErrorCode;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -67,7 +66,7 @@ export class AdminReferralsController {
   @Get('settings')
   @ApiOperation({ summary: 'Referral program settings' })
   @ApiEnvelopeResponse(ReferralSettingsDto)
-  getReferralSettings(): Promise<ReferralProgramSettings> {
+  getReferralSettings(): Promise<ReferralSettingsDto> {
     return this.referrals.getSettings();
   }
 
@@ -106,7 +105,7 @@ export class AdminReferralsController {
   updateReferralSettings(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: ReferralSettingsDto,
-  ): Promise<ReferralProgramSettings> {
+  ): Promise<ReferralSettingsDto> {
     return this.referrals.updateSettings(admin, dto);
   }
 

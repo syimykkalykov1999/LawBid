@@ -5,6 +5,8 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/budget_limit_envelope.dart';
+import '../models/budget_limit_list_envelope.dart';
 import '../models/config_entry_envelope.dart';
 import '../models/config_entry_list_envelope.dart';
 import '../models/create_legal_document_dto.dart';
@@ -14,9 +16,12 @@ import '../models/language_admin_envelope.dart';
 import '../models/language_admin_list_envelope.dart';
 import '../models/legal_document_admin_envelope.dart';
 import '../models/legal_document_admin_list_envelope.dart';
+import '../models/provider.dart';
+import '../models/update_budget_limit_dto.dart';
 import '../models/update_config_dto.dart';
 import '../models/update_flag_dto.dart';
 import '../models/update_language_dto.dart';
+import '../models/window.dart';
 
 part 'admin_config_client.g.dart';
 
@@ -41,6 +46,21 @@ abstract class AdminConfigClient {
   /// app_config keys with schema, defaults and current values
   @GET('/admin/config')
   Future<ConfigEntryListEnvelope> listAppConfig({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Spend caps per provider and window: mode (auto/manual), floor, ceiling, cap in force, usage
+  @GET('/admin/config/budgets')
+  Future<BudgetLimitListEnvelope> listBudgetLimits({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Auto: store floor/ceiling and recompute now; manual: set the cap (0 = off)
+  @PUT('/admin/config/budgets/{provider}/{window}')
+  Future<BudgetLimitEnvelope> updateBudgetLimit({
+    @Path('provider') required Provider provider,
+    @Path('window') required Window window,
+    @Body() required UpdateBudgetLimitDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
