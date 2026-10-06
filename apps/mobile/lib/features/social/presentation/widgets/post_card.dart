@@ -118,7 +118,12 @@ class PostCard extends ConsumerWidget {
       child: DoubleTapLike(
         onLike: () => run(() => actions.like(p)),
         child: insta
-            ? _InstagramPost(post: p, inDetail: inDetail, run: run)
+            ? _InstagramPost(
+                post: p,
+                inDetail: inDetail,
+                run: run,
+                promotionId: post.promotionId,
+              )
             : inDetail
                 ? _detail(context, ref, p, t, colors, actions, run)
                 : _feed(context, p, t, colors, run, fill: fill),
@@ -518,10 +523,14 @@ class _InstagramPost extends ConsumerWidget {
     required this.post,
     required this.inDetail,
     required this.run,
+    this.promotionId,
   });
 
   final Post post;
   final bool inDetail;
+
+  /// A paid promoted post: «Реклама» under the name, opens are reported.
+  final String? promotionId;
   final Future<void> Function(Future<Object?> Function()) run;
 
   @override
@@ -532,7 +541,14 @@ class _InstagramPost extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final actions = ref.read(socialActionsProvider);
-    void open() => context.push(SocialRoutes.post(p.id));
+    void open() {
+      final id = promotionId;
+      if (id != null) {
+        ref.read(promotionsRepositoryProvider).click(id);
+      }
+      context.push(SocialRoutes.post(p.id));
+    }
+
     final hasMedia = p.video != null || p.media.isNotEmpty;
     final caption = [
       if (p.title != null && p.title!.trim().isNotEmpty) p.title!.trim(),
@@ -555,7 +571,7 @@ class _InstagramPost extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AuthorRow(post: p),
+        _AuthorRow(post: p, sponsored: promotionId != null),
         if (p.video != null)
           AspectRatio(
             aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
