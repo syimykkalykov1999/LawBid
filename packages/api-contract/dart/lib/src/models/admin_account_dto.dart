@@ -23,6 +23,8 @@ class AdminAccountDto {
     required this.permissions,
     required this.canManageAdmins,
     required this.countries,
+    required this.countryPartnerId,
+    required this.partnerLead,
     required this.lastLoginAt,
     required this.createdAt,
   });
@@ -48,6 +50,12 @@ class AdminAccountDto {
 
   /// Countries this admin works with (ISO 3166-1 alpha-2); empty = every country.
   final List<String> countries;
+
+  /// Owner 2026-10-06: the country partner whose team this admin is in (null = LawBid staff).
+  final String? countryPartnerId;
+
+  /// This admin is the country partner themself.
+  final bool partnerLead;
   final DateTime? lastLoginAt;
   final DateTime createdAt;
 

@@ -43,6 +43,7 @@ import {
   parsePermissions,
   readCountries,
   readManageAdmins,
+  readPartner,
 } from './admin-permissions';
 import {
   ADMIN_SESSION_TTL_SECONDS,
@@ -367,6 +368,10 @@ export class AdminAuthService {
       role === 'super_admin'
         ? []
         : readCountries(user.admin_profile?.permissions);
+    const partner =
+      role === 'super_admin'
+        ? null
+        : readPartner(user.admin_profile?.permissions);
     return {
       id: user.id,
       email: user.email ?? '',
@@ -381,7 +386,9 @@ export class AdminAuthService {
           : parsePermissions(user.admin_profile?.permissions),
       canManageAdmins:
         role === 'super_admin' ||
-        readManageAdmins(user.admin_profile?.permissions),
+        (!partner && readManageAdmins(user.admin_profile?.permissions)),
+      countryPartnerId: partner?.partnerId ?? null,
+      partnerLead: partner?.lead ?? false,
       countries: assigned,
       countryTabs: await this.prisma.country.findMany({
         where:

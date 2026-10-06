@@ -31,6 +31,7 @@ import {
   parsePermissions,
   readCountries,
   readManageAdmins,
+  readPartner,
   routeArea,
   VIEW_AUDITED_AREAS,
 } from './admin-permissions';
@@ -149,8 +150,14 @@ export class AdminAuthGuard implements CanActivate {
     }
     const adminRole = user.admin_profile.admin_role;
     const permissions = parsePermissions(user.admin_profile.permissions);
+    // Owner 2026-10-06: a country partner's team (never the deputy).
+    const partner =
+      adminRole === 'super_admin'
+        ? null
+        : readPartner(user.admin_profile.permissions);
     const manageAdmins =
       adminRole !== 'super_admin' &&
+      !partner &&
       readManageAdmins(user.admin_profile.permissions);
     if (adminRole === 'super_admin') {
       if (!allowed.includes(adminRole)) throw forbidden();
@@ -170,7 +177,14 @@ export class AdminAuthGuard implements CanActivate {
         allowed.length === 1 && allowed[0] === 'super_admin' && !deputyRead;
       if (
         superOnly ||
-        !canAccess(adminRole, permissions, path, req.method, manageAdmins)
+        !canAccess(
+          adminRole,
+          permissions,
+          path,
+          req.method,
+          manageAdmins,
+          partner,
+        )
       ) {
         // Owner 2026-10-05: a section the admin has no right to answers
         // like it doesn't exist (404, not 403), and the attempt is audited.
@@ -217,6 +231,7 @@ export class AdminAuthGuard implements CanActivate {
       justification,
       permissions,
       manageAdmins,
+      partner,
       assignedCountries,
       countries: effectiveCountries(
         adminRole === 'super_admin',
