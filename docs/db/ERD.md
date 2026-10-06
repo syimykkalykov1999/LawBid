@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-143 tables.
+145 tables.
 
 ```mermaid
 erDiagram
@@ -27,6 +27,7 @@ erDiagram
     String suspended_reason "nullable"
     DateTime last_active_at "nullable"
     Boolean show_activity_status
+    String feed_content_mode "nullable"
     DateTime deletion_requested_at "nullable"
     DateTime deleted_at "nullable"
     DateTime anonymized_at "nullable"
@@ -464,6 +465,8 @@ erDiagram
     Float location_lat "nullable"
     Float location_lng "nullable"
     Boolean comments_enabled
+    String content_class
+    Boolean content_class_locked
     enum_ContentStatus status
     Int like_count
     Int comment_count
@@ -1622,6 +1625,34 @@ erDiagram
     DateTime created_at
     DateTime paid_at "nullable"
     DateTime canceled_at "nullable"
+  }
+  treasury_expenses {
+    String id PK
+    String name
+    Int monthly_cents
+    String source
+    Boolean active
+    Int sort
+    DateTime created_at
+    DateTime updated_at
+  }
+  treasury_payouts {
+    String id PK
+    String key UK
+    String period
+    String kind
+    String trigger
+    Int amount_cents
+    String currency
+    String destination_id "nullable"
+    String destination_label "nullable"
+    String stripe_payout_id "nullable"
+    String status
+    String failure "nullable"
+    Json plan "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
   }
   payout_accounts {
     String user_id PK

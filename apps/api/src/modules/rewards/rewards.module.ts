@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
-import { AdminPayrollModule } from '../admin-payroll/admin-payroll.module';
+import { AdminPayrollCoreModule } from '../admin-payroll/admin-payroll.module';
 import { AuthModule } from '../auth/auth.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { AdminRewardsController } from './admin-rewards.controller';
@@ -10,7 +10,7 @@ import { RewardsService } from './rewards.service';
 @Module({
   imports: [
     AdminAccessModule,
-    AdminPayrollModule,
+    AdminPayrollCoreModule,
     AuthModule,
     FeatureFlagsModule,
   ],

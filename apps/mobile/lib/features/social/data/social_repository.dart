@@ -70,7 +70,12 @@ class PostDraft {
     this.locationName,
     this.commentsEnabled = true,
     this.attachments = const [],
+    this.markedLegal = false,
   });
+
+  /// Owner 2026-10-05: without a topic a post is general (personal); the
+  /// author marks it legal here. A topic or News is always legal.
+  final bool markedLegal;
 
   /// Owner 2026-10-05: documents in order (≤ [kPostMaxDocuments]).
   final List<PostDocumentRef> attachments;
@@ -168,6 +173,8 @@ abstract interface class SocialRepository {
     String? period,
     bool withPhotos = false,
     bool popular = false,
+    // Owner 2026-10-05: the "Posts" topic — general (personal) posts only.
+    bool generalOnly = false,
   });
   Future<Post> createPost(PostDraft draft);
   Future<Post> updatePost(
@@ -175,8 +182,14 @@ abstract interface class SocialRepository {
     required String body,
     String? title,
     String? practiceCode,
+    bool? markedLegal,
   });
   Future<void> deletePost(String id);
+
+  /// Owner 2026-10-05: the feed shows legal posts only (general, personal
+  /// posts hidden in the feed, topics, search and recommendations).
+  Future<bool> legalOnlyFeed();
+  Future<void> setLegalOnlyFeed({required bool legalOnly});
   Future<void> setLiked(String postId, {required bool liked});
 
   /// OQ-037: count a completed share of a post / a case.
@@ -276,6 +289,22 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
+  Future<bool> legalOnlyFeed() async =>
+      (await guardApiCall(_feed.getPreferences)).data.contentMode ==
+      api.FeedContentMode.legalOnly;
+
+  @override
+  Future<void> setLegalOnlyFeed({required bool legalOnly}) => guardApiCall(
+        () => _feed.setPreferences(
+          body: api.FeedPreferencesDto(
+            contentMode: legalOnly
+                ? api.FeedContentMode.legalOnly
+                : api.FeedContentMode.all,
+          ),
+        ),
+      );
+
+  @override
   Future<CursorPage<Post>?> cachedFeed() async {
     final owner = _ownerId;
     if (owner == null) return null;
@@ -349,6 +378,7 @@ class ApiSocialRepository implements SocialRepository {
     String? period,
     bool withPhotos = false,
     bool popular = false,
+    bool generalOnly = false,
   }) async {
     final env = await guardApiCall(
       () => _search.latestPosts(
@@ -360,6 +390,7 @@ class ApiSocialRepository implements SocialRepository {
         period: period == null ? null : api.Period.fromJson(period),
         withPhotos: withPhotos ? true : null,
         sort: popular ? api.LatestPostsSort.popular : null,
+        contentClass: generalOnly ? api.PostContentClass.general : null,
       ),
     );
     return CursorPage(
@@ -376,6 +407,8 @@ class ApiSocialRepository implements SocialRepository {
               title: draft.title,
               practiceCode: draft.practiceCode,
               kind: draft.isNews ? api.PostKind.news : api.PostKind.post,
+              contentClass:
+                  draft.markedLegal ? api.PostContentClass.legal : null,
               body: draft.body,
               mediaFileIds:
                   draft.mediaFileIds.isEmpty ? null : draft.mediaFileIds,
@@ -406,6 +439,7 @@ class ApiSocialRepository implements SocialRepository {
     required String body,
     String? title,
     String? practiceCode,
+    bool? markedLegal,
   }) async =>
       SocialMappers.post(
         (await guardApiCall(
@@ -415,6 +449,11 @@ class ApiSocialRepository implements SocialRepository {
               body: body,
               title: title,
               practiceCode: practiceCode,
+              contentClass: markedLegal == null
+                  ? null
+                  : (markedLegal
+                      ? api.PostContentClass.legal
+                      : api.PostContentClass.general),
             ),
           ),
         ))
@@ -841,6 +880,7 @@ abstract final class SocialMappers {
         mentions: [for (final m in d.mentions) SocialMappers.mention(m)],
         title: d.title,
         isNews: d.kind == api.PostKind.news,
+        isGeneral: d.contentClass == api.PostContentClass.general,
         practice: d.practice == null
             ? null
             : PostPractice(

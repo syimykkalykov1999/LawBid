@@ -188,8 +188,12 @@ class Post {
     this.locationName,
     this.commentsEnabled = true,
     this.attachments = const [],
+    this.isGeneral = false,
     this.promotionId,
   });
+
+  /// Owner 2026-10-05: a general (personal) post rather than a legal one.
+  final bool isGeneral;
 
   /// Owner 2026-10-05: set on a paid promoted post in the feed — the card
   /// says «Реклама» and an open is reported for the owner's stats.
@@ -277,6 +281,7 @@ class Post {
         locationName: locationName,
         commentsEnabled: commentsEnabled,
         attachments: attachments,
+        isGeneral: isGeneral,
         promotionId: promotionId,
       );
 }

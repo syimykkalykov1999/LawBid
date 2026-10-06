@@ -114,6 +114,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // …and the partner team's own page (report, goals, contract).
   'country-partner': 'partner_portal',
   'case-payments': 'money', // client → attorney payments (Stripe Connect)
+  // Owner 2026-10-05: «Прибыль и резерв» (the monthly split of the balance).
+  treasury: 'money',
   integrations: 'keys',
   admins: 'admins',
   'audit-log': 'audit',

@@ -159,6 +159,7 @@ export class SearchController {
       period: q.period,
       withPhotos: q.withPhotos,
       sort: q.sort,
+      contentClass: q.contentClass,
     });
   }
 }

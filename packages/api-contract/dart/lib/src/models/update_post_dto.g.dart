@@ -11,11 +11,15 @@ UpdatePostDto _$UpdatePostDtoFromJson(Map<String, dynamic> json) =>
       body: json['body'] as String,
       title: json['title'] as String?,
       practiceCode: json['practiceCode'] as String?,
+      contentClass: json['contentClass'] == null
+          ? null
+          : PostContentClass.fromJson(json['contentClass'] as String),
     );
 
 Map<String, dynamic> _$UpdatePostDtoToJson(UpdatePostDto instance) =>
     <String, dynamic>{
       'title': ?instance.title,
       'practiceCode': ?instance.practiceCode,
+      'contentClass': ?instance.contentClass?.toJson(),
       'body': instance.body,
     };
