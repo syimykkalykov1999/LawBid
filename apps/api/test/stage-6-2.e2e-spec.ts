@@ -219,6 +219,12 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .set(auth)
       .expect(200);
     const secret = (begin.body as { data: { secret: string } }).data.secret;
+    // The three codes below (now, +30 s, −30 s) are distinct only while they
+    // stay in one 30 s step; start early in a step so none is a replay.
+    const intoStep = Date.now() % 30_000;
+    if (intoStep > 15_000) {
+      await new Promise((r) => setTimeout(r, 30_000 - intoStep + 200));
+    }
     await api()
       .post('/api/v1/admin/auth/2fa/enable')
       .set(auth)
