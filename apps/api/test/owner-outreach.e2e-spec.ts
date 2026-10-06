@@ -484,7 +484,9 @@ describe('Outreach (e2e)', () => {
       .set(owner.auth)
       .expect(200);
     expect(exported.headers['content-type']).toContain('text/csv');
-    expect(exported.text).toContain(email(2));
+    expect(exported.text).toContain('Petrov Law');
+    // Do-not-contact leads keep no contact details, so the export has none.
+    expect(exported.text).not.toContain(email(2));
   });
 
   it('an admin without the outreach toggle is refused', async () => {
