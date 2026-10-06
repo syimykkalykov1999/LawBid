@@ -222,7 +222,8 @@ describe('JobsRunner', () => {
     // + hourly storage.gc, nightly storage.retention and storage.snapshot
     // (storage like Telegram), + daily outreach.retention (legal).
     // Owner 2026-10-05: + hourly cost.autoscale (spend caps follow usage).
-    expect(upserts).toHaveLength(45);
+    // + daily treasury.daily (profit and reserve).
+    expect(upserts).toHaveLength(46);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

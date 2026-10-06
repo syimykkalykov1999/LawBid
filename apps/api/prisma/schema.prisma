@@ -691,6 +691,10 @@ model User {
   recent_stickers         UserRecentSticker[]
   /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
   show_activity_status    Boolean                 @default(true)
+  /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
+  /// posts hidden from feed, search and recommendations); null = the admin
+  /// default `feed.default_content_mode`.
+  feed_content_mode       String?                 @db.String(16)
   deletion_requested_at   DateTime?               @db.Timestamptz
   deleted_at              DateTime?               @db.Timestamptz
   anonymized_at           DateTime?               @db.Timestamptz
@@ -1754,6 +1758,11 @@ model Post {
   location_lng     Float?
   /// Owner 2026-10-02: the author can turn comments off.
   comments_enabled Boolean                  @default(true)
+  /// Owner 2026-10-05: 'legal' (a law topic, news, or marked by the author)
+  /// or 'general' (personal, no law topic). Viewers can hide general posts.
+  content_class    String                   @default("general") @db.String(16)
+  /// Set by moderation: the author's edits no longer change content_class.
+  content_class_locked Boolean              @default(false)
   status           ContentStatus            @default(published)
   like_count       Int                      @default(0)
   comment_count    Int                      @default(0)
@@ -1784,6 +1793,7 @@ model Post {
   @@index([search_tsv], map: "posts_search_tsv_idx", type: Gin)
   @@index([practice_area_id, created_at(sort: Desc)])
   @@index([kind, created_at(sort: Desc)])
+  @@index([content_class, created_at(sort: Desc)])
   @@map("posts")
 }
 
@@ -4042,6 +4052,57 @@ model PayrollAccrual {
   @@index([employee_id, status])
   @@index([payout_id])
   @@map("payroll_accruals")
+}
+
+/// Owner 2026-10-05 «Прибыль и резерв»: what the services charge the
+/// expense card a month (AWS, database, Twilio, Bunny, …). The monthly
+/// split sends this much to the «Расходы» bank before any profit.
+model TreasuryExpense {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String   @db.String(80)
+  monthly_cents Int
+  /// manual · aws (taken from the AWS budget when it is higher)
+  source        String   @default("manual") @db.String(16)
+  active        Boolean  @default(true)
+  sort          Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @db.Timestamptz
+
+  @@index([active, sort])
+  @@map("treasury_expenses")
+}
+
+/// Owner 2026-10-05: one payout of the monthly split from the platform's
+/// Stripe balance to a bank the owner added in Stripe.
+model TreasuryPayout {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Idempotency: auto:<period>:<kind> once a month; manual ones are unique.
+  key               String   @unique @db.String(80)
+  /// YYYY-MM of the run.
+  period            String   @db.String(7)
+  /// expenses · profit
+  kind              String   @db.String(16)
+  /// auto · manual
+  trigger           String   @default("auto") @db.String(8)
+  amount_cents      Int
+  currency          String   @default("usd") @db.String(3)
+  /// Stripe bank id (null = Stripe's default bank).
+  destination_id    String?  @db.String(64)
+  destination_label String?  @db.String(80)
+  stripe_payout_id  String?  @db.String(64)
+  /// pending · in_transit · paid · failed · canceled
+  status            String   @default("pending") @db.String(16)
+  failure           String?  @db.String(300)
+  /// The numbers the amount came from (reserve, expenses, balance).
+  plan              Json?
+  created_by        String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @db.Timestamptz
+
+  @@index([period, kind])
+  @@index([status])
+  @@index([created_at(sort: Desc)])
+  @@map("treasury_payouts")
 }
 
 // Owner 2026-10-05: client → attorney payments through the platform.

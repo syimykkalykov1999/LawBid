@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'post_attachment_input_dto.dart';
+import 'post_content_class.dart';
 import 'post_kind.dart';
 import 'post_location_dto.dart';
 
@@ -18,6 +19,7 @@ class CreatePostDto {
     this.kind = PostKind.post,
     this.commentsEnabled = true,
     this.practiceCode,
+    this.contentClass,
     this.mediaFileIds,
     this.attachments,
     this.videoAssetId,
@@ -36,6 +38,10 @@ class CreatePostDto {
 
   /// Owner 2026-09-30: News — attorneys only.
   final PostKind kind;
+
+  /// Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or.
+  /// News is always legal; without one the author picks (default general).
+  final PostContentClass? contentClass;
   final String body;
 
   /// Clean post_image file ids, in display order.

@@ -155,6 +155,12 @@ function SearchBox({ id, value, onChange, placeholder }: { id: string; value: st
   );
 }
 
+const CLASS_ACTION_TEXT: Record<'legal' | 'general' | 'auto', string> = {
+  legal: 'Отмечено юридическими',
+  general: 'Отмечено обычными',
+  auto: 'Вид снова по теме',
+};
+
 function Posts({ ask }: { ask: Ask }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -162,18 +168,29 @@ function Posts({ ask }: { ask: Ask }) {
   const text = useDebounced(input.trim(), 300);
   const [kind, setKind] = useState<'' | 'post' | 'news'>('');
   const [onlyVideo, setOnlyVideo] = useState(false);
+  // Owner 2026-10-05: legal posts vs general (personal) posts.
+  const [contentClass, setContentClass] = useState<'' | 'legal' | 'general'>('');
   const [filter, setFilter] = useState<ListFilter>(EMPTY_FILTER);
   const canWrite = useCanModerate();
-  const sel = useSelection(`${text}|${kind}|${onlyVideo}|${filterKey(filter)}`);
+  const sel = useSelection(`${text}|${kind}|${onlyVideo}|${contentClass}|${filterKey(filter)}`);
   const bulk = useBulkRun();
   const fetchPage = async (cursor: string | undefined) =>
     (
       await api.GET('/admin/content/posts', {
-        params: { query: { q: text || undefined, kind: kind || undefined, media: onlyVideo ? 'video' : undefined, cursor, ...filterQuery(filter) } },
+        params: {
+          query: {
+            q: text || undefined,
+            kind: kind || undefined,
+            media: onlyVideo ? 'video' : undefined,
+            contentClass: contentClass || undefined,
+            cursor,
+            ...filterQuery(filter),
+          },
+        },
       })
     ).data!;
   const q = useInfiniteQuery({
-    queryKey: ['admin-posts', text, kind, onlyVideo, filterKey(filter)],
+    queryKey: ['admin-posts', text, kind, onlyVideo, contentClass, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
@@ -194,6 +211,21 @@ function Posts({ ask }: { ask: Ask }) {
       },
     });
   };
+  const classify = useMutation({
+    mutationFn: async (to: 'legal' | 'general' | 'auto') => {
+      const r = await api.POST('/admin/content/posts/classify', {
+        body: { ids: [...sel.selected], contentClass: to },
+      });
+      if (r.error) throw r.error;
+      return { to, done: r.data!.data.done.length };
+    },
+    onSuccess: ({ to, done }) => {
+      toast.success(`${CLASS_ACTION_TEXT[to]}: ${done}`);
+      sel.clear();
+      void qc.invalidateQueries({ queryKey: ['admin-posts'] });
+    },
+    onError: (e) => toast.error(e),
+  });
   const remove = useMutation({
     mutationFn: async (input: { id: string; reason: string }) => {
       const r = await api.POST('/admin/content/posts/{id}/remove', {
@@ -228,6 +260,14 @@ function Posts({ ask }: { ask: Ask }) {
             <option value="video">с видео (бывшие рилсы)</option>
           </Select>
         </div>
+        <div className="w-48 space-y-1">
+          <Label htmlFor="pc">Вид</Label>
+          <Select id="pc" value={contentClass} onChange={(e) => setContentClass(e.target.value as '' | 'legal' | 'general')}>
+            <option value="">все</option>
+            <option value="legal">юридические</option>
+            <option value="general">обычные (личные)</option>
+          </Select>
+        </div>
         <FilterFields id="pf" value={filter} onChange={setFilter} />
         <CsvButton entity="posts" />
       </div>
@@ -247,6 +287,16 @@ function Posts({ ask }: { ask: Ask }) {
           }}
         >
           <BulkActions actions={['remove', 'hide', 'restore']} pending={bulk.pending} onAction={onBulk} />
+          {/* Owner 2026-10-05: reclassify; kept through the author's edits. */}
+          <Button size="sm" variant="outline" disabled={classify.isPending} onClick={() => classify.mutate('legal')}>
+            Юридические
+          </Button>
+          <Button size="sm" variant="outline" disabled={classify.isPending} onClick={() => classify.mutate('general')}>
+            Обычные
+          </Button>
+          <Button size="sm" variant="ghost" disabled={classify.isPending} onClick={() => classify.mutate('auto')}>
+            Вид по теме
+          </Button>
         </BulkBar>
       ) : null}
       <ErrorNote text={q.error ? errorText(q.error) : null} />
@@ -277,6 +327,10 @@ function Posts({ ask }: { ask: Ask }) {
               ) : null}
               <Td className="max-w-md">
                 {p.kind === 'news' ? <Badge tone="gold">новость</Badge> : null}
+                <Badge tone={p.contentClass === 'legal' ? 'info' : 'neutral'}>
+                  {p.contentClass === 'legal' ? 'юридический' : 'обычный'}
+                  {p.contentClassLocked ? ' · закреплено' : ''}
+                </Badge>
                 {p.hasVideo ? <Badge tone="info">видео</Badge> : null}
                 {p.attachments > 0 ? (
                   <Badge tone="info">файлы: {p.attachments}</Badge>

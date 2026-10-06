@@ -138,6 +138,7 @@ class FilteredPostsView extends ConsumerWidget {
     this.practice,
     this.stateCode,
     this.newsOnly = false,
+    this.generalOnly = false,
     super.key,
   });
 
@@ -145,10 +146,18 @@ class FilteredPostsView extends ConsumerWidget {
   final String? stateCode;
   final bool newsOnly;
 
+  /// Owner 2026-10-05: the "Posts" topic — general (personal) posts.
+  final bool generalOnly;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final key = (state: stateCode, practice: practice, news: newsOnly);
+    final key = (
+      state: stateCode,
+      practice: practice,
+      news: newsOnly,
+      general: generalOnly,
+    );
     final notifier = ref.read(filteredPostsProvider(key).notifier);
     return LayoutBuilder(
       builder: (context, box) {
@@ -165,7 +174,13 @@ class FilteredPostsView extends ConsumerWidget {
           itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
           empty: AppEmptyState(
             icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
-            message: t.t(newsOnly ? 'feed.news.empty' : 'feed.practice.empty'),
+            message: t.t(
+              newsOnly
+                  ? 'feed.news.empty'
+                  : generalOnly
+                      ? 'feed.posts.empty'
+                      : 'feed.practice.empty',
+            ),
           ),
           onRefresh: notifier.refresh,
           onLoadMore: notifier.loadMore,

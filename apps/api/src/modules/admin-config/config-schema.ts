@@ -34,6 +34,10 @@ const REASON_AREA_PATTERN = new RegExp(
 export function configSchema(): Record<string, ConfigKeySchema> {
   const out: Record<string, ConfigKeySchema> = {};
   for (const [key, def] of Object.entries(APP_SETTINGS)) {
+    // Owner 2026-10-05: how the Stripe balance is split changes only in
+    // Деньги → Прибыль и резерв (super admin + a fresh 2FA code), never
+    // through this generic editor (area `settings`).
+    if (key.startsWith('treasury.')) continue;
     out[key] = inferred(def);
   }
   for (const provider of COST_PROVIDERS) {
@@ -120,6 +124,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Sections where admins (not the super admin) must write a reason for an action.',
     pattern: REASON_AREA_PATTERN,
+  };
+  out['feed.default_content_mode'] = {
+    ...out['feed.default_content_mode'],
+    description:
+      'Feed content for people who never chose: all = every post, legal_only = only legal posts (general posts hidden).',
+    pattern: /^(all|legal_only)$/,
   };
   out['translate.scope'] = {
     ...out['translate.scope'],
