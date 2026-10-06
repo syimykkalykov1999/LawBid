@@ -25,6 +25,9 @@ import '../models/outreach_send_email_result_envelope.dart';
 import '../models/outreach_settings_dto.dart';
 import '../models/outreach_settings_envelope.dart';
 import '../models/outreach_stats_envelope.dart';
+import '../models/outreach_suppressions_add_dto.dart';
+import '../models/outreach_suppressions_add_result_envelope.dart';
+import '../models/outreach_suppressions_envelope.dart';
 import '../models/outreach_template_envelope.dart';
 import '../models/outreach_template_input_dto.dart';
 import '../models/outreach_template_list_envelope.dart';
@@ -42,7 +45,7 @@ abstract class AdminOutreachClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Daily email limit, sender name, postal address, public API URL
+  /// Email limits, sender name, postal address, public API URL, TCPA/DNC rules, retention
   @PUT('/admin/outreach/settings')
   Future<OutreachSettingsEnvelope> outreachUpdateSettings({
     @Body() required OutreachSettingsDto body,
@@ -116,6 +119,8 @@ abstract class AdminOutreachClient {
   ///
   /// [partnerId] - Assign every new lead to this partner.
   ///
+  /// [sourceNote] - Required for CSV: where the contacts come from and on what basis we may write; stored on every lead.
+  ///
   /// [file] - CSV, ≤ 10 MB, ≤ 5000 rows; needs an email or phone column.
   @MultiPart()
   @POST('/admin/outreach/leads/import')
@@ -124,6 +129,7 @@ abstract class AdminOutreachClient {
     @Query('mode') OutreachImportMode? mode,
     @Query('kind') OutreachLeadKind? kind,
     @Query('partnerId') String? partnerId,
+    @Query('sourceNote') String? sourceNote,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -169,6 +175,19 @@ abstract class AdminOutreachClient {
   Future<OutreachSendEmailResultEnvelope> outreachSendEmail({
     @Path('id') required String id,
     @Body() required OutreachSendEmailDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Stop-list (do not call / write): count and the latest entries
+  @GET('/admin/outreach/suppressions')
+  Future<OutreachSuppressionsEnvelope> outreachSuppressions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add phones / e-mails to the stop-list; matching leads become do-not-contact (managers)
+  @POST('/admin/outreach/suppressions')
+  Future<OutreachSuppressionsAddResultEnvelope> outreachAddSuppressions({
+    @Body() required OutreachSuppressionsAddDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

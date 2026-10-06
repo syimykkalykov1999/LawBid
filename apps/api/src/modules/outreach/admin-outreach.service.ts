@@ -34,10 +34,17 @@ import type {
   OutreachSettingsDto,
   OutreachStatsDto,
   OutreachStatsQueryDto,
+  OutreachSuppressionsAddDto,
+  OutreachSuppressionsAddResultDto,
+  OutreachSuppressionsDto,
   OutreachTemplateDto,
   OutreachTemplateInputDto,
 } from './outreach.dto';
 import {
+  blockMessage,
+  clientsDisabled,
+  contactBlocked,
+  contactState,
   invalidState,
   newUnsubscribeToken,
   OutreachService,
@@ -66,7 +73,14 @@ export const OUTREACH_AUDIT = {
   leadUpdate: 'outreach.lead.update',
   templateSave: 'outreach.template.save',
   export: 'outreach.export',
+  suppressionsAdd: 'outreach.suppressions.add',
 } as const;
+
+/** Stop-list entry shown in the admin: all but the last 4 characters hidden. */
+export function maskSuppression(value: string): string {
+  const tail = value.slice(-4);
+  return `${'•'.repeat(Math.max(0, Math.min(value.length - 4, 8)))}${tail}`;
+}
 
 type Page<T> = { items: T[]; nextCursor: string | null };
 const toJson = (v: unknown): Prisma.InputJsonValue =>
@@ -117,12 +131,41 @@ export class AdminOutreachService {
     admin: AdminActor,
     dto: OutreachSettingsDto,
   ): Promise<OutreachSettings> {
+    // Owner 2026-10-05 (legal): the compliance fields are optional on PUT
+    // (omitted = keep the stored value); consumer leads only after the
+    // owner has confirmed the Do-Not-Call scrub; the call window must be
+    // a range.
+    const current = await this.core.settings();
+    const pick = <K extends keyof OutreachSettings>(
+      k: K,
+    ): OutreachSettings[K] => (dto[k] ?? current[k]) as OutreachSettings[K];
     const next: OutreachSettings = {
       dailyEmailLimit: dto.dailyEmailLimit,
       fromName: dto.fromName,
       footerAddress: dto.footerAddress,
       apiPublicUrl: dto.apiPublicUrl.replace(/\/+$/, ''),
+      clientLeadsEnabled: pick('clientLeadsEnabled'),
+      dncConfirmed: pick('dncConfirmed'),
+      dncSan: pick('dncSan'),
+      callHoursStart: pick('callHoursStart'),
+      callHoursEnd: pick('callHoursEnd'),
+      maxEmailsPerLead: pick('maxEmailsPerLead'),
+      emailCooldownDays: pick('emailCooldownDays'),
+      leadRetentionDays: pick('leadRetentionDays'),
     };
+    if (next.clientLeadsEnabled && !next.dncConfirmed) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'clientLeadsEnabled requires dncConfirmed: confirm the National Do-Not-Call check first.',
+      });
+    }
+    if (next.callHoursStart >= next.callHoursEnd) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'callHoursStart must be before callHoursEnd.',
+      });
+    }
     const value = toJson(next);
     await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({
@@ -266,6 +309,25 @@ export class AdminOutreachService {
         message: 'A lead needs an email or a phone.',
       });
     }
+    const kind = dto.kind ?? 'attorney';
+    // Owner 2026-10-05 (legal): consumers only when switched on, and
+    // always with a note of where the contact came from / the consent.
+    if (kind === 'client') {
+      const settings = await this.core.settings();
+      if (!settings.clientLeadsEnabled) throw clientsDisabled();
+      if (!dto.sourceNote) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message:
+            'sourceNote is required for a client lead: where the contact came from and why we may write.',
+        });
+      }
+    }
+    if (await this.isSuppressed(email ?? null, phone ?? null)) {
+      throw contactBlocked(
+        'This email or phone is on the stop-list (do not contact).',
+      );
+    }
     // An employee's lead is their own; a manager picks the partner.
     const partnerId = scope.partner
       ? scope.partner.id
@@ -280,9 +342,10 @@ export class AdminOutreachService {
     });
     if (dup)
       throw invalidState('A lead with this email or phone already exists.');
+    const now = new Date();
     const row = await this.prisma.outreachLead.create({
       data: {
-        kind: dto.kind ?? 'attorney',
+        kind,
         first_name: dto.firstName ?? null,
         last_name: dto.lastName ?? null,
         company: dto.company ?? null,
@@ -296,11 +359,24 @@ export class AdminOutreachService {
         partner_id: partnerId,
         unsubscribe_token: newUnsubscribeToken(),
         note: dto.note ?? null,
+        source_note: dto.sourceNote ?? null,
         next_action_at: dto.nextActionAt ? new Date(dto.nextActionAt) : null,
         created_by: admin.id,
+        ...(dto.doNotContact
+          ? { do_not_contact_at: now, do_not_contact_reason: 'manual' }
+          : {}),
       },
       include: { partner: true },
     });
+    if (dto.doNotContact) {
+      await this.core.log(this.prisma, row, {
+        kind: 'system',
+        outcome: 'do_not_contact',
+        body: 'Marked do-not-contact (manual)',
+        actorAdminId: admin.id,
+        now,
+      });
+    }
     await this.audit.record({
       adminId: admin.id,
       action: OUTREACH_AUDIT.leadCreate,
@@ -331,12 +407,21 @@ export class AdminOutreachService {
     if (dto.city !== undefined) data.city = dto.city;
     if (dto.practice !== undefined) data.practice = dto.practice;
     if (dto.note !== undefined) data.note = dto.note;
+    if (dto.sourceNote !== undefined) data.source_note = dto.sourceNote;
     if (dto.nextActionAt !== undefined)
       data.next_action_at = dto.nextActionAt
         ? new Date(dto.nextActionAt)
         : null;
     if (email !== undefined) data.email = email;
     if (phone !== undefined) data.phone = phone;
+    if (dto.kind === 'client' && lead.kind !== 'client') {
+      const settings = await this.core.settings();
+      if (!settings.clientLeadsEnabled) throw clientsDisabled();
+    }
+    // Owner 2026-10-05 (legal): do-not-contact is never cleared by a
+    // plain edit; only an explicit `doNotContact: false` by a manager.
+    if (dto.doNotContact === false && lead.do_not_contact_at)
+      managerOnly(scope);
     if (dto.partnerId !== undefined) {
       managerOnly(scope);
       const partner = dto.partnerId
@@ -368,6 +453,22 @@ export class AdminOutreachService {
             actorAdminId: admin.id,
           },
         );
+      }
+      if (dto.doNotContact === true) {
+        await this.core.markDoNotContact(tx, lead, 'manual', {
+          actorAdminId: admin.id,
+        });
+      } else if (dto.doNotContact === false && lead.do_not_contact_at) {
+        await tx.outreachLead.update({
+          where: { id },
+          data: { do_not_contact_at: null, do_not_contact_reason: null },
+        });
+        await this.core.log(tx, lead, {
+          kind: 'system',
+          outcome: 'contact_allowed',
+          body: `Do-not-contact removed (was: ${lead.do_not_contact_reason ?? 'manual'})`,
+          actorAdminId: admin.id,
+        });
       }
       if (dto.status && dto.status !== lead.status) {
         if (SYSTEM_STATUSES.includes(dto.status)) {
@@ -401,6 +502,8 @@ export class AdminOutreachService {
             partnerId: lead.partner_id,
             email: lead.email,
             phone: lead.phone,
+            doNotContact: !!lead.do_not_contact_at,
+            sourceNote: lead.source_note,
           }),
           after: toJson({ ...dto }),
           ip: admin.ip,
@@ -481,6 +584,15 @@ export class AdminOutreachService {
         message: 'A call needs an outcome.',
       });
     }
+    if (dto.kind === 'call') {
+      // Owner 2026-10-05 (legal): no call log outside the rules — the
+      // number is hidden in the UI for the same reasons.
+      const settings = await this.core.settings();
+      const state = contactState(lead, settings);
+      if (state.callBlocked) {
+        throw contactBlocked(blockMessage(state.callBlocked, state, settings));
+      }
+    }
     await withTxRetry(this.prisma, async (tx) => {
       // An employee who works an unassigned lead takes it.
       if (!lead.partner_id && scope.partner) {
@@ -514,6 +626,15 @@ export class AdminOutreachService {
           next ?? (lead.status as LeadStatus),
           { actorAdminId: admin.id },
         );
+        // "Not interested" / "wrong number" is a do-not-contact request.
+        if (
+          dto.outcome === 'not_interested' ||
+          dto.outcome === 'wrong_number'
+        ) {
+          await this.core.markDoNotContact(tx, lead, dto.outcome, {
+            actorAdminId: admin.id,
+          });
+        }
       }
     });
     return this.core.presentDetail(await this.core.leadFor(scope, id));
@@ -539,7 +660,26 @@ export class AdminOutreachService {
 
   // ---- imports ----------------------------------------------------------------
 
-  /** Creates leads that are not in the base yet (by email or phone). */
+  /** Is this email or phone on the stop-list? */
+  private async isSuppressed(
+    email: string | null,
+    phone: string | null,
+  ): Promise<boolean> {
+    if (!email && !phone) return false;
+    const hit = await this.prisma.outreachSuppression.findFirst({
+      where: {
+        OR: [
+          ...(email ? [{ kind: 'email', value: email }] : []),
+          ...(phone ? [{ kind: 'phone', value: phone }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+    return !!hit;
+  }
+
+  /** Creates leads that are not in the base yet (by email or phone) and
+   * not on the stop-list. */
   private async insertLeads(
     admin: AdminActor,
     parsed: ParsedLead[],
@@ -547,19 +687,40 @@ export class AdminOutreachService {
       source: 'csv' | 'ny_registry';
       partnerId: string | null;
       apply: boolean;
+      sourceNote: string | null;
     },
-  ): Promise<{ created: number; duplicates: number }> {
+  ): Promise<{ created: number; duplicates: number; suppressed: number }> {
     const emails = parsed.map((l) => l.email).filter((x): x is string => !!x);
     const phones = parsed.map((l) => l.phone).filter((x): x is string => !!x);
-    const existing = await this.prisma.outreachLead.findMany({
-      where: { OR: [{ email: { in: emails } }, { phone: { in: phones } }] },
-      select: { email: true, phone: true },
-    });
+    const [existing, stopList] = await Promise.all([
+      this.prisma.outreachLead.findMany({
+        where: { OR: [{ email: { in: emails } }, { phone: { in: phones } }] },
+        select: { email: true, phone: true },
+      }),
+      this.prisma.outreachSuppression.findMany({
+        where: {
+          OR: [
+            { kind: 'email', value: { in: emails } },
+            { kind: 'phone', value: { in: phones } },
+          ],
+        },
+        select: { kind: true, value: true },
+      }),
+    ]);
     const seenEmail = new Set(existing.map((e) => e.email).filter(Boolean));
     const seenPhone = new Set(existing.map((e) => e.phone).filter(Boolean));
+    const stopped = new Set(stopList.map((s) => `${s.kind}:${s.value}`));
     const fresh: ParsedLead[] = [];
     let duplicates = 0;
+    let suppressed = 0;
     for (const l of parsed) {
+      if (
+        (l.email && stopped.has(`email:${l.email}`)) ||
+        (l.phone && stopped.has(`phone:${l.phone}`))
+      ) {
+        suppressed += 1;
+        continue;
+      }
       if (
         (l.email && seenEmail.has(l.email)) ||
         (l.phone && seenPhone.has(l.phone))
@@ -572,7 +733,7 @@ export class AdminOutreachService {
       fresh.push(l);
     }
     if (!input.apply || fresh.length === 0)
-      return { created: fresh.length, duplicates };
+      return { created: fresh.length, duplicates, suppressed };
     const now = new Date();
     let created = 0;
     for (let i = 0; i < fresh.length; i += 200) {
@@ -593,6 +754,7 @@ export class AdminOutreachService {
           partner_id: input.partnerId,
           unsubscribe_token: newUnsubscribeToken(),
           note: l.note,
+          source_note: input.sourceNote,
           created_by: admin.id,
           created_at: now,
         })),
@@ -600,7 +762,11 @@ export class AdminOutreachService {
       });
       created += res.count;
     }
-    return { created, duplicates: duplicates + (fresh.length - created) };
+    return {
+      created,
+      duplicates: duplicates + (fresh.length - created),
+      suppressed,
+    };
   }
 
   async importCsv(
@@ -611,6 +777,19 @@ export class AdminOutreachService {
     const scope = await this.core.scopeFor(admin);
     managerOnly(scope);
     if (q.partnerId) await this.partnerOrThrow(q.partnerId);
+    // Owner 2026-10-05 (legal): every imported contact carries where it
+    // came from and on what basis we may write (CAN-SPAM / TCPA records).
+    if (!q.sourceNote) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'sourceNote is required: where the contacts come from and why we may write to them.',
+      });
+    }
+    if ((q.kind ?? 'attorney') === 'client') {
+      const settings = await this.core.settings();
+      if (!settings.clientLeadsEnabled) throw clientsDisabled();
+    }
     const text = file.toString('utf8');
     let parsed;
     try {
@@ -630,13 +809,14 @@ export class AdminOutreachService {
       });
     }
     const apply = q.mode === 'apply';
-    const { created, duplicates } = await this.insertLeads(
+    const { created, duplicates, suppressed } = await this.insertLeads(
       admin,
       parsed.leads,
       {
         source: 'csv',
         partnerId: q.partnerId ?? null,
         apply,
+        sourceNote: q.sourceNote,
       },
     );
     if (apply) {
@@ -650,7 +830,9 @@ export class AdminOutreachService {
           rows: parsed.leads.length,
           created,
           duplicates,
+          suppressed,
           partnerId: q.partnerId ?? null,
+          sourceNote: q.sourceNote,
         }),
         ip: admin.ip,
       });
@@ -660,6 +842,7 @@ export class AdminOutreachService {
       rows: parsed.leads.length,
       created,
       duplicates,
+      suppressed,
       skipped: parsed.skipped.length,
       columns: parsed.columns,
       problems: parsed.skipped
@@ -692,11 +875,16 @@ export class AdminOutreachService {
     }
     const parsed = leadsFromRegistry(rows);
     const apply = dto.mode === 'apply';
-    const { created, duplicates } = await this.insertLeads(admin, parsed, {
-      source: 'ny_registry',
-      partnerId: dto.partnerId ?? null,
-      apply,
-    });
+    const { created, duplicates, suppressed } = await this.insertLeads(
+      admin,
+      parsed,
+      {
+        source: 'ny_registry',
+        partnerId: dto.partnerId ?? null,
+        apply,
+        sourceNote: `NY attorney registry (data.ny.gov, public record), imported ${new Date().toISOString().slice(0, 10)}`,
+      },
+    );
     if (apply) {
       await this.audit.record({
         adminId: admin.id,
@@ -711,6 +899,7 @@ export class AdminOutreachService {
           rows: parsed.length,
           created,
           duplicates,
+          suppressed,
         }),
         ip: admin.ip,
       });
@@ -720,6 +909,7 @@ export class AdminOutreachService {
       rows: parsed.length,
       created,
       duplicates,
+      suppressed,
       skipped: rows.length - parsed.length,
       columns: [
         'registration_number',
@@ -733,6 +923,116 @@ export class AdminOutreachService {
         rows.length === 0
           ? ['The registry returned no rows for these filters.']
           : [],
+    };
+  }
+
+  // ---- stop-list (do not contact) -----------------------------------------------
+
+  /**
+   * Owner 2026-10-05 (legal): managers paste phones / e-mails that must
+   * never be contacted (DNC complaints, opt-outs by phone, lawyers'
+   * requests). Existing leads with these contacts are marked
+   * do-not-contact; future imports skip them.
+   */
+  async addSuppressions(
+    admin: AdminActor,
+    dto: OutreachSuppressionsAddDto,
+  ): Promise<OutreachSuppressionsAddResultDto> {
+    const scope = await this.core.scopeFor(admin);
+    managerOnly(scope);
+    const entries = new Map<
+      string,
+      { kind: 'phone' | 'email'; value: string }
+    >();
+    let invalid = 0;
+    for (const raw of dto.values) {
+      const email = normalizeEmail(raw);
+      const phone = email ? null : normalizePhone(raw);
+      if (email) entries.set(`email:${email}`, { kind: 'email', value: email });
+      else if (phone)
+        entries.set(`phone:${phone}`, { kind: 'phone', value: phone });
+      else invalid += 1;
+    }
+    const list = [...entries.values()];
+    if (list.length === 0) return { added: 0, leadsMarked: 0, invalid };
+    const emails = list.filter((e) => e.kind === 'email').map((e) => e.value);
+    const phones = list.filter((e) => e.kind === 'phone').map((e) => e.value);
+    const now = new Date();
+    const { added, leadsMarked } = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        let added = 0;
+        for (let i = 0; i < list.length; i += 500) {
+          const res = await tx.outreachSuppression.createMany({
+            data: list.slice(i, i + 500).map((e) => ({
+              kind: e.kind,
+              value: e.value,
+              note: dto.note ?? null,
+              created_by: admin.id,
+              created_at: now,
+            })),
+            skipDuplicates: true,
+          });
+          added += res.count;
+        }
+        const leads = await tx.outreachLead.findMany({
+          where: {
+            do_not_contact_at: null,
+            OR: [
+              ...(emails.length ? [{ email: { in: emails } }] : []),
+              ...(phones.length ? [{ phone: { in: phones } }] : []),
+            ],
+          },
+          select: { id: true, partner_id: true, do_not_contact_at: true },
+        });
+        for (const lead of leads) {
+          await this.core.markDoNotContact(tx, lead, 'suppression', {
+            actorAdminId: admin.id,
+            now,
+          });
+        }
+        await this.audit.record(
+          {
+            adminId: admin.id,
+            action: OUTREACH_AUDIT.suppressionsAdd,
+            targetType: 'outreach_suppression',
+            targetId: null,
+            before: null,
+            after: toJson({
+              values: list.length,
+              added,
+              leadsMarked: leads.length,
+              invalid,
+              note: dto.note ?? null,
+            }),
+            ip: admin.ip,
+          },
+          tx,
+        );
+        return { added, leadsMarked: leads.length };
+      },
+    );
+    return { added, leadsMarked, invalid };
+  }
+
+  async suppressions(admin: AdminActor): Promise<OutreachSuppressionsDto> {
+    const scope = await this.core.scopeFor(admin);
+    managerOnly(scope);
+    const [count, latest] = await Promise.all([
+      this.prisma.outreachSuppression.count(),
+      this.prisma.outreachSuppression.findMany({
+        orderBy: { created_at: 'desc' },
+        take: 50,
+      }),
+    ]);
+    return {
+      count,
+      latest: latest.map((s) => ({
+        kind: s.kind as 'phone' | 'email',
+        value: maskSuppression(s.value),
+        note: s.note,
+        createdAt: s.created_at.toISOString(),
+      })),
     };
   }
 
@@ -962,6 +1262,8 @@ export class AdminOutreachService {
       'partner',
       'partner_code',
       'unsubscribed',
+      'do_not_contact',
+      'source_note',
       'last_activity_at',
       'created_at',
     ];
@@ -982,6 +1284,9 @@ export class AdminOutreachService {
         l.partner?.name ?? l.partner?.label ?? '',
         l.partner?.code ?? '',
         l.unsubscribed ? 'yes' : 'no',
+        // phone/email above are already null for do-not-contact leads.
+        l.doNotContact ? (l.doNotContactReason ?? 'yes') : 'no',
+        l.sourceNote,
         l.lastActivityAt,
         l.createdAt,
       ]

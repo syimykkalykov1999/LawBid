@@ -8,8 +8,10 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_section.dart';
+import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
 import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
+import 'package:lawbid/features/partners/presentation/partner_terms_sheet.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 /// Owner 2026-10-05 — Settings → Partner program: the partner's link, their
@@ -107,9 +109,25 @@ class PartnerScreen extends ConsumerWidget {
                       text: t.t('partner.status.${me.status}'),
                     ),
                   ],
+                  // Owner 2026-10-05 (legal): the FTC disclosure is always
+                  // in sight for a partner.
+                  if (me.disclosure.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _Notice(
+                      key: const ValueKey('partner-disclosure'),
+                      title: t.t('partner.disclosure.title'),
+                      text: me.disclosure,
+                    ),
+                  ],
+                  // Owner 2026-10-05 (legal): no link until the current
+                  // rules are accepted (new version or an older partner).
+                  if (me.needsTermsAcceptance) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _TermsPending(me: me, t: t),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   // A pending request has no working link yet.
-                  if (!me.isPending) ...[
+                  if (!me.isPending && !me.needsTermsAcceptance) ...[
                     _LinkCard(me: me, t: t),
                     const SizedBox(height: AppSpacing.lg),
                     _Totals(totals: me.totals, t: t, f: f),
@@ -257,9 +275,11 @@ class _DemoBlock extends ConsumerWidget {
 }
 
 class _Notice extends StatelessWidget {
-  const _Notice({required this.text, super.key});
+  const _Notice({required this.text, super.key, this.title, this.action});
 
   final String text;
+  final String? title;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -272,7 +292,81 @@ class _Notice extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.card),
         border: Border.all(color: colors.border),
       ),
-      child: Text(text, style: type.bodySmall.copyWith(color: colors.text)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null) ...[
+            Text(
+              title!,
+              style: type.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
+          Text(text, style: type.bodySmall.copyWith(color: colors.text)),
+          if (action != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            action!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-05 (legal): an existing partner who has not accepted the
+/// current rules reads them in the sheet and accepts
+/// (`POST /partners/me/accept-terms`); the link card stays hidden until then.
+class _TermsPending extends ConsumerStatefulWidget {
+  const _TermsPending({required this.me, required this.t});
+
+  final PartnerMe me;
+  final Translator t;
+
+  @override
+  ConsumerState<_TermsPending> createState() => _TermsPendingState();
+}
+
+class _TermsPendingState extends ConsumerState<_TermsPending> {
+  bool _busy = false;
+
+  Future<void> _open() async {
+    final accepted = await showPartnerTermsSheet(
+      context,
+      t: widget.t,
+      terms: widget.me.terms,
+      withAccept: true,
+    );
+    if (accepted != true || !mounted || _busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(partnersRepositoryProvider).acceptTerms();
+      if (!mounted) return;
+      showAppSnackBar(context, widget.t.t('partner.terms.accepted'));
+      ref.invalidate(partnerMeProvider);
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, errorText(widget.t, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _Notice(
+      key: const ValueKey('partner-terms-pending'),
+      title: widget.t.t('partner.terms.title'),
+      text: widget.t.t('partner.terms.pending'),
+      action: AppButton(
+        key: const ValueKey('partner-terms-open'),
+        label: widget.t.t('partner.terms.open'),
+        variant: AppButtonVariant.secondary,
+        isLoading: _busy,
+        onPressed: _open,
+      ),
     );
   }
 }
@@ -424,11 +518,26 @@ class _JoinIntro extends ConsumerStatefulWidget {
 class _JoinIntroState extends ConsumerState<_JoinIntro> {
   bool _busy = false;
 
+  /// Owner 2026-10-05 (legal): the rules must be accepted before joining.
+  bool _termsAccepted = false;
+
+  Future<void> _openTerms() => showPartnerTermsSheet(
+        context,
+        t: widget.t,
+        terms: widget.me.terms,
+      );
+
   Future<void> _join() async {
     if (_busy) return;
+    if (!_termsAccepted) {
+      showAppSnackBar(context, widget.t.t('partner.terms.required'));
+      return;
+    }
     setState(() => _busy = true);
     try {
-      final after = await ref.read(partnersRepositoryProvider).join();
+      final after = await ref
+          .read(partnersRepositoryProvider)
+          .join(termsAccepted: _termsAccepted);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -474,11 +583,53 @@ class _JoinIntroState extends ConsumerState<_JoinIntro> {
           title: t.t('partner.join.rates'),
         ),
         const SizedBox(height: AppSpacing.xl),
+        if (me.disclosure.isNotEmpty) ...[
+          _Notice(
+            key: const ValueKey('partner-disclosure'),
+            title: t.t('partner.disclosure.title'),
+            text: me.disclosure,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        ConsentCheckTile(
+          key: const ValueKey('partner-terms-checkbox'),
+          value: _termsAccepted,
+          onChanged: (v) => setState(() => _termsAccepted = v),
+          semanticLabel: t.t('partner.terms.checkbox'),
+          // The label itself opens the rules; the box toggles.
+          content: GestureDetector(
+            onTap: _openTerms,
+            child: Text(
+              t.t('partner.terms.checkbox'),
+              style: type.bodySmall.copyWith(
+                color: colors.text,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton(
+            key: const ValueKey('partner-terms-open'),
+            onPressed: _openTerms,
+            child: Text(
+              t.t('partner.terms.open'),
+              style: type.bodySmall.copyWith(
+                color: colors.goldDark,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         AppButton(
           key: const ValueKey('partner-join'),
           label: t.t('partner.join.button'),
           isLoading: _busy,
-          onPressed: _join,
+          isEnabled: _termsAccepted,
+          dimWhenDisabled: true,
+          onPressed: _termsAccepted ? _join : null,
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(

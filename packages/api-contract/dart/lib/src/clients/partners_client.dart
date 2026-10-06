@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/join_partner_dto.dart';
 import '../models/partner_me_envelope.dart';
 
 part 'partners_client.g.dart';
@@ -22,6 +23,13 @@ abstract class PartnersClient {
   /// Become a partner myself (program and self-enrolment on); returns the dashboard with my link
   @POST('/partners/me/join')
   Future<PartnerMeEnvelope> joinPartnerProgram({
+    @Body() required JoinPartnerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Accept the current partner rules (existing partners; termsAcceptedVersion was null)
+  @POST('/partners/me/accept-terms')
+  Future<PartnerMeEnvelope> acceptPartnerTerms({
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -165,5 +165,8 @@ export class ReportsController {
   imports: [UsageLimitsModule],
   controllers: [ReportsController],
   providers: [ReportsService],
+  // Owner 2026-10-05 (legal): a DMCA notice against our content files a
+  // `copyright` report through the same path (dedup, auto-hide).
+  exports: [ReportsService],
 })
 export class ReportsModule {}

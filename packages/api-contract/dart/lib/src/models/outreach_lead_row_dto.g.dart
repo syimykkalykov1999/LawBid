@@ -34,6 +34,10 @@ OutreachLeadRowDto _$OutreachLeadRowDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['nextActionAt'] as String),
       note: json['note'] as String?,
+      doNotContact: json['doNotContact'] as bool,
+      doNotContactReason: json['doNotContactReason'] as String?,
+      sourceNote: json['sourceNote'] as String?,
+      emailsSent: json['emailsSent'] as num,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
 
@@ -57,5 +61,9 @@ Map<String, dynamic> _$OutreachLeadRowDtoToJson(OutreachLeadRowDto instance) =>
       'lastActivityAt': ?instance.lastActivityAt?.toIso8601String(),
       'nextActionAt': ?instance.nextActionAt?.toIso8601String(),
       'note': ?instance.note,
+      'doNotContact': instance.doNotContact,
+      'doNotContactReason': ?instance.doNotContactReason,
+      'sourceNote': ?instance.sourceNote,
+      'emailsSent': instance.emailsSent,
       'createdAt': instance.createdAt.toIso8601String(),
     };

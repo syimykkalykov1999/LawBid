@@ -106,6 +106,7 @@ export class AdminPartnersService {
       clientRateCents: dto.clientRateCents,
       clientRule: dto.clientRule,
       holdDays: dto.holdDays,
+      requireW9: dto.requireW9 ?? current.requireW9,
       texts: { en: { ...dto.texts.en }, ru: { ...dto.texts.ru } },
     };
     const value = toJson(next);
@@ -342,6 +343,12 @@ export class AdminPartnersService {
       data.monthly_base_cents = dto.monthlyBaseCents;
     if (dto.clientRule !== undefined) data.client_rule = dto.clientRule;
     if (dto.holdDays !== undefined) data.hold_days = dto.holdDays;
+    // Owner 2026-10-05 (legal): the tax form arrived (or was cleared).
+    if (dto.w9Received !== undefined) {
+      data.w9_received_at = dto.w9Received
+        ? (before.w9_received_at ?? new Date())
+        : null;
+    }
     if (dto.demoAccess !== undefined) data.demo_access = dto.demoAccess;
     if (dto.externalName !== undefined && before.external_name !== null) {
       data.external_name = dto.externalName;
@@ -804,6 +811,9 @@ export class AdminPartnersService {
         totals: await this.partners.totals(p.id),
         createdAt: p.created_at.toISOString(),
         endedAt: p.ended_at?.toISOString() ?? null,
+        termsAcceptedAt: p.terms_accepted_at?.toISOString() ?? null,
+        termsVersion: p.terms_version,
+        w9ReceivedAt: p.w9_received_at?.toISOString() ?? null,
         demoAccess: p.demo_access,
         external: p.external_name
           ? { name: p.external_name, contact: p.external_contact }

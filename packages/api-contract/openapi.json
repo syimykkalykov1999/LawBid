@@ -50279,6 +50279,16 @@
       "post": {
         "operationId": "joinPartnerProgram",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinPartnerDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -50286,6 +50296,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PartnerMeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
                 }
               }
             }
@@ -50357,6 +50377,83 @@
           }
         ],
         "summary": "Become a partner myself (program and self-enrolment on); returns the dashboard with my link",
+        "tags": [
+          "partners"
+        ]
+      }
+    },
+    "/partners/me/accept-terms": {
+      "post": {
+        "operationId": "acceptPartnerTerms",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerMeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PARTNER_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept the current partner rules (existing partners; termsAcceptedVersion was null)",
         "tags": [
           "partners"
         ]
@@ -52219,6 +52316,932 @@
         ]
       }
     },
+    "/legal/settings": {
+      "get": {
+        "operationId": "getLegalSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalPublicEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Legal texts in my language (case form, unverified attorney, support, partner disclosure and rules), the DMCA agent and the partner rules version",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca-agent": {
+      "get": {
+        "operationId": "getDmcaAgent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaAgentEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The designated DMCA agent (public, for the website; empty until registered)",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca": {
+      "post": {
+        "operationId": "createDmcaNotice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDmcaNoticeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaNoticeCreatedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "File a DMCA takedown notice (a target on LawBid or a URL); with a target a `copyright` report is filed too",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca/mine": {
+      "get": {
+        "operationId": "getMyDmcaNotices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaMineEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My DMCA notices and the notices against my content",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/legal/dmca/{id}/counter": {
+      "post": {
+        "operationId": "counterDmcaNotice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DmcaCounterNoticeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DmcaNoticeBriefEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DMCA_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "File a counter-notice (17 U.S.C. §512(g)) — only the author of the removed content",
+        "tags": [
+          "legal"
+        ]
+      }
+    },
+    "/admin/legal/settings": {
+      "get": {
+        "operationId": "getAdminLegalSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "DMCA agent, incident contact, strikes threshold and the legal texts (en/ru)",
+        "tags": [
+          "admin-legal"
+        ]
+      },
+      "put": {
+        "operationId": "updateAdminLegalSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Replace the legal settings (audited)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/dmca": {
+      "get": {
+        "operationId": "listAdminDmcaNotices",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DmcaStatus"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDmcaNoticeRowListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "DMCA notices, newest first (50 per page)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/dmca/{id}": {
+      "get": {
+        "operationId": "getAdminDmcaNotice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDmcaNoticeDetailEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One notice with the moderation card of its target and the author strikes",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
+    "/admin/legal/dmca/{id}/decide": {
+      "post": {
+        "operationId": "decideAdminDmcaNotice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DmcaDecideDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDmcaNoticeRowEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DMCA_INVALID_STATE, MODERATION_ACTION_NOT_APPLICABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "remove (takes the content down, a strike for the author, suspension at the threshold) / reject / restore (after a counter-notice; the strike goes back)",
+        "tags": [
+          "admin-legal"
+        ]
+      }
+    },
     "/demo/me": {
       "get": {
         "operationId": "getDemoMe",
@@ -53675,7 +54698,7 @@
             "admin": []
           }
         ],
-        "summary": "Daily email limit, sender name, postal address, public API URL",
+        "summary": "Email limits, sender name, postal address, public API URL, TCPA/DNC rules, retention",
         "tags": [
           "admin-outreach"
         ]
@@ -54012,7 +55035,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54234,6 +55257,17 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "sourceNote",
+            "required": false,
+            "in": "query",
+            "description": "Required for CSV: where the contacts come from and on what basis we may write; stored on every lead.",
+            "schema": {
+              "minLength": 3,
+              "maxLength": 300,
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -54289,6 +55323,16 @@
           },
           "403": {
             "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54724,7 +55768,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54851,7 +55895,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -54978,7 +56022,7 @@
             }
           },
           "409": {
-            "description": "Conflict: OUTREACH_INVALID_STATE",
+            "description": "Conflict: OUTREACH_INVALID_STATE, OUTREACH_CONTACT_BLOCKED, OUTREACH_CLIENTS_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -55024,6 +56068,178 @@
           }
         ],
         "summary": "Send one cold email from a template with the partner link",
+        "tags": [
+          "admin-outreach"
+        ]
+      }
+    },
+    "/admin/outreach/suppressions": {
+      "get": {
+        "operationId": "outreachSuppressions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachSuppressionsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Stop-list (do not call / write): count and the latest entries",
+        "tags": [
+          "admin-outreach"
+        ]
+      },
+      "post": {
+        "operationId": "outreachAddSuppressions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutreachSuppressionsAddDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachSuppressionsAddResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add phones / e-mails to the stop-list; matching leads become do-not-contact (managers)",
         "tags": [
           "admin-outreach"
         ]
@@ -70446,7 +71662,10 @@
           "OUTREACH_IMPORT_INVALID",
           "OUTREACH_INVALID_STATE",
           "OUTREACH_EMAIL_LIMIT",
+          "OUTREACH_CONTACT_BLOCKED",
+          "OUTREACH_CLIENTS_DISABLED",
           "COUNTRY_NOT_AVAILABLE",
+          "DMCA_INVALID_STATE",
           "DEMO_DISABLED",
           "DEMO_LIMIT_REACHED",
           "DEMO_UNAVAILABLE",
@@ -94872,7 +96091,8 @@
           "harassment",
           "hate_speech",
           "personal_info",
-          "fraud"
+          "fraud",
+          "copyright"
         ]
       },
       "ReportReviewDto": {
@@ -97104,7 +98324,7 @@
           "createdAt"
         ]
       },
-      "PartnerTextsDto": {
+      "PartnerMeTextsDto": {
         "type": "object",
         "properties": {
           "title": {
@@ -97114,11 +98334,21 @@
           "summary": {
             "type": "string",
             "maxLength": 600
+          },
+          "disclosure": {
+            "type": "string",
+            "description": "Say it is a paid link in every post (FTC Endorsement Guides)."
+          },
+          "terms": {
+            "type": "string",
+            "description": "The partner rules, plain text."
           }
         },
         "required": [
           "title",
-          "summary"
+          "summary",
+          "disclosure",
+          "terms"
         ]
       },
       "PartnerMeDto": {
@@ -97180,12 +98410,29 @@
             }
           },
           "texts": {
-            "description": "Owner's words in the user's language.",
+            "description": "Owner's words, the disclosure and the rules in the user's language.",
             "allOf": [
               {
-                "$ref": "#/components/schemas/PartnerTextsDto"
+                "$ref": "#/components/schemas/PartnerMeTextsDto"
               }
             ]
+          },
+          "termsVersion": {
+            "type": "string",
+            "description": "Current version of the partner rules."
+          },
+          "termsAcceptedVersion": {
+            "type": "string",
+            "nullable": true,
+            "description": "Version the partner accepted; null = not accepted yet (the app shows the rules with an Accept button, POST /partners/me/accept-terms)."
+          },
+          "w9Required": {
+            "type": "boolean",
+            "description": "A W-9 (or W-8) is needed before the first payout."
+          },
+          "w9Received": {
+            "type": "boolean",
+            "description": "The admin marked the W-9 as received."
           }
         },
         "required": [
@@ -97199,7 +98446,10 @@
           "totals",
           "referred",
           "commissions",
-          "texts"
+          "texts",
+          "termsVersion",
+          "w9Required",
+          "w9Received"
         ]
       },
       "PartnerMeEnvelope": {
@@ -97214,6 +98464,18 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "JoinPartnerDto": {
+        "type": "object",
+        "properties": {
+          "termsAccepted": {
+            "type": "boolean",
+            "description": "The partner read and accepts the partner rules (GET /legal/settings texts.partnerTerms). Must be true."
+          }
+        },
+        "required": [
+          "termsAccepted"
         ]
       },
       "AdminPartnerUserDto": {
@@ -97329,6 +98591,22 @@
             "nullable": true,
             "format": "date-time"
           },
+          "termsAcceptedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the partner accepted the rules in the app."
+          },
+          "termsVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "w9ReceivedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "W-9 (or W-8) received; null blocks payouts while requireW9 is on."
+          },
           "demoAccess": {
             "type": "boolean",
             "description": "Owner 2026-10-05 («Продвижение»): may create demo accounts."
@@ -97428,6 +98706,23 @@
           "data"
         ]
       },
+      "PartnerTextsDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 600
+          }
+        },
+        "required": [
+          "title",
+          "summary"
+        ]
+      },
       "PartnerTextsByLangDto": {
         "type": "object",
         "properties": {
@@ -97478,6 +98773,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 180
+          },
+          "requireW9": {
+            "type": "boolean",
+            "description": "Require a W-9 (or W-8) before the first payout. Omitted = keep the current value."
           },
           "texts": {
             "$ref": "#/components/schemas/PartnerTextsByLangDto"
@@ -97912,6 +99211,10 @@
               }
             ]
           },
+          "w9Received": {
+            "type": "boolean",
+            "description": "true = W-9 received now; false = clear it."
+          },
           "demoAccess": {
             "type": "boolean",
             "description": "Owner 2026-10-05 («Продвижение»): may create demo accounts."
@@ -97994,6 +99297,728 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminPartnerPayResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaAgentDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Empty until registered with the Copyright Office."
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "address"
+        ]
+      },
+      "LegalTextsDto": {
+        "type": "object",
+        "properties": {
+          "caseCreate": {
+            "type": "string",
+            "maxLength": 600
+          },
+          "attorneyUnverified": {
+            "type": "string",
+            "maxLength": 600
+          },
+          "supportNote": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "partnerDisclosure": {
+            "type": "string",
+            "maxLength": 600
+          },
+          "partnerTerms": {
+            "type": "string",
+            "maxLength": 6000,
+            "description": "Plain text (no markdown), numbered rules."
+          }
+        },
+        "required": [
+          "caseCreate",
+          "attorneyUnverified",
+          "supportNote",
+          "partnerDisclosure",
+          "partnerTerms"
+        ]
+      },
+      "LegalPublicDto": {
+        "type": "object",
+        "properties": {
+          "dmcaAgent": {
+            "$ref": "#/components/schemas/DmcaAgentDto"
+          },
+          "texts": {
+            "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "partnerTermsVersion": {
+            "type": "string",
+            "description": "Current partner rules version (partners re-accept on change)."
+          }
+        },
+        "required": [
+          "dmcaAgent",
+          "texts",
+          "partnerTermsVersion"
+        ]
+      },
+      "LegalPublicEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LegalPublicDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaAgentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaAgentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaStatus": {
+        "type": "string",
+        "enum": [
+          "new",
+          "removed",
+          "rejected",
+          "counter_received",
+          "restored"
+        ]
+      },
+      "DmcaNoticeCreatedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaStatus"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      },
+      "DmcaTargetType": {
+        "type": "string",
+        "enum": [
+          "post",
+          "comment",
+          "case_comment",
+          "message"
+        ]
+      },
+      "CreateDmcaNoticeDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaTargetType"
+              }
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "infringingUrl": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Where the infringing material is, when no target is given."
+          },
+          "complainantName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "complainantEmail": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "complainantAddress": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500,
+            "description": "Postal address."
+          },
+          "complainantPhone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "workDescription": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 4000,
+            "description": "The copyrighted work and how it is infringed."
+          },
+          "goodFaith": {
+            "type": "boolean",
+            "description": "Good-faith belief that the use is not authorized by the owner, its agent or the law (must be true)."
+          },
+          "accuracySworn": {
+            "type": "boolean",
+            "description": "The information is accurate and, under penalty of perjury, the complainant is the owner or authorized to act (must be true)."
+          },
+          "signature": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200,
+            "description": "Full name."
+          }
+        },
+        "required": [
+          "complainantName",
+          "complainantEmail",
+          "complainantAddress",
+          "workDescription",
+          "goodFaith",
+          "accuracySworn",
+          "signature"
+        ]
+      },
+      "DmcaNoticeCreatedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaNoticeCreatedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaNoticeBriefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaStatus"
+              }
+            ]
+          },
+          "targetType": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaTargetType"
+              }
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "infringingUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "decisionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "counterSubmittedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the author filed a counter-notice."
+          },
+          "canCounter": {
+            "type": "boolean",
+            "description": "The viewer is the content author and may file a counter-notice now."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "createdAt",
+          "canCounter"
+        ]
+      },
+      "DmcaMineDto": {
+        "type": "object",
+        "properties": {
+          "submitted": {
+            "description": "Notices I submitted, newest first (≤ 50).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmcaNoticeBriefDto"
+            }
+          },
+          "against": {
+            "description": "Notices against my content, newest first (≤ 50).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DmcaNoticeBriefDto"
+            }
+          }
+        },
+        "required": [
+          "submitted",
+          "against"
+        ]
+      },
+      "DmcaMineEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaMineDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaCounterNoticeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "address": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "consentJurisdiction": {
+            "type": "boolean",
+            "description": "Consent to the jurisdiction of the federal district court for the address (must be true)."
+          },
+          "sworn": {
+            "type": "boolean",
+            "description": "Sworn under penalty of perjury that the removal was a mistake or misidentification (must be true)."
+          },
+          "signature": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "email",
+          "consentJurisdiction",
+          "sworn",
+          "signature"
+        ]
+      },
+      "DmcaNoticeBriefEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DmcaNoticeBriefDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "IncidentContactDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "email",
+          "phone"
+        ]
+      },
+      "LegalTextsByLangDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "ru": {
+            "$ref": "#/components/schemas/LegalTextsDto"
+          }
+        },
+        "required": [
+          "en",
+          "ru"
+        ]
+      },
+      "LegalSettingsDto": {
+        "type": "object",
+        "properties": {
+          "dmcaAgent": {
+            "$ref": "#/components/schemas/DmcaAgentDto"
+          },
+          "incidentContact": {
+            "$ref": "#/components/schemas/IncidentContactDto"
+          },
+          "dmcaStrikesToSuspend": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "DMCA removals after which the author is suspended; 0 = never automatically."
+          },
+          "texts": {
+            "$ref": "#/components/schemas/LegalTextsByLangDto"
+          }
+        },
+        "required": [
+          "dmcaAgent",
+          "incidentContact",
+          "dmcaStrikesToSuspend",
+          "texts"
+        ]
+      },
+      "LegalSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LegalSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDmcaCounterDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string"
+          },
+          "consentJurisdiction": {
+            "type": "boolean"
+          },
+          "sworn": {
+            "type": "boolean"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "email",
+          "consentJurisdiction",
+          "sworn",
+          "signature",
+          "submittedAt"
+        ]
+      },
+      "AdminDmcaNoticeRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaStatus"
+              }
+            ]
+          },
+          "reportId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "targetType": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaTargetType"
+              }
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "infringingUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "complainantName": {
+            "type": "string"
+          },
+          "complainantEmail": {
+            "type": "string"
+          },
+          "complainantAddress": {
+            "type": "string"
+          },
+          "complainantPhone": {
+            "type": "string",
+            "nullable": true
+          },
+          "workDescription": {
+            "type": "string"
+          },
+          "goodFaith": {
+            "type": "boolean"
+          },
+          "accuracySworn": {
+            "type": "boolean"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "submittedByUserId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "authorUserId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The content author at decision time."
+          },
+          "counter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminDmcaCounterDto"
+              }
+            ]
+          },
+          "decidedBy": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "decisionNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "complainantName",
+          "complainantEmail",
+          "complainantAddress",
+          "workDescription",
+          "goodFaith",
+          "accuracySworn",
+          "signature",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AdminDmcaNoticeRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDmcaNoticeRowDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminDmcaNoticeDetailDto": {
+        "type": "object",
+        "properties": {
+          "notice": {
+            "$ref": "#/components/schemas/AdminDmcaNoticeRowDto"
+          },
+          "target": {
+            "nullable": true,
+            "description": "The moderation card of the target; null for a URL-only notice or a vanished object.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModerationCardDto"
+              }
+            ]
+          },
+          "authorStrikes": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The content author's DMCA strikes so far (null without an author)."
+          },
+          "strikesToSuspend": {
+            "type": "integer",
+            "description": "Strikes after which the author is suspended (0 = never)."
+          }
+        },
+        "required": [
+          "notice",
+          "strikesToSuspend"
+        ]
+      },
+      "AdminDmcaNoticeDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDmcaNoticeDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DmcaDecision": {
+        "type": "string",
+        "enum": [
+          "remove",
+          "reject",
+          "restore"
+        ]
+      },
+      "DmcaDecideDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DmcaDecision"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "AdminDmcaNoticeRowEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminDmcaNoticeRowDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -98618,6 +100643,49 @@
             "maxLength": 200,
             "pattern": "^(https:\\/\\/[a-z0-9.-]+(:\\d+)?(\\/[\\w./-]*[\\w-])?)?$",
             "description": "Public https base of the API for unsubscribe links, e.g. https://api.lawbid.dev."
+          },
+          "clientLeadsEnabled": {
+            "type": "boolean",
+            "description": "Allow client (consumer) leads; requires dncConfirmed. Off by default."
+          },
+          "dncConfirmed": {
+            "type": "boolean",
+            "description": "Consumer numbers are scrubbed against the National Do-Not-Call registry."
+          },
+          "dncSan": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "DNC registry Subscription Account Number (informational)."
+          },
+          "callHoursStart": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 23,
+            "description": "Calls allowed from this local hour of the lead's state."
+          },
+          "callHoursEnd": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 24,
+            "description": "Calls allowed until this local hour (exclusive); > start."
+          },
+          "maxEmailsPerLead": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10,
+            "description": "Cold emails one lead may receive in total; 0 = no cap."
+          },
+          "emailCooldownDays": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 365,
+            "description": "Days between two cold emails to the same lead."
+          },
+          "leadRetentionDays": {
+            "type": "number",
+            "minimum": 30,
+            "maximum": 3650,
+            "description": "Unconverted leads with no activity for this long are deleted daily."
           }
         },
         "required": [
@@ -98922,6 +100990,24 @@
             "type": "string",
             "nullable": true
           },
+          "doNotContact": {
+            "type": "boolean",
+            "description": "Do-not-contact (TCPA / DNC): phone and email are hidden, no calls or emails."
+          },
+          "doNotContactReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "manual | not_interested | wrong_number | unsubscribed | suppression | retention"
+          },
+          "sourceNote": {
+            "type": "string",
+            "nullable": true,
+            "description": "Where the contact came from and on what basis we may write."
+          },
+          "emailsSent": {
+            "type": "number",
+            "description": "Cold emails sent to this lead so far."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -98946,6 +101032,10 @@
           "lastActivityAt",
           "nextActionAt",
           "note",
+          "doNotContact",
+          "doNotContactReason",
+          "sourceNote",
+          "emailsSent",
           "createdAt"
         ]
       },
@@ -99041,6 +101131,18 @@
           "createdAt"
         ]
       },
+      "OutreachContactBlockReason": {
+        "type": "string",
+        "enum": [
+          "dnc",
+          "client_disabled",
+          "hours",
+          "unsubscribed",
+          "email_limit",
+          "email_cooldown"
+        ],
+        "description": "Why a call is blocked now; null = allowed."
+      },
       "OutreachLeadDetailDto": {
         "type": "object",
         "properties": {
@@ -99132,6 +101234,24 @@
             "type": "string",
             "nullable": true
           },
+          "doNotContact": {
+            "type": "boolean",
+            "description": "Do-not-contact (TCPA / DNC): phone and email are hidden, no calls or emails."
+          },
+          "doNotContactReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "manual | not_interested | wrong_number | unsubscribed | suppression | retention"
+          },
+          "sourceNote": {
+            "type": "string",
+            "nullable": true,
+            "description": "Where the contact came from and on what basis we may write."
+          },
+          "emailsSent": {
+            "type": "number",
+            "description": "Cold emails sent to this lead so far."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -99144,7 +101264,38 @@
           },
           "canEmail": {
             "type": "boolean",
-            "description": "Cold emails this lead may still receive (not unsubscribed, has an email)."
+            "description": "Cold emails this lead may still receive (emailBlocked === null)."
+          },
+          "callAllowed": {
+            "type": "boolean",
+            "description": "A call may be logged now (not do-not-contact, clients enabled, inside the local call window)."
+          },
+          "callWindow": {
+            "type": "string",
+            "nullable": true,
+            "description": "The local call window and time, e.g. \"08:00–21:00 America/New_York, now 22:15\"."
+          },
+          "callBlocked": {
+            "nullable": true,
+            "description": "Why a call is blocked now; null = allowed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachContactBlockReason"
+              }
+            ]
+          },
+          "emailBlocked": {
+            "nullable": true,
+            "description": "Why an email is blocked now; null = allowed.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachContactBlockReason"
+              }
+            ]
+          },
+          "phoneHidden": {
+            "type": "boolean",
+            "description": "A phone exists but is withheld (callBlocked / do-not-contact)."
           }
         },
         "required": [
@@ -99166,9 +101317,18 @@
           "lastActivityAt",
           "nextActionAt",
           "note",
+          "doNotContact",
+          "doNotContactReason",
+          "sourceNote",
+          "emailsSent",
           "createdAt",
           "activities",
-          "canEmail"
+          "canEmail",
+          "callAllowed",
+          "callWindow",
+          "callBlocked",
+          "emailBlocked",
+          "phoneHidden"
         ]
       },
       "OutreachLeadInputDto": {
@@ -99244,6 +101404,16 @@
                 "$ref": "#/components/schemas/OutreachLeadStatus"
               }
             ]
+          },
+          "sourceNote": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300,
+            "description": "Where the contact came from and on what basis we may write; required for client leads."
+          },
+          "doNotContact": {
+            "type": "boolean",
+            "description": "true = mark do-not-contact (reason manual); false clears it (managers only)."
           }
         }
       },
@@ -99283,6 +101453,10 @@
             "type": "number",
             "description": "Email or phone already in the base."
           },
+          "suppressed": {
+            "type": "number",
+            "description": "Email or phone on the stop-list; not created."
+          },
           "skipped": {
             "type": "number",
             "description": "Rows without any contact."
@@ -99306,6 +101480,7 @@
           "rows",
           "created",
           "duplicates",
+          "suppressed",
           "skipped",
           "columns",
           "problems"
@@ -99530,6 +101705,135 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/OutreachSendEmailResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "OutreachSuppressionKind": {
+        "type": "string",
+        "enum": [
+          "phone",
+          "email"
+        ]
+      },
+      "OutreachSuppressionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OutreachSuppressionKind"
+              }
+            ]
+          },
+          "value": {
+            "type": "string",
+            "description": "Masked except the last 4 characters."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "kind",
+          "value",
+          "note",
+          "createdAt"
+        ]
+      },
+      "OutreachSuppressionsDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number"
+          },
+          "latest": {
+            "description": "Newest ≤ 50.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutreachSuppressionDto"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "latest"
+        ]
+      },
+      "OutreachSuppressionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OutreachSuppressionsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "OutreachSuppressionsAddResultDto": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "number",
+            "description": "New stop-list entries."
+          },
+          "leadsMarked": {
+            "type": "number",
+            "description": "Existing leads marked do-not-contact."
+          },
+          "invalid": {
+            "type": "number",
+            "description": "Values that are neither a phone nor an email."
+          }
+        },
+        "required": [
+          "added",
+          "leadsMarked",
+          "invalid"
+        ]
+      },
+      "OutreachSuppressionsAddDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "minItems": 1,
+            "maxItems": 5000,
+            "description": "Phones or e-mails, one per item (normalized server-side).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 254
+            }
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "values"
+        ]
+      },
+      "OutreachSuppressionsAddResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/OutreachSuppressionsAddResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

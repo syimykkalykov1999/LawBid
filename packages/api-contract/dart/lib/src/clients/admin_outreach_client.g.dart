@@ -247,6 +247,7 @@ class _AdminOutreachClient implements AdminOutreachClient {
     OutreachImportMode? mode,
     OutreachLeadKind? kind,
     String? partnerId,
+    String? sourceNote,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -255,6 +256,7 @@ class _AdminOutreachClient implements AdminOutreachClient {
       r'mode': mode?.toJson(),
       r'kind': kind?.toJson(),
       r'partnerId': partnerId,
+      r'sourceNote': sourceNote,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -479,6 +481,70 @@ class _AdminOutreachClient implements AdminOutreachClient {
     late OutreachSendEmailResultEnvelope _value;
     try {
       _value = OutreachSendEmailResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<OutreachSuppressionsEnvelope> outreachSuppressions({
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<OutreachSuppressionsEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/outreach/suppressions',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late OutreachSuppressionsEnvelope _value;
+    try {
+      _value = OutreachSuppressionsEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<OutreachSuppressionsAddResultEnvelope> outreachAddSuppressions({
+    required OutreachSuppressionsAddDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<OutreachSuppressionsAddResultEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/outreach/suppressions',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late OutreachSuppressionsAddResultEnvelope _value;
+    try {
+      _value = OutreachSuppressionsAddResultEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

@@ -8,11 +8,14 @@ import {
 import {
   DEFAULT_PARTNER_SETTINGS,
   effectiveRates,
+  PARTNER_TERMS_VERSION,
   parsePartnerSettings,
   periodOf,
 } from './partners.settings';
 
 const DAY = 86_400_000;
+/** Owner 2026-10-05 (legal): joining needs the rules accepted. */
+const ACCEPT = { termsAccepted: true, ip: '203.0.113.9' };
 
 function setup(
   opts: {
@@ -56,6 +59,7 @@ function setup(
       findUnique: jest.fn().mockResolvedValue(partner),
       findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockResolvedValue({ id: 'p-new' }),
+      update: jest.fn().mockResolvedValue({}),
     },
     referral: { findUnique: jest.fn().mockResolvedValue(referral) },
     partnerCommission: {
@@ -189,21 +193,22 @@ describe('PartnersService.onQualifyingEvent', () => {
     ).toBeNull();
   });
 
-  it('a client pays on the rule (bid_accepted by default, case_published when set)', async () => {
+  it('a client pays on the rule (case_published by default — owner 2026-10-05 (legal): never the hire; bid_accepted when set)', async () => {
+    expect(DEFAULT_PARTNER_SETTINGS.clientRule).toBe('case_published');
     const a = setup({ referral: { referee_role: 'client' } });
-    expect(await a.svc.onQualifyingEvent('att', 'case_published')).toBeNull();
-    expect(await a.svc.onQualifyingEvent('att', 'bid_accepted')).toMatchObject({
+    expect(await a.svc.onQualifyingEvent('att', 'bid_accepted')).toBeNull();
+    expect(
+      await a.svc.onQualifyingEvent('att', 'case_published'),
+    ).toMatchObject({
       kind: 'client_qualified',
       amount_cents: DEFAULT_PARTNER_SETTINGS.clientRateCents,
     });
     const b = setup({
       referral: { referee_role: 'client' },
-      partner: { client_rule: 'case_published' },
+      partner: { client_rule: 'bid_accepted' },
     });
-    expect(await b.svc.onQualifyingEvent('att', 'bid_accepted')).toBeNull();
-    expect(
-      await b.svc.onQualifyingEvent('att', 'case_published'),
-    ).not.toBeNull();
+    expect(await b.svc.onQualifyingEvent('att', 'case_published')).toBeNull();
+    expect(await b.svc.onQualifyingEvent('att', 'bid_accepted')).not.toBeNull();
   });
 
   it('nothing without a referral, with a paused partner, a rejected referral, a disabled program or a zero rate', async () => {
@@ -405,10 +410,17 @@ describe('PartnersService.join (self-enrolment)', () => {
         'referredOf',
       )
       .mockResolvedValue([]);
-    const me = await svc.join('blogger');
+    const me = await svc.join('blogger', ACCEPT);
     expect(prisma.partner.create).toHaveBeenCalledWith({
-      data: { user_id: 'blogger', status: 'active', note: 'self-enrolled' },
+      data: expect.objectContaining({
+        user_id: 'blogger',
+        status: 'active',
+        note: 'self-enrolled',
+        terms_version: PARTNER_TERMS_VERSION,
+        terms_ip: '203.0.113.9',
+      }),
     });
+    expect(me.termsAcceptedVersion).toBeNull(); // the mocked row has none
     expect(me.isPartner).toBe(true);
     expect(me.canJoin).toBe(false);
     expect(me.code).toBe('ABCD1234');
@@ -466,24 +478,36 @@ describe('PartnersService.join (self-enrolment)', () => {
         'referredOf',
       )
       .mockResolvedValue([]);
-    const me = await svc.join('blogger');
+    const me = await svc.join('blogger', ACCEPT);
     expect(prisma.partner.create).toHaveBeenCalledWith({
-      data: { user_id: 'blogger', status: 'pending', note: 'self-enrolled' },
+      data: expect.objectContaining({
+        user_id: 'blogger',
+        status: 'pending',
+        note: 'self-enrolled',
+      }),
     });
     expect(me.status).toBe('pending');
     expect(me.joinMode).toBe('approval');
     // A pending partner attributes nobody.
     expect(await svc.activePartnerOf('blogger')).toBeNull();
     // Asking again while pending is a 409.
-    await expect(svc.join('blogger')).rejects.toMatchObject({ status: 409 });
+    await expect(svc.join('blogger', ACCEPT)).rejects.toMatchObject({
+      status: 409,
+    });
   });
 
   it('refuses when the program is off or joining is closed, for assistants, and for existing or ended partners', async () => {
     await expect(
-      setup({ partner: null, settings: { enabled: false } }).svc.join('b'),
+      setup({ partner: null, settings: { enabled: false } }).svc.join(
+        'b',
+        ACCEPT,
+      ),
     ).rejects.toMatchObject({ status: 403 });
     await expect(
-      setup({ partner: null, settings: { joinMode: 'closed' } }).svc.join('b'),
+      setup({ partner: null, settings: { joinMode: 'closed' } }).svc.join(
+        'b',
+        ACCEPT,
+      ),
     ).rejects.toMatchObject({ status: 403 });
     const assistant = setup({ partner: null });
     assistant.prisma.user.findUnique.mockResolvedValue({
@@ -492,14 +516,112 @@ describe('PartnersService.join (self-enrolment)', () => {
       status: 'active',
       deleted_at: null,
     });
-    await expect(assistant.svc.join('a')).rejects.toMatchObject({
+    await expect(assistant.svc.join('a', ACCEPT)).rejects.toMatchObject({
       status: 403,
     });
-    await expect(setup().svc.join('blogger')).rejects.toMatchObject({
+    await expect(setup().svc.join('blogger', ACCEPT)).rejects.toMatchObject({
       status: 409,
     });
     await expect(
-      setup({ partner: { status: 'ended' } }).svc.join('blogger'),
+      setup({ partner: { status: 'ended' } }).svc.join('blogger', ACCEPT),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('Owner 2026-10-05 (legal): joining without accepting the rules is a 400 and creates nothing', async () => {
+    const { svc, prisma } = setup({ partner: null });
+    await expect(
+      svc.join('blogger', { termsAccepted: false }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(prisma.partner.create).not.toHaveBeenCalled();
+  });
+
+  it('me: the rules, the disclosure, the accepted version and the W-9 state', async () => {
+    const { svc } = setup({
+      partner: {
+        terms_accepted_at: new Date('2026-10-05T00:00:00Z'),
+        terms_version: PARTNER_TERMS_VERSION,
+        w9_received_at: null,
+      },
+    });
+    jest.spyOn(svc, 'totals').mockResolvedValue({
+      heldCents: 0,
+      approvedCents: 0,
+      paidCents: 0,
+      thisMonthCents: 0,
+      referredCount: 0,
+      qualifiedCount: 0,
+    });
+    jest
+      .spyOn(
+        svc as unknown as { referredOf: () => Promise<never[]> },
+        'referredOf',
+      )
+      .mockResolvedValue([]);
+    const me = await svc.me('blogger');
+    expect(me.termsVersion).toBe(PARTNER_TERMS_VERSION);
+    expect(me.termsAcceptedVersion).toBe(PARTNER_TERMS_VERSION);
+    expect(me.w9Required).toBe(true);
+    expect(me.w9Received).toBe(false);
+    expect(me.texts.disclosure).toContain('FTC');
+    expect(me.texts.terms).toContain('W-9');
+    // An older acceptance does not count once the version moved on.
+    const old = setup({
+      partner: { terms_accepted_at: new Date(), terms_version: '2020-01-01' },
+    });
+    jest.spyOn(old.svc, 'totals').mockResolvedValue(await svc.totals('p1'));
+    jest
+      .spyOn(
+        old.svc as unknown as { referredOf: () => Promise<never[]> },
+        'referredOf',
+      )
+      .mockResolvedValue([]);
+    expect((await old.svc.me('blogger')).termsAcceptedVersion).toBeNull();
+  });
+
+  it('acceptTerms records the current version and the IP on an existing partner', async () => {
+    const { svc, prisma } = setup();
+    jest.spyOn(svc, 'me').mockResolvedValue({} as never);
+    await svc.acceptTerms('blogger', '198.51.100.7');
+    expect(prisma.partner.update).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: expect.objectContaining({
+        terms_version: PARTNER_TERMS_VERSION,
+        terms_ip: '198.51.100.7',
+      }),
+    });
+    await expect(
+      setup({ partner: null }).svc.acceptTerms('nobody'),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('markPaid refuses while the W-9 is missing (requireW9 on) and pays when it is off', async () => {
+    const { svc, prisma } = setup();
+    prisma.partnerCommission.findMany.mockResolvedValueOnce([
+      {
+        id: 'c1',
+        partner_id: 'p1',
+        partner_user_id: 'blogger',
+        status: 'approved',
+        amount_cents: 5_000,
+      },
+    ]);
+    prisma.partner.findMany.mockResolvedValueOnce([{ id: 'p1' }]);
+    await expect(svc.markPaid(['c1'], {})).rejects.toMatchObject({
+      status: 409,
+      response: expect.objectContaining({ message: 'W-9 not received' }),
+    });
+    expect(prisma.partnerCommission.updateMany).not.toHaveBeenCalled();
+    const off = setup({ settings: { requireW9: false } });
+    off.prisma.partnerCommission.findMany.mockResolvedValueOnce([
+      {
+        id: 'c1',
+        partner_id: 'p1',
+        partner_user_id: 'blogger',
+        status: 'approved',
+        amount_cents: 5_000,
+      },
+    ]);
+    expect((await off.svc.markPaid(['c1'], {})).count).toBe(1);
+    expect(off.prisma.partner.findMany).not.toHaveBeenCalled();
   });
 });

@@ -81,6 +81,8 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05: nightly safety net — attorney trust levels follow
    * the facts (registry flags, Stripe, decisions) even if a hook was missed. */
   trustRecompute: 'trust.recompute',
+  /** Owner 2026-10-05 (legal): stale unconverted outreach leads deleted. */
+  outreachRetention: 'outreach.retention',
   /** Owner 2026-10-05 (storage like Telegram): unused files and abandoned
    * uploads removed; old technical logs trimmed; a daily usage snapshot
    * with the growth alert. */
@@ -159,6 +161,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 14:30 UTC ≈ 07:30 Pacific: the day after a period ends.
   { name: CRON_JOBS.rewardsAward, pattern: '30 14 * * *' },
   { name: CRON_JOBS.trustRecompute, pattern: '45 3 * * *' },
+  { name: CRON_JOBS.outreachRetention, pattern: '25 3 * * *' },
   { name: CRON_JOBS.storageCleanup, pattern: '17 * * * *' },
   { name: CRON_JOBS.storageRetention, pattern: '35 4 * * *' },
   { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },

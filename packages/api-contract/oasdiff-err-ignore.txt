@@ -29,3 +29,5 @@ POST /admin/verification/requests/{id}/licenses/{licenseId}/decision added the n
 POST /admin/verification/requests/{id}/reject added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
 POST /admin/verification/requests/{id}/request-info added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
 POST /admin/verification/requests/{id}/take added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+# Legal PR (2026-10-05): joining the partner program now requires accepting the partner rules; old app builds get a 400 and are told to update
+POST /partners/me/join added required request body
