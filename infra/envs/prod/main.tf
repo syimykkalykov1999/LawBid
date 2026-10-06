@@ -44,6 +44,8 @@ module "stack" {
   alert_emails        = var.alert_emails
   slack_webhook_url   = var.slack_webhook_url
   stripe_price_id     = var.stripe_price_id
+  extra_secrets       = var.extra_secrets
+  clamav_image        = var.clamav_image
   fcm_project_id      = var.fcm_project_id
   fcm_client_email    = var.fcm_client_email
   google_client_ids   = var.google_client_ids

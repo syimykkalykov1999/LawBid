@@ -9,6 +9,7 @@ RUN npm ci --workspace apps/api --include-workspace-root
 COPY apps/api ./apps/api
 RUN npx --workspace apps/api prisma generate \
  && npm run build --workspace apps/api \
+ && cp -r apps/api/prisma/seed apps/api/dist/prisma/seed \
  && npm prune --omit=dev --workspace apps/api
 
 FROM node:22-alpine AS runtime
@@ -25,6 +26,8 @@ COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
 USER app
 WORKDIR /repo/apps/api
 EXPOSE 3000
+# One-off prod commands (scripts/deploy/prod-run.sh): node dist/prisma/seed.js
+# (its data files are copied next to it above), node dist/src/cli/*.js.
 # api: node dist/src/main.js — worker: node dist/src/worker.js (ECS task
 # command). nest build keeps the src/ folder (tsconfig includes prisma/ and
 # scripts/), so the entry points live under dist/src.

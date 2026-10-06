@@ -1,4 +1,4 @@
-# Launch size for prod, ≈ $140/month
+# Launch size for prod, ≈ $150/month (≈ $140 + the antivirus memory)
 # of AWS at us-east-1 prices (2026-10) plus CockroachDB Cloud billed separately.
 # Copy to terraform.tfvars and fill the REPLACE values. To grow, raise the
 # numbers below (or delete a line to fall back to the full-size default in
@@ -14,8 +14,9 @@ dmarc_rua         = "support@lawbid.dev"
 ses_from_address  = "no-reply@lawbid.dev"
 api_image         = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
 admin_image       = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
-alert_emails      = ["support@lawbid.dev"]
-stripe_price_id   = "price_REPLACE"
+clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4"
+alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.dev has no inbox yet)
+# Subscription prices and all third-party keys are set in the admin.
 
 # --- size (full-size default → launch) -----------------------------------
 min_tasks        = 1    # 2 → 1: one api + one worker task; autoscaling adds more
@@ -24,7 +25,7 @@ worker_max_tasks = 2    # 10 → 2
 api_cpu          = 512  # 1024 → 512 (0.5 vCPU)
 api_memory       = 1024 # 2048 → 1024
 worker_cpu       = 512
-worker_memory    = 1024
+worker_memory    = 4096 # worker ≈ 1 GB + ClamAV sidecar ≈ 2.5 GB (≈ +$10/month)
 admin_tasks      = 1    # 2 → 1
 
 redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)

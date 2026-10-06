@@ -33,7 +33,15 @@ variable "slack_webhook_url" {
   default   = null
   sensitive = true
 }
-variable "stripe_price_id" { type = string }
+variable "stripe_price_id" {
+  type    = string
+  default = "" # prices live in the admin (Деньги → Цены)
+}
+variable "extra_secrets" {
+  type        = list(string)
+  default     = []
+  description = "Optional env-var secrets; add a name only after its value is set in Secrets Manager."
+}
 variable "fcm_project_id" {
   type    = string
   default = ""
@@ -125,4 +133,8 @@ variable "create_anomaly_monitor" {
   type        = bool
   default     = true
   description = "false when the AWS account already has a service-level Cost Anomaly monitor (one allowed per account)."
+}
+variable "clamav_image" {
+  type    = string
+  default = "clamav/clamav:1.4"
 }

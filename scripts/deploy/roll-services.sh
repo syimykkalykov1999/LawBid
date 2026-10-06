@@ -12,14 +12,15 @@ for SVC in api worker admin; do
   node -e '
     const fs = require("fs");
     const td = JSON.parse(fs.readFileSync("td.json", "utf8"));
-    for (const c of td.containerDefinitions) {
+    // Only the app container: sidecars (clamav in the worker) keep their image.
+    for (const c of td.containerDefinitions.filter((c) => c.name === process.argv[3])) {
       c.image = process.argv[1];
       c.environment = (c.environment || []).filter((e) => e.name !== "APP_VERSION");
       c.environment.push({ name: "APP_VERSION", value: process.argv[2] });
     }
     for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
     fs.writeFileSync("td.new.json", JSON.stringify(td));
-  ' "$IMAGE" "$TAG"
+  ' "$IMAGE" "$TAG" "$SVC"
   REV=$(aws ecs register-task-definition --cli-input-json file://td.new.json --query 'taskDefinition.taskDefinitionArn' --output text)
   aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --task-definition "$REV" >/dev/null
   echo "$SVC -> $REV"

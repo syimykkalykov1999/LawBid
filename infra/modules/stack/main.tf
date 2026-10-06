@@ -50,7 +50,11 @@ variable "slack_webhook_url" {
   default   = null
   sensitive = true
 }
-variable "stripe_price_id" { type = string }
+variable "stripe_price_id" {
+  type        = string
+  default     = ""
+  description = "Fallback only: subscription prices are set in the admin (Деньги → Цены)."
+}
 variable "fcm_project_id" {
   type    = string
   default = ""
@@ -129,6 +133,16 @@ variable "create_anomaly_monitor" {
   type    = bool
   default = true
 }
+variable "clamav_image" {
+  type        = string
+  default     = "clamav/clamav:1.4"
+  description = "Antivirus sidecar image; prod uses the ECR copy (scripts/deploy/prod-images.sh)."
+}
+variable "extra_secrets" {
+  type        = list(string)
+  default     = []
+  description = "Optional env-var secrets (e.g. SENTRY_DSN, TWILIO_AUTH_TOKEN) — add a name only after its value is set, or ECS cannot start the tasks."
+}
 variable "runbook_base_url" {
   type        = string
   default     = "https://github.com/syimykkalykov1999/LawBid/blob/main/docs/runbooks"
@@ -141,28 +155,23 @@ locals {
 
   # docs/06 §4.3: everything sensitive is a Secrets Manager secret; values
   # are set by the owner after the first apply (infra/README.md).
-  secret_names = [
+  # Only the secrets the app cannot start without. ECS refuses to start a
+  # task whose secret has no value, so a secret nobody fills (Sentry, Mux…)
+  # must not be referenced. Third-party keys (Twilio, Stripe, FCM, Bunny…)
+  # live in the admin key store (Безопасность → Ключи и сервисы, encrypted
+  # with SECRETS_MASTER_KEYS); `extra_secrets` adds env-var fallbacks.
+  secret_names = concat([
     "DATABASE_URL",           # lawbid_app role (CockroachDB Cloud)
     "RETENTION_DATABASE_URL", # lawbid_retention role
-    "JWT_KEYS",
+    "DEMO_DATABASE_URL",      # bloggers' demo world: own database, DDL role (docs/ops/demo-world.md)
+    "JWT_KEYS",               # "j1:<secret>" (JWT_ACTIVE_KID below)
     "OTP_CODE_SECRET",
     "OTP_KEY_PEPPER",
     "AUTH_EVENT_PEPPER",
     "ADMIN_TOTP_ENC_KEY",
     "SECRETS_MASTER_KEYS", # admin key store ("k1:<secret>")
     "MESSAGE_ENC_KEYS",    # chat texts at rest ("m1:<secret>"), scaling TZ point 11
-    "TWILIO_ACCOUNT_SID",
-    "TWILIO_AUTH_TOKEN",
-    "TWILIO_MESSAGING_SERVICE_SID",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
-    "FCM_PRIVATE_KEY",
-    "SENTRY_DSN",
-    "PERSONA_API_KEY",
-    "NY_OPEN_DATA_APP_TOKEN",
-    "MUX_TOKEN_ID",
-    "MUX_TOKEN_SECRET",
-  ]
+  ], var.extra_secrets)
 }
 
 data "aws_region" "current" {}
@@ -283,6 +292,7 @@ locals {
     APPLE_TEAM_ID       = var.apple_team_id
     # Key ids inside the two key secrets above (rotation: add k2/m2 to
     # the secret, then switch these).
+    JWT_ACTIVE_KID         = "j1"
     SECRETS_ACTIVE_KID     = "k1"
     MESSAGE_ENC_ACTIVE_KID = "m1"
     # Zero maintenance (owner 2026-10-05): admin «Здоровье системы» buttons
@@ -331,6 +341,7 @@ module "ecs" {
   api_memory                       = var.api_memory
   worker_cpu                       = var.worker_cpu
   worker_memory                    = var.worker_memory
+  clamav_image                     = var.clamav_image
   tags                             = local.tags
 }
 
