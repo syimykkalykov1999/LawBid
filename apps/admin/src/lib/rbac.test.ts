@@ -8,7 +8,7 @@ const BEFORE = [
   '/content', '/media', '/document-templates', '/cases', '/bids', '/promotions', '/prices', '/plans',
   '/subscriptions', '/contracts', '/payments', '/case-payments', '/promo-codes', '/referrals', '/payroll',
   '/partners', '/support', '/broadcasts', '/email-templates', '/flags', '/integrations', '/config',
-  '/practice-areas', '/i18n', '/legal', '/data-requests', '/exports', '/audit-log', '/sessions', '/admins',
+  '/practice-areas', '/i18n', '/legal-documents', '/data-requests', '/exports', '/audit-log', '/sessions', '/admins',
 ];
 
 describe('menu sections with tabs', () => {

@@ -17,6 +17,9 @@ Post fakePost(
   bool liked = false,
   int likes = 0,
   bool withPhoto = false,
+  PostPractice? practice,
+  bool news = false,
+  int comments = 0,
 }) =>
     Post(
       id: id,
@@ -42,10 +45,12 @@ Post fakePost(
           : const [],
       tags: const ['dui'],
       likeCount: likes,
-      commentCount: 0,
+      commentCount: comments,
       likedByMe: liked,
       savedByMe: false,
       isMine: false,
+      practice: practice,
+      isNews: news,
       createdAt: DateTime(2026, 9, 28, 10),
     );
 

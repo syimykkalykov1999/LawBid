@@ -81,6 +81,12 @@ abstract final class AppRoutes {
   static const legal = '/legal/:docType';
   static String legalDoc(String docType) => '$legalPrefix$docType';
 
+  /// Owner 2026-10-05 (legal documents): the screen where the user accepts
+  /// the new or changed documents of their role (one unchecked box per
+  /// document). Deliberately NOT under [legalPrefix]: the guard sends users
+  /// here, while `/legal/*` stays open for reading.
+  static const legalAccept = '/legal-accept';
+
   /// Owner 2026-10-05 (legal): the DMCA takedown form. `targetType` /
   /// `targetId` name the content on LawBid (from the report sheet); without
   /// them the form asks for a URL. Registered BEFORE [legal] so the static

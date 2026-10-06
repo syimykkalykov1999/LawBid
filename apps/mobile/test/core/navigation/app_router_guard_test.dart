@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
@@ -49,6 +50,26 @@ CurrentUser _readyAttorney({OnboardingStepId? step, bool completed = false}) =>
       lastName: 'Ray',
       step: step,
       completed: completed,
+    );
+
+const _doc = PendingLegalDocument(
+  id: 'doc-1',
+  docType: 'client_agreement',
+  version: '2026-10-05.1',
+  title: 'Client Agreement',
+);
+
+CurrentUser _clientOwing() => meFixture(
+      role: UserRole.client,
+      consents: true,
+      phone: '+15551234567',
+      phoneVerified: true,
+      email: 'a@b.co',
+      emailVerified: true,
+      firstName: 'Ann',
+      lastName: 'Lee',
+      completed: true,
+      pendingLegal: [_doc],
     );
 
 class _Case {
@@ -420,6 +441,44 @@ void main() {
         '/verification',
         _signedIn(_readyAttorney(completed: true)),
         null,
+      ),
+    ],
+    'owner 2026-10-05: legal documents to accept → /legal-accept': [
+      _Case(
+        'onboarded client with a pending document is held on the screen',
+        '/feed',
+        _signedIn(_clientOwing()),
+        '/legal-accept',
+      ),
+      _Case(
+        'stays on the acceptance screen',
+        '/legal-accept',
+        _signedIn(_clientOwing()),
+        null,
+      ),
+      _Case(
+        'sign-in code → acceptance screen (not the feed)',
+        '/auth/otp',
+        _signedIn(_clientOwing()),
+        '/legal-accept',
+      ),
+      _Case(
+        'a document can be read from there',
+        '/legal/eula',
+        _signedIn(_clientOwing()),
+        null,
+      ),
+      _Case(
+        'nothing pending: the acceptance screen is a dead end → feed',
+        '/legal-accept',
+        _signedIn(_readyClient(completed: true)),
+        '/feed',
+      ),
+      _Case(
+        'onboarding comes first: consents step before the documents',
+        '/legal-accept',
+        _signedIn(meFixture(pendingLegal: [_doc])),
+        '/onboarding/consents',
       ),
     ],
     'row 8: клиент/адвокат ok → /feed': [

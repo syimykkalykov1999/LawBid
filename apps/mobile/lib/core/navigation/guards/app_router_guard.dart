@@ -58,6 +58,8 @@ class GuardSnapshot {
 /// адвокат без подтверждённого
 /// телефона                        → /onboarding/contacts
 /// онбординг не завершён           → /onboarding/{текущий шаг}
+/// всё готово, но есть непринятые
+/// юридические документы           → /legal-accept (Owner 2026-10-05)
 /// attorney + unverified           → главное меню доступно, «Кейсы» (Моё)
 ///                                   показывает экран верификации
 /// attorney не verified + «+»      → /create/verification-required
@@ -112,6 +114,15 @@ abstract final class AppRouterGuard {
 
     final required = requiredStep(user);
     if (required == null) {
+      // Owner 2026-10-05 (legal documents): a new or materially changed
+      // document of the user's role is not accepted yet — the acceptance
+      // screen is the only place to be (reading a document stays possible,
+      // /legal/* returned above). The API blocks nothing else except
+      // publishing a case and placing a bid.
+      if (user.pendingLegalDocuments.isNotEmpty) {
+        return location == AppRoutes.legalAccept ? null : AppRoutes.legalAccept;
+      }
+      if (location == AppRoutes.legalAccept) return AppRoutes.feed;
       // Rows 7-8: fully onboarded. Auth/onboarding/splash → feed; every
       // app route (incl. the verification screens) stays reachable.
       final onEntryRoute = location == AppRoutes.splash ||

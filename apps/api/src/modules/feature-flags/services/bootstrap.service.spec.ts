@@ -98,7 +98,9 @@ describe('BootstrapService.build', () => {
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });
     expect(result.legal_documents).toEqual([TERMS]);
     expect(prisma.legalDocument.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { is_current: true } }),
+      expect.objectContaining({
+        where: { is_current: true, status: 'published' },
+      }),
     );
   });
 

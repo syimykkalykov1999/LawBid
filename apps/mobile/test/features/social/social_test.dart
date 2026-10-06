@@ -8,6 +8,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -133,7 +134,10 @@ void main() {
 
   testWidgets('the feed shows post cards with author, likes and tags',
       (tester) async {
-    final repo = FakeSocialRepository(posts: [fakePost('p1', likes: 2)]);
+    final repo = FakeSocialRepository(
+      // News keeps the LawBid card (like a post with a qualification).
+      posts: [fakePost('p1', likes: 2, news: true)],
+    );
     await tester.pumpWidget(
       uxApp(
         const Scaffold(body: PostsFeedView()),
@@ -146,6 +150,50 @@ void main() {
     // Owner 2026-09-30 card: the like count sits next to the heart.
     expect(find.text('2'), findsOneWidget);
     expect(find.textContaining('#dui', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets(
+      'a post without a qualification looks like Instagram: photo, '
+      'actions, likes line, bold name + caption, comments, time',
+      (tester) async {
+    final repo = FakeSocialRepository(
+      posts: [fakePost('p1', likes: 2, comments: 3, withPhoto: true)],
+    );
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Saul Goodman'), findsOneWidget);
+    // No count beside the heart: the likes have their own line.
+    expect(find.text('2'), findsNothing);
+    expect(find.text('2 likes'), findsOneWidget);
+    // "saul Know your rights #dui": the name in bold, then the caption.
+    expect(
+      find.textContaining('saul Know your rights #dui', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.text('View all comments (3)'), findsOneWidget);
+    // No "Read more" and no qualification chips (LawBid card only).
+    expect(find.text('Read more'), findsNothing);
+    // Order: photo above the actions, the caption below them.
+    final photo = tester.getTopLeft(find.byType(PostMediaCarousel)).dy;
+    final heart = tester.getTopLeft(find.bySemanticsLabel('Like')).dy;
+    final caption = tester
+        .getTopLeft(
+          find.textContaining('Know your rights', findRichText: true),
+        )
+        .dy;
+    expect(photo, lessThan(heart));
+    expect(heart, lessThan(caption));
+    // Full width photo (edge to edge).
+    expect(
+      tester.getSize(find.byType(PostMediaCarousel)).width,
+      tester.getSize(find.byType(PostsFeedView)).width,
+    );
   });
 
   testWidgets(

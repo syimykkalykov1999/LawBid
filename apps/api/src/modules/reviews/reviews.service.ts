@@ -579,10 +579,11 @@ export class ReviewsService {
   }
 
   /**
-   * PUT /attorneys/:id/reviews/mine — owner 2026-10-01: anyone (client,
-   * attorney, assistant) reviews an attorney, worked together or not; one
-   * open review per author (an edit replaces it). Not yourself, and not an
-   * assistant about their own attorney.
+   * PUT /attorneys/:id/reviews/mine — owner 2026-10-06 (back to the
+   * original rule): only a client who finished a case with this attorney
+   * (status `closed`, the attorney's bid accepted) reviews them; one review
+   * per client and attorney, and an edit replaces it. The review is tied
+   * to that case, so it carries the "confirmed by a case" badge.
    */
   async upsertOpen(
     user: RequestUser,
@@ -597,39 +598,27 @@ export class ReviewsService {
     }
     await this.assertVisibleAttorney(attorneyId);
     await assertNoBlock(this.prisma, user.sub, attorneyId);
+    const caseIds = await this.completedCaseIds(user, attorneyId);
+    if (caseIds.length === 0) throw notWorkedTogether();
     await this.assertCanWrite(user.sub, attorneyId);
     const body = dto.body?.length ? dto.body : null;
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const windowDays = await this.settings.number('review.edit_window_days');
-    const review = await withTxRetry(this.prisma, async (tx) => {
-      // One counted review per author and attorney: a case review already
-      // speaks for this author (edit that one instead).
-      const caseReview = await tx.review.findFirst({
-        where: {
-          attorney_id: attorneyId,
-          client_id: user.sub,
-          case_id: { not: null },
-          status: { not: 'removed' },
-        },
-        select: { id: true },
-      });
-      if (caseReview) {
-        throw alreadyExists(
-          'You already reviewed this attorney for a case: edit that review.',
-        );
-      }
-      const existing = await tx.review.findFirst({
-        where: {
-          attorney_id: attorneyId,
-          client_id: user.sub,
-          case_id: null,
-          status: { not: 'removed' },
-        },
-        select: { id: true },
-      });
-      const row = existing
-        ? await tx.review.update({
-            where: { id: existing.id },
+    try {
+      const review = await withTxRetry(this.prisma, async (tx) => {
+        // One counted review per client and attorney: edit it in place.
+        const mine = await tx.review.findFirst({
+          where: {
+            attorney_id: attorneyId,
+            client_id: user.sub,
+            case_id: { not: null },
+            status: { not: 'removed' },
+          },
+          select: { id: true },
+        });
+        if (mine) {
+          const edited = await tx.review.update({
+            where: { id: mine.id },
             data: {
               rating: dto.rating,
               body,
@@ -637,25 +626,70 @@ export class ReviewsService {
               ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
             },
             include: { client: CLIENT_NAME },
-          })
-        : await tx.review.create({
-            data: {
-              client_id: user.sub,
-              attorney_id: attorneyId,
-              rating: dto.rating,
-              body,
-              photo_ids: photoIds,
-            },
-            include: { client: CLIENT_NAME },
           });
-      await recalcAttorneyRating(tx, attorneyId);
-      if (!existing) {
+          await recalcAttorneyRating(tx, attorneyId);
+          return edited;
+        }
+        // A case whose review its author deleted is reused (UQ
+        // reviews.case_id); one moderation removed stays removed.
+        let caseId: string | null = null;
+        let revive: string | null = null;
+        for (const id of caseIds) {
+          const row = await tx.review.findUnique({
+            where: { case_id: id },
+            select: { id: true, status: true },
+          });
+          if (!row) {
+            caseId = id;
+            break;
+          }
+          if (
+            row.status === 'removed' &&
+            !(await removedByModeration(tx, row.id))
+          ) {
+            caseId = id;
+            revive = row.id;
+            break;
+          }
+        }
+        if (!caseId) throw alreadyExists();
+        const fields = { rating: dto.rating, body, photo_ids: photoIds };
+        if (revive) {
+          await tx.reviewHelpfulVote.deleteMany({
+            where: { review_id: revive },
+          });
+        }
+        const row = revive
+          ? await tx.review.update({
+              where: { id: revive },
+              data: {
+                ...fields,
+                status: 'published',
+                edited_at: null,
+                reply: null,
+                reply_at: null,
+                helpful_count: 0,
+                created_at: new Date(),
+              },
+              include: { client: CLIENT_NAME },
+            })
+          : await tx.review.create({
+              data: {
+                case_id: caseId,
+                client_id: user.sub,
+                attorney_id: attorneyId,
+                ...fields,
+              },
+              include: { client: CLIENT_NAME },
+            });
+        await recalcAttorneyRating(tx, attorneyId);
         await this.notifications.emit(
           {
             type: 'review_received',
             recipientId: attorneyId,
             payload: {
               reviewId: row.id,
+              caseId,
               rating: row.rating,
               authorDisplayName: reviewerDisplayName(
                 row.client.first_name,
@@ -665,13 +699,21 @@ export class ReviewsService {
           },
           tx,
         );
-      }
-      return row;
-    });
-    return this.own(review, windowDays);
+        return row;
+      });
+      return this.own(review, windowDays);
+    } catch (error) {
+      if (isUniqueViolation(error)) throw alreadyExists();
+      throw error;
+    }
   }
 
-  /** GET /attorneys/:id/reviews/mine — my open review of them, or null. */
+  /**
+   * GET /attorneys/:id/reviews/mine — my review of them, or null. Owner
+   * 2026-10-06: someone who never finished a case with this attorney gets
+   * 403 REVIEW_CASE_NOT_CLOSED, so the app explains why there is no
+   * "Write a review" button.
+   */
   async mineFor(
     user: RequestUser,
     attorneyId: string,
@@ -680,14 +722,39 @@ export class ReviewsService {
       where: {
         attorney_id: attorneyId,
         client_id: user.sub,
-        case_id: null,
+        case_id: { not: null },
         status: { not: 'removed' },
       },
       include: { client: CLIENT_NAME },
     });
-    if (!row) return null;
+    if (!row) {
+      if (user.sub === attorneyId) return null;
+      const caseIds = await this.completedCaseIds(user, attorneyId);
+      if (caseIds.length === 0) throw notWorkedTogether();
+      return null;
+    }
     const windowDays = await this.settings.number('review.edit_window_days');
     return this.own(row, windowDays);
+  }
+
+  /** The client's `closed` cases with [attorneyId]'s bid accepted, newest
+   * first — what entitles them to review that attorney. */
+  private async completedCaseIds(
+    user: RequestUser,
+    attorneyId: string,
+  ): Promise<string[]> {
+    if (user.role !== 'client') return [];
+    const cases = await this.prisma.case.findMany({
+      where: {
+        client_id: user.sub,
+        status: 'closed',
+        accepted_bid: { is: { attorney_id: attorneyId, status: 'accepted' } },
+      },
+      orderBy: [{ closed_at: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+      take: 20,
+    });
+    return cases.map((c) => c.id);
   }
 
   /** DELETE /reviews/:id — the author removes their own review. */
@@ -936,6 +1003,16 @@ function notFound(what: string): NotFoundException {
   return new NotFoundException({
     code: ErrorCode.NOT_FOUND,
     message: `${what} not found.`,
+  });
+}
+
+/** Owner 2026-10-06: attorneys are reviewed only by clients who finished
+ * a case with them. */
+function notWorkedTogether(): ForbiddenException {
+  return new ForbiddenException({
+    code: ErrorCode.REVIEW_CASE_NOT_CLOSED,
+    message:
+      'Only a client who completed a case with this attorney can review them.',
   });
 }
 

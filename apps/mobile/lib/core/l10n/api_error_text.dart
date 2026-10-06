@@ -192,6 +192,7 @@ const _keys = <String, String>{
   ApiErrorCodes.caseContainsContactInfo: 'error.api.CASE_CONTAINS_CONTACT_INFO',
   ApiErrorCodes.clientContactSharingConsentRequired:
       'error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
+  ApiErrorCodes.legalReacceptRequired: 'error.api.LEGAL_REACCEPT_REQUIRED',
   ApiErrorCodes.paymentsNotConfigured: 'error.api.PAYMENTS_NOT_CONFIGURED',
   ApiErrorCodes.subscriptionAlreadyActive:
       'error.api.SUBSCRIPTION_ALREADY_ACTIVE',
