@@ -2,7 +2,9 @@ import type { Prisma } from '@prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import {
   NOTIFICATION_CATEGORY,
+  NOTIFICATION_IMPORTANT,
   NotificationsService,
+  notificationTypesOf,
 } from './notifications.service';
 
 describe('NotificationsService.emit (docs/05 §9.3 seam)', () => {
@@ -60,5 +62,25 @@ describe('NotificationsService.emit (docs/05 §9.3 seam)', () => {
 
   it('maps case_updated (docs/04 §14) to the cases category (docs/05 §9.2)', () => {
     expect(NOTIFICATION_CATEGORY.case_updated).toBe('cases');
+  });
+});
+
+describe('Bell tabs (owner 2026-10-06)', () => {
+  it('a hire is important; likes, follows and logins are not', () => {
+    expect(NOTIFICATION_IMPORTANT.bid_accepted).toBe(true);
+    expect(NOTIFICATION_IMPORTANT.offer_accepted).toBe(true);
+    for (const t of [
+      'post_like',
+      'new_follower',
+      'followed_post',
+      'security_new_device',
+    ] as const) {
+      expect(NOTIFICATION_IMPORTANT[t]).toBe(false);
+    }
+    const important = notificationTypesOf(true);
+    const other = notificationTypesOf(false);
+    expect(important).toContain('bid_accepted');
+    expect(other).toContain('post_like');
+    expect(important.filter((t) => other.includes(t))).toEqual([]);
   });
 });

@@ -321,6 +321,30 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
     expect(after.body.data.total).toBe(2);
   });
 
+  it('the bell tabs: important vs other (owner 2026-10-06)', async () => {
+    const u = await user('attorney');
+    await notifications.emit({
+      type: 'bid_accepted',
+      recipientId: u.id,
+      payload: { caseId: randomUUID(), bidId: randomUUID() },
+    });
+    await notifications.emit({
+      type: 'new_follower',
+      recipientId: u.id,
+      payload: { actorKind: 'client' },
+    });
+    const types = async (q: string) =>
+      (
+        (await api().get(`/api/v1/notifications${q}`).set(u.auth)).body
+          .data as { type: string }[]
+      ).map((n) => n.type);
+    expect(await types('?group=important')).toEqual(['bid_accepted']);
+    expect(await types('?group=other')).toEqual(['new_follower']);
+    expect((await types('')).sort()).toEqual(['bid_accepted', 'new_follower']);
+    const bad = await api().get('/api/v1/notifications?group=nope').set(u.auth);
+    expect(bad.status).toBe(400);
+  });
+
   it('retention removes notifications older than retention_days', async () => {
     const u = await user('client');
     const old = await prisma.notification.create({

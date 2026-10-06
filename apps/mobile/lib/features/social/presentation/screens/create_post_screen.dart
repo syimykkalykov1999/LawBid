@@ -9,7 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -24,7 +24,6 @@ import 'package:lawbid/features/social/presentation/widgets/post_documents.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
 
 /// One photo in the composer: uploaded right after it is picked, so
 /// "Опубликовать" only waits for what is still in flight.
@@ -75,7 +74,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   late final _docs = PostDocumentsController(ref.read(socialActionsProvider))
     ..addListener(_onDocs);
   late String? _practice = widget.editing?.practice?.code;
-  late bool _news = widget.editing?.isNews ?? widget.news;
+  late bool _pickedNews = widget.editing?.isNews ?? widget.news;
+
+  /// Owner 2026-10-06: News is off for now — every new post is a post.
+  bool get _news => _pickedNews && (_editing || ref.read(newsEnabledProvider));
 
   /// Owner 2026-10-05: without a topic a post is general (personal); the
   /// author can mark it legal. A topic or News makes it legal anyway.
@@ -99,12 +101,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     super.dispose();
   }
 
-  /// Owner 2026-10-02: Instagram-style — one gallery for photos AND videos,
-  /// but videos only exist while the owner has video switched on (flag +
-  /// Bunny keys) and for people who publish as the attorney.
+  /// Owner 2026-10-02: Instagram-style — one gallery for photos AND videos
+  /// while the owner has video switched on (flag + Bunny keys). Owner
+  /// 2026-10-06: clients too (their plans include video posts); an
+  /// assistant only with "publish".
   bool get _videoAllowed =>
       ref.read(reelsEnabledProvider) &&
-      ref.read(currentUserRoleProvider) != UserRole.client &&
       ref.read(canDoProvider(AssistantDuty.publish));
 
   static bool _isVideo(XFile f) {
@@ -300,7 +302,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final attorney = ref.watch(actsAsAttorneyProvider);
+    // Owner 2026-10-06: the Post | News switch only while News is on.
+    final attorney =
+        ref.watch(actsAsAttorneyProvider) && ref.watch(newsEnabledProvider);
+    final video = ref.watch(reelsEnabledProvider) &&
+        ref.watch(canDoProvider(AssistantDuty.publish));
     final practice = _practice;
     final missing = _triedPublish;
 
@@ -342,7 +348,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       news: _news,
                       postLabel: t.t('post.kind.post'),
                       newsLabel: t.t('post.kind.news'),
-                      onChanged: (v) => setState(() => _news = v),
+                      onChanged: (v) => setState(() => _pickedNews = v),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
@@ -436,9 +442,15 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   if (!_editing) ...[
                     Row(
                       children: [
+                        // Owner 2026-10-06: one section for photos and
+                        // videos (reels).
                         Expanded(
                           child: Text(
-                            t.t('post.create.photos'),
+                            t.t(
+                              video
+                                  ? 'post.create.media'
+                                  : 'post.create.photos',
+                            ),
                             style: type.titleMedium,
                           ),
                         ),
@@ -466,10 +478,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         footer: _photos.length < kPostMaxPhotos
                             ? _AddPhotoTile(
                                 label: t.t(
-                                  _videoAllowed
+                                  video
                                       ? 'post.create.addMedia'
                                       : 'post.create.addPhoto',
                                 ),
+                                video: video,
                                 onTap: _pick,
                               )
                             : null,
@@ -496,7 +509,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       t.t(
                         _photos.length > 1
                             ? 'post.create.reorderHint'
-                            : 'post.create.photosHint',
+                            : (video
+                                ? 'post.create.mediaHint'
+                                : 'post.create.photosHint'),
                       ),
                       style: type.caption.copyWith(color: colors.textSecondary),
                     ),
@@ -726,10 +741,17 @@ class _PracticeField extends StatelessWidget {
 }
 
 class _AddPhotoTile extends StatelessWidget {
-  const _AddPhotoTile({required this.label, required this.onTap});
+  const _AddPhotoTile({
+    required this.label,
+    required this.onTap,
+    this.video = false,
+  });
 
   final String label;
   final VoidCallback onTap;
+
+  /// Photos and videos: the gallery glyph instead of the photo one.
+  final bool video;
 
   @override
   Widget build(BuildContext context) {
@@ -749,7 +771,9 @@ class _AddPhotoTile extends StatelessWidget {
             border: Border.all(color: colors.goldStroke),
           ),
           child: AppIcon(
-            AppIcons.addPhotoAlternateOutlined,
+            video
+                ? AppIcons.photoLibraryOutlined
+                : AppIcons.addPhotoAlternateOutlined,
             color: colors.goldDark,
             size: AppSizes.iconLg,
           ),

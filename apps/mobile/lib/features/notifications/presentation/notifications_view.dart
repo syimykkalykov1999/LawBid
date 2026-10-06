@@ -43,6 +43,10 @@ String? notificationRoute({
     case 'new_message' || 'missed_call' || 'incoming_call':
       final c = s('conversationId');
       return c == null ? ChatRoutes.inbox : ChatRoutes.conversation(c);
+    // Owner 2026-10-06: an accepted bid opens the chat with that person,
+    // where the system message says so.
+    case 'offer_accepted' || 'bid_accepted' when s('conversationId') != null:
+      return ChatRoutes.conversation(s('conversationId')!);
     // Audit 2026-10-04: the hired attorney lands on the work card, not on
     // the bid / public case card (which loop into each other).
     case 'offer_accepted' || 'bid_accepted' when attorney && caseId != null:
@@ -297,10 +301,15 @@ String notificationText(Translator t, AppNotification n) {
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
   if (others > 0) {
-    return t
-        .t('notif.list.${n.type}.many', {'name': name, 'others': '$others'});
+    final key = 'notif.list.${n.type}.many';
+    final text = t.t(key, {'name': name, 'others': '$others'});
+    if (text != key) return text;
   }
-  return t.t('notif.list.${n.type}', {'name': name});
+  final key = 'notif.list.${n.type}';
+  final text = t.t(key, {'name': name});
+  // Owner 2026-10-06: never a raw key on screen (a type the app has no
+  // text for yet).
+  return text == key ? t.t('notif.list.generic') : text;
 }
 
 IconData _icon(AppNotification n) => switch (n.type) {
@@ -398,43 +407,83 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
     final t = ref.watch(translatorProvider);
     final team = ref.watch(currentUserRoleProvider) == UserRole.attorney &&
         !ref.watch(isAssistantProvider);
+    final group = ref.watch(notificationGroupProvider);
     final list =
         team && _assistants ? const AssistantActivityList() : _list(context, t);
     final trailing = widget.trailing;
-    if (!team && trailing == null) return list;
+
+    // Owner 2026-10-06: All · Important · Other (· Assistants).
+    void pick(NotifGroup? g, {bool assistants = false}) {
+      setState(() => _assistants = assistants);
+      if (!assistants) ref.read(notificationGroupProvider.notifier).set(g);
+    }
+
+    Widget chip(
+      String key,
+      String label, {
+      required bool selected,
+      required VoidCallback onTap,
+    }) =>
+        Padding(
+          padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+          child: AppChip(
+            key: ValueKey(key),
+            label: label,
+            selected: selected,
+            onTap: onTap,
+          ),
+        );
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
-            AppSpacing.screenSide,
+            0,
             0,
             AppSpacing.xs,
             AppSpacing.sm,
           ),
           child: Row(
             children: [
-              if (team)
-                Expanded(
-                  child: Wrap(
-                    spacing: AppSpacing.sm,
+              // Scrolls sideways: long labels in some languages never
+              // squeeze "Mark all read".
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsetsDirectional.only(
+                    start: AppSpacing.screenSide,
+                  ),
+                  child: Row(
                     children: [
-                      AppChip(
-                        key: const ValueKey('notif-view-all'),
-                        label: t.t('notif.view.all'),
-                        selected: !_assistants,
-                        onTap: () => setState(() => _assistants = false),
+                      chip(
+                        'notif-view-all',
+                        t.t('notif.view.all'),
+                        selected: !_assistants && group == null,
+                        onTap: () => pick(null),
                       ),
-                      AppChip(
-                        key: const ValueKey('notif-view-assistants'),
-                        label: t.t('notif.view.assistants'),
-                        selected: _assistants,
-                        onTap: () => setState(() => _assistants = true),
+                      chip(
+                        'notif-view-important',
+                        t.t('notif.view.important'),
+                        selected: !_assistants && group == NotifGroup.important,
+                        onTap: () => pick(NotifGroup.important),
                       ),
+                      chip(
+                        'notif-view-other',
+                        t.t('notif.view.other'),
+                        selected: !_assistants && group == NotifGroup.other,
+                        onTap: () => pick(NotifGroup.other),
+                      ),
+                      if (team)
+                        chip(
+                          'notif-view-assistants',
+                          t.t('notif.view.assistants'),
+                          selected: _assistants,
+                          onTap: () => pick(null, assistants: true),
+                        ),
                     ],
                   ),
-                )
-              else
-                const Spacer(),
+                ),
+              ),
               if (trailing != null) trailing,
             ],
           ),
@@ -466,7 +515,13 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
       },
       empty: AppEmptyState(
         icon: AppIcons.notificationsNoneRounded,
-        message: t.t('notif.empty'),
+        message: t.t(
+          switch (ref.watch(notificationGroupProvider)) {
+            NotifGroup.important => 'notif.empty.important',
+            NotifGroup.other => 'notif.empty.other',
+            null => 'notif.empty',
+          },
+        ),
       ),
       onRefresh: n.refresh,
       onLoadMore: n.loadMore,

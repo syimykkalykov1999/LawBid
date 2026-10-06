@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show
@@ -98,7 +99,7 @@ class PostTextCover extends ConsumerWidget {
                 ),
               ),
             ),
-          if (post.isNews) ...[
+          if (post.isNews && ref.watch(newsEnabledProvider)) ...[
             const SizedBox(width: AppSpacing.xs),
             AppIcon(
               AppIcons.newspaperRounded,
@@ -295,7 +296,7 @@ class PostTextCover extends ConsumerWidget {
                               color: colors.goldLight,
                             ),
                           const Spacer(),
-                          if (post.isNews)
+                          if (post.isNews && ref.watch(newsEnabledProvider))
                             AppIcon(
                               AppIcons.newspaperRounded,
                               size: 14,

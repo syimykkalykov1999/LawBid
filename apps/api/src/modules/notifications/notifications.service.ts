@@ -96,6 +96,92 @@ export const NOTIFICATION_CATEGORY: Record<
   security_phone_changed: 'system',
 };
 
+/**
+ * Owner 2026-10-06: the bell's "Важные" / "Остальные" tabs. Important =
+ * what needs the person (bids, cases, payments, chats, the account);
+ * the rest = likes, follows, comments, followed posts, logins. A total
+ * Record: a new type fails compilation until it is placed.
+ */
+export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
+  bid_received: true,
+  offer_countered: true,
+  offer_accepted: true,
+  bid_accepted: true,
+  bid_rejected: true,
+  negotiation_failed: true,
+  case_invite_received: true,
+  case_invite_declined: true,
+  case_updated: true,
+  case_deadline_soon: true,
+  case_deadline_today: true,
+  case_deadline_passed: true,
+  case_deadline_changed: true,
+  case_stale_prompt: true,
+  case_archived: true,
+  completion_requested: true,
+  completion_reminder: true,
+  case_closed: true,
+  case_disputed: true,
+  dispute_resolved: true,
+  contact_issue_update: true,
+  review_requested: true,
+  review_received: true,
+  new_message: true,
+  new_follower: false,
+  post_like: false,
+  post_comment: false,
+  case_comment: false,
+  missed_call: true,
+  mention: false,
+  followed_post: false,
+  assistant_request: true,
+  assistant_task: true,
+  assistant_joined: false,
+  assistant_result: true,
+  task_reminder: true,
+  task_assigned: true,
+  task_purge_soon: false,
+  admin_broadcast: true,
+  referral_reward: false,
+  partner_commission: false,
+  partner_payout: false,
+  partner_approved: false,
+  partner_declined: false,
+  promotion_started: false,
+  promotion_ended: false,
+  case_payment_received: true,
+  case_payment_sent: true,
+  case_payment_refunded: true,
+  case_payment_disputed: true,
+  payout_account_status: true,
+  payment_request_created: true,
+  payment_request_due: true,
+  payment_request_overdue: true,
+  payment_request_canceled: true,
+  payment_fee_countered: true,
+  payment_fee_agreed: true,
+  new_case: false,
+  new_urgent_case: true,
+  comment_reply: false,
+  comment_like: false,
+  verification_update: true,
+  subscription_trial_ending: true,
+  subscription_payment_failed: true,
+  subscription_status: true,
+  data_export_ready: false,
+  case_history_export_ready: false,
+  moderation_notice: true,
+  security_new_device: false,
+  security_phone_changed: true,
+};
+
+/** The types of one bell tab. */
+export function notificationTypesOf(important: boolean): NotificationType[] {
+  return (Object.keys(NOTIFICATION_IMPORTANT) as NotificationType[]).filter(
+    (t) => NOTIFICATION_IMPORTANT[t] === important,
+  );
+}
+
 export interface NotificationEmit {
   type: NotificationType;
   recipientId: string;

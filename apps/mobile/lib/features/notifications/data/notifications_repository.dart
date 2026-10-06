@@ -166,8 +166,17 @@ class NewCaseAlerts {
       useProfile ? profilePracticeAreaIds : practiceAreaIds;
 }
 
+/// Owner 2026-10-06: the bell's tabs — "Важные" (bids, cases, payments,
+/// chats, the account) and "Остальные" (likes, follows, comments, logins).
+/// The server decides which type is which.
+enum NotifGroup { important, other }
+
 abstract interface class NotificationsRepository {
-  Future<CursorPage<AppNotification>> list({String? cursor});
+  /// [group] null = every notification.
+  Future<CursorPage<AppNotification>> list({
+    String? cursor,
+    NotifGroup? group,
+  });
   Future<void> markRead({List<String>? ids, bool all = false});
   Future<Badges> badges();
   Future<NotificationSettings> settings();
@@ -224,9 +233,20 @@ class ApiNotificationsRepository implements NotificationsRepository {
       );
 
   @override
-  Future<CursorPage<AppNotification>> list({String? cursor}) async {
-    final env =
-        await guardApiCall(() => _api.listNotifications(cursor: cursor));
+  Future<CursorPage<AppNotification>> list({
+    String? cursor,
+    NotifGroup? group,
+  }) async {
+    final env = await guardApiCall(
+      () => _api.listNotifications(
+        cursor: cursor,
+        group: switch (group) {
+          NotifGroup.important => api.NotificationGroup.important,
+          NotifGroup.other => api.NotificationGroup.other,
+          null => null,
+        },
+      ),
+    );
     return CursorPage(
       items: [
         for (final n in env.data)

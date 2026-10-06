@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_content.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -62,10 +63,12 @@ class TopicFilterBar extends ConsumerWidget {
       // Owner 2026-09-30: "News" is the first item; owner 2026-10-05:
       // "Posts" (general, personal posts) right below it.
       options: [
-        PickerOption(
-          value: kNewsTopic,
-          label: t.t('feed.topics.news'),
-        ),
+        // Owner 2026-10-06: News is off for now (flag `news_posts`).
+        if (showNews && ref.read(newsEnabledProvider))
+          PickerOption(
+            value: kNewsTopic,
+            label: t.t('feed.topics.news'),
+          ),
         if (showNews)
           PickerOption(
             value: kGeneralPostsTopic,
@@ -76,7 +79,12 @@ class TopicFilterBar extends ConsumerWidget {
       ],
     );
     if (picked == null) return;
-    ref.read(feedTopicsProvider.notifier).set(picked);
+    // A hidden News choice stays as it was (it comes back with the flag).
+    final keepNews = !ref.read(newsEnabledProvider) &&
+        ref.read(feedTopicsProvider).contains(kNewsTopic);
+    ref
+        .read(feedTopicsProvider.notifier)
+        .set({...picked, if (keepNews) kNewsTopic});
     // The open topic was removed from the slider: back to "All".
     final open = category;
     if (open != null && !picked.contains(open)) {
@@ -130,10 +138,22 @@ class TopicFilterBar extends ConsumerWidget {
         ),
       ],
     );
-    if (picked == null || picked.isEmpty) return;
-    final next = picked.first == FeedContentMode.legalOnly.name
-        ? FeedContentMode.legalOnly
-        : FeedContentMode.all;
+    if (picked == null || picked.isEmpty || !context.mounted) return;
+    await _setContent(
+      context,
+      ref,
+      picked.first == FeedContentMode.legalOnly.name
+          ? FeedContentMode.legalOnly
+          : FeedContentMode.all,
+    );
+  }
+
+  Future<void> _setContent(
+    BuildContext context,
+    WidgetRef ref,
+    FeedContentMode next,
+  ) async {
+    final t = ref.read(translatorProvider);
     // The Posts topic lists only general posts: back to "All".
     if (next == FeedContentMode.legalOnly && category == kGeneralPostsTopic) {
       onCategory(null);
@@ -176,7 +196,7 @@ class TopicFilterBar extends ConsumerWidget {
                 icon: AppIcons.gavelRounded,
                 label: t.t('feed.content.title'),
                 trailingText: t.t(
-                  legalOnly ? 'feed.content.legalOnly' : 'feed.content.all',
+                  legalOnly ? 'feed.legalPosts' : 'feed.content.all',
                 ),
                 onTap: () => Navigator.of(sheet).pop('content'),
               ),
@@ -201,6 +221,7 @@ class TopicFilterBar extends ConsumerWidget {
     final topics = ref.watch(feedTopicsProvider);
     final legalOnly = showNews &&
         ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
+    final newsOn = ref.watch(newsEnabledProvider);
 
     Widget pill({
       required String label,
@@ -314,26 +335,31 @@ class TopicFilterBar extends ConsumerWidget {
             ),
           ],
           const SizedBox(width: AppSpacing.sm),
+          // Owner 2026-10-06: "All" = every post, no topic; "Legal posts"
+          // right after it = legal posts only (the same setting as
+          // Filters → Content), then the topics.
           pill(
+            key: const ValueKey('feed-all'),
             label: t.t('feed.topics.all'),
             icon: AppIcons.gridViewRounded,
-            selected: category == null,
-            onTap: () => onCategory(null),
+            selected: category == null && !legalOnly,
+            onTap: () {
+              onCategory(null);
+              if (legalOnly) _setContent(context, ref, FeedContentMode.all);
+            },
           ),
-          // Owner 2026-10-05: "Content" next to "All" — every post or
-          // legal posts only.
           if (showNews) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
-              key: const ValueKey('feed-content-mode'),
-              label: t.t(
-                legalOnly ? 'feed.content.legalOnly' : 'feed.content.all',
-              ),
-              icon: legalOnly
-                  ? AppIcons.gavelRounded
-                  : AppIcons.dynamicFeedRounded,
+              key: const ValueKey('feed-legal-posts'),
+              label: t.t('feed.legalPosts'),
+              icon: AppIcons.gavelRounded,
               selected: legalOnly,
-              onTap: () => _pickContent(context, ref),
+              onTap: () => _setContent(
+                context,
+                ref,
+                legalOnly ? FeedContentMode.all : FeedContentMode.legalOnly,
+              ),
             ),
           ],
           if (showNotSure) ...[
@@ -346,7 +372,7 @@ class TopicFilterBar extends ConsumerWidget {
               onTap: () => onCategory(kNotSureTopic),
             ),
           ],
-          if (showNews && topics.contains(kNewsTopic)) ...[
+          if (showNews && newsOn && topics.contains(kNewsTopic)) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(
               label: t.t('feed.topics.news'),

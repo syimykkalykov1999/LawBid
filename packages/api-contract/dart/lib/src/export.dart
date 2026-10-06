@@ -1300,6 +1300,7 @@ export 'models/call_end_reason.dart';
 export 'models/end_call_dto.dart';
 export 'models/notification_actor_dto.dart';
 export 'models/notification_dto.dart';
+export 'models/notification_group.dart';
 export 'models/notification_list_envelope.dart';
 export 'models/read_notifications_result_dto.dart';
 export 'models/read_notifications_dto.dart';

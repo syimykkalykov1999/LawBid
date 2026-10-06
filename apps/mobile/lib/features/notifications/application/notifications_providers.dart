@@ -96,11 +96,36 @@ final mutedCategoriesProvider = FutureProvider<Set<NotifCategory>>((ref) async {
 bool isCategoryMuted(Ref ref, NotifCategory c) =>
     ref.read(mutedCategoriesProvider).value?.contains(c) ?? false;
 
-/// docs/05 §9.1 notifications list.
+/// Owner 2026-10-06: the bell's open tab (null = All); kept while the app
+/// runs so the bell reopens on the same tab.
+class NotificationGroupNotifier extends Notifier<NotifGroup?> {
+  @override
+  NotifGroup? build() => null;
+
+  // ignore: use_setters_to_change_properties
+  void set(NotifGroup? group) => state = group;
+}
+
+final notificationGroupProvider =
+    NotifierProvider<NotificationGroupNotifier, NotifGroup?>(
+  NotificationGroupNotifier.new,
+);
+
+/// docs/05 §9.1 notifications list (of the open tab).
 class NotificationsNotifier extends PagedNotifier<AppNotification> {
   @override
+  Future<PaginatedList<AppNotification>> build() {
+    // Another tab = a fresh first page.
+    ref.watch(notificationGroupProvider);
+    return super.build();
+  }
+
+  @override
   Future<CursorPage<AppNotification>> fetch(String? cursor) =>
-      ref.read(notificationsRepositoryProvider).list(cursor: cursor);
+      ref.read(notificationsRepositoryProvider).list(
+            cursor: cursor,
+            group: ref.read(notificationGroupProvider),
+          );
 
   @override
   Object idOf(AppNotification item) => item.id;

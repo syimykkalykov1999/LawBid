@@ -16,6 +16,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
@@ -956,7 +957,8 @@ class _TopicChips extends ConsumerWidget {
           ),
       ],
     );
-    if (!news) return topics;
+    // Owner 2026-10-06: no "News" label while News is off.
+    if (!news || !ref.watch(newsEnabledProvider)) return topics;
     // Owner 2026-09-30: "News" sits at the right edge of the row, where
     // the Save button lines up below.
     return Row(

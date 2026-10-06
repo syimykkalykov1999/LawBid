@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/badges_envelope.dart';
 import '../models/delete_push_token_dto.dart';
 import '../models/new_case_alerts_envelope.dart';
+import '../models/notification_group.dart';
 import '../models/notification_list_envelope.dart';
 import '../models/notification_settings_envelope.dart';
 import '../models/push_token_dto.dart';
@@ -27,9 +28,12 @@ abstract class NotificationsClient {
   /// Notifications, newest first (§9.1).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [group] - important: bids, cases, payments, account; other: likes, follows, comments, logins. Omit for all.
   @GET('/notifications')
   Future<NotificationListEnvelope> listNotifications({
     @Query('cursor') String? cursor,
+    @Query('group') NotificationGroup? group,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VideosModule } from '../videos/videos.module';
@@ -15,7 +16,13 @@ import { PostsService } from './posts.service';
 /** docs/05 §3 posts (stage 5.2). PostPresenter is shared by the feed,
  * tags, search and saved lists. */
 @Module({
-  imports: [FilesModule, UsageLimitsModule, NotificationsModule, VideosModule],
+  imports: [
+    FilesModule,
+    UsageLimitsModule,
+    NotificationsModule,
+    VideosModule,
+    FeatureFlagsModule,
+  ],
   controllers: [PostsController, PostVideosController, BunnyWebhookController],
   providers: [
     PostsService,

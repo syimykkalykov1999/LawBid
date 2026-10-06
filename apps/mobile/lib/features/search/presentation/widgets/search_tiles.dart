@@ -9,6 +9,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -153,7 +154,11 @@ class SearchPostTile extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final (title, _) = PostTextCover.titleAndRest(post);
     final practice = PostTextCover.practiceOf(ref, post);
-    final kindLabel = t.t(post.isNews ? 'post.kind.news' : 'search.kind.post');
+    final kindLabel = t.t(
+      post.isNews && ref.watch(newsEnabledProvider)
+          ? 'post.kind.news'
+          : 'search.kind.post',
+    );
     final kind = [kindLabel, if (practice != null) practice.$1].join(' · ');
     void open() => context.push(SocialRoutes.post(post.id));
     final semantic = '$kind. $title. ${post.author.displayName}';

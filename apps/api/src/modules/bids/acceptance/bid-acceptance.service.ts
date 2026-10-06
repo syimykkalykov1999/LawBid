@@ -342,12 +342,19 @@ export class BidAcceptanceService {
         ? {
             type: 'bid_accepted',
             recipientId: attorneyId,
-            payload: { caseId, bidId },
+            // Owner 2026-10-06: a tap opens the chat with the client,
+            // where the system message already says the bid was accepted.
+            payload: { caseId, bidId, conversationId: conversation.id },
           }
         : {
             type: 'offer_accepted',
             recipientId: clientId,
-            payload: { caseId, bidId, attorneyId },
+            payload: {
+              caseId,
+              bidId,
+              attorneyId,
+              conversationId: conversation.id,
+            },
           },
       tx,
     );

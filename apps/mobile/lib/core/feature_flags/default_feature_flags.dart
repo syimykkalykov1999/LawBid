@@ -34,6 +34,8 @@ const Map<String, bool> defaultFeatureFlags = {
   'video_calls': false,
   // Owner 2026-10-05: the document templates library (on).
   'document_templates': true,
+  // Owner 2026-10-06: News is switched off (kept in code).
+  'news_posts': false,
   'phone_login': true,
   'email_login': true,
   'apple_login': true,

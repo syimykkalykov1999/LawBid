@@ -60,7 +60,7 @@ export class NotificationsApiController {
     @CurrentUser() user: RequestUser,
     @Query() q: NotificationsQueryDto,
   ) {
-    return this.api.list(user.sub, q.cursor);
+    return this.api.list(user.sub, q.cursor, q.group);
   }
 
   // OQ-048: an assistant has their own notifications and devices.
