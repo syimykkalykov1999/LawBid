@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dateInput, dateToIso, goalPercent, goalValue, periodLabel } from './country-partners';
+import { contractEnded, dateInput, dateToIso, goalPercent, goalValue, periodLabel } from './country-partners';
 
 describe('country partner helpers', () => {
   it('goal progress is a 0–100 bar; revenue shown in dollars', () => {
@@ -15,5 +15,15 @@ describe('country partner helpers', () => {
     expect(dateInput('2026-12-31T00:00:00.000Z')).toBe('2026-12-31');
     expect(dateToIso('2026-12-31')).toBe('2026-12-31T00:00:00.000Z');
     expect(dateToIso('')).toBeNull();
+  });
+});
+
+describe('contractEnded', () => {
+  it('the partner works through the last day and stops after it', () => {
+    const end = '2026-12-31T00:00:00.000Z';
+    expect(contractEnded(end, new Date('2026-12-31T23:59:59Z'))).toBe(false);
+    expect(contractEnded(end, new Date('2027-01-01T00:00:00Z'))).toBe(true);
+    expect(contractEnded(null)).toBe(false);
+    expect(contractEnded('nonsense')).toBe(false);
   });
 });

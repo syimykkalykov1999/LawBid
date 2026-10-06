@@ -20,6 +20,7 @@ import {
   storePermissions,
 } from '../admin-auth/admin-permissions';
 import {
+  contractEnded,
   COUNTRY_PARTNERS_SETTINGS_KEY,
   percentToBps,
   readCountryPartnerSettings,
@@ -304,6 +305,18 @@ export class AdminCountryPartnersService {
   ): Promise<CountryPartnerDetailDto> {
     const before = await this.load(id);
     if (before.status === status) return this.detail(id);
+    // Owner 2026-10-06: an ended contract switches the partner off; it
+    // comes back only after «Договор до» is moved forward.
+    if (
+      status !== 'disabled' &&
+      contractEnded(before.contract_ends_at, new Date())
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'The contract has ended. Move «Договор до» forward first, then switch the partner on.',
+      });
+    }
     if (status !== 'disabled' && before.status === 'disabled') {
       const other = await this.prisma.countryPartner.count({
         where: {
@@ -345,6 +358,7 @@ export class AdminCountryPartnersService {
       data: {
         status,
         suspended_admin_ids: suspended,
+        ...(status !== 'disabled' ? { contract_expired_at: null } : {}),
         disabled_at:
           status === 'disabled'
             ? new Date()

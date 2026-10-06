@@ -1,4 +1,6 @@
 import {
+  contractCutoff,
+  contractEnded,
   finishedPeriods,
   goalState,
   percentToBps,
@@ -6,6 +8,7 @@ import {
   readCountryPartnerSettings,
   readGoals,
   settle,
+  settleUntil,
 } from './country-partners.rules';
 
 describe('country partner rules', () => {
@@ -86,5 +89,34 @@ describe('country partner rules', () => {
     expect(s.contract.text).toContain('COUNTRY PARTNER AGREEMENT');
     expect(percentToBps(20)).toBe(2000);
     expect(percentToBps(12.5)).toBe(1250);
+  });
+
+  it('the contract runs through its last day («Договор до»)', () => {
+    const end = new Date('2026-12-31T00:00:00Z');
+    expect(contractCutoff(end)).toEqual(new Date('2027-01-01T00:00:00Z'));
+    expect(contractCutoff(null)).toBeNull();
+    expect(contractEnded(end, new Date('2026-12-31T23:59:59Z'))).toBe(false);
+    expect(contractEnded(end, new Date('2027-01-01T00:00:00Z'))).toBe(true);
+    expect(contractEnded(null, new Date('2030-01-01T00:00:00Z'))).toBe(false);
+  });
+
+  it('settles up to the earlier of switch-off and the last day', () => {
+    const end = new Date('2026-12-31T00:00:00Z');
+    const lastMoment = new Date('2026-12-31T23:59:59.999Z');
+    expect(settleUntil(null, end)).toEqual(lastMoment);
+    expect(settleUntil(null, null)).toBeNull();
+    const off = new Date('2026-11-10T00:00:00Z');
+    expect(settleUntil(off, end)).toEqual(off);
+    expect(settleUntil(new Date('2027-02-01T00:00:00Z'), end)).toEqual(
+      lastMoment,
+    );
+    // A contract ending on the last day of a month stops at that month.
+    expect(
+      finishedPeriods(
+        new Date('2026-10-01T00:00:00Z'),
+        new Date('2027-03-05T00:00:00Z'),
+        settleUntil(null, end),
+      ),
+    ).toEqual(['2026-10', '2026-11', '2026-12']);
   });
 });

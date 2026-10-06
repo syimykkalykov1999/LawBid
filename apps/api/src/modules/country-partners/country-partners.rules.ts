@@ -82,6 +82,41 @@ export function periodOf(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+/**
+ * Owner 2026-10-06: «Договор до» is a calendar day and the contract runs
+ * through it. Returns the first moment after the contract (the start of
+ * the next UTC day), or null when no end date is set.
+ */
+export function contractCutoff(endsAt: Date | null): Date | null {
+  if (!endsAt) return null;
+  return new Date(
+    Date.UTC(
+      endsAt.getUTCFullYear(),
+      endsAt.getUTCMonth(),
+      endsAt.getUTCDate() + 1,
+    ),
+  );
+}
+
+/** True once [now] is past the contract's last day. */
+export function contractEnded(endsAt: Date | null, now: Date): boolean {
+  const cutoff = contractCutoff(endsAt);
+  return cutoff !== null && now >= cutoff;
+}
+
+/** The last moment that may be settled: the earlier of the day the
+ * partner was switched off and the contract's last day. */
+export function settleUntil(
+  disabledAt: Date | null,
+  endsAt: Date | null,
+): Date | null {
+  const cutoff = contractCutoff(endsAt);
+  const lastMoment = cutoff ? new Date(cutoff.getTime() - 1) : null;
+  if (!disabledAt) return lastMoment;
+  if (!lastMoment) return disabledAt;
+  return disabledAt < lastMoment ? disabledAt : lastMoment;
+}
+
 /** Finished months from [start]'s month up to the month before [now]
  * (and not after [until]'s month), oldest first, at most [max]. */
 export function finishedPeriods(

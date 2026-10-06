@@ -17,7 +17,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { dateInput, dateToIso, GOAL_METRIC, PARTNER_STATUS } from '@/lib/country-partners';
+import { contractEnded, dateInput, dateToIso, GOAL_METRIC, PARTNER_STATUS } from '@/lib/country-partners';
 import { ROLE_LABEL, type AdminRole } from '@/lib/rbac';
 import { formatDateTime } from '@/lib/utils';
 import { Goals, MonthLine, Settlements } from '@/components/country-partners/shared';
@@ -107,6 +107,7 @@ export default function CountryPartnersPage() {
                       {PARTNER_STATUS[r.status]?.label ?? r.status}
                     </Badge>
                     {r.contractAcceptedAt ? null : <Badge tone="warning">договор не принят</Badge>}
+                    {contractEnded(r.contractEndsAt) ? <Badge tone="danger">договор закончился</Badge> : null}
                   </div>
                 </Td>
               </tr>
@@ -364,6 +365,13 @@ function DetailDialog({ id, onClose }: { id: string; onClose: () => void }) {
             <Badge tone={d.contractAcceptedAt ? 'success' : 'warning'}>
               {d.contractAcceptedAt ? `договор v${d.contractVersion} принят ${formatDateTime(d.contractAcceptedAt)}` : 'договор ещё не принят'}
             </Badge>
+            {d.contractEndsAt ? (
+              <Badge tone={contractEnded(d.contractEndsAt) ? 'danger' : 'neutral'}>
+                {contractEnded(d.contractEndsAt)
+                  ? `договор закончился ${dateInput(d.contractEndsAt)}: выплаты только за срок договора`
+                  : `договор до ${dateInput(d.contractEndsAt)}, потом отключится сам`}
+              </Badge>
+            ) : null}
             <span className="text-xs text-faint">вход: {d.leadEmail}</span>
           </div>
 
@@ -410,7 +418,7 @@ function DetailDialog({ id, onClose }: { id: string; onClose: () => void }) {
                 Пауза выплат
               </Button>
             ) : null}
-            {d.status !== 'active' ? (
+            {d.status !== 'active' && !contractEnded(d.contractEndsAt) ? (
               <Button size="sm" variant="outline" onClick={() => void setStatus('active')}>
                 {d.status === 'paused' ? 'Снять паузу' : 'Включить снова'}
               </Button>
