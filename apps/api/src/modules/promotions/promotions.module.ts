@@ -6,14 +6,16 @@ import { AdminPromotionsController } from './admin-promotions.controller';
 import { AdminPromotionsService } from './admin-promotions.service';
 import { PromotionsController } from './promotions.controller';
 import { PromotionsService } from './promotions.service';
+import { PromotionDeliveryService } from './promotion-delivery.service';
+import { RefundsService } from '../admin-billing/refunds.service';
 
 /** The promotion service alone — imported by billing (checkout webhook),
  * the jobs module (`promotions.expire`) and the HTTP module below. Uses
  * the global PAYMENT_PROVIDER when present. */
 @Module({
   imports: [ReferralsCoreModule, NotificationsModule],
-  providers: [PromotionsService],
-  exports: [PromotionsService],
+  providers: [PromotionsService, PromotionDeliveryService],
+  exports: [PromotionsService, PromotionDeliveryService],
 })
 export class PromotionsCoreModule {}
 
@@ -21,6 +23,7 @@ export class PromotionsCoreModule {}
 @Module({
   imports: [PromotionsCoreModule, ReferralsCoreModule, AdminAccessModule],
   controllers: [PromotionsController, AdminPromotionsController],
-  providers: [AdminPromotionsService],
+  // RefundsService: "cancel and refund" right from the promotion row.
+  providers: [AdminPromotionsService, RefundsService],
 })
 export class PromotionsModule {}

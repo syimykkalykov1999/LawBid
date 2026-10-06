@@ -882,6 +882,7 @@ abstract final class SocialMappers {
               url: a.url,
             ),
         ],
+        promotionId: d.promotionId,
       );
 
   static Comment comment(api.CommentDto d) => Comment(

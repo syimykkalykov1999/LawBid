@@ -23,7 +23,7 @@ class CasePromotionStateDto {
   /// Active / pending one, else the latest.
   final CasePromotionDto? promotion;
 
-  /// The case can be promoted now.
+  /// The case / post can be promoted now.
   final bool canPromote;
 
   /// Quote for 1 day.

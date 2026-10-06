@@ -29,6 +29,7 @@ void main() {
           overrides: [
             sharedPreferencesProvider.overrideWithValue(prefs),
             referralOffOverride,
+            promotionsOffOverride,
             partnerOffOverride,
             templatesOffOverride,
             l10nDatabaseProvider.overrideWithValue(l10nDb),
