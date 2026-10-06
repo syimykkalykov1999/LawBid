@@ -42,7 +42,7 @@ final _client = meFixture(
 const _withAgent = LegalSettings(
   dmcaAgent: DmcaAgent(
     name: 'Jane Agent',
-    email: 'dmca@lawbid.app',
+    email: 'dmca@lawbid.dev',
     address: '1 Main St, Austin, TX',
   ),
   texts: LegalTexts(
@@ -165,12 +165,12 @@ void main() {
       (tester) async {
     final repo = await _pump(tester, settings: _withAgent);
     expect(find.textContaining('Jane Agent'), findsOneWidget);
-    expect(find.textContaining('dmca@lawbid.app'), findsOneWidget);
+    expect(find.textContaining('dmca@lawbid.dev'), findsOneWidget);
 
     await _type(tester, 'dmca-name', 'Ann Lee');
     await _type(tester, 'dmca-email', 'ann@example.com');
     await _type(tester, 'dmca-address', '1 Main St, Austin, TX 78701');
-    await _type(tester, 'dmca-url', 'lawbid.app/post/1');
+    await _type(tester, 'dmca-url', 'lawbid.dev/post/1');
     await _type(
       tester,
       'dmca-work',
@@ -186,11 +186,11 @@ void main() {
       findsOneWidget,
     );
 
-    await _type(tester, 'dmca-url', 'https://lawbid.app/post/1');
+    await _type(tester, 'dmca-url', 'https://lawbid.dev/post/1');
     await _tap(tester, 'dmca-submit');
     expect(repo.sent, hasLength(1));
     expect(repo.sent.single.target, isNull);
-    expect(repo.sent.single.infringingUrl, 'https://lawbid.app/post/1');
+    expect(repo.sent.single.infringingUrl, 'https://lawbid.dev/post/1');
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

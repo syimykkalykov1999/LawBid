@@ -132,7 +132,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   /// Email magic link (docs/01_FOUNDATION_AUTH.md §10.2 E/F, security
   /// review 2026-09-27; deep link `lawbid://auth/email-code?token=…` or
-  /// `https://lawbid.app/auth/email-code?token=…`, see core/deeplinks).
+  /// `https://lawbid.dev/auth/email-code?token=…`, see core/deeplinks).
   ///
   /// The link only works together with the verifier this device stored
   /// when it requested the code (`MagicLinkVerifierStore`):

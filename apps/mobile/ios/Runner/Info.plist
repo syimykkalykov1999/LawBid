@@ -27,15 +27,20 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Store release 2026-10-06: the app uses only HTTPS/TLS from the OS
+	     (exempt encryption), so App Store Connect stops asking the export
+	     compliance question on every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<!-- LOCAL DEV ONLY (2026-09-23, docs/CHANGELOG.md): the backend runs
 	     over plain http:// during local development (no TLS cert for a
 	     LAN IP / localhost / 10.0.2.2), which iOS's App Transport Security
 	     blocks by default, so every request silently fails as a network
-	     error before it leaves the device. This exception must be removed
-	     (or scoped to a specific dev-only domain) once the backend is
-	     reachable over https:// for real builds; do not ship this as-is. -->
+	     error before it leaves the device. The prod flavor never ships it:
+	     the Runner build phase "Strip dev-only ATS (prod)" deletes this
+	     dictionary from every *-prod bundle (store release 2026-10-06). -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -54,7 +59,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>LawBid uses the microphone to record voice messages and for calls in the app.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>LawBid uses your photo library so you can choose a profile photo and upload license and ID document images.</string>
+	<string>LawBid uses your photo library so you can choose a profile photo, add photos and videos to posts, cases and chats, and upload license and ID document images.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.</string>
 	<!-- Google Sign-In (Phase 3 of the auth networking work,

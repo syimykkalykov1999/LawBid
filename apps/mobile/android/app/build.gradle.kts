@@ -40,12 +40,12 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // App Links host (docs/01_FOUNDATION_AUTH.md §12: `lawbid.app`).
+        // App Links host (docs/01_FOUNDATION_AUTH.md §12: `lawbid.dev`).
         // Override without editing this file, e.g.
         //   flutter build apk --flavor prod -t lib/main_prod.dart -Plawbid.deepLinkHost=example.com
         // It must match the host serving docs/deeplinks/assetlinks.json.
         manifestPlaceholders["deepLinkHost"] =
-            (project.findProperty("lawbid.deepLinkHost") as String?) ?: "lawbid.app"
+            (project.findProperty("lawbid.deepLinkHost") as String?) ?: "lawbid.dev"
     }
 
     // Three installable variants side by side (p12 leaf-1.4), Flutter's

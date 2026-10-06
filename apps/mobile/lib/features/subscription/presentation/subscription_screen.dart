@@ -22,6 +22,7 @@ import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// docs/06 §1.7 п.1–2, 5 — Settings → «Подписка»: the $399/мес plan card,
@@ -231,7 +232,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
       if (!mounted) return;
       // Only https (security review): the portal URL comes from the server.
       final opened = url.scheme == 'https' &&
-          await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+          await launchUrl(url, mode: paymentPageLaunchMode());
       if (!opened && mounted) {
         showAppSnackBar(context, _t.t('subscription.portal.cantOpen'));
       }

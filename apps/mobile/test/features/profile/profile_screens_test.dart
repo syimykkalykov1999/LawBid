@@ -814,7 +814,7 @@ void main() {
     });
   });
 
-  testWidgets('deep link lawbid.app/lawyer/:username opens the public profile',
+  testWidgets('deep link lawbid.dev/lawyer/:username opens the public profile',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/feed',

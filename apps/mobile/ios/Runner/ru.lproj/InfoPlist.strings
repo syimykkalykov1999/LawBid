@@ -1,6 +1,6 @@
 /* Permission prompts (docs/03 stage 3.8); keep in sync with the
    translation keys permission.camera.ios / permission.photos.ios. */
-"NSCameraUsageDescription" = "LawBid использует камеру, чтобы сделать фото профиля, сфотографировать лицензию и документ личности и сделать селфи для верификации.";
-"NSPhotoLibraryUsageDescription" = "LawBid использует галерею, чтобы выбрать фото профиля и загрузить фото лицензии и документа личности.";
+"NSCameraUsageDescription" = "LawBid использует камеру, чтобы сделать фото профиля, сфотографировать лицензию и документ личности, сделать селфи для верификации, снимать рилсы и для видеозвонков в приложении.";
+"NSPhotoLibraryUsageDescription" = "LawBid использует галерею, чтобы выбрать фото профиля, добавить фото и видео в посты, кейсы и чаты и загрузить фото лицензии и документа личности.";
 "NSFaceIDUsageDescription" = "LawBid использует Face ID, чтобы подтвердить, что это вы, перед удалением аккаунта и другими важными действиями.";
 "NSMicrophoneUsageDescription" = "LawBid использует микрофон для голосовых сообщений и звонков в приложении.";

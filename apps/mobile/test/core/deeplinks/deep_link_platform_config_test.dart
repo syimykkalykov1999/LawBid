@@ -26,7 +26,7 @@ void main() {
 
     final gradle = read('android/app/build.gradle.kts');
     expect(gradle, contains('manifestPlaceholders["deepLinkHost"]'));
-    expect(gradle, contains('"lawbid.app"'));
+    expect(gradle, contains('"lawbid.dev"'));
   });
 
   test('iOS: lawbid URL scheme, Associated Domains from DEEP_LINK_HOST', () {
@@ -38,7 +38,7 @@ void main() {
     expect(entitlements, contains(r'applinks:$(DEEP_LINK_HOST)'));
     expect(
       read('ios/Flutter/Common.xcconfig'),
-      contains('DEEP_LINK_HOST = lawbid.app'),
+      contains('DEEP_LINK_HOST = lawbid.dev'),
     );
     // The entitlements file is actually wired into every Runner config.
     final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
@@ -51,7 +51,7 @@ void main() {
   });
 
   test('Dart default host matches the native default', () {
-    expect(AppEnvironment.defaultDeepLinkHost, 'lawbid.app');
+    expect(AppEnvironment.defaultDeepLinkHost, 'lawbid.dev');
   });
 
   test('hosting templates (docs/deeplinks) cover every flavor and path', () {

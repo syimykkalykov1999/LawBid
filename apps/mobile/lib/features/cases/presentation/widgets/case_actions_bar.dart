@@ -16,7 +16,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
-/// `https://lawbid.app/case/:id` — opens the attorney case screen.
+/// `https://lawbid.dev/case/:id` — opens the attorney case screen.
 String caseLink(String host, String caseId) =>
     'https://$host/case/${Uri.encodeComponent(caseId)}';
 

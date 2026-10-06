@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
 
 void main() {
-  DeepLink? parse(String s) => parseDeepLink(Uri.parse(s), host: 'lawbid.app');
+  DeepLink? parse(String s) => parseDeepLink(Uri.parse(s), host: 'lawbid.dev');
 
   group('magic sign-in link (docs/01 §10.2 E/F, security review 2026-09-27)',
       () {
@@ -16,14 +16,14 @@ void main() {
       );
     });
 
-    test('universal / App Link on lawbid.app (and www., trailing slash)', () {
+    test('universal / App Link on lawbid.dev (and www., trailing slash)', () {
       const expected = EmailCodeDeepLink(token: token);
       expect(
-        parse('https://lawbid.app/auth/email-code?token=$token'),
+        parse('https://lawbid.dev/auth/email-code?token=$token'),
         expected,
       );
       expect(
-        parse('https://www.lawbid.app/auth/email-code/?token=$token'),
+        parse('https://www.lawbid.dev/auth/email-code/?token=$token'),
         expected,
       );
     });
@@ -58,10 +58,10 @@ void main() {
         isNull,
       );
       expect(
-        parse('https://lawbid.app.evil.example/auth/email-code?token=$token'),
+        parse('https://lawbid.dev.evil.example/auth/email-code?token=$token'),
         isNull,
       );
-      expect(parse('http://lawbid.app/auth/email-code?token=$token'), isNull);
+      expect(parse('http://lawbid.dev/auth/email-code?token=$token'), isNull);
       expect(parse('lawbid://auth/other?token=$token'), isNull);
     });
 
@@ -77,7 +77,7 @@ void main() {
     test('case / lawyer / post on both forms', () {
       const id = '3f0c9a8e-1b2d-4c5e-9f00-112233445566';
       expect(
-        parse('https://lawbid.app/case/$id'),
+        parse('https://lawbid.dev/case/$id'),
         const ContentDeepLink(ContentKind.caseItem, id),
       );
       expect(
@@ -85,26 +85,26 @@ void main() {
         const ContentDeepLink(ContentKind.caseItem, id),
       );
       expect(
-        parse('https://lawbid.app/post/$id'),
+        parse('https://lawbid.dev/post/$id'),
         const ContentDeepLink(ContentKind.post, id),
       );
       expect(
-        parse('https://lawbid.app/lawyer/jane.doe_esq'),
+        parse('https://lawbid.dev/lawyer/jane.doe_esq'),
         const ContentDeepLink(ContentKind.lawyer, 'jane.doe_esq'),
       );
       expect(
-        parse('https://lawbid.app/lawyer/@jane.doe'),
+        parse('https://lawbid.dev/lawyer/@jane.doe'),
         const ContentDeepLink(ContentKind.lawyer, 'jane.doe'),
       );
       expect(
-        parse('https://lawbid.app/r/ab12cd'),
+        parse('https://lawbid.dev/r/ab12cd'),
         const ReferralDeepLink('AB12CD'),
       );
       expect(
         parse('lawbid://referral/AB12CD'),
         const ReferralDeepLink('AB12CD'),
       );
-      expect(parse('https://lawbid.app/r/x!'), isNull);
+      expect(parse('https://lawbid.dev/r/x!'), isNull);
     });
 
     test('in-app locations', () {
@@ -123,17 +123,17 @@ void main() {
     });
 
     test('rejects bad ids, usernames and unknown paths', () {
-      expect(parse('https://lawbid.app/lawyer/ab'), isNull); // < 3 chars
+      expect(parse('https://lawbid.dev/lawyer/ab'), isNull); // < 3 chars
       expect(
-        parse('https://lawbid.app/lawyer/${'a' * 31}'),
+        parse('https://lawbid.dev/lawyer/${'a' * 31}'),
         isNull,
       ); // > 30 chars
-      expect(parse('https://lawbid.app/lawyer/jane%20doe'), isNull);
-      expect(parse('https://lawbid.app/case/../../etc'), isNull);
-      expect(parse('https://lawbid.app/case/a/b'), isNull);
-      expect(parse('https://lawbid.app/case'), isNull);
-      expect(parse('https://lawbid.app/'), isNull);
-      expect(parse('https://lawbid.app/admin/1'), isNull);
+      expect(parse('https://lawbid.dev/lawyer/jane%20doe'), isNull);
+      expect(parse('https://lawbid.dev/case/../../etc'), isNull);
+      expect(parse('https://lawbid.dev/case/a/b'), isNull);
+      expect(parse('https://lawbid.dev/case'), isNull);
+      expect(parse('https://lawbid.dev/'), isNull);
+      expect(parse('https://lawbid.dev/admin/1'), isNull);
       expect(parse('mailto:ann@example.com'), isNull);
     });
 
@@ -147,7 +147,7 @@ void main() {
       );
       expect(
         parseDeepLink(
-          Uri.parse('https://lawbid.app/case/abc'),
+          Uri.parse('https://lawbid.dev/case/abc'),
           host: 'links.example.com',
         ),
         isNull,

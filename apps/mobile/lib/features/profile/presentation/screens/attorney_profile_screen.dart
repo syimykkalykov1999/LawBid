@@ -87,7 +87,7 @@ class AttorneyProfileBody extends ConsumerWidget {
 }
 
 /// `/lawyer/:username` — someone's public attorney profile, also the
-/// landing screen of the `lawbid.app/lawyer/:username` deep link.
+/// landing screen of the `lawbid.dev/lawyer/:username` deep link.
 class AttorneyProfileScreen extends ConsumerWidget {
   const AttorneyProfileScreen({
     required this.username,
