@@ -4485,3 +4485,79 @@ model ClientFraudEvent {
   @@index([actor_id, created_at(sort: Desc)])
   @@map("client_fraud_events")
 }
+
+/// Owner 2026-10-06: «Главный партнёр страны». A business partner abroad
+/// promotes LawBid in one country at their own cost and gets a share of
+/// that country's net revenue. All money still goes to the owner's Stripe;
+/// the share is settled monthly and paid through payroll. Their admin team
+/// (the lead + up to `max_admins` staff) carries `country_partner` in
+/// admin_profiles.permissions and only sees this country. Only the super
+/// admin creates, changes the share, enables payouts or disables.
+model CountryPartner {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  country_code         String    @db.Char(2)
+  /// Company or person (contract party).
+  name                 String    @db.String(120)
+  contact              String?   @db.String(200)
+  /// The partner's own admin account (users.id with an admin profile).
+  lead_admin_id        String    @unique @db.Uuid
+  /// Share of the country's net revenue, basis points (2000 = 20 %).
+  share_bps            Int
+  /// active · paused · disabled
+  status               String    @default("active") @db.String(16)
+  /// Staff the lead may hire (the lead not counted).
+  max_admins           Int       @default(10)
+  /// Owner switches payouts on per partner; until then settlements wait.
+  payouts_enabled      Boolean   @default(false)
+  /// Payroll entry the monthly share is accrued to.
+  payroll_employee_id  String?   @db.Uuid
+  contract_starts_at   DateTime? @db.Timestamptz
+  contract_ends_at     DateTime? @db.Timestamptz
+  /// Contract version the lead accepted (country_partners.contract in
+  /// app_config); null = not accepted yet, the portal asks first.
+  contract_version     Int?
+  contract_accepted_at DateTime? @db.Timestamptz
+  contract_accepted_ip String?   @db.String(64)
+  /// [{metric: attorneys|clients|revenue_cents, target, deadline, alerted}]
+  goals                Json      @default("[]")
+  /// Team accounts suspended by «Отключить» / «Пауза» (restored together).
+  suspended_admin_ids  String[]  @default([])
+  note                 String?   @db.String(1000)
+  created_by           String?   @db.Uuid
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+  disabled_at          DateTime? @db.Timestamptz
+
+  settlements CountryPartnerSettlement[]
+
+  @@index([country_code, status])
+  @@map("country_partners")
+}
+
+/// One month of one partner in one currency: the country's paid revenue,
+/// refunds, estimated Stripe fees and the partner's share. Paid through
+/// payroll (accrual `country_partner:<id>`); its state is read from there.
+model CountryPartnerSettlement {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partner_id    String         @db.Uuid
+  partner       CountryPartner @relation(fields: [partner_id], references: [id], onDelete: Restrict)
+  /// "2026-10"
+  period        String         @db.String(7)
+  currency      String         @default("usd") @db.String(3)
+  gross_cents   Int
+  refunds_cents Int            @default(0)
+  fees_cents    Int            @default(0)
+  net_cents     Int
+  share_bps     Int
+  amount_cents  Int
+  /// held (payouts off / paused) · zero · accrued (sent to payroll)
+  status        String         @default("held") @db.String(16)
+  /// payroll_accruals.event_ref of the latest send to payroll.
+  accrual_ref   String?        @db.String(120)
+  created_at    DateTime       @default(now()) @db.Timestamptz
+  updated_at    DateTime       @updatedAt @db.Timestamptz
+
+  @@unique([partner_id, period, currency])
+  @@index([status, period])
+  @@map("country_partner_settlements")
+}

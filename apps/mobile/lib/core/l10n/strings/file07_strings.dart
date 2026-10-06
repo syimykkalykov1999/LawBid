@@ -41,6 +41,11 @@ const file07Ru = <String, String>{
   'reviews.write.hint':
       'Оставить отзыв может любой — работали вы вместе или нет. Отзывы по общему кейсу отмечаются как подтверждённые.',
   'reviews.write.saved': 'Отзыв опубликован',
+  // Owner 2026-10-06: attorneys are reviewed only after a completed case.
+  'reviews.write.onlyAfterCase':
+      'Отзыв об адвокате может оставить только клиент, который завершил с ним дело.',
+  'reviews.write.hintCase':
+      'Отзыв привязан к вашему завершённому делу с этим адвокатом и отмечается как подтверждённый.',
   'reviews.sort.relevant': 'Самые релевантные',
   'reviews.sort.highest': 'Сначала высокие оценки',
   'reviews.sort.lowest': 'Сначала низкие оценки',
@@ -606,6 +611,11 @@ const file07En = <String, String>{
   'reviews.write.hint':
       'Anyone can leave a review — whether or not you worked together. Reviews after a shared case are marked as verified.',
   'reviews.write.saved': 'Review posted',
+  // Owner 2026-10-06: attorneys are reviewed only after a completed case.
+  'reviews.write.onlyAfterCase':
+      'Only a client who completed a case with this attorney can review them.',
+  'reviews.write.hintCase':
+      'Your review is tied to the case you completed with this attorney and is marked as verified.',
   'reviews.sort.relevant': 'Most relevant',
   'reviews.sort.highest': 'Highest rating',
   'reviews.sort.lowest': 'Lowest rating',

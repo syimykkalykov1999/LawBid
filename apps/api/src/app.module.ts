@@ -81,6 +81,7 @@ import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
 import { AdminPayrollModule } from './modules/admin-payroll/admin-payroll.module';
+import { CountryPartnersModule } from './modules/country-partners/country-partners.module';
 import { SupportModule } from './modules/support/support.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TreasuryModule } from './modules/treasury/treasury.module';
@@ -303,6 +304,8 @@ const isDev =
     ProfilesModule,
     ReviewsModule,
     ClientFraudModule,
+    // Owner 2026-10-06: Деньги → Партнёры стран.
+    CountryPartnersModule,
     // BullMQ `cron` queue (session/OTP cleanup, disposable-domain refresh).
     // Runs in this process while JOBS_ENABLED (default true); src/worker.ts
     // runs the same module as the dedicated worker service.

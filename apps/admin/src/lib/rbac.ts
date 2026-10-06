@@ -61,7 +61,26 @@ interface AccessSubject {
   permissions?: Permissions;
   /** The super admin gave this admin the right to manage other admins. */
   canManageAdmins?: boolean;
+  /** Owner 2026-10-06: member of a country partner's team. */
+  countryPartnerId?: string | null;
+  /** …and the partner themself (hires their own team). */
+  partnerLead?: boolean;
 }
+
+/** Owner 2026-10-06: the most a country partner's team can hold (same
+ * list as the API). The partner hires only for these. */
+export const PARTNER_TEAM_AREAS: readonly { key: string; label: string; hint: string; max: AccessLevel }[] = [
+  { key: 'dashboard', label: 'Дашборд', hint: 'цифры и очереди своей страны', max: 'view' },
+  { key: 'users', label: 'Пользователи', hint: 'только просмотр', max: 'view' },
+  { key: 'verification', label: 'Проверка адвокатов и мошенники', hint: 'документы, галочки, борьба с мошенниками', max: 'manage' },
+  { key: 'moderation', label: 'Жалобы', hint: 'очередь модерации', max: 'manage' },
+  { key: 'content', label: 'Посты и отзывы', hint: 'публикации, комментарии, отзывы', max: 'manage' },
+  { key: 'media', label: 'Рилсы и стикеры', hint: 'видео', max: 'manage' },
+  { key: 'cases', label: 'Кейсы и ставки', hint: 'кейсы, споры', max: 'manage' },
+  { key: 'support', label: 'Поддержка', hint: 'обращения людей своей страны', max: 'manage' },
+  { key: 'outreach', label: 'Привлечение', hint: 'база контактов, звонки, письма', max: 'manage' },
+  { key: 'partner_report', label: 'Бухгалтер (отчёт)', hint: 'доход страны и начисления, только просмотр', max: 'view' },
+];
 
 /** Can this admin open [area] at [level]? Super admin: always. */
 export function can(
@@ -71,6 +90,14 @@ export function can(
 ): boolean {
   if (!me) return false;
   if (me.role === 'super_admin') return true;
+  // A country partner's team: only inside the partner limits.
+  if (me.countryPartnerId) {
+    const max = PARTNER_TEAM_AREAS.find((a) => a.key === area)?.max;
+    if (!max) return false;
+    const have = me.permissions?.[area];
+    const capped = have === 'manage' && max === 'view' ? 'view' : have;
+    return capped === 'manage' || (capped === 'view' && level === 'view');
+  }
   // The trusted deputy: reads everything but the keys, runs payroll.
   if (me.canManageAdmins && area !== 'keys' && (level === 'view' || area === 'payroll')) return true;
   const have = me.permissions?.[area];
@@ -127,6 +154,7 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/', label: 'Дашборд', icon: 'gauge', area: 'dashboard', hint: 'цифры и очереди' },
       { href: '/workspace', label: 'Рабочее место', icon: 'briefcase-metal', area: 'everyone', hint: 'моя очередь: открыть, проверить, решить, следующий' },
+      { href: '/partner', label: 'Кабинет партнёра', icon: 'handshake', area: 'partner', hint: 'договор, цели, отчёт по стране' },
     ],
   },
   {
@@ -187,6 +215,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'money' },
       { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'money', hint: 'скидки за приглашения' },
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
+      { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'money', hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
     ],
@@ -238,10 +267,13 @@ export const SECTIONS: readonly Section[] = GROUPS.flatMap((g) => g.items);
 function opens(me: AccessSubject, s: Section): boolean {
   // Every admin has their own workspace (it shows only their own queues).
   if (s.area === 'everyone') return true;
+  // Owner 2026-10-06: the partner team's own page.
+  if (s.area === 'partner') return !!me.countryPartnerId;
   if (s.area === 'super') return me.role === 'super_admin';
   if (s.area === 'money') return me.role === 'super_admin' || me.canManageAdmins === true;
-  // Admin management: the super admin, or an admin given that right.
-  if (s.area === 'admins') return me.role === 'super_admin' || me.canManageAdmins === true;
+  // Admin management: the super admin, an admin given that right, or a
+  // country partner (their own team only).
+  if (s.area === 'admins') return me.role === 'super_admin' || me.canManageAdmins === true || me.partnerLead === true;
   return can(me, s.area);
 }
 

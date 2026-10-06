@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-143 tables.
+145 tables.
 
 ```mermaid
 erDiagram
@@ -1864,6 +1864,45 @@ erDiagram
     Json details
     DateTime created_at
   }
+  country_partners {
+    String id PK
+    String country_code
+    String name
+    String contact "nullable"
+    String lead_admin_id UK
+    Int share_bps
+    String status
+    Int max_admins
+    Boolean payouts_enabled
+    String payroll_employee_id "nullable"
+    DateTime contract_starts_at "nullable"
+    DateTime contract_ends_at "nullable"
+    Int contract_version "nullable"
+    DateTime contract_accepted_at "nullable"
+    String contract_accepted_ip "nullable"
+    Json goals
+    String note "nullable"
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime disabled_at "nullable"
+  }
+  country_partner_settlements {
+    String id PK
+    String partner_id FK
+    String period
+    String currency
+    Int gross_cents
+    Int refunds_cents
+    Int fees_cents
+    Int net_cents
+    Int share_bps
+    Int amount_cents
+    String status
+    String accrual_ref "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -2045,4 +2084,5 @@ erDiagram
   document_templates }o--o| practice_areas : "practice_area_id"
   client_subscriptions |o--|| users : "user_id"
   client_subscriptions }o--o| plans : "plan_id"
+  country_partner_settlements }o--|| country_partners : "partner_id"
 ```
