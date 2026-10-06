@@ -1,12 +1,10 @@
 'use client';
 
-import { Flask, Key, LockSimple, Percent } from '@phosphor-icons/react';
+import { Flask, Key, LockSimple } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import Link from 'next/link';
-import { useState } from 'react';
 import { ErrorNote, PageHeader } from '@/components/page-header';
-import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Switch } from '@/components/ui/switch';
@@ -14,20 +12,131 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { formatDateTime } from '@/lib/utils';
 
-/** Russian names for the flags the app knows (the seed descriptions are English). */
-const FLAG_TEXT: Record<string, [string, string]> = {
-  video_posts: ['Рилсы (видео-посты)', 'Загрузка и лента коротких видео через Bunny Stream. Включается, когда все 5 ключей Bunny сохранены в «Ключи и сервисы».'],
-  profile_promotion: ['Продвижение профиля адвоката', 'Платное поднятие профиля в поиске.'],
-  stripe_identity: ['Проверка документов (Stripe Identity)', 'Автоматическая проверка удостоверения личности при верификации.'],
-  persona_verification: ['Проверка документов (Persona)', 'Альтернативный провайдер проверки личности.'],
-  chat_translate: ['Переводчик (Google Translate)', 'Кнопка «Перевести» в приложении. Где именно (везде или в выбранных разделах), настраивается в «Ключи и сервисы» → Google Translate.'],
-  auto_bar_check: ['Автопроверка лицензии в реестре', 'Сверка номера лицензии адвоката с реестром штата.'],
-  device_attestation: ['Проверка подлинности устройства', 'App Attest / Play Integrity для защиты от ботов.'],
-  phone_login: ['Вход по телефону', 'Код по SMS.'],
-  email_login: ['Вход по email', 'Код на почту.'],
-  apple_login: ['Вход через Apple', 'Sign in with Apple.'],
-  google_login: ['Вход через Google', 'Google Sign-In.'],
+/**
+ * Owner 2026-10-06: every switch says in plain Russian what it changes for
+ * users and what it needs before it can be turned on (with a link to the
+ * right place). The server's seed descriptions are English.
+ */
+type FlagInfo = { title: string; what: string; need?: string; href?: string; hrefLabel?: string };
+
+const KEYS = '/integrations';
+
+const FLAG_INFO: Record<string, FlagInfo> = {
+  video_posts: {
+    title: 'Рилсы (видео-посты)',
+    what: 'Пользователи снимают и выкладывают короткие видео в ленту, как в Instagram.',
+    need: 'Все 5 ключей Bunny Stream в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Ключи Bunny',
+  },
+  video_calls: {
+    title: 'Видеозвонки в чате',
+    what: 'Кнопка видеозвонка в чате между клиентом и адвокатом.',
+    need: 'Ключи TURN / STUN в «Ключи и сервисы» (сервер для звонков, когда телефоны не соединяются напрямую).',
+    href: KEYS,
+    hrefLabel: 'Ключи TURN',
+  },
+  chat_translate: {
+    title: 'Переводчик (Google Translate)',
+    what: 'Кнопка «Перевести» под сообщениями, постами, делами и отзывами. Где именно — настраивается в карточке Google Translate.',
+    need: 'Ключ Google Translate в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Ключ Google',
+  },
+  payments_in_app: {
+    title: 'Оплата адвокату через приложение',
+    what: 'Клиент платит выбранному адвокату прямо в приложении. Деньги идут адвокату, платформа их не держит.',
+    need: 'Ключ Stripe в «Ключи и сервисы», а адвокат должен подключить свой счёт Stripe.',
+    href: KEYS,
+    hrefLabel: 'Ключи Stripe',
+  },
+  payroll_stripe_payouts: {
+    title: 'Выплата зарплат сотрудникам через Stripe',
+    what: 'Сотрудники админки привязывают карту или счёт и получают зарплату автоматически в день выплаты.',
+    need: 'Ключ Stripe в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Ключи Stripe',
+  },
+  document_templates: {
+    title: 'Шаблоны документов',
+    what: 'Библиотека готовых шаблонов документов в приложении (раздел «Шаблоны»). Сами шаблоны редактируются в разделе контента.',
+  },
+  web_client: {
+    title: 'Вход с сайта (веб-версия)',
+    what: 'Пользователи могут входить не только из телефона, но и через браузер на сайте. Выключите — останется только приложение.',
+  },
+  profile_promotion: {
+    title: 'Продвижение профиля адвоката',
+    what: 'Платное поднятие профиля адвоката выше в поиске.',
+    need: 'Ключи Stripe и ID цены в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Ключи Stripe',
+  },
+  stripe_identity: {
+    title: 'Проверка документов (Stripe Identity)',
+    what: 'Автоматическая проверка удостоверения личности адвоката по фото документа.',
+    need: 'Ключ Stripe в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Ключи Stripe',
+  },
+  persona_verification: {
+    title: 'Проверка документов (Persona)',
+    what: 'Другой сервис проверки личности адвоката, вместо Stripe Identity.',
+    need: 'Ключ Persona в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Ключ Persona',
+  },
+  auto_bar_check: {
+    title: 'Автопроверка лицензии (старый переключатель)',
+    what: 'Больше не используется. Проверка лицензий теперь включается отдельно для каждого штата.',
+    need: 'Настраивается внизу страницы «Ключи и сервисы» → «Реестры адвокатов по штатам».',
+    href: KEYS,
+    hrefLabel: 'Реестры штатов',
+  },
+  device_attestation: {
+    title: 'Защита от ботов (проверка телефона)',
+    what: 'Сервер проверяет, что вход идёт с настоящего iPhone или Android, а не из программы-бота.',
+    need: 'Ещё не готово: если включить сейчас, никто не сможет войти. Поэтому кнопка заблокирована.',
+  },
+  phone_login: {
+    title: 'Вход по телефону',
+    what: 'Пользователь вводит номер и получает код по SMS.',
+    need: 'Ключи Twilio в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Ключи Twilio',
+  },
+  email_login: {
+    title: 'Вход по email',
+    what: 'Пользователь вводит почту и получает код в письме.',
+    need: 'Почта Amazon SES в «Ключи и сервисы».',
+    href: KEYS,
+    hrefLabel: 'Почта SES',
+  },
+  apple_login: {
+    title: 'Вход через Apple',
+    what: 'Кнопка «Войти через Apple»: вход одним нажатием на iPhone, без кода.',
+    need: 'Bundle ID и Team ID в «Ключи и сервисы» → «Вход через Apple».',
+    href: KEYS,
+    hrefLabel: 'Настройки Apple',
+  },
+  google_login: {
+    title: 'Вход через Google',
+    what: 'Кнопка «Войти через Google»: вход одним нажатием через аккаунт Google.',
+    need: 'Client ID в «Ключи и сервисы» → «Вход через Google».',
+    href: KEYS,
+    hrefLabel: 'Настройки Google',
+  },
 };
+
+/** Unknown (new) flags: their code as a readable name + the server text. */
+function infoFor(f: { key: string; description: string | null }): FlagInfo {
+  return (
+    FLAG_INFO[f.key] ?? {
+      title: f.key.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()),
+      what: f.description ?? '',
+    }
+  );
+}
 
 type Flag = {
   key: string;
@@ -40,8 +149,11 @@ type Flag = {
   updatedAt: string;
 };
 
-/** docs/06 §2.3 item 7: switches + rollout percent; paid flags need provider keys,
- * unbuilt ones are locked by the server (409). */
+/** docs/06 §2.3 item 7: on/off switches; paid flags need provider keys,
+ * unbuilt ones are locked by the server (409). Owner 2026-10-06: the
+ * «Раскрытие %» slider is gone — the server never applied the percent
+ * (a flag is on for everyone or no one), so it only confused.
+ */
 export default function FlagsPage() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -50,22 +162,15 @@ export default function FlagsPage() {
     queryFn: async () => (await api.GET('/admin/feature-flags')).data!.data as Flag[],
   });
   const update = useMutation({
-    mutationFn: async (v: { key: string; enabled?: boolean; rolloutPercent?: number }) => {
-      const r = await api.PATCH('/admin/feature-flags/{key}', {
+    mutationFn: async (v: { key: string; enabled: boolean }) => {
+      await api.PATCH('/admin/feature-flags/{key}', {
         params: { path: { key: v.key } },
-        body: {
-          ...(v.enabled !== undefined ? { enabled: v.enabled } : {}),
-          ...(v.rolloutPercent !== undefined ? { rolloutPercent: v.rolloutPercent } : {}),
-        },
+        body: { enabled: v.enabled },
       });
-      return { v, r };
+      return v;
     },
-    onSuccess: ({ v }) => {
-      toast.success(
-        v.enabled === undefined
-          ? `Раскрытие: ${v.rolloutPercent}%`
-          : `${FLAG_TEXT[v.key]?.[0] ?? v.key}: ${v.enabled ? 'включено' : 'выключено'}`,
-      );
+    onSuccess: (v) => {
+      toast.success(`${FLAG_INFO[v.key]?.title ?? v.key}: ${v.enabled ? 'включено' : 'выключено'}`);
       void qc.invalidateQueries({ queryKey: ['flags'] });
     },
     onError: (e) => toast.error(e),
@@ -82,7 +187,7 @@ export default function FlagsPage() {
       <PageHeader
         eyebrow="Система"
         title="Функции"
-        subtitle="Включайте и скрывайте функции приложения без релиза. Изменение доходит до приложений за минуту и пишется в журнал аудита."
+        subtitle="Каждый переключатель включает или скрывает функцию в приложении сразу у всех пользователей, без обновления приложения (доходит за минуту). Под каждой функцией написано, что она делает и что нужно, чтобы её включить. Все изменения пишутся в журнал."
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       {q.isPending ? (
@@ -118,10 +223,10 @@ function FlagCard({
   f: Flag;
   i: number;
   busy: boolean;
-  onChange: (v: { enabled?: boolean; rolloutPercent?: number }) => void;
+  onChange: (v: { enabled: boolean }) => void;
 }) {
-  const [title, text] = FLAG_TEXT[f.key] ?? [f.key, f.description ?? ''];
-  const [rollout, setRollout] = useState(f.rolloutPercent);
+  const info = infoFor(f);
+  const title = info.title;
   const blocked = !f.enabled && (f.notBuilt || (f.paid && f.missingKeys.length > 0));
   return (
     <motion.div
@@ -151,8 +256,12 @@ function FlagCard({
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">{text}</p>
-            <div className="mt-1 font-mono text-[11px] text-faint">{f.key}</div>
+            <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">{info.what}</p>
+            {info.need ? (
+              <p className="mt-1.5 break-words text-xs leading-relaxed text-ink">
+                <span className="font-medium">Что нужно, чтобы включить:</span> {info.need}
+              </p>
+            ) : null}
           </div>
           <Switch
             checked={f.enabled}
@@ -166,42 +275,22 @@ function FlagCard({
         </div>
         {f.paid && f.missingKeys.length > 0 ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
-            <span>Нет ключей: {f.missingKeys.join(', ')}</span>
-            <Link href="/integrations" className="font-medium underline-offset-2 hover:underline">
+            <span className="min-w-0 break-words">Нельзя включить: ключи сервиса ещё не добавлены.</span>
+            <Link href={info.href ?? KEYS} className="font-medium underline-offset-2 hover:underline">
               Добавить ключи →
             </Link>
           </div>
+        ) : info.href && !f.notBuilt ? (
+          <Link href={info.href} className="mt-3 inline-block text-xs text-gold-600 underline-offset-2 hover:underline">
+            {info.hrefLabel ?? 'Открыть настройки'} →
+          </Link>
         ) : null}
-        {!f.notBuilt ? (
-          <form
-            className="mt-4 flex items-center gap-3 border-t border-line pt-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              onChange({ rolloutPercent: rollout });
-            }}
-          >
-            <Percent size={15} className="text-faint" />
-            <span className="text-xs text-muted">Раскрытие</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={rollout}
-              onChange={(e) => setRollout(Number(e.target.value))}
-              className="h-1 flex-1 cursor-pointer accent-[#c9a24a]"
-              aria-label="Процент пользователей"
-            />
-            <span className="w-10 text-right font-mono text-xs tabular-nums text-ink">{rollout}%</span>
-            <Button size="sm" variant="outline" type="submit" disabled={busy || rollout === f.rolloutPercent}>
-              Сохранить
-            </Button>
-          </form>
-        ) : (
-          <div className="mt-4 flex items-center gap-2 border-t border-line pt-4 text-xs text-faint">
-            <Flask size={14} /> Сервер не даст включить, пока функция не готова в приложении.
+        {f.notBuilt ? (
+          <div className="mt-4 flex items-start gap-2 border-t border-line pt-4 text-xs text-faint">
+            <Flask size={14} className="mt-px shrink-0" />
+            <span className="break-words">Функция ещё не готова в приложении — сервер не даст её включить.</span>
           </div>
-        )}
+        ) : null}
         <div className="mt-2 text-[11px] text-faint">Изменён {formatDateTime(f.updatedAt)}</div>
       </Card>
     </motion.div>
