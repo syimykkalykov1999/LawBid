@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -15,6 +16,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
+import { legalLangOf, readLegalSettings } from '../legal/legal.settings';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   generateReferralCode,
@@ -24,6 +26,7 @@ import type { QualifyingEventKind } from '../referrals/referrals.settings';
 import type {
   PartnerCommissionDto,
   PartnerMeDto,
+  PartnerMeTextsDto,
   PartnerRatesDto,
   PartnerReferredUserDto,
   PartnerTotalsDto,
@@ -32,6 +35,7 @@ import type {
 import {
   effectiveRates,
   PARTNER_SETTINGS_KEY,
+  PARTNER_TERMS_VERSION,
   parsePartnerSettings,
   periodOf,
   type CommissionKind,
@@ -164,6 +168,24 @@ export class PartnersService {
 
   // ---- app --------------------------------------------------------------
 
+  /**
+   * Owner 2026-10-05 (legal): the partner's words plus the FTC disclosure
+   * and the rules from legal.settings (read straight from app_config so
+   * the partners module does not depend on LegalModule).
+   */
+  private async texts(
+    settings: PartnerProgramSettings,
+    lang: PartnerLang,
+  ): Promise<PartnerMeTextsDto> {
+    const legal = await readLegalSettings(this.prisma);
+    const t = legal.texts[legalLangOf(lang)];
+    return {
+      ...settings.texts[lang],
+      disclosure: t.partnerDisclosure,
+      terms: t.partnerTerms,
+    };
+  }
+
   /** GET /partners/me. Non-partners get `isPartner: false` and no data. */
   async me(userId: string): Promise<PartnerMeDto> {
     const partner = await this.prisma.partner.findUnique({
@@ -175,6 +197,7 @@ export class PartnersService {
       select: { ui_language: true, role: true },
     });
     const lang: PartnerLang = user?.ui_language === 'ru' ? 'ru' : 'en';
+    const texts = await this.texts(settings, lang);
     const canJoin =
       settings.enabled &&
       settings.joinMode !== 'closed' &&
@@ -199,7 +222,11 @@ export class PartnersService {
       totals: emptyTotals(),
       referred: [],
       commissions: [],
-      texts: settings.texts[lang],
+      texts,
+      termsVersion: PARTNER_TERMS_VERSION,
+      termsAcceptedVersion: null,
+      w9Required: settings.requireW9,
+      w9Received: false,
     };
     if (!partner) return empty;
     const code = await this.ensureCode(userId);
@@ -233,7 +260,17 @@ export class PartnersService {
         qualifiedAt: r.qualifiedAt,
       })),
       commissions: commissions.map(commissionDto),
-      texts: settings.texts[lang],
+      texts,
+      termsVersion: PARTNER_TERMS_VERSION,
+      // Only an acceptance of the CURRENT version counts: after a rules
+      // change the app shows the sheet again.
+      termsAcceptedVersion:
+        partner.terms_accepted_at &&
+        partner.terms_version === PARTNER_TERMS_VERSION
+          ? partner.terms_version
+          : null,
+      w9Required: settings.requireW9,
+      w9Received: partner.w9_received_at !== null,
     };
   }
 
@@ -245,8 +282,22 @@ export class PartnersService {
    * pending request the admin confirms (no attribution until then);
    * 'closed' and a switched-off program refuse. A partnership the admin
    * ended cannot be rejoined.
+   *
+   * Owner 2026-10-05 (legal): joining requires accepting the partner
+   * rules (FTC disclosure, no spam, independent contractor, ...); the
+   * acceptance is recorded with its version and the request IP.
    */
-  async join(userId: string): Promise<PartnerMeDto> {
+  async join(
+    userId: string,
+    opts: { termsAccepted: boolean; ip?: string | null },
+  ): Promise<PartnerMeDto> {
+    if (opts.termsAccepted !== true) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Accept the partner rules to join.',
+        details: { field: 'termsAccepted' },
+      });
+    }
     const settings = await this.settings();
     if (!settings.enabled || settings.joinMode === 'closed') {
       throw new ForbiddenException({
@@ -289,12 +340,35 @@ export class PartnersService {
           user_id: userId,
           status: settings.joinMode === 'approval' ? 'pending' : 'active',
           note: 'self-enrolled',
+          ...termsAcceptance(opts.ip),
         },
       });
     } catch (e) {
       if (!isUniqueViolation(e)) throw e; // joined twice at once: fine
     }
     await this.ensureCode(userId);
+    return this.me(userId);
+  }
+
+  /**
+   * POST /partners/me/accept-terms — an existing partner (added by the
+   * admin, or one who joined before the rules existed / under an older
+   * version) accepts the current rules. Same record as on join.
+   */
+  async acceptTerms(userId: string, ip?: string | null): Promise<PartnerMeDto> {
+    const partner = await this.prisma.partner.findUnique({
+      where: { user_id: userId },
+    });
+    if (!partner || partner.status === 'ended') {
+      throw new ConflictException({
+        code: ErrorCode.PARTNER_INVALID_STATE,
+        message: 'You are not a partner.',
+      });
+    }
+    await this.prisma.partner.update({
+      where: { id: partner.id },
+      data: termsAcceptance(ip),
+    });
     return this.me(userId);
   }
 
@@ -762,11 +836,30 @@ export class PartnersService {
     if (ids.length === 0)
       return { count: 0, totalCents: 0, partnerUserIds: [] };
     const now = opts.now ?? new Date();
+    const settings = await this.settings();
     const paid = await withTxRetry(this.prisma, async (tx) => {
       const rows = await tx.partnerCommission.findMany({
         where: { id: { in: ids }, status: 'approved' },
       });
       if (rows.length === 0) return rows;
+      // Owner 2026-10-05 (legal): no payout without the tax form on file
+      // (IRS 1099 reporting); the admin marks it received on the partner.
+      if (settings.requireW9) {
+        const missing = await tx.partner.findMany({
+          where: {
+            id: { in: [...new Set(rows.map((r) => r.partner_id))] },
+            w9_received_at: null,
+          },
+          select: { id: true },
+        });
+        if (missing.length > 0) {
+          throw new ConflictException({
+            code: ErrorCode.PARTNER_INVALID_STATE,
+            message: 'W-9 not received',
+            details: { partnerIds: missing.map((p) => p.id) },
+          });
+        }
+      }
       await tx.partnerCommission.updateMany({
         where: { id: { in: rows.map((r) => r.id) }, status: 'approved' },
         data: {
@@ -804,6 +897,18 @@ export class PartnersService {
       partnerUserIds: [...byPartner.keys()],
     };
   }
+}
+
+/** The columns written when a partner accepts the current rules. */
+export function termsAcceptance(
+  ip: string | null | undefined,
+  now = new Date(),
+): { terms_accepted_at: Date; terms_version: string; terms_ip: string | null } {
+  return {
+    terms_accepted_at: now,
+    terms_version: PARTNER_TERMS_VERSION,
+    terms_ip: ip ? ip.slice(0, 45) : null,
+  };
 }
 
 export function emptyTotals(): PartnerTotalsDto {

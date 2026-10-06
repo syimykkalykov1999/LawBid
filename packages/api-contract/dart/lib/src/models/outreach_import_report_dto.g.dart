@@ -13,6 +13,7 @@ OutreachImportReportDto _$OutreachImportReportDtoFromJson(
   rows: json['rows'] as num,
   created: json['created'] as num,
   duplicates: json['duplicates'] as num,
+  suppressed: json['suppressed'] as num,
   skipped: json['skipped'] as num,
   columns: (json['columns'] as List<dynamic>).map((e) => e as String).toList(),
   problems: (json['problems'] as List<dynamic>)
@@ -27,6 +28,7 @@ Map<String, dynamic> _$OutreachImportReportDtoToJson(
   'rows': instance.rows,
   'created': instance.created,
   'duplicates': instance.duplicates,
+  'suppressed': instance.suppressed,
   'skipped': instance.skipped,
   'columns': instance.columns,
   'problems': instance.problems,

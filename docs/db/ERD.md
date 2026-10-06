@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-140 tables.
+143 tables.
 
 ```mermaid
 erDiagram
@@ -35,6 +35,7 @@ erDiagram
     DateTime updated_at
     String placeholder_kind "nullable"
     String country_code FK
+    Int copyright_strikes
   }
   files {
     String id PK
@@ -704,6 +705,30 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  dmca_notices {
+    String id PK
+    String report_id FK "nullable"
+    enum_ReportTargetType target_type "nullable"
+    String target_id "nullable"
+    String infringing_url "nullable"
+    String complainant_name
+    String complainant_email
+    String complainant_address
+    String complainant_phone "nullable"
+    String work_description
+    Boolean good_faith
+    Boolean accuracy_sworn
+    String signature
+    String status
+    String submitted_by_user_id FK "nullable"
+    String author_user_id "nullable"
+    Json counter "nullable"
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
+    String decision_note "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   moderation_actions {
     String id PK
     String report_id FK "nullable"
@@ -1210,6 +1235,7 @@ erDiagram
     DateTime starts_at "nullable"
     DateTime expires_at "nullable"
     Boolean active
+    DateTime archived_at "nullable"
     String stripe_coupon_id "nullable"
     String created_by
     DateTime created_at
@@ -1276,6 +1302,10 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     DateTime ended_at "nullable"
+    DateTime terms_accepted_at "nullable"
+    String terms_version "nullable"
+    String terms_ip "nullable"
+    DateTime w9_received_at "nullable"
   }
   partner_commissions {
     String id PK
@@ -1321,6 +1351,11 @@ erDiagram
     DateTime last_activity_at "nullable"
     DateTime next_action_at "nullable"
     String note "nullable"
+    DateTime do_not_contact_at "nullable"
+    String do_not_contact_reason "nullable"
+    String source_note "nullable"
+    Int emails_sent
+    DateTime last_email_at "nullable"
     String created_by
     DateTime created_at
     DateTime updated_at
@@ -1347,9 +1382,19 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  outreach_suppressions {
+    String id PK
+    String kind
+    String value
+    String note "nullable"
+    String created_by
+    DateTime created_at
+  }
   case_promotions {
     String id PK
-    String case_id
+    String target_type
+    String case_id "nullable"
+    String post_id "nullable"
     String user_id
     Int days
     Int price_cents_per_day
@@ -1364,8 +1409,26 @@ erDiagram
     String canceled_by "nullable"
     String cancel_reason "nullable"
     Int impressions
+    Int cpm_cents "nullable"
+    Int target_impressions "nullable"
+    Int reach
+    Int clicks
+    Json audience "nullable"
+    Int refunded_cents
+    String reviewed_by "nullable"
+    DateTime reviewed_at "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  promotion_views {
+    String promotion_id PK,FK
+    String user_id PK
+    Int impressions
+    String day_key
+    Int day_count
+    Boolean clicked
+    DateTime first_seen_at
+    DateTime last_seen_at
   }
   support_tickets {
     String id PK
@@ -1911,6 +1974,8 @@ erDiagram
   payments }o--|| users : "user_id"
   reports }o--|| users : "reporter_id"
   reports }o--o| users : "handled_by"
+  dmca_notices }o--o| reports : "report_id"
+  dmca_notices }o--o| users : "submitted_by_user_id"
   moderation_actions }o--o| reports : "report_id"
   moderation_actions }o--|| users : "admin_id"
   admin_profiles |o--|| users : "user_id"
@@ -1967,6 +2032,7 @@ erDiagram
   partner_commissions }o--|| partners : "partner_id"
   outreach_leads }o--o| partners : "partner_id"
   outreach_activities }o--|| outreach_leads : "lead_id"
+  promotion_views }o--|| case_promotions : "promotion_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"
   stickers |o--|| files : "file_id"

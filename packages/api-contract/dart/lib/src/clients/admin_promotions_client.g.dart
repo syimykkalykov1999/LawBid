@@ -23,7 +23,9 @@ class _AdminPromotionsClient implements AdminPromotionsClient {
   @override
   Future<AdminPromotionRowListEnvelope> listAdminPromotions({
     CasePromotionStatus? status,
+    PromotionTarget? target,
     String? caseId,
+    String? postId,
     String? userId,
     String? cursor,
     Map<String, dynamic>? extras,
@@ -32,7 +34,9 @@ class _AdminPromotionsClient implements AdminPromotionsClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'status': status?.toJson(),
+      r'target': target?.toJson(),
       r'caseId': caseId,
+      r'postId': postId,
       r'userId': userId,
       r'cursor': cursor,
     };
@@ -206,6 +210,40 @@ class _AdminPromotionsClient implements AdminPromotionsClient {
           .compose(
             _dio.options,
             '/admin/promotions/${id}/cancel',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late AdminPromotionActionResultEnvelope _value;
+    try {
+      _value = AdminPromotionActionResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<AdminPromotionActionResultEnvelope> reviewAdminPromotion({
+    required String id,
+    required AdminReviewPromotionDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<AdminPromotionActionResultEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/promotions/${id}/review',
             queryParameters: queryParameters,
             data: _data,
           )

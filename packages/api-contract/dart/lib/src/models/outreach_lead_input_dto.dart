@@ -25,6 +25,8 @@ class OutreachLeadInputDto {
     this.nextActionAt,
     this.partnerId,
     this.status,
+    this.sourceNote,
+    this.doNotContact,
   });
 
   factory OutreachLeadInputDto.fromJson(Map<String, Object?> json) =>
@@ -47,6 +49,12 @@ class OutreachLeadInputDto {
 
   /// Manual status; registered/paid are set by the system.
   final OutreachLeadStatus? status;
+
+  /// Where the contact came from and on what basis we may write; required for client leads.
+  final String? sourceNote;
+
+  /// true = mark do-not-contact (reason manual); false clears it (managers only).
+  final bool? doNotContact;
 
   Map<String, Object?> toJson() => _$OutreachLeadInputDtoToJson(this);
 }

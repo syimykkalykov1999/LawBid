@@ -99,6 +99,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // Owner 2026-10-05: Система → Хранилище.
   storage: 'settings',
   'legal-documents': 'legal',
+  // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.
+  legal: 'legal',
   'data-requests': 'data_requests',
   teams: 'teams',
   export: 'exports',

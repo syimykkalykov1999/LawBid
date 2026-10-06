@@ -1,3 +1,4 @@
+import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { CasePhotosService } from './services/case-photos.service';
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { Module } from '@nestjs/common';
@@ -59,6 +60,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     PostsModule,
     // Owner 2026-10-02: referral qualification on the first case.
     ReferralsCoreModule,
+    // Owner 2026-10-05: promoted cases in the feed (budget, reach, cap).
+    PromotionsCoreModule,
   ],
   controllers: [
     CasesController,

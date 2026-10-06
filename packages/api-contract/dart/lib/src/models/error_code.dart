@@ -370,8 +370,14 @@ enum ErrorCode {
   outreachInvalidState('OUTREACH_INVALID_STATE'),
   @JsonValue('OUTREACH_EMAIL_LIMIT')
   outreachEmailLimit('OUTREACH_EMAIL_LIMIT'),
+  @JsonValue('OUTREACH_CONTACT_BLOCKED')
+  outreachContactBlocked('OUTREACH_CONTACT_BLOCKED'),
+  @JsonValue('OUTREACH_CLIENTS_DISABLED')
+  outreachClientsDisabled('OUTREACH_CLIENTS_DISABLED'),
   @JsonValue('COUNTRY_NOT_AVAILABLE')
   countryNotAvailable('COUNTRY_NOT_AVAILABLE'),
+  @JsonValue('DMCA_INVALID_STATE')
+  dmcaInvalidState('DMCA_INVALID_STATE'),
   @JsonValue('DEMO_DISABLED')
   demoDisabled('DEMO_DISABLED'),
   @JsonValue('DEMO_LIMIT_REACHED')

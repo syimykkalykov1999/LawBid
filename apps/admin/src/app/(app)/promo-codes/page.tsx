@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowsClockwise, MagnifyingGlass, Plus, Ticket } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, ArrowsClockwise, ListBullets, MagnifyingGlass, Plus, Ticket, Trash } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useState } from 'react';
@@ -27,9 +27,11 @@ import {
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useConfirm } from '@/components/legacy/confirm';
 import { Dialog } from '@/components/ui/dialog';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { Field, Input, Select, Textarea } from '@/components/ui/input';
+import { RowMenu } from '@/components/ui/menu';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
@@ -38,9 +40,9 @@ import { api, errorText } from '@/lib/api/client';
 import { usd } from '@/lib/labels';
 import { cn, formatDateTime } from '@/lib/utils';
 
-type Filter = 'active' | 'expired' | 'inactive';
+type Filter = 'active' | 'expired' | 'inactive' | 'archived';
 
-/** Promo codes: list, create, on/off, redemptions. */
+/** Promo codes: list, create, on/off, delete / archive, redemptions. */
 export default function PromoCodesPage() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -73,6 +75,39 @@ export default function PromoCodesPage() {
     onError: (e) => toast.error(e),
   });
 
+  // Owner 2026-10-05: «⋯» → Удалить. Unused codes go for good; used ones
+  // move to «Архив» so payment history stays intact.
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const remove = useMutation({
+    mutationFn: async (p: PromoCode) => {
+      const used = p.redeemedCount > 0;
+      const ok = await confirm({
+        title: `Удалить промокод ${p.code}?`,
+        description: used
+          ? `Кодом уже воспользовались (${p.redeemedCount}). Он выключится и уйдёт во вкладку «Архив»: история оплат сохранится, вернуть код можно оттуда.`
+          : 'Кодом ещё никто не пользовался, поэтому он удалится полностью. Это имя кода снова можно будет использовать.',
+        confirm: 'Удалить',
+        danger: true,
+      });
+      if (!ok) return null;
+      return (await api.DELETE('/admin/billing/promo-codes/{id}', { params: { path: { id: p.id } } })).data!.data;
+    },
+    onSuccess: (r) => {
+      if (!r) return;
+      toast.success(r.outcome === 'archived' ? 'Промокод перенесён в архив' : 'Промокод удалён');
+      void qc.invalidateQueries({ queryKey: ['promo-codes'] });
+    },
+    onError: (e) => toast.error(e),
+  });
+  const restore = useMutation({
+    mutationFn: async (p: PromoCode) => (await api.POST('/admin/billing/promo-codes/{id}/restore', { params: { path: { id: p.id } } })).data!.data,
+    onSuccess: (p) => {
+      toast.success(`${p.code} возвращён выключенным, включите его, когда понадобится`);
+      void qc.invalidateQueries({ queryKey: ['promo-codes'] });
+    },
+    onError: (e) => toast.error(e),
+  });
+
   return (
     <>
       <PageHeader
@@ -95,6 +130,7 @@ export default function PromoCodesPage() {
             { value: 'active', label: 'Действуют' },
             { value: 'expired', label: 'Истекли' },
             { value: 'inactive', label: 'Выключены' },
+            { value: 'archived', label: 'Архив' },
           ]}
         />
         <form
@@ -136,9 +172,11 @@ export default function PromoCodesPage() {
               p={p}
               i={i}
               canWrite={canWrite}
-              busy={toggle.isPending}
+              busy={toggle.isPending || remove.isPending || restore.isPending}
               onOpen={() => setOpen(p)}
               onToggle={(on) => toggle.mutate({ p, on })}
+              onDelete={() => remove.mutate(p)}
+              onRestore={() => restore.mutate(p)}
             />
           ))}
         </div>
@@ -146,6 +184,7 @@ export default function PromoCodesPage() {
       <LoadMore q={list} />
       {creating ? <CreateDialog onClose={() => setCreating(false)} /> : null}
       {open ? <RedemptionsDialog p={open} onClose={() => setOpen(null)} /> : null}
+      {confirmDialog}
     </>
   );
 }
@@ -157,6 +196,8 @@ function PromoCard({
   busy,
   onOpen,
   onToggle,
+  onDelete,
+  onRestore,
 }: {
   p: PromoCode;
   i: number;
@@ -164,7 +205,10 @@ function PromoCard({
   busy: boolean;
   onOpen: () => void;
   onToggle: (on: boolean) => void;
+  onDelete: () => void;
+  onRestore: () => void;
 }) {
+  const archived = p.status === 'archived';
   const share = p.maxRedemptions ? p.redeemedCount / p.maxRedemptions : 0;
   return (
     <motion.div {...fadeUp(i)}>
@@ -176,7 +220,7 @@ function PromoCard({
         onKeyDown={(e) => {
           if (e.key === 'Enter') onOpen();
         }}
-        className={cn('flex h-full cursor-pointer flex-col p-5', !p.active && 'opacity-75')}
+        className={cn('flex h-full cursor-pointer flex-col p-5', (!p.active || archived) && 'opacity-75')}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -188,11 +232,21 @@ function PromoCard({
               <TonePill map={PROMO_STATUS} tones={PROMO_TONE} value={p.status} />
             </div>
           </div>
-          {canWrite ? (
-            <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-              <Switch checked={p.active} disabled={busy} label={p.active ? 'Выключить' : 'Включить'} onChange={onToggle} />
-            </div>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-1">
+            {canWrite && !archived ? (
+              <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <Switch checked={p.active} disabled={busy} label={p.active ? 'Выключить' : 'Включить'} onChange={onToggle} />
+              </div>
+            ) : null}
+            <RowMenu
+              label={`Действия с ${p.code}`}
+              items={[
+                { label: 'Кто воспользовался', icon: ListBullets, onSelect: onOpen },
+                ...(canWrite && archived ? [{ label: 'Вернуть из архива', icon: ArrowCounterClockwise, onSelect: onRestore, disabled: busy }] : []),
+                ...(canWrite && !archived ? [{ label: 'Удалить', icon: Trash, onSelect: onDelete, danger: true, disabled: busy }] : []),
+              ]}
+            />
+          </div>
         </div>
         <div className="mt-4 text-[28px] leading-none font-semibold tracking-tight text-gold-gradient">{discountText(p)}</div>
         <div className="mt-2 text-sm text-muted">

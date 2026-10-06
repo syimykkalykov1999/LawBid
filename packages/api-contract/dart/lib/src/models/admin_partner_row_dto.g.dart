@@ -33,6 +33,13 @@ AdminPartnerRowDto _$AdminPartnerRowDtoFromJson(Map<String, dynamic> json) =>
       endedAt: json['endedAt'] == null
           ? null
           : DateTime.parse(json['endedAt'] as String),
+      termsAcceptedAt: json['termsAcceptedAt'] == null
+          ? null
+          : DateTime.parse(json['termsAcceptedAt'] as String),
+      termsVersion: json['termsVersion'] as String?,
+      w9ReceivedAt: json['w9ReceivedAt'] == null
+          ? null
+          : DateTime.parse(json['w9ReceivedAt'] as String),
     );
 
 Map<String, dynamic> _$AdminPartnerRowDtoToJson(AdminPartnerRowDto instance) =>
@@ -52,6 +59,9 @@ Map<String, dynamic> _$AdminPartnerRowDtoToJson(AdminPartnerRowDto instance) =>
       'totals': instance.totals.toJson(),
       'createdAt': instance.createdAt.toIso8601String(),
       'endedAt': ?instance.endedAt?.toIso8601String(),
+      'termsAcceptedAt': ?instance.termsAcceptedAt?.toIso8601String(),
+      'termsVersion': ?instance.termsVersion,
+      'w9ReceivedAt': ?instance.w9ReceivedAt?.toIso8601String(),
       'demoAccess': instance.demoAccess,
       'external': ?instance.externalValue?.toJson(),
     };

@@ -429,19 +429,22 @@ export const NOTIFICATION_TEMPLATES: Partial<
     group: 'cases',
     en: {
       title: 'Promotion started',
-      body: 'Your case is now shown higher in the feed.',
+      body: 'People now see it in their feed. Reach and clicks are in My promotions.',
     },
     ru: {
       title: 'Продвижение началось',
-      body: 'Ваше дело теперь выше в ленте.',
+      body: 'Его уже показывают в ленте. Охват и клики — в «Мои продвижения».',
     },
   },
   promotion_ended: {
     group: 'cases',
-    en: { title: 'Promotion ended', body: 'Your case promotion has finished.' },
+    en: {
+      title: 'Promotion ended',
+      body: 'Your promotion has finished. See the results in My promotions.',
+    },
     ru: {
       title: 'Продвижение завершилось',
-      body: 'Продвижение вашего дела завершилось.',
+      body: 'Продвижение завершилось. Итоги — в «Мои продвижения».',
     },
   },
   // Owner 2026-10-05: client → attorney payments through the platform.

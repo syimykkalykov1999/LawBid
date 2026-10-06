@@ -49,6 +49,8 @@ export const REPORT_REASON: Record<string, string> = {
   profanity: 'нецензурная лексика',
   harassment: 'травля или оскорбления',
   hate_speech: 'дискриминация / разжигание ненависти',
+  // Owner 2026-10-05 (legal): a DMCA notice from the report sheet.
+  copyright: 'нарушение авторских прав (DMCA)',
   personal_info: 'личные данные',
 };
 
@@ -317,10 +319,12 @@ export const PRIORITY: Record<string, string> = {
 
 export const PROMOTION_STATUS: Record<string, string> = {
   pending_payment: 'ждёт оплаты',
+  pending_review: 'на проверке',
   active: 'идёт',
   finished: 'завершено',
   canceled: 'отменено',
   refunded: 'возвращено',
+  rejected: 'отклонено',
 };
 
 export const REFERRAL_STATUS: Record<string, string> = {
@@ -594,6 +598,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   'promotions.extend': 'Продвижение продлено',
   'promotions.cancel': 'Продвижение отменено',
   'promotions.settings': 'Настройки продвижения',
+  'promotions.review': 'Продвижение проверено',
   'referrals.qualify': 'Реферал: условие выполнено',
   'referrals.reward': 'Реферал: награда выдана',
   'referrals.reject': 'Реферал отклонён',

@@ -17,6 +17,8 @@ class AdminReferralStatsDto {
     required this.balanceCentsIssued,
     required this.promotionDaysIssued,
     required this.promotionDaysUsed,
+    required this.promotionDaysIssuedExact,
+    required this.promotionDaysUsedExact,
   });
 
   factory AdminReferralStatsDto.fromJson(Map<String, Object?> json) =>
@@ -36,6 +38,12 @@ class AdminReferralStatsDto {
 
   /// Promotion days spent.
   final int promotionDaysUsed;
+
+  /// Promotion days issued, exact (may be fractional).
+  final num promotionDaysIssuedExact;
+
+  /// Promotion days spent, exact (may be fractional).
+  final num promotionDaysUsedExact;
 
   Map<String, Object?> toJson() => _$AdminReferralStatsDtoToJson(this);
 }

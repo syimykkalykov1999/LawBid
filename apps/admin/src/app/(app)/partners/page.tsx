@@ -39,7 +39,7 @@ import {
   type PartnerStatus,
   type Picked,
 } from "@/components/partners/shared";
-import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
+import { ErrorNote, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
@@ -65,7 +65,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 
 type Settings = components["schemas"]["PartnerSettingsDto"];
-type Tab = "partners" | "commissions" | "demo";
+type Tab = "partners" | "commissions" | "demo" | "settings";
 type StatusTab = "all" | PartnerStatus;
 
 /** Partner program: who brings attorneys and clients, what they are paid. */
@@ -175,22 +175,20 @@ export default function PartnersPage() {
             { value: "partners" as Tab, label: "Партнёры" },
             { value: "commissions" as Tab, label: "Начисления" },
             { value: "demo" as Tab, label: "Демо-доступ" },
+            { value: "settings" as Tab, label: "Настройки программы" },
           ]}
         />
       </div>
 
+      {/* Owner 2026-10-05: settings get their own tab, so a long list of
+          partners never pushes them out of reach. */}
       {tab === "partners" ? (
         <PartnersList canWrite={canWrite} canOpenUsers={canOpenUsers} />
       ) : tab === "commissions" ? (
         <AllCommissions canWrite={canWrite} canOpenUsers={canOpenUsers} />
-      ) : (
+      ) : tab === "demo" ? (
         <DemoTab canWrite={canWrite} isSuper={me?.role === "super_admin"} />
-      )}
-
-      {tab === "demo" ? null : (
-        <>
-      <SectionTitle>Настройки программы</SectionTitle>
-      {settings.isPending ? (
+      ) : settings.isPending ? (
         <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
       ) : settings.data ? (
         <SettingsForm
@@ -202,8 +200,6 @@ export default function PartnersPage() {
         <ErrorNote
           text={settings.error ? errorText(settings.error) : "Не удалось загрузить настройки"}
         />
-      )}
-        </>
       )}
     </>
   );
@@ -654,6 +650,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [client, setClient] = useState(centsToText(initial.clientRateCents));
   const [rule, setRule] = useState<ClientRule>(initial.clientRule);
   const [hold, setHold] = useState(String(initial.holdDays));
+  // Owner 2026-10-05 (legal): a W-9 (or W-8) before the first payout.
+  const [requireW9, setRequireW9] = useState(initial.requireW9 ?? true);
   const [texts, setTexts] = useState(initial.texts);
   const attorneyCents = textToCents(attorney);
   const clientCents = textToCents(client);
@@ -671,6 +669,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             clientRateCents: clientCents ?? 0,
             clientRule: rule,
             holdDays: holdDays ?? 14,
+            requireW9,
             texts,
           },
         })
@@ -759,7 +758,11 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         <Field label="За клиента, $" htmlFor="ps-cl">
           <Input id="ps-cl" inputMode="decimal" value={client} disabled={!canEdit} onChange={(e) => setClient(e.target.value)} />
         </Field>
-        <Field label="Условие по клиенту" htmlFor="ps-rule">
+        <Field
+          label="Условие по клиенту"
+          htmlFor="ps-rule"
+          hint="Рекомендуется «опубликовал кейс»: выплата партнёру не должна зависеть от найма адвоката (законы о посредниках, CA §6152 / TX §38.12)"
+        >
           <Select id="ps-rule" value={rule} disabled={!canEdit} onChange={(e) => setRule(e.target.value as ClientRule)}>
             {CLIENT_RULES.map((r) => (
               <option key={r} value={r}>
@@ -771,6 +774,15 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         <Field label="Проверка, дней" htmlFor="ps-hold" hint="0 — к выплате сразу, до 180">
           <Input id="ps-hold" inputMode="numeric" value={hold} disabled={!canEdit} onChange={(e) => setHold(e.target.value.replace(/\D/g, ""))} />
         </Field>
+      </div>
+      <div className="mt-4 flex items-start gap-3 rounded-[var(--radius-md)] border border-line-strong bg-surface-2 p-3">
+        <Switch checked={requireW9} onChange={setRequireW9} disabled={!canEdit} label="Требовать W-9 до первой выплаты" />
+        <div>
+          <p className="text-sm font-medium text-heading">Требовать W-9 до первой выплаты</p>
+          <p className="mt-1 text-sm text-muted">
+            Партнёр — независимый подрядчик: от $600 в год нужна форма 1099-NEC, а для неё — W-9 (W-8 для нерезидентов). Пока форма не отмечена полученной на странице партнёра, кнопка «Выплатить» не сработает.
+          </p>
+        </div>
       </div>
       <h4 className="mt-6 text-sm font-medium text-heading">Что видит партнёр в приложении</h4>
       <div className="mt-3 grid gap-4 md:grid-cols-2">

@@ -123,6 +123,12 @@ class PartnerMe {
     required this.commissions,
     required this.title,
     required this.summary,
+    this.disclosure = '',
+    this.terms = '',
+    this.termsVersion = '',
+    this.termsAcceptedVersion,
+    this.w9Required = false,
+    this.w9Received = false,
   });
 
   /// The owner's master switch: off hides the section everywhere.
@@ -147,4 +153,25 @@ class PartnerMe {
   final List<PartnerCommission> commissions;
   final String title;
   final String summary;
+
+  /// Owner 2026-10-05 (legal): "say it is a paid link" (FTC Endorsement
+  /// Guides) — shown on the partner screen and before joining.
+  final String disclosure;
+
+  /// The partner rules, plain text, read in a sheet before accepting.
+  final String terms;
+
+  /// Current version of the rules (e.g. `2026-10-05`).
+  final String termsVersion;
+
+  /// The version this partner accepted; null = not accepted (or an older
+  /// version) — the link is hidden until `POST /partners/me/accept-terms`.
+  final String? termsAcceptedVersion;
+
+  /// A W-9 (or W-8) is needed before the first payout.
+  final bool w9Required;
+  final bool w9Received;
+
+  /// A partner whose acceptance of the current rules is missing.
+  bool get needsTermsAcceptance => isPartner && termsAcceptedVersion == null;
 }
