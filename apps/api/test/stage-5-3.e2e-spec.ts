@@ -192,6 +192,17 @@ describe('Feed (e2e, docs/05 §2.2, stage 5.3)', () => {
     expect(all.some((id) => hidden.includes(id))).toBe(false);
   });
 
+  it('an attorney who follows nobody still sees their own new post on the first page', async () => {
+    const me = await user('attorney');
+    const mine = await posts(me.id, 1);
+    // Other people's posts exist, so recommendations could fill the page.
+    const other = await user('attorney');
+    await posts(other.id, 25);
+
+    const first = await feed(me.auth);
+    expect(first.ids).toEqual(expect.arrayContaining(mine));
+  });
+
   it('after recommendations run out, older posts follow without repeats', async () => {
     const author = await user('attorney');
     const top = await posts(author.id, 2, 1000);
