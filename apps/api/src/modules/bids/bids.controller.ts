@@ -7,6 +7,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { RequireLegalAcceptance } from '../legal-documents/legal-acceptance.guard';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -52,6 +53,7 @@ export class BidsController {
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('bids')
   @Post('cases/:caseId/bids')
+  @RequireLegalAcceptance()
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Place a bid on an open case (attorney)' })
@@ -63,7 +65,7 @@ export class BidsController {
   @ApiEnvelopeResponse(BidDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.IDEMPOTENCY_KEY_REQUIRED],
-    403: [E.FORBIDDEN, E.SUBSCRIPTION_REQUIRED],
+    403: [E.FORBIDDEN, E.SUBSCRIPTION_REQUIRED, E.LEGAL_REACCEPT_REQUIRED],
     404: [E.CASE_NOT_FOUND],
     409: [
       E.CASE_INVALID_STATE,

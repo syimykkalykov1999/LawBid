@@ -109,6 +109,12 @@ erDiagram
     Boolean is_current
     DateTime created_at
     DateTime updated_at
+    String status
+    Boolean requires_reacceptance
+    String created_by "nullable"
+    String changed_by "nullable"
+    String change_note "nullable"
+    String rollback_of_id "nullable"
   }
   user_consents {
     String id PK

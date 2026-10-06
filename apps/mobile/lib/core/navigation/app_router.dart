@@ -28,6 +28,7 @@ import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart';
+import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
@@ -218,6 +219,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const VerificationWizardScreen()),
+      ),
+      // Owner 2026-10-05 (legal documents): accept the documents of my role.
+      GoRoute(
+        path: AppRoutes.legalAccept,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.modal(state, const LegalAcceptScreen()),
       ),
       // Owner 2026-10-05 (legal): before `/legal/:docType` — first match wins.
       GoRoute(

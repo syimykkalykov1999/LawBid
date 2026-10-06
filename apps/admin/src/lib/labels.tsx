@@ -277,6 +277,14 @@ export const LEGAL_DOC_TYPE: Record<string, string> = {
   privacy: 'Политика конфиденциальности',
   disclaimer: 'Отказ от ответственности',
   client_contact_sharing: 'Согласие на передачу контактов',
+  attorney_agreement: 'Соглашение адвоката',
+  client_agreement: 'Соглашение с клиентом',
+  eula: 'Лицензионное соглашение (EULA)',
+  refund: 'Возвраты и отмена',
+  cookies: 'Политика cookies',
+  third_party_services: 'Сторонние сервисы',
+  partner_terms: 'Условия для партнёров',
+  dmca_policy: 'Политика DMCA',
 };
 
 export const DATA_REQUEST_TYPE: Record<string, string> = {

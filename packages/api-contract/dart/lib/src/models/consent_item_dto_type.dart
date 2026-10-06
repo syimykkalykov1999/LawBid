@@ -14,6 +14,12 @@ enum ConsentItemDtoType {
   disclaimer('disclaimer'),
   @JsonValue('client_contact_sharing')
   clientContactSharing('client_contact_sharing'),
+  @JsonValue('attorney_agreement')
+  attorneyAgreement('attorney_agreement'),
+  @JsonValue('client_agreement')
+  clientAgreement('client_agreement'),
+  @JsonValue('eula')
+  eula('eula'),
   @JsonValue('age_18')
   age18('age_18'),
   @JsonValue('marketing_email')

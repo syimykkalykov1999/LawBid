@@ -1,3 +1,4 @@
+import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -33,6 +34,17 @@ abstract final class CurrentUserMapper {
       theme: dto.theme.json,
       avatarUrl: dto.avatarUrl,
       requiredConsentsGranted: dto.requiredConsentsGranted,
+      pendingLegalDocuments: dto.pendingLegalDocuments
+          .map(
+            (d) => PendingLegalDocument(
+              id: d.id,
+              docType: d.docType.json ?? '',
+              version: d.version,
+              title: d.title,
+              updated: d.reason == api.PendingLegalDocumentDtoReason.updated,
+            ),
+          )
+          .toList(growable: false),
       onboarding: OnboardingProgress(
         currentStep: OnboardingStepId.tryParse(dto.onboarding.currentStep),
         completedAt: dto.onboarding.completedAt,

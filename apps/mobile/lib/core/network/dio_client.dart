@@ -11,6 +11,7 @@ import 'package:lawbid/core/network/auth_interceptor.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
+import 'package:lawbid/features/legal/application/legal_reaccept_interceptor.dart';
 
 /// The single [Dio] instance for the whole app (docs/01_FOUNDATION_AUTH.md
 /// §10.4). Every network call goes through this — no screen/repository
@@ -37,6 +38,7 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(AppUpdateInterceptor(ref));
   dio.interceptors.add(AccountSuspendedInterceptor(ref));
   dio.interceptors.add(AccountRestrictedInterceptor(ref));
+  dio.interceptors.add(LegalReacceptInterceptor(ref));
   dio.interceptors.add(IdempotencyInterceptor());
   dio.interceptors.add(AuthInterceptor(ref, dio));
   dio.interceptors.add(RetryInterceptor(dio));

@@ -5,7 +5,10 @@ import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/config/app_links.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/legal/application/legal_providers.dart';
+import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-02: "About LawBid" in Settings — a few lines about the
@@ -27,12 +30,20 @@ class AboutScreen extends ConsumerWidget {
     }
   }
 
+  /// The app's own title for a known document type, else the server's.
+  String _docTitle(Translator t, LegalDocumentBrief d) {
+    final own = t.t('legal.doc.${d.docType}');
+    return own.startsWith('legal.doc.') ? d.title : own;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final host = Uri.parse(kWebsiteUrl).host;
+    final legalDocs = ref.watch(legalDocumentListProvider).value ??
+        const <LegalDocumentBrief>[];
 
     Widget point(IconData icon, String text) => Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -55,10 +66,7 @@ class AboutScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     text,
-                    style: type.body.copyWith(
-                      color: colors.text,
-                      height: 1.4,
-                    ),
+                    style: type.body.copyWith(color: colors.text, height: 1.4),
                   ),
                 ),
               ),
@@ -103,9 +111,7 @@ class AboutScreen extends ConsumerWidget {
                     future: AppVersion.load(),
                     builder: (_, snap) => Text(
                       t.t('about.version', {'version': snap.data ?? ''}),
-                      style: type.caption.copyWith(
-                        color: colors.textSecondary,
-                      ),
+                      style: type.caption.copyWith(color: colors.textSecondary),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -172,15 +178,17 @@ class AboutScreen extends ConsumerWidget {
                             children: [
                               Text(
                                 t.t('about.website'),
-                                style: type.titleMedium
-                                    .copyWith(color: colors.text),
+                                style: type.titleMedium.copyWith(
+                                  color: colors.text,
+                                ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 host,
                                 overflow: TextOverflow.ellipsis,
-                                style: type.bodySmall
-                                    .copyWith(color: colors.goldDark),
+                                style: type.bodySmall.copyWith(
+                                  color: colors.goldDark,
+                                ),
                               ),
                             ],
                           ),
@@ -200,16 +208,31 @@ class AboutScreen extends ConsumerWidget {
               index: 3,
               child: Column(
                 children: [
-                  AppListRow(
-                    icon: AppIcons.balanceRounded,
-                    label: t.t('settings.legal'),
-                    onTap: () => context.push(AppRoutes.legalDoc('terms')),
-                  ),
-                  AppListRow(
-                    icon: AppIcons.shieldOutlined,
-                    label: t.t('about.privacy'),
-                    onTap: () => context.push(AppRoutes.legalDoc('privacy')),
-                  ),
+                  // Owner 2026-10-05 (legal documents): every current
+                  // document the owner published; the two fixed links
+                  // stay while the list is loading or unavailable.
+                  if (legalDocs.isEmpty) ...[
+                    AppListRow(
+                      icon: AppIcons.balanceRounded,
+                      label: t.t('settings.legal'),
+                      onTap: () => context.push(AppRoutes.legalDoc('terms')),
+                    ),
+                    AppListRow(
+                      icon: AppIcons.shieldOutlined,
+                      label: t.t('about.privacy'),
+                      onTap: () => context.push(AppRoutes.legalDoc('privacy')),
+                    ),
+                  ] else
+                    for (final d in legalDocs)
+                      AppListRow(
+                        key: ValueKey('about-doc-${d.docType}'),
+                        icon: d.docType == 'privacy'
+                            ? AppIcons.shieldOutlined
+                            : AppIcons.balanceRounded,
+                        label: _docTitle(t, d),
+                        onTap: () =>
+                            context.push(AppRoutes.legalDoc(d.docType)),
+                      ),
                   // Owner 2026-10-05 (legal): the DMCA takedown form.
                   AppListRow(
                     key: const ValueKey('about-dmca'),
