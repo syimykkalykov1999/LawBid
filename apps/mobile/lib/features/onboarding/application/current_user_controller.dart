@@ -111,6 +111,15 @@ class CurrentUserController extends Notifier<CurrentUserState> {
 
   /// Replaces the user with a fresh MeView returned by a mutation.
   void apply(CurrentUser user) => state = CurrentUserState.ready(user);
+
+  /// Owner 2026-10-05, demo mode: the session was swapped for another
+  /// account in place (`SessionController.switchSession`). Drop the
+  /// previous user so the guard holds the splash until the new
+  /// `GET /users/me` lands, rather than routing by the old role.
+  void resetForNewSession() {
+    state = const CurrentUserState.loading();
+    unawaited(load());
+  }
 }
 
 final currentUserControllerProvider =

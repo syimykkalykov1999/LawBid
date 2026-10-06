@@ -246,6 +246,19 @@ Future<void> showReportSheet(
                     showChevron: false,
                     onTap: () async {
                       Navigator.of(sheet).pop();
+                      // Owner 2026-10-05 (legal): copyright goes through the
+                      // DMCA form (the server files the report itself).
+                      if (reason == ReportReason.copyright) {
+                        if (context.mounted) {
+                          await context.push(
+                            AppRoutes.dmcaNoticeFor(
+                              targetType: _dmcaTargetType(target),
+                              targetId: id,
+                            ),
+                          );
+                        }
+                        return;
+                      }
                       final error = await ref
                           .read(socialActionsProvider)
                           .report(target, id, reason);
@@ -267,6 +280,15 @@ Future<void> showReportSheet(
     },
   );
 }
+
+/// The DMCA form's `targetType` for a report target; null for targets the
+/// notice cannot name (a user, a sticker pack) — the form then asks for a URL.
+String? _dmcaTargetType(ReportTarget target) => switch (target) {
+      ReportTarget.post => 'post',
+      ReportTarget.comment => 'comment',
+      ReportTarget.message => 'message',
+      ReportTarget.user || ReportTarget.stickerPack => null,
+    };
 
 /// Owner 2026-09-30: "Edit" opens the "+" form with the post's title,
 /// text and qualification (photos stay as published).

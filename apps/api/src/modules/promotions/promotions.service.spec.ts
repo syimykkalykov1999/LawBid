@@ -97,6 +97,18 @@ function setup(opts: { enabled?: boolean; credits?: number } = {}) {
 }
 
 describe('quotePromotion', () => {
+  it('half a credit day pays for the other half (owner 2026-10-05)', () => {
+    const q = quotePromotion({
+      days: 1,
+      priceCentsPerDay: 999,
+      creditDaysAvailable: 0.5,
+      useCredits: true,
+    });
+    expect(q.creditDaysUsed).toBe(0.5);
+    expect(q.totalCents).toBe(500);
+    expect(Number.isInteger(q.totalCents)).toBe(true);
+  });
+
   it('days × price, credits first', () => {
     expect(
       quotePromotion({

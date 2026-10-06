@@ -24,10 +24,12 @@ import {
   LEAD_SOURCES,
   LEAD_STATUSES,
   MAX_DAILY_EMAILS,
+  OUTREACH_LIMITS,
   OUTREACH_TEXT_LIMITS,
   TEMPLATE_KINDS,
   type ActivityKind,
   type CallOutcome,
+  type ContactBlockReason,
   type LeadKind,
   type LeadSource,
   type LeadStatus,
@@ -95,17 +97,77 @@ export class OutreachLeadRowDto {
   @ApiProperty({ nullable: true, format: 'date-time', type: String })
   nextActionAt!: string | null;
   @ApiProperty({ nullable: true, type: String }) note!: string | null;
+  @ApiProperty({
+    description:
+      'Do-not-contact (TCPA / DNC): phone and email are hidden, no calls or emails.',
+  })
+  doNotContact!: boolean;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'manual | not_interested | wrong_number | unsubscribed | suppression | retention',
+  })
+  doNotContactReason!: string | null;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Where the contact came from and on what basis we may write.',
+  })
+  sourceNote!: string | null;
+  @ApiProperty({ description: 'Cold emails sent to this lead so far.' })
+  emailsSent!: number;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
+
+export const CONTACT_BLOCK_REASONS = [
+  'dnc',
+  'client_disabled',
+  'hours',
+  'unsubscribed',
+  'email_limit',
+  'email_cooldown',
+] as const;
 
 export class OutreachLeadDetailDto extends OutreachLeadRowDto {
   @ApiProperty({ type: [OutreachActivityDto] })
   activities!: OutreachActivityDto[];
   @ApiProperty({
     description:
-      'Cold emails this lead may still receive (not unsubscribed, has an email).',
+      'Cold emails this lead may still receive (emailBlocked === null).',
   })
   canEmail!: boolean;
+  @ApiProperty({
+    description:
+      'A call may be logged now (not do-not-contact, clients enabled, inside the local call window).',
+  })
+  callAllowed!: boolean;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'The local call window and time, e.g. "08:00–21:00 America/New_York, now 22:15".',
+  })
+  callWindow!: string | null;
+  @ApiProperty({
+    nullable: true,
+    enum: CONTACT_BLOCK_REASONS,
+    enumName: 'OutreachContactBlockReason',
+    description: 'Why a call is blocked now; null = allowed.',
+  })
+  callBlocked!: ContactBlockReason | null;
+  @ApiProperty({
+    nullable: true,
+    enum: CONTACT_BLOCK_REASONS,
+    enumName: 'OutreachContactBlockReason',
+    description: 'Why an email is blocked now; null = allowed.',
+  })
+  emailBlocked!: ContactBlockReason | null;
+  @ApiProperty({
+    description:
+      'A phone exists but is withheld (callBlocked / do-not-contact).',
+  })
+  phoneHidden!: boolean;
 }
 
 export class OutreachLeadIdParamDto {
@@ -265,6 +327,27 @@ export class OutreachLeadInputDto {
   @IsOptional()
   @IsIn(LEAD_STATUSES)
   status?: LeadStatus;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    maxLength: OUTREACH_TEXT_LIMITS.sourceNote,
+    description:
+      'Where the contact came from and on what basis we may write; required for client leads.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(OUTREACH_TEXT_LIMITS.sourceNote)
+  sourceNote?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'true = mark do-not-contact (reason manual); false clears it (managers only).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  doNotContact?: boolean;
 }
 
 export class OutreachAssignDto {
@@ -350,6 +433,19 @@ export class OutreachImportQueryDto {
   @IsOptional()
   @IsUUID()
   partnerId?: string;
+
+  @ApiPropertyOptional({
+    minLength: 3,
+    maxLength: OUTREACH_TEXT_LIMITS.sourceNote,
+    description:
+      'Required for CSV: where the contacts come from and on what basis we may write; stored on every lead.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MinLength(3)
+  @MaxLength(OUTREACH_TEXT_LIMITS.sourceNote)
+  sourceNote?: string;
 }
 
 export class OutreachImportReportDto {
@@ -359,6 +455,8 @@ export class OutreachImportReportDto {
   @ApiProperty({ description: 'Would be / were created.' }) created!: number;
   @ApiProperty({ description: 'Email or phone already in the base.' })
   duplicates!: number;
+  @ApiProperty({ description: 'Email or phone on the stop-list; not created.' })
+  suppressed!: number;
   @ApiProperty({ description: 'Rows without any contact.' }) skipped!: number;
   @ApiProperty({ type: [String] }) columns!: string[];
   @ApiProperty({
@@ -534,6 +632,140 @@ export class OutreachSettingsDto {
     message: 'apiPublicUrl must be an https URL (host, optional port and path)',
   })
   apiPublicUrl!: string;
+
+  // Owner 2026-10-05 (legal): TCPA / Do-Not-Call protection.
+  // Optional on PUT (omitted = keep the stored value) so older admin
+  // builds keep working.
+  @ApiPropertyOptional({
+    description:
+      'Allow client (consumer) leads; requires dncConfirmed. Off by default.',
+  })
+  @IsBoolean()
+  @IsOptional()
+  clientLeadsEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Consumer numbers are scrubbed against the National Do-Not-Call registry.',
+  })
+  @IsBoolean()
+  @IsOptional()
+  dncConfirmed?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: OUTREACH_TEXT_LIMITS.dncSan,
+    description: 'DNC registry Subscription Account Number (informational).',
+  })
+  @Transform(trim)
+  @IsString()
+  @MaxLength(OUTREACH_TEXT_LIMITS.dncSan)
+  @IsOptional()
+  dncSan?: string;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 23,
+    description: "Calls allowed from this local hour of the lead's state.",
+  })
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  @IsOptional()
+  callHoursStart?: number;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 24,
+    description: 'Calls allowed until this local hour (exclusive); > start.',
+  })
+  @IsInt()
+  @Min(1)
+  @Max(24)
+  @IsOptional()
+  callHoursEnd?: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: OUTREACH_LIMITS.maxEmailsPerLead,
+    description: 'Cold emails one lead may receive in total; 0 = no cap.',
+  })
+  @IsInt()
+  @Min(0)
+  @Max(OUTREACH_LIMITS.maxEmailsPerLead)
+  @IsOptional()
+  maxEmailsPerLead?: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: OUTREACH_LIMITS.emailCooldownDays,
+    description: 'Days between two cold emails to the same lead.',
+  })
+  @IsInt()
+  @Min(0)
+  @Max(OUTREACH_LIMITS.emailCooldownDays)
+  @IsOptional()
+  emailCooldownDays?: number;
+
+  @ApiPropertyOptional({
+    minimum: OUTREACH_LIMITS.leadRetentionDaysMin,
+    maximum: OUTREACH_LIMITS.leadRetentionDaysMax,
+    description:
+      'Unconverted leads with no activity for this long are deleted daily.',
+  })
+  @IsInt()
+  @Min(OUTREACH_LIMITS.leadRetentionDaysMin)
+  @Max(OUTREACH_LIMITS.leadRetentionDaysMax)
+  @IsOptional()
+  leadRetentionDays?: number;
+}
+
+// Owner 2026-10-05 (legal): the stop-list (managers only).
+export class OutreachSuppressionsAddDto {
+  @ApiProperty({
+    type: [String],
+    maxItems: 5000,
+    description: 'Phones or e-mails, one per item (normalized server-side).',
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5000)
+  @IsString({ each: true })
+  @MaxLength(254, { each: true })
+  values!: string[];
+
+  @ApiPropertyOptional({ nullable: true, maxLength: 200 })
+  @IsOptional()
+  @Transform(trim)
+  @Transform(emptyToNull)
+  @IsString()
+  @MaxLength(200)
+  note?: string | null;
+}
+
+export class OutreachSuppressionsAddResultDto {
+  @ApiProperty({ description: 'New stop-list entries.' }) added!: number;
+  @ApiProperty({ description: 'Existing leads marked do-not-contact.' })
+  leadsMarked!: number;
+  @ApiProperty({ description: 'Values that are neither a phone nor an email.' })
+  invalid!: number;
+}
+
+export class OutreachSuppressionDto {
+  @ApiProperty({
+    enum: ['phone', 'email'],
+    enumName: 'OutreachSuppressionKind',
+  })
+  kind!: 'phone' | 'email';
+  @ApiProperty({ description: 'Masked except the last 4 characters.' })
+  value!: string;
+  @ApiProperty({ nullable: true, type: String }) note!: string | null;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+export class OutreachSuppressionsDto {
+  @ApiProperty() count!: number;
+  @ApiProperty({ type: [OutreachSuppressionDto], description: 'Newest ≤ 50.' })
+  latest!: OutreachSuppressionDto[];
 }
 
 export class OutreachStatsQueryDto {

@@ -11,7 +11,6 @@ part 'create_partner_dto.g.dart';
 @JsonSerializable()
 class CreatePartnerDto {
   const CreatePartnerDto({
-    required this.userId,
     this.reason = '',
     this.label,
     this.note,
@@ -20,6 +19,9 @@ class CreatePartnerDto {
     this.monthlyBaseCents,
     this.clientRule,
     this.holdDays,
+    this.userId,
+    this.externalName,
+    this.externalContact,
     this.code,
   });
 
@@ -36,8 +38,14 @@ class CreatePartnerDto {
   final PartnerClientRule? clientRule;
   final int? holdDays;
 
-  /// Any existing user account.
-  final String userId;
+  /// An existing user account. Leave out and give externalName for a blogger without an account.
+  final String? userId;
+
+  /// Owner 2026-10-05: partner without an app account (blogger).
+  final String? externalName;
+
+  /// Instagram, phone, e-mail…
+  final String? externalContact;
 
   /// Own word as the referral code (4–24 letters/digits); default = keep/generate.
   final String? code;

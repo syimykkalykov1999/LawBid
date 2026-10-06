@@ -13,8 +13,21 @@ class PartnersRepository {
       _map((await guardApiCall(_api.getMyPartnerDashboard)).data);
 
   /// Owner 2026-10-05: attorneys and clients take their link themselves.
-  Future<PartnerMe> join() async =>
-      _map((await guardApiCall(_api.joinPartnerProgram)).data);
+  /// Owner 2026-10-05 (legal): only after accepting the partner rules —
+  /// the server refuses `termsAccepted: false`.
+  Future<PartnerMe> join({required bool termsAccepted}) async => _map(
+        (await guardApiCall(
+          () => _api.joinPartnerProgram(
+            body: api.JoinPartnerDto(termsAccepted: termsAccepted),
+          ),
+        ))
+            .data,
+      );
+
+  /// Owner 2026-10-05 (legal): an existing partner accepts the current
+  /// rules (`termsAcceptedVersion` was null).
+  Future<PartnerMe> acceptTerms() async =>
+      _map((await guardApiCall(_api.acceptPartnerTerms)).data);
 
   PartnerMe _map(api.PartnerMeDto d) {
     return PartnerMe(
@@ -68,6 +81,12 @@ class PartnersRepository {
       ],
       title: d.texts.title.trim(),
       summary: d.texts.summary.trim(),
+      disclosure: d.texts.disclosure.trim(),
+      terms: d.texts.terms.trim(),
+      termsVersion: d.termsVersion,
+      termsAcceptedVersion: d.termsAcceptedVersion,
+      w9Required: d.w9Required,
+      w9Received: d.w9Received,
     );
   }
 }

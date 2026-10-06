@@ -12,7 +12,10 @@ import { ReferralsService } from './referrals.service';
 import {
   DEFAULT_REFERRAL_SETTINGS,
   parseReferralSettings,
+  presentReward,
   remainingDays,
+  rewardFromInput,
+  roundDays,
   validateReward,
 } from './referrals.settings';
 
@@ -119,9 +122,9 @@ describe('referral codes', () => {
     await expect(service.ensureCode('u1')).rejects.toThrow(/unique/);
   });
 
-  it('share URL: app link when configured, else the deep link', () => {
+  it('share URL: app link when configured, else lawbid.dev', () => {
     const { service, config } = setup();
-    expect(service.shareUrl('ABCDEFG')).toBe('lawbid://referral/ABCDEFG');
+    expect(service.shareUrl('ABCDEFG')).toBe('https://lawbid.dev/r/ABCDEFG');
     (config.get as jest.Mock).mockReturnValue('https://lawbid.app/');
     expect(service.shareUrl('ABCDEFG')).toBe('https://lawbid.app/r/ABCDEFG');
   });
@@ -160,6 +163,79 @@ describe('settings', () => {
       }),
     ).toBeNull();
   });
+
+  it('accepts small rewards: 0.5 day, whole cents (owner 2026-10-05)', () => {
+    expect(
+      validateReward('referrer', 'client', {
+        type: 'promotion_days',
+        value: 0.5,
+      }),
+    ).toBeNull();
+    expect(
+      validateReward('referee', 'client', {
+        type: 'promotion_days',
+        value: 0.01,
+      }),
+    ).toBeNull();
+    // Percent stays whole.
+    expect(
+      validateReward('referee', 'attorney', {
+        type: 'percent_first_invoice',
+        value: 0.05,
+      }),
+    ).toMatch(/integer/);
+    // $0.05 is 5 whole cents.
+    expect(
+      validateReward('referrer', 'attorney', {
+        type: 'balance_cents',
+        value: 5,
+      }),
+    ).toBeNull();
+    expect(
+      validateReward('referrer', 'attorney', {
+        type: 'balance_cents',
+        value: 0.5,
+      }),
+    ).toMatch(/integer/);
+    expect(
+      validateReward('referrer', 'client', {
+        type: 'promotion_days',
+        value: 0.005,
+      }),
+    ).toMatch(/2 decimals/);
+  });
+
+  it('remaining fractional days never show float noise', () => {
+    expect(
+      remainingDays({
+        type: 'promotion_days',
+        value: 0.3,
+        issuedAt: 'x',
+        uses: { a: 0.1, b: 0.1 },
+      }),
+    ).toBe(0.1);
+    expect(roundDays(0.1 + 0.2)).toBe(0.3);
+  });
+
+  it('API keeps whole days in value and the exact days in amount', () => {
+    expect(presentReward({ type: 'promotion_days', value: 0.5 })).toEqual({
+      type: 'promotion_days',
+      value: 0,
+      amount: 0.5,
+    });
+    expect(presentReward({ type: 'balance_cents', value: 5 })).toEqual({
+      type: 'balance_cents',
+      value: 5,
+      amount: 5,
+    });
+    expect(
+      rewardFromInput({ type: 'promotion_days', value: 0, amount: 1.5 }),
+    ).toEqual({ type: 'promotion_days', value: 1.5 });
+    expect(rewardFromInput({ type: 'promotion_days', value: 2 })).toEqual({
+      type: 'promotion_days',
+      value: 2,
+    });
+  });
 });
 
 describe('ReferralsService.apply', () => {
@@ -194,7 +270,7 @@ describe('ReferralsService.apply', () => {
     const res = await s.service.apply('referee', 'abcdefg');
     expect(res).toEqual({
       status: 'pending',
-      reward: { type: 'promotion_days', value: 1 },
+      reward: { type: 'promotion_days', value: 1, amount: 1 },
     });
     expect(s.prisma.referral.create).toHaveBeenCalledWith({
       data: expect.objectContaining({

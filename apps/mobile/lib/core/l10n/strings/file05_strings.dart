@@ -91,6 +91,8 @@ const file05Ru = <String, String>{
   'report.reason.other': 'Другое',
   // Owner 2026-10-05: attorney trust — counts as a trust complaint.
   'report.reason.fraud': 'Мошенничество / выдаёт себя за адвоката',
+  // Owner 2026-10-05 (legal): opens the DMCA form instead of a plain report.
+  'report.reason.copyright': 'Нарушение авторских прав',
   'report.sent': 'Спасибо. Мы проверим жалобу.',
 
   // --- follows ---
@@ -331,6 +333,7 @@ const file05En = <String, String>{
   'report.reason.inappropriate': 'Inappropriate content',
   'report.reason.other': 'Something else',
   'report.reason.fraud': 'Fraud / impersonating an attorney',
+  'report.reason.copyright': 'Copyright infringement',
   'report.sent': 'Thanks. We’ll review your report.',
 
   // --- follows ---

@@ -9,7 +9,8 @@ const partnerRu = <String, String>{
   'partner.copy': 'Скопировать',
   'partner.copied': 'Ссылка скопирована',
   'partner.share': 'Поделиться',
-  'partner.shareText': 'Присоединяйся к LawBid по моей ссылке! Код {code}',
+  'partner.shareText':
+      'Присоединяйся к LawBid по моей ссылке! Код {code}. Партнёрская ссылка: я получаю вознаграждение, когда ты регистрируешься.',
   'partner.status.pending':
       'Заявка отправлена. Команда LawBid рассмотрит её, и ссылка заработает — мы пришлём уведомление.',
   'partner.status.paused':
@@ -87,7 +88,8 @@ const partnerEn = <String, String>{
   'partner.copy': 'Copy',
   'partner.copied': 'Link copied',
   'partner.share': 'Share',
-  'partner.shareText': 'Join me on LawBid with my link! Code {code}',
+  'partner.shareText':
+      'Join me on LawBid with my link! Code {code}. Partner link: I earn a reward when you sign up.',
   'partner.status.pending':
       'Your request is in. The LawBid team will review it; your link starts working after approval and we will notify you.',
   'partner.status.paused':

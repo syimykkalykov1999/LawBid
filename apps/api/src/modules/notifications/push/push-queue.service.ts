@@ -14,6 +14,7 @@ import {
   PUSH_QUEUE,
   type PushJobData,
 } from './push.constants';
+import { demoContext } from '../../../common/demo/demo-context';
 
 /** Chat messages are committed before they're queued: no delay. */
 const MESSAGE_JOB_OPTS = { ...PUSH_JOB_OPTS, delay: 0 } as const;
@@ -48,7 +49,7 @@ export class PushQueueService
     type: NotificationType,
     seq = 1,
   ): Promise<void> {
-    if (!this.queue) return;
+    if (!this.queue || demoContext.isDemo()) return;
     const push = seq === 1 && !NO_PUSH_TYPES.has(type);
     try {
       await this.queue.add(
@@ -74,6 +75,7 @@ export class PushQueueService
     conversationId: string;
     messageId: string;
   }): Promise<void> {
+    if (demoContext.isDemo()) return;
     if (!this.queue) return;
     try {
       await this.queue.add(
@@ -92,6 +94,7 @@ export class PushQueueService
   /** OQ-041: ring now (no delay, one quick retry; a late ring is
    * useless — the dispatcher drops it once the call stopped ringing). */
   async enqueueCall(data: { recipientId: string; callId: string }) {
+    if (demoContext.isDemo()) return;
     if (!this.queue) return;
     try {
       await this.queue.add(

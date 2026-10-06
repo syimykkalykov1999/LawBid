@@ -48,6 +48,7 @@ import { DeviceAttestationService } from './attestation/device-attestation.servi
 import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
 import type { AppEnv } from '../../config/env.schema';
 import { resolveSmsProvider } from '../../config/provider-selection';
+import { demoNoop } from '../../common/demo/demo-guards';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.4. Registers JwtAuthGuard as the
@@ -154,11 +155,15 @@ import { resolveSmsProvider } from '../../config/provider-selection';
           ),
         });
         logger.info({ provider, missing }, 'SMS provider selected at boot');
-        return new DynamicSmsProvider(
-          config,
-          logger,
-          secrets,
-          new MockSmsProvider(logger),
+        // Demo accounts never send SMS (src/common/demo).
+        return demoNoop(
+          new DynamicSmsProvider(
+            config,
+            logger,
+            secrets,
+            new MockSmsProvider(logger),
+          ),
+          ['send'],
         );
       },
       inject: [ConfigService, PinoLogger, SecretsService],

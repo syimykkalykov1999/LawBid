@@ -20,13 +20,16 @@ import { useState } from "react";
 import { Kpi, KpiSkeletons } from "@/components/billing/kpi";
 import { fadeUp, LoadMore } from "@/components/billing/shared";
 import { CommissionsTable } from "@/components/partners/commissions-table";
+import { DemoTab } from "@/components/partners/demo-tab";
 import {
   centsToText,
   CLIENT_RULES,
   COMMISSION_STATUSES,
   downloadCommissionsCsv,
+  extend,
   JOIN_MODES,
-  PersonCell,
+  partnerName,
+  PartnerPerson,
   RateFields,
   textToCents,
   UserPicker,
@@ -36,7 +39,7 @@ import {
   type PartnerStatus,
   type Picked,
 } from "@/components/partners/shared";
-import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
+import { ErrorNote, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
@@ -47,6 +50,7 @@ import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
 import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
+import { partnersExtApi } from "@/lib/api/demo";
 import type { components } from "@/lib/api/schema";
 import { useMe } from "@/lib/hooks";
 import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
@@ -61,7 +65,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 
 type Settings = components["schemas"]["PartnerSettingsDto"];
-type Tab = "partners" | "commissions";
+type Tab = "partners" | "commissions" | "demo" | "settings";
 type StatusTab = "all" | PartnerStatus;
 
 /** Partner program: who brings attorneys and clients, what they are paid. */
@@ -170,18 +174,21 @@ export default function PartnersPage() {
           items={[
             { value: "partners" as Tab, label: "Партнёры" },
             { value: "commissions" as Tab, label: "Начисления" },
+            { value: "demo" as Tab, label: "Демо-доступ" },
+            { value: "settings" as Tab, label: "Настройки программы" },
           ]}
         />
       </div>
 
+      {/* Owner 2026-10-05: settings get their own tab, so a long list of
+          partners never pushes them out of reach. */}
       {tab === "partners" ? (
         <PartnersList canWrite={canWrite} canOpenUsers={canOpenUsers} />
-      ) : (
+      ) : tab === "commissions" ? (
         <AllCommissions canWrite={canWrite} canOpenUsers={canOpenUsers} />
-      )}
-
-      <SectionTitle>Настройки программы</SectionTitle>
-      {settings.isPending ? (
+      ) : tab === "demo" ? (
+        <DemoTab canWrite={canWrite} isSuper={me?.role === "super_admin"} />
+      ) : settings.isPending ? (
         <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
       ) : settings.data ? (
         <SettingsForm
@@ -226,7 +233,7 @@ function PartnersList({
       ).data!,
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
-  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  const rows = (list.data?.pages.flatMap((p) => p.data) ?? []).map(extend);
   const cols = 6;
 
   return (
@@ -300,11 +307,14 @@ function PartnersList({
                       href={`/partners/${p.id}`}
                       className="font-medium text-ink underline-offset-2 hover:text-gold-600 hover:underline"
                     >
-                      {p.label || p.user.name || p.user.email || p.id.slice(0, 8)}
+                      {partnerName(p)}
                     </Link>
                     <div className="mt-0.5">
-                      <PersonCell u={p.user} role={p.user.role} link={canOpenUsers} />
+                      <PartnerPerson p={p} link={canOpenUsers} />
                     </div>
+                    {p.demoAccess ? (
+                      <div className="mt-1 text-xs text-gold-600">демо-доступ</div>
+                    ) : null}
                   </Td>
                   <Td className="font-mono text-xs text-ink">{p.code}</Td>
                   <Td className="text-xs text-muted">
@@ -402,6 +412,10 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
     queryFn: async () => (await api.GET("/admin/partners/settings")).data!.data,
   });
   const [picked, setPicked] = useState<Picked | null>(null);
+  // §5: a blogger outside the app — a name and a contact instead of an account.
+  const [external, setExternal] = useState(false);
+  const [extName, setExtName] = useState("");
+  const [extContact, setExtContact] = useState("");
   const [label, setLabel] = useState("");
   const [code, setCode] = useState("");
   const [note, setNote] = useState("");
@@ -419,29 +433,37 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
     (rates.attorney === "" || textToCents(rates.attorney) !== null) &&
     (rates.client === "" || textToCents(rates.client) !== null) &&
     (rates.base === "" || textToCents(rates.base) !== null);
-  const valid = !!picked && codeOk && ratesOk && (!reasonNeeded || reason.trim().length >= REASON_MIN);
+  const who = external ? extName.trim().length >= 2 : !!picked;
+  const valid = who && codeOk && ratesOk && (!reasonNeeded || reason.trim().length >= REASON_MIN);
 
   const create = useMutation({
-    mutationFn: async () =>
-      (
-        await api.POST("/admin/partners", {
-          body: {
-            userId: picked!.id,
-            label: label.trim() || null,
-            note: note.trim() || null,
-            code: cleanCode || undefined,
-            attorneyRateCents:
-              rates.attorney === "" ? null : textToCents(rates.attorney),
-            clientRateCents: rates.client === "" ? null : textToCents(rates.client),
-            monthlyBaseCents: rates.base === "" ? 0 : (textToCents(rates.base) ?? 0),
-            clientRule: rates.rule === "" ? null : rates.rule,
-            holdDays: rates.hold === "" ? null : Number(rates.hold),
-            reason: reason.trim(),
-          },
-        })
-      ).data!.data,
+    mutationFn: async () => {
+      const common = {
+        label: label.trim() || null,
+        note: note.trim() || null,
+        code: cleanCode || undefined,
+        attorneyRateCents:
+          rates.attorney === "" ? null : textToCents(rates.attorney),
+        clientRateCents: rates.client === "" ? null : textToCents(rates.client),
+        monthlyBaseCents: rates.base === "" ? 0 : (textToCents(rates.base) ?? 0),
+        clientRule: rates.rule === "" ? null : rates.rule,
+        holdDays: rates.hold === "" ? null : Number(rates.hold),
+        reason: reason.trim(),
+      };
+      if (external) {
+        return partnersExtApi.createExternal({
+          ...common,
+          externalName: extName.trim(),
+          externalContact: extContact.trim() || undefined,
+        });
+      }
+      return extend(
+        (await api.POST("/admin/partners", { body: { ...common, userId: picked!.id } })).data!
+          .data,
+      );
+    },
     onSuccess: (row) => {
-      toast.success(`${row.label || row.user.name || "Партнёр"} добавлен, код ${row.code}`);
+      toast.success(`${partnerName(row)} добавлен, код ${row.code}`);
       void qc.invalidateQueries({ queryKey: ["partners"] });
       void qc.invalidateQueries({ queryKey: ["partners-stats"] });
       onDone();
@@ -451,15 +473,47 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
 
   return (
     <Card className="mb-5 p-5">
-      <h3 className="font-medium text-heading">Новый партнёр</h3>
-      <p className="mt-1 text-sm text-muted">
-        Любой аккаунт приложения: адвокат, клиент, помощник или человек,
-        которого вы пригласили. Пустая ставка = как в настройках программы.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h3 className="font-medium text-heading">Новый партнёр</h3>
+          <p className="mt-1 text-sm text-muted">
+            {external
+              ? "Блогер без аккаунта LawBid: ссылка и код работают сразу, начисления копятся; аккаунт можно привязать позже на странице партнёра."
+              : "Любой аккаунт приложения: адвокат, клиент, помощник или человек, которого вы пригласили. Пустая ставка = как в настройках программы."}
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <Switch checked={external} onChange={setExternal} label="Без аккаунта" />
+          Без аккаунта (блогер вне приложения)
+        </label>
+      </div>
       <div className="mt-4 grid gap-4 md:grid-cols-3">
-        <Field label="Кто" htmlFor="np-user">
-          <UserPicker id="np-user" picked={picked} onPick={setPicked} />
-        </Field>
+        {external ? (
+          <>
+            <Field label="Имя блогера" htmlFor="np-ext-name" hint="как к нему обращаться">
+              <Input
+                id="np-ext-name"
+                value={extName}
+                onChange={(e) => setExtName(e.target.value)}
+                maxLength={120}
+                placeholder="Иван Петров"
+              />
+            </Field>
+            <Field label="Контакт" htmlFor="np-ext-contact" hint="Telegram, Instagram, e-mail или телефон">
+              <Input
+                id="np-ext-contact"
+                value={extContact}
+                onChange={(e) => setExtContact(e.target.value)}
+                maxLength={200}
+                placeholder="@ivan"
+              />
+            </Field>
+          </>
+        ) : (
+          <Field label="Кто" htmlFor="np-user">
+            <UserPicker id="np-user" picked={picked} onPick={setPicked} />
+          </Field>
+        )}
         <Field label="Метка (для вас)" htmlFor="np-label" hint="например «блогер Иван, YouTube»">
           <Input id="np-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={120} />
         </Field>
@@ -596,6 +650,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [client, setClient] = useState(centsToText(initial.clientRateCents));
   const [rule, setRule] = useState<ClientRule>(initial.clientRule);
   const [hold, setHold] = useState(String(initial.holdDays));
+  // Owner 2026-10-05 (legal): a W-9 (or W-8) before the first payout.
+  const [requireW9, setRequireW9] = useState(initial.requireW9 ?? true);
   const [texts, setTexts] = useState(initial.texts);
   const attorneyCents = textToCents(attorney);
   const clientCents = textToCents(client);
@@ -613,6 +669,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             clientRateCents: clientCents ?? 0,
             clientRule: rule,
             holdDays: holdDays ?? 14,
+            requireW9,
             texts,
           },
         })
@@ -701,7 +758,11 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         <Field label="За клиента, $" htmlFor="ps-cl">
           <Input id="ps-cl" inputMode="decimal" value={client} disabled={!canEdit} onChange={(e) => setClient(e.target.value)} />
         </Field>
-        <Field label="Условие по клиенту" htmlFor="ps-rule">
+        <Field
+          label="Условие по клиенту"
+          htmlFor="ps-rule"
+          hint="Рекомендуется «опубликовал кейс»: выплата партнёру не должна зависеть от найма адвоката (законы о посредниках, CA §6152 / TX §38.12)"
+        >
           <Select id="ps-rule" value={rule} disabled={!canEdit} onChange={(e) => setRule(e.target.value as ClientRule)}>
             {CLIENT_RULES.map((r) => (
               <option key={r} value={r}>
@@ -713,6 +774,15 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
         <Field label="Проверка, дней" htmlFor="ps-hold" hint="0 — к выплате сразу, до 180">
           <Input id="ps-hold" inputMode="numeric" value={hold} disabled={!canEdit} onChange={(e) => setHold(e.target.value.replace(/\D/g, ""))} />
         </Field>
+      </div>
+      <div className="mt-4 flex items-start gap-3 rounded-[var(--radius-md)] border border-line-strong bg-surface-2 p-3">
+        <Switch checked={requireW9} onChange={setRequireW9} disabled={!canEdit} label="Требовать W-9 до первой выплаты" />
+        <div>
+          <p className="text-sm font-medium text-heading">Требовать W-9 до первой выплаты</p>
+          <p className="mt-1 text-sm text-muted">
+            Партнёр — независимый подрядчик: от $600 в год нужна форма 1099-NEC, а для неё — W-9 (W-8 для нерезидентов). Пока форма не отмечена полученной на странице партнёра, кнопка «Выплатить» не сработает.
+          </p>
+        </div>
       </div>
       <h4 className="mt-6 text-sm font-medium text-heading">Что видит партнёр в приложении</h4>
       <div className="mt-3 grid gap-4 md:grid-cols-2">
