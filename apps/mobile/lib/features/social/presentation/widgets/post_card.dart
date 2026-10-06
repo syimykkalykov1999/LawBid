@@ -53,6 +53,11 @@ class PostCard extends ConsumerWidget {
 
   final Post post;
 
+  /// Owner 2026-10-06: posts without a qualification (practice) and not
+  /// News render like Instagram posts: photo first, actions, likes,
+  /// caption under the photo, comments link, time.
+  static bool isInstagramStyle(Post p) => p.practice == null && !p.isNews;
+
   /// Owner 2026-09-30: in the feed one card fills the visible area down to
   /// the nav bar; the photo takes all the space the text leaves, edge to
   /// edge. Null = natural height (2:1 photo band).
@@ -76,10 +81,16 @@ class PostCard extends ConsumerWidget {
       }
     }
 
+    // Owner 2026-10-06: a post published without a qualification (and
+    // not News) is an everyday post and looks exactly like an Instagram
+    // post; a post with a qualification keeps the LawBid card.
+    final insta = isInstagramStyle(p);
     // At large text sizes the text alone may need the whole screen: then
     // the card keeps its natural height instead of squeezing the photo.
+    // Instagram-style posts always keep their natural height.
     final fill = feedHeight != null &&
         !inDetail &&
+        !insta &&
         MediaQuery.textScalerOf(context).scale(10) <= 13;
     // Owner 2026-09-30: feed cards run edge to edge (Instagram style):
     // no side border or rounded corners, hairlines on top and bottom.
@@ -105,9 +116,11 @@ class PostCard extends ConsumerWidget {
       // the heart (Instagram).
       child: DoubleTapLike(
         onLike: () => run(() => actions.like(p)),
-        child: inDetail
-            ? _detail(context, ref, p, t, colors, actions, run)
-            : _feed(context, p, t, colors, run, fill: fill),
+        child: insta
+            ? _InstagramPost(post: p, inDetail: inDetail, run: run)
+            : inDetail
+                ? _detail(context, ref, p, t, colors, actions, run)
+                : _feed(context, p, t, colors, run, fill: fill),
       ),
     );
   }
@@ -472,6 +485,234 @@ class PostCard extends ConsumerWidget {
                   ),
                 }),
               ),
+            ),
+          ),
+        const SizedBox(height: AppSpacing.md),
+      ],
+    );
+  }
+}
+
+/// Owner 2026-10-06: a post without a qualification looks exactly like an
+/// Instagram post, top to bottom: author row, the photos (or the reel)
+/// full width at their own ratio (4:5 … 1.91:1), the actions (like,
+/// comment, share … save), "N likes", the author's name in bold followed
+/// by the caption (#tags and @mentions tappable, "more" after two lines),
+/// "View all comments (N)" and the time. Text-only posts keep the same
+/// order with the text in place of the photo. On the post screen the
+/// caption is whole, translatable, and the documents follow the photos.
+class _InstagramPost extends ConsumerWidget {
+  const _InstagramPost({
+    required this.post,
+    required this.inDetail,
+    required this.run,
+  });
+
+  final Post post;
+  final bool inDetail;
+  final Future<void> Function(Future<Object?> Function()) run;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = post;
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final actions = ref.read(socialActionsProvider);
+    void open() => context.push(SocialRoutes.post(p.id));
+    final hasMedia = p.video != null || p.media.isNotEmpty;
+    final caption = [
+      if (p.title != null && p.title!.trim().isNotEmpty) p.title!.trim(),
+      p.body.trim(),
+    ].where((s) => s.isNotEmpty).join('\n');
+    const side = EdgeInsets.symmetric(horizontal: AppSpacing.lg);
+
+    Widget captionText(String text) => PostBodyText(
+          // A new text (translation) starts collapsed again.
+          key: ValueKey(text.hashCode),
+          body: text,
+          leading: hasMedia ? p.author.username : null,
+          onLeadingTap: () => openAuthorProfile(context, ref, p.author),
+          expanded: inDetail,
+          collapsedLines: hasMedia ? 2 : 6,
+          mentions: p.mentions,
+          large: !hasMedia,
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _AuthorRow(post: p),
+        if (p.video != null)
+          AspectRatio(
+            aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
+            child: InlineReel(
+              post: p,
+              onOpen: () => ReelsScreen.open(context, from: p),
+            ),
+          )
+        else if (p.media.isNotEmpty)
+          // Full width at the first photo's own ratio; tap = full screen
+          // gallery (swipe, zoom), double tap = like.
+          PostMediaCarousel(
+            media: p.media,
+            semanticLabel: t.t('post.media.label'),
+            onDoubleTap: () => run(() => actions.like(p)),
+            onTap: (i) => showPhotoGallery(
+              context,
+              urls: [for (final m in p.media) m.url],
+              initial: i,
+              closeLabel: t.t('common.close'),
+            ),
+          )
+        else if (caption.isNotEmpty)
+          // Text only: the text takes the photo's place.
+          Padding(
+            padding: side,
+            child: inDetail
+                ? TranslatableText(
+                    kind: TranslatableKind.post,
+                    id: p.id,
+                    text: caption,
+                    enabled: !p.isMine,
+                    builder: (context, text) => captionText(text),
+                  )
+                : captionText(caption),
+          ),
+        if (inDetail && p.attachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              0,
+            ),
+            child: PostDocumentsList(documents: p.attachments),
+          ),
+        _ActionsBar(
+          post: p,
+          run: run,
+          showCounts: false,
+          // Inside the post the comment field is right below.
+          showComment: !inDetail,
+        ),
+        if (p.likeCount > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              0,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              SocialFormat.plural(t, f, 'post.likes', p.likeCount),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        if (hasMedia && caption.isNotEmpty)
+          Padding(
+            padding: side,
+            child: inDetail
+                ? TranslatableText(
+                    kind: TranslatableKind.post,
+                    id: p.id,
+                    text: caption,
+                    enabled: !p.isMine,
+                    builder: (context, text) => captionText(text),
+                  )
+                : captionText(caption),
+          ),
+        if (!inDetail && p.attachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.xs,
+              AppSpacing.lg,
+              0,
+            ),
+            child: AppPressable(
+              onTap: open,
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.attachFileRounded,
+                    size: 16,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      p.attachments.first.fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (!inDetail && p.commentCount > 0)
+          AppPressable(
+            onTap: open,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.xs,
+                AppSpacing.lg,
+                0,
+              ),
+              child: Text(
+                t.t('post.viewComments', {
+                  'count': SocialFormat.count(f, p.commentCount),
+                }),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.bodySmall.copyWith(color: colors.textSecondary),
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.xs,
+            AppSpacing.lg,
+            0,
+          ),
+          child: Text(
+            SocialFormat.ago(t, f, p.createdAt),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+        ),
+        if (inDetail && p.editedAt != null)
+          Padding(
+            padding: side,
+            child: Text(
+              t.t('post.edited'),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        if (inDetail && p.pendingReview)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.xs,
+              AppSpacing.lg,
+              0,
+            ),
+            child: Text(
+              t.t('post.pending_review'),
+              style: type.caption.copyWith(color: colors.textSecondary),
             ),
           ),
         const SizedBox(height: AppSpacing.md),
@@ -898,11 +1139,22 @@ class PostBodyText extends ConsumerStatefulWidget {
     this.mentions = const [],
     this.height = 1.45,
     this.style,
+    this.leading,
+    this.onLeadingTap,
+    this.collapsedLines = 3,
     super.key,
   });
 
   /// Overrides the text style (the post's title line).
   final TextStyle? style;
+
+  /// Owner 2026-10-06: the author's name in bold before the caption
+  /// (Instagram); [onLeadingTap] opens their profile.
+  final String? leading;
+  final VoidCallback? onLeadingTap;
+
+  /// Lines shown before "more".
+  final int collapsedLines;
 
   final String body;
 
@@ -936,6 +1188,24 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     }
     _recognizers.clear();
     final spans = <InlineSpan>[];
+    final lead = widget.leading;
+    if (lead != null && lead.isNotEmpty) {
+      final onTap = widget.onLeadingTap;
+      TapGestureRecognizer? r;
+      if (onTap != null) {
+        r = TapGestureRecognizer()..onTap = onTap;
+        _recognizers.add(r);
+      }
+      spans
+        ..add(
+          TextSpan(
+            text: lead,
+            style: TextStyle(color: colors.text, fontWeight: FontWeight.w700),
+            recognizer: r,
+          ),
+        )
+        ..add(const TextSpan(text: ' '));
+    }
     var last = 0;
     for (final m in _token.allMatches(widget.body)) {
       if (m.start > last) {
@@ -1008,15 +1278,20 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
             .copyWith(color: colors.text, height: widget.height);
     final text = Text.rich(
       TextSpan(children: _spans(colors), style: style),
-      maxLines: _expanded ? null : 3,
+      maxLines: _expanded ? null : widget.collapsedLines,
       overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
     );
     if (_expanded) return text;
     return LayoutBuilder(
       builder: (context, box) {
         final painter = TextPainter(
-          text: TextSpan(text: widget.body, style: style),
-          maxLines: 3,
+          text: TextSpan(
+            text: widget.leading == null
+                ? widget.body
+                : '${widget.leading} ${widget.body}',
+            style: style,
+          ),
+          maxLines: widget.collapsedLines,
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(maxWidth: box.maxWidth);
@@ -1303,9 +1578,14 @@ class _ActionsBar extends ConsumerWidget {
     required this.run,
     this.showTime = false,
     this.showComment = true,
+    this.showCounts = true,
   });
 
   final bool showComment;
+
+  /// Owner 2026-10-06: Instagram-style posts show bare icons; the likes
+  /// count sits on its own line below.
+  final bool showCounts;
 
   final Post post;
   final Future<void> Function(Future<Object?> Function()) run;
@@ -1331,7 +1611,7 @@ class _ActionsBar extends ConsumerWidget {
             onTap: () => run(() => actions.toggleLike(post)),
           ),
           // Owner 2026-09-30 design: counts next to the icons.
-          if (post.likeCount > 0) _Count(post.likeCount),
+          if (showCounts && post.likeCount > 0) _Count(post.likeCount),
           if (showComment) ...[
             BounceIcon(
               active: false,
@@ -1340,7 +1620,7 @@ class _ActionsBar extends ConsumerWidget {
               label: t.t('post.comments'),
               onTap: () => context.push(SocialRoutes.post(post.id)),
             ),
-            if (post.commentCount > 0) _Count(post.commentCount),
+            if (showCounts && post.commentCount > 0) _Count(post.commentCount),
           ],
           BounceIcon(
             active: false,
@@ -1349,7 +1629,7 @@ class _ActionsBar extends ConsumerWidget {
             label: t.t('post.share'),
             onTap: () => sharePost(context, ref, post),
           ),
-          if (post.shareCount > 0) _Count(post.shareCount),
+          if (showCounts && post.shareCount > 0) _Count(post.shareCount),
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: showTime
