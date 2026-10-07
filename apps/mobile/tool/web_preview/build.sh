@@ -40,10 +40,13 @@ DRIFT="$(ver drift)"; SQLITE="$(ver sqlite3)"
 flutter pub get >/dev/null
 dart run build_runner build --delete-conflicting-outputs >/dev/null
 
-# API_BASE_URL is a path: the app calls the server it was loaded from, and
-# serve.mjs forwards /api and /socket.io to the real API (no CORS needed).
+# By default API_BASE_URL is a path: the app calls the server it was loaded
+# from, and serve.mjs forwards /api and /socket.io to the real API (no CORS
+# needed). A static host (GitHub Pages, publish.sh) sets PREVIEW_API_BASE to
+# the full API URL; its origin must be in the admin's web.allowed_origins.
+API_BASE="${PREVIEW_API_BASE:-/api/v1}"
 CONFIG="$(mktemp -d)/preview.json"
-sed 's#"API_BASE_URL": *"[^"]*"#"API_BASE_URL": "/api/v1"#' config/prod.example.json > "$CONFIG"
+sed "s#\"API_BASE_URL\": *\"[^\"]*\"#\"API_BASE_URL\": \"$API_BASE\"#" config/prod.example.json > "$CONFIG"
 flutter build web --release -t lib/main_prod.dart \
   --dart-define-from-file="$CONFIG" \
   --no-web-resources-cdn --base-href "$BASE" -o "$OUT"
