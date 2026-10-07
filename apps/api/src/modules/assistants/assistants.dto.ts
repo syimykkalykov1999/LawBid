@@ -726,11 +726,12 @@ export class CreateTaskDto extends TaskPlanFieldsDto {
   @MaxLength(254)
   contactEmail?: string;
 
-  // Owner 2026-10-01: practically unlimited (a technical cap only).
-  @ApiPropertyOptional({ type: [String], maxItems: 200 })
+  // Owner 2026-10-07: up to tasks.max_files (admin, default 10) — checked
+  // in the service; 100 is the technical cap.
+  @ApiPropertyOptional({ type: [String], maxItems: 100 })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(200)
+  @ArrayMaxSize(100)
   @IsUUID('all', { each: true })
   fileIds?: string[];
 
@@ -836,10 +837,10 @@ export class UpdateTaskDto extends TaskPlanFieldsDto {
   @MaxLength(254)
   contactEmail?: string;
 
-  @ApiPropertyOptional({ type: [String], maxItems: 200 })
+  @ApiPropertyOptional({ type: [String], maxItems: 100 })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(200)
+  @ArrayMaxSize(100)
   @IsUUID('all', { each: true })
   fileIds?: string[];
 }

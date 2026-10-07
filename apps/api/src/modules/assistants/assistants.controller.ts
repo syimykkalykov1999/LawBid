@@ -252,6 +252,7 @@ export class AssistantsController {
     400: [E.VALIDATION_ERROR],
     403: [E.ASSISTANT_NOT_ALLOWED],
     404: [E.NOT_FOUND],
+    409: [E.TASK_FILES_LIMIT],
     422: [E.FILE_NOT_ATTACHABLE],
   })
   createTask(
@@ -341,7 +342,7 @@ export class AssistantsController {
     400: [E.VALIDATION_ERROR],
     403: [E.ASSISTANT_NOT_ALLOWED],
     404: [E.NOT_FOUND],
-    409: [E.TASK_CLOSED],
+    409: [E.TASK_CLOSED, E.TASK_FILES_LIMIT],
   })
   updateTask(
     @CurrentUser() user: RequestUser,

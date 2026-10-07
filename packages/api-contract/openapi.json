@@ -75637,6 +75637,7 @@
           "ASSISTANT_LIABILITY_REQUIRED",
           "TASK_CLOSED",
           "TASK_STEPS_LIMIT",
+          "TASK_FILES_LIMIT",
           "ATTORNEY_NOT_VERIFIED",
           "USERNAME_TAKEN",
           "USERNAME_RESERVED",
@@ -85048,7 +85049,7 @@
             "description": "Email tasks: the address."
           },
           "fileIds": {
-            "maxItems": 200,
+            "maxItems": 100,
             "type": "array",
             "items": {
               "type": "string",
@@ -85459,7 +85460,7 @@
             "format": "email"
           },
           "fileIds": {
-            "maxItems": 200,
+            "maxItems": 100,
             "type": "array",
             "items": {
               "type": "string",

@@ -136,6 +136,8 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
 export const OWNER_TASKS_SETTINGS = {
   'tasks.archive_retention_days': 365,
   'tasks.archive_auto_purge': true,
+  // Owner 2026-10-07: files on one task (storage costs) — was 200.
+  'tasks.max_files': 10,
 } as const;
 
 // Future web client (a client form on lawbid.dev sharing this API): the

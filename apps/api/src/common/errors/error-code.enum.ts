@@ -108,6 +108,7 @@ export enum ErrorCode {
   TASK_CLOSED = 'TASK_CLOSED',
   /** A task holds up to 100 steps. */
   TASK_STEPS_LIMIT = 'TASK_STEPS_LIMIT',
+  TASK_FILES_LIMIT = 'TASK_FILES_LIMIT',
   // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
   // stages 3.5–3.6)
   // 403: the action needs verification_status = verified (practices).

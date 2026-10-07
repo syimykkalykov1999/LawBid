@@ -120,6 +120,8 @@ enum ErrorCode {
   taskClosed('TASK_CLOSED'),
   @JsonValue('TASK_STEPS_LIMIT')
   taskStepsLimit('TASK_STEPS_LIMIT'),
+  @JsonValue('TASK_FILES_LIMIT')
+  taskFilesLimit('TASK_FILES_LIMIT'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')

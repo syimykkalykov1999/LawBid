@@ -283,6 +283,8 @@ const file07Ru = <String, String>{
   'error.api.TASK_CLOSED': 'Задача отменена — её нельзя менять',
   'error.api.TASK_STEPS_LIMIT':
       'В одной задаче до 100 шагов — создайте ещё одну',
+  'error.api.TASK_FILES_LIMIT':
+      'В задаче уже максимум файлов. Уберите лишние или создайте ещё одну задачу.',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       'Чтобы включить доступ, примите ответственность за действия помощника.',
   'common.delete': 'Удалить',
@@ -521,6 +523,7 @@ const file07Ru = <String, String>{
   'tasks.field.notes': 'Подробности',
   'tasks.field.files': 'Документы',
   'tasks.field.attach': 'Прикрепить документ или фото',
+  'tasks.files.limit': 'В задаче можно до {max} файлов',
   'tasks.save': 'Поставить задачу',
   'tasks.saved': 'Задача поставлена',
   'tasks.by': 'Поставил(а): {name}',
@@ -852,6 +855,8 @@ const file07En = <String, String>{
   'error.api.TASK_CLOSED': 'This task was cancelled and can no longer change',
   'error.api.TASK_STEPS_LIMIT':
       'A task holds up to 100 steps — start another one',
+  'error.api.TASK_FILES_LIMIT':
+      'This task already has the most files allowed. Remove some or start another task.',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       "To switch access on, accept responsibility for your assistant's actions.",
   'common.delete': 'Delete',
@@ -1091,6 +1096,7 @@ const file07En = <String, String>{
   'tasks.field.notes': 'Details',
   'tasks.field.files': 'Documents',
   'tasks.field.attach': 'Attach a document or photo',
+  'tasks.files.limit': 'A task can hold up to {max} files',
   'tasks.save': 'Set the task',
   'tasks.saved': 'Task set',
   'tasks.by': 'Set by: {name}',
