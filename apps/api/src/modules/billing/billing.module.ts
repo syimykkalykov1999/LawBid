@@ -14,6 +14,7 @@ import { AdminSubscriptionsController } from './admin-subscriptions.controller';
 import {
   BILLING_OPTIONS,
   type BillingModuleOptions,
+  fakeCheckoutAllowed,
   PAYMENT_PROVIDER,
 } from './billing.constants';
 import { BillingRunner } from './billing.runner';
@@ -77,8 +78,11 @@ export class BillingModule {
               // client's plan purchase.
               PlansController,
               ClientPlansController,
-              // Dev / e2e stand-in for Stripe's hosted page (404 with Stripe).
-              FakeCheckoutController,
+              // Dev / e2e stand-in for Stripe's hosted page. Security audit
+              // 2026-10-07: never mounted on a deployed server — right after
+              // boot the dynamic provider still reports the fake one until
+              // its first refresh, so a name check alone is not enough.
+              ...(fakeCheckoutAllowed() ? [FakeCheckoutController] : []),
             ]
           : [],
       providers: [

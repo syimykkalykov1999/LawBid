@@ -2,6 +2,13 @@ import rows from './__fixtures__/socrata-row.json';
 import { SocrataAdapter } from './socrata.adapter';
 import type { ResolvedRegistry } from './state-bar-adapter';
 
+// The adapters check that the registry host resolves to a public address.
+jest.mock('node:dns/promises', () => ({
+  lookup: jest.fn(() =>
+    Promise.resolve([{ address: '93.184.216.34', family: 4 }]),
+  ),
+}));
+
 // Test-only values (not real credentials).
 const PORTAL_T = 'test-portal-0001';
 

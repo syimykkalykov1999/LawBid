@@ -4,6 +4,13 @@ import empty from './__fixtures__/vendor-empty.json';
 import { GenericRestAdapter } from './generic-rest.adapter';
 import type { ResolvedRegistry } from './state-bar-adapter';
 
+// The adapters check that the registry host resolves to a public address.
+jest.mock('node:dns/promises', () => ({
+  lookup: jest.fn(() =>
+    Promise.resolve([{ address: '93.184.216.34', family: 4 }]),
+  ),
+}));
+
 // Test-only value (not a real credential).
 const VENDOR_A = 'test-vendor-1234';
 

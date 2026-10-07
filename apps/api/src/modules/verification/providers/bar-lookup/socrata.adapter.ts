@@ -1,5 +1,6 @@
 import type { BarLookupInput, CheckOutcome } from '../verification-providers';
 import {
+  assertPublicResolution,
   assertRegistryUrl,
   fetchJson,
   outcomeFor,
@@ -42,6 +43,7 @@ export class SocrataAdapter implements StateBarAdapter {
     );
     url.searchParams.set(c.numberField, input.barNumber.trim());
     url.searchParams.set('$limit', '1');
+    await assertPublicResolution(url, this.allowLocal);
     const rows = await fetchJson(
       url,
       registry.secret ? { 'X-App-Token': registry.secret } : {},

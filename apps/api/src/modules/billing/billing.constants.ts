@@ -60,3 +60,10 @@ export const HANDLED_STRIPE_EVENTS = new Set([
   'charge.dispute.updated',
   'charge.dispute.closed',
 ]);
+
+/** The fake checkout pages exist only in development and tests. */
+export function fakeCheckoutAllowed(
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+): boolean {
+  return nodeEnv !== 'production' && nodeEnv !== 'staging';
+}
