@@ -2,6 +2,9 @@
 # `admin` ECS service. Built from the repository root:
 #   docker build -f apps/admin/Dockerfile -t lawbid-admin .
 FROM node:22-alpine AS build
+# Same headroom as the API build: Node's default heap can run out on
+# `next build`. Build stage only.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/admin/package.json apps/admin/package.json

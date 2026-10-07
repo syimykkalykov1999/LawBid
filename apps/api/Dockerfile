@@ -1,6 +1,9 @@
 # LawBid API / worker image (docs/06_PRODUCTION.md §6.1: one image, two
 # commands). Multi-stage: build with dev deps, run with prod deps only.
 FROM node:22-alpine AS build
+# `nest build` type-checks the whole API and needs more than Node's default
+# ~2 GB heap (out of memory on the owner's Mac, 2026-10-07). Build stage only.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
