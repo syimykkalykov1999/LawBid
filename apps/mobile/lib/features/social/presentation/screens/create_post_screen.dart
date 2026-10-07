@@ -213,7 +213,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   bool get _ready =>
       _title.text.trim().isNotEmpty &&
-      _text.text.trim().isNotEmpty &&
       _photos.every((p) => p.fileId != null) &&
       _docs.ready;
 
@@ -428,10 +427,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  label(
-                    t.t('post.create.bodyField'),
-                    error: missing && _text.text.trim().isEmpty,
-                  ),
+                  // Owner 2026-10-07: the description is optional.
+                  label(t.t('post.create.bodyField')),
                   PostTextField(
                     controller: _text,
                     hint: t.t('post.create.hint'),

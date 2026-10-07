@@ -124,10 +124,10 @@ export class CreatePostDto {
   @IsIn(POST_CONTENT_CLASSES)
   contentClass?: PostContentClass;
 
-  @ApiProperty({ minLength: 1, maxLength: POST_BODY_MAX })
+  /** Owner 2026-10-07: the description is optional ('' is fine). */
+  @ApiProperty({ maxLength: POST_BODY_MAX })
   @Transform(trim)
   @IsString()
-  @MinLength(1)
   @MaxLength(POST_BODY_MAX)
   body!: string;
 
@@ -203,10 +203,10 @@ export class UpdatePostDto {
   @IsIn(POST_CONTENT_CLASSES)
   contentClass?: PostContentClass;
 
-  @ApiProperty({ minLength: 1, maxLength: POST_BODY_MAX })
+  /** Owner 2026-10-07: the description is optional ('' is fine). */
+  @ApiProperty({ maxLength: POST_BODY_MAX })
   @Transform(trim)
   @IsString()
-  @MinLength(1)
   @MaxLength(POST_BODY_MAX)
   body!: string;
 

@@ -86307,8 +86307,8 @@
           },
           "body": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 2200
+            "maxLength": 2200,
+            "description": "Owner 2026-10-07: the description is optional ('' is fine)."
           },
           "mediaFileIds": {
             "uniqueItems": true,
@@ -86384,8 +86384,13 @@
           },
           "body": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 2200
+            "maxLength": 2200,
+            "description": "Owner 2026-10-07: the description is optional ('' is fine)."
+          },
+          "commentsEnabled": {
+            "type": "boolean",
+            "description": "Default true; false = nobody can comment.",
+            "default": true
           }
         },
         "required": [
