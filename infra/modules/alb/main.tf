@@ -253,9 +253,11 @@ resource "aws_wafv2_web_acl" "this" {
 
   dynamic "rule" {
     for_each = {
-      common     = { priority = 10, name = "AWSManagedRulesCommonRuleSet" }
-      bad_inputs = { priority = 11, name = "AWSManagedRulesKnownBadInputsRuleSet" }
-      ip_rep     = { priority = 12, name = "AWSManagedRulesAmazonIpReputationList" }
+      # SizeRestrictions_BODY only counts (labels) here; the rule
+      # "body-size" below blocks on that label outside the exempt paths.
+      common     = { priority = 10, name = "AWSManagedRulesCommonRuleSet", count_rules = ["SizeRestrictions_BODY"] }
+      bad_inputs = { priority = 11, name = "AWSManagedRulesKnownBadInputsRuleSet", count_rules = [] }
+      ip_rep     = { priority = 12, name = "AWSManagedRulesAmazonIpReputationList", count_rules = [] }
     }
     content {
       name     = rule.key
@@ -267,6 +269,15 @@ resource "aws_wafv2_web_acl" "this" {
         managed_rule_group_statement {
           name        = rule.value.name
           vendor_name = "AWS"
+          dynamic "rule_action_override" {
+            for_each = rule.value.count_rules
+            content {
+              name = rule_action_override.value
+              action_to_use {
+                count {}
+              }
+            }
+          }
         }
       }
       visibility_config {
@@ -274,6 +285,80 @@ resource "aws_wafv2_web_acl" "this" {
         metric_name                = "${var.name}-${rule.key}"
         sampled_requests_enabled   = true
       }
+    }
+  }
+
+  # Bodies over 8 KB stay blocked except where they are expected (owner
+  # 2026-10-07): the admin panel (xlsx/csv imports, long legal texts; its
+  # server calls the API under /api/v1/admin/) and Stripe webhooks, whose
+  # events often exceed 8 KB. Those paths are authenticated or signed.
+  rule {
+    name     = "body-size"
+    priority = 13
+    action {
+      block {}
+    }
+    statement {
+      and_statement {
+        statement {
+          label_match_statement {
+            scope = "LABEL"
+            key   = "awswaf:managed:aws:core-rule-set:SizeRestrictions_Body"
+          }
+        }
+        statement {
+          not_statement {
+            statement {
+              or_statement {
+                statement {
+                  byte_match_statement {
+                    search_string         = var.admin_host
+                    positional_constraint = "EXACTLY"
+                    field_to_match {
+                      single_header { name = "host" }
+                    }
+                    text_transformation {
+                      priority = 0
+                      type     = "LOWERCASE"
+                    }
+                  }
+                }
+                statement {
+                  byte_match_statement {
+                    search_string         = "/api/v1/admin/"
+                    positional_constraint = "STARTS_WITH"
+                    field_to_match {
+                      uri_path {}
+                    }
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
+                  }
+                }
+                statement {
+                  byte_match_statement {
+                    search_string         = "/api/v1/webhooks/stripe"
+                    positional_constraint = "STARTS_WITH"
+                    field_to_match {
+                      uri_path {}
+                    }
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name}-body-size"
+      sampled_requests_enabled   = true
     }
   }
 
