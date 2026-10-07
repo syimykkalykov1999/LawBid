@@ -287,17 +287,6 @@ class PostCard extends ConsumerWidget {
             aspectRatio: 2,
             child: AppPressable(onTap: open, child: picture),
           ),
-        // Owner 2026-10-07: the post's files as rows under the photos.
-        if (!fill && p.attachments.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.sm,
-              AppSpacing.lg,
-              0,
-            ),
-            child: PostDocumentsList(documents: p.attachments),
-          ),
         // Owner 2026-09-30: time and "Public" sit next to Save.
         _ActionsBar(post: p, run: run, showTime: true),
         const SizedBox(height: AppSpacing.xs),
@@ -702,17 +691,39 @@ class _InstagramPost extends ConsumerWidget {
                   )
                 : captionText(caption),
           ),
-        // Owner 2026-10-07: every file of the post as a row (icon, name,
-        // size; tap opens it).
+        // Owner 2026-10-07: no file list in the feed — one short line that
+        // opens the post (the «Посмотреть» sheet is waiting for approval).
         if (!inDetail && p.attachments.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
-              AppSpacing.sm,
+              AppSpacing.xs,
               AppSpacing.lg,
               0,
             ),
-            child: PostDocumentsList(documents: p.attachments),
+            child: AppPressable(
+              onTap: open,
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.attachFileRounded,
+                    size: 16,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      p.attachments.first.fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         if (!inDetail && p.commentCount > 0)
           AppPressable(
