@@ -48,8 +48,10 @@ class RecentSearches extends Table {
 @DriftDatabase(tables: [CachedPages, ChatOutbox, RecentSearches])
 class SocialLocalDatabase extends _$SocialLocalDatabase {
   SocialLocalDatabase([QueryExecutor? executor])
-      : super(executor ??
-            driftDatabase(name: 'lawbid_social', web: appDriftWebOptions));
+      : super(
+          executor ??
+              driftDatabase(name: 'lawbid_social', web: appDriftWebOptions),
+        );
 
   @override
   int get schemaVersion => 1;

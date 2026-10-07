@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -112,7 +111,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   static bool _isVideo(XFile f) {
     final mime = f.mimeType ?? '';
     if (mime.startsWith('video/')) return true;
-    final n = f.path.toLowerCase();
+    // The name, not the path: in the browser the path is a blob: URL.
+    final n = f.name.toLowerCase();
     return n.endsWith('.mp4') ||
         n.endsWith('.mov') ||
         n.endsWith('.m4v') ||
@@ -152,7 +152,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
             builder: (_) => CreateReelScreen(
-              initialFile: File(video.path),
+              initialFile: video,
               initialTitle: _title.text,
               initialText: _text.text,
             ),

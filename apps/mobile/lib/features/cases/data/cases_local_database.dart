@@ -32,8 +32,10 @@ class SeenBids extends Table {
 @DriftDatabase(tables: [CaseDrafts, SeenBids])
 class CasesLocalDatabase extends _$CasesLocalDatabase {
   CasesLocalDatabase([QueryExecutor? executor])
-      : super(executor ??
-            driftDatabase(name: 'lawbid_cases', web: appDriftWebOptions));
+      : super(
+          executor ??
+              driftDatabase(name: 'lawbid_cases', web: appDriftWebOptions),
+        );
 
   @override
   int get schemaVersion => 1;
