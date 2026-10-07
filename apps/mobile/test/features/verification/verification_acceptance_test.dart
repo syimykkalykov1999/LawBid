@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 
 import 'verification_fakes.dart';
@@ -18,6 +19,7 @@ void main() {
     FakeVerificationBackend backend, {
     FakeDocumentSource? source,
     String initial = AppRoutes.verification,
+    OwnTrust? trust,
   }) async {
     tester.view.physicalSize = const Size(390, 844) * 3;
     tester.view.devicePixelRatio = 3;
@@ -28,6 +30,7 @@ void main() {
         theme: theme,
         source: source,
         initial: initial,
+        trust: trust,
       ),
     );
     await tester.pumpAndSettle();
@@ -201,6 +204,33 @@ void main() {
     expect(backend.submitCalls, 1);
     expect(backend.request!.status, RequestStatus.submitted);
     expect(find.text('Under review'), findsWidgets);
+  });
+
+  // Owner 2026-10-07 (phone test): a number accepted under oath is not
+  // «verified» while the profile has no blue check.
+  testWidgets('declared under oath: no «verified» without the blue check',
+      (tester) async {
+    final backend = FakeVerificationBackend(
+      status: VerificationStatus.verified,
+      request: VerificationRequest(
+        id: 'r1',
+        status: RequestStatus.approved,
+        licenses: [license('NY', status: LicenseStatus.verified)],
+        documents: const [],
+      ),
+    );
+    await pumpApp(
+      tester,
+      backend,
+      trust: trustOf(badge: false, licenseConfirmed: false),
+    );
+    expect(find.text("You're verified"), findsNothing);
+    expect(find.text('License declared'), findsOneWidget);
+    expect(find.textContaining('Declared under oath'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('verification-whats-left')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('4. rejected: reason shown and a new request', (tester) async {

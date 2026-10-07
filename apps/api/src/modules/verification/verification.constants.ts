@@ -75,6 +75,9 @@ export const VERIFICATION_NOTIFICATION_KIND = {
   inReview: 'in_review',
   needsMoreInfo: 'needs_more_info',
   approved: 'approved',
+  /** Owner 2026-10-07: approved on the sworn statement alone — the
+   * license is not confirmed yet (no blue check until it is). */
+  selfAttested: 'self_attested',
   rejected: 'rejected',
   suspended: 'suspended',
   restored: 'restored',
