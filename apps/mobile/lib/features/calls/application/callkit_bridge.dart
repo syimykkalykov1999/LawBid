@@ -65,10 +65,9 @@ Future<void> showLawbidIncoming({
         android: AndroidParams(
           isCustomNotification: true,
           isShowLogo: false,
-          // res/raw/silence.wav when calls are switched off.
-          // Audit 2026-10-02: our own melody (res/raw/ringtone.wav), so it
-          // rings even on phones with no default ringtone set.
-          ringtonePath: silent ? 'silence' : 'ringtone',
+          // res/raw/silence.wav when calls are switched off; otherwise
+          // the phone's own ringtone (owner 2026-10-07).
+          ringtonePath: silent ? 'silence' : 'system_ringtone_default',
           backgroundColor: '#0A1A3F',
           actionColor: '#C9A24A',
           textColor: '#ffffff',

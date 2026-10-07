@@ -16,8 +16,6 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		4C1A5E2F2EA0B00100D1A503 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4C1A5E2F2EA0B00100D1A502 /* PrivacyInfo.xcprivacy */; };
-		A1B2C3D4E5F600010000AA02 /* lawbid_notify.caf in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600010000AA01 /* lawbid_notify.caf */; };
-		A1B2C3D4E5F600010000AA04 /* lawbid_message.caf in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F600010000AA03 /* lawbid_message.caf */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		99488391A1FD93CF00B2ABB0 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A07F760112487FBBA42643 /* Pods_RunnerTests.framework */; };
 		CB9866F985B1CA42FEB0753C /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7083BC2AE4D3C78DDD2C1480 /* Pods_Runner.framework */; };
@@ -79,8 +77,6 @@
 		97C146FB1CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4C1A5E2F2EA0B00100D1A502 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		A1B2C3D4E5F600010000AA01 /* lawbid_notify.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = lawbid_notify.caf; sourceTree = "<group>"; };
-		A1B2C3D4E5F600010000AA03 /* lawbid_message.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; path = lawbid_message.caf; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A84DE32B2B6523CE72FEDC56 /* Profile-prod.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Profile-prod.xcconfig"; path = "Flutter/Profile-prod.xcconfig"; sourceTree = "<group>"; };
@@ -208,9 +204,7 @@
 			children = (
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
-				A1B2C3D4E5F600010000AA01 /* lawbid_notify.caf */,
 				4C1A5E2F2EA0B00100D1A502 /* PrivacyInfo.xcprivacy */,
-				A1B2C3D4E5F600010000AA03 /* lawbid_message.caf */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
 				97C147021CF9000F007C117D /* Info.plist */,
 				C8A3F2010000000000000001 /* InfoPlist.strings */,
@@ -330,8 +324,6 @@
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
-				A1B2C3D4E5F600010000AA02 /* lawbid_notify.caf in Resources */,
-				A1B2C3D4E5F600010000AA04 /* lawbid_message.caf in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				C8A3F2010000000000000002 /* InfoPlist.strings in Resources */,
 				4C1A5E2F2EA0B00100D1A503 /* PrivacyInfo.xcprivacy in Resources */,

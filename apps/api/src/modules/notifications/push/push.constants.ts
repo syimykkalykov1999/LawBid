@@ -72,28 +72,29 @@ export interface PushMessage {
    * message (the app shows the full-screen ringing UI itself); iOS a
    * time-sensitive alert. */
   call?: boolean;
-  /** Owner 2026-10-02: LawBid's own short sounds — `message` for chats,
-   * `notification` for everything else (calls ring on their own). */
+  /** `message` for chats, `notification` for everything else (calls ring
+   * on their own). Owner 2026-10-07: both play the phone's own default
+   * sound — LawBid ships no sounds of its own. */
   sound?: PushSoundKind;
 }
 
 export type PushSoundKind = 'message' | 'notification';
 
-/** Android channel ids (created in MainActivity.kt) and the bundled sound
- * files (res/raw on Android, .caf in the iOS bundle) per kind. */
+/** Android channel ids (created in MainActivity.kt) and the sound per kind:
+ * the phone's default notification sound on both platforms. */
 export const PUSH_SOUNDS: Record<
   PushSoundKind,
   { channelId: string; android: string; ios: string }
 > = {
   message: {
-    channelId: 'lawbid_chats',
-    android: 'lawbid_message',
-    ios: 'lawbid_message.caf',
+    channelId: 'chats',
+    android: 'default',
+    ios: 'default',
   },
   notification: {
-    channelId: 'lawbid_notifications',
-    android: 'lawbid_notify',
-    ios: 'lawbid_notify.caf',
+    channelId: 'general',
+    android: 'default',
+    ios: 'default',
   },
 };
 
