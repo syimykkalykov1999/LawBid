@@ -127,3 +127,9 @@ variable "create_anomaly_monitor" {
   default     = true
   description = "false when the AWS account already has a service-level Cost Anomaly monitor (one allowed per account)."
 }
+# Browser beta (owner 2026-10-07): the web app's origin, for direct S3
+# uploads (presigned POST) and signed GET reads. Origin only: no path.
+variable "s3_cors_allowed_origins" {
+  type    = list(string)
+  default = ["https://syimykkalykov1999.github.io"]
+}
