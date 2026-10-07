@@ -25,6 +25,7 @@ import { RateLimitService } from '../auth/services/rate-limit.service';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FileScanRunner } from './jobs/file-scan.runner';
 import { detectMime } from './magic-bytes';
+import { dangerousContent } from './content-guard';
 import {
   MB,
   MEDIA_SIGNED_URL_TTL_SEC,
@@ -243,6 +244,17 @@ export class FilesService {
         code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
         message: 'The file content does not match an allowed type.',
         details: { declared: intent.mime, detected },
+      });
+    }
+    // Owner 2026-10-07: no program, macro or script hidden inside an
+    // allowed document (APK in a .docx, a macro, PDF JavaScript).
+    const danger = dangerousContent(data, detected);
+    if (danger) {
+      await this.reject(fileId, intent);
+      throw new BadRequestException({
+        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+        message: 'The file contains content that is not allowed.',
+        details: { declared: intent.mime, detected, reason: danger },
       });
     }
 
