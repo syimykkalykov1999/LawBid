@@ -206,7 +206,7 @@ describe('JobsRunner', () => {
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
     // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
-    // review-appeal sweep; owner 2026-10-01: + videos.sweep every 5 min;
+    // review-appeal sweep; owner 2026-10-01: + videos.sweep (every minute);
     // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
     // + monthly licenses.registry-recheck; owner 2026-10-05: + the
     // planner's reminders (every minute) and archive cleanup (daily),
