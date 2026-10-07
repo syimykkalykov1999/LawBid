@@ -56,9 +56,46 @@ DEFAULT_URL="$(url_for defaultdb)"
 MIGRATOR="$(url_for lawbid)"
 DEMO_URL="$(url_for lawbid_demo)"
 
+# migration_state <url> — "fresh" (no migrations table), "failed-empty" (no
+# migration ever finished and no user rows: a first run that broke half-way)
+# or "used". Prints nothing secret.
+migration_state() {
+  node -e '
+    const { PrismaClient } = require("@prisma/client");
+    const p = new PrismaClient({ datasourceUrl: process.argv[1] });
+    const has = async (t) => Number((await p.$queryRawUnsafe(
+      "SELECT count(*)::INT AS n FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2",
+      "public", t))[0].n) > 0;
+    (async () => {
+      if (!(await has("_prisma_migrations"))) return "fresh";
+      const [m] = await p.$queryRawUnsafe(
+        "SELECT count(*) FILTER (WHERE finished_at IS NOT NULL)::INT AS ok FROM _prisma_migrations");
+      const users = (await has("users"))
+        ? Number((await p.$queryRawUnsafe("SELECT count(*)::INT AS n FROM users"))[0].n) : 0;
+      return Number(m.ok) === 0 && users === 0 ? "failed-empty" : "used";
+    })().then((s) => process.stdout.write(s),
+      () => { console.error("Не удалось проверить базу."); process.exit(1); })
+      .finally(() => p.$disconnect());
+  ' "$1"
+}
+
+# CockroachDB 26.x creates tables schema-locked by default, and a locked
+# table refuses the ALTERs later migrations make. Turn that default off for
+# every non-root user of both databases (the API migrates lawbid_demo itself).
+UNLOCK='ALTER DATABASE lawbid SET create_table_with_schema_locked = false; ALTER DATABASE lawbid_demo SET create_table_with_schema_locked = false;'
+
 echo "1/5 Базы lawbid и lawbid_demo"
 echo 'CREATE DATABASE IF NOT EXISTS lawbid; CREATE DATABASE IF NOT EXISTS lawbid_demo;' \
   | sql "$DEFAULT_URL"
+STATE="$(migration_state "$MIGRATOR")"
+if [ "$STATE" = "failed-empty" ]; then
+  # Only a brand-new database whose first run broke: nothing finished, no
+  # users. Start it over; a database with any finished migration is never
+  # dropped here.
+  echo "  прошлый запуск оборвался на пустой базе — создаю lawbid заново"
+  echo 'DROP DATABASE lawbid CASCADE; CREATE DATABASE lawbid;' | sql "$DEFAULT_URL"
+fi
+echo "$UNLOCK" | sql "$DEFAULT_URL"
 
 echo "2/5 Миграции"
 DATABASE_URL="$MIGRATOR" npx prisma migrate deploy
