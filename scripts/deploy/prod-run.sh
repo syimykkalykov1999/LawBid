@@ -4,11 +4,15 @@
 #   prod-run.sh <tag> seed               reference data + the super admin row
 #   prod-run.sh <tag> admin              super admin login + password (asked, hidden)
 #   prod-run.sh <tag> i18n <file.xlsx>   import translations (dry run first)
+#   prod-run.sh <tag> wipe [--purge-versions] [--execute]
+#                                        pre-launch wipe of beta test data: database,
+#                                        S3, Bunny (docs/runbooks/prelaunch-wipe.md);
+#                                        dry run unless --execute. Redis: prod-wipe-redis.sh
 # The app keys are read from Secrets Manager into a temporary file (mode
 # 600, deleted on exit); a throwaway Redis runs next to it. Runs as the
 # migrator role, with jobs and the demo world off.
 set -euo pipefail
-TAG="${1:?image tag}"; CMD="${2:?seed | admin | i18n <file>}"
+TAG="${1:?image tag}"; CMD="${2:?seed | admin | i18n <file> | wipe}"
 PREFIX="${SECRET_PREFIX:-lawbid-prod}"
 REGION="${AWS_REGION:-us-east-1}"
 if [ -n "${PROD_IMAGE:-}" ]; then
@@ -72,6 +76,23 @@ case "$CMD" in
     FILE="$(cd "$(dirname "${3:?xlsx file}")" && pwd)/$(basename "$3")"
     "${RUN[@]}" -v "$FILE:/tmp/import.xlsx:ro" "$IMAGE" \
       node dist/src/cli/import-translations.js /tmp/import.xlsx
+    ;;
+  wipe)
+    # S3 is reached with the Mac's own AWS login (temporary keys, same
+    # temporary file); the Bunny key is read from the admin's key store.
+    NAME="${STACK_NAME:-lawbid-prod}"
+    aws configure export-credentials --format env-no-export >> "$ENVF"
+    cat >> "$ENVF" <<ENV
+AWS_REGION=${REGION}
+S3_REGION=${REGION}
+S3_BUCKET_DOCUMENTS=${NAME}-documents
+S3_BUCKET_MEDIA=${NAME}-media
+S3_BUCKET_DOCUMENTS_REPLICA=${NAME}-documents-replica
+S3_REPLICA_REGION=${REPLICA_REGION:-us-west-2}
+ENV
+    shift 2
+    "${RUN[@]}" -it -e PRELAUNCH_WIPE_CONFIRM "$IMAGE" \
+      node dist/scripts/prelaunch-wipe.js --only=bunny,db,s3 "$@"
     ;;
   *) echo "unknown command: $CMD" >&2; exit 2 ;;
 esac
