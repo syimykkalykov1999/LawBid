@@ -257,6 +257,7 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				4C1A5E2F2EA0B00100D1A501 /* Strip dev-only ATS (prod) */,
+				4C1A5E2F2EA0B00100D1A504 /* Auto build number */,
 				BD9BE40A1BF600A3555B1DCB /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
@@ -431,6 +432,22 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		4C1A5E2F2EA0B00100D1A504 /* Auto build number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}",
+			);
+			name = "Auto build number";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# pubspec.yaml keeps `+1`, which means automatic: a build without an\n# explicit --build-number gets the minutes since 2026-01-01 UTC, so every\n# App Store upload is higher than the last one with nobody bumping it.\n# Same formula as android/app/build.gradle.kts autoBuildNumber().\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ \"$(/usr/libexec/PlistBuddy -c \"Print :CFBundleVersion\" \"$PLIST\" 2>/dev/null)\" = \"1\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $(( ($(date -u +%s) - 1767225600) / 60 ))\" \"$PLIST\"\nfi\n";
 		};
 		4C1A5E2F2EA0B00100D1A501 /* Strip dev-only ATS (prod) */ = {
 			isa = PBXShellScriptBuildPhase;

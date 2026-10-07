@@ -4,11 +4,11 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build the prod AAB (release). Env: ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, BUILD_NUMBER, DART_DEFINES_FILE"
+  desc "Build the prod AAB (release). Env: ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, BUILD_NUMBER (optional; unset = automatic), DART_DEFINES_FILE"
   lane :build do |options|
     flavor = options[:flavor] || "prod"
     sh("cd ../.. && flutter build appbundle --release --flavor #{flavor} -t lib/main_#{flavor}.dart " \
-       "--build-number=#{ENV.fetch('BUILD_NUMBER', '1')} " \
+       "#{ENV['BUILD_NUMBER'] ? "--build-number=#{ENV['BUILD_NUMBER']} " : ''}" \
        "--dart-define-from-file=#{ENV.fetch('DART_DEFINES_FILE', "config/#{flavor}.json")}")
   end
 

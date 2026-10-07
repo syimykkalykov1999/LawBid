@@ -28,6 +28,24 @@ void main() {
     expect(int.parse(version.group(1)!), greaterThanOrEqualTo(1));
   });
 
+  test('build number is automatic on every path (no manual bump, no repeats)', () {
+    // pubspec keeps +1 = "automatic"; Android and iOS replace it with the
+    // minutes since 2026-01-01 UTC, the same formula on both.
+    expect(read('pubspec.yaml'), contains(RegExp(r'^version: \d+\.\d+\.\d+\+1$', multiLine: true)));
+    final gradle = read('android/app/build.gradle.kts');
+    expect(gradle, contains('versionCode = flutter.versionCode.takeIf { it != 1 } ?: autoBuildNumber()'));
+    expect(gradle, contains('System.currentTimeMillis() / 1000 - 1767225600L) / 60'));
+    final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
+    expect(pbx, contains('/* Auto build number */,'));
+    expect(pbx, contains(r'Set :CFBundleVersion $(( ($(date -u +%s) - 1767225600) / 60 ))'));
+    // CI and fastlane must not pin a small counter that would sort below a
+    // Mac build already uploaded.
+    expect(read('../../.github/workflows/mobile-release.yml'), isNot(contains('run_number')));
+    for (final lane in ['ios/fastlane/Fastfile', 'android/fastlane/Fastfile']) {
+      expect(read(lane), isNot(contains("ENV.fetch('BUILD_NUMBER', '1')")), reason: lane);
+    }
+  });
+
   test('iOS: no plain-http exception in prod, export compliance, iPhone only', () {
     final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
     expect(pbx, contains('/* Strip dev-only ATS (prod) */,'));

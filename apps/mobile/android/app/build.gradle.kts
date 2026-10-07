@@ -13,6 +13,9 @@ extensions.configure<com.google.gms.googleservices.GoogleServicesPlugin.GoogleSe
         com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy.WARN
 }
 
+/** Minutes since 2026-01-01T00:00:00Z — always increasing; fits versionCode until year 6000. */
+fun autoBuildNumber(): Int = ((System.currentTimeMillis() / 1000 - 1767225600L) / 60).toInt()
+
 android {
     namespace = "com.lawbid.lawbid"
     compileSdk = flutter.compileSdkVersion
@@ -37,7 +40,12 @@ android {
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
         // flag during build.
-        versionCode = flutter.versionCode
+        // Build number: pubspec.yaml keeps `+1`, which means "automatic". A
+        // build without an explicit `--build-number` gets the minutes since
+        // 2026-01-01 UTC, so every upload is higher than the last one, on
+        // any machine or CI, with nobody bumping anything. iOS uses the same
+        // formula (Runner build phase "Auto build number").
+        versionCode = flutter.versionCode.takeIf { it != 1 } ?: autoBuildNumber()
         versionName = flutter.versionName
 
         // App Links host (docs/01_FOUNDATION_AUTH.md §12: `lawbid.dev`).

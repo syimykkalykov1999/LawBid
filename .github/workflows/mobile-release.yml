@@ -1,5 +1,6 @@
-# docs/06 §7.4 — release builds on a version tag (v1.2.3 → build number =
-# run number), Fastlane lanes, release notes from Conventional Commits.
+# docs/06 §7.4 — release builds on a version tag (v1.2.3; the build number
+# is automatic: minutes since 2026-01-01, android/app/build.gradle.kts
+# autoBuildNumber), Fastlane lanes, release notes from Conventional Commits.
 # Store uploads (Play Internal / TestFlight) run ONLY when the owner
 # dispatches the workflow with upload=true: the owner tests on Android
 # first and decides the closed-beta moment (docs/06 §11.2). Signing keys
@@ -26,7 +27,6 @@ permissions:
 
 env:
   FLAVOR: ${{ inputs.flavor || 'prod' }}
-  BUILD_NUMBER: ${{ github.run_number }}
 
 jobs:
   notes:
