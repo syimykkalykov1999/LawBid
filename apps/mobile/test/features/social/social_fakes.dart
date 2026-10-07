@@ -65,7 +65,9 @@ class FakeSocialRepository implements SocialRepository {
   CursorPage<Post>? cached;
   bool offline = false;
   bool failLikes = false;
+  bool failReposts = false;
   final likeCalls = <(String, bool)>[];
+  final repostCalls = <(String, bool)>[];
   final followCalls = <(String, bool)>[];
   int attorneyPostsCalls = 0;
 
@@ -86,6 +88,12 @@ class FakeSocialRepository implements SocialRepository {
   Future<void> setLiked(String postId, {required bool liked}) async {
     likeCalls.add((postId, liked));
     if (failLikes) throw _offline;
+  }
+
+  @override
+  Future<void> setReposted(String postId, {required bool reposted}) async {
+    repostCalls.add((postId, reposted));
+    if (failReposts) throw _offline;
   }
 
   @override

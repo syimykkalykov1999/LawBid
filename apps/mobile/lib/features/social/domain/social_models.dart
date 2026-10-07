@@ -164,6 +164,16 @@ class PostAttachment {
   final String url;
 }
 
+/// Owner 2026-10-07: who reposted a post into the viewer's feed
+/// (Threads-style «{username} сделал(а) репост»).
+@immutable
+class PostReposter {
+  const PostReposter({required this.id, required this.username});
+
+  final String id;
+  final String username;
+}
+
 class Post {
   const Post({
     required this.id,
@@ -190,7 +200,19 @@ class Post {
     this.attachments = const [],
     this.isGeneral = false,
     this.promotionId,
+    this.repostCount = 0,
+    this.repostedByMe = false,
+    this.repostedBy,
   });
+
+  /// Owner 2026-10-07: Threads-style reposts — how many people reposted
+  /// the post, and whether the viewer did.
+  final int repostCount;
+  final bool repostedByMe;
+
+  /// Owner 2026-10-07: set when the post reached the feed as someone's
+  /// repost; null otherwise (and while the API does not send it).
+  final PostReposter? repostedBy;
 
   /// Owner 2026-10-05: a general (personal) post rather than a legal one.
   final bool isGeneral;
@@ -257,6 +279,8 @@ class Post {
     bool? savedByMe,
     DateTime? editedAt,
     int? shareCount,
+    int? repostCount,
+    bool? repostedByMe,
   }) =>
       Post(
         id: id,
@@ -283,6 +307,9 @@ class Post {
         attachments: attachments,
         isGeneral: isGeneral,
         promotionId: promotionId,
+        repostCount: repostCount ?? this.repostCount,
+        repostedByMe: repostedByMe ?? this.repostedByMe,
+        repostedBy: repostedBy,
       );
 }
 
