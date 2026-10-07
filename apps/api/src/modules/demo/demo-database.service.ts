@@ -358,7 +358,12 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       }
     >;
     for (const model of MIRRORED_MODELS) {
-      const rows = await real[model].findMany();
+      let rows = await real[model].findMany();
+      // feature_flags.updated_by references users, and the demo world has
+      // none of the real admins (FK violation in prod, 2026-10-07).
+      if (model === 'featureFlag') {
+        rows = rows.map((r) => ({ ...r, updated_by: null }));
+      }
       for (let i = 0; i < rows.length; i += 500) {
         await target[model].createMany({
           data: rows.slice(i, i + 500),
