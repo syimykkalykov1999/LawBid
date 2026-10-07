@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,9 +23,10 @@ const _channel = MethodChannel('lawbid/notification_sounds');
 Future<void> openNotificationSoundSettings(
   NotificationSoundChannel which,
 ) async {
-  if (Platform.isAndroid) {
+  if (kIsWeb) return;
+  if (defaultTargetPlatform == TargetPlatform.android) {
     await _channel.invokeMethod<void>('openChannel', {'id': which.id});
-  } else if (Platform.isIOS) {
+  } else if (defaultTargetPlatform == TargetPlatform.iOS) {
     await launchUrl(Uri.parse('app-settings:'));
   }
 }

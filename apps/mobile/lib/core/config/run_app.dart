@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:lawbid/app.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
@@ -24,6 +26,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// flutter run --flavor prod    -t lib/main_prod.dart    --dart-define-from-file=config/prod.json
 /// ```
 Future<void> runLawBid(AppFlavor flavor) async {
+  // Browser: real paths (lawbid.dev/app/feed), not /#/feed. No-op on phones.
+  usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
   AppEnvironment.current = AppEnvironment.forFlavor(flavor);
 
@@ -41,7 +45,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       // OQ-041: calls ring through the phone's own call screen.
-      systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
+      // The browser has no system call screen (web build).
+      systemCallUiProvider.overrideWithValue(
+        kIsWeb ? const NoSystemCallUi() : const CallkitSystemUi(),
+      ),
       // OQ-044: ringback / busy / end tones and message sounds.
       appSoundsProvider.overrideWithValue(JustAudioAppSounds()),
     ],

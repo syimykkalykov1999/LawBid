@@ -201,9 +201,9 @@ export class PushTokenDto {
   @MaxLength(4096)
   token!: string;
 
-  @ApiProperty({ enum: ['ios', 'android'] })
-  @IsIn(['ios', 'android'])
-  platform!: 'ios' | 'android';
+  @ApiProperty({ enum: ['ios', 'android', 'web'] })
+  @IsIn(['ios', 'android', 'web'])
+  platform!: 'ios' | 'android' | 'web';
 }
 
 export class DeletePushTokenDto {

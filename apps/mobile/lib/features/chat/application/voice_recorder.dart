@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -43,9 +44,12 @@ class VoiceRecorder {
   Future<bool> start({void Function()? onCap}) async {
     if (recording) return true;
     if (!await _rec.hasPermission()) return false;
-    final dir = await getTemporaryDirectory();
-    final path =
-        '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    // The browser records into memory (MediaRecorder, AAC where the browser
+    // has it: Chrome, Safari) and returns a `blob:` URL from stop().
+    final path = kIsWeb
+        ? ''
+        : '${(await getTemporaryDirectory()).path}'
+            '/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
     await _rec.start(
       const RecordConfig(
         bitRate: 64000,

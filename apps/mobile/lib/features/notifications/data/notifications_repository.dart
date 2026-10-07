@@ -171,6 +171,9 @@ class NewCaseAlerts {
 /// The server decides which type is which.
 enum NotifGroup { important, other }
 
+/// Where a push token comes from (`POST /push-tokens`).
+enum PushPlatform { ios, android, web }
+
 abstract interface class NotificationsRepository {
   /// [group] null = every notification.
   Future<CursorPage<AppNotification>> list({
@@ -191,7 +194,10 @@ abstract interface class NotificationsRepository {
     List<String>? practiceAreaIds,
     bool? urgentOnly,
   });
-  Future<void> registerPushToken(String token, {required bool ios});
+  Future<void> registerPushToken(
+    String token, {
+    required PushPlatform platform,
+  });
   Future<void> deletePushToken(String token);
 }
 
@@ -365,14 +371,19 @@ class ApiNotificationsRepository implements NotificationsRepository {
       );
 
   @override
-  Future<void> registerPushToken(String token, {required bool ios}) =>
+  Future<void> registerPushToken(
+    String token, {
+    required PushPlatform platform,
+  }) =>
       guardApiCall(
         () => _api.registerPushToken(
           body: api.PushTokenDto(
             token: token,
-            platform: ios
-                ? api.PushTokenDtoPlatform.ios
-                : api.PushTokenDtoPlatform.android,
+            platform: switch (platform) {
+              PushPlatform.ios => api.PushTokenDtoPlatform.ios,
+              PushPlatform.android => api.PushTokenDtoPlatform.android,
+              PushPlatform.web => api.PushTokenDtoPlatform.web,
+            },
           ),
         ),
       );

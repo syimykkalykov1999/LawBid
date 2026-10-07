@@ -102,6 +102,18 @@ export class FcmPushSender implements PushSender {
                         }
                       : {}),
                   },
+              // Web client (browser tokens): the service worker shows
+              // this; phones ignore it. Calls too, so a browser rings.
+              webpush: {
+                headers: message.call
+                  ? { Urgency: 'high', TTL: '45' }
+                  : { Urgency: 'high' },
+                notification: {
+                  title: message.title,
+                  body: message.body,
+                  icon: '/icons/Icon-192.png',
+                },
+              },
               apns: {
                 ...(message.call ? { headers: { 'apns-priority': '10' } } : {}),
                 payload: {

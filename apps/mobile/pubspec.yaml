@@ -13,6 +13,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Web client (2026-10-07): clean /app/... URLs instead of /#/...
+  flutter_web_plugins:
+    sdk: flutter
   cupertino_icons: ^1.0.8
 
   # State management (file 01 §5.1)
