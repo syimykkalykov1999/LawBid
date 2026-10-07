@@ -145,11 +145,11 @@ const _newsKey = 'feed.topics.news.v1';
 /// Owner 2026-09-30: the "News" topic in the slider (not a practice code).
 const kNewsTopic = '@news';
 
-/// Owner 2026-10-05: the "Posts" topic — general (personal) posts such as
-/// food or travel, below News in the picker. Not shown by default.
+/// Owner 2026-10-05: the "Posts" topic (general posts). Owner 2026-10-07:
+/// removed everywhere; a list saved with it simply drops it on load.
 const kGeneralPostsTopic = '@posts';
 
-bool _isSpecialTopic(String c) => c == kNewsTopic || c == kGeneralPostsTopic;
+bool _isSpecialTopic(String c) => c == kNewsTopic;
 
 /// Owner 2026-10-01: cases whose client wasn't sure of the qualification
 /// (the wizard's "Not sure" choice). A real practice code: the case feed
@@ -198,10 +198,7 @@ class FeedTopicsNotifier extends Notifier<List<String>> {
             (_isSpecialTopic(c) || _codeShape.hasMatch(c)))
           c,
     ];
-    // News, then Posts, stay first when picked.
-    if (state.remove(kGeneralPostsTopic)) {
-      state = [kGeneralPostsTopic, ...state];
-    }
+    // News stays first when picked.
     if (state.remove(kNewsTopic)) state = [kNewsTopic, ...state];
     try {
       ref.read(sharedPreferencesProvider).setStringList(_prefsKey, state);
