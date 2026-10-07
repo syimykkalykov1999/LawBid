@@ -112,6 +112,8 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
 /// Answers / declines made on the system UI reach the call controller.
 /// Kept alive by `CallHost`.
 final callkitEventsProvider = Provider<void>((ref) {
+  // The browser has no system call screen; calls ring inside the page.
+  if (kIsWeb) return;
   // Audit 2026-10-02: Android 13+ shows (and rings) the incoming-call
   // screen only with the notifications permission — ask for it once.
   final prefs = ref.read(sharedPreferencesProvider);

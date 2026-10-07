@@ -4,7 +4,10 @@ For every UI key it keeps the LONGEST translation among the languages the
 test fonts can draw (Latin, Cyrillic, Greek scripts), so one test run
 covers the worst case of all of them. Placeholders must match English.
 
-Usage: python3 tool/gen_longest_strings.py path/to/lawbid-app-translations.xlsx
+Usage: python3 tool/gen_longest_strings.py lawbid-app-translations.xlsx [*-keys-update.xlsx ...]
+
+Update workbooks are applied in order on top of the main one (a later
+row for the same key wins), as the admin import does.
 """
 import json
 import re
@@ -19,19 +22,24 @@ LANGS = (
 ).split()
 PH = re.compile(r'\{[a-zA-Z0-9_]+\}')
 
-wb = openpyxl.load_workbook(sys.argv[1], read_only=True)
-rows = wb.worksheets[0].iter_rows(values_only=True)
-header = next(rows)
-col = {name: i for i, name in enumerate(header)}
+rows_by_key = {}
+for file in sys.argv[1:]:
+    wb = openpyxl.load_workbook(file, read_only=True)
+    rows = wb.worksheets[0].iter_rows(values_only=True)
+    header = next(rows)
+    col = {name: i for i, name in enumerate(header)}
+    for r in rows:
+        if r and r[0]:
+            rows_by_key[r[0]] = {lang: r[i] for lang, i in col.items()}
 out = {}
-for r in rows:
-    key, en = r[0], r[col['en']]
-    if not key or not en:
+for key, r in rows_by_key.items():
+    en = r.get('en')
+    if not en:
         continue
     want = sorted(PH.findall(en))
     best = en
     for lang in LANGS:
-        v = r[col[lang]]
+        v = r.get(lang)
         if v and sorted(PH.findall(v)) == want and len(v) > len(best):
             best = v
     out[key] = best

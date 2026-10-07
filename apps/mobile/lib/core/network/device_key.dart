@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -28,10 +28,11 @@ abstract final class DeviceKey {
   /// Never throws.
   static Future<void> load() async {
     try {
-      if (Platform.isAndroid) {
+      if (kIsWeb) return;
+      if (defaultTargetPlatform == TargetPlatform.android) {
         final id = await _channel.invokeMethod<String>('androidId');
         if (id != null && id.trim().length >= 8) _value = 'a:${id.trim()}';
-      } else if (Platform.isIOS) {
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
         const storage = FlutterSecureStorage(
           iOptions: IOSOptions(
             accessibility: KeychainAccessibility.first_unlock_this_device,

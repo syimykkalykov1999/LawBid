@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the LawBid app launcher icon (iOS + Android) from scratch.
+"""Generates the LawBid app launcher icon (iOS + Android + web) from scratch.
 
 2026-09-22 owner request: the app icon should be the same scales-of-justice
 mark used inside the app (see lib/core/design_system/widgets/display/
@@ -206,7 +206,18 @@ def write_ios() -> None:
         draw_scales(px, FULL_BLEED_WIDTH, BG).convert("RGB").save(base + name)
 
 
+def write_web() -> None:
+    """Web client (2026-10-07): favicon, PWA and maskable icons in web/."""
+    draw_scales(32, FULL_BLEED_WIDTH, BG).convert("RGB").save("web/favicon.png")
+    for px in (192, 512):
+        draw_scales(px, FULL_BLEED_WIDTH, BG).convert("RGB").save(f"web/icons/Icon-{px}.png")
+        # Maskable: the browser crops to its own shape; keep the scales in
+        # the 80% safe zone.
+        draw_scales(px, ADAPTIVE_WIDTH, BG).convert("RGB").save(f"web/icons/Icon-maskable-{px}.png")
+
+
 if __name__ == "__main__":
     write_android()
     write_ios()
-    print("Wrote Android adaptive + legacy icons and the iOS AppIcon set.")
+    write_web()
+    print("Wrote Android adaptive + legacy icons, the iOS AppIcon set and the web icons.")

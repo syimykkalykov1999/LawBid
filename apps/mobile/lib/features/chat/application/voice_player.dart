@@ -104,9 +104,12 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     await p.stop();
     state = VoicePlayback(messageId: m.id, speed: state.speed, loading: true);
     try {
-      final path = v.localPath ?? await _cached(m.id, v.url);
+      final path = v.localPath ?? (kIsWeb ? null : await _cached(m.id, v.url));
       if (!ref.mounted) return;
-      if (path != null) {
+      if (kIsWeb && v.localPath == null && v.url != null) {
+        // The browser caches the signed link itself; no temp files.
+        await p.setUrl(v.url!);
+      } else if (path != null) {
         await p.setFilePath(path);
       } else {
         state = state.copyWith(loading: false);

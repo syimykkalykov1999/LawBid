@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -50,6 +50,16 @@ Future<void> shareBytes(
   String filename, {
   required String mimeType,
 }) async {
+  if (kIsWeb) {
+    // The browser downloads it (no temp folder on the web).
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile.fromData(bytes, mimeType: mimeType, name: filename)],
+        fileNameOverrides: [filename],
+      ),
+    );
+    return;
+  }
   final dir = await getTemporaryDirectory();
   final file = File('${dir.path}/$filename');
   await file.writeAsBytes(bytes, flush: true);

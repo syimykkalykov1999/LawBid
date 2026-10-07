@@ -171,3 +171,35 @@ jobs:
       - name: Build debug iOS app (build-check only — no codesign, no publish)
         working-directory: apps/mobile
         run: flutter build ios --debug --no-codesign
+
+  build-web:
+    # Web client (2026-10-07): the same app in the browser, served under
+    # lawbid.dev/app/ (the public pages own the other paths).
+    name: Build check — Web (release)
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Fetch sqlite3.wasm / drift_worker.js
+        working-directory: apps/mobile
+        run: tool/web_assets.sh
+
+      - name: Build web (build-check only — no publish)
+        working-directory: apps/mobile
+        run: >
+          flutter build web --release -t lib/main_prod.dart
+          --base-href /app/ --no-web-resources-cdn

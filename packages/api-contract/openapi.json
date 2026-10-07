@@ -112358,7 +112358,8 @@
           "platform": {
             "enum": [
               "ios",
-              "android"
+              "android",
+              "web"
             ],
             "type": "string"
           }

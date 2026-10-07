@@ -4,11 +4,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -38,7 +40,22 @@ class PushService {
     }
     _subs.clear();
     try {
-      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+      if (kIsWeb && !AppConfig.firebaseWebConfigured) {
+        _startedFor = null;
+        return;
+      }
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: kIsWeb
+              ? const FirebaseOptions(
+                  apiKey: AppConfig.firebaseWebApiKey,
+                  appId: AppConfig.firebaseWebAppId,
+                  messagingSenderId: AppConfig.firebaseWebSenderId,
+                  projectId: AppConfig.firebaseWebProjectId,
+                )
+              : null,
+        );
+      }
     } on Object catch (e) {
       debugPrint('push disabled: $e');
       _startedFor = null;
@@ -60,9 +77,15 @@ class PushService {
     try {
       // OQ-041: a call pushed while the app is in the background rings
       // through the system call screen.
-      FirebaseMessaging.onBackgroundMessage(lawbidBackgroundMessage);
+      // The browser's background pushes are shown by
+      // web/firebase-messaging-sw.js instead.
+      if (!kIsWeb) {
+        FirebaseMessaging.onBackgroundMessage(lawbidBackgroundMessage);
+      }
       await m.requestPermission();
-      final token = await m.getToken();
+      final token = await m.getToken(
+        vapidKey: kIsWeb ? AppConfig.firebaseWebVapidKey : null,
+      );
       if (token != null) await _register(token);
       _subs
         ..add(m.onTokenRefresh.listen(_register))
@@ -97,7 +120,11 @@ class PushService {
     try {
       await _ref.read(notificationsRepositoryProvider).registerPushToken(
             token,
-            ios: defaultTargetPlatform == TargetPlatform.iOS,
+            platform: kIsWeb
+                ? PushPlatform.web
+                : defaultTargetPlatform == TargetPlatform.iOS
+                    ? PushPlatform.ios
+                    : PushPlatform.android,
           );
     } on Object {
       // Next app start registers again.

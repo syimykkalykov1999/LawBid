@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:android_play_install_referrer/android_play_install_referrer.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -65,8 +65,7 @@ String? parseReferralCodeFromReferrer(String? referrer) {
   try {
     decoded = Uri.decodeComponent(referrer);
   } catch (_) {}
-  final m =
-      _refPattern.firstMatch(decoded) ?? _refPattern.firstMatch(referrer);
+  final m = _refPattern.firstMatch(decoded) ?? _refPattern.firstMatch(referrer);
   return m?.group(1)?.toUpperCase();
 }
 
@@ -76,7 +75,7 @@ String? parseReferralCodeFromReferrer(String? referrer) {
 /// on devices without Google Play.
 Future<void> captureInstallReferrer(ProviderContainer container) async {
   try {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
     final store = container.read(pendingReferralStoreProvider);
     if (store.referrerChecked) return;
     await store.markReferrerChecked();

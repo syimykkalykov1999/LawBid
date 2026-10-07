@@ -1,9 +1,9 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/app_update/app_version.dart';
@@ -37,7 +37,13 @@ class HeadersInterceptor extends Interceptor {
   /// `runApp` — see core/app_update/app_version.dart).
   static String get appVersion => AppVersion.current;
 
-  static String get platformName => Platform.isIOS ? 'ios' : 'android';
+  /// `web` for the browser build: the API keeps one phone session and one
+  /// website session per account (session.service.ts).
+  static String get platformName => kIsWeb
+      ? 'web'
+      : defaultTargetPlatform == TargetPlatform.iOS
+          ? 'ios'
+          : 'android';
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {

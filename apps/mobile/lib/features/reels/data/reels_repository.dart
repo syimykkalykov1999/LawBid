@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -77,9 +78,10 @@ class ReelsRepository {
   }
 
   /// Uploads [file] to Bunny (TUS 1.0.0). Resumes from the server's offset
-  /// after a dropped connection; [onProgress] gets 0..1.
+  /// after a dropped connection; [onProgress] gets 0..1. [file] is a path
+  /// on the phone or the browser's in-memory pick.
   Future<void> upload(
-    File file,
+    XFile file,
     ReelUpload u, {
     void Function(double)? onProgress,
     CancelToken? cancel,
@@ -115,44 +117,40 @@ class ReelsRepository {
 
     var offset = 0;
     var failures = 0;
-    final raf = await file.open();
-    try {
-      while (offset < size) {
-        final len = math.min(_chunk, size - offset);
-        await raf.setPosition(offset);
-        final bytes = await raf.read(len);
-        try {
-          final r = await _tus.patch<void>(
-            location,
-            data: Stream.fromIterable([bytes]),
-            cancelToken: cancel,
-            options: Options(
-              headers: {
-                ...auth,
-                'Upload-Offset': '$offset',
-                'Content-Type': 'application/offset+octet-stream',
-                Headers.contentLengthHeader: '$len',
-              },
-            ),
-          );
-          offset = int.tryParse(r.headers.value('upload-offset') ?? '') ??
-              offset + len;
-          failures = 0;
-          onProgress?.call(offset / size);
-        } on DioException catch (e) {
-          if (CancelToken.isCancel(e) || ++failures > 5) rethrow;
-          await Future<void>.delayed(Duration(seconds: failures * 2));
-          final head = await _tus.head<void>(
-            location,
-            cancelToken: cancel,
-            options: Options(headers: auth),
-          );
-          offset =
-              int.tryParse(head.headers.value('upload-offset') ?? '') ?? offset;
-        }
+    while (offset < size) {
+      final len = math.min(_chunk, size - offset);
+      final chunk = BytesBuilder(copy: false);
+      await file.openRead(offset, offset + len).forEach(chunk.add);
+      final bytes = chunk.takeBytes();
+      try {
+        final r = await _tus.patch<void>(
+          location,
+          data: Stream.fromIterable([bytes]),
+          cancelToken: cancel,
+          options: Options(
+            headers: {
+              ...auth,
+              'Upload-Offset': '$offset',
+              'Content-Type': 'application/offset+octet-stream',
+              Headers.contentLengthHeader: '$len',
+            },
+          ),
+        );
+        offset = int.tryParse(r.headers.value('upload-offset') ?? '') ??
+            offset + len;
+        failures = 0;
+        onProgress?.call(offset / size);
+      } on DioException catch (e) {
+        if (CancelToken.isCancel(e) || ++failures > 5) rethrow;
+        await Future<void>.delayed(Duration(seconds: failures * 2));
+        final head = await _tus.head<void>(
+          location,
+          cancelToken: cancel,
+          options: Options(headers: auth),
+        );
+        offset =
+            int.tryParse(head.headers.value('upload-offset') ?? '') ?? offset;
       }
-    } finally {
-      await raf.close();
     }
   }
 

@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Fetched by tool/web_assets.sh (pinned to pubspec.lock)
+/web/sqlite3.wasm
+/web/drift_worker.js
+/web/firebase-config.js

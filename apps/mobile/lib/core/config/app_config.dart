@@ -47,8 +47,11 @@ abstract final class AppConfig {
 
   /// Store release 2026-10-06: whether this build can finish a Google
   /// sign-in on [platform] (iOS needs GOOGLE_IOS_CLIENT_ID, Android
-  /// GOOGLE_SERVER_CLIENT_ID).
+  /// GOOGLE_SERVER_CLIENT_ID). Not in the browser yet: Google's web sign-in
+  /// needs its own button flow (web client 2026-10-07), so the web offers
+  /// phone and email.
   static bool googleSignInConfigured(TargetPlatform platform) =>
+      !kIsWeb &&
       switch (platform) {
         TargetPlatform.iOS => googleIosClientId.isNotEmpty,
         TargetPlatform.android => googleServerClientId.isNotEmpty,
@@ -57,8 +60,37 @@ abstract final class AppConfig {
 
   /// Sign in with Apple runs natively on iOS only; Android would need an
   /// Apple Services ID + web redirect, which this app does not configure.
+  /// In the browser `defaultTargetPlatform` is the visitor's OS, so an
+  /// iPhone's Safari would otherwise offer it too.
   static bool appleSignInSupported(TargetPlatform platform) =>
-      platform == TargetPlatform.iOS;
+      !kIsWeb && platform == TargetPlatform.iOS;
+
+  /// Web client (2026-10-07): the Firebase "Web app" of project
+  /// lawbid-6e5ff (Firebase console → Project settings → Your apps → Web)
+  /// and its Cloud Messaging "Web Push certificate" key pair. All empty =
+  /// no browser notifications; the site works without them.
+  static const String firebaseWebApiKey = String.fromEnvironment(
+    'FIREBASE_WEB_API_KEY',
+  );
+  static const String firebaseWebAppId = String.fromEnvironment(
+    'FIREBASE_WEB_APP_ID',
+  );
+  static const String firebaseWebSenderId = String.fromEnvironment(
+    'FIREBASE_WEB_SENDER_ID',
+  );
+  static const String firebaseWebProjectId = String.fromEnvironment(
+    'FIREBASE_WEB_PROJECT_ID',
+  );
+  static const String firebaseWebVapidKey = String.fromEnvironment(
+    'FIREBASE_WEB_VAPID_KEY',
+  );
+
+  static bool get firebaseWebConfigured =>
+      firebaseWebApiKey.isNotEmpty &&
+      firebaseWebAppId.isNotEmpty &&
+      firebaseWebSenderId.isNotEmpty &&
+      firebaseWebProjectId.isNotEmpty &&
+      firebaseWebVapidKey.isNotEmpty;
 
   /// `null` for an empty define, so callers can pass it straight to SDKs
   /// that treat `null` as "not provided".

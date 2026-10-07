@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -152,7 +151,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         await Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
             builder: (_) => CreateReelScreen(
-              initialFile: File(video.path),
+              initialFile: video,
               initialTitle: _title.text,
               initialText: _text.text,
             ),
