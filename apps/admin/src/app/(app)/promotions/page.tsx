@@ -19,6 +19,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
+import { DEFAULT_PRICING, PricingModelsCard, type PricingMatrix } from '@/components/promotions/pricing-models';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -316,6 +317,11 @@ export default function PromotionsPage() {
       )}
       <LoadMore q={list} />
 
+      <section id="boost-pricing">
+        <SectionTitle>Цены</SectionTitle>
+        <PricingSection canEdit={me?.role === 'super_admin'} />
+      </section>
+
       <SectionTitle>Настройки</SectionTitle>
       <SettingsCard canEdit={me?.role === 'super_admin'} />
 
@@ -528,6 +534,16 @@ function DaysDialog({
       </form>
     </Dialog>
   );
+}
+
+function PricingSection({ canEdit }: { canEdit: boolean }) {
+  const q = useQuery({
+    queryKey: ['promotions-settings'],
+    queryFn: async () => (await api.GET('/admin/promotions/settings')).data!.data,
+  });
+  if (q.isPending) return <Skeleton className="h-56 rounded-[var(--radius-lg)]" />;
+  const models = (q.data as (Settings & { models?: PricingMatrix }) | undefined)?.models ?? DEFAULT_PRICING;
+  return <PricingModelsCard initial={models} canEdit={canEdit} />;
 }
 
 function SettingsCard({ canEdit }: { canEdit: boolean }) {
