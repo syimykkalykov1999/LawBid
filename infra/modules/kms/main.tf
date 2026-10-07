@@ -38,6 +38,19 @@ resource "aws_kms_key" "this" {
         Condition = {
           ArnLike = { "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*" }
         }
+      },
+      {
+        # The media bucket is SSE-KMS with this key: CloudFront (origin
+        # access control) must decrypt objects or every photo is a 403.
+        # Account-wide distribution ARN avoids a kms ↔ s3 module cycle.
+        Sid       = "CloudFrontMediaRead"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = ["kms:Decrypt"]
+        Resource  = "*"
+        Condition = {
+          ArnLike = { "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*" }
+        }
       }
     ]
   })

@@ -151,7 +151,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.reviewAppealsSweep, pattern: '40 * * * *' },
-  { name: CRON_JOBS.videosSweep, pattern: '*/5 * * * *' },
+  { name: CRON_JOBS.videosSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.promotionsExpire, pattern: '2-57/5 * * * *' },
   { name: CRON_JOBS.taskReminders, pattern: '* * * * *' },
   // 16:20 UTC: notices arrive in the US daytime.

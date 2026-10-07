@@ -5,7 +5,7 @@ import { PostsService } from './posts.service';
 
 const BATCH = 100;
 /** No webhook for this long → ask Bunny ourselves. */
-const POLL_AFTER_MS = 2 * 60_000;
+const POLL_AFTER_MS = 60_000;
 /** Still encoding after this long → give up. */
 const GIVE_UP_MS = 3 * 3600_000;
 /** An upload nobody attached to a post. */
@@ -58,7 +58,7 @@ export class PostVideosService {
     }
   }
 
-  /** Cron `videos.sweep` (every 5 minutes). */
+  /** Cron `videos.sweep` (every minute). */
   async sweep(): Promise<Record<string, number>> {
     const now = Date.now();
     const stats = { expired: 0, polled: 0, purged: 0, orphans: 0 };
@@ -81,10 +81,16 @@ export class PostVideosService {
       await this.onAssetChanged(a.id);
       stats.expired++;
     }
-    // (b) encoding with no webhook yet.
+    // (b) encoding with no webhook yet. A post already waiting on an
+    // `awaiting_upload` asset means the phone finished the upload but no
+    // webhook / composer poll moved it on: without this it sat until the
+    // upload TTL (an hour) before (a) asked Bunny.
     const stuck = await this.prisma.videoAsset.findMany({
       where: {
-        status: 'processing',
+        OR: [
+          { status: 'processing' },
+          { status: 'awaiting_upload', post: { isNot: null } },
+        ],
         created_at: { lt: new Date(now - POLL_AFTER_MS) },
       },
       take: BATCH,
