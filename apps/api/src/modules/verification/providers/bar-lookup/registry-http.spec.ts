@@ -1,5 +1,7 @@
 import {
+  assertPublicResolution,
   assertRegistryUrl,
+  isPrivateAddress,
   getPath,
   namesMatch,
   outcomeFor,
@@ -61,6 +63,52 @@ describe('registry helpers (owner 2026-10-05)', () => {
       expect(() => assertRegistryUrl(bad, false)).toThrow();
     }
     expect(assertRegistryUrl('http://127.0.0.1:9/x', true).port).toBe('9');
+  });
+
+  it('assertRegistryUrl: metadata service, IPv4-in-IPv6 and multicast (audit 2026-10-07)', () => {
+    for (const bad of [
+      'https://169.254.169.254/latest/meta-data/',
+      'https://[::ffff:169.254.169.254]/',
+      'https://[::ffff:a9fe:a9fe]/',
+      'https://[fe80::1]/',
+      'https://[::]/',
+      'https://0.0.0.0/',
+      'https://224.0.0.1/',
+    ]) {
+      expect(() => assertRegistryUrl(bad, false)).toThrow(
+        'Local and private addresses are not allowed',
+      );
+    }
+    expect(isPrivateAddress('8.8.8.8')).toBe(false);
+    expect(isPrivateAddress('2606:4700:4700::1111')).toBe(false);
+  });
+
+  it('assertPublicResolution: a public name pointing at a private address is refused', async () => {
+    const url = new URL('https://registry.example.com/x');
+    await expect(
+      assertPublicResolution(url, false, () =>
+        Promise.resolve([
+          { address: '93.184.216.34' },
+          { address: '169.254.169.254' },
+        ]),
+      ),
+    ).rejects.toThrow('Local and private addresses are not allowed');
+    await expect(
+      assertPublicResolution(url, false, () =>
+        Promise.reject(new Error('ENOTFOUND')),
+      ),
+    ).rejects.toThrow('was not found');
+    await expect(
+      assertPublicResolution(url, false, () =>
+        Promise.resolve([{ address: '93.184.216.34' }]),
+      ),
+    ).resolves.toBeUndefined();
+    // Tests and dev talk to a fake registry on 127.0.0.1.
+    await expect(
+      assertPublicResolution(url, true, () =>
+        Promise.resolve([{ address: '127.0.0.1' }]),
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('outcomeFor keeps the raw record short', () => {

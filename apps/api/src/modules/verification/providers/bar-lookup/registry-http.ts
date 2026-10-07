@@ -1,3 +1,4 @@
+import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
 /** Owner 2026-10-05: shared plumbing of the state registry adapters. */
@@ -96,7 +97,38 @@ function privateIPv4(ip: string): boolean {
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
-    (a === 100 && b >= 64 && b <= 127)
+    (a === 100 && b >= 64 && b <= 127) ||
+    a >= 224
+  );
+}
+
+/**
+ * Loopback, private, link-local (169.254.x.x: the cloud metadata
+ * service), CGNAT and multicast addresses, IPv4 and IPv6 — including an
+ * IPv4 address wrapped in IPv6 (::ffff:169.254.169.254). Security audit
+ * 2026-10-07 (SSRF).
+ */
+export function isPrivateAddress(raw: string): boolean {
+  const ip = raw.replace(/^\[|\]$/g, '').toLowerCase();
+  const v = isIP(ip);
+  if (v === 4) return privateIPv4(ip);
+  if (v !== 6) return false;
+  const mapped = /^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(ip);
+  if (mapped) return privateIPv4(mapped[1]);
+  const hexMapped = /^(?:0*:)*:?ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(ip);
+  if (hexMapped) {
+    const hi = parseInt(hexMapped[1], 16);
+    const lo = parseInt(hexMapped[2], 16);
+    return privateIPv4(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+  }
+  return (
+    ip === '::' ||
+    ip === '::1' ||
+    ip.startsWith('fc') ||
+    ip.startsWith('fd') ||
+    /^fe[89ab]/.test(ip) ||
+    ip.startsWith('ff') ||
+    ip.startsWith('64:ff9b:')
   );
 }
 
@@ -128,14 +160,38 @@ export function assertRegistryUrl(raw: string, allowLocal: boolean): URL {
     host.endsWith('.localhost') ||
     host.endsWith('.local') ||
     host.endsWith('.internal') ||
-    (isIP(host) === 4 && privateIPv4(host)) ||
-    (isIP(host) === 6 &&
-      (host === '::1' ||
-        host.startsWith('fc') ||
-        host.startsWith('fd') ||
-        host.startsWith('fe80')));
+    isPrivateAddress(host);
   if (local) throw new Error('Local and private addresses are not allowed');
   return url;
+}
+
+/**
+ * A public host name can still point at a private address (a DNS record
+ * set to 169.254.169.254): every address the name resolves to must be
+ * public. Security audit 2026-10-07 (SSRF). Skipped where local hosts are
+ * allowed (tests, dev).
+ */
+export async function assertPublicResolution(
+  url: URL,
+  allowLocal: boolean,
+  resolve: (host: string) => Promise<{ address: string }[]> = (host) =>
+    lookup(host, { all: true, verbatim: true }),
+): Promise<void> {
+  if (allowLocal) return;
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (isIP(host)) return; // literal addresses: assertRegistryUrl checked it
+  let addresses: { address: string }[];
+  try {
+    addresses = await resolve(host);
+  } catch {
+    throw new Error(`The registry host ${host} was not found`);
+  }
+  if (
+    addresses.length === 0 ||
+    addresses.some((a) => isPrivateAddress(a.address))
+  ) {
+    throw new Error('Local and private addresses are not allowed');
+  }
 }
 
 export class RegistryHttpError extends Error {

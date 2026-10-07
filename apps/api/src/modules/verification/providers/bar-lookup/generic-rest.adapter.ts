@@ -1,5 +1,6 @@
 import type { BarLookupInput, CheckOutcome } from '../verification-providers';
 import {
+  assertPublicResolution,
   assertRegistryUrl,
   fetchJson,
   getPath,
@@ -50,6 +51,7 @@ export class GenericRestAdapter implements StateBarAdapter {
       else if (auth === 'header') headers[c.authName] = key;
       else if (auth === 'query') url.searchParams.set(c.authName, key);
     }
+    await assertPublicResolution(url, this.allowLocal);
     const body = await fetchJson(url, headers);
     let record = getPath(body, c.recordPath);
     if (Array.isArray(record)) record = record[0];

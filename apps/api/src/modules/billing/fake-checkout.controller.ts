@@ -12,12 +12,24 @@ import {
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
-import { PAYMENT_PROVIDER } from './billing.constants';
+import { fakeCheckoutAllowed, PAYMENT_PROVIDER } from './billing.constants';
 import { FakePaymentProvider } from './fake-payment.provider';
 import type { PaymentProvider } from './payment-provider';
 import { SubscriptionsService } from './subscriptions.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { CasePaymentsService } from '../case-payments/case-payments.service';
+
+/** Request values (ids, the return link) are escaped before they reach
+ * the HTML (security audit 2026-10-07: reflected XSS). */
+export function escapeHtml(v: string): string {
+  return v.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
+        c
+      ] as string,
+  );
+}
 
 const page = (title: string, body: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -52,6 +64,9 @@ export class FakeCheckoutController {
   ) {}
 
   private fake(): FakePaymentProvider {
+    // Never on a deployed server, whatever the provider says (security
+    // audit 2026-10-07); the controller is not even mounted there.
+    if (!fakeCheckoutAllowed()) throw new NotFoundException();
     // The provider is a dynamic proxy (owner 2026-10-01): check by name.
     if (this.provider.name !== 'fake') throw new NotFoundException();
     return this.provider as unknown as FakePaymentProvider;
@@ -67,11 +82,12 @@ export class FakeCheckoutController {
   ): void {
     this.fake();
     const back = encodeURIComponent(returnUrl ?? '');
+    const account = escapeHtml(encodeURIComponent(accountId));
     res.type('html').send(
       page(
         'LawBid — Payout account',
         `<h1>Stripe onboarding</h1><p>Bank details and identity would be collected here.</p>
-<form method="post" action="/api/v1/subscriptions/fake-checkout/connect/${accountId}/complete?return=${back}"><button type="submit">Complete onboarding</button></form>
+<form method="post" action="/api/v1/subscriptions/fake-checkout/connect/${account}/complete?return=${back}"><button type="submit">Complete onboarding</button></form>
 <div class="test">Test mode — no real account</div>`,
       ),
     );
@@ -94,7 +110,7 @@ export class FakeCheckoutController {
           'LawBid — Done',
           `<h1>Payout account ready</h1><p>Return to the LawBid app — clients can now pay you through the platform.</p>${
             link
-              ? `<a href="${link}"><button type="button">Back to the app</button></a>`
+              ? `<a href="${escapeHtml(link)}"><button type="button">Back to the app</button></a>`
               : ''
           }`,
         ),
@@ -112,7 +128,7 @@ export class FakeCheckoutController {
         page(
           'LawBid — Pay attorney',
           `<h1>Payment to your attorney</h1><p>$${dollars} — goes straight to the attorney's account.</p>
-<form method="post" action="${id}/pay"><button type="submit">Pay with test card</button></form>
+<form method="post" action="${escapeHtml(encodeURIComponent(id))}/pay"><button type="submit">Pay with test card</button></form>
 <div class="test">Test mode — no real charge</div>`,
         ),
       );
@@ -127,7 +143,7 @@ export class FakeCheckoutController {
         page(
           'LawBid — Promote case',
           `<h1>Case promotion</h1><p>$${dollars} one-time payment.</p>
-<form method="post" action="${id}/pay"><button type="submit">Pay with test card</button></form>
+<form method="post" action="${escapeHtml(encodeURIComponent(id))}/pay"><button type="submit">Pay with test card</button></form>
 <div class="test">Test mode — no real charge</div>`,
         ),
       );
@@ -137,7 +153,7 @@ export class FakeCheckoutController {
       page(
         'LawBid — Subscribe',
         `<h1>Attorney subscription</h1><p>$399 / month. Cancel anytime.</p>
-<form method="post" action="${id}/pay"><button type="submit">Pay with test card</button></form>
+<form method="post" action="${escapeHtml(encodeURIComponent(id))}/pay"><button type="submit">Pay with test card</button></form>
 <div class="test">Test mode — no real charge</div>`,
       ),
     );
