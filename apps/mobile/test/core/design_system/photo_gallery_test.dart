@@ -11,7 +11,7 @@ void main() {
   setUp(() => debugGalleryImage = (url) => ColoredBox(
         key: ValueKey(url),
         color: Colors.blueGrey,
-      ));
+      ),);
   tearDown(() => debugGalleryImage = null);
 
   Future<void> pump(WidgetTester t, {String? url}) => t.pumpWidget(
