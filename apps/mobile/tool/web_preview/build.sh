@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 # Browser preview of the app (owner 2026-10-07: see every UI change live,
-# before a Play build). Builds apps/mobile for the web; serve.mjs serves it
-# and forwards API calls to the PROD API. Meant for demo mode only: the
-# owner signs in with a demo code (welcome screen → «У меня есть демо-код»),
-# so every request goes to the separate
-# `lawbid_demo` database (docs/ops/demo-world.md). No payments, SMS, mail
-# or push happen in the demo world.
+# before a Play build). Builds apps/mobile for the web against the PROD
+# API, with no keys in the bundle (config/prod.example.json). serve.mjs
+# serves it next to a proxy; publish.sh puts it on GitHub Pages.
 #
 #   tool/web_preview/build.sh [out_dir] [base_href]
 #
