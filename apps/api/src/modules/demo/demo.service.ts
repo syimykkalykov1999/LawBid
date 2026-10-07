@@ -51,6 +51,10 @@ import {
 
 const DAY_MS = 86_400_000;
 const SEEN_THROTTLE_SECONDS = 600;
+/** Shown on the admin status card while the world is truncated, mirrored
+ * and seeded (the first boot on CockroachDB Cloud takes several minutes). */
+const SEEDING_REASON =
+  'Демо-мир заполняется (первый раз несколько минут). Попробуйте позже.';
 
 /**
  * Owner 2026-10-05 («Продвижение»): demo accounts for bloggers.
@@ -273,9 +277,10 @@ export class DemoService {
   async status(): Promise<DemoStatusDto> {
     const s = this.db.snapshot();
     const accounts = await this.real.demoAccount.count();
+    const seeding = this.db.isSeeding();
     return {
-      ready: s.ready,
-      reason: s.reason,
+      ready: s.ready && !seeding,
+      reason: seeding ? SEEDING_REASON : s.reason,
       databaseName: s.databaseName,
       accounts,
       lastResetAt: s.lastResetAt?.toISOString() ?? null,
@@ -436,11 +441,14 @@ export class DemoService {
   }
 
   private assertReady(): void {
-    if (!this.db.isReady()) {
+    const seeding = this.db.isSeeding();
+    if (!this.db.isReady() || seeding) {
       throw new ServiceUnavailableException({
         code: ErrorCode.DEMO_UNAVAILABLE,
         message: 'The demo world is being prepared. Try again in a minute.',
-        details: { reason: this.db.snapshot().reason },
+        details: {
+          reason: seeding ? SEEDING_REASON : this.db.snapshot().reason,
+        },
       });
     }
   }
