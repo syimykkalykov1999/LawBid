@@ -293,3 +293,14 @@ class FakeCardCollector implements CardCollector {
     if (error != null) throw error!;
   }
 }
+
+/// The attorney baseline («Без подписки») the server reports as the plan
+/// of an attorney without a subscription.
+const baselinePlan = PlanOffer(
+  id: 'p0',
+  code: 'attorney_free',
+  audience: PlanAudience.attorney,
+  isBaseline: true,
+  name: LocalizedText(en: 'No subscription', ru: 'Без подписки'),
+  entitlements: PlanEntitlements(calls: true, videoCalls: true),
+);

@@ -746,9 +746,21 @@ export class SubscriptionsService {
       this.entitlements.forUser(user.sub),
       this.plans.purchasable('attorney'),
     ]);
-    const currentPlan = resolved.planId
+    // Owner 2026-10-07 (phone test): the baseline (no subscription) is not
+    // a plan to show on the paywall.
+    const resolvedPlan = resolved.planId
       ? await this.plans.byId(resolved.planId).catch(() => null)
       : null;
+    const currentPlan =
+      resolvedPlan && resolvedPlan.kind !== 'baseline' ? resolvedPlan : null;
+    // Owner 2026-10-07 (phone test): the placeholder row a checkout opens
+    // before payment (no provider subscription yet) is not a subscription —
+    // an abandoned checkout must leave the paywall as it was, not stuck on
+    // «Подтверждаем карту» without buttons.
+    const shown =
+      row && !(row.status === 'incomplete' && !row.stripe_subscription_id)
+        ? row
+        : null;
     return {
       plan: currentPlan
         ? await presentPlan(currentPlan, this.plans, this.pricing)
@@ -758,7 +770,7 @@ export class SubscriptionsService {
       ),
       entitlements: resolved.values,
       seats: resolved.seats,
-      subscription: row ? presentSubscription(row) : null,
+      subscription: shown ? presentSubscription(shown) : null,
       contractGrant: grant
         ? {
             endsAt: grant.ends_at.toISOString(),
