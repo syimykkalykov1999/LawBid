@@ -13,7 +13,10 @@ COPY apps/api ./apps/api
 RUN npx --workspace apps/api prisma generate \
  && npm run build --workspace apps/api \
  && cp -r apps/api/prisma/seed apps/api/dist/prisma/seed \
- && npm prune --omit=dev --workspace apps/api
+ && npm prune --omit=dev --workspace apps/api \
+ && chmod -R a+rX apps/api/prisma apps/api/assets apps/api/dist
+# ↑ The runtime runs as `app` and reads prisma/migrations (demo world) and
+# assets/; a checkout with owner-only file modes gave EACCES in prod.
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
