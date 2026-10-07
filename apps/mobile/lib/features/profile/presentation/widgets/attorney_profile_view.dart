@@ -868,15 +868,22 @@ class _ChipRows extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (var i = 0; i < chips.length; i++) ...[
-                        if (i > 0) const SizedBox(width: AppSpacing.xs),
-                        chips[i],
+                // Owner 2026-10-07: a chip never runs past the screen edge;
+                // a long name shortens with "…" inside its chip.
+                child: LayoutBuilder(
+                  builder: (context, box) => SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < chips.length; i++) ...[
+                          if (i > 0) const SizedBox(width: AppSpacing.xs),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: box.maxWidth),
+                            child: chips[i],
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

@@ -98,6 +98,16 @@ export class AttorneyProfilesService {
       'profile.username_change_cooldown_days',
     );
     const next = nextUsernameChangeAt(row.username_changed_at, cooldown, now);
+    // Owner 2026-10-07: the own profile showed «1 Посты» next to three
+    // posts — it read the stored counters only. Like the public profile,
+    // add the deltas not yet flushed (docs/05 §4–§6).
+    const [pPosts, pFollowers, pFollowing] = await Promise.all([
+      this.counters.pending('attorney', 'posts_count', [userId]),
+      this.counters.pending('attorney', 'followers_count', [userId]),
+      this.counters.pending('attorney', 'following_count', [userId]),
+    ]);
+    const plus = (base: number, m: Map<string, number>) =>
+      Math.max(0, base + (m.get(userId) ?? 0));
     return {
       id: row.user_id,
       username: row.username,
@@ -125,9 +135,9 @@ export class AttorneyProfilesService {
       })),
       rating: { avg: Number(row.rating_avg), count: row.rating_count },
       counters: {
-        posts: row.posts_count,
-        followers: row.followers_count,
-        following: row.following_count,
+        posts: plus(row.posts_count, pPosts),
+        followers: plus(row.followers_count, pFollowers),
+        following: plus(row.following_count, pFollowing),
       },
     };
   }

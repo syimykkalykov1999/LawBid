@@ -47,20 +47,37 @@ class AppAvatar extends StatelessWidget {
         child: CircleAvatar(
           radius: size / 2,
           backgroundColor: colors.navy,
-          backgroundImage: imageProvider,
-          child: imageProvider == null && initials != null
-              ? Text(
-                  initials!,
-                  maxLines: 1,
-                  textScaler: TextScaler.noScaling,
-                  style: typography.body.copyWith(
-                    color: colors.goldLight,
-                    fontFamily: AppFontFamilies.serif,
-                    fontWeight: FontWeight.w600,
-                    fontSize: size * 0.38,
+          // Owner 2026-10-07: the letters sit under the photo, so a photo
+          // that fails to load (or is still loading) never leaves an empty
+          // navy circle.
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (initials != null)
+                Center(
+                  child: Text(
+                    initials!,
+                    maxLines: 1,
+                    textScaler: TextScaler.noScaling,
+                    style: typography.body.copyWith(
+                      color: colors.goldLight,
+                      fontFamily: AppFontFamilies.serif,
+                      fontWeight: FontWeight.w600,
+                      fontSize: size * 0.38,
+                    ),
                   ),
-                )
-              : null,
+                ),
+              if (imageProvider != null)
+                ClipOval(
+                  child: Image(
+                    image: imageProvider!,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
