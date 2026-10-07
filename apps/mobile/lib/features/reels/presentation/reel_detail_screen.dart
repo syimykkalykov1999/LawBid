@@ -71,12 +71,22 @@ class ReelDetailScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: colors.surface,
-                  backgroundImage: p.author.avatarUrl == null
+                // Initials under the photo (an empty circle before).
+                GestureDetector(
+                  onTap: p.author.avatarUrl == null
                       ? null
-                      : CachedNetworkImageProvider(p.author.avatarUrl!),
+                      : () => showPhotoGallery(
+                            context,
+                            urls: [p.author.avatarUrl!],
+                            closeLabel: t.t('common.close'),
+                          ),
+                  child: AppAvatar(
+                    size: 36,
+                    initials: p.author.initials,
+                    imageProvider: p.author.avatarUrl == null
+                        ? null
+                        : CachedNetworkImageProvider(p.author.avatarUrl!),
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(

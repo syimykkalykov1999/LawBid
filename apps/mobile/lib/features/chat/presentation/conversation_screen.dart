@@ -534,10 +534,21 @@ class _Header extends ConsumerWidget {
         },
         child: Row(
           children: [
-            CounterpartAvatar(
-              counterpart: c.counterpart,
-              size: 36,
-              online: presence?.online,
+            // Owner 2026-10-07: the photo itself opens full screen; the
+            // name beside it opens the profile / case.
+            GestureDetector(
+              onTap: c.counterpart.avatarUrl == null
+                  ? null
+                  : () => showPhotoGallery(
+                        context,
+                        urls: [c.counterpart.avatarUrl!],
+                        closeLabel: t.t('common.close'),
+                      ),
+              child: CounterpartAvatar(
+                counterpart: c.counterpart,
+                size: 36,
+                online: presence?.online,
+              ),
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(

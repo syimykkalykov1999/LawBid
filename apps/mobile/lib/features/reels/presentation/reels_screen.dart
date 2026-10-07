@@ -438,15 +438,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    CircleAvatar(
-                                      radius: 16,
-                                      backgroundColor: Colors.white24,
-                                      backgroundImage:
-                                          p.author.avatarUrl == null
-                                              ? null
-                                              : CachedNetworkImageProvider(
-                                                  p.author.avatarUrl!,
-                                                ),
+                                    // Initials under the photo.
+                                    AppAvatar(
+                                      size: 32,
+                                      initials: p.author.initials,
+                                      imageProvider: p.author.avatarUrl == null
+                                          ? null
+                                          : CachedNetworkImageProvider(
+                                              p.author.avatarUrl!,
+                                            ),
                                     ),
                                     const SizedBox(width: AppSpacing.sm),
                                     Flexible(

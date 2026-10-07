@@ -174,6 +174,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 initials:
                     initialsOf(p.firstName, p.lastName, fallback: p.username),
                 semanticLabel: t.t('profile.avatar.label'),
+                viewerCloseLabel: t.t('common.close'),
               ),
               const SizedBox(width: AppSpacing.md),
               counter(

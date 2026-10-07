@@ -311,6 +311,7 @@ abstract final class ApiErrorCodes {
     assistantLiabilityRequired,
     taskClosed,
     taskStepsLimit,
+    taskFilesLimit,
     reviewEditWindowExpired,
     reviewNotEditable,
     attorneyNotVerified,
