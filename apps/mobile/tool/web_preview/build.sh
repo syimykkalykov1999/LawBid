@@ -24,6 +24,10 @@ if [[ ! -f web/index.html ]]; then
   git checkout -- .metadata analysis_options.yaml 2>/dev/null || true
 fi
 
+# Our page shell: full screen on a phone (iOS Safari and Chrome), a
+# phone-sized frame on a wide screen.
+cp tool/web_preview/index.html tool/web_preview/flutter_bootstrap.js web/
+
 # drift on the web needs SQLite compiled to wasm and drift's worker, at the
 # versions pubspec.lock pins (lib/core/persistence/drift_web.dart).
 ver() { awk -v p="  $1:" '$0==p{f=1} f&&/version:/{gsub(/"/,"",$2);print $2;exit}' pubspec.lock; }
@@ -46,8 +50,6 @@ flutter build web --release -t lib/main_prod.dart \
 rm -f "$CONFIG"
 
 # A preview, not a website: keep it out of search engines.
-sed -i.bak 's#<head>#<head><meta name="robots" content="noindex,nofollow">#' "$OUT/index.html"
-rm -f "$OUT/index.html.bak"
 printf 'User-agent: *\nDisallow: /\n' > "$OUT/robots.txt"
 git rev-parse --short HEAD > "$OUT/preview-commit.txt"
 echo "Built $OUT ($(cat "$OUT/preview-commit.txt"))"
