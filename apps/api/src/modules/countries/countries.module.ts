@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { AdminCountriesController } from './admin-countries.controller';
 import { AdminCountriesService } from './admin-countries.service';
 import { CountriesController } from './countries.controller';
@@ -23,6 +24,8 @@ export class CountriesCoreModule {}
     AdminAccessModule,
     // EMAIL_PROVIDER for the waiting-list e-mails.
     AuthModule,
+    // «Вход и письма по почте» gates joining and the e-mails.
+    FeatureFlagsModule,
   ],
   controllers: [CountriesController, AdminCountriesController],
   providers: [AdminCountriesService],

@@ -1,3 +1,5 @@
+import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
+import { emailFlowsOn } from '../../feature-flags/email-flows';
 import {
   Inject,
   Injectable,
@@ -89,6 +91,7 @@ export class PushDispatcher
     // same daily/monthly email budget as OTP mail.
     @Optional() private readonly costGuard?: CostGuardService,
     @Optional() private readonly cipher?: MessageBodyCipher,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {
     this.logger.setContext(PushDispatcher.name);
   }
@@ -265,7 +268,9 @@ export class PushDispatcher
       EMAIL_TYPES.has(n.type) &&
       n.user.email &&
       n.user.email_verified_at &&
-      (await this.emailAllowed(n.user_id, n.category))
+      (await this.emailAllowed(n.user_id, n.category)) &&
+      // Admin «Вход и письма по почте» off: push and in-app only.
+      (await emailFlowsOn(this.flags))
     ) {
       await this.sendEmailOnce(
         n.id,

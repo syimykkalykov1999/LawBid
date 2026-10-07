@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AdminConfigModule } from '../admin-config/admin-config.module';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { AuthModule } from '../auth/auth.module';
 import { BidStateMachine } from '../bids/domain/bid-state-machine';
 import { JournalModule } from '../journal/journal.module';
@@ -36,6 +37,8 @@ export class AttorneyTrustCoreModule {}
     AdminConfigModule,
     // EMAIL_PROVIDER for the firm e-mail code.
     AuthModule,
+    // «Вход и письма по почте» gates the firm e-mail code.
+    FeatureFlagsModule,
   ],
   controllers: [TrustController, AdminTrustController],
   providers: [AdminTrustService, FirmEmailService],

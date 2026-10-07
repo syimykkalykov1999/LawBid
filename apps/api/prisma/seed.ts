@@ -36,6 +36,7 @@ import {
   PracticeAreaSeedCategory,
 } from '../src/common/reference-data/practice-areas.util';
 import { US_STATES } from '../src/common/reference-data/us-states';
+import { EMAIL_FLOWS_DESCRIPTION } from '../src/modules/feature-flags/email-flows';
 import {
   FILE_03_SETTINGS,
   FILE_04_SETTINGS,
@@ -308,7 +309,15 @@ async function seedFeatureFlags(): Promise<void> {
         'News: the News topic, the Post/News switch and the profile News tab',
     },
     { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
-    { key: 'email_login', enabled: true, description: 'Email OTP login' },
+    {
+      // Owner 2026-10-07: Admin «Вход и письма по почте» — every e-mail
+      // flow in the app (sign-in, adding an e-mail, the client's e-mail
+      // step, firm e-mail, e-mail notifications, waiting list). Off until
+      // Amazon SES may write to any address (feature-flags/email-flows.ts).
+      key: 'email_login',
+      enabled: false,
+      description: EMAIL_FLOWS_DESCRIPTION,
+    },
     { key: 'apple_login', enabled: true, description: 'Sign in with Apple' },
     { key: 'google_login', enabled: true, description: 'Sign in with Google' },
     {

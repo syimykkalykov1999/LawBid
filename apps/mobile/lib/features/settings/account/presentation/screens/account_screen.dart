@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -107,6 +108,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             user: user,
             identifiers: items,
             linking: _linking,
+            emailFlows: ref.watch(emailFlowsEnabledProvider),
             onContact: _openFlow,
             onLinkSocial: (p) => _linkSocial(t, p),
           ),
@@ -122,6 +124,7 @@ class _AccountBody extends StatelessWidget {
     required this.user,
     required this.identifiers,
     required this.linking,
+    required this.emailFlows,
     required this.onContact,
     required this.onLinkSocial,
   });
@@ -130,6 +133,11 @@ class _AccountBody extends StatelessWidget {
   final CurrentUser? user;
   final List<AccountIdentifier> identifiers;
   final IdentifierProvider? linking;
+
+  /// Admin «Вход и письма по почте»: off → no e-mail add / change / link
+  /// (the code could not be delivered); an e-mail already on the account
+  /// is still shown, read-only.
+  final bool emailFlows;
   final void Function(ContactType, AccountContactMode) onContact;
   final void Function(IdentifierProvider) onLinkSocial;
 
@@ -147,6 +155,7 @@ class _AccountBody extends StatelessWidget {
       final isPhone = type == ContactType.phone;
       final value = isPhone ? user?.phone : user?.email;
       final verified = isPhone ? phoneVerified : emailVerified;
+      final editable = isPhone || emailFlows;
       final shown = value == null
           ? t.t('account.contact.notSet')
           : (isPhone ? UsPhone.format(value) : value);
@@ -168,9 +177,12 @@ class _AccountBody extends StatelessWidget {
                     ? AccountBadgeTone.success
                     : AccountBadgeTone.warning,
               ),
-        actionLabel:
-            t.t(verified ? 'account.contact.change' : 'account.contact.add'),
-        onTap: busy ? null : () => onContact(type, AccountContactMode.primary),
+        actionLabel: editable
+            ? t.t(verified ? 'account.contact.change' : 'account.contact.add')
+            : null,
+        onTap: busy || !editable
+            ? null
+            : () => onContact(type, AccountContactMode.primary),
       );
     }
 
@@ -183,7 +195,7 @@ class _AccountBody extends StatelessWidget {
         title: t.t('account.section.contacts'),
         children: [
           contactTile(ContactType.phone),
-          contactTile(ContactType.email),
+          if (emailFlows || user?.email != null) contactTile(ContactType.email),
         ],
       ),
       Padding(
@@ -250,18 +262,19 @@ class _AccountBody extends StatelessWidget {
                           : AccountContactMode.primary,
                     ),
           ),
-          AccountTile(
-            icon: AppIcons.markEmailUnreadOutlined,
-            title: t.t('account.link.email'),
-            onTap: busy
-                ? null
-                : () => onContact(
-                      ContactType.email,
-                      emailVerified
-                          ? AccountContactMode.link
-                          : AccountContactMode.primary,
-                    ),
-          ),
+          if (emailFlows)
+            AccountTile(
+              icon: AppIcons.markEmailUnreadOutlined,
+              title: t.t('account.link.email'),
+              onTap: busy
+                  ? null
+                  : () => onContact(
+                        ContactType.email,
+                        emailVerified
+                            ? AccountContactMode.link
+                            : AccountContactMode.primary,
+                      ),
+            ),
           // Store release 2026-10-06: release builds offer only the
           // social logins this build can complete (see welcome_screen).
           if (!_has(IdentifierProvider.apple) &&

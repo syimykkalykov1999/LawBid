@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { UsersController } from './controllers/users.controller';
@@ -20,7 +21,8 @@ import { UsernameRegistry } from './services/username-registry.service';
  * not per-module copies.
  */
 @Module({
-  imports: [AuthModule, FilesModule, LegalAcceptanceModule],
+  // FeatureFlagsModule: «Вход и письма по почте» (contacts, onboarding).
+  imports: [AuthModule, FeatureFlagsModule, FilesModule, LegalAcceptanceModule],
   controllers: [UsersController],
   providers: [
     ContactsService,

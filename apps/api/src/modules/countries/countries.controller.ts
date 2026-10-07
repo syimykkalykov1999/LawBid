@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Optional,
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -21,6 +22,8 @@ import {
   JoinCountryWaitlistDto,
 } from './countries.dto';
 import { CountriesService } from './countries.service';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { assertEmailFlowsOn } from '../feature-flags/email-flows';
 
 /** Owner 2026-10-05: the countries LawBid works in. Public: the app reads
  * them before sign-up (phone country, states/provinces). */
@@ -28,7 +31,10 @@ import { CountriesService } from './countries.service';
 @ApiErrors(COMMON_ERRORS)
 @Controller('countries')
 export class CountriesController {
-  constructor(private readonly countries: CountriesService) {}
+  constructor(
+    private readonly countries: CountriesService,
+    @Optional() private readonly flags?: FeatureFlagsService,
+  ) {}
 
   @Public()
   @Get()
@@ -50,10 +56,16 @@ export class CountriesController {
       '"Tell me when LawBid opens in my country": an e-mail goes out by itself when the country is switched on',
   })
   @ApiEnvelopeResponse(CountryWaitlistResultDto)
-  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR], 404: [ErrorCode.NOT_FOUND] })
-  joinCountryWaitlist(
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FEATURE_DISABLED],
+    404: [ErrorCode.NOT_FOUND],
+  })
+  async joinCountryWaitlist(
     @Body() dto: JoinCountryWaitlistDto,
   ): Promise<CountryWaitlistResultDto> {
+    // Admin «Вход и письма по почте» off: the e-mail could never be sent.
+    await assertEmailFlowsOn(this.flags);
     return this.countries.joinWaitlist(dto.countryCode, dto.email, dto.locale);
   }
 }

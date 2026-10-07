@@ -1,3 +1,4 @@
+import { FeatureFlagsModule } from '../../feature-flags/feature-flags.module';
 import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
@@ -28,7 +29,8 @@ export class PushModule {
   static register(options: PushModuleOptions): DynamicModule {
     return {
       module: PushModule,
-      imports: [NotificationsModule],
+      // FeatureFlagsModule: «Вход и письма по почте» gates the e-mail leg.
+      imports: [NotificationsModule, FeatureFlagsModule],
       providers: [
         { provide: PUSH_MODULE_OPTIONS, useValue: options },
         PushTokensService,

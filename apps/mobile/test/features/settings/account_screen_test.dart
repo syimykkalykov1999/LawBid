@@ -27,6 +27,7 @@ import 'package:lawbid/features/settings/account/presentation/screens/account_sc
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/email_flows_overrides.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';
 import '../../helpers/referral_overrides.dart';
@@ -126,13 +127,17 @@ Future<Widget Function(Widget)> _wrap(
   FakeAccountRepository accounts, {
   FakeOnboardingRepository? onboarding,
   double textScale = 1,
+  bool emailFlows = true,
 }) =>
     onboardingWrapper(
       AppTheme.light(),
       user: _client,
       repo: onboarding ?? FakeOnboardingRepository(_client),
       textScale: textScale,
-      extra: [accountRepositoryProvider.overrideWithValue(accounts)],
+      extra: [
+        accountRepositoryProvider.overrideWithValue(accounts),
+        if (emailFlows) ...emailFlowsOnOverrides(),
+      ],
     );
 
 void main() {
@@ -175,6 +180,23 @@ void main() {
       expect(find.text('Connect Apple'), findsNothing);
       expect(find.text('Connect Google'), findsOneWidget);
       expect(find.text('Change'), findsNWidgets(2));
+      await _tearDown(tester);
+    });
+
+    testWidgets(
+        'owner 2026-10-07: «Вход и письма по почте» off → e-mail read-only, no adding',
+        (tester) async {
+      _tallView(tester);
+      final repo = FakeAccountRepository(() async => const [_phone]);
+      final wrap = await _wrap(repo, emailFlows: false);
+      await tester.pumpWidget(wrap(const AccountScreen()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ann@example.com'), findsOneWidget);
+      // Only the phone can be changed; no "Add a sign-in email".
+      expect(find.text('Change'), findsOneWidget);
+      expect(find.text('Add a sign-in email'), findsNothing);
+      expect(find.text('Add a sign-in phone number'), findsOneWidget);
       await _tearDown(tester);
     });
 

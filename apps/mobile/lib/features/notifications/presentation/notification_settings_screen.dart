@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -128,6 +129,7 @@ class _NotificationSettingsScreenState
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final remote = ref.watch(notificationSettingsProvider);
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final emailFlows = ref.watch(emailFlowsEnabledProvider);
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -230,7 +232,9 @@ class _NotificationSettingsScreenState
                           ),
                           // Audit 2026-10-02: only system notices are ever
                           // emailed — other categories show no dead switch.
-                          if (c.category == NotifCategory.system)
+                          // Owner 2026-10-07: none at all while admin
+                          // «Вход и письма по почте» is off.
+                          if (emailFlows && c.category == NotifCategory.system)
                             SwitchListTile.adaptive(
                               contentPadding: EdgeInsets.zero,
                               title: Text(t.t('notif.settings.email')),

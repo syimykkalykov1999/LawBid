@@ -91,3 +91,16 @@ final isAppUpdateRequiredProvider = Provider<bool>((ref) {
   if (minVersion == null) return false;
   return isVersionBelow(HeadersInterceptor.appVersion, minVersion);
 });
+
+/// Admin «Вход и письма по почте» (flag key `email_login`, owner
+/// 2026-10-07): ONE switch for every place the app asks for an e-mail or
+/// relies on a code / link reaching one — e-mail sign-in, adding or
+/// changing the account e-mail, the client's e-mail step in onboarding,
+/// the firm e-mail check, e-mail notifications, the country waitlist.
+/// Off while Amazon SES only delivers to pre-verified addresses; the API
+/// enforces the same flag, so turning it back on needs no new build.
+const kEmailFlowsFlag = 'email_login';
+
+final emailFlowsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled(kEmailFlowsFlag),
+);

@@ -12,6 +12,7 @@ import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/welcome_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../helpers/email_flows_overrides.dart';
 
 /// Golden coverage for the 4 auth/onboarding screens (file 07 §9: "4 экрана
 /// × 2 темы (приветствие, телефон, код, роль)").
@@ -54,6 +55,8 @@ void main() {
             overrides: [
               sharedPreferencesProvider.overrideWithValue(prefs),
               l10nDatabaseProvider.overrideWithValue(l10nDb),
+              // The committed images show the e-mail entry points.
+              ...emailFlowsOnOverrides(),
             ],
             child: MaterialApp(theme: theme, home: child),
           ),

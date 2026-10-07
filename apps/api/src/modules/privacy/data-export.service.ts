@@ -12,6 +12,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
 import { DATA_EXPORT_LINK_TTL_SEC } from './privacy.constants';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { emailFlowsOn } from '../feature-flags/email-flows';
 
 /** JSON with BigInt/Date friendly to `JSON.stringify`. */
 function toJson(value: unknown): string {
@@ -40,6 +42,7 @@ export class DataExportService {
     private readonly logger: PinoLogger,
     @Optional() private readonly costGuard?: CostGuardService,
     @Optional() private readonly cipher?: MessageBodyCipher,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {
     this.logger.setContext(DataExportService.name);
   }
@@ -224,7 +227,9 @@ export class DataExportService {
     if (
       job.user.email &&
       job.user.email_verified_at &&
-      job.user.status === 'active'
+      job.user.status === 'active' &&
+      // Admin «Вход и письма по почте» off: the link is in the app only.
+      (await emailFlowsOn(this.flags))
     ) {
       try {
         const url = await this.storage.signedGetUrl(

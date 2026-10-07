@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   ConsentType,
@@ -35,6 +36,8 @@ import {
   LegalAcceptanceService,
   type PendingLegalDocument,
 } from '../../legal-documents/legal-acceptance.service';
+import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
+import { emailFlowsOn } from '../../feature-flags/email-flows';
 
 /** docs/01_FOUNDATION_AUTH.md §10.2 H: consents that must be granted
  * before anything else in onboarding. */
@@ -106,6 +109,7 @@ export class OnboardingService {
     private readonly profiles: UserProfilesService,
     private readonly files: FilesService,
     private readonly legalAcceptance: LegalAcceptanceService,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
   async getMe(userId: string): Promise<MeView> {
@@ -116,7 +120,7 @@ export class OnboardingService {
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
-    const [consentsOk, facts, avatarUrl, avatarClean, pendingLegal] =
+    const [consentsOk, facts, avatarUrl, avatarClean, pendingLegal, emailOn] =
       await Promise.all([
         this.requiredConsentsGranted(userId, user.ui_language),
         this.profiles.facts(userId, user.role, user.onboarding_state?.data),
@@ -127,7 +131,13 @@ export class OnboardingService {
           requiredDocTypes(user.role),
           docLocaleOf(user.ui_language),
         ),
+        emailFlowsOn(this.flags),
       ]);
+    // Admin «Вход и письма по почте» (owner 2026-10-07): while it is off a
+    // client signs up with a phone only. Turning it on later asks the
+    // e-mail only of clients still in onboarding — nobody who already
+    // finished is sent back to the contacts step.
+    const clientEmailRequired = emailOn && !user.onboarding_state?.completed_at;
     return {
       id: user.id,
       role: user.role,
@@ -150,7 +160,13 @@ export class OnboardingService {
         data: user.onboarding_state?.data ?? null,
       },
       profile: facts.view,
-      missing: missingRequirements(user, consentsOk, facts, avatarClean),
+      missing: missingRequirements(
+        user,
+        consentsOk,
+        facts,
+        avatarClean,
+        clientEmailRequired,
+      ),
     };
   }
 
@@ -333,7 +349,8 @@ const DOCUMENT_CONSENTS: ReadonlySet<ConsentType> = new Set<ConsentType>([
   'disclaimer',
 ]);
 
-/** §11 guard rules: client needs BOTH phone and email verified and a
+/** §11 guard rules: client needs BOTH phone and email verified (email
+ * only while `clientEmailRequired`, see getMe) and a
  * state of residence (3A); attorney needs a verified phone, at least one
  * licensed state (3B) and a clean photo (docs/03 §4.1, OQ-012).
  * `profile` / `avatarClean` omitted = not checked. */
@@ -349,6 +366,7 @@ export function missingRequirements(
   consentsGranted: boolean,
   profile?: Pick<ProfileFacts, 'clientHasState' | 'attorneyHasLicensedStates'>,
   avatarClean?: boolean,
+  clientEmailRequired = true,
 ): MissingRequirement[] {
   const missing: MissingRequirement[] = [];
   if (!consentsGranted) missing.push('consents');
@@ -359,7 +377,11 @@ export function missingRequirements(
   if (user.role === 'client' || user.role === 'attorney') {
     if (user.phone_verified_at === null) missing.push('phone_verified');
   }
-  if (user.role === 'client' && user.email_verified_at === null) {
+  if (
+    clientEmailRequired &&
+    user.role === 'client' &&
+    user.email_verified_at === null
+  ) {
     missing.push('email_verified');
   }
   if (profile && user.role === 'client' && !profile.clientHasState) {

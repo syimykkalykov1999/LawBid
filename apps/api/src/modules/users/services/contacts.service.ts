@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { HttpException, HttpStatus } from '@nestjs/common';
@@ -12,6 +13,8 @@ import { withDeleted } from '../../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { OtpService } from '../../auth/services/otp.service';
+import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
+import { assertEmailFlowsOn } from '../../feature-flags/email-flows';
 import { IdentityService } from '../../auth/services/identity.service';
 import { RateLimitService } from '../../auth/services/rate-limit.service';
 import {
@@ -46,6 +49,7 @@ export class ContactsService {
     private readonly authEvents: AuthEventService,
     private readonly rateLimit: RateLimitService,
     private readonly config: ConfigService,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
   /** True when the user already has a verified contact of this type —
@@ -67,6 +71,8 @@ export class ContactsService {
     type: 'phone' | 'email',
     value: string,
   ): Promise<void> {
+    // Admin «Вход и письма по почте» off: the code could not be delivered.
+    if (type === 'email') await assertEmailFlowsOn(this.flags);
     const normalized = this.normalize(type, value);
 
     if (type === 'email') {

@@ -14,6 +14,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.da
 import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
+import '../../../helpers/email_flows_overrides.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/onboarding_harness.dart';
 
@@ -69,7 +70,12 @@ void main() {
       testGoldens('${entry.key} - $themeName', (tester) async {
         await tester.pumpWidgetBuilder(
           build(),
-          wrapper: await onboardingWrapper(theme, user: user),
+          // The committed images show the e-mail card.
+          wrapper: await onboardingWrapper(
+            theme,
+            user: user,
+            extra: emailFlowsOnOverrides(),
+          ),
           surfaceSize: const Size(390, 844),
         );
         await screenMatchesGolden(

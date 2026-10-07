@@ -158,7 +158,10 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                                   .clearError();
                             },
                           ),
-                          if (flowState.closedCountry != null) ...[
+                          // The waiting list leaves an e-mail: hidden with
+                          // admin «Вход и письма по почте» (owner 2026-10-07).
+                          if (flowState.closedCountry != null &&
+                              emailEnabled) ...[
                             const SizedBox(height: AppSpacing.sm),
                             SwitchChannelLink(
                               label: t.t('auth.phone.waitlist.cta'),

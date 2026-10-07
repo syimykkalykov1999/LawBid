@@ -54,6 +54,27 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
     ).toEqual([]);
   });
 
+  it('owner 2026-10-07: «Вход и письма по почте» off → client needs only the phone', () => {
+    const client = {
+      ...base,
+      role: 'client' as const,
+      first_name: 'A',
+      last_name: 'B',
+    };
+    expect(
+      missingRequirements(client, true, undefined, undefined, false),
+    ).toEqual(['phone_verified']);
+    expect(
+      missingRequirements(
+        { ...client, phone_verified_at: now },
+        true,
+        undefined,
+        undefined,
+        false,
+      ),
+    ).toEqual([]);
+  });
+
   it('attorney needs only a verified phone', () => {
     const attorney = {
       ...base,

@@ -18,6 +18,9 @@ CurrentUser meFixture({
   bool completed = false,
   Map<String, dynamic> data = const {},
   List<PendingLegalDocument> pendingLegal = const [],
+  // Owner 2026-10-07: false = admin «Вход и письма по почте» off (the
+  // server asks no client e-mail).
+  bool clientEmailRequired = true,
 }) {
   final hasName = (firstName ?? '').isNotEmpty && (lastName ?? '').isNotEmpty;
   return CurrentUser(
@@ -48,7 +51,7 @@ CurrentUser meFixture({
       if ((role == UserRole.client || role == UserRole.attorney) &&
           !phoneVerified)
         MissingRequirement.phoneVerified,
-      if (role == UserRole.client && !emailVerified)
+      if (clientEmailRequired && role == UserRole.client && !emailVerified)
         MissingRequirement.emailVerified,
     },
   );

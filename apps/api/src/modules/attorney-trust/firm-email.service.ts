@@ -4,6 +4,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 import type Redis from 'ioredis';
@@ -13,6 +14,8 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
 import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
 import { AttorneyTrustService } from './attorney-trust.service';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { assertEmailFlowsOn } from '../feature-flags/email-flows';
 
 const CODE_TTL_SEC = 15 * 60;
 const SEND_LIMIT_PER_DAY = 5;
@@ -58,6 +61,7 @@ export class FirmEmailService {
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
     @InjectPinoLogger(FirmEmailService.name)
     private readonly logger: PinoLogger,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
   async request(
@@ -65,6 +69,8 @@ export class FirmEmailService {
     rawEmail: string,
     locale: string,
   ): Promise<{ domain: string }> {
+    // Admin «Вход и письма по почте» off: the code could not be delivered.
+    await assertEmailFlowsOn(this.flags);
     const email = rawEmail.trim().toLowerCase();
     const at = email.lastIndexOf('@');
     const domain = at > 0 ? email.slice(at + 1) : '';

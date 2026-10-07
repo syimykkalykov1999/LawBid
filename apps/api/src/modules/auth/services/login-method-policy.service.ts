@@ -1,13 +1,15 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
+import { EMAIL_FLOWS_FLAG } from '../../feature-flags/email-flows';
 
 export type LoginMethod = 'phone' | 'email' | 'apple' | 'google';
 
 /** feature_flags keys seeded by prisma/seed.ts (docs/02 §4.B). */
 export const LOGIN_METHOD_FLAGS: Record<LoginMethod, string> = {
   phone: 'phone_login',
-  email: 'email_login',
+  // Admin «Вход и письма по почте» — every e-mail flow, not only sign-in.
+  email: EMAIL_FLOWS_FLAG,
   apple: 'apple_login',
   google: 'google_login',
 };
