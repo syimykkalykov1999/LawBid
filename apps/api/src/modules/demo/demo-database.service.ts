@@ -88,6 +88,9 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     lastSeedCounts: null,
   };
   private preparing: Promise<void> | null = null;
+  /** True while this process truncates, mirrors and seeds the world: the
+   * database is migrated (`ready`) but has no reference rows yet. */
+  private seeding = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -116,6 +119,10 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
 
   isReady(): boolean {
     return this.state.ready;
+  }
+
+  isSeeding(): boolean {
+    return this.seeding;
   }
 
   /** The raw demo client (no soft-delete extension) for seed/bulk work. */
@@ -303,6 +310,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       this.logger.info('Demo world reset already running elsewhere');
       return;
     }
+    this.seeding = true;
     try {
       await this.deleteDemoFiles(demo);
       await this.truncateAll(demo);
@@ -316,6 +324,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       this.state.lastSeedCounts = counts;
       this.logger.info({ counts }, 'Demo world reset');
     } finally {
+      this.seeding = false;
       const current = await this.redis.get(LOCK_KEY);
       if (current === token) await this.redis.del(LOCK_KEY);
     }
@@ -349,7 +358,12 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       }
     >;
     for (const model of MIRRORED_MODELS) {
-      const rows = await real[model].findMany();
+      let rows = await real[model].findMany();
+      // feature_flags.updated_by references users, and the demo world has
+      // none of the real admins (FK violation in prod, 2026-10-07).
+      if (model === 'featureFlag') {
+        rows = rows.map((r) => ({ ...r, updated_by: null }));
+      }
       for (let i = 0; i < rows.length; i += 500) {
         await target[model].createMany({
           data: rows.slice(i, i + 500),
