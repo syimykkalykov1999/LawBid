@@ -11,6 +11,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
@@ -145,7 +146,11 @@ class SearchTileFrame extends StatelessWidget {
 }
 
 class SearchPostTile extends ConsumerWidget {
-  const SearchPostTile({required this.post, super.key});
+  const SearchPostTile({required this.post, this.feed, super.key});
+
+  /// Owner 2026-10-07: the results this tile sits among — a tap opens
+  /// them as a feed starting here (Instagram).
+  final List<Post>? feed;
 
   final Post post;
 
@@ -160,7 +165,16 @@ class SearchPostTile extends ConsumerWidget {
           : 'search.kind.post',
     );
     final kind = [kindLabel, if (practice != null) practice.$1].join(' · ');
-    void open() => context.push(SocialRoutes.post(post.id));
+    void open() {
+      final list = feed;
+      final i = list?.indexWhere((p) => p.id == post.id) ?? -1;
+      if (list == null || i < 0) {
+        context.push(SocialRoutes.post(post.id));
+        return;
+      }
+      PostsFeedScreen.open(context, posts: list, index: i, oneAuthor: false);
+    }
+
     final semantic = '$kind. $title. ${post.author.displayName}';
     final thumb = post.media.isNotEmpty
         ? (

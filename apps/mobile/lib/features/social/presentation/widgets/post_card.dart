@@ -19,6 +19,8 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
+import 'package:lawbid/features/promotions/presentation/promote_case_card.dart'
+    show BoostButton;
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -27,10 +29,13 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show PracticePostsScreen;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton;
+import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/team/application/team_providers.dart'
+    show isAssistantProvider;
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
@@ -51,10 +56,17 @@ class PostCard extends ConsumerWidget {
     required this.post,
     this.inDetail = false,
     this.feedHeight,
+    this.fromProfile = false,
     super.key,
   });
 
   final Post post;
+
+  /// Owner 2026-10-07: a post opened from someone's grid (their own feed
+  /// of posts, or the post screen reached from it): no author row — the
+  /// viewer already knows whose content it is — and a tap on the photo
+  /// opens the post instead of the gallery.
+  final bool fromProfile;
 
   /// Owner 2026-10-06: posts without a qualification (practice) and not
   /// News render like Instagram posts: photo first, actions, likes,
@@ -97,7 +109,9 @@ class PostCard extends ConsumerWidget {
         MediaQuery.textScalerOf(context).scale(10) <= 13;
     // Owner 2026-09-30: feed cards run edge to edge (Instagram style):
     // no side border or rounded corners, hairlines on top and bottom.
-    final edge = feedHeight != null && !inDetail;
+    // Owner 2026-10-07: the open post and a profile's feed of posts are
+    // full width too (Instagram), no card around them.
+    final edge = (feedHeight != null && !inDetail) || inDetail || fromProfile;
     return Container(
       height: fill ? feedHeight : null,
       decoration: BoxDecoration(
@@ -125,6 +139,7 @@ class PostCard extends ConsumerWidget {
                 inDetail: inDetail,
                 run: run,
                 promotionId: post.promotionId,
+                fromProfile: fromProfile,
               )
             : inDetail
                 ? _detail(context, ref, p, t, colors, actions, run)
@@ -154,7 +169,7 @@ class PostCard extends ConsumerWidget {
             .read(promotionsRepositoryProvider)
             .click(promotionId);
       }
-      context.push(SocialRoutes.post(p.id));
+      context.push(SocialRoutes.post(p.id, fromProfile: fromProfile));
     }
 
     // Owner 2026-09-30: the author's photos (up to 9) or, when there are
@@ -191,7 +206,10 @@ class PostCard extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AuthorRow(post: p, sponsored: post.promotionId != null),
+        if (!fromProfile)
+          _AuthorRow(post: p, sponsored: post.promotionId != null)
+        else
+          const SizedBox(height: AppSpacing.md),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -269,6 +287,17 @@ class PostCard extends ConsumerWidget {
             aspectRatio: 2,
             child: AppPressable(onTap: open, child: picture),
           ),
+        // Owner 2026-10-07: the post's files as rows under the photos.
+        if (!fill && p.attachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              0,
+            ),
+            child: PostDocumentsList(documents: p.attachments),
+          ),
         // Owner 2026-09-30: time and "Public" sit next to Save.
         _ActionsBar(post: p, run: run, showTime: true),
         const SizedBox(height: AppSpacing.xs),
@@ -321,7 +350,10 @@ class PostCard extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AuthorRow(post: p, sponsored: post.promotionId != null),
+        if (!fromProfile)
+          _AuthorRow(post: p, sponsored: post.promotionId != null)
+        else
+          const SizedBox(height: AppSpacing.md),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -421,9 +453,8 @@ class PostCard extends ConsumerWidget {
             ),
             child: PostDocumentsList(documents: p.attachments),
           ),
-        // Owner 2026-10-01: inside the post the comment field is right
-        // below — no comment button (it only reopened the same post).
-        _ActionsBar(post: p, run: run, showComment: false),
+        // Owner 2026-10-07: the comment button opens the comments sheet.
+        _ActionsBar(post: p, run: run),
         if (p.likeCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -491,7 +522,11 @@ class PostCard extends ConsumerWidget {
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(
-              onPressed: () => context.push(SocialRoutes.post(p.id)),
+              onPressed: () => showCommentsSheet(
+                context,
+                postId: p.id,
+                commentsEnabled: p.commentsEnabled,
+              ),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                 foregroundColor: colors.textSecondary,
@@ -526,10 +561,12 @@ class _InstagramPost extends ConsumerWidget {
     required this.inDetail,
     required this.run,
     this.promotionId,
+    this.fromProfile = false,
   });
 
   final Post post;
   final bool inDetail;
+  final bool fromProfile;
 
   /// A paid promoted post: «Реклама» under the name, opens are reported.
   final String? promotionId;
@@ -548,7 +585,7 @@ class _InstagramPost extends ConsumerWidget {
       if (id != null) {
         ref.read(promotionsRepositoryProvider).click(id);
       }
-      context.push(SocialRoutes.post(p.id));
+      context.push(SocialRoutes.post(p.id, fromProfile: fromProfile));
     }
 
     final hasMedia = p.video != null || p.media.isNotEmpty;
@@ -575,7 +612,7 @@ class _InstagramPost extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _AuthorRow(post: p, sponsored: promotionId != null),
+        if (!fromProfile) _AuthorRow(post: p, sponsored: promotionId != null),
         if (p.video != null)
           AspectRatio(
             aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
@@ -591,12 +628,16 @@ class _InstagramPost extends ConsumerWidget {
             media: p.media,
             semanticLabel: t.t('post.media.label'),
             onDoubleTap: () => run(() => actions.like(p)),
-            onTap: (i) => showPhotoGallery(
-              context,
-              urls: [for (final m in p.media) m.url],
-              initial: i,
-              closeLabel: t.t('common.close'),
-            ),
+            // Owner 2026-10-07: in someone's feed of posts a tap opens
+            // the post; inside it, the full-screen gallery.
+            onTap: fromProfile && !inDetail
+                ? (_) => open()
+                : (i) => showPhotoGallery(
+                      context,
+                      urls: [for (final m in p.media) m.url],
+                      initial: i,
+                      closeLabel: t.t('common.close'),
+                    ),
           )
         else if (caption.isNotEmpty)
           // Text only: the text takes the photo's place.
@@ -627,7 +668,8 @@ class _InstagramPost extends ConsumerWidget {
           run: run,
           showCounts: false,
           // Inside the post the comment field is right below.
-          showComment: !inDetail,
+          // Owner 2026-10-07: the comment button opens the comments sheet,
+          // inside the post too.
         ),
         if (p.likeCount > 0)
           Padding(
@@ -660,41 +702,25 @@ class _InstagramPost extends ConsumerWidget {
                   )
                 : captionText(caption),
           ),
+        // Owner 2026-10-07: every file of the post as a row (icon, name,
+        // size; tap opens it).
         if (!inDetail && p.attachments.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
-              AppSpacing.xs,
+              AppSpacing.sm,
               AppSpacing.lg,
               0,
             ),
-            child: AppPressable(
-              onTap: open,
-              child: Row(
-                children: [
-                  AppIcon(
-                    AppIcons.attachFileRounded,
-                    size: 16,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      p.attachments.first.fileName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            child: PostDocumentsList(documents: p.attachments),
           ),
         if (!inDetail && p.commentCount > 0)
           AppPressable(
-            onTap: open,
+            onTap: () => showCommentsSheet(
+              context,
+              postId: p.id,
+              commentsEnabled: p.commentsEnabled,
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
@@ -1625,11 +1651,8 @@ class _ActionsBar extends ConsumerWidget {
     required this.post,
     required this.run,
     this.showTime = false,
-    this.showComment = true,
     this.showCounts = true,
   });
-
-  final bool showComment;
 
   /// Owner 2026-10-06: Instagram-style posts show bare icons; the likes
   /// count sits on its own line below.
@@ -1660,16 +1683,18 @@ class _ActionsBar extends ConsumerWidget {
           ),
           // Owner 2026-09-30 design: counts next to the icons.
           if (showCounts && post.likeCount > 0) _Count(post.likeCount),
-          if (showComment) ...[
-            BounceIcon(
-              active: false,
-              activeIcon: AppIcons.modeCommentOutlined,
-              icon: AppIcons.modeCommentOutlined,
-              label: t.t('post.comments'),
-              onTap: () => context.push(SocialRoutes.post(post.id)),
+          BounceIcon(
+            active: false,
+            activeIcon: AppIcons.modeCommentOutlined,
+            icon: AppIcons.modeCommentOutlined,
+            label: t.t('post.comments'),
+            onTap: () => showCommentsSheet(
+              context,
+              postId: post.id,
+              commentsEnabled: post.commentsEnabled,
             ),
-            if (showCounts && post.commentCount > 0) _Count(post.commentCount),
-          ],
+          ),
+          if (showCounts && post.commentCount > 0) _Count(post.commentCount),
           BounceIcon(
             active: false,
             activeIcon: AppIcons.sendOutlined,
@@ -1685,7 +1710,14 @@ class _ActionsBar extends ConsumerWidget {
                     alignment: AlignmentDirectional.centerEnd,
                     child: _TimeLine(post: post, inline: true),
                   )
-                : const SizedBox.shrink(),
+                // Owner 2026-10-07: «Продвигать» / «Boost» under my own
+                // post, right before Save; it may use all the free width.
+                : post.isMine && !ref.watch(isAssistantProvider)
+                    ? Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: BoostButton(postId: post.id),
+                      )
+                    : const SizedBox.shrink(),
           ),
           BounceIcon(
             active: post.savedByMe,

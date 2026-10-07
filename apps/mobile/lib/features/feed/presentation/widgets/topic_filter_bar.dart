@@ -411,9 +411,7 @@ class TopicFilterBar extends ConsumerWidget {
           ],
           // Owner 2026-10-07: the "Posts" topic is gone everywhere.
           for (final c in topics.where(
-            (c) =>
-                c != kNewsTopic &&
-                !(showNotSure && c == kNotSureTopic),
+            (c) => c != kNewsTopic && !(showNotSure && c == kNotSureTopic),
           )) ...[
             const SizedBox(width: AppSpacing.sm),
             pill(

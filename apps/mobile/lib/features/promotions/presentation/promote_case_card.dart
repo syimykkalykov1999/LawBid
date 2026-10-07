@@ -733,3 +733,98 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
 
 String promotionStatusLabel(Translator t, PromotionStatus s) =>
     t.t('promote.status.${s.wire}');
+
+/// Owner 2026-10-07: a small «Продвигать» / «Boost» button at the bottom
+/// right under the author's own post, in place of the big promote card.
+/// A running promotion opens its stats and actions in a sheet.
+class BoostButton extends ConsumerWidget {
+  const BoostButton({required this.postId, super.key});
+
+  final String postId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    const target = PromotionTarget.post;
+    final state = ref.watch(promotionStateProvider(target, postId)).value;
+    if (state == null || !state.quote.enabled) return const SizedBox.shrink();
+    final p = state.promotion;
+    final pending = p?.status == PromotionStatus.pendingPayment;
+    final live = p != null && p.isRunning;
+    if (!live && !pending && !state.canPromote) return const SizedBox.shrink();
+    void refresh() => ref
+      ..invalidate(promotionStateProvider(target, postId))
+      ..invalidate(myPromotionsProvider);
+    Future<void> onTap() async {
+      if (live) {
+        await showAppBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.md,
+                AppSpacing.screenSide,
+                AppSpacing.lg,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const AppSheetHandle(),
+                  PromotionStatsBlock(promotion: p),
+                  const SizedBox(height: AppSpacing.md),
+                  PromotionActions(promotion: p, onChanged: refresh),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else {
+        await PromoteSheet.show(
+          context,
+          target: target,
+          id: postId,
+          state: state,
+        );
+      }
+      refresh();
+    }
+
+    return Semantics(
+      button: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: live ? colors.goldTint : null,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(color: colors.goldStroke),
+          ),
+          // Small: as wide as its text, centred in its 32 px height.
+          child: Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Text(
+              t.t('promote.cta'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.bodySmall.copyWith(
+                color: colors.goldDark,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

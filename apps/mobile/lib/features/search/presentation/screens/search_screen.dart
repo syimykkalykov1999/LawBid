@@ -283,7 +283,10 @@ class _Results extends ConsumerWidget {
         final n = ref.read(postSearchProvider(key).notifier);
         return PagedTileGrid<Post>(
           value: ref.watch(postSearchProvider(key)),
-          itemBuilder: (p) => SearchPostTile(post: p),
+          itemBuilder: (p) => SearchPostTile(
+            post: p,
+            feed: ref.read(postSearchProvider(key)).value?.items,
+          ),
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
@@ -459,7 +462,10 @@ class _BeforeTyping extends ConsumerWidget {
                     const <Post>[])
                 .take(4)
                 .toList(),
-            (p) => SearchPostTile(post: p),
+            (p) => SearchPostTile(
+              post: p,
+              feed: ref.read(postSearchProvider(lastKey)).value?.items,
+            ),
           ),
         ],
       SearchTab.tags => [
@@ -507,7 +513,13 @@ class _BeforeTyping extends ConsumerWidget {
           grid<Post>(
             ref.watch(explorePostsProvider(_postsKey(filters))).value?.items ??
                 const <Post>[],
-            (p) => SearchPostTile(post: p),
+            (p) => SearchPostTile(
+              post: p,
+              feed: ref
+                  .read(explorePostsProvider(_postsKey(filters)))
+                  .value
+                  ?.items,
+            ),
           ),
           _MoreButton(
             hasMore: ref
