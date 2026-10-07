@@ -33,23 +33,9 @@ class NoAppSounds implements AppSounds {
   @override
   Future<void> stopRingback() async {}
   @override
-  Future<void> startRingtone() async {
-    try {
-      await _ringtone.invokeMethod<void>('start');
-    } on Object catch (e) {
-      debugPrint('ringtone: $e');
-    }
-  }
-
+  Future<void> startRingtone() async {}
   @override
-  Future<void> stopRingtone() async {
-    try {
-      await _ringtone.invokeMethod<void>('stop');
-    } on Object {
-      // Nothing playing / not Android.
-    }
-  }
-
+  Future<void> stopRingtone() async {}
   @override
   Future<void> busy() async {}
   @override
@@ -115,20 +101,7 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> startRingtone() async {
     try {
-      final p = _ring ??= AudioPlayer(
-        handleInterruptions: false,
-        androidApplyAudioAttributes: false,
-      );
-      await p.setAndroidAudioAttributes(
-        const AndroidAudioAttributes(
-          contentType: AndroidAudioContentType.sonification,
-          usage: AndroidAudioUsage.notificationRingtone,
-        ),
-      );
-      await p.setAsset('assets/sounds/ringtone.wav');
-      await p.setLoopMode(LoopMode.one);
-      await p.setVolume(1);
-      unawaited(p.play());
+      await _ringtone.invokeMethod<void>('start');
     } on Object catch (e) {
       debugPrint('ringtone: $e');
     }
@@ -137,9 +110,9 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> stopRingtone() async {
     try {
-      await _ring?.stop();
+      await _ringtone.invokeMethod<void>('stop');
     } on Object {
-      // Nothing playing.
+      // Nothing playing / not Android.
     }
   }
 
