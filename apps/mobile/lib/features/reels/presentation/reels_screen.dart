@@ -377,12 +377,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         () => run(() => actions.toggleLike(p)),
                         color: p.likedByMe ? colors.danger : null,
                       ),
-                      rail(
-                        AppIcons.modeCommentOutlined,
-                        t.t('post.comments'),
-                        p.commentCount,
-                        () => context.push(SocialRoutes.post(p.id)),
-                      ),
+                      // Owner 2026-10-07: comments off → no comments
+                      // button (the server refuses them anyway).
+                      if (p.commentsEnabled)
+                        rail(
+                          AppIcons.modeCommentOutlined,
+                          t.t('post.comments'),
+                          p.commentCount,
+                          () => context.push(SocialRoutes.post(p.id)),
+                        ),
                       rail(
                         AppIcons.sendOutlined,
                         t.t('post.share'),

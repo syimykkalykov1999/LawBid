@@ -209,6 +209,12 @@ export class UpdatePostDto {
   @MinLength(1)
   @MaxLength(POST_BODY_MAX)
   body!: string;
+
+  /** Owner 2026-10-07: comments can be turned off (or on) after posting. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  commentsEnabled?: boolean;
 }
 
 export class PostIdParamDto {

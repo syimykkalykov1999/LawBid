@@ -393,6 +393,9 @@ export class PostsService {
                       : undefined),
                 }),
               }),
+          ...(dto.commentsEnabled === undefined
+            ? {}
+            : { comments_enabled: dto.commentsEnabled }),
           edited_at: new Date(),
           // A held edit hides the post; moderation never re-publishes here.
           ...(verdict === 'hidden' ? { status: 'hidden' as const } : {}),
