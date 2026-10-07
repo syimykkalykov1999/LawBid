@@ -61,8 +61,6 @@ export const IDENTITY_NEEDS_BACK: readonly VerificationDocType[] = [
   'state_id',
 ];
 
-/** docs/03 §2.2: up to 3 files per document. */
-export const MAX_FILES_PER_DOCUMENT = 3;
 /** Free-text limits of verifier messages. docs/03 only bounds
  * applicant_comment (500); these keep admin input bounded too. */
 export const APPLICANT_COMMENT_MAX = 500;

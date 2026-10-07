@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { FilesService } from '../../files/files.service';
+import { assertUploadCount } from '../../files/upload-limits';
 import type { CasePhotoDto } from '../dto/case-responses.dto';
 
 type Tx = Prisma.TransactionClient;
 
 /**
- * Owner decision 2026-09-30 (OQ-031): 0–9 photos per case. Files are
+ * Owner decision 2026-09-30 (OQ-031): photos per case (count: admin). Files are
  * `case_photo` (documents bucket, antivirus-clean, owned by the author).
  * Visibility: the case owner always; an attorney only once THEIR bid was
  * accepted. Other attorneys (feed, detail, bidding) see just the count.
@@ -19,13 +20,34 @@ export class CasePhotosService {
     private readonly files: FilesService,
   ) {}
 
-  /** 404/409 for files that are not the author's clean case photos. */
-  async assertAttachable(userId: string, fileIds: string[]): Promise<void> {
+  /** 404/409 for files that are not the author's clean case photos.
+   * Owner 2026-10-07 (bug 17): count, formats and MB per file are the
+   * admin's «Кейсы» limits; files already on [caseId] stay as they are. */
+  async assertAttachable(
+    userId: string,
+    fileIds: string[],
+    caseId?: string,
+  ): Promise<void> {
+    const had = caseId
+      ? await this.prisma.casePhoto.findMany({
+          where: { case_id: caseId },
+          select: { file_id: true },
+        })
+      : [];
+    const kept = new Set(had.map((p) => p.file_id));
+    assertUploadCount(
+      await this.files.uploadLimits(),
+      'case',
+      'files',
+      fileIds.length,
+      had.length,
+    );
     for (const id of fileIds) {
-      await this.files.assertAttachable(userId, id, [
+      const file = await this.files.assertAttachable(userId, id, [
         'case_photo',
         'case_attachment',
       ]);
+      if (!kept.has(id)) await this.files.assertFitsPlace('case', file);
     }
   }
 

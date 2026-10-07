@@ -43,7 +43,6 @@ describe('AppSettingsService (docs/03 §9)', () => {
       'review.edit_window_days': 14,
       'review.reminder_after_days': 7,
       'files.max_size_mb': 10,
-      'files.avatar_max_size_mb': 5,
     });
   });
 

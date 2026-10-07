@@ -15,6 +15,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { FilesService } from '../files/files.service';
+import { assertUploadCount, readUploadLimits } from '../files/upload-limits';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AssistantsService, nameOf } from './assistants.service';
 import type {
@@ -359,18 +360,17 @@ export class TasksService {
       : [];
   }
 
-  /** Owner 2026-10-07: a task holds at most `tasks.max_files` files
-   * (admin, default 10) — storage costs. An older task over the limit
-   * ([had] files) may keep or drop files, not add. */
+  /** Owner 2026-10-07 (bugs 14, 17): files on one task — the admin's
+   * «Задачи» limit in «Загрузки и файлы» (storage costs). An older task
+   * over the limit ([had] files) may keep or drop files, not add. */
   private async assertFileCount(count: number, had = 0): Promise<void> {
-    const max = await this.settings.number('tasks.max_files');
-    if (max > 0 && count > max && count > had) {
-      throw new ConflictException({
-        code: ErrorCode.TASK_FILES_LIMIT,
-        message: `A task holds up to ${max} files.`,
-        details: { max },
-      });
-    }
+    assertUploadCount(
+      await readUploadLimits(this.settings),
+      'task',
+      'files',
+      count,
+      had,
+    );
   }
 
   // --- create / read --------------------------------------------------

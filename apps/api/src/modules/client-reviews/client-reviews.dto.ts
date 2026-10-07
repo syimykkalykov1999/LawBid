@@ -35,11 +35,11 @@ export class UpsertClientReviewDto {
   @MaxLength(CLIENT_REVIEW_BODY_MAX)
   body?: string;
 
-  /** Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files. */
-  @ApiPropertyOptional({ type: [String], maxItems: 10 })
+  /** Owner 2026-10-01 (Google Maps-style): `review_photo` files (count: admin, bug 17). */
+  @ApiPropertyOptional({ type: [String], maxItems: 20 })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(20)
   @IsUUID('all', { each: true })
   photoIds?: string[];
 }

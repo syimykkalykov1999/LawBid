@@ -30,9 +30,10 @@ export const POST_BODY_MAX = 2200;
 export const POST_TITLE_MAX = 120;
 export const POST_KINDS = ['post', 'news'] as const;
 export type PostKindValue = (typeof POST_KINDS)[number];
-export const POST_MEDIA_MAX = 9;
-/** Owner 2026-10-05: documents per post / reel inner page. */
-export const POST_ATTACHMENTS_MAX = 9;
+/** Hard ceilings; the live counts are the admin's «Загрузки и файлы»
+ * (bug 17, default 9 photos and 9 documents per post / reel). */
+export const POST_MEDIA_MAX = 20;
+export const POST_ATTACHMENTS_MAX = 20;
 export const POST_ATTACHMENT_NAME_MAX = 120;
 export const POSTS_PAGE_DEFAULT = 20;
 export const POSTS_PAGE_MAX = 50;
@@ -144,7 +145,7 @@ export class CreatePostDto {
   @IsUUID('all', { each: true })
   mediaFileIds?: string[];
 
-  /** Owner 2026-10-05: up to 9 documents (PDF, Word, text). */
+  /** Owner 2026-10-05: documents (count and formats: admin, bug 17). */
   @ApiPropertyOptional({
     type: [PostAttachmentInputDto],
     maxItems: POST_ATTACHMENTS_MAX,

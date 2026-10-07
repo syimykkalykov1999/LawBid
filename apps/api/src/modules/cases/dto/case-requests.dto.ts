@@ -65,8 +65,9 @@ export class CaseIdParamDto {
  * the client hasn't granted that consent before (§3.1 step 5 — the app
  * shows the checkbox only for a client's first case, but the gate itself
  * is "not yet granted", not "first case"). */
-/** OQ-031: photos per case. */
-export const MAX_CASE_PHOTOS = 9;
+/** OQ-031: photos per case — hard ceiling; the live count is the admin's
+ * «Загрузки и файлы» (bug 17, default 9). */
+export const MAX_CASE_PHOTOS = 20;
 
 export class CreateCaseDto {
   @ApiProperty({ format: 'uuid', description: 'A leaf (specialization).' })

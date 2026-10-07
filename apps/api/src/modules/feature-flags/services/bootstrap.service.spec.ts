@@ -5,6 +5,7 @@ import {
 } from './bootstrap.service';
 import type { FeatureFlagsService } from './feature-flags.service';
 import type { AppConfigService } from './app-config.service';
+import { sanitizeUploadLimits } from '../../files/upload-limits';
 
 class MemoryRedis {
   readonly store = new Map<string, string>();
@@ -93,7 +94,11 @@ describe('BootstrapService.build', () => {
       translate_reviews: false,
       translate_profiles: false,
     });
-    expect(result.app_config).toEqual({ min_app_version_ios: '0.1.0' });
+    expect(result.app_config).toEqual({
+      min_app_version_ios: '0.1.0',
+      // Owner 2026-10-07 (bug 17): always sent, defaults when unset.
+      'uploads.limits': sanitizeUploadLimits(undefined),
+    });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });
     expect(result.legal_documents).toEqual([TERMS]);

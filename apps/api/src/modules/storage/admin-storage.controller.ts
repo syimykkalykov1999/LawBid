@@ -10,6 +10,7 @@ import {
   Put,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
 import {
@@ -28,6 +29,13 @@ import {
 
 import { FilesService } from '../files/files.service';
 import {
+  PLACE_SPECS,
+  UPLOAD_LIMITS_KEY,
+  UPLOAD_PLACES,
+  sanitizeUploadLimits,
+  type UploadLimits,
+} from '../files/upload-limits';
+import {
   SetUserStorageQuotaDto,
   StorageCleanupResultDto,
   StorageOverviewDto,
@@ -36,6 +44,10 @@ import {
   UpdateStorageSettingsDto,
   UserStorageQuotaDto,
 } from './admin-storage.dto';
+import {
+  UpdateUploadSettingsDto,
+  UploadSettingsDto,
+} from './admin-uploads.dto';
 import { StorageCleanupService } from './storage-cleanup.service';
 import { StorageStatsService } from './storage-stats.service';
 
@@ -127,6 +139,37 @@ export class AdminStorageController {
     return this.cleanup.runNow();
   }
 
+  /** Owner 2026-10-07 (bug 17): Система → «Загрузки и файлы». */
+  @Get('uploads')
+  @ApiOperation({ summary: 'Upload limits and file formats per place' })
+  @ApiEnvelopeResponse(UploadSettingsDto)
+  async getUploadSettings(): Promise<UploadSettingsDto> {
+    return this.uploadSettings(await this.files.uploadLimits());
+  }
+
+  /** Values outside the ceilings are clamped and formats outside a
+   * place's safe list are dropped — nothing unsafe can be turned on. */
+  @Put('uploads')
+  @ApiOperation({ summary: 'Change upload limits and file formats' })
+  @ApiEnvelopeResponse(UploadSettingsDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  async updateUploadSettings(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: UpdateUploadSettingsDto,
+  ): Promise<UploadSettingsDto> {
+    const current = await this.files.uploadLimits();
+    const next: Record<string, unknown> = { ...current };
+    for (const p of dto.places) {
+      const { place, ...limits } = p;
+      next[place] = limits;
+    }
+    const clean = sanitizeUploadLimits(next);
+    await this.writer.write(admin.id, 'uploads.limits.update', {
+      [UPLOAD_LIMITS_KEY]: clean as unknown as Prisma.InputJsonValue,
+    });
+    return this.uploadSettings(clean);
+  }
+
   @Put('users/:id/quota')
   @ApiOperation({ summary: "Set or clear one user's storage cap" })
   @ApiEnvelopeResponse(UserStorageQuotaDto)
@@ -160,6 +203,21 @@ export class AdminStorageController {
     });
     const usage = await this.files.usage(p.id);
     return { userId: p.id, quotaMb: dto.quotaMb, ...usage };
+  }
+
+  private uploadSettings(limits: UploadLimits): UploadSettingsDto {
+    return {
+      places: UPLOAD_PLACES.map((place) => {
+        const spec = PLACE_SPECS[place];
+        return {
+          limits: { place, ...limits[place] },
+          count: spec.count,
+          safeFormats: [...spec.safeFormats],
+          ceiling: { ...spec.ceiling },
+          defaults: { place, ...spec.defaults },
+        };
+      }),
+    };
   }
 
   private async readSettings(): Promise<StorageSettingsDto> {
