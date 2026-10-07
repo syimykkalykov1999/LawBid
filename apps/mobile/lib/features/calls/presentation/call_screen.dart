@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -362,6 +363,8 @@ class _CallVideoViewState extends State<CallVideoView> {
       return;
     }
     _renderer.srcObject = widget.stream;
+    // Web: the call's sound already plays through CallMedia.
+    if (kIsWeb) _renderer.muted = true;
     setState(() => _ready = true);
   }
 
@@ -370,6 +373,7 @@ class _CallVideoViewState extends State<CallVideoView> {
     super.didUpdateWidget(old);
     if (_ready && old.stream != widget.stream) {
       _renderer.srcObject = widget.stream;
+      if (kIsWeb) _renderer.muted = true;
     }
   }
 

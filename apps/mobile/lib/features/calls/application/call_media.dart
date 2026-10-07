@@ -68,6 +68,10 @@ class WebRtcCallMedia implements CallMedia {
   bool _remoteSet = false;
   final _local = ValueNotifier<MediaStream?>(null);
   final _remote = ValueNotifier<MediaStream?>(null);
+  // Web: a browser plays the other side only through an <audio> element,
+  // which a renderer creates; the phones play it by themselves.
+  RTCVideoRenderer? _webAudio;
+  bool _frontCamera = true;
 
   @override
   ValueListenable<MediaStream?> get localVideo => _local;
@@ -112,6 +116,9 @@ class WebRtcCallMedia implements CallMedia {
         if (e.track.kind == 'video' && e.streams.isNotEmpty) {
           _remote.value = e.streams.first;
         }
+        if (kIsWeb && e.track.kind == 'audio' && e.streams.isNotEmpty) {
+          unawaited(_playWebAudio(e.streams.first));
+        }
       }
       ..onIceCandidate = (c) {
         if (c.candidate == null) return;
@@ -133,8 +140,14 @@ class WebRtcCallMedia implements CallMedia {
             break;
         }
       };
-    await Helper.setSpeakerphoneOn(video);
+    await setSpeaker(video);
     onState(CallMediaState.connecting);
+  }
+
+  Future<void> _playWebAudio(MediaStream stream) async {
+    final r = _webAudio ??= RTCVideoRenderer();
+    await r.initialize();
+    r.srcObject = stream;
   }
 
   @override
@@ -202,7 +215,11 @@ class WebRtcCallMedia implements CallMedia {
   }
 
   @override
-  Future<void> setSpeaker(bool on) => Helper.setSpeakerphoneOn(on);
+  Future<void> setSpeaker(bool on) async {
+    // Browsers pick the output device themselves.
+    if (kIsWeb) return;
+    await Helper.setSpeakerphoneOn(on);
+  }
 
   @override
   Future<void> setCameraOn(bool on) async {
@@ -215,7 +232,38 @@ class WebRtcCallMedia implements CallMedia {
   @override
   Future<void> switchCamera() async {
     final tracks = _mic?.getVideoTracks() ?? const <MediaStreamTrack>[];
-    if (tracks.isNotEmpty) await Helper.switchCamera(tracks.first);
+    if (tracks.isEmpty) return;
+    if (kIsWeb) return _switchCameraWeb(tracks.first);
+    await Helper.switchCamera(tracks.first);
+  }
+
+  /// Browsers have no camera flip: open the other camera (where there is
+  /// one) and hand its track to the peer in place of the old one.
+  Future<void> _switchCameraWeb(MediaStreamTrack old) async {
+    final mic = _mic;
+    final pc = _pc;
+    if (mic == null || pc == null) return;
+    _frontCamera = !_frontCamera;
+    final cam = await navigator.mediaDevices.getUserMedia({
+      'audio': false,
+      'video': {
+        'facingMode': _frontCamera ? 'user' : 'environment',
+        'width': {'ideal': 1280},
+        'height': {'ideal': 720},
+        'frameRate': {'ideal': 30},
+      },
+    });
+    final track = cam.getVideoTracks().first;
+    for (final sender in await pc.getSenders()) {
+      if (sender.track?.kind == 'video') await sender.replaceTrack(track);
+    }
+    await old.stop();
+    await mic.removeTrack(old);
+    await mic.addTrack(track);
+    // The preview re-reads the stream.
+    _local
+      ..value = null
+      ..value = mic;
   }
 
   @override
@@ -225,6 +273,10 @@ class WebRtcCallMedia implements CallMedia {
     }
     _local.value = null;
     _remote.value = null;
+    _webAudio?.srcObject = null;
+    await _webAudio?.dispose();
+    _webAudio = null;
+    _frontCamera = true;
     await _mic?.dispose();
     await _pc?.close();
     _pc = null;

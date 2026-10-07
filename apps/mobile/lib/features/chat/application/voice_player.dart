@@ -104,6 +104,18 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     await p.stop();
     state = VoicePlayback(messageId: m.id, speed: state.speed, loading: true);
     try {
+      // Web: no file system — stream the signed link (or the unsent blob).
+      if (kIsWeb) {
+        final url = v.localPath ?? v.url;
+        if (url == null) {
+          state = state.copyWith(loading: false);
+          return;
+        }
+        await p.setUrl(url);
+        await p.setSpeed(state.speed);
+        unawaited(p.play());
+        return;
+      }
       final path = v.localPath ?? await _cached(m.id, v.url);
       if (!ref.mounted) return;
       if (path != null) {

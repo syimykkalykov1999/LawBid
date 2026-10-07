@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/app.dart';
@@ -40,8 +41,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
-      // OQ-041: calls ring through the phone's own call screen.
-      systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
+      // OQ-041: calls ring through the phone's own call screen (web: the
+      // in-app screen only).
+      if (!kIsWeb)
+        systemCallUiProvider.overrideWithValue(const CallkitSystemUi()),
       // OQ-044: ringback / busy / end tones and message sounds.
       appSoundsProvider.overrideWithValue(JustAudioAppSounds()),
     ],
