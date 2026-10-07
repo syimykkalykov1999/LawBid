@@ -565,7 +565,9 @@ class _InstagramPost extends ConsumerWidget {
           leading: hasMedia ? p.author.username : null,
           onLeadingTap: () => openAuthorProfile(context, ref, p.author),
           expanded: inDetail,
-          collapsedLines: hasMedia ? 2 : 6,
+          // Owner 2026-10-07: two lines in the feed, the rest inside.
+          collapsedLines: 2,
+          onMore: inDetail ? null : open,
           mentions: p.mentions,
           large: !hasMedia,
         );
@@ -1179,8 +1181,13 @@ class PostBodyText extends ConsumerStatefulWidget {
     this.leading,
     this.onLeadingTap,
     this.collapsedLines = 3,
+    this.onMore,
     super.key,
   });
+
+  /// Owner 2026-10-07: in the feed the text never grows in place; "more"
+  /// (or a tap on the text) opens the post with the whole text instead.
+  final VoidCallback? onMore;
 
   /// Overrides the text style (the post's title line).
   final TextStyle? style;
@@ -1333,12 +1340,16 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(maxWidth: box.maxWidth);
         if (!painter.didExceedMaxLines) return text;
+        final more = widget.onMore ?? () => setState(() => _expanded = true);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            text,
+            if (widget.onMore == null)
+              text
+            else
+              GestureDetector(onTap: more, child: text),
             AppPressable(
-              onTap: () => setState(() => _expanded = true),
+              onTap: more,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
                 child: Text(
