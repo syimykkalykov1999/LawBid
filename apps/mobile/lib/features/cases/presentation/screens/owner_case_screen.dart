@@ -381,16 +381,12 @@ class _OwnerCaseBody extends ConsumerWidget {
           // Audit 2026-10-04: the "still relevant?" prompt, answered here.
           if (c.status == CaseStatus.open && c.stalePromptSentAt != null) ...[
             const SizedBox(height: AppSpacing.lg),
-            NoticeCard(
+            // Owner 2026-10-07: one slim line and one small button.
+            _StaleStrip(
               key: const ValueKey('stale-prompt'),
-              icon: AppIcons.hourglassTopRounded,
-              message: t.t('cases.owner.staleNotice'),
-              action: AppButton(
-                label: t.t('cases.owner.keepAlive'),
-                variant: AppButtonVariant.secondary,
-                height: AppSizes.touchTarget,
-                onPressed: onKeepAlive,
-              ),
+              label: t.t('cases.owner.staleShort'),
+              action: t.t('cases.owner.keepAliveShort'),
+              onTap: onKeepAlive,
             ),
           ],
           // Owner 2026-10-02: paid promotion of an open case.
@@ -678,6 +674,75 @@ class _AcceptedAttorneyCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-07: «Кейс ещё актуален?» + a small «Да» — no card.
+class _StaleStrip extends StatelessWidget {
+  const _StaleStrip({
+    required this.label,
+    required this.action,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final String action;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Row(
+      children: [
+        AppIcon(
+          AppIcons.hourglassTopRounded,
+          size: AppSizes.iconSm,
+          color: colors.goldDark,
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: type.bodySmall.copyWith(color: colors.text),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Semantics(
+          button: true,
+          child: AppPressable(
+            onTap: onTap,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 32),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                color: colors.goldTint,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(color: colors.goldStroke),
+              ),
+              child: Align(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: Text(
+                  action,
+                  maxLines: 1,
+                  style: type.bodySmall.copyWith(
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

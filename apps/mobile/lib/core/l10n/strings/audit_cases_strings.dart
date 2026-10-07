@@ -10,6 +10,8 @@ const auditCasesRu = <String, String>{
   'cases.owner.staleNotice':
       'Кейс всё ещё актуален? Подтвердите, чтобы он остался в ленте.',
   'cases.owner.keepAlive': 'Да, ещё актуален',
+  'cases.owner.staleShort': 'Кейс ещё актуален?',
+  'cases.owner.keepAliveShort': 'Да',
   'cases.owner.keptAlive': 'Кейс остаётся открытым',
 };
 
@@ -20,5 +22,7 @@ const auditCasesEn = <String, String>{
   'cases.owner.staleNotice':
       'Is your case still relevant? Confirm to keep it in the feed.',
   'cases.owner.keepAlive': 'Yes, still relevant',
+  'cases.owner.staleShort': 'Still relevant?',
+  'cases.owner.keepAliveShort': 'Yes',
   'cases.owner.keptAlive': 'Your case stays open',
 };

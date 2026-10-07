@@ -30,7 +30,7 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show FollowButton;
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
@@ -133,17 +133,27 @@ class PostCard extends ConsumerWidget {
       // the heart (Instagram).
       child: DoubleTapLike(
         onLike: () => run(() => actions.like(p)),
-        child: insta
-            ? _InstagramPost(
+        child: insta && p.video == null && p.media.isEmpty
+            // Owner 2026-10-07: a post without photos or video looks like
+            // a Threads post.
+            ? _ThreadsPost(
                 post: p,
                 inDetail: inDetail,
                 run: run,
                 promotionId: post.promotionId,
                 fromProfile: fromProfile,
               )
-            : inDetail
-                ? _detail(context, ref, p, t, colors, actions, run)
-                : _feed(context, p, t, colors, run, fill: fill),
+            : insta
+                ? _InstagramPost(
+                    post: p,
+                    inDetail: inDetail,
+                    run: run,
+                    promotionId: post.promotionId,
+                    fromProfile: fromProfile,
+                  )
+                : inDetail
+                    ? _detail(context, ref, p, t, colors, actions, run)
+                    : _feed(context, p, t, colors, run, fill: fill),
       ),
     );
   }
@@ -431,7 +441,7 @@ class PostCard extends ConsumerWidget {
               ),
             ),
           ),
-        // Owner 2026-10-05: the post's documents (tap → download).
+        // Owner 2026-10-07 (bug 13): «Посмотреть · N» opens the files.
         if (p.attachments.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -440,7 +450,10 @@ class PostCard extends ConsumerWidget {
               AppSpacing.lg,
               0,
             ),
-            child: PostDocumentsList(documents: p.attachments),
+            child: PostAttachmentsButton(
+              media: p.media,
+              documents: p.attachments,
+            ),
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
         _ActionsBar(post: p, run: run),
@@ -642,16 +655,6 @@ class _InstagramPost extends ConsumerWidget {
                   )
                 : captionText(caption),
           ),
-        if (inDetail && p.attachments.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              0,
-            ),
-            child: PostDocumentsList(documents: p.attachments),
-          ),
         _ActionsBar(
           post: p,
           run: run,
@@ -691,38 +694,19 @@ class _InstagramPost extends ConsumerWidget {
                   )
                 : captionText(caption),
           ),
-        // Owner 2026-10-07: no file list in the feed — one short line that
-        // opens the post (the «Посмотреть» sheet is waiting for approval).
-        if (!inDetail && p.attachments.isNotEmpty)
+        // Owner 2026-10-07 (bug 13): one small «Посмотреть · N» button;
+        // the photos and files open in a sheet.
+        if (p.attachments.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
-              AppSpacing.xs,
+              AppSpacing.sm,
               AppSpacing.lg,
               0,
             ),
-            child: AppPressable(
-              onTap: open,
-              child: Row(
-                children: [
-                  AppIcon(
-                    AppIcons.attachFileRounded,
-                    size: 16,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      p.attachments.first.fileName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            child: PostAttachmentsButton(
+              media: p.media,
+              documents: p.attachments,
             ),
           ),
         if (!inDetail && p.commentCount > 0)
@@ -786,6 +770,227 @@ class _InstagramPost extends ConsumerWidget {
           ),
         const SizedBox(height: AppSpacing.md),
       ],
+    );
+  }
+}
+
+/// Owner 2026-10-07: a post without photos or video, exactly like Threads:
+/// the avatar on the left, the name and time, the text, then the actions
+/// with their counts.
+class _ThreadsPost extends ConsumerWidget {
+  const _ThreadsPost({
+    required this.post,
+    required this.inDetail,
+    required this.run,
+    this.promotionId,
+    this.fromProfile = false,
+  });
+
+  final Post post;
+  final bool inDetail;
+  final bool fromProfile;
+  final String? promotionId;
+  final Future<void> Function(Future<Object?> Function()) run;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = post;
+    final a = p.author;
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final actions = ref.read(socialActionsProvider);
+    void open() {
+      final id = promotionId;
+      if (id != null) ref.read(promotionsRepositoryProvider).click(id);
+      context.push(SocialRoutes.post(p.id, fromProfile: fromProfile));
+    }
+
+    final title = (p.title ?? '').trim();
+    final body = p.body.trim();
+    final text = [title, body].where((s) => s.isNotEmpty).join('\n');
+    Widget bodyText(String s) => PostBodyText(
+          key: ValueKey(s.hashCode),
+          body: s,
+          expanded: inDetail,
+          collapsedLines: 6,
+          onMore: inDetail ? null : open,
+          mentions: p.mentions,
+          large: inDetail,
+        );
+
+    Widget action(Widget icon, int count) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            if (count > 0)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+                child: Text(
+                  SocialFormat.count(f, count),
+                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                ),
+              ),
+          ],
+        );
+
+    return AppPressable(
+      onTap: inDetail ? null : open,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.xs,
+          AppSpacing.xs,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () => openAuthorProfile(context, ref, a),
+              child: GoldRingAvatar(
+                url: a.avatarUrl,
+                initials: a.initials,
+                size: 36,
+                ring: a.verified,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: GestureDetector(
+                          onTap: () => openAuthorProfile(context, ref, a),
+                          child: Text(
+                            a.username,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.bodySmall.copyWith(
+                              color: colors.text,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (a.verified) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        VerifiedCheck(
+                          label: t.t('post.verified'),
+                          size: 14,
+                          gold: a.isClient,
+                        ),
+                      ],
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          promotionId != null
+                              ? t.t('promote.sponsored')
+                              : SocialFormat.ago(t, f, p.createdAt),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
+                      const Spacer(),
+                      AppIconButton(
+                        icon: AppIcon(
+                          AppIcons.moreHorizRounded,
+                          size: 20,
+                          color: colors.textSecondary,
+                        ),
+                        semanticLabel: t.t('post.menu'),
+                        onPressed: () => showPostMenu(context, ref, p),
+                      ),
+                    ],
+                  ),
+                  if (text.isNotEmpty && inDetail)
+                    TranslatableText(
+                      kind: TranslatableKind.post,
+                      id: p.id,
+                      text: text,
+                      enabled: !p.isMine,
+                      builder: (context, s) => bodyText(s),
+                    )
+                  else if (text.isNotEmpty)
+                    bodyText(text),
+                  if (p.attachments.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    PostAttachmentsButton(
+                      media: p.media,
+                      documents: p.attachments,
+                    ),
+                  ],
+                  Row(
+                    children: [
+                      action(
+                        BounceIcon(
+                          active: p.likedByMe,
+                          activeIcon: AppIcons.favoriteRounded,
+                          icon: AppIcons.favoriteBorderRounded,
+                          activeColor: colors.danger,
+                          size: 20,
+                          label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
+                          onTap: () => run(() => actions.toggleLike(p)),
+                        ),
+                        p.likeCount,
+                      ),
+                      action(
+                        BounceIcon(
+                          active: false,
+                          activeIcon: AppIcons.modeCommentOutlined,
+                          icon: AppIcons.modeCommentOutlined,
+                          size: 20,
+                          label: t.t('post.comments'),
+                          onTap: () => showCommentsSheet(
+                            context,
+                            postId: p.id,
+                            commentsEnabled: p.commentsEnabled,
+                          ),
+                        ),
+                        p.commentCount,
+                      ),
+                      action(
+                        BounceIcon(
+                          active: false,
+                          activeIcon: AppIcons.sendOutlined,
+                          icon: AppIcons.sendOutlined,
+                          size: 20,
+                          label: t.t('post.share'),
+                          onTap: () => sharePost(context, ref, p),
+                        ),
+                        p.shareCount,
+                      ),
+                      Expanded(
+                        child: p.isMine && !ref.watch(isAssistantProvider)
+                            ? Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: BoostButton(postId: p.id),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                      BounceIcon(
+                        active: p.savedByMe,
+                        activeIcon: AppIcons.bookmarkRounded,
+                        icon: AppIcons.bookmarkBorderRounded,
+                        activeColor: colors.gold,
+                        size: 20,
+                        label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
+                        onTap: () => run(() => actions.toggleSave(p)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
