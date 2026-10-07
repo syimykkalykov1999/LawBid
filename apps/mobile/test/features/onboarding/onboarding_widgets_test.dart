@@ -15,6 +15,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.da
 import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
+import '../../helpers/email_flows_overrides.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';
 
@@ -100,6 +101,7 @@ void main() {
         AppTheme.light(),
         user: clientPhoneOnly,
         repo: repo,
+        extra: emailFlowsOnOverrides(),
       );
       await tester.pumpWidget(wrap(const ContactsStepScreen()));
       await _settle(tester);
@@ -125,6 +127,7 @@ void main() {
         AppTheme.light(),
         user: clientPhoneOnly,
         repo: repo,
+        extra: emailFlowsOnOverrides(),
       );
       await tester.pumpWidget(wrap(const ContactsStepScreen()));
       await _settle(tester);
@@ -155,6 +158,7 @@ void main() {
         AppTheme.light(),
         user: clientPhoneOnly,
         repo: repo,
+        extra: emailFlowsOnOverrides(),
       );
       await tester.pumpWidget(wrap(const ContactsStepScreen()));
       await _settle(tester);
@@ -163,6 +167,38 @@ void main() {
       await _settle(tester);
       expect(find.text('Enter a valid email address'), findsOneWidget);
       expect(repo.calls, isEmpty);
+      await _tearDownDrift(tester);
+    });
+    testWidgets(
+        'owner 2026-10-07: «Вход и письма по почте» off → phone only, Continue works',
+        (tester) async {
+      final me = meFixture(
+        role: UserRole.client,
+        consents: true,
+        phone: '+15551234567',
+        phoneVerified: true,
+        step: OnboardingStepId.contacts,
+        clientEmailRequired: false,
+      );
+      final repo = FakeOnboardingRepository(me);
+      final wrap =
+          await onboardingWrapper(AppTheme.light(), user: me, repo: repo);
+      await tester.pumpWidget(wrap(const ContactsStepScreen()));
+      await _settle(tester);
+
+      expect(
+        find.text(
+          'To publish cases you need a verified phone. Attorneys see it only after you accept their offer.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Email'), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Verify your email to continue.'), findsNothing);
+
+      await tester.tap(find.text('Continue'));
+      await _settle(tester);
+      expect(repo.calls, isNotEmpty);
       await _tearDownDrift(tester);
     });
   });

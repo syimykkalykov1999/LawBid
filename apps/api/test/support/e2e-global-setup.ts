@@ -87,6 +87,12 @@ export default async function globalSetup(): Promise<void> {
       env: { ...process.env, DATABASE_URL: url },
       stdio: 'ignore',
     });
+    // Migration 20261007090000_email_flows_off seeds «Вход и письма по
+    // почте» off for prod; the suites run with e-mail flows on (a missing
+    // row counts as on — the same state a reused, truncated DB starts in).
+    const db = new PrismaClient({ datasourceUrl: url });
+    await db.featureFlag.deleteMany({ where: { key: 'email_login' } });
+    await db.$disconnect();
   }
   await admin.$disconnect();
 

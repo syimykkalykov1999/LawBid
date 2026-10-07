@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -16,6 +17,8 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
 import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
 import { CountriesService } from './countries.service';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { emailFlowsOn } from '../feature-flags/email-flows';
 import type {
   AddCountryRegionDto,
   BulkCountriesResultDto,
@@ -54,6 +57,7 @@ export class AdminCountriesService {
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
     @InjectPinoLogger(AdminCountriesService.name)
     private readonly logger: PinoLogger,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
   async list(admin: AdminActor): Promise<CountriesAdminDto> {
@@ -339,6 +343,10 @@ export class AdminCountriesService {
   }
 
   async notifyWaitlist(code: string): Promise<number> {
+    // Admin «Вход и письма по почте» off: nobody is marked notified, so
+    // the waiting list gets its e-mail once the switch is back on and the
+    // country is switched on again.
+    if (!(await emailFlowsOn(this.flags))) return 0;
     const country = await this.prisma.country.findUnique({ where: { code } });
     if (!country?.is_enabled) return 0;
     let sent = 0;

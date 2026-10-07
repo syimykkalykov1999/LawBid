@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
+import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/contact_verification_card.dart';
@@ -17,6 +19,11 @@ import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaff
 ///   the guard won't let the user past this step, and the server refuses
 ///   to complete onboarding with CLIENT_CONTACTS_INCOMPLETE);
 /// - attorney: verified phone required, work email recommended (receipts).
+///
+/// Admin «Вход и письма по почте» off (owner 2026-10-07): no e-mail card
+/// at all and only the phone is required — the server drops
+/// `email_verified` from `missing` under the same flag, so this screen
+/// follows the server's list rather than re-deriving the rule.
 ///
 /// Whatever the user signed in with is already verified and shown as such;
 /// the missing one is verified inline. A status pill on each card and the
@@ -38,9 +45,12 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
     final action = ref.watch(onboardingActionsProvider);
     if (user == null) return const SizedBox.shrink();
 
-    final emailRequired = user.isClient;
+    final emailFlows = ref.watch(emailFlowsEnabledProvider);
+    final emailRequired = emailFlows && user.isClient;
     final phoneMissing = !user.phoneVerified;
-    final emailMissing = emailRequired && !user.emailVerified;
+    final emailMissing = emailRequired &&
+        !user.emailVerified &&
+        user.missing.contains(MissingRequirement.emailVerified);
     final missingKeys = [
       if (phoneMissing) 'phone',
       if (emailMissing) 'email',
@@ -53,9 +63,12 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
       step: OnboardingStepId.contacts,
       title: t.t('onboarding.contacts.title'),
       subtitle: t.t(
-        user.isClient
-            ? 'onboarding.contacts.subtitle.client'
-            : 'onboarding.contacts.subtitle.attorney',
+        switch ((user.isClient, emailFlows)) {
+          (true, true) => 'onboarding.contacts.subtitle.client',
+          (false, true) => 'onboarding.contacts.subtitle.attorney',
+          (true, false) => 'onboarding.contacts.subtitle.clientPhoneOnly',
+          (false, false) => 'onboarding.contacts.subtitle.attorneyPhoneOnly',
+        },
       ),
       onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.role)),
       error: action.error,
@@ -79,16 +92,18 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
           initialValue: user.phoneVerified ? null : user.phone,
           highlightMissing: _attempted && phoneMissing,
         ),
-        const SizedBox(height: AppSpacing.md),
-        ContactVerificationCard(
-          type: ContactType.email,
-          requirement: emailRequired
-              ? ContactRequirement.required
-              : ContactRequirement.recommended,
-          verifiedValue: user.emailVerified ? user.email : null,
-          initialValue: user.emailVerified ? null : user.email,
-          highlightMissing: _attempted && emailMissing,
-        ),
+        if (emailFlows) ...[
+          const SizedBox(height: AppSpacing.md),
+          ContactVerificationCard(
+            type: ContactType.email,
+            requirement: emailRequired
+                ? ContactRequirement.required
+                : ContactRequirement.recommended,
+            verifiedValue: user.emailVerified ? user.email : null,
+            initialValue: user.emailVerified ? null : user.email,
+            highlightMissing: _attempted && emailMissing,
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,

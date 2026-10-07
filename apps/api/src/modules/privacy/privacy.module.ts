@@ -1,4 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { AuthModule } from '../auth/auth.module';
@@ -46,6 +47,8 @@ export class PrivacyModule {
         JournalModule,
         BidsModule,
         JournalModule,
+        // «Вход и письма по почте» gates the data-export e-mail.
+        FeatureFlagsModule,
         ...(options.mode === 'api' ? [AuthModule] : []),
       ],
       controllers: options.mode === 'api' ? [DataExportController] : [],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -686,10 +687,21 @@ class _FirmLinkCard extends StatelessWidget {
               ),
             ],
           ),
-          if (showForm) ...[
-            const SizedBox(height: AppSpacing.lg),
-            const _FirmEmailForm(),
-          ],
+          // Admin «Вход и письма по почте» off (owner 2026-10-07): the code
+          // could not be delivered — the link is confirmed by the registry
+          // or by staff meanwhile.
+          if (showForm)
+            Consumer(
+              builder: (context, ref, _) => ref.watch(emailFlowsEnabledProvider)
+                  ? const Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(height: AppSpacing.lg),
+                        _FirmEmailForm(),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
         ],
       ),
     );

@@ -1,9 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { EMAIL_PROVIDER } from '../providers/provider.tokens';
 import type { EmailProvider } from '../providers/email/email-provider.interface';
 import { buildNewDeviceEmail } from './email-templates';
+import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
+import { emailFlowsOn } from '../../feature-flags/email-flows';
 import type {
   ChannelResult,
   LoginNotificationChannel,
@@ -22,6 +24,7 @@ export class EmailLoginNotificationChannel implements LoginNotificationChannel {
     @Inject(EMAIL_PROVIDER) private readonly emailProvider: EmailProvider,
     private readonly costGuard: CostGuardService,
     config: ConfigService,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {
     this.appLinkBaseUrl = config.get<string>('APP_LINK_BASE_URL');
   }
@@ -29,6 +32,10 @@ export class EmailLoginNotificationChannel implements LoginNotificationChannel {
   async notifyNewDevice(notice: NewDeviceLoginNotice): Promise<ChannelResult> {
     if (!notice.verifiedEmail) {
       return { channel: this.name, status: 'skipped', reason: 'no_email' };
+    }
+    // Admin «Вход и письма по почте» off: the push alert still goes out.
+    if (!(await emailFlowsOn(this.flags))) {
+      return { channel: this.name, status: 'skipped', reason: 'email_off' };
     }
     try {
       await this.costGuard.consume('email');

@@ -850,14 +850,19 @@ export class CasesService {
   private async assertClientReady(userId: string): Promise<void> {
     const me = await this.onboarding.getMe(userId);
     if (me.role !== 'client') throw forbidden('Only clients can post cases.');
-    if (!me.phoneVerified || !me.emailVerified) {
+    // The e-mail is required only when getMe says so (admin «Вход и письма
+    // по почте» on and the client still in onboarding).
+    const emailMissing = me.missing.includes('email_verified');
+    if (!me.phoneVerified || emailMissing) {
       throw new ForbiddenException({
         code: ErrorCode.CLIENT_CONTACTS_INCOMPLETE,
-        message: 'Verify your phone and email before posting a case.',
+        message: emailMissing
+          ? 'Verify your phone and email before posting a case.'
+          : 'Verify your phone before posting a case.',
         details: {
           missing: [
             ...(me.phoneVerified ? [] : ['phone_verified']),
-            ...(me.emailVerified ? [] : ['email_verified']),
+            ...(emailMissing ? ['email_verified'] : []),
           ],
         },
       });
