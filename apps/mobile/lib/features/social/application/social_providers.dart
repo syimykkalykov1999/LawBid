@@ -517,6 +517,34 @@ class SocialActions {
         }
       });
 
+  /// Owner 2026-10-07: Threads-style repost — optimistic like a like.
+  /// One's own post can't be reposted (the server answers 409 too).
+  Future<Object?> toggleRepost(Post post) async {
+    if (post.isMine) {
+      return const ApiException(
+        code: ApiErrorCodes.repostOwnPost,
+        message: 'You cannot repost your own post.',
+      );
+    }
+    return _guard('repost:${post.id}', () async {
+      final before = _latest(post);
+      final reposted = !before.repostedByMe;
+      _ref.read(postOverridesProvider.notifier).put(
+            before.copyWith(
+              repostedByMe: reposted,
+              repostCount:
+                  (before.repostCount + (reposted ? 1 : -1)).clamp(0, 1 << 31),
+            ),
+          );
+      try {
+        await _repo.setReposted(post.id, reposted: reposted);
+      } on Object {
+        _ref.read(postOverridesProvider.notifier).put(before);
+        rethrow;
+      }
+    });
+  }
+
   /// Double tap on a photo only ever likes (§2.4).
   Future<Object?> like(Post post) async =>
       _latest(post).likedByMe ? null : toggleLike(post);

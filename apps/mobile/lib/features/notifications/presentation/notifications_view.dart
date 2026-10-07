@@ -110,6 +110,7 @@ String? notificationRoute({
     case 'case_comment':
       return caseId == null ? null : AppRoutes.caseComments(caseId);
     case 'post_like' ||
+          'post_repost' ||
           'post_comment' ||
           'comment_reply' ||
           'comment_like' ||
@@ -349,6 +350,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'comment_reply' ||
       'case_comment' =>
         AppIcons.modeCommentRounded,
+      // Owner 2026-10-07: Threads-style reposts.
+      'post_repost' => AppIcons.autoModeRounded,
       'new_follower' => AppIcons.personAddAlt1Rounded,
       // OQ-041.
       'missed_call' => AppIcons.phoneMissedRounded,

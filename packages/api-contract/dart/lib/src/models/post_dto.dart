@@ -34,7 +34,9 @@ class PostDto {
     required this.commentCount,
     required this.saveCount,
     required this.shareCount,
+    required this.repostCount,
     required this.likedByMe,
+    required this.repostedByMe,
     required this.savedByMe,
     required this.isMine,
     required this.createdAt,
@@ -83,7 +85,11 @@ class PostDto {
 
   /// OQ-037.
   final int shareCount;
+
+  /// Owner 2026-10-07: Threads-style reposts.
+  final int repostCount;
   final bool likedByMe;
+  final bool repostedByMe;
   final bool savedByMe;
   final bool isMine;
   final String createdAt;

@@ -129,6 +129,7 @@ abstract final class ApiErrorCodes {
   static const caseNotAvailable = 'CASE_NOT_AVAILABLE';
   static const postNotFound = 'POST_NOT_FOUND';
   static const postNotAllowed = 'POST_NOT_ALLOWED';
+  static const repostOwnPost = 'REPOST_OWN_POST';
   static const commentNotFound = 'COMMENT_NOT_FOUND';
   static const followNotAllowed = 'FOLLOW_NOT_ALLOWED';
   static const conversationNotFound = 'CONVERSATION_NOT_FOUND';
@@ -345,6 +346,7 @@ abstract final class ApiErrorCodes {
     caseNotAvailable,
     postNotFound,
     postNotAllowed,
+    repostOwnPost,
     commentNotFound,
     followNotAllowed,
     conversationNotFound,

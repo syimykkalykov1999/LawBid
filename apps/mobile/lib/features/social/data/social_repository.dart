@@ -197,6 +197,9 @@ abstract interface class SocialRepository {
   Future<void> setLegalOnlyFeed({required bool legalOnly});
   Future<void> setLiked(String postId, {required bool liked});
 
+  /// Owner 2026-10-07: Threads-style repost / undo (idempotent).
+  Future<void> setReposted(String postId, {required bool reposted});
+
   /// OQ-037: count a completed share of a post / a case.
   Future<void> recordPostShare(String postId);
   Future<void> recordCaseShare(String caseId);
@@ -488,6 +491,14 @@ class ApiSocialRepository implements SocialRepository {
   Future<void> setLiked(String postId, {required bool liked}) => guardApiCall(
         () =>
             liked ? _posts.likePost(id: postId) : _posts.unlikePost(id: postId),
+      );
+
+  @override
+  Future<void> setReposted(String postId, {required bool reposted}) =>
+      guardApiCall(
+        () => reposted
+            ? _posts.repostPost(id: postId)
+            : _posts.unrepostPost(id: postId),
       );
 
   @override
@@ -915,6 +926,8 @@ abstract final class SocialMappers {
         likeCount: d.likeCount,
         commentCount: d.commentCount,
         shareCount: d.shareCount,
+        repostCount: d.repostCount,
+        repostedByMe: d.repostedByMe,
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,

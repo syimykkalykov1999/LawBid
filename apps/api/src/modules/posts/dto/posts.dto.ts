@@ -415,8 +415,15 @@ export class PostDto {
   @ApiProperty({ type: 'integer' })
   shareCount!: number;
 
+  /** Owner 2026-10-07: Threads-style reposts. */
+  @ApiProperty({ type: 'integer' })
+  repostCount!: number;
+
   @ApiProperty()
   likedByMe!: boolean;
+
+  @ApiProperty()
+  repostedByMe!: boolean;
 
   @ApiProperty()
   savedByMe!: boolean;

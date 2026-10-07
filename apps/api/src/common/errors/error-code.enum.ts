@@ -300,6 +300,8 @@ export enum ErrorCode {
   POST_NOT_FOUND = 'POST_NOT_FOUND',
   // 403: posting needs a verified, active attorney (§3.1).
   POST_NOT_ALLOWED = 'POST_NOT_ALLOWED',
+  // 409: reposting one's own post (owner 2026-10-07, Threads-style).
+  REPOST_OWN_POST = 'REPOST_OWN_POST',
   // 404: no such comment (or deleted).
   COMMENT_NOT_FOUND = 'COMMENT_NOT_FOUND',
   // 422: follow a client or yourself (§6.1).

@@ -862,6 +862,32 @@ class _ThreadsPost extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (p.repostedBy case final by?)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                      child: Row(
+                        children: [
+                          AppIcon(
+                            AppIcons.autoModeRounded,
+                            size: 14,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Flexible(
+                            child: Text(
+                              t.t(
+                                'post.repostedBy',
+                                {'username': by.username},
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   Row(
                     children: [
                       Flexible(
@@ -954,6 +980,21 @@ class _ThreadsPost extends ConsumerWidget {
                           ),
                         ),
                         p.commentCount,
+                      ),
+                      // Owner 2026-10-07: Threads-style repost.
+                      action(
+                        BounceIcon(
+                          active: p.repostedByMe,
+                          activeIcon: AppIcons.autoModeRounded,
+                          icon: AppIcons.autoModeRounded,
+                          activeColor: colors.success,
+                          size: 20,
+                          label: t.t(
+                            p.repostedByMe ? 'post.unrepost' : 'post.repost',
+                          ),
+                          onTap: () => run(() => actions.toggleRepost(p)),
+                        ),
+                        p.repostCount,
                       ),
                       action(
                         BounceIcon(

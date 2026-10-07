@@ -157,6 +157,7 @@ const _keys = <String, String>{
   ApiErrorCodes.caseNotAvailable: 'error.api.CASE_NOT_AVAILABLE',
   ApiErrorCodes.postNotFound: 'error.api.POST_NOT_FOUND',
   ApiErrorCodes.postNotAllowed: 'error.api.POST_NOT_ALLOWED',
+  ApiErrorCodes.repostOwnPost: 'error.api.REPOST_OWN_POST',
   ApiErrorCodes.commentNotFound: 'error.api.COMMENT_NOT_FOUND',
   ApiErrorCodes.followNotAllowed: 'error.api.FOLLOW_NOT_ALLOWED',
   ApiErrorCodes.conversationNotFound: 'error.api.CONVERSATION_NOT_FOUND',
