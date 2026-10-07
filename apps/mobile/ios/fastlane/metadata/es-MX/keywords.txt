@@ -1,1 +1,1 @@
-inmigración,divorcio,accidente,custodia,deportación,visa,asilo,herencia,desalojo,lesiones,DUI,legal
+abogado,inmigración,divorcio,accidente,custodia,deportación,visa,asilo,herencia,desalojo,lesiones
