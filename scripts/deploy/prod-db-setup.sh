@@ -15,15 +15,30 @@ set -euo pipefail
 cd "$(dirname "$0")/../../apps/api"
 PREFIX="${SECRET_PREFIX:-lawbid-prod}"
 
-if [ -z "${MIGRATOR_URL:-}" ]; then
-  read -rsp "Строка подключения lawbid_migrator из CockroachDB Cloud (не будет видна): " MIGRATOR_URL
-  echo
-fi
+# The whole connection string is needed, not only the password. Ask again
+# until it looks like one; never print what was typed (it holds the password).
+while :; do
+  if [ -z "${MIGRATOR_URL:-}" ]; then
+    read -rsp "Строка подключения lawbid_migrator из CockroachDB Cloud целиком, начинается с postgresql:// (не будет видна): " MIGRATOR_URL
+    echo
+  fi
+  case "$MIGRATOR_URL" in
+    postgresql://*@*|postgres://*@*) break ;;
+  esac
+  echo "Это не строка подключения. Нужна вся строка из Connect → General connection string (postgresql://lawbid_migrator:…@…/defaultdb?sslmode=verify-full)." >&2
+  MIGRATOR_URL=""
+done
 
 # url_for <db> [user password] — same host/options, another database/user.
+# Always assign its result to a variable first (X="$(url_for …)"): a failure
+# inside "$(…)" used as an argument does not stop the script under set -e.
 url_for() {
   node -e '
-    const u = new URL(process.argv[1]);
+    let u;
+    try { u = new URL(process.argv[1]); } catch {
+      console.error("Строка подключения не разобралась (её текст не показываю).");
+      process.exit(1);
+    }
     u.pathname = "/" + process.argv[2];
     if (process.argv[3]) { u.username = process.argv[3]; u.password = process.argv[4]; }
     if (!u.searchParams.get("sslmode")) u.searchParams.set("sslmode", "verify-full");
@@ -37,12 +52,15 @@ put() {
   echo "  $1 ✓"
 }
 
+DEFAULT_URL="$(url_for defaultdb)"
+MIGRATOR="$(url_for lawbid)"
+DEMO_URL="$(url_for lawbid_demo)"
+
 echo "1/5 Базы lawbid и lawbid_demo"
 echo 'CREATE DATABASE IF NOT EXISTS lawbid; CREATE DATABASE IF NOT EXISTS lawbid_demo;' \
-  | sql "$(url_for defaultdb)"
+  | sql "$DEFAULT_URL"
 
 echo "2/5 Миграции"
-MIGRATOR="$(url_for lawbid)"
 DATABASE_URL="$MIGRATOR" npx prisma migrate deploy
 
 echo "3/5 Пароли ролей приложения"
@@ -50,13 +68,15 @@ APP_PW="$(openssl rand -hex 24)"
 RET_PW="$(openssl rand -hex 24)"
 printf "ALTER USER lawbid_app WITH PASSWORD '%s';\nALTER USER lawbid_retention WITH PASSWORD '%s';\n" \
   "$APP_PW" "$RET_PW" | sql "$MIGRATOR"
+APP_URL="$(url_for lawbid lawbid_app "$APP_PW")"
+RET_URL="$(url_for lawbid lawbid_retention "$RET_PW")"
 
 echo "4/5 Лимиты запросов по ролям"
 sql "$MIGRATOR" < ../../infra/cockroach/role-settings.sql
 
 echo "5/5 Строки подключения → Secrets Manager ($PREFIX/…)"
 put MIGRATOR_DATABASE_URL "$MIGRATOR"
-put DATABASE_URL "$(url_for lawbid lawbid_app "$APP_PW")"
-put RETENTION_DATABASE_URL "$(url_for lawbid lawbid_retention "$RET_PW")"
-put DEMO_DATABASE_URL "$(url_for lawbid_demo)"
+put DATABASE_URL "$APP_URL"
+put RETENTION_DATABASE_URL "$RET_URL"
+put DEMO_DATABASE_URL "$DEMO_URL"
 echo "Готово."
