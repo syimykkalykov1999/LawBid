@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_plan_price_item_dto_interval.dart';
 import 'plan_kind.dart';
+import 'price_discount_dto.dart';
 
 part 'admin_plan_price_item_dto.g.dart';
 
@@ -20,6 +21,9 @@ class AdminPlanPriceItemDto {
     required this.stripePriceId,
     required this.subscribers,
     required this.updatedAt,
+    required this.compareAtCents,
+    required this.showDiscount,
+    required this.discount,
   });
 
   factory AdminPlanPriceItemDto.fromJson(Map<String, Object?> json) =>
@@ -41,6 +45,13 @@ class AdminPlanPriceItemDto {
   /// Paying subscribers on this plan (any price).
   final int subscribers;
   final DateTime? updatedAt;
+
+  /// Old price as entered.
+  final int? compareAtCents;
+  final bool showDiscount;
+
+  /// What the app and the site show now (null = nothing).
+  final PriceDiscountDto? discount;
 
   Map<String, Object?> toJson() => _$AdminPlanPriceItemDtoToJson(this);
 }

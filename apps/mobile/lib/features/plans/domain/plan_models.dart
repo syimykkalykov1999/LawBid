@@ -6,6 +6,17 @@ import 'package:flutter/foundation.dart';
 /// highlights come localized from the server; the entitlement feature
 /// lines are rendered by the app from the keys.
 
+/// Owner 2026-10-07: «$99 / ~~$149~~ month −33%» — the old price struck
+/// through and the percent off, both set in the admin (Деньги → Цены).
+/// The server sends it only while it is a real discount, never a "plus".
+@immutable
+class PriceDiscount {
+  const PriceDiscount({required this.compareAtCents, required this.percent});
+
+  final int compareAtCents;
+  final int percent;
+}
+
 /// `{en, ru}` text from the server; [resolve] picks the app language and
 /// falls back to English, then to whatever is there.
 @immutable
@@ -130,6 +141,7 @@ class PlanOffer {
     this.currency = 'usd',
     this.amountCents,
     this.extraSeatCents,
+    this.discount,
     this.entitlements = PlanEntitlements.none,
     this.highlights = const [],
     this.isDefault = false,
@@ -153,6 +165,9 @@ class PlanOffer {
 
   /// Price of one extra assistant seat per month (attorney plans).
   final int? extraSeatCents;
+
+  /// The strikethrough old price next to [amountCents], or null.
+  final PriceDiscount? discount;
   final PlanEntitlements entitlements;
   final List<LocalizedText> highlights;
   final bool isDefault;

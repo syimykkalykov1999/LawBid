@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
 import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
 import 'package:lawbid/features/client_plan/presentation/client_payment_portal.dart';
+import 'package:lawbid/features/plans/presentation/discount_price.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
@@ -287,6 +288,28 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
                   t.t('cbadge.approved.text', {'price': price}),
                   style: type.body.copyWith(color: colors.textSecondary),
                 ),
+                // Owner 2026-10-07: «$10 / ~~$15~~ month −33%».
+                if (s.discount != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text.rich(
+                    TextSpan(
+                      children: priceSpans(
+                        context: context,
+                        t: t,
+                        price: price,
+                        period: '',
+                        discount: s.discount,
+                        format: f.currencyFromCents,
+                        priceStyle: type.titleMedium.copyWith(
+                          color: colors.text,
+                        ),
+                        periodStyle: type.body.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ]),
               const SizedBox(height: AppSpacing.lg),
               AppButton(

@@ -290,6 +290,10 @@ const file07Ru = <String, String>{
   'plans.title': 'Выберите план',
   'plans.perMonth': 'в месяц',
   'plans.perYear': 'в год',
+  // Owner 2026-10-07: «$99 / ~~$149~~ месяц −33%».
+  'plans.discount.month': 'месяц',
+  'plans.discount.year': 'год',
+  'plans.discount.was': 'было {price}',
   'plans.status.active': 'Активен',
   'plans.status.selected': 'Выбран',
   'plans.assistants.add': 'Добавить помощника · +{price} в месяц',
@@ -859,6 +863,10 @@ const file07En = <String, String>{
   'plans.title': 'Choose a plan',
   'plans.perMonth': 'per month',
   'plans.perYear': 'per year',
+  // Owner 2026-10-07: «$99 / ~~$149~~ month −33%».
+  'plans.discount.month': 'month',
+  'plans.discount.year': 'year',
+  'plans.discount.was': 'was {price}',
   'plans.status.active': 'Active',
   'plans.status.selected': 'Selected',
   'plans.assistants.add': 'Add an assistant · +{price} a month',

@@ -4,6 +4,7 @@ import { ArrowRight, Gift, PencilSimple, Tag, UsersThree, type Icon } from '@pho
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useState } from 'react';
+import { AppPricePreview, DiscountBadge, previewDiscount } from '@/components/billing/app-price-preview';
 import { dollarsToCents, fadeUp, useBillingRole, UserCell } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -127,6 +128,17 @@ function PriceCard({ it, i, canWrite, onEdit }: { it: Item; i: number; canWrite:
           <span className="text-[34px] leading-none font-semibold tracking-tight text-gold-gradient">{money(it.amountCents)}</span>
           <span className="text-sm text-muted">{k.per}</span>
         </div>
+        {it.discount ? (
+          <div className="mt-2 flex items-center gap-2 text-sm">
+            <span className="text-muted line-through">{money(it.discount.compareAtCents)}</span>
+            <DiscountBadge percent={it.discount.percent} />
+            <span className="text-xs text-faint">скидка видна в приложении</span>
+          </div>
+        ) : it.compareAtCents != null ? (
+          <div className="mt-2 text-xs text-faint">
+            Старая цена {money(it.compareAtCents)} сейчас не показывается{it.showDiscount ? ' (она не больше цены)' : ' (скидка выключена)'}
+          </div>
+        ) : null}
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs">
           {it.isCustom ? <Badge tone="gold">задана вами</Badge> : <Badge>по умолчанию</Badge>}
           {it.isCustom && it.amountCents !== it.defaultCents ? <span className="text-faint">по умолчанию {money(it.defaultCents)}</span> : null}
@@ -147,22 +159,29 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
   const [amount, setAmount] = useState(String(it.amountCents / 100));
   const [note, setNote] = useState('');
   const [move, setMove] = useState(false);
+  // Owner 2026-10-07: the strikethrough old price and its switch.
+  const [old, setOld] = useState(it.compareAtCents != null ? String(it.compareAtCents / 100) : '');
+  const [showDisc, setShowDisc] = useState(it.showDiscount);
   const cents = dollarsToCents(amount);
   const amountOk = cents != null && cents >= 100 && cents <= 10_000_000;
+  const oldCents = old.trim() === '' ? null : dollarsToCents(old);
+  const oldOk = old.trim() === '' || (oldCents != null && oldCents >= 100 && oldCents <= 10_000_000);
   const changed = cents !== it.amountCents;
-  const noteOk = true;
-  const ok = amountOk && noteOk && (changed || move);
+  const discChanged = oldCents !== it.compareAtCents || showDisc !== it.showDiscount;
+  const disc = amountOk && oldOk ? previewDiscount(cents, oldCents, showDisc) : null;
+  const ok = amountOk && oldOk && (changed || discChanged || move);
 
   const save = useMutation({
     mutationFn: async () => {
-      const res = changed
-        ? (
-            await api.PUT('/admin/billing/prices/{kind}', {
-              params: { path: { kind: it.kind } },
-              body: { amountCents: cents!, note: note.trim() || undefined },
-            })
-          ).data!.data
-        : null;
+      const res =
+        changed || discChanged
+          ? (
+              await api.PUT('/admin/billing/prices/{kind}', {
+                params: { path: { kind: it.kind } },
+                body: { amountCents: cents!, note: note.trim() || undefined, compareAtCents: oldCents, showDiscount: showDisc },
+              })
+            ).data!.data
+          : null;
       const moved = move
         ? (
             await api.POST('/admin/billing/prices/{kind}/move-subscribers', {
@@ -174,7 +193,8 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
       return { res, moved };
     },
     onSuccess: ({ res, moved }) => {
-      if (res) toast.success(`${k.title}: теперь ${money(cents!)}`);
+      if (res && changed) toast.success(`${k.title}: теперь ${money(cents!)}`);
+      else if (res) toast.success(disc ? `${k.title}: скидка −${disc.percent}% видна` : `${k.title}: скидка не показывается`);
       if (res?.stripeError) toast.error(`Stripe пока не принял цену: ${res.stripeError}. Она создастся при первой оплате.`);
       if (moved) toast.success(`Переведено подписчиков: ${moved.moved}${moved.failed ? `, ошибок: ${moved.failed}` : ''}`);
       void qc.invalidateQueries({ queryKey: ['plan-prices'] });
@@ -203,6 +223,24 @@ function EditDialog({ it, onClose }: { it: Item; onClose: () => void }) {
             <span className="text-muted">{k.per} для всех новых оплат</span>
           </div>
         ) : null}
+        <div className="space-y-3 rounded-[var(--radius)] border border-line px-4 py-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="text-sm">
+              <div className="font-medium text-heading">Показывать скидку</div>
+              <div className="mt-0.5 text-xs text-muted">Старая цена зачёркивается, процент считается сам. Если старая цена не больше новой, скидка не показывается.</div>
+            </div>
+            <Switch checked={showDisc} onChange={setShowDisc} label="Показывать скидку" />
+          </div>
+          <Field
+            label="Старая цена, $ (необязательно)"
+            htmlFor="price-old"
+            hint={!oldOk ? 'от $1 до $100 000' : showDisc && amountOk && oldCents != null && !disc ? 'должна быть больше новой цены, иначе скидка не покажется' : 'пусто = без скидки'}
+          >
+            <Input id="price-old" inputMode="decimal" className="w-40" value={old} onChange={(e) => setOld(e.target.value)} placeholder="например 149" />
+          </Field>
+          <p className="text-xs text-faint">Указывайте настоящую прежнюю цену: так требуют правила магазинов и законы о рекламе.</p>
+        </div>
+        {amountOk ? <AppPricePreview title={k.title} amountCents={cents!} yearly={it.interval === 'year'} discount={disc} /> : null}
         <div className="flex items-start justify-between gap-4 rounded-[var(--radius)] border border-line px-4 py-3">
           <div className="text-sm">
             <div className="font-medium text-heading">Перевести текущих подписчиков ({it.subscribers})</div>

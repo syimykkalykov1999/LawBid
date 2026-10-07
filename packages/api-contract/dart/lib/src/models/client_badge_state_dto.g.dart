@@ -11,6 +11,9 @@ ClientBadgeStateDto _$ClientBadgeStateDtoFromJson(Map<String, dynamic> json) =>
       status: ClientBadgeStatus.fromJson(json['status'] as String),
       badgeActive: json['badgeActive'] as bool,
       priceCents: (json['priceCents'] as num).toInt(),
+      discount: json['discount'] == null
+          ? null
+          : PriceDiscountDto.fromJson(json['discount'] as Map<String, dynamic>),
       currency: json['currency'] as String,
       canSubmit: json['canSubmit'] as bool,
       canSubscribe: json['canSubscribe'] as bool,
@@ -31,6 +34,7 @@ Map<String, dynamic> _$ClientBadgeStateDtoToJson(
   'status': instance.status.toJson(),
   'badgeActive': instance.badgeActive,
   'priceCents': instance.priceCents,
+  'discount': ?instance.discount?.toJson(),
   'currency': instance.currency,
   'canSubmit': instance.canSubmit,
   'canSubscribe': instance.canSubscribe,

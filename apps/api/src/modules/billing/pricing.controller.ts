@@ -7,6 +7,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { Public } from '../auth/decorators/public.decorator';
 import { SkipVersionCheck } from '../feature-flags/decorators/skip-version-check.decorator';
+import { PriceDiscountDto } from './price-discount.dto';
 import { PricingService } from './pricing.service';
 
 /** Owner 2026-10-03: today's prices, as set in the admin. */
@@ -18,6 +19,15 @@ export class PublicPricingDto {
   @ApiProperty({ type: 'integer' }) maxSeats!: number;
   @ApiProperty({ type: 'integer' }) trialDays!: number;
   @ApiProperty({ type: 'integer' }) clientBadgeCents!: number;
+  /** Owner 2026-10-07: the strikethrough old price per plan, or null. */
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  monthlyDiscount!: PriceDiscountDto | null;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  seatDiscount!: PriceDiscountDto | null;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  yearlyDiscount!: PriceDiscountDto | null;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  clientBadgeDiscount!: PriceDiscountDto | null;
 }
 
 /**
@@ -48,6 +58,10 @@ export class PricingController {
       maxSeats: await this.pricing.maxSeats(),
       trialDays: await this.pricing.defaultTrialDays(),
       clientBadgeCents: a.client_badge,
+      monthlyDiscount: await this.pricing.discount('monthly'),
+      seatDiscount: await this.pricing.discount('seat'),
+      yearlyDiscount: await this.pricing.discount('yearly'),
+      clientBadgeDiscount: await this.pricing.discount('client_badge'),
     };
   }
 }

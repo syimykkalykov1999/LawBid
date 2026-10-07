@@ -2,7 +2,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { PlanPrice } from '@prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { FakePaymentProvider } from './fake-payment.provider';
-import { PricingService } from './pricing.service';
+import { discountOf, PricingService } from './pricing.service';
 
 function row(p: Partial<PlanPrice>): PlanPrice {
   return {
@@ -14,6 +14,8 @@ function row(p: Partial<PlanPrice>): PlanPrice {
     stripe_price_ids: p.stripe_price_ids ?? {},
     stripe_product_ids: p.stripe_product_ids ?? {},
     note: null,
+    compare_at_cents: p.compare_at_cents ?? null,
+    show_discount: p.show_discount ?? false,
     created_by: null,
     created_at: p.created_at ?? new Date(),
   };
@@ -89,5 +91,38 @@ describe('PricingService', () => {
     expect(ids).toEqual(
       expect.arrayContaining(['price_old', 'price_new', 'price_fake_399']),
     );
+  });
+
+  it('shows a discount only while the switch is on and the old price is higher', async () => {
+    const on = { show_discount: true, compare_at_cents: 14_900 };
+    expect(discountOf(row({ ...on, amount_cents: 9_900 }))).toEqual({
+      compareAtCents: 14_900,
+      percent: 33,
+    });
+    expect(discountOf(row({ ...on, amount_cents: 10_000 }))?.percent).toBe(32);
+    // Raised to (or past) the old price: nothing, never a "plus".
+    expect(discountOf(row({ ...on, amount_cents: 14_900 }))).toBeNull();
+    expect(discountOf(row({ ...on, amount_cents: 19_900 }))).toBeNull();
+    expect(discountOf(row({ ...on, amount_cents: 14_899 }))).toBeNull();
+    expect(
+      discountOf(row({ compare_at_cents: 14_900, amount_cents: 9_900 })),
+    ).toBeNull();
+    expect(
+      discountOf(row({ show_discount: true, amount_cents: 9_900 })),
+    ).toBeNull();
+    expect(discountOf(null)).toBeNull();
+    const { pricing } = make([
+      row({
+        show_discount: true,
+        compare_at_cents: 118_800,
+        kind: 'yearly',
+        amount_cents: 99_900,
+      }),
+    ]);
+    expect(await pricing.discount('yearly')).toEqual({
+      compareAtCents: 118_800,
+      percent: 15,
+    });
+    expect(await pricing.discount('monthly')).toBeNull();
   });
 });

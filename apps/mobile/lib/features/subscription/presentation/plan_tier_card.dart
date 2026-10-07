@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/plans/domain/plan_models.dart';
+import 'package:lawbid/features/plans/presentation/discount_price.dart';
 
 /// Owner 2026-10-01 (subscription redesign): one card per plan — the
 /// status at the top right ("Active" / "Selected" / a badge), the price,
@@ -19,6 +21,10 @@ class PlanTierCard extends StatelessWidget {
     this.highlighted = false,
     this.onTap,
     this.child,
+    this.discount,
+    this.formatCents,
+    this.translator,
+    this.yearly = false,
     super.key,
   });
 
@@ -44,6 +50,13 @@ class PlanTierCard extends StatelessWidget {
 
   /// The plan's own controls, inside the card under the features.
   final Widget? child;
+
+  /// Owner 2026-10-07: «$99 / ~~$149~~ month −33%» when set (with
+  /// [formatCents] to print the old price); the card is otherwise as is.
+  final PriceDiscount? discount;
+  final String Function(int cents)? formatCents;
+  final Translator? translator;
+  final bool yearly;
 
   @override
   Widget build(BuildContext context) {
@@ -135,20 +148,22 @@ class PlanTierCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text.rich(
             TextSpan(
-              children: [
-                TextSpan(
-                  text: price,
-                  style: typography.titleLarge.copyWith(
-                    color: colors.text,
-                    fontSize: 30,
-                    height: 1.1,
-                  ),
+              children: priceSpans(
+                context: context,
+                t: translator,
+                price: price,
+                period: period,
+                discount: discount,
+                format: formatCents,
+                yearly: yearly,
+                priceStyle: typography.titleLarge.copyWith(
+                  color: colors.text,
+                  fontSize: 30,
+                  height: 1.1,
                 ),
-                TextSpan(
-                  text: '  $period',
-                  style: typography.body.copyWith(color: colors.textSecondary),
-                ),
-              ],
+                periodStyle:
+                    typography.body.copyWith(color: colors.textSecondary),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.md),

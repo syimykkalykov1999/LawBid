@@ -42,6 +42,9 @@ class PlanPrices {
     this.yearlyCents = 959000,
     this.maxSeats = 10,
     this.trialDays = 7,
+    this.monthlyDiscount,
+    this.seatDiscount,
+    this.yearlyDiscount,
   });
 
   final int monthlyCents;
@@ -51,6 +54,11 @@ class PlanPrices {
 
   /// Owner 2026-10-05: free trial days, set in the admin (Деньги → Цены).
   final int trialDays;
+
+  /// Owner 2026-10-07: the strikethrough old prices, or null.
+  final PriceDiscount? monthlyDiscount;
+  final PriceDiscount? seatDiscount;
+  final PriceDiscount? yearlyDiscount;
 
   int monthlyTotal(int seats) => monthlyCents + seats * seatCents;
 

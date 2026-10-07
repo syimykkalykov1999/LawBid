@@ -71069,6 +71069,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found: NOT_FOUND",
             "content": {
@@ -82959,6 +82969,24 @@
           "assistantSeats"
         ]
       },
+      "PriceDiscountDto": {
+        "type": "object",
+        "properties": {
+          "compareAtCents": {
+            "type": "integer",
+            "description": "Old price, struck through."
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99
+          }
+        },
+        "required": [
+          "compareAtCents",
+          "percent"
+        ]
+      },
       "PlanPricesDto": {
         "type": "object",
         "properties": {
@@ -82977,6 +83005,33 @@
           "trialDays": {
             "type": "integer",
             "description": "Free trial days for a new subscription (admin setting; 0 = no trial)."
+          },
+          "monthlyDiscount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
+          "seatDiscount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
+          "yearlyDiscount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
           }
         },
         "required": [
@@ -82984,7 +83039,10 @@
           "seatCents",
           "yearlyCents",
           "maxSeats",
-          "trialDays"
+          "trialDays",
+          "monthlyDiscount",
+          "seatDiscount",
+          "yearlyDiscount"
         ]
       },
       "LocalizedTextDto": {
@@ -83138,6 +83196,16 @@
             "nullable": true,
             "description": "Price of one extra assistant seat per month (attorney plans)."
           },
+          "discount": {
+            "nullable": true,
+            "description": "Owner 2026-10-07: the strikethrough old price, or null.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
           "entitlements": {
             "$ref": "#/components/schemas/PlanEntitlementsDto"
           },
@@ -83166,6 +83234,7 @@
           "currency",
           "amountCents",
           "extraSeatCents",
+          "discount",
           "entitlements",
           "highlights",
           "isDefault",
@@ -83576,6 +83645,42 @@
           },
           "clientBadgeCents": {
             "type": "integer"
+          },
+          "monthlyDiscount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
+          "seatDiscount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
+          "yearlyDiscount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
+          "clientBadgeDiscount": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
           }
         },
         "required": [
@@ -83585,7 +83690,11 @@
           "yearlyCents",
           "maxSeats",
           "trialDays",
-          "clientBadgeCents"
+          "clientBadgeCents",
+          "monthlyDiscount",
+          "seatDiscount",
+          "yearlyDiscount",
+          "clientBadgeDiscount"
         ]
       },
       "PublicPricingEnvelope": {
@@ -89879,8 +89988,8 @@
             "type": "string",
             "nullable": true,
             "enum": [
-              "email",
               "call",
+              "email",
               "sms",
               "in_app_chat"
             ]
@@ -90058,13 +90167,13 @@
               "privacy",
               "disclaimer",
               "client_contact_sharing",
-              "attorney_agreement",
-              "client_agreement",
-              "eula",
               "age_18",
               "marketing_email",
               "marketing_push",
-              "analytics"
+              "analytics",
+              "attorney_agreement",
+              "client_agreement",
+              "eula"
             ]
           },
           "granted": {
@@ -91161,8 +91270,8 @@
           "contactMethod": {
             "nullable": true,
             "enum": [
-              "email",
               "call",
+              "email",
               "sms",
               "in_app_chat"
             ],
@@ -91184,8 +91293,8 @@
           "contactMethod": {
             "nullable": true,
             "enum": [
-              "email",
               "call",
+              "email",
               "sms",
               "in_app_chat"
             ],
@@ -94451,6 +94560,24 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "compareAtCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Old price as entered."
+          },
+          "showDiscount": {
+            "type": "boolean"
+          },
+          "discount": {
+            "nullable": true,
+            "description": "What the app and the site show now (null = nothing).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
           }
         },
         "required": [
@@ -94461,7 +94588,10 @@
           "interval",
           "stripePriceId",
           "subscribers",
-          "updatedAt"
+          "updatedAt",
+          "compareAtCents",
+          "showDiscount",
+          "discount"
         ]
       },
       "AdminPlanPriceHistoryDto": {
@@ -94609,6 +94739,17 @@
           "note": {
             "type": "string",
             "maxLength": 300
+          },
+          "compareAtCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 100,
+            "maximum": 10000000,
+            "description": "Owner 2026-10-07: the strikethrough old price in cents; null clears it, absent keeps it."
+          },
+          "showDiscount": {
+            "type": "boolean",
+            "description": "Show the discount (only while the old price is above the price); absent keeps it."
           }
         },
         "required": [
@@ -94728,6 +94869,16 @@
             "nullable": true,
             "description": "Price of one extra assistant seat per month (attorney plans)."
           },
+          "discount": {
+            "nullable": true,
+            "description": "Owner 2026-10-07: the strikethrough old price, or null.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
           "entitlements": {
             "$ref": "#/components/schemas/PlanEntitlementsDto"
           },
@@ -94769,6 +94920,14 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "compareAtCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Old price as entered (shown only with showDiscount)."
+          },
+          "showDiscount": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -94783,6 +94942,7 @@
           "currency",
           "amountCents",
           "extraSeatCents",
+          "discount",
           "entitlements",
           "highlights",
           "isDefault",
@@ -94792,7 +94952,9 @@
           "subscribers",
           "stripePriceId",
           "priceKind",
-          "updatedAt"
+          "updatedAt",
+          "compareAtCents",
+          "showDiscount"
         ]
       },
       "AdminPlansDto": {
@@ -94956,6 +95118,17 @@
             "maximum": 10000000,
             "description": "Price per interval in cents; a change creates a new Stripe price (history kept)."
           },
+          "compareAtCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 100,
+            "maximum": 10000000,
+            "description": "Owner 2026-10-07: the strikethrough old price in cents; null clears it, absent keeps it."
+          },
+          "showDiscount": {
+            "type": "boolean",
+            "description": "Show the discount (only while the old price is above the price)."
+          },
           "status": {
             "enum": [
               "draft",
@@ -95050,6 +95223,17 @@
             "minimum": 100,
             "maximum": 10000000,
             "description": "Price per interval in cents; a change creates a new Stripe price (history kept)."
+          },
+          "compareAtCents": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 100,
+            "maximum": 10000000,
+            "description": "Owner 2026-10-07: the strikethrough old price in cents; null clears it, absent keeps it."
+          },
+          "showDiscount": {
+            "type": "boolean",
+            "description": "Show the discount (only while the old price is above the price)."
           },
           "status": {
             "enum": [
@@ -110413,6 +110597,16 @@
             "type": "integer",
             "description": "Per month, in cents."
           },
+          "discount": {
+            "nullable": true,
+            "description": "Owner 2026-10-07: the strikethrough old price, or null.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PriceDiscountDto"
+              }
+            ]
+          },
           "currency": {
             "type": "string",
             "example": "usd"
@@ -110455,6 +110649,7 @@
           "status",
           "badgeActive",
           "priceCents",
+          "discount",
           "currency",
           "canSubmit",
           "canSubscribe",

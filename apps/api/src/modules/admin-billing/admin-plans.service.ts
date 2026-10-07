@@ -72,6 +72,8 @@ export class AdminPlansService {
           : null,
         priceKind: p.price_kind,
         updatedAt: p.updated_at.toISOString(),
+        compareAtCents: row?.compare_at_cents ?? null,
+        showDiscount: row?.show_discount ?? false,
       });
     }
     return {
@@ -318,14 +320,24 @@ export class AdminPlansService {
     dto: PlanFieldsDto,
   ): Promise<string | null> {
     let stripeError: string | null = null;
-    if (dto.amountCents !== undefined && plan.price_kind) {
-      const r = await this.prices.set(
-        admin,
-        plan.price_kind,
-        dto.amountCents,
-        dto.note,
-      );
-      stripeError = r.stripeError ?? stripeError;
+    const discount =
+      dto.compareAtCents !== undefined || dto.showDiscount !== undefined;
+    if ((dto.amountCents !== undefined || discount) && plan.price_kind) {
+      const amount =
+        dto.amountCents ?? (await this.pricing.amountOf(plan.price_kind));
+      if (amount != null) {
+        const r = await this.prices.set(
+          admin,
+          plan.price_kind,
+          amount,
+          dto.note,
+          {
+            compareAtCents: dto.compareAtCents,
+            showDiscount: dto.showDiscount,
+          },
+        );
+        stripeError = r.stripeError ?? stripeError;
+      }
     }
     const ent = this.plans.entitlementsOf(plan);
     const seat = ent.extra_seat_price_cents;

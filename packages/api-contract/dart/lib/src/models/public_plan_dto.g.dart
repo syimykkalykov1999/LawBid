@@ -25,6 +25,9 @@ PublicPlanDto _$PublicPlanDtoFromJson(Map<String, dynamic> json) =>
       currency: json['currency'] as String,
       amountCents: (json['amountCents'] as num?)?.toInt(),
       extraSeatCents: (json['extraSeatCents'] as num?)?.toInt(),
+      discount: json['discount'] == null
+          ? null
+          : PriceDiscountDto.fromJson(json['discount'] as Map<String, dynamic>),
       entitlements: PlanEntitlementsDto.fromJson(
         json['entitlements'] as Map<String, dynamic>,
       ),
@@ -48,6 +51,7 @@ Map<String, dynamic> _$PublicPlanDtoToJson(PublicPlanDto instance) =>
       'currency': instance.currency,
       'amountCents': ?instance.amountCents,
       'extraSeatCents': ?instance.extraSeatCents,
+      'discount': ?instance.discount?.toJson(),
       'entitlements': instance.entitlements.toJson(),
       'highlights': instance.highlights.map((e) => e.toJson()).toList(),
       'isDefault': instance.isDefault,

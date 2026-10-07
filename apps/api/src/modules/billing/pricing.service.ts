@@ -83,6 +83,37 @@ const LEGACY: Record<
 
 const CACHE_MS = 5_000;
 
+/** Owner 2026-10-07: the strikethrough "old price" next to a price. */
+export interface PriceDiscount {
+  compareAtCents: number;
+  /** Whole percent off, 1…99, always computed — never typed in. */
+  percent: number;
+}
+
+/**
+ * The discount a price row shows: only while the admin's switch is on AND
+ * the old price is above today's. Raising the price to (or past) the old
+ * one makes it disappear by itself — a discount never becomes a "plus".
+ */
+export function discountOf(
+  row:
+    | Pick<PlanPrice, 'amount_cents' | 'compare_at_cents' | 'show_discount'>
+    | null
+    | undefined,
+): PriceDiscount | null {
+  if (!row?.show_discount) return null;
+  const was = row.compare_at_cents;
+  if (was == null || was <= row.amount_cents || row.amount_cents <= 0) {
+    return null;
+  }
+  // Rounded down: the badge never claims more than the real discount.
+  const percent = Math.min(
+    99,
+    Math.floor(((was - row.amount_cents) / was) * 100),
+  );
+  return percent >= 1 ? { compareAtCents: was, percent } : null;
+}
+
 /**
  * Owner 2026-10-03: plan prices are set in the admin (Billing → Prices).
  * The active plan_prices row of a kind is the amount the app shows and
@@ -197,6 +228,11 @@ export class PricingService {
         ? await this.settings.number('verification.client_badge_cents')
         : 1000,
     };
+  }
+
+  /** Owner 2026-10-07: the discount shown next to [kind]'s price, if any. */
+  async discount(kind: string): Promise<PriceDiscount | null> {
+    return discountOf((await this.activeRows()).get(kind));
   }
 
   async amount(kind: PlanKind): Promise<number> {

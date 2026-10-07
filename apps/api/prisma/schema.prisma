@@ -3947,6 +3947,10 @@ model PlanPrice {
   /// {"test": "prod_…", "live": "prod_…"}
   stripe_product_ids Json     @default("{}")
   note               String?  @db.String(300)
+  /// Owner 2026-10-07: the strikethrough "old price" ($149 → $99). Shown
+  /// only while show_discount is on and it is above amount_cents.
+  compare_at_cents   Int?
+  show_discount      Boolean  @default(false)
   created_by         String?  @db.Uuid
   created_at         DateTime @default(now()) @db.Timestamptz
 

@@ -131,6 +131,10 @@ export async function presentPlan(
     currency: pricing.currency(),
     amountCents: amount,
     extraSeatCents: extraSeat,
+    discount:
+      plan.kind === 'paid' && plan.price_kind
+        ? await pricing.discount(plan.price_kind)
+        : null,
     entitlements: ent,
     highlights: highlights(plan.highlights),
     isDefault: plan.is_default,

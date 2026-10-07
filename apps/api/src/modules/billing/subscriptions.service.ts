@@ -775,6 +775,9 @@ export class SubscriptionsService {
         yearlyCents: amounts.yearly,
         maxSeats: await this.pricing.maxSeats(user.sub),
         trialDays: await this.pricing.defaultTrialDays(),
+        monthlyDiscount: await this.pricing.discount('monthly'),
+        seatDiscount: await this.pricing.discount('seat'),
+        yearlyDiscount: await this.pricing.discount('yearly'),
       },
     };
   }

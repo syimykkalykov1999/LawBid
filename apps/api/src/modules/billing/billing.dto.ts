@@ -4,6 +4,7 @@ import {
   PublicPlanDto,
   SeatSummaryDto,
 } from '../plans/plans.dto';
+import { PriceDiscountDto } from './price-discount.dto';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -232,6 +233,12 @@ export class PlanPricesDto {
       'Free trial days for a new subscription (admin setting; 0 = no trial).',
   })
   trialDays!: number;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  monthlyDiscount!: PriceDiscountDto | null;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  seatDiscount!: PriceDiscountDto | null;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  yearlyDiscount!: PriceDiscountDto | null;
 }
 
 /** Owner 2026-10-02: "Free under contract until …". */

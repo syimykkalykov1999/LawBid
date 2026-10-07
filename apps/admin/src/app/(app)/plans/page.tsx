@@ -4,6 +4,7 @@ import { Archive, ArrowsClockwise, PencilSimple, Plus, Stack, Trash, UsersThree,
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
+import { AppPricePreview, DiscountBadge, previewDiscount } from '@/components/billing/app-price-preview';
 import { dollarsToCents, fadeUp, plural, useBillingRole } from '@/components/billing/shared';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -334,6 +335,12 @@ function PlanCard({
             {p.amountCents != null ? money(p.amountCents) : '—'}
           </span>
           <span className="text-sm text-muted">{p.interval ? INTERVAL[p.interval].per : ''}</span>
+          {p.discount ? (
+            <span className="ml-1 inline-flex items-center gap-1.5 self-center text-sm">
+              <span className="text-muted line-through">{money(p.discount.compareAtCents)}</span>
+              <DiscountBadge percent={p.discount.percent} />
+            </span>
+          ) : null}
           {p.extraSeatCents ? <span className="ml-auto truncate text-xs text-muted">+ {money(p.extraSeatCents)}/мес за помощника</span> : null}
         </div>
         {text(p.tagline, '') ? (
@@ -495,6 +502,9 @@ interface Draft {
   audience: Audience;
   interval: Interval;
   amount: string;
+  /** Owner 2026-10-07: the strikethrough old price and its switch. */
+  old: string;
+  showDisc: boolean;
   name: LocalizedText;
   tagline: LocalizedText;
   description: LocalizedText;
@@ -524,6 +534,8 @@ function draftFrom(plan: Plan | undefined, audience: Audience, catalog: Def[]): 
     audience,
     interval: plan?.interval ?? 'month',
     amount: plan?.amountCents != null ? String(plan.amountCents / 100) : '',
+    old: plan?.compareAtCents != null ? String(plan.compareAtCents / 100) : '',
+    showDisc: plan?.showDiscount ?? false,
     name: { en: plan?.name?.en ?? '', ru: plan?.name?.ru ?? '' },
     tagline: { en: plan?.tagline?.en ?? '', ru: plan?.tagline?.ru ?? '' },
     description: { en: plan?.description?.en ?? '', ru: plan?.description?.ru ?? '' },
@@ -624,7 +636,10 @@ function PlanDialog({
     typeof entValues.max_seats === 'number' && typeof entValues.included_seats === 'number' && entValues.max_seats < entValues.included_seats;
   if (seatsClamped) entValues.max_seats = entValues.included_seats;
 
-  const ok = codeOk && amountOk && nameOk && sortOk && Object.keys(entErrors).length === 0;
+  const oldCents = d.old.trim() === '' ? null : dollarsToCents(d.old);
+  const oldOk = d.old.trim() === '' || (oldCents != null && oldCents >= MIN_CENTS && oldCents <= MAX_CENTS);
+  const disc = amountOk && oldOk ? previewDiscount(cents, oldCents, d.showDisc) : null;
+  const ok = codeOk && amountOk && oldOk && nameOk && sortOk && Object.keys(entErrors).length === 0;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -643,6 +658,10 @@ function PlanDialog({
         fields.isDefault = d.isDefault;
         // The price goes through PUT only when it changed: each change makes a new Stripe price.
         if (mode === 'create' || cents !== plan?.amountCents) fields.amountCents = cents!;
+        if (mode === 'create' || oldCents !== (plan?.compareAtCents ?? null) || d.showDisc !== (plan?.showDiscount ?? false)) {
+          fields.compareAtCents = oldCents;
+          fields.showDiscount = d.showDisc;
+        }
       }
       if (mode === 'create') {
         return (
@@ -723,6 +742,36 @@ function PlanDialog({
           >
             <Input id="plan-amount" inputMode="decimal" className="w-40 text-lg" value={d.amount} onChange={(e) => set('amount', e.target.value)} placeholder="399" />
           </Field>
+        ) : null}
+
+        {!isBaseline ? (
+          <div className="space-y-3 rounded-[var(--radius)] border border-line px-4 py-3">
+            <div className="flex items-start justify-between gap-4">
+              <div className="text-sm">
+                <div className="font-medium text-heading">Показывать скидку</div>
+                <div className="mt-0.5 text-xs text-muted">Старая цена зачёркивается, процент считается сам. Если старая цена не больше цены, скидка не показывается.</div>
+              </div>
+              <Switch checked={d.showDisc} onChange={(v) => set('showDisc', v)} label="Показывать скидку" />
+            </div>
+            <Field
+              label="Старая цена, $ (необязательно)"
+              htmlFor="plan-old"
+              hint={!oldOk ? 'от $1 до $100 000' : d.showDisc && amountOk && oldCents != null && !disc ? 'должна быть больше цены, иначе скидка не покажется' : 'пусто = без скидки'}
+            >
+              <Input id="plan-old" inputMode="decimal" className="w-40" value={d.old} onChange={(e) => set('old', e.target.value)} placeholder="например 149" />
+            </Field>
+          </div>
+        ) : null}
+
+        {!isBaseline && amountOk ? (
+          <AppPricePreview
+            title={text(d.name, d.code || 'План')}
+            amountCents={cents!}
+            yearly={d.interval === 'year'}
+            discount={disc}
+            lines={d.highlights.map((h) => h.ru?.trim() || h.en?.trim() || '').filter(Boolean)}
+            linesNote={d.highlights.length === 0 ? 'Строки возможностей приложение возьмёт из каталога.' : undefined}
+          />
         ) : null}
 
         {/* texts */}
