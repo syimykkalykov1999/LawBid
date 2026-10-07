@@ -11,6 +11,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
+import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
@@ -30,10 +31,10 @@ enum _AttorneyTab { planner, bids }
 enum _BidsSection { active, invites, work, completed, finished, saved }
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
-/// Completed and Saved (posts). Cases show as an Instagram-like grid —
-/// the first photo or our art of the qualification, a short title and the
-/// status — with search by title and filters (qualification, state), so a
-/// long history is never scrolled through.
+/// Completed and Saved (posts). Cases show as compact rows (owner
+/// 2026-10-07, bug 16) — the first photo or the practice icon, the title,
+/// the status and counts — with search by title and filters
+/// (qualification, state).
 class ClientMineView extends ConsumerStatefulWidget {
   const ClientMineView({super.key});
 
@@ -152,17 +153,11 @@ class _ClientCasesGrid extends ConsumerWidget {
               )
             : null,
       ),
-      tileOf: (c) => MineTileData(
-        title: c.title,
-        statusLabel: caseStatusLabel(t, c.status),
-        statusTone: caseTone(c.status),
-        coverUrl: c.coverUrl,
-        practiceCode: c.practice.code,
-        categoryCode: c.practice.categoryCode,
-        coverKey: c.coverKey,
-        coverSeed: c.id,
-        badge: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
-        onTap: () => context.push(AppRoutes.myCase(c.id)),
+      // Owner 2026-10-07 (bug 16): compact rows; swipe left for actions.
+      rowOf: (c) => MyCaseRow(
+        item: c,
+        swipe: true,
+        newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
       ),
     );
   }
