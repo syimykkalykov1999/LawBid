@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,7 +16,7 @@ import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.da
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Post skeletons for list loading states.
@@ -645,7 +644,6 @@ class ProfilePostsGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final deleted = ref.watch(deletedPostsProvider);
     final value = ref.watch(_provider);
     return value.when(
@@ -686,64 +684,19 @@ class ProfilePostsGrid extends ConsumerWidget {
               padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 2,
-                crossAxisSpacing: 2,
-              ),
+              gridDelegate: kPostGridDelegate,
               itemCount: posts.length,
               itemBuilder: (context, i) {
                 final p = posts[i];
-                return Semantics(
-                  button: true,
-                  label: t.t('post.open'),
-                  child: AppPressable(
-                    // Owner 2026-10-07: their posts as a feed from here.
-                    onTap: () => PostsFeedScreen.open(
-                      context,
-                      posts: posts,
-                      index: i,
-                      subtitle: p.author.username,
-                    ),
-                    // Owner 2026-10-05: photos as before; a reel shows
-                    // its frame; a text-only post is a text cover.
-                    child: p.media.isEmpty && p.video?.thumbnailUrl == null
-                        ? PostTextCover(
-                            post: p,
-                            density: PostCoverDensity.compact,
-                          )
-                        : Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              CachedNetworkImage(
-                                imageUrl: p.media.isNotEmpty
-                                    ? p.media.first.previewUrl
-                                    : p.video!.thumbnailUrl!,
-                                cacheKey: p.media.isNotEmpty
-                                    ? '${p.media.first.fileId}:320'
-                                    : p.video!.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) =>
-                                    ColoredBox(color: colors.skeletonBase),
-                                errorWidget: (_, __, ___) => PostTextCover(
-                                  post: p,
-                                  density: PostCoverDensity.compact,
-                                ),
-                              ),
-                              if (p.media.length > 1 || p.video != null)
-                                Positioned(
-                                  top: 6,
-                                  right: 6,
-                                  child: AppIcon(
-                                    p.video != null
-                                        ? AppIcons.playArrowRounded
-                                        : AppIcons.collectionsRounded,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                            ],
-                          ),
+                return PostGridTile(
+                  post: p,
+                  semanticLabel: t.t('post.open'),
+                  // Owner 2026-10-07: their posts as a feed from here.
+                  onTap: () => PostsFeedScreen.open(
+                    context,
+                    posts: posts,
+                    index: i,
+                    subtitle: p.author.username,
                   ),
                 );
               },

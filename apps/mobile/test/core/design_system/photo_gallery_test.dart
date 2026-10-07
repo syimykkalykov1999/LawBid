@@ -8,10 +8,12 @@ import '../../helpers/ux_harness.dart';
 /// Owner 2026-10-07: a profile photo opens full screen; pinch / double tap
 /// zooms, a swipe down closes.
 void main() {
-  setUp(() => debugGalleryImage = (url) => ColoredBox(
-        key: ValueKey(url),
-        color: Colors.blueGrey,
-      ));
+  setUp(() {
+    debugGalleryImage = (url) => ColoredBox(
+          key: ValueKey(url),
+          color: Colors.blueGrey,
+        );
+  });
   tearDown(() => debugGalleryImage = null);
 
   Future<void> pump(WidgetTester t, {String? url}) => t.pumpWidget(
