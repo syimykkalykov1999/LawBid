@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
@@ -290,7 +291,7 @@ class PostCard extends ConsumerWidget {
 
   /// "Title" = the first line (or sentence) of the post, the rest below.
   static (String, String) _split(String body) {
-    final text = body.trim();
+    final text = tidyText(body);
     final nl = text.indexOf('\n');
     if (nl > 0 && nl <= 120) {
       return (text.substring(0, nl).trim(), text.substring(nl + 1).trim());
@@ -1205,6 +1206,8 @@ class PostBodyText extends ConsumerStatefulWidget {
 }
 
 class _PostBodyTextState extends ConsumerState<PostBodyText> {
+  /// Pasted runs of empty lines collapse to one (owner 2026-10-07).
+  String get _body => tidyText(widget.body);
   static final _token =
       RegExp(r'(#[\p{L}\p{N}_]+|@[A-Za-z0-9._]+)', unicode: true);
   late bool _expanded = widget.expanded;
@@ -1243,9 +1246,9 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         ..add(const TextSpan(text: ' '));
     }
     var last = 0;
-    for (final m in _token.allMatches(widget.body)) {
+    for (final m in _token.allMatches(_body)) {
       if (m.start > last) {
-        spans.add(TextSpan(text: widget.body.substring(last, m.start)));
+        spans.add(TextSpan(text: _body.substring(last, m.start)));
       }
       final token = m.group(0)!;
       if (token.startsWith('#')) {
@@ -1298,8 +1301,8 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
       }
       last = m.end;
     }
-    if (last < widget.body.length) {
-      spans.add(TextSpan(text: widget.body.substring(last)));
+    if (last < _body.length) {
+      spans.add(TextSpan(text: _body.substring(last)));
     }
     return spans;
   }
@@ -1322,9 +1325,7 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
       builder: (context, box) {
         final painter = TextPainter(
           text: TextSpan(
-            text: widget.leading == null
-                ? widget.body
-                : '${widget.leading} ${widget.body}',
+            text: widget.leading == null ? _body : '${widget.leading} $_body',
             style: style,
           ),
           maxLines: widget.collapsedLines,

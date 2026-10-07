@@ -27,6 +27,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { tidy } from '../../../common/utils/tidy-text';
 
 // docs/04_CASES_BIDS.md §3.2.
 export const TITLE_MIN = 10;
@@ -80,7 +81,7 @@ export class CreateCaseDto {
   title!: string;
 
   @ApiProperty({ minLength: DESCRIPTION_MIN, maxLength: DESCRIPTION_MAX })
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
   @MinLength(DESCRIPTION_MIN)
   @MaxLength(DESCRIPTION_MAX)
@@ -215,7 +216,7 @@ export class UpdateCaseDto {
     maxLength: DESCRIPTION_MAX,
   })
   @IsOptional()
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
   @MinLength(DESCRIPTION_MIN)
   @MaxLength(DESCRIPTION_MAX)

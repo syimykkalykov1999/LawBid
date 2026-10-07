@@ -8,6 +8,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { tidy } from '../../common/utils/tidy-text';
 
 export const COMMENT_BODY_MAX = 1000;
 export const COMMENTS_PAGE = 20;
@@ -15,9 +16,7 @@ export const COMMENTS_PAGE = 20;
 /** POST /posts/:id/comments (docs/05 §5.1). */
 export class CreateCommentDto {
   @ApiProperty({ minLength: 1, maxLength: COMMENT_BODY_MAX })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
+  @Transform(tidy)
   @IsString()
   @MinLength(1)
   @MaxLength(COMMENT_BODY_MAX)

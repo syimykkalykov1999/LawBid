@@ -24,6 +24,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { tidy } from '../../../common/utils/tidy-text';
 
 export const POST_BODY_MAX = 2200;
 export const POST_TITLE_MAX = 120;
@@ -126,7 +127,7 @@ export class CreatePostDto {
 
   /** Owner 2026-10-07: the description is optional ('' is fine). */
   @ApiProperty({ maxLength: POST_BODY_MAX })
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
   @MaxLength(POST_BODY_MAX)
   body!: string;
@@ -205,7 +206,7 @@ export class UpdatePostDto {
 
   /** Owner 2026-10-07: the description is optional ('' is fine). */
   @ApiProperty({ maxLength: POST_BODY_MAX })
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
   @MaxLength(POST_BODY_MAX)
   body!: string;

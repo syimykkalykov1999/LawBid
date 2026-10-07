@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { ContactMethod } from '@prisma/client';
 import { ISO_639_1_CODES } from '../iso-639-1';
+import { tidy } from '../../../common/utils/tidy-text';
 
 /** Longest bio (docs/02 §4.C "bio text? (≤300)", CHECK in the migration). */
 export const BIO_MAX_LENGTH = 300;
@@ -103,7 +104,7 @@ export class OnboardingProfileDto {
   contactNote?: string;
 
   @IsOptional()
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
   @MaxLength(BIO_MAX_LENGTH)
   bio?: string;

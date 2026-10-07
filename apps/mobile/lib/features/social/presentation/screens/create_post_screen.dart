@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -226,7 +227,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         final error = await ref.read(socialActionsProvider).editPost(
               widget.editing!,
               title: _title.text.trim(),
-              body: _text.text.trim(),
+              body: tidyText(_text.text),
               practiceCode: _practice,
               markedLegal: _practice == null ? _legal : null,
             );
@@ -243,7 +244,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           RequestKind.post,
           {
             'title': _title.text.trim(),
-            'body': _text.text.trim(),
+            'body': tidyText(_text.text),
             if (_practice != null) 'practiceCode': _practice,
             'kind': _news ? 'news' : 'post',
             if (_markedLegal) 'contentClass': 'legal',
@@ -265,7 +266,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       final post = await ref.read(socialRepositoryProvider).createPost(
             PostDraft(
               title: _title.text.trim(),
-              body: _text.text.trim(),
+              body: tidyText(_text.text),
               practiceCode: _practice,
               isNews: _news,
               markedLegal: _markedLegal,
