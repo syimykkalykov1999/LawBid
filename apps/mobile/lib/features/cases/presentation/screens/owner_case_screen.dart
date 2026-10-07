@@ -22,7 +22,6 @@ import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dar
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
-import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
 
@@ -226,6 +225,16 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
                       () => ref.read(caseActionsProvider).keepAlive(c.id),
                       doneKey: 'cases.owner.keptAlive',
                     ),
+            onClose: _busy
+                ? null
+                : () => _confirm(
+                      title: 'cases.owner.closeTitle',
+                      message: 'cases.owner.closeMessage',
+                      confirm: 'cases.owner.close',
+                      action: () =>
+                          ref.read(caseActionsProvider).closeCase(c.id),
+                      doneKey: 'cases.owner.closed',
+                    ),
           ),
         ),
       ),
@@ -301,9 +310,11 @@ class _OwnerCaseBody extends ConsumerWidget {
     required this.bidsKey,
     required this.onSort,
     required this.onKeepAlive,
+    required this.onClose,
   });
 
   final VoidCallback? onKeepAlive;
+  final VoidCallback? onClose;
   final OwnerCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -387,10 +398,10 @@ class _OwnerCaseBody extends ConsumerWidget {
               label: t.t('cases.owner.staleShort'),
               action: t.t('cases.owner.keepAliveShort'),
               onTap: onKeepAlive,
+              closeLabel: t.t('cases.owner.closeShort'),
+              onClose: onClose,
             ),
           ],
-          // Owner 2026-10-02: paid promotion of an open case.
-          if (c.status == CaseStatus.open) PromoteCaseCard(caseId: c.id),
           // Owner 2026-10-05: attorneys the client offered the case to.
           CaseInvitesSection(caseId: c.id),
           if (c.acceptedBid != null)
@@ -684,12 +695,16 @@ class _StaleStrip extends StatelessWidget {
     required this.label,
     required this.action,
     required this.onTap,
+    required this.closeLabel,
+    required this.onClose,
     super.key,
   });
 
   final String label;
   final String action;
   final VoidCallback? onTap;
+  final String closeLabel;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -712,37 +727,50 @@ class _StaleStrip extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        Semantics(
-          button: true,
-          child: AppPressable(
-            onTap: onTap,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 32),
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: colors.goldTint,
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-                border: Border.all(color: colors.goldStroke),
-              ),
-              child: Align(
-                widthFactor: 1,
-                heightFactor: 1,
-                child: Text(
-                  action,
-                  maxLines: 1,
-                  style: type.bodySmall.copyWith(
-                    color: colors.goldDark,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        _pill(colors, type, action, onTap, filled: true),
+        const SizedBox(width: AppSpacing.xs),
+        _pill(colors, type, closeLabel, onClose, filled: false),
       ],
     );
   }
 }
+
+Widget _pill(
+  AppColorTokens colors,
+  AppTypographyTokens type,
+  String label,
+  VoidCallback? onTap, {
+  required bool filled,
+}) =>
+    Semantics(
+      button: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 32),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: filled ? colors.goldTint : null,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(
+              color: filled ? colors.goldStroke : colors.border,
+            ),
+          ),
+          child: Align(
+            widthFactor: 1,
+            heightFactor: 1,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: type.bodySmall.copyWith(
+                color: filled ? colors.goldDark : colors.text,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );

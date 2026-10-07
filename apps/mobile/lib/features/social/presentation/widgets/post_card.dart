@@ -456,7 +456,7 @@ class PostCard extends ConsumerWidget {
             ),
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
-        _ActionsBar(post: p, run: run),
+        _ActionsBar(post: p, run: run, boost: false),
         if (p.likeCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -659,6 +659,7 @@ class _InstagramPost extends ConsumerWidget {
           post: p,
           run: run,
           showCounts: false,
+          boost: !inDetail,
           // Inside the post the comment field is right below.
           // Owner 2026-10-07: the comment button opens the comments sheet,
           // inside the post too.
@@ -886,7 +887,7 @@ class _ThreadsPost extends ConsumerWidget {
                         ),
                       ],
                       const SizedBox(width: AppSpacing.sm),
-                      Flexible(
+                      Expanded(
                         child: Text(
                           promotionId != null
                               ? t.t('promote.sponsored')
@@ -897,7 +898,6 @@ class _ThreadsPost extends ConsumerWidget {
                               .copyWith(color: colors.textSecondary),
                         ),
                       ),
-                      const Spacer(),
                       AppIconButton(
                         icon: AppIcon(
                           AppIcons.moreHorizRounded,
@@ -967,7 +967,9 @@ class _ThreadsPost extends ConsumerWidget {
                         p.shareCount,
                       ),
                       Expanded(
-                        child: p.isMine && !ref.watch(isAssistantProvider)
+                        child: !inDetail &&
+                                p.isMine &&
+                                !ref.watch(isAssistantProvider)
                             ? Align(
                                 alignment: AlignmentDirectional.centerEnd,
                                 child: BoostButton(postId: p.id),
@@ -1868,7 +1870,12 @@ class _ActionsBar extends ConsumerWidget {
     required this.run,
     this.showTime = false,
     this.showCounts = true,
+    this.boost = true,
   });
+
+  /// Owner 2026-10-07: «Продвигать» only on the cards in a list, never
+  /// inside the open post.
+  final bool boost;
 
   /// Owner 2026-10-06: Instagram-style posts show bare icons; the likes
   /// count sits on its own line below.
@@ -1928,7 +1935,7 @@ class _ActionsBar extends ConsumerWidget {
                   )
                 // Owner 2026-10-07: «Продвигать» / «Boost» under my own
                 // post, right before Save; it may use all the free width.
-                : post.isMine && !ref.watch(isAssistantProvider)
+                : boost && post.isMine && !ref.watch(isAssistantProvider)
                     ? Align(
                         alignment: AlignmentDirectional.centerEnd,
                         child: BoostButton(postId: post.id),

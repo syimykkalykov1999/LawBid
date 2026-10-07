@@ -20,23 +20,6 @@ import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Owner 2026-10-02 — "Promote this case" on the client's open case;
-/// 2026-10-07: the same small «Продвигать» button as under a post, no card.
-class PromoteCaseCard extends StatelessWidget {
-  const PromoteCaseCard({required this.caseId, super.key});
-
-  final String caseId;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.md),
-        child: Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: BoostButton(postId: caseId, target: PromotionTarget.case_),
-        ),
-      );
-}
-
 /// The promotion state provider of one post / case.
 FutureProvider<CasePromotionState> promotionStateProvider(
   PromotionTarget target,

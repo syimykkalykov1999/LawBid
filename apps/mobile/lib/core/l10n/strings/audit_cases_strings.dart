@@ -12,6 +12,7 @@ const auditCasesRu = <String, String>{
   'cases.owner.keepAlive': 'Да, ещё актуален',
   'cases.owner.staleShort': 'Кейс ещё актуален?',
   'cases.owner.keepAliveShort': 'Да',
+  'cases.owner.closeShort': 'Закрыть',
   'cases.owner.keptAlive': 'Кейс остаётся открытым',
 };
 
@@ -24,5 +25,6 @@ const auditCasesEn = <String, String>{
   'cases.owner.keepAlive': 'Yes, still relevant',
   'cases.owner.staleShort': 'Still relevant?',
   'cases.owner.keepAliveShort': 'Yes',
+  'cases.owner.closeShort': 'Close',
   'cases.owner.keptAlive': 'Your case stays open',
 };
