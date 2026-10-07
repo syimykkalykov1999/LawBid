@@ -339,13 +339,15 @@ class CallController extends Notifier<CallSession> {
     // (the in-app screen), but without the ringing system UI or a buzz.
     if (isCategoryMuted(ref, NotifCategory.calls)) return;
     unawaited(HapticFeedback.heavyImpact());
-    // Audit 2026-10-02: with the app open the phone's call screen needs
-    // the notifications permission to ring (often not granted) — the app
-    // rings itself and shows its own incoming screen. In the background
-    // the system call screen rings (push / callkit).
+    // Audit 2026-10-02: with the app open Android's call screen needs the
+    // notifications permission to ring (often not granted) — the app plays
+    // the phone's own ringtone and shows its own incoming screen. iOS
+    // CallKit rings with the phone's ringtone in the foreground too
+    // (owner 2026-10-07: device sounds only), and in the background the
+    // system call screen rings on both (push / callkit).
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    if (foreground) {
+    if (foreground && defaultTargetPlatform == TargetPlatform.android) {
       unawaited(ref.read(appSoundsProvider).startRingtone());
     } else if (showSystemUi) {
       unawaited(ref.read(systemCallUiProvider).showIncoming(call));

@@ -2,19 +2,22 @@ import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
-/// OQ-044 (owner 2026-09-30): the app's own sounds — ringback tones while
-/// our call rings on the other side, "busy", call end, and soft
-/// Telegram-like sounds for messages in an open chat. Every call is
-/// best-effort: no sound (tests, no audio device) never breaks a flow.
+/// OQ-044 (owner 2026-09-30): call progress tones — ringback while our
+/// call rings on the other side, "busy" and call end. Owner 2026-10-07:
+/// no melodies of LawBid's own — an incoming call rings with the phone's
+/// ringtone and an open chat makes no sound of its own (messages outside
+/// it use the phone's notification sound). Every call is best-effort: no
+/// sound (tests, no audio device) never breaks a flow.
 abstract interface class AppSounds {
   Future<void> startRingback();
   Future<void> stopRingback();
 
-  /// Audit 2026-10-02: the incoming-call melody while the app is open
-  /// (the system call screen rings only in the background).
+  /// Audit 2026-10-02: the phone's own ringtone while the app is open on
+  /// Android (iOS CallKit rings by itself).
   Future<void> startRingtone();
   Future<void> stopRingtone();
   Future<void> busy();
@@ -30,9 +33,23 @@ class NoAppSounds implements AppSounds {
   @override
   Future<void> stopRingback() async {}
   @override
-  Future<void> startRingtone() async {}
+  Future<void> startRingtone() async {
+    try {
+      await _ringtone.invokeMethod<void>('start');
+    } on Object catch (e) {
+      debugPrint('ringtone: $e');
+    }
+  }
+
   @override
-  Future<void> stopRingtone() async {}
+  Future<void> stopRingtone() async {
+    try {
+      await _ringtone.invokeMethod<void>('stop');
+    } on Object {
+      // Nothing playing / not Android.
+    }
+  }
+
   @override
   Future<void> busy() async {}
   @override
@@ -44,9 +61,10 @@ class NoAppSounds implements AppSounds {
 }
 
 class JustAudioAppSounds implements AppSounds {
+  static const _ringtone = MethodChannel('lawbid/ringtone');
+
   AudioPlayer? _loop;
   AudioPlayer? _fx;
-  AudioPlayer? _ring;
 
   Future<void> _play(String asset, {double volume = 0.6}) async {
     try {
@@ -138,10 +156,10 @@ class JustAudioAppSounds implements AppSounds {
   }
 
   @override
-  Future<void> messageIn() => _play('message_in', volume: 0.45);
+  Future<void> messageIn() async {}
 
   @override
-  Future<void> messageOut() => _play('message_out', volume: 0.35);
+  Future<void> messageOut() async {}
 }
 
 /// The real sounds are set up in `run_app.dart`; tests keep silence.

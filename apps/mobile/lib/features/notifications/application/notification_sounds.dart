@@ -3,14 +3,14 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Owner 2026-10-02: LawBid ships two short sounds of its own — chats and
-/// everything else. Android keeps a sound per notification channel, so the
-/// user swaps it for any system sound in that channel's settings; iOS has
-/// one notification screen per app (the branded sound is chosen by the
-/// server in each push).
+/// Two notification channels — chats and everything else. Owner
+/// 2026-10-07: both play the phone's own default sound (LawBid ships no
+/// sounds of its own). Android keeps a sound per channel, so the user can
+/// pick any system sound in that channel's settings; iOS has one
+/// notification screen per app.
 enum NotificationSoundChannel {
-  chats('lawbid_chats'),
-  general('lawbid_notifications');
+  chats('chats'),
+  general('general');
 
   const NotificationSoundChannel(this.id);
 
