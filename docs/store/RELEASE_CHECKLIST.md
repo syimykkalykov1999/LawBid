@@ -128,3 +128,23 @@ From the demo world on the Mac (simulator/emulator), English UI, light theme.
 - Apple: iPhone 6.9" (1320×2868), 3 to 10. No iPad (app is iPhone-only).
 - Google: phone, 1080×1920 or larger, 2 to 8; plus `play-icon-512.png` and `play-feature-graphic-1024x500.png` (project files, `store/`).
 - Order: 1) client home "Post your case free" 2) attorney sends an offer 3) compare offers 4) chat with an attorney 5) verified attorney profile 6) attorney: new case alerts 7) feed with posts and reels 8) block/report and privacy.
+
+## 9. Store listings in every language (automatic)
+
+`apps/mobile/ios/fastlane/metadata/<locale>/` (39 App Store localizations)
+and `apps/mobile/android/fastlane/metadata/android/<locale>/` (87 Google
+Play languages) hold the name/title, subtitle, keywords, promo text, short
+and full description. The texts are adapted per language, not translated word for word, with the same
+store and liability limits as English; `test/release/store_release_config_test.dart`
+checks every length limit. Language is not country availability: the app
+is listed only in the countries switched on in admin → Страны (now: US).
+
+Upload after the app exists in both stores (and, for Google Play, after the
+first AAB is uploaded):
+
+- iOS (Mac): `cd apps/mobile/ios && FASTLANE_USER=<owner Apple ID> bundle exec fastlane ios metadata`
+  (or with `ASC_KEY_ID`/`ASC_ISSUER_ID`/`ASC_KEY_CONTENT`). Owner types the 2FA code once.
+- Android: `cd apps/mobile/android && PLAY_JSON_KEY_FILE=<service-account.json> bundle exec fastlane android metadata`.
+
+Manual fallback: paste only English (U.S.), Spanish and Russian from
+`/mnt/project-files/store/listing-en.md`.
