@@ -55,6 +55,8 @@ export class PostPresenter {
       pShare,
       follows,
       docs,
+      reposts,
+      myReposts,
     ] = await Promise.all([
       this.prisma.user.findMany({
         where: { id: { in: authorIds } },
@@ -111,7 +113,21 @@ export class PostPresenter {
         where: { post_id: { in: ids } },
         orderBy: { position: 'asc' },
       }),
+      // Owner 2026-10-07: Threads-style reposts.
+      this.prisma.postRepost.groupBy({
+        by: ['post_id'],
+        where: { post_id: { in: ids } },
+        _count: { _all: true },
+      }),
+      this.prisma.postRepost.findMany({
+        where: { post_id: { in: ids }, user_id: viewerId },
+        select: { post_id: true },
+      }),
     ]);
+    const repostCounts = new Map(
+      reposts.map((r) => [r.post_id, r._count._all]),
+    );
+    const reposted = new Set(myReposts.map((r) => r.post_id));
     const docUrls = await this.files.postAttachmentUrls(
       docs.map((d) => ({ fileId: d.file_id, fileName: d.file_name })),
     );
@@ -262,7 +278,9 @@ export class PostPresenter {
         commentCount: clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
         saveCount: clamp(p.save_count + (pSave.get(p.id) ?? 0)),
         shareCount: clamp(p.share_count + (pShare.get(p.id) ?? 0)),
+        repostCount: repostCounts.get(p.id) ?? 0,
         likedByMe: liked.has(p.id),
+        repostedByMe: reposted.has(p.id),
         savedByMe: saved.has(p.id),
         isMine: p.author_id === viewerId,
         createdAt: p.created_at.toISOString(),

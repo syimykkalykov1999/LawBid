@@ -606,6 +606,11 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'New like', body: 'Someone liked your post.' },
     ru: { title: 'Новый лайк', body: 'Ваш пост понравился.' },
   },
+  post_repost: {
+    group: 'social',
+    en: { title: 'New repost', body: 'Someone reposted your post.' },
+    ru: { title: 'Новый репост', body: 'Вашим постом поделились.' },
+  },
   comment_like: {
     group: 'social',
     en: { title: 'New like', body: 'Someone liked your comment.' },
