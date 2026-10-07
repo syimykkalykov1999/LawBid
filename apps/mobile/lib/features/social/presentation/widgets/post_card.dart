@@ -890,38 +890,44 @@ class _ThreadsPost extends ConsumerWidget {
                     ),
                   Row(
                     children: [
-                      Flexible(
-                        child: GestureDetector(
-                          onTap: () => openAuthorProfile(context, ref, a),
-                          child: Text(
-                            a.username,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.bodySmall.copyWith(
-                              color: colors.text,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (a.verified) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        VerifiedCheck(
-                          label: t.t('post.verified'),
-                          size: 14,
-                          gold: a.isClient,
-                        ),
-                      ],
-                      const SizedBox(width: AppSpacing.sm),
                       Expanded(
-                        child: Text(
-                          promotionId != null
-                              ? t.t('promote.sponsored')
-                              : SocialFormat.ago(t, f, p.createdAt),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption
-                              .copyWith(color: colors.textSecondary),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: GestureDetector(
+                                onTap: () => openAuthorProfile(context, ref, a),
+                                child: Text(
+                                  a.username,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.bodySmall.copyWith(
+                                    color: colors.text,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (a.verified) ...[
+                              const SizedBox(width: AppSpacing.xs),
+                              VerifiedCheck(
+                                label: t.t('post.verified'),
+                                size: 14,
+                                gold: a.isClient,
+                              ),
+                            ],
+                            const SizedBox(width: AppSpacing.sm),
+                            Flexible(
+                              child: Text(
+                                promotionId != null
+                                    ? t.t('promote.sponsored')
+                                    : SocialFormat.ago(t, f, p.createdAt),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.caption
+                                    .copyWith(color: colors.textSecondary),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       AppIconButton(
