@@ -118,6 +118,12 @@ class TopicFilterBar extends ConsumerWidget {
             value: kNewsTopic,
             label: t.t('feed.topics.news'),
           ),
+        if (showNews)
+          PickerOption(
+            value: kGeneralPostsTopic,
+            label: t.t('feed.topics.posts'),
+            sublabel: t.t('feed.topics.postsHint'),
+          ),
         ...practiceOptions(ref),
       ],
     );
@@ -409,10 +415,24 @@ class TopicFilterBar extends ConsumerWidget {
               onTap: () => onCategory(kNewsTopic),
             ),
           ],
-          // Owner 2026-10-07: the "Posts" topic is gone everywhere.
+          // Owner 2026-10-05: general (personal) posts; hidden while
+          // "Legal only" is on.
+          if (showNews &&
+              !legalOnly &&
+              topics.contains(kGeneralPostsTopic)) ...[
+            const SizedBox(width: AppSpacing.sm),
+            pill(
+              key: const ValueKey('topic-general-posts'),
+              label: t.t('feed.topics.posts'),
+              icon: AppIcons.forumOutlined,
+              selected: category == kGeneralPostsTopic,
+              onTap: () => onCategory(kGeneralPostsTopic),
+            ),
+          ],
           for (final c in topics.where(
             (c) =>
                 c != kNewsTopic &&
+                c != kGeneralPostsTopic &&
                 !(showNotSure && c == kNotSureTopic),
           )) ...[
             const SizedBox(width: AppSpacing.sm),

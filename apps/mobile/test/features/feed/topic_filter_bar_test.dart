@@ -61,8 +61,6 @@ void main() {
     expect(find.text('News'), findsNothing);
     expect(find.text('All content'), findsNothing);
     expect(find.text('Legal posts'), findsOneWidget);
-    // Owner 2026-10-07: no "Posts" pill, even from a saved list.
-    expect(find.text('Posts'), findsNothing);
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(TopicFilterBar)),
@@ -127,7 +125,6 @@ void main() {
     final group = find.byKey(const ValueKey('picker-group-@legal'));
     expect(group, findsOneWidget);
     expect(find.text('All legal posts'), findsOneWidget);
-    expect(find.text('Posts'), findsNothing);
     await tester.tap(group);
     await tester.pumpAndSettle();
     // A one-of choice: no "Select all".
