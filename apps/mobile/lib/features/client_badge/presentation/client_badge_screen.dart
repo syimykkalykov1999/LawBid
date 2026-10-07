@@ -374,7 +374,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               ),
               trailing: AppIconButton(
                 icon: AppIcon(AppIcons.closeRounded, color: colors.text),
-                semanticLabel: t.t('common.remove'),
+                semanticLabel: t.t('verification.license.remove.action'),
                 onPressed:
                     _busy ? null : () => setState(() => _docs.removeAt(i)),
               ),

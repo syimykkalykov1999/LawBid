@@ -46,10 +46,16 @@ class LongestTranslator implements Translator {
 /// A narrow phone: 360 x 780 dp (Galaxy S-class / small Android).
 const narrowPhone = Size(360, 780);
 
+/// A laptop browser window for the web client: 1280 x 800 dp.
+const webDesktop = Size(1280, 800);
+
 /// Sets the test view to [narrowPhone] for the rest of the test.
-void useNarrowPhone(WidgetTester tester) {
+void useNarrowPhone(WidgetTester tester) => useScreen(tester, narrowPhone);
+
+/// Sets the test view to [size] for the rest of the test.
+void useScreen(WidgetTester tester, Size size) {
   tester.view
     ..devicePixelRatio = 3
-    ..physicalSize = narrowPhone * 3;
+    ..physicalSize = size * 3;
   addTearDown(tester.view.reset);
 }

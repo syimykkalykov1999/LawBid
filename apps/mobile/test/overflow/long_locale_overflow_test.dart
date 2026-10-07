@@ -83,6 +83,10 @@ void main() {
     ),
   };
 
+  // Web client 2026-10-07: the same screens in a desktop browser window.
+  const sizes = <String, Size>{'360 dp': narrowPhone, 'web': webDesktop};
+  var screen = narrowPhone;
+
   late List<Override> base;
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -104,12 +108,12 @@ void main() {
     ThemeData? theme,
     FakeCasesRepository? cases,
   }) async {
-    useNarrowPhone(tester);
+    useScreen(tester, screen);
     await tester.pumpWidget(
       uxApp(
         Directionality(textDirection: dir, child: child),
         theme: theme ?? AppTheme.light(),
-        size: narrowPhone,
+        size: screen,
         disableAnimations: true,
         overrides: uxOverrides(
           translator: t,
@@ -222,193 +226,198 @@ void main() {
         ),
       );
 
-  for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
-    group('no overflow at 360 dp ($name)', () {
-      testWidgets('design-system widgets', (tester) async {
-        await pump(tester, gallery(t), t, dir);
-        expect(tester.takeException(), isNull);
-      });
+  for (final MapEntry(key: size, value: sizeValue) in sizes.entries) {
+    for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
+      group('no overflow at $size ($name)', () {
+        setUp(() => screen = sizeValue);
 
-      testWidgets('recommended attorneys with "Follow"', (tester) async {
-        await pump(
-          tester,
-          const Scaffold(
-            body: SingleChildScrollView(child: SuggestedAttorneys()),
-          ),
-          t,
-          dir,
-        );
-        expect(find.byType(AttorneyTile), findsWidgets);
-        expect(tester.takeException(), isNull);
-      });
+        testWidgets('design-system widgets', (tester) async {
+          await pump(tester, gallery(t), t, dir);
+          expect(tester.takeException(), isNull);
+        });
 
-      testWidgets('tasks: filter chips and "Add a task"', (tester) async {
-        final repo = FakeTeamRepository()
-          ..active = [makeTask('a', note: 'Call the court clerk')];
-        await pump(
-          tester,
-          const Scaffold(body: TasksTab()),
-          t,
-          dir,
-          extra: [
-            teamRepositoryProvider.overrideWithValue(repo),
-            seatLimitRepositoryProvider
-                .overrideWithValue(FakeSeatLimitRepository()),
-          ],
-        );
-        expect(tester.takeException(), isNull);
-        // Owner 2026-10-05: nothing moves to another line; the chips and
-        // the button stay in one row and their text shrinks instead.
-        final add = tester.getCenter(find.byKey(const ValueKey('tasks-add')));
-        for (final k in ['tasks-view-active', 'tasks-view-done']) {
-          expect(
-            tester.getCenter(find.byKey(ValueKey(k))).dy,
-            moreOrLessEquals(add.dy, epsilon: 1),
-            reason: '$k and "Add a task" share one row',
-          );
-        }
-      });
-
-      testWidgets('assistant codes: seats section, code card, sign-in',
-          (tester) async {
-        final repo = FakeTeamRepository();
-        final team = await repo.addAssistant(name: 'Alexandra Montgomery-Kim');
-        repo.teamInfo = TeamInfo(
-          members: team.members,
-          seats: 6,
-          used: 1,
-          plan: team.plan,
-        );
-        await pump(
-          tester,
-          Scaffold(
-            body: ListView(
-              children: [
-                const AssistantSeatsSection(),
-                AssistantCodeCard(member: team.members.single),
-              ],
-            ),
-          ),
-          t,
-          dir,
-          extra: [
-            teamRepositoryProvider.overrideWithValue(repo),
-            seatLimitRepositoryProvider
-                .overrideWithValue(FakeSeatLimitRepository()),
-          ],
-        );
-        expect(find.byKey(const ValueKey('assistant-seats')), findsOneWidget);
-        expect(tester.takeException(), isNull);
-        await pump(
-          tester,
-          const AssistantCodeScreen(),
-          t,
-          dir,
-          extra: [
-            teamRepositoryProvider.overrideWithValue(repo),
-            seatLimitRepositoryProvider
-                .overrideWithValue(FakeSeatLimitRepository()),
-          ],
-        );
-        expect(find.byType(AssistantCodeScreen), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-
-      testWidgets('case invites: offer sheet, attorney card, client list',
-          (tester) async {
-        final invites = FakeInvitesRepository(
-          items: [
-            invite(
-              attorney: const BidAttorney(
-                id: 'att-1',
-                username: 'alexandra_montgomery',
-                firstName: 'Alexandra',
-                lastName: 'Montgomery-Kim',
-                avatarUrl: null,
-                verifiedBadge: true,
-                ratingAvg: 4.9,
-                ratingCount: 120,
-              ),
-            ),
-          ],
-        );
-        final extra = [invitesRepositoryProvider.overrideWithValue(invites)];
-        final cases = FakeCasesRepository(myCasesItems: [summary()]);
-        await pump(
-          tester,
-          const Scaffold(
-            body: OfferCaseSheet(
-              attorneyId: 'att-1',
-              attorneyName: 'Alexandra Montgomery-Kim',
-              licensedStateCodes: {'NY'},
-              practiceIds: {},
-            ),
-          ),
-          t,
-          dir,
-          extra: extra,
-          cases: cases,
-        );
-        await tester.tap(find.byKey(const ValueKey('offer-case-case-1')));
-        await tester.pump();
-        expect(tester.takeException(), isNull);
-        await pump(
-          tester,
-          const Scaffold(
-            body: Column(
-              children: [
-                Expanded(child: InvitesList()),
-                CaseInvitesSection(caseId: 'case-1'),
-              ],
-            ),
-          ),
-          t,
-          dir,
-          extra: extra,
-          cases: cases,
-        );
-        expect(find.byKey(const ValueKey('invite-inv-1')), findsOneWidget);
-        expect(find.byKey(const ValueKey('case-invites')), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
-
-      // Owner 2026-10-05: the trust sheet's payment card, as a client sees
-      // it and as the attorney sees their own (longest texts on both).
-      for (final self in [false, true]) {
-        testWidgets('trust sheet payments card (${self ? 'own' : 'client'})',
-            (tester) async {
+        testWidgets('recommended attorneys with "Follow"', (tester) async {
           await pump(
             tester,
             const Scaffold(
-              body: TrustLevelSheet(attorneyId: 'att-1', level: 1),
+              body: SingleChildScrollView(child: SuggestedAttorneys()),
+            ),
+            t,
+            dir,
+          );
+          expect(find.byType(AttorneyTile), findsWidgets);
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('tasks: filter chips and "Add a task"', (tester) async {
+          final repo = FakeTeamRepository()
+            ..active = [makeTask('a', note: 'Call the court clerk')];
+          await pump(
+            tester,
+            const Scaffold(body: TasksTab()),
+            t,
+            dir,
+            extra: [
+              teamRepositoryProvider.overrideWithValue(repo),
+              seatLimitRepositoryProvider
+                  .overrideWithValue(FakeSeatLimitRepository()),
+            ],
+          );
+          expect(tester.takeException(), isNull);
+          // Owner 2026-10-05: nothing moves to another line; the chips and
+          // the button stay in one row and their text shrinks instead.
+          final add = tester.getCenter(find.byKey(const ValueKey('tasks-add')));
+          for (final k in ['tasks-view-active', 'tasks-view-done']) {
+            expect(
+              tester.getCenter(find.byKey(ValueKey(k))).dy,
+              moreOrLessEquals(add.dy, epsilon: 1),
+              reason: '$k and "Add a task" share one row',
+            );
+          }
+        });
+
+        testWidgets('assistant codes: seats section, code card, sign-in',
+            (tester) async {
+          final repo = FakeTeamRepository();
+          final team =
+              await repo.addAssistant(name: 'Alexandra Montgomery-Kim');
+          repo.teamInfo = TeamInfo(
+            members: team.members,
+            seats: 6,
+            used: 1,
+            plan: team.plan,
+          );
+          await pump(
+            tester,
+            Scaffold(
+              body: ListView(
+                children: [
+                  const AssistantSeatsSection(),
+                  AssistantCodeCard(member: team.members.single),
+                ],
+              ),
             ),
             t,
             dir,
             extra: [
-              currentUserIdProvider.overrideWithValue(self ? 'att-1' : 'c-1'),
-              attorneyTrustProvider.overrideWith((ref, id) async => _trust),
-              myTrustProvider.overrideWith((ref) async => _ownTrust),
+              teamRepositoryProvider.overrideWithValue(repo),
+              seatLimitRepositoryProvider
+                  .overrideWithValue(FakeSeatLimitRepository()),
             ],
           );
-          expect(find.byType(TrustLevelSheet), findsOneWidget);
+          expect(find.byKey(const ValueKey('assistant-seats')), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          await pump(
+            tester,
+            const AssistantCodeScreen(),
+            t,
+            dir,
+            extra: [
+              teamRepositoryProvider.overrideWithValue(repo),
+              seatLimitRepositoryProvider
+                  .overrideWithValue(FakeSeatLimitRepository()),
+            ],
+          );
+          expect(find.byType(AssistantCodeScreen), findsOneWidget);
           expect(tester.takeException(), isNull);
         });
-      }
 
-      final screens = <String, Widget>{
-        'feed': const FeedScreen(),
-        'search': const SearchScreen(),
-        'mine': const MineScreen(),
-        'profile': const ProfileScreen(),
-        'settings': const SettingsScreen(),
-      };
-      for (final s in screens.entries) {
-        testWidgets('${s.key} screen', (tester) async {
-          await pump(tester, s.value, t, dir, theme: AppTheme.dark());
+        testWidgets('case invites: offer sheet, attorney card, client list',
+            (tester) async {
+          final invites = FakeInvitesRepository(
+            items: [
+              invite(
+                attorney: const BidAttorney(
+                  id: 'att-1',
+                  username: 'alexandra_montgomery',
+                  firstName: 'Alexandra',
+                  lastName: 'Montgomery-Kim',
+                  avatarUrl: null,
+                  verifiedBadge: true,
+                  ratingAvg: 4.9,
+                  ratingCount: 120,
+                ),
+              ),
+            ],
+          );
+          final extra = [invitesRepositoryProvider.overrideWithValue(invites)];
+          final cases = FakeCasesRepository(myCasesItems: [summary()]);
+          await pump(
+            tester,
+            const Scaffold(
+              body: OfferCaseSheet(
+                attorneyId: 'att-1',
+                attorneyName: 'Alexandra Montgomery-Kim',
+                licensedStateCodes: {'NY'},
+                practiceIds: {},
+              ),
+            ),
+            t,
+            dir,
+            extra: extra,
+            cases: cases,
+          );
+          await tester.tap(find.byKey(const ValueKey('offer-case-case-1')));
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+          await pump(
+            tester,
+            const Scaffold(
+              body: Column(
+                children: [
+                  Expanded(child: InvitesList()),
+                  CaseInvitesSection(caseId: 'case-1'),
+                ],
+              ),
+            ),
+            t,
+            dir,
+            extra: extra,
+            cases: cases,
+          );
+          expect(find.byKey(const ValueKey('invite-inv-1')), findsOneWidget);
+          expect(find.byKey(const ValueKey('case-invites')), findsOneWidget);
           expect(tester.takeException(), isNull);
         });
-      }
-    });
+
+        // Owner 2026-10-05: the trust sheet's payment card, as a client sees
+        // it and as the attorney sees their own (longest texts on both).
+        for (final self in [false, true]) {
+          testWidgets('trust sheet payments card (${self ? 'own' : 'client'})',
+              (tester) async {
+            await pump(
+              tester,
+              const Scaffold(
+                body: TrustLevelSheet(attorneyId: 'att-1', level: 1),
+              ),
+              t,
+              dir,
+              extra: [
+                currentUserIdProvider.overrideWithValue(self ? 'att-1' : 'c-1'),
+                attorneyTrustProvider.overrideWith((ref, id) async => _trust),
+                myTrustProvider.overrideWith((ref) async => _ownTrust),
+              ],
+            );
+            expect(find.byType(TrustLevelSheet), findsOneWidget);
+            expect(tester.takeException(), isNull);
+          });
+        }
+
+        final screens = <String, Widget>{
+          'feed': const FeedScreen(),
+          'search': const SearchScreen(),
+          'mine': const MineScreen(),
+          'profile': const ProfileScreen(),
+          'settings': const SettingsScreen(),
+        };
+        for (final s in screens.entries) {
+          testWidgets('${s.key} screen', (tester) async {
+            await pump(tester, s.value, t, dir, theme: AppTheme.dark());
+            expect(tester.takeException(), isNull);
+          });
+        }
+      });
+    }
   }
 }
 

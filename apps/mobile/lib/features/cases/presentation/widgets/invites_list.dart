@@ -31,7 +31,7 @@ class InvitesList extends ConsumerWidget {
       error: (e, _) => AppEmptyState(
         message: errorText(t, e),
         action: AppButton(
-          label: t.t('common.retry'),
+          label: t.t('error.retry'),
           variant: AppButtonVariant.secondary,
           onPressed: () => ref.invalidate(pendingInvitesProvider),
         ),
