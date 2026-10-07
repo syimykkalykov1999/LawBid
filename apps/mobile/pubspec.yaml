@@ -1,6 +1,10 @@
 name: lawbid
 description: "LawBid — доска объявлений для клиентов и адвокатов (US legal-services marketplace)."
 publish_to: "none"
+# 1.0.0 = version users see (raise by hand for a release).
+# +1 = automatic build number: release builds replace it with the minutes
+# since 2026-01-01 UTC (android/app/build.gradle.kts, iOS build phase
+# "Auto build number"), so every store upload is higher on its own.
 version: 1.0.0+1
 
 environment:

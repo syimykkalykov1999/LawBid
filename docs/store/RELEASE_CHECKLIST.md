@@ -10,7 +10,7 @@ for SES production access. Owner-facing steps in Russian, field by field:
 | Item | Where |
 |---|---|
 | Prod API `https://api.lawbid.dev/api/v1`, links on `lawbid.dev` | `lib/core/config/app_environment.dart`, `config/*.example.json`, Gradle `lawbid.deepLinkHost`, iOS `DEEP_LINK_HOST` |
-| Version `1.0.0+1` | `pubspec.yaml` (raise the build number per upload with `--build-number`) |
+| Version `1.0.0+1`; the build number is automatic (minutes since 2026-01-01 UTC, always higher than the last upload; nobody bumps it) | `pubspec.yaml`, `build.gradle.kts` `autoBuildNumber`, iOS phase "Auto build number" |
 | No plain-http exception in the prod iOS bundle | Runner build phase "Strip dev-only ATS (prod)" |
 | `ITSAppUsesNonExemptEncryption = NO` (no export question per upload) | `ios/Runner/Info.plist` |
 | iPhone only (`TARGETED_DEVICE_FAMILY = 1`): no iPad screenshots or iPad layout review; iPad can be added later, never removed | `project.pbxproj` |
