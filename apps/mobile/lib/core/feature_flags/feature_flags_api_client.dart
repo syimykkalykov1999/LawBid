@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/feature_flags/legal_document.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -41,6 +43,9 @@ class FeatureFlagsBootstrapResult {
           appConfig[entry.key] = v;
         } else if (v is num || v is bool) {
           appConfig[entry.key] = '$v';
+        } else if (v is Map || v is List) {
+          // Owner 2026-10-07 (bug 17): `uploads.limits` is an object.
+          appConfig[entry.key] = jsonEncode(v);
         }
       }
     }

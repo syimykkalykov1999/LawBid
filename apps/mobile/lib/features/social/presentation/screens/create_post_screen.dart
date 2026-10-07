@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
@@ -72,8 +73,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   final _photos = <_Photo>[];
 
   /// Owner 2026-10-05: PDF / Word / text readers download.
-  late final _docs = PostDocumentsController(ref.read(socialActionsProvider))
-    ..addListener(_onDocs);
+  late final _docs = PostDocumentsController(
+    ref.read(socialActionsProvider),
+    limits: _limits,
+  )..addListener(_onDocs);
+
+  /// Owner 2026-10-07 (bug 17): counts, MB and formats from the admin.
+  late final _limits = ref.read(uploadLimitsProvider)[UploadPlace.post];
   late String? _practice = widget.editing?.practice?.code;
   late bool _pickedNews = widget.editing?.isNews ?? widget.news;
 
@@ -122,7 +128,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   Future<void> _pick() async {
-    final left = kPostMaxPhotos - _photos.length;
+    final left = _limits.maxPhotos - _photos.length;
     if (left <= 0) return;
     final limits = postPhotoLimits(ref);
     final List<XFile> picked;
@@ -454,7 +460,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         Text(
-                          '${_photos.length} / $kPostMaxPhotos',
+                          '${_photos.length} / ${_limits.maxPhotos}',
                           style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
@@ -473,7 +479,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                           final p = _photos.removeAt(from);
                           _photos.insert(to > from ? to - 1 : to, p);
                         }),
-                        footer: _photos.length < kPostMaxPhotos
+                        footer: _photos.length < _limits.maxPhotos
                             ? _AddPhotoTile(
                                 label: t.t(
                                   video

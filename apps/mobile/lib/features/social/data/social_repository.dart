@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
@@ -226,12 +227,15 @@ abstract interface class SocialRepository {
   });
 
   /// Presign → upload → confirm → wait for a clean scan; returns the file
-  /// id to attach to a post (docs/05 §3.2).
+  /// id to attach to a post (docs/05 §3.2). [fileName] names a case
+  /// document by extension; [maxBytes] is the admin's MB per file.
   Future<String> uploadPostPhoto(
     Uint8List bytes, {
     void Function(double progress)? onProgress,
     bool casePhoto = false,
     bool reviewPhoto = false,
+    String? fileName,
+    int? maxBytes,
   });
 
   /// Owner 2026-10-05: a post document (PDF, Word, text) through the same
@@ -702,10 +706,17 @@ class ApiSocialRepository implements SocialRepository {
     bool casePhoto = false,
     // Owner 2026-10-01: photos in reviews (public, like post photos).
     bool reviewPhoto = false,
+    String? fileName,
+    int? maxBytes,
   }) async {
-    // OQ-034: a case also takes documents (PDF, Word) next to photos.
+    // OQ-034: a case also takes documents next to photos; owner
+    // 2026-10-07 (bug 17): any format the admin turned on, by its name.
     final image = sniffImageMime(bytes);
-    final doc = casePhoto && image == null ? sniffDocumentMime(bytes) : null;
+    final named = fileName == null ? null : uploadMimeForName(fileName);
+    final doc = casePhoto && image == null
+        ? sniffDocumentMime(bytes) ??
+            (named != null && !named.startsWith('image/') ? named : null)
+        : null;
     final mime = image ?? doc;
     if (mime == null) {
       throw const ApiException(
@@ -713,7 +724,7 @@ class ApiSocialRepository implements SocialRepository {
         message: 'type',
       );
     }
-    if (bytes.length > kPostPhotoMaxBytes) {
+    if (bytes.length > (maxBytes ?? kPostPhotoMaxBytes)) {
       throw const ApiException(
         code: ApiErrorCodes.fileTooLarge,
         message: 'size',
@@ -731,7 +742,11 @@ class ApiSocialRepository implements SocialRepository {
                   : api.FilePurpose.postImage,
       filename: doc == null
           ? 'photo.${mime.split('/').last}'
-          : (doc == kPdfMime ? 'document.pdf' : 'document.docx'),
+          : doc == kPdfMime
+              ? 'document.pdf'
+              : doc == kDocxMime
+                  ? 'document.docx'
+                  : (fileName ?? 'document'),
       onProgress: onProgress,
     );
   }

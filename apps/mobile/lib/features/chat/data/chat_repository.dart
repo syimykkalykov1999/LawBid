@@ -211,7 +211,9 @@ class ApiChatRepository implements ChatRepository {
     String mime, {
     void Function(double progress)? onProgress,
   }) async {
-    if (bytes.length > kChatAttachmentMaxBytes) {
+    // The admin may raise the chat MB (bug 17); the picker checks the live
+    // value, this only stops what no setting allows.
+    if (bytes.length > kChatAttachmentCeilingBytes) {
       throw const ApiException(
         code: ApiErrorCodes.fileTooLarge,
         message: 'size',
@@ -529,8 +531,11 @@ class ApiChatRepository implements ChatRepository {
       );
 }
 
-/// OQ-047: the server's files.chat_max_size_mb.
+/// OQ-047: the default chat MB per file (admin «Загрузки и файлы»).
 const kChatAttachmentMaxBytes = 25 * 1024 * 1024;
+
+/// The most any setting allows per chat or task file (the API's ceiling).
+const kChatAttachmentCeilingBytes = 100 * 1024 * 1024;
 
 /// OQ-047: what the server accepts in a chat, by extension (the server
 /// re-checks the bytes). Null for anything else.

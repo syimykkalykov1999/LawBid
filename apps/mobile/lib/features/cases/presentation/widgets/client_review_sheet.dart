@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
@@ -117,8 +118,11 @@ class _SheetState extends ConsumerState<_Sheet> {
   int _uploading = 0;
   bool _busy = false;
 
-  /// Owner 2026-10-01 (Google Maps-style): up to 10 photos.
-  static const _maxPhotos = 10;
+  /// Owner 2026-10-01 (Google Maps-style): photos; 2026-10-07 (bug 17)
+  /// how many and how big — the admin's «Отзывы» limits.
+  PlaceUploadLimits get _limits =>
+      ref.read(uploadLimitsProvider)[UploadPlace.review];
+  int get _maxPhotos => _limits.maxPhotos;
 
   Future<void> _addPhotos() async {
     final t = ref.read(translatorProvider);
@@ -139,9 +143,11 @@ class _SheetState extends ConsumerState<_Sheet> {
         _local.add(bytes);
       });
       try {
-        final id = await ref
-            .read(socialActionsProvider)
-            .uploadPhoto(bytes, reviewPhoto: true);
+        final id = await ref.read(socialActionsProvider).uploadPhoto(
+              bytes,
+              reviewPhoto: true,
+              maxBytes: _limits.fileBytes,
+            );
         if (!mounted) return;
         setState(() => _photos.add((fileId: id, url: null)));
       } on Object catch (e) {

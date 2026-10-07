@@ -628,12 +628,16 @@ class SocialActions {
     void Function(double)? onProgress,
     bool casePhoto = false,
     bool reviewPhoto = false,
+    String? fileName,
+    int? maxBytes,
   }) =>
       _repo.uploadPostPhoto(
         bytes,
         onProgress: onProgress,
         casePhoto: casePhoto,
         reviewPhoto: reviewPhoto,
+        fileName: fileName,
+        maxBytes: maxBytes,
       );
 
   /// Owner 2026-10-05: a post / reel document.

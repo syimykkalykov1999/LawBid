@@ -127,6 +127,8 @@ class FakeSocialRepository implements SocialRepository {
     void Function(double progress)? onProgress,
     bool casePhoto = false,
     bool reviewPhoto = false,
+    String? fileName,
+    int? maxBytes,
   }) async =>
       'file-1';
 

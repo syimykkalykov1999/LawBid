@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -160,6 +161,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       context,
       t,
       onTemplate: ref.read(templatesEnabledProvider) ? _sendTemplate : null,
+      limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
     );
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();

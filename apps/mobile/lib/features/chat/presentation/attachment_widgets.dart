@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -27,6 +28,10 @@ Future<List<PickedChatFile>> pickChatFiles(
   /// Owner 2026-10-05: shows "Document template"; picked → this runs and
   /// no files are returned.
   VoidCallback? onTemplate,
+
+  /// Owner 2026-10-07 (bug 17): the admin's formats and MB for this place
+  /// (chat or task); without it the chat defaults.
+  PlaceUploadLimits? limits,
 }) async {
   final choice = await showAppBottomSheet<String>(
     context: context,
@@ -65,8 +70,10 @@ Future<List<PickedChatFile>> pickChatFiles(
   final out = <PickedChatFile>[];
   var skipped = 0;
   void add(Uint8List bytes, String name) {
-    final mime = chatMimeForName(name);
-    if (mime == null || bytes.length > kChatAttachmentMaxBytes) {
+    final mime =
+        limits == null ? chatMimeForName(name) : limits.mimeForName(name);
+    final maxBytes = limits?.fileBytes ?? kChatAttachmentMaxBytes;
+    if (mime == null || bytes.length > maxBytes) {
       skipped++;
       return;
     }
@@ -99,7 +106,7 @@ Future<List<PickedChatFile>> pickChatFiles(
     case 'files':
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: kChatFileExtensions,
+        allowedExtensions: limits?.allExtensions ?? kChatFileExtensions,
         allowMultiple: true,
         withData: true,
       );

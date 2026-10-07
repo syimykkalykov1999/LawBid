@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -116,12 +116,13 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   String? _clean(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
 
-  /// Owner 2026-10-07: files on one task (admin `tasks.max_files`; the
-  /// server checks it too).
-  int get _maxFiles =>
-      ref.read(featureFlagsControllerProvider).configInt('tasks.max_files', 10);
+  /// Owner 2026-10-07 (bugs 14, 17): files on one task, their MB and
+  /// formats — the admin's «Задачи» limits (the server checks them too).
+  PlaceUploadLimits get _limits =>
+      ref.read(uploadLimitsProvider)[UploadPlace.task];
+  int get _maxFiles => _limits.maxFiles;
 
-  bool get _filesFull => _maxFiles > 0 && _files.length >= _maxFiles;
+  bool get _filesFull => _files.length >= _maxFiles;
 
   String _filesLimitText(Translator t) =>
       t.t('tasks.files.limit', {'max': '$_maxFiles'});
@@ -132,9 +133,9 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
       showAppSnackBar(context, _filesLimitText(t));
       return;
     }
-    var picked = await pickChatFiles(context, t);
+    var picked = await pickChatFiles(context, t, limits: _limits);
     if (picked.isEmpty || !mounted) return;
-    if (_maxFiles > 0 && _files.length + picked.length > _maxFiles) {
+    if (_files.length + picked.length > _maxFiles) {
       picked = picked.take(_maxFiles - _files.length).toList();
       showAppSnackBar(context, _filesLimitText(t));
     }
