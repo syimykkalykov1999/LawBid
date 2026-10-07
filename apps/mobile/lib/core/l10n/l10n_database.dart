@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'l10n_database.g.dart';
 
@@ -131,4 +132,5 @@ class L10nDatabase extends _$L10nDatabase {
   }
 }
 
-QueryExecutor _openConnection() => driftDatabase(name: 'l10n_cache');
+QueryExecutor _openConnection() =>
+    driftDatabase(name: 'l10n_cache', web: appDriftWebOptions);

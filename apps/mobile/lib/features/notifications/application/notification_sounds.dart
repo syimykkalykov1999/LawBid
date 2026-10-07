@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -23,6 +24,7 @@ const _channel = MethodChannel('lawbid/notification_sounds');
 Future<void> openNotificationSoundSettings(
   NotificationSoundChannel which,
 ) async {
+  if (kIsWeb) return;
   if (Platform.isAndroid) {
     await _channel.invokeMethod<void>('openChannel', {'id': which.id});
   } else if (Platform.isIOS) {

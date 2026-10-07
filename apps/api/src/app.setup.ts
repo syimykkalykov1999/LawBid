@@ -108,6 +108,12 @@ export function configureApp(
         'X-Device-Id',
         'X-Platform',
         'X-App-Version',
+        // Sent by the app on every request too; a browser build (the web
+        // preview, the future web client) needs them allowed or the
+        // preflight fails. docs/ops/demo-world.md for the demo marker.
+        'X-Device-Key',
+        'X-LawBid-Demo',
+        'X-Reauth-Token',
       ],
       maxAge: 600,
     }),

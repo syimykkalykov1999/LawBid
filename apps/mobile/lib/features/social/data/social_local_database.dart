@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'social_local_database.g.dart';
 
@@ -47,7 +48,8 @@ class RecentSearches extends Table {
 @DriftDatabase(tables: [CachedPages, ChatOutbox, RecentSearches])
 class SocialLocalDatabase extends _$SocialLocalDatabase {
   SocialLocalDatabase([QueryExecutor? executor])
-      : super(executor ?? driftDatabase(name: 'lawbid_social'));
+      : super(executor ??
+            driftDatabase(name: 'lawbid_social', web: appDriftWebOptions));
 
   @override
   int get schemaVersion => 1;

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Browser preview of the app (owner 2026-10-07: see every UI change live,
+# before a Play build). Builds apps/mobile for the web; serve.mjs serves it
+# and forwards API calls to the PROD API. Meant for demo mode only: the
+# owner signs in with a demo code (welcome screen → «У меня есть демо-код»),
+# so every request goes to the separate
+# `lawbid_demo` database (docs/ops/demo-world.md). No payments, SMS, mail
+# or push happen in the demo world.
+#
+#   tool/web_preview/build.sh [out_dir] [base_href]
+#
+# out_dir defaults to build/web_preview; base_href (the path the preview
+# is served under, with slashes) defaults to "/". Needs flutter on PATH.
+set -euo pipefail
+
+cd "$(dirname "$0")/../.."
+OUT="${1:-build/web_preview}"
+BASE="${2:-/}"
+
+# The web/ shell is not committed (Android/iOS are the product); create it
+# fresh so it always matches the installed Flutter.
+if [[ ! -f web/index.html ]]; then
+  flutter create --platforms=web --project-name lawbid . >/dev/null
+  git checkout -- .metadata analysis_options.yaml 2>/dev/null || true
+fi
+
+# drift on the web needs SQLite compiled to wasm and drift's worker, at the
+# versions pubspec.lock pins (lib/core/persistence/drift_web.dart).
+ver() { awk -v p="  $1:" '$0==p{f=1} f&&/version:/{gsub(/"/,"",$2);print $2;exit}' pubspec.lock; }
+DRIFT="$(ver drift)"; SQLITE="$(ver sqlite3)"
+[[ -f web/drift_worker.js ]] || curl -fsSL -o web/drift_worker.js \
+  "https://github.com/simolus3/drift/releases/download/drift-$DRIFT/drift_worker.js"
+[[ -f web/sqlite3.wasm ]] || curl -fsSL -o web/sqlite3.wasm \
+  "https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-$SQLITE/sqlite3.wasm"
+
+flutter pub get >/dev/null
+dart run build_runner build --delete-conflicting-outputs >/dev/null
+
+# API_BASE_URL is a path: the app calls the server it was loaded from, and
+# serve.mjs forwards /api and /socket.io to the real API (no CORS needed).
+CONFIG="$(mktemp -d)/preview.json"
+sed 's#"API_BASE_URL": *"[^"]*"#"API_BASE_URL": "/api/v1"#' config/prod.example.json > "$CONFIG"
+flutter build web --release -t lib/main_prod.dart \
+  --dart-define-from-file="$CONFIG" \
+  --no-web-resources-cdn --base-href "$BASE" -o "$OUT"
+rm -f "$CONFIG"
+
+# A preview, not a website: keep it out of search engines.
+sed -i.bak 's#<head>#<head><meta name="robots" content="noindex,nofollow">#' "$OUT/index.html"
+rm -f "$OUT/index.html.bak"
+printf 'User-agent: *\nDisallow: /\n' > "$OUT/robots.txt"
+git rev-parse --short HEAD > "$OUT/preview-commit.txt"
+echo "Built $OUT ($(cat "$OUT/preview-commit.txt"))"
