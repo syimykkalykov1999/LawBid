@@ -59,17 +59,37 @@ class CreatePostScreen extends ConsumerStatefulWidget {
 }
 
 class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
-  late final _title = TextEditingController(
-    text: widget.editing?.title ??
-        (widget.editing == null ? '' : splitPostBody(widget.editing!.body).$1),
-  );
+  /// Owner 2026-10-07: one field, like Threads: the first line is the
+  /// post's title (bold in the feed), the rest its text.
   late final _text = TextEditingController(
     text: widget.editing == null
         ? ''
-        : (widget.editing!.title != null
-            ? widget.editing!.body
-            : splitPostBody(widget.editing!.body).$2),
+        : [
+            widget.editing!.title ?? splitPostBody(widget.editing!.body).$1,
+            if (widget.editing!.title != null)
+              widget.editing!.body
+            else
+              splitPostBody(widget.editing!.body).$2,
+          ].where((s) => s.trim().isNotEmpty).join('\n'),
   );
+
+  /// The typed text as (title, body): the first line, cut at a word to
+  /// [kPostTitleMaxChars]; what is cut off starts the body.
+  (String, String) get _parts {
+    final s = tidyText(_text.text).trim();
+    final nl = s.indexOf('\n');
+    var title = (nl < 0 ? s : s.substring(0, nl)).trim();
+    var body = nl < 0 ? '' : s.substring(nl + 1).trim();
+    if (title.length > kPostTitleMaxChars) {
+      var cut = title.lastIndexOf(' ', kPostTitleMaxChars);
+      if (cut <= 0) cut = kPostTitleMaxChars;
+      final rest = title.substring(cut).trim();
+      title = title.substring(0, cut).trim();
+      body = [rest, body].where((x) => x.isNotEmpty).join('\n');
+    }
+    return (title, body);
+  }
+
   final _photos = <_Photo>[];
 
   /// Owner 2026-10-05: PDF / Word / text readers download.
@@ -103,7 +123,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   @override
   void dispose() {
     _docs.dispose();
-    _title.dispose();
     _text.dispose();
     super.dispose();
   }
@@ -160,8 +179,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           MaterialPageRoute<void>(
             builder: (_) => CreateReelScreen(
               initialFile: File(video.path),
-              initialTitle: _title.text,
-              initialText: _text.text,
+              initialTitle: _parts.$1,
+              initialText: _parts.$2,
             ),
           ),
         );
@@ -219,7 +238,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   bool get _ready =>
-      _title.text.trim().isNotEmpty &&
+      _parts.$1.isNotEmpty &&
       _photos.every((p) => p.fileId != null) &&
       _docs.ready;
 
@@ -232,8 +251,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       if (_editing) {
         final error = await ref.read(socialActionsProvider).editPost(
               widget.editing!,
-              title: _title.text.trim(),
-              body: tidyText(_text.text),
+              title: _parts.$1,
+              body: _parts.$2,
               practiceCode: _practice,
               markedLegal: _practice == null ? _legal : null,
             );
@@ -249,8 +268,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         await ref.read(teamRepositoryProvider).createRequest(
           RequestKind.post,
           {
-            'title': _title.text.trim(),
-            'body': tidyText(_text.text),
+            'title': _parts.$1,
+            'body': _parts.$2,
             if (_practice != null) 'practiceCode': _practice,
             'kind': _news ? 'news' : 'post',
             if (_markedLegal) 'contentClass': 'legal',
@@ -271,8 +290,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       }
       final post = await ref.read(socialRepositoryProvider).createPost(
             PostDraft(
-              title: _title.text.trim(),
-              body: tidyText(_text.text),
+              title: _parts.$1,
+              body: _parts.$2,
               practiceCode: _practice,
               isNews: _news,
               markedLegal: _markedLegal,
@@ -415,30 +434,22 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  label(
-                    t.t('post.create.titleField'),
-                    error: missing && _title.text.trim().isEmpty,
-                  ),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _title,
-                    builder: (context, v, _) => AppTextField(
-                      controller: _title,
-                      hintText: t.t('post.create.titleHint'),
-                      semanticLabel: t.t('post.create.titleField'),
-                      maxLength: kPostTitleMaxChars,
-                      textCapitalization: TextCapitalization.sentences,
-                      errorText: missing && v.text.trim().isEmpty
-                          ? t.t('post.create.required')
-                          : null,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  // Owner 2026-10-07: the description is optional.
-                  label(t.t('post.create.bodyField')),
                   PostTextField(
                     controller: _text,
-                    hint: t.t('post.create.hint'),
+                    hint: t.t('post.create.oneFieldHint'),
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _text,
+                    builder: (context, _, __) => missing && _parts.$1.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.xs),
+                            child: Text(
+                              t.t('post.create.required'),
+                              style:
+                                  type.caption.copyWith(color: colors.danger),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
                   ),
                   // OQ-042: "@…" suggests people to mention.
                   MentionSuggestions(controller: _text),
