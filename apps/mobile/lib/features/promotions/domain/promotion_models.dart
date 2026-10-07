@@ -87,6 +87,8 @@ class PromotionQuote {
     this.estImpressions = 0,
     this.estReachMin = 0,
     this.estReachMax = 0,
+    this.offers = const [],
+    this.actions = const [],
   });
 
   final int days;
@@ -111,6 +113,36 @@ class PromotionQuote {
   final int estImpressions;
   final int estReachMin;
   final int estReachMax;
+
+  /// Owner 2026-10-07: the billing models the admin turned on for this
+  /// target, with their prices; empty = the old impressions-only boost.
+  final List<BoostOffer> offers;
+
+  /// What counts for [BoostBilling.actions] (follow, message, bid, …).
+  final List<String> actions;
+}
+
+/// Owner 2026-10-07: what a boost is paid for.
+enum BoostBilling { impressions, reach, clicks, actions }
+
+@immutable
+class BoostOffer {
+  const BoostOffer(this.billing, this.priceCents);
+
+  final BoostBilling billing;
+
+  /// Per 1000 for impressions / reach, per one for clicks / actions.
+  final int priceCents;
+
+  /// Units a budget buys: 1000s for impressions / reach, else single ones.
+  int unitsFor(int budgetCents) {
+    if (priceCents <= 0) return 0;
+    final per1000 =
+        billing == BoostBilling.impressions || billing == BoostBilling.reach;
+    return per1000
+        ? (budgetCents * 1000) ~/ priceCents
+        : budgetCents ~/ priceCents;
+  }
 }
 
 @immutable
