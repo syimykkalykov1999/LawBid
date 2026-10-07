@@ -771,6 +771,12 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                 label: t.t('reels.publish'),
                 icon: AppIcons.sendRounded,
                 isLoading: _publishing,
+                // Owner 2026-10-07: say what is missing.
+                disabledHint: _file == null
+                    ? t.t('reels.need.video')
+                    : (_title.text.trim().isEmpty && _text.text.trim().isEmpty)
+                        ? t.t('reels.need.text')
+                        : t.t('form.disabled.required'),
                 isEnabled: !_publishing &&
                     _file != null &&
                     _insideReady &&

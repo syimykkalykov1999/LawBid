@@ -418,8 +418,10 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
                   key: const ValueKey('practices-save'),
                   label: widget.saveLabel ?? t.t('practices.save'),
                   isLoading: _saving,
+                  disabledHint: _selected.isEmpty
+                      ? t.t('onboarding.attorney.practices.pickOne')
+                      : null,
                   isEnabled: _canSave,
-                  dimWhenDisabled: true,
                   onPressed: () => _save(t),
                 ),
               ),

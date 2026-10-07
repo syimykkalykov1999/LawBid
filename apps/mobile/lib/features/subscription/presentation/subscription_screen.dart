@@ -899,7 +899,6 @@ class SubscribeCta extends StatelessWidget {
           icon: AppIcons.workspacePremiumOutlined,
           isLoading: state.busy,
           isEnabled: o.canStart,
-          dimWhenDisabled: true,
           onPressed: o.canStart ? onSubscribe : null,
         ),
         AnimatedSwitcher(

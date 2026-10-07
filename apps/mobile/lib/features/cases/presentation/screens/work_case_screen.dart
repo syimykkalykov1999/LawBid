@@ -661,8 +661,8 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: t.t('cases.issue.send'),
+                disabledHint: t.t('form.disabled.required'),
                 isEnabled: _type != null,
-                dimWhenDisabled: true,
                 onPressed: () =>
                     Navigator.of(context).pop((_type!, _note.text)),
               ),
@@ -736,7 +736,6 @@ class _TextSheetState extends State<_TextSheet> {
             AppButton(
               label: widget.submit,
               isEnabled: _text.text.trim().length >= widget.min,
-              dimWhenDisabled: true,
               onPressed: () => Navigator.of(context).pop(_text.text.trim()),
             ),
           ],

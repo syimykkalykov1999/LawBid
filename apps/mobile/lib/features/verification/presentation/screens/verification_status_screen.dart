@@ -148,7 +148,6 @@ class _StatusBody extends StatelessWidget {
           label: label,
           icon: icon,
           isEnabled: enabled,
-          dimWhenDisabled: true,
           onPressed: enabled ? onOpenWizard : null,
         );
 

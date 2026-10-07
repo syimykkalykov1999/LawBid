@@ -38,7 +38,8 @@ const demoRu = <String, String>{
   'demo.banner.exit': 'Выйти',
   // Settings top card while in demo.
   'demo.settings.title': 'Вы в демо-аккаунте',
-  'demo.settings.body': 'Всё, что здесь происходит, ненастоящее и будет удалено.',
+  'demo.settings.body':
+      'Всё, что здесь происходит, ненастоящее и будет удалено.',
   'demo.exit': 'Выйти из демо',
   'demo.switch': 'Сменить демо-аккаунт',
   'demo.exited': 'Вы вышли из демо-режима',
@@ -62,8 +63,7 @@ const demoRu = <String, String>{
   'error.api.DEMO_DISABLED': 'Демо-режим недоступен.',
   'error.api.DEMO_LIMIT_REACHED':
       'Достигнут лимит демо-аккаунтов. Удалите один, чтобы создать новый.',
-  'error.api.DEMO_UNAVAILABLE':
-      'Демо временно недоступно. Попробуйте позже.',
+  'error.api.DEMO_UNAVAILABLE': 'Демо временно недоступно. Попробуйте позже.',
   'error.api.DEMO_CODE_INVALID': 'Демо-код не найден или истёк.',
 };
 
@@ -106,8 +106,7 @@ const demoEn = <String, String>{
   'demo.exited.signedOut': 'Demo finished. Sign in to your account.',
   'demo.code.entry': 'I have a demo code',
   'demo.code.title': 'Sign in with a demo code',
-  'demo.code.body':
-      'Enter the 8-character code the LawBid team gave you.',
+  'demo.code.body': 'Enter the 8-character code the LawBid team gave you.',
   'demo.code.field': 'Demo code',
   'demo.code.submit': 'Enter',
   'referral.autoApplied': 'Invite code applied',

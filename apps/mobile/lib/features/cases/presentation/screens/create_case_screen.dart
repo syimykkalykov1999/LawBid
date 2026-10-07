@@ -201,13 +201,12 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                       label: t.t('common.back'),
                       variant: AppButtonVariant.secondary,
                       isEnabled: d.step > 0,
-                      dimWhenDisabled: true,
                       onPressed: _c.back,
                     ),
                     right: AppButton(
                       label: t.t('common.next'),
+                      disabledHint: t.t('form.disabled.required'),
                       isEnabled: state.stepValid,
-                      dimWhenDisabled: true,
                       onPressed: _c.next,
                     ),
                   )
@@ -216,10 +215,10 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                     label: t.t('cases.create.publish'),
                     strike: true,
                     isLoading: state.isSubmitting,
+                    disabledHint: t.t('form.disabled.required'),
                     isEnabled: state.stepValid,
                     // Owner 2026-09-29: visibly off until the consent box
                     // is ticked, lights up once it is.
-                    dimWhenDisabled: true,
                     onPressed: _publish,
                   ),
                   AppButton(

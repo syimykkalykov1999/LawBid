@@ -146,6 +146,7 @@ class _SupportNewScreenState extends ConsumerState<SupportNewScreen> {
                 label: t.t('support.send'),
                 icon: AppIcons.sendRounded,
                 isLoading: _sending,
+                disabledHint: t.t('form.disabled.required'),
                 isEnabled: _valid && !_sending,
                 onPressed: _send,
               ),

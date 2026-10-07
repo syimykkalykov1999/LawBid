@@ -388,7 +388,6 @@ class _PlanPickerState extends State<PlanPicker> {
           icon: AppIcons.lockOutlineRounded,
           isLoading: widget.state.busy,
           isEnabled: o.canStart,
-          dimWhenDisabled: true,
           onPressed: o.canStart ? _pay : null,
         ),
         AnimatedSwitcher(
