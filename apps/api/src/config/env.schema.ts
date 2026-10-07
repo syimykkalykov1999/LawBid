@@ -144,6 +144,15 @@ export const envSchema = z
       .int()
       .positive()
       .default(10),
+    // Owner 2026-10-07: codes sent to one phone / e-mail in a rolling 24 h.
+    // Fallback only: the admin setting `security.otp_per_identifier_per_day`
+    // (Система → Настройки) wins when an admin has saved it. Positive like
+    // the other OTP limits — there is no "0 = unlimited".
+    OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10),
     // Security audit 2026-10-01: wrong-code attempts per IP across all
     // accounts (stops spraying lockouts at many users from one address).
     OTP_VERIFY_LIMIT_PER_IP_PER_HOUR: z.coerce

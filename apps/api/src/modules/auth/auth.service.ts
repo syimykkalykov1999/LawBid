@@ -1,6 +1,11 @@
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
-import { OTP_LIMIT_WINDOW_SECONDS } from './otp-limits';
+import {
+  OTP_DAILY_WINDOW_SECONDS,
+  OTP_LIMIT_WINDOW_SECONDS,
+  otpDailyLimit,
+} from './otp-limits';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   ForbiddenException,
   HttpException,
@@ -52,6 +57,7 @@ import type { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 
 const ENV = {
   otpPerIdentifierPerHour: 'OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR',
+  otpPerIdentifierPerDay: 'OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY',
   otpPerIpPerHour: 'OTP_RATE_LIMIT_PER_IP_PER_HOUR',
   otpPerDevicePerHour: 'OTP_RATE_LIMIT_PER_DEVICE_PER_HOUR',
   otpVerifyPerHour: 'AUTH_OTP_VERIFY_LIMIT_PER_HOUR',
@@ -100,6 +106,8 @@ export class AuthService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a blocked fraudster's new
     // account (same phone, e-mail, card or device) is refused.
     @Optional() private readonly fraud?: ClientFraudService,
+    // Owner 2026-10-07: admin-editable daily OTP cap per phone / e-mail.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -176,6 +184,25 @@ export class AuthService {
               perDevice.allowed ? 0 : perDevice.retryAfterSeconds,
             ),
           },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // Owner 2026-10-07: at most N codes a day to one phone / e-mail
+    // (rolling 24 h). Consumed only once the short limits pass, so the
+    // day's budget counts codes actually sent, not refused retries.
+    const perIdentifierDaily = await this.rateLimit.consumeSlidingWindow(
+      ['otp-req-day', 'id', this.rateLimit.hashIdentifier(identifier)],
+      await this.otpDailyLimit(),
+      OTP_DAILY_WINDOW_SECONDS,
+    );
+    if (!perIdentifierDaily.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
+          message: 'Too many OTP requests. Try again later.',
+          details: { retryAfterSeconds: perIdentifierDaily.retryAfterSeconds },
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );
@@ -968,6 +995,22 @@ export class AuthService {
    * already caught and fixed once in SessionService.gracePeriodMs()). */
   private limit(key: (typeof ENV)[keyof typeof ENV]): number {
     return this.config.getOrThrow<number>(key);
+  }
+
+  /** `security.otp_per_identifier_per_day` when an admin saved a valid
+   * value, else OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY. A settings read
+   * failure falls back to the env (the cap stays on). */
+  private async otpDailyLimit(): Promise<number> {
+    let stored: number | null = null;
+    try {
+      stored =
+        (await this.settings?.storedNumber(
+          'security.otp_per_identifier_per_day',
+        )) ?? null;
+    } catch {
+      stored = null;
+    }
+    return otpDailyLimit(stored, this.limit(ENV.otpPerIdentifierPerDay));
   }
 }
 

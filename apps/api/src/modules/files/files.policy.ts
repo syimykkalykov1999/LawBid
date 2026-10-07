@@ -12,6 +12,10 @@ export const FILE_MIME = {
   // Owner 2026-09-30 (OQ-040): voice messages — AAC in an MPEG-4 (.m4a)
   // container, what the app records on iOS and Android.
   m4a: 'audio/mp4',
+  // Voice messages recorded in a browser (MediaRecorder): Opus in a WebM
+  // container (Chrome, Firefox). Safari records audio/mp4 (the m4a type).
+  // Accepted for chat_voice only.
+  webm: 'audio/webm',
   // Owner 2026-09-30 (OQ-047): chat attachments after acceptance — every
   // common photo and office format.
   webp: 'image/webp',
@@ -172,9 +176,11 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
     bucket: 'documents',
   },
   // OQ-040: voice messages; private (only the two chat members get a
-  // short signed link).
+  // short signed link). AAC/MPEG-4 from the app (and Safari), Opus/WebM
+  // from Chrome/Firefox. Stored as uploaded — there is no server-side
+  // transcoding, so iOS (AVPlayer) cannot play a WebM note.
   chat_voice: {
-    mimes: [FILE_MIME.m4a],
+    mimes: [FILE_MIME.m4a, FILE_MIME.webm],
     sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },

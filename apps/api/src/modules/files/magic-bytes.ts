@@ -35,6 +35,7 @@ export function detectMime(
   if (isHeic(b)) return FILE_MIME.heic;
   if (isDocx(b)) return FILE_MIME.docx;
   if (isM4a(b)) return FILE_MIME.m4a;
+  if (isWebmOpus(b)) return FILE_MIME.webm;
   const family = detectFamily(b);
   if (family) {
     return declared && (family as readonly string[]).includes(declared)
@@ -128,8 +129,75 @@ function looksLikeText(b: Buffer): boolean {
   return control / head.length < 0.01;
 }
 
-// MPEG-4 audio brands the iOS/Android recorders write (AAC in .m4a).
-const M4A_BRANDS = new Set(['M4A ', 'mp42', 'mp41', 'isom', 'iso2', 'dash']);
+// MPEG-4 audio brands the iOS/Android recorders write (AAC in .m4a), plus
+// what browsers' MediaRecorder writes for audio/mp4 (Safari, Chrome ≥ 126:
+// fragmented MP4 with iso5/iso6/mp4a-style brands).
+const M4A_BRANDS = new Set([
+  'M4A ',
+  'mp42',
+  'mp41',
+  'isom',
+  'iso2',
+  'iso5',
+  'iso6',
+  'mp4a',
+  'dash',
+]);
+
+const EBML_MAGIC = [0x1a, 0x45, 0xdf, 0xa3];
+const EBML_DOCTYPE_ID = 0x4282;
+
+/** An EBML variable-length integer at [off]: its byte length and value
+ * (with the length marker kept for element IDs, stripped for sizes). */
+function readVint(
+  b: Buffer,
+  off: number,
+  maxLen: number,
+  keepMarker: boolean,
+): { len: number; value: number } | null {
+  if (off >= b.length) return null;
+  const first = b[off];
+  if (first === 0) return null;
+  const len = Math.clz32(first) - 23; // leading zeros in the byte + 1
+  if (len > maxLen || off + len > b.length) return null;
+  let value = keepMarker ? first : first & (0xff >> len);
+  for (let i = 1; i < len; i++) value = value * 256 + b[off + i];
+  return { len, value };
+}
+
+/**
+ * Browser voice note: a WebM file (EBML magic 1A 45 DF A3 whose header's
+ * DocType is exactly "webm" — plain Matroska is refused) carrying an Opus
+ * audio track (CodecID "A_OPUS" in the Tracks element, which
+ * MediaRecorder writes before the first cluster).
+ */
+function isWebmOpus(b: Buffer): boolean {
+  if (b.length < 8 || !EBML_MAGIC.every((v, i) => b[i] === v)) return false;
+  const size = readVint(b, 4, 8, false);
+  if (!size) return false;
+  const start = 4 + size.len;
+  const end = start + size.value;
+  if (end > b.length) return false;
+  let docType: string | null = null;
+  for (let off = start; off < end;) {
+    const id = readVint(b, off, 4, true);
+    if (!id) return false;
+    const len = readVint(b, off + id.len, 8, false);
+    if (!len) return false;
+    const data = off + id.len + len.len;
+    if (data + len.value > end) return false;
+    if (id.value === EBML_DOCTYPE_ID) {
+      docType = b
+        .subarray(data, data + len.value)
+        .toString('latin1')
+        .replace(/\0+$/, '');
+    }
+    off = data + len.value;
+  }
+  if (docType !== 'webm') return false;
+  const head = b.subarray(end, Math.min(b.length, 64 * 1024));
+  return head.includes('A_OPUS', 0, 'latin1');
+}
 
 /** An ISO-BMFF file with an audio brand (checked after HEIC, which shares
  * the `ftyp` box). */

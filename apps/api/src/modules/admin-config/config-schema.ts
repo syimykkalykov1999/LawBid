@@ -7,6 +7,7 @@ import {
   ADMIN_THROTTLE_MAX,
   ADMIN_THROTTLE_MIN,
 } from '../../throttler/throttle-limits';
+import { OTP_DAILY_LIMIT_MAX, OTP_DAILY_LIMIT_MIN } from '../auth/otp-limits';
 
 export interface ConfigKeySchema {
   type: ConfigValueType;
@@ -79,6 +80,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Requests per minute one signed-in admin may make (users stay at 100); ADMIN_THROTTLE_LIMIT in the env overrides it.',
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
+  };
+  // Owner 2026-10-07: daily cap of sign-in codes per phone / e-mail.
+  // At least 1: 0 would lock everyone out of sign-in, it never means
+  // "unlimited".
+  out['security.otp_per_identifier_per_day'] = {
+    ...out['security.otp_per_identifier_per_day'],
+    description:
+      'Sign-in codes (SMS or e-mail) one phone number or e-mail may request in 24 hours (1–1000); OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY in the env applies until this is saved.',
+    min: OTP_DAILY_LIMIT_MIN,
+    max: OTP_DAILY_LIMIT_MAX,
   };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
   out['ops.db_slow_ms'] = {

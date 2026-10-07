@@ -21,6 +21,14 @@ export class AppSettingsService {
       : (fallback as number);
   }
 
+  /** The value an admin saved for [key], or null when none is stored
+   * (or it is not a finite number) — for settings whose fallback is an
+   * env var rather than the built-in default. */
+  async storedNumber(key: AppSettingKey): Promise<number | null> {
+    const value = (await this.appConfig.getConfig())[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
   async boolean(key: AppSettingKey): Promise<boolean> {
     const value = (await this.appConfig.getConfig())[key];
     return typeof value === 'boolean' ? value : (APP_SETTINGS[key] as boolean);

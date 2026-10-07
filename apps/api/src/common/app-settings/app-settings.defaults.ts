@@ -352,6 +352,12 @@ export const OWNER_COUNTRY_SETTINGS = {
  * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
 export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.admin_rate_limit_per_minute': 600,
+  /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
+   * may ask for in a rolling 24 h, on top of the hourly limit. Range
+   * 1…1000 (config-schema); 0 is refused, never "unlimited". Not seeded:
+   * until an admin saves it, OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY in the
+   * env applies (default 10). */
+  'security.otp_per_identifier_per_day': 10,
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
