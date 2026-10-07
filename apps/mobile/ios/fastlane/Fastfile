@@ -32,4 +32,28 @@ platform :ios do
       changelog: ENV.fetch("RELEASE_NOTES", ""),
     )
   end
+
+  desc "Upload the store listing in every language (fastlane/metadata/<locale>/*.txt). " \
+       "No build, no screenshots, no submission. Auth: App Store Connect API key " \
+       "(ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_CONTENT) or, on the Mac, the Apple ID in FASTLANE_USER."
+  lane :metadata do
+    api_key = if ENV["ASC_KEY_ID"]
+      app_store_connect_api_key(
+        key_id: ENV.fetch("ASC_KEY_ID"),
+        issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+        key_content: ENV.fetch("ASC_KEY_CONTENT"),
+        is_key_content_base64: true,
+      )
+    end
+    deliver(
+      api_key: api_key,
+      metadata_path: "./fastlane/metadata",
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_app_version_update: false,
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true,
+    )
+  end
 end

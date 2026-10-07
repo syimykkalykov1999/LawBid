@@ -99,4 +99,48 @@ void main() {
     expect(AppConfig.googleSignInConfigured(TargetPlatform.iOS), isFalse);
     expect(AppConfig.googleSignInConfigured(TargetPlatform.android), isFalse);
   });
+
+  test('store listings: every language fits the store limits and keeps the disclaimer', () {
+    // ios/fastlane/metadata and android/fastlane/metadata/android are
+    // uploaded by `fastlane ios metadata` / `fastlane android metadata`.
+    // Limits: App Store name/subtitle 30, keywords 100, promo 170,
+    // description 4000; Google Play title 30, short 80, full 4000.
+    const ios = {
+      'name.txt': 30,
+      'subtitle.txt': 30,
+      'keywords.txt': 100,
+      'promotional_text.txt': 170,
+      'description.txt': 4000,
+    };
+    const play = {
+      'title.txt': 30,
+      'short_description.txt': 80,
+      'full_description.txt': 4000,
+    };
+    var checked = 0;
+    void checkDir(String root, Map<String, int> limits, int minLocales) {
+      final locales = Directory(root).listSync().whereType<Directory>().toList();
+      expect(locales.length, greaterThanOrEqualTo(minLocales), reason: root);
+      for (final dir in locales) {
+        for (final entry in limits.entries) {
+          final text = File('${dir.path}/${entry.key}').readAsStringSync().trim();
+          final length = text.runes.length;
+          expect(length, inInclusiveRange(1, entry.value), reason: '${dir.path}/${entry.key}');
+          checked++;
+        }
+        final name = File('${dir.path}/${limits.keys.first}').readAsStringSync();
+        expect(name, startsWith('LawBid'), reason: dir.path);
+        final description = File('${dir.path}/${limits.keys.last}').readAsStringSync();
+        expect(description, contains('https://lawbid.dev/privacy'), reason: dir.path);
+      }
+    }
+
+    checkDir('ios/fastlane/metadata', ios, 39);
+    checkDir('android/fastlane/metadata/android', play, 80);
+    expect(checked, greaterThan(0));
+    for (final dir in Directory('ios/fastlane/metadata').listSync().whereType<Directory>()) {
+      final keywords = File('${dir.path}/keywords.txt').readAsStringSync().trim();
+      expect(keywords, isNot(contains(', ')), reason: dir.path);
+    }
+  });
 }
