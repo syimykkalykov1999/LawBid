@@ -128,6 +128,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   post_tags: 'post hashtags',
   tags: 'hashtags (all come from posts)',
   post_likes: 'likes',
+  post_reposts: 'reposts',
   post_shares: 'shares',
   comments: 'comments',
   comment_likes: 'comment likes',
