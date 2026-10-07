@@ -62,9 +62,9 @@ function make(
       configured: true,
     },
     settings: {
-      number: jest.fn((key: string) =>
-        Promise.resolve(key === 'files.avatar_max_size_mb' ? 5 : 10),
-      ),
+      number: jest.fn(() => Promise.resolve(10)),
+      // Owner 2026-10-07 (bug 17): «Загрузки и файлы» (unset = defaults).
+      raw: jest.fn().mockResolvedValue(undefined),
     },
     costGuard: { consume: jest.fn().mockResolvedValue(undefined) },
     rateLimit: {
@@ -255,7 +255,7 @@ describe('FilesService', () => {
       ).toBe('FILE_TOO_LARGE');
     });
 
-    it('uses files.avatar_max_size_mb for avatars and files.max_size_mb otherwise', async () => {
+    it('uses the admin MB per file: avatar 5 by default, posts 10', async () => {
       const { service } = make();
       expect(
         await code(
@@ -277,6 +277,43 @@ describe('FilesService', () => {
           }),
         ),
       ).toBe('resolved');
+    });
+
+    it('follows the formats the admin turned on for the place', async () => {
+      const { service, deps } = make();
+      deps.settings.raw.mockResolvedValue({
+        post: { formats: ['png'] },
+        reel: { formats: ['png'] },
+      });
+      const jpeg = {
+        purpose: 'post_image' as const,
+        mime: 'image/jpeg',
+        sizeBytes: 1,
+        sha256: SHA,
+      };
+      expect(await code(service.presign('u1', jpeg))).toBe(
+        'FILE_TYPE_NOT_ALLOWED',
+      );
+      expect(
+        await code(service.presign('u1', { ...jpeg, mime: 'image/png' })),
+      ).toBe('resolved');
+    });
+
+    it('an unsafe format in the setting never lets a program in', async () => {
+      const { service, deps } = make();
+      deps.settings.raw.mockResolvedValue({
+        chat: { formats: ['apk', 'exe', 'zip', 'js', 'pdf'], fileMb: 25 },
+      });
+      expect(
+        await code(
+          service.presign('u1', {
+            purpose: 'chat_attachment',
+            mime: 'application/vnd.android.package-archive',
+            sizeBytes: 1,
+            sha256: SHA,
+          }),
+        ),
+      ).toBe('FILE_TYPE_NOT_ALLOWED');
     });
 
     it('rate-limits per user (429 RATE_LIMITED with retryAfterSeconds) without consuming budget', async () => {

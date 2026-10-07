@@ -518,6 +518,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'notif.verification.suspended':
             'Ваш профиль приостановлен. Обратитесь в поддержку.',
         'notif.verification.restored': 'Ваш профиль восстановлен.',
+        'notif.verification.self_attested':
+            'Лицензия принята под присягой. Синяя галочка появится, когда её подтвердит реестр штата или LawBid.',
         'verification.reject.license_not_found':
             'Лицензия не найдена в базе штата',
         'verification.reject.license_inactive': 'Лицензия неактивна',
@@ -722,6 +724,12 @@ class StaticTranslatorRu extends _MapTranslator {
             'Bar card, certificate of good standing или профиль State Bar',
         'verification.license.status.pending': 'На проверке',
         'verification.license.status.verified': 'Подтверждена',
+        'verification.license.status.claimed': 'Заявлена под присягой',
+        'form.disabled.required': 'Сначала заполните обязательные поля.',
+        'form.disabled.code': 'Введите код полностью.',
+        'form.disabled.accept': 'Сначала отметьте согласие.',
+        'reels.need.video': 'Сначала выберите видео.',
+        'reels.need.text': 'Напишите заголовок или описание.',
         'verification.license.status.rejected': 'Отклонена',
         'verification.license.status.expired': 'Истекла',
         'verification.license.status.suspended': 'Приостановлена',
@@ -857,6 +865,12 @@ class StaticTranslatorRu extends _MapTranslator {
             'Заявок за 30 дней: {used} из {max}.',
         'verification.status.limitReached':
             'Использованы все {max} заявок за 30 дней. Попробуйте позже.',
+        'verification.status.claimed.title': 'Лицензия заявлена',
+        'verification.status.claimed.body':
+            'Вы указали лицензию под присягой — можно работать. Синяя галочка появится, когда номер подтвердит реестр штата или LawBid.',
+        'verification.status.claimed.bodyIdentity':
+            'Лицензия подтверждена. Синяя галочка появится, когда подтвердится ваша личность.',
+        'verification.status.claimed.cta': 'Что осталось',
         'verification.status.verified.title': 'Вы верифицированы',
         'verification.status.verified.body':
             'В профиле стоит синяя галочка. Вам доступны кейсы в штатах с подтверждённой лицензией.',
@@ -1913,6 +1927,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'notif.verification.suspended':
             'Your profile has been suspended. Contact support.',
         'notif.verification.restored': 'Your profile has been restored.',
+        'notif.verification.self_attested':
+            'License accepted under oath. The blue check appears once the state registry or LawBid confirms it.',
         'verification.reject.license_not_found':
             'License not found in the state database',
         'verification.reject.license_inactive': 'License is inactive',
@@ -2113,6 +2129,12 @@ class StaticTranslatorEn extends _MapTranslator {
             'Bar card, certificate of good standing or State Bar profile',
         'verification.license.status.pending': 'Under review',
         'verification.license.status.verified': 'Verified',
+        'verification.license.status.claimed': 'Declared under oath',
+        'form.disabled.required': 'Fill in the required fields first.',
+        'form.disabled.code': 'Enter the full code.',
+        'form.disabled.accept': 'Tick the agreement first.',
+        'reels.need.video': 'Choose a video first.',
+        'reels.need.text': 'Write a title or a description.',
         'verification.license.status.rejected': 'Declined',
         'verification.license.status.expired': 'Expired',
         'verification.license.status.suspended': 'Suspended',
@@ -2243,6 +2265,12 @@ class StaticTranslatorEn extends _MapTranslator {
             'Requests in the last 30 days: {used} of {max}.',
         'verification.status.limitReached':
             "You've used all {max} requests for the last 30 days. Try again later.",
+        'verification.status.claimed.title': 'License declared',
+        'verification.status.claimed.body':
+            'You declared your license under oath — you can work. The blue check appears once the state registry or LawBid confirms the number.',
+        'verification.status.claimed.bodyIdentity':
+            'License confirmed. The blue check appears once your identity is confirmed.',
+        'verification.status.claimed.cta': "What's left",
         'verification.status.verified.title': "You're verified",
         'verification.status.verified.body':
             'Your profile shows the blue check. Cases in your licensed states are open to you.',

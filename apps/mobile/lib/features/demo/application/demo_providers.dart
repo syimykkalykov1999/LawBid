@@ -24,8 +24,8 @@ final demoMeProvider = FutureProvider.autoDispose<DemoMe>(
 
 /// Whether the CURRENT session is a demo one (access-token claim `demo`).
 final isDemoSessionProvider = Provider<bool>(
-  (ref) => ref.watch(sessionControllerProvider.select((s) => s?.isDemo)) ??
-      false,
+  (ref) =>
+      ref.watch(sessionControllerProvider.select((s) => s?.isDemo)) ?? false,
 );
 
 @immutable
@@ -72,8 +72,8 @@ class DemoSessionController extends Notifier<DemoUiState> {
   DemoUiState build() {
     var hidden = false;
     try {
-      hidden = ref.read(localKvStoreProvider).getString(_kBannerHiddenKey) ==
-          '1';
+      hidden =
+          ref.read(localKvStoreProvider).getString(_kBannerHiddenKey) == '1';
     } catch (_) {}
     unawaited(_loadHasRealSession());
     return DemoUiState(bannerHidden: hidden);
@@ -136,9 +136,7 @@ class DemoSessionController extends Notifier<DemoUiState> {
       // Clears the demo tokens and restores the parked real account.
       await ref.read(sessionControllerProvider.notifier).clear();
       if (ref.read(sessionControllerProvider) != null) {
-        ref
-            .read(currentUserControllerProvider.notifier)
-            .resetForNewSession();
+        ref.read(currentUserControllerProvider.notifier).resetForNewSession();
       }
       await _setBannerHidden(false);
       state = state.copyWith(hasRealSession: false);

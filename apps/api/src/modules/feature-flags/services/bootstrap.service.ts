@@ -13,6 +13,10 @@ import {
 } from '../../calls/video-call-provider';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import {
+  UPLOAD_LIMITS_KEY,
+  sanitizeUploadLimits,
+} from '../../files/upload-limits';
+import {
   TRANSLATE_FLAG,
   TRANSLATE_ZONES,
   zoneAllowed,
@@ -187,11 +191,16 @@ export class BootstrapService {
       ),
       // Audit 2026-10-02: only what the app needs — never the moderation
       // term lists, budgets or reserved names (this endpoint is public).
-      app_config: Object.fromEntries(
-        Object.entries(appConfig).filter(([k]) =>
-          PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
+      app_config: {
+        ...Object.fromEntries(
+          Object.entries(appConfig).filter(([k]) =>
+            PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
+          ),
         ),
-      ),
+        // Owner 2026-10-07 (bug 17): the app shows and checks the admin's
+        // upload limits (always present, inside the safe ceilings).
+        [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
+      },
       languages: content.languages,
       translations_version: translationsVersion,
       legal_documents: content.legal_documents.map((doc) => ({

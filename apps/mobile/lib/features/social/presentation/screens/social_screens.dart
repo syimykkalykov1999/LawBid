@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,16 +10,13 @@ import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
-import 'package:lawbid/features/promotions/domain/promotion_models.dart';
-import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
-import 'package:lawbid/features/social/social_routes.dart';
-import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Post skeletons for list loading states.
@@ -267,18 +263,13 @@ class TopicPostsView extends ConsumerWidget {
 
 /// docs/05 §3.5 post screen: the post, the disclaimer, comments with
 /// replies and the composer.
-class PostScreen extends ConsumerStatefulWidget {
-  const PostScreen({required this.postId, super.key});
+class PostScreen extends ConsumerWidget {
+  const PostScreen({required this.postId, this.fromProfile = false, super.key});
 
   final String postId;
 
-  @override
-  ConsumerState<PostScreen> createState() => _PostScreenState();
-}
-
-class _PostScreenState extends ConsumerState<PostScreen> {
-  ReplyTarget? _replyTo;
-  final _focus = FocusNode();
+  /// Opened from someone's grid: no author row (owner 2026-10-07).
+  final bool fromProfile;
 
   void _leave(BuildContext context) {
     // A deep link opens this with go(): nothing to pop → back to the feed.
@@ -289,25 +280,17 @@ class _PostScreenState extends ConsumerState<PostScreen> {
     }
   }
 
+  /// Owner 2026-10-07 (Instagram): the open post is full screen and
+  /// spacious — photos edge to edge, the whole text, the actions; the
+  /// comments open as a sheet from the comment button, and the big
+  /// promote card became the small «Продвигать» button under the post.
   @override
-  void dispose() {
-    _focus.dispose();
-    super.dispose();
-  }
-
-  void _reply(ReplyTarget target) {
-    setState(() => _replyTo = target);
-    _focus.requestFocus();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final post = ref.watch(postProvider(widget.postId));
-    final deleted = ref
-        .watch(deletedPostsProvider.select((d) => d.contains(widget.postId)));
-    final comments = ref.watch(commentsProvider(widget.postId));
+    final post = ref.watch(postProvider(postId));
+    final deleted =
+        ref.watch(deletedPostsProvider.select((d) => d.contains(postId)));
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -315,7 +298,6 @@ class _PostScreenState extends ConsumerState<PostScreen> {
           semanticLabel: t.t('common.back'),
           onPressed: () => _leave(context),
         ),
-        title: Text(t.t('post.title')),
       ),
       body: deleted
           ? AppEmptyState(
@@ -325,75 +307,25 @@ class _PostScreenState extends ConsumerState<PostScreen> {
           : AsyncDetailBody<Post>(
               value: post,
               t: t,
-              onRetry: () => ref.invalidate(postProvider(widget.postId)),
-              builder: (p) => Column(
-                children: [
-                  Expanded(
-                    child: RefreshIndicator(
-                      color: colors.gold,
-                      onRefresh: () async {
-                        ref
-                          ..invalidate(postProvider(widget.postId))
-                          ..invalidate(commentsProvider(widget.postId));
-                      },
-                      child: CustomScrollView(
-                        slivers: [
-                          SliverPadding(
-                            padding:
-                                const EdgeInsets.all(AppSpacing.screenSide),
-                            sliver: SliverToBoxAdapter(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  PostCard(post: p, inDetail: true),
-                                  // Owner 2026-10-05 (screenshot 6): "Promote"
-                                  // under my post, before the comments.
-                                  if (p.isMine &&
-                                      !ref.watch(isAssistantProvider))
-                                    PromoteCard(
-                                      target: PromotionTarget.post,
-                                      id: p.id,
-                                    ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  const PostDisclaimer(),
-                                ],
-                              ),
-                            ),
-                          ),
-                          ...commentThreadSlivers(
-                            context,
-                            ref,
-                            widget.postId,
-                            comments,
-                            _reply,
-                          ),
-                        ],
-                      ),
-                    ),
+              onRetry: () => ref.invalidate(postProvider(postId)),
+              builder: (p) => RefreshIndicator(
+                color: colors.gold,
+                onRefresh: () async => ref.invalidate(postProvider(postId)),
+                child: ListView(
+                  padding: EdgeInsets.only(
+                    bottom:
+                        MediaQuery.paddingOf(context).bottom + AppSpacing.xl,
                   ),
-                  if (p.commentsEnabled)
-                    CommentComposer(
-                      postId: widget.postId,
-                      replyTo: _replyTo,
-                      focusNode: _focus,
-                      onClearReply: () => setState(() => _replyTo = null),
-                    )
-                  else
-                    SafeArea(
-                      top: false,
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
-                        child: Text(
-                          t.t('reels.commentsOff'),
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context)
-                              .extension<AppTypographyTokens>()!
-                              .bodySmall
-                              .copyWith(color: colors.textSecondary),
-                        ),
+                  children: [
+                    PostCard(post: p, inDetail: true, fromProfile: fromProfile),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenSide,
                       ),
+                      child: PostDisclaimer(),
                     ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
@@ -712,7 +644,6 @@ class ProfilePostsGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final deleted = ref.watch(deletedPostsProvider);
     final value = ref.watch(_provider);
     return value.when(
@@ -753,58 +684,19 @@ class ProfilePostsGrid extends ConsumerWidget {
               padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 2,
-                crossAxisSpacing: 2,
-              ),
+              gridDelegate: kPostGridDelegate,
               itemCount: posts.length,
               itemBuilder: (context, i) {
                 final p = posts[i];
-                return Semantics(
-                  button: true,
-                  label: t.t('post.open'),
-                  child: AppPressable(
-                    onTap: () => context.push(SocialRoutes.post(p.id)),
-                    // Owner 2026-10-05: photos as before; a reel shows
-                    // its frame; a text-only post is a text cover.
-                    child: p.media.isEmpty && p.video?.thumbnailUrl == null
-                        ? PostTextCover(
-                            post: p,
-                            density: PostCoverDensity.compact,
-                          )
-                        : Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              CachedNetworkImage(
-                                imageUrl: p.media.isNotEmpty
-                                    ? p.media.first.previewUrl
-                                    : p.video!.thumbnailUrl!,
-                                cacheKey: p.media.isNotEmpty
-                                    ? '${p.media.first.fileId}:320'
-                                    : p.video!.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) =>
-                                    ColoredBox(color: colors.skeletonBase),
-                                errorWidget: (_, __, ___) => PostTextCover(
-                                  post: p,
-                                  density: PostCoverDensity.compact,
-                                ),
-                              ),
-                              if (p.media.length > 1 || p.video != null)
-                                Positioned(
-                                  top: 6,
-                                  right: 6,
-                                  child: AppIcon(
-                                    p.video != null
-                                        ? AppIcons.playArrowRounded
-                                        : AppIcons.collectionsRounded,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                            ],
-                          ),
+                return PostGridTile(
+                  post: p,
+                  semanticLabel: t.t('post.open'),
+                  // Owner 2026-10-07: their posts as a feed from here.
+                  onTap: () => PostsFeedScreen.open(
+                    context,
+                    posts: posts,
+                    index: i,
+                    subtitle: p.author.username,
                   ),
                 );
               },

@@ -122,8 +122,8 @@ class _ReferralAskCodeSheetState extends ConsumerState<ReferralAskCodeSheet> {
               key: const ValueKey('referral-ask-code-apply'),
               label: t.t('referral.askCode.apply'),
               isLoading: _busy,
+              disabledHint: t.t('form.disabled.code'),
               isEnabled: _code.text.trim().isNotEmpty,
-              dimWhenDisabled: true,
               onPressed: _apply,
             ),
             TextButton(

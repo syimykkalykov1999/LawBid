@@ -765,13 +765,26 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final (i, f) in task.files.indexed)
-                  _FileTile(file: f, index: i + 1),
-              ],
+            // Owner 2026-10-07: three to a row across the whole width (no
+            // empty strip on the right).
+            LayoutBuilder(
+              builder: (context, box) {
+                final side = (box.maxWidth - AppSpacing.sm * 2) / 3;
+                return Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final (i, f) in task.files.indexed)
+                      _FileTile(
+                        file: f,
+                        index: i + 1,
+                        side: side,
+                        photos: task.files,
+                        closeLabel: t.t('common.close'),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
           if (task.outcomeNote?.isNotEmpty ?? false) ...[
@@ -1224,25 +1237,51 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _FileTile extends StatelessWidget {
-  const _FileTile({required this.file, required this.index});
+  const _FileTile({
+    required this.file,
+    required this.index,
+    required this.side,
+    required this.photos,
+    required this.closeLabel,
+  });
+
+  final String closeLabel;
 
   final TaskFile file;
   final int index;
+  final double side;
+
+  /// All files of the task: a photo opens the full-screen gallery of the
+  /// task's photos.
+  final List<TaskFile> photos;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final url = file.url;
+    final images = [
+      for (final p in photos)
+        if (p.isImage && p.url != null) p.url!,
+    ];
     return AppPressable(
       onTap: url == null
           ? null
-          : () =>
-              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          : file.isImage
+              ? () => showPhotoGallery(
+                    context,
+                    urls: images,
+                    initial: images.indexOf(url).clamp(0, images.length - 1),
+                    closeLabel: closeLabel,
+                  )
+              : () => launchUrl(
+                    Uri.parse(url),
+                    mode: LaunchMode.externalApplication,
+                  ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadii.field),
         child: Container(
-          width: 84,
-          height: 84,
+          width: side,
+          height: side,
           color: colors.goldTint,
           child: file.isImage && url != null
               ? Image.network(url, fit: BoxFit.cover)

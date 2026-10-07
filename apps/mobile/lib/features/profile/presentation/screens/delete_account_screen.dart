@@ -281,8 +281,8 @@ class _ReauthPhoneStep extends ConsumerWidget {
       action: AppButton(
         label: t.t('deleteAccount.reauth.sendCode'),
         isLoading: state.isSubmitting,
+        disabledHint: t.t('form.disabled.required'),
         isEnabled: digits.length == 10,
-        dimWhenDisabled: true,
         onPressed: digits.length == 10
             ? () => notifier.submitPhone('+1$digits')
             : null,
@@ -392,8 +392,8 @@ class _ConfirmPhraseStep extends ConsumerWidget {
         icon: AppIcons.deleteForeverRounded,
         variant: AppButtonVariant.danger,
         isLoading: state.isSubmitting,
+        disabledHint: t.t('form.disabled.required'),
         isEnabled: matches && !state.isSubmitting,
-        dimWhenDisabled: true,
         onPressed:
             matches && !state.isSubmitting ? notifier.submitDeletion : null,
       ),

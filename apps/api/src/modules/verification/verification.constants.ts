@@ -61,8 +61,6 @@ export const IDENTITY_NEEDS_BACK: readonly VerificationDocType[] = [
   'state_id',
 ];
 
-/** docs/03 §2.2: up to 3 files per document. */
-export const MAX_FILES_PER_DOCUMENT = 3;
 /** Free-text limits of verifier messages. docs/03 only bounds
  * applicant_comment (500); these keep admin input bounded too. */
 export const APPLICANT_COMMENT_MAX = 500;
@@ -75,6 +73,9 @@ export const VERIFICATION_NOTIFICATION_KIND = {
   inReview: 'in_review',
   needsMoreInfo: 'needs_more_info',
   approved: 'approved',
+  /** Owner 2026-10-07: approved on the sworn statement alone — the
+   * license is not confirmed yet (no blue check until it is). */
+  selfAttested: 'self_attested',
   rejected: 'rejected',
   suspended: 'suspended',
   restored: 'restored',

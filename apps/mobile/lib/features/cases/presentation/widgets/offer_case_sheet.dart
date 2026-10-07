@@ -212,6 +212,7 @@ class _OfferCaseSheetState extends ConsumerState<OfferCaseSheet> {
                 label: t.t('invite.offer.send'),
                 height: AppSizes.touchTarget,
                 isLoading: _busy,
+                disabledHint: t.t('form.disabled.required'),
                 isEnabled: _caseId != null && !_busy,
                 onPressed: _send,
               ),

@@ -110,6 +110,7 @@ String? notificationRoute({
     case 'case_comment':
       return caseId == null ? null : AppRoutes.caseComments(caseId);
     case 'post_like' ||
+          'post_repost' ||
           'post_comment' ||
           'comment_reply' ||
           'comment_like' ||
@@ -205,6 +206,22 @@ const trustNotificationKinds = <String>{
 bool isTrustNotificationKind(String? kind) =>
     kind != null && trustNotificationKinds.contains(kind);
 
+/// Owner 2026-10-07 (phone test): `verification_update` kinds of the
+/// verification module (apps/api VERIFICATION_NOTIFICATION_KIND and the
+/// license jobs) — each row says what happened, never just «changed».
+const verificationNotificationKinds = {
+  'in_review',
+  'needs_more_info',
+  'approved',
+  'self_attested',
+  'rejected',
+  'suspended',
+  'restored',
+  'license_expiring',
+  'license_expired',
+  'profile_unverified',
+};
+
 /// A payload flag; push data carries every value as a string.
 bool _flag(Object? v) => v == true || v == 'true';
 
@@ -230,6 +247,21 @@ String notificationText(Translator t, AppNotification n) {
   // Owner 2026-10-05: attorney trust levels — `notif.verification.<kind>`.
   if (n.type == 'verification_update') {
     final kind = n.payload['kind'];
+    if (kind is String && verificationNotificationKinds.contains(kind)) {
+      final key = kind == 'approved' && _flag(n.payload['partial'])
+          ? 'approved_partial'
+          : kind;
+      String? str(String k) {
+        final v = n.payload[k];
+        return v is String || v is num ? '$v' : null;
+      }
+
+      return t.t('notif.verification.$key', {
+        'message': str('message') ?? '',
+        'state': str('stateCode') ?? '',
+        'date': str('expiresAt') ?? '',
+      });
+    }
     if (kind is String && isTrustNotificationKind(kind)) {
       final base = t.t('notif.verification.$kind');
       // Staff asked for documents: say which (template) and their note.
@@ -318,6 +350,8 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'comment_reply' ||
       'case_comment' =>
         AppIcons.modeCommentRounded,
+      // Owner 2026-10-07: Threads-style reposts.
+      'post_repost' => AppIcons.autoModeRounded,
       'new_follower' => AppIcons.personAddAlt1Rounded,
       // OQ-041.
       'missed_call' => AppIcons.phoneMissedRounded,

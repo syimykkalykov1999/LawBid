@@ -12,6 +12,7 @@ import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import { BarNumberBlocksService } from '../../attorney-trust/bar-number-blocks.service';
 import { FilesService } from '../../files/files.service';
+import { readUploadLimits } from '../../files/upload-limits';
 import {
   notFound,
   requireOwnAttorney,
@@ -31,7 +32,6 @@ import {
   EDITABLE_REQUEST_STATUSES,
   IDENTITY_DOC_TYPES,
   IDENTITY_NEEDS_BACK,
-  MAX_FILES_PER_DOCUMENT,
   OPEN_REQUEST_STATUSES,
 } from '../verification.constants';
 import {
@@ -415,10 +415,13 @@ export class VerificationRequestsService {
       const same = req.documents.filter(
         (d) => d.doc_type === dto.docType && d.state_code === shape.stateCode,
       ).length;
-      if (same >= MAX_FILES_PER_DOCUMENT) {
+      // Owner 2026-10-07 (bug 17): files per document — admin «Проверка».
+      const maxPerDoc = (await readUploadLimits(this.settings)).verification
+        .maxFiles;
+      if (same >= maxPerDoc) {
         throw validationError('Too many files for this document.', {
           reason: 'too_many_files',
-          max: MAX_FILES_PER_DOCUMENT,
+          max: maxPerDoc,
         });
       }
       await tx.verificationDocument.create({

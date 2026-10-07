@@ -137,8 +137,7 @@ class SessionController extends _$SessionController {
       if (refreshToken == null) {
         throw StateError('No refresh token available to refresh a session.');
       }
-      final isDemo =
-          state?.isDemo ?? await store.readRefreshTokenIsDemo();
+      final isDemo = state?.isDemo ?? await store.readRefreshTokenIsDemo();
       return _refresh(refreshToken, isDemo: isDemo);
     });
   }

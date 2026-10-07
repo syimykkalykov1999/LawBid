@@ -43,6 +43,8 @@ export const NOTIFICATION_CATEGORY: Record<
   new_message: 'messages',
   new_follower: 'social',
   post_like: 'social',
+  // Owner 2026-10-07: Threads-style reposts.
+  post_repost: 'social',
   post_comment: 'social',
   case_comment: 'bids',
   // OQ-041: a call nobody answered (own category, owner 2026-09-30).
@@ -129,6 +131,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   new_message: true,
   new_follower: false,
   post_like: false,
+  post_repost: false,
   post_comment: false,
   case_comment: false,
   missed_call: true,
@@ -269,7 +272,9 @@ export class NotificationsService {
     }
     if (
       typeof actorId === 'string' &&
-      ['post_like', 'comment_like', 'new_follower'].includes(input.type) &&
+      ['post_like', 'post_repost', 'comment_like', 'new_follower'].includes(
+        input.type,
+      ) &&
       !(await this.firstToday(
         input.type,
         actorId,

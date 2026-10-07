@@ -16,6 +16,8 @@ export const NO_PUSH_TYPES: ReadonlySet<NotificationType> = new Set([
   'case_updated',
   'post_like',
   'comment_like',
+  // Owner 2026-10-07: reposts are like likes (list only).
+  'post_repost',
 ]);
 
 /** Job options: delayed so the emitting transaction has committed before

@@ -85,9 +85,8 @@ class DemoSettingsCard extends ConsumerWidget {
           if (ui.bannerHidden)
             TextButton(
               key: const ValueKey('settings-demo-show-banner'),
-              onPressed: () => ref
-                  .read(demoSessionControllerProvider.notifier)
-                  .showBanner(),
+              onPressed: () =>
+                  ref.read(demoSessionControllerProvider.notifier).showBanner(),
               child: Text(
                 t.t('demo.banner.show'),
                 textAlign: TextAlign.center,

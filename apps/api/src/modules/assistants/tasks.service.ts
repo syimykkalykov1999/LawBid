@@ -15,6 +15,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { FilesService } from '../files/files.service';
+import { assertUploadCount, readUploadLimits } from '../files/upload-limits';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AssistantsService, nameOf } from './assistants.service';
 import type {
@@ -359,6 +360,19 @@ export class TasksService {
       : [];
   }
 
+  /** Owner 2026-10-07 (bugs 14, 17): files on one task — the admin's
+   * «Задачи» limit in «Загрузки и файлы» (storage costs). An older task
+   * over the limit ([had] files) may keep or drop files, not add. */
+  private async assertFileCount(count: number, had = 0): Promise<void> {
+    assertUploadCount(
+      await readUploadLimits(this.settings),
+      'task',
+      'files',
+      count,
+      had,
+    );
+  }
+
   // --- create / read --------------------------------------------------
 
   async create(user: RequestUser, dto: CreateTaskDto): Promise<TaskDto> {
@@ -371,7 +385,8 @@ export class TasksService {
     if (dto.assigneeMembershipId) {
       await this.assertAssignee(user.sub, dto.assigneeMembershipId);
     }
-    const fileIds = dto.fileIds ?? [];
+    const fileIds = [...new Set(dto.fileIds ?? [])];
+    await this.assertFileCount(fileIds.length);
     for (const id of fileIds) {
       // The uploader is whoever is signed in (the assistant's files are
       // owned by the attorney account they act in).
@@ -994,6 +1009,8 @@ export class TasksService {
       await this.assertAssignee(user.sub, dto.assigneeMembershipId);
     }
     if (dto.fileIds) {
+      dto.fileIds = [...new Set(dto.fileIds)];
+      await this.assertFileCount(dto.fileIds.length, t.file_ids.length);
       for (const f of dto.fileIds) {
         await this.files.assertAttachable(user.sub, f, ['task_attachment']);
       }

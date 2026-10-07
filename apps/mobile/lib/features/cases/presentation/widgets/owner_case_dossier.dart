@@ -7,10 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
-import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
@@ -36,7 +36,11 @@ class OwnerCaseDossier extends ConsumerStatefulWidget {
 class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
   bool _busy = false;
 
-  int get _left => kCaseMaxPhotos - widget.kase.photos.length;
+  /// Owner 2026-10-07 (bug 17): count, MB and formats from the admin.
+  PlaceUploadLimits get _limits =>
+      ref.read(uploadLimitsProvider)[UploadPlace.kase];
+
+  int get _left => _limits.maxFiles - widget.kase.photos.length;
 
   Future<void> _pickPhotos() async {
     final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
@@ -46,19 +50,22 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
       imageQuality: limits.quality,
       limit: _left > 1 ? _left : null,
     );
-    await _add([for (final f in picked.take(_left)) await f.readAsBytes()]);
+    await _add([
+      for (final f in picked.take(_left))
+        (bytes: await f.readAsBytes(), name: null),
+    ]);
   }
 
   Future<void> _pickDocuments() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: const ['pdf', 'docx'],
+      allowedExtensions: _limits.documentExtensions,
       allowMultiple: true,
       withData: true,
     );
     await _add([
       for (final f in (result?.files ?? const <PlatformFile>[]).take(_left))
-        if (f.bytes != null) f.bytes!,
+        if (f.bytes != null) (bytes: f.bytes!, name: f.name),
     ]);
   }
 
@@ -93,14 +100,20 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
 
   /// Uploads [files] (antivirus-checked case files) and saves the case's
   /// full file list: the existing ones first, then the new ones.
-  Future<void> _add(List<Uint8List> files) async {
+  Future<void> _add(List<({Uint8List bytes, String? name})> files) async {
     if (files.isEmpty || !mounted) return;
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {
       final social = ref.read(socialActionsProvider);
       final ids = [
-        for (final b in files) await social.uploadPhoto(b, casePhoto: true),
+        for (final f in files)
+          await social.uploadPhoto(
+            f.bytes,
+            casePhoto: true,
+            fileName: f.name,
+            maxBytes: _limits.fileBytes,
+          ),
       ];
       await ref.read(casesRepositoryProvider).setCaseFiles(widget.kase.id, [
         ...widget.kase.photos.map((p) => p.fileId),
@@ -120,7 +133,7 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
     if (_left <= 0) {
       showAppSnackBar(
         context,
-        t.t('cases.dossier.filesFull', {'max': '$kCaseMaxPhotos'}),
+        t.t('cases.dossier.filesFull', {'max': '${_limits.maxFiles}'}),
       );
       return;
     }

@@ -36,7 +36,7 @@ final practicesEditorDataProvider = FutureProvider.autoDispose<PracticesData>(
 
 /// "My practices" (docs/03 §3.2): search by name, categories that expand,
 /// "Select all" per category, leaves with checkboxes, the picked ones as
-/// chips on top, "Save" = `PUT /attorneys/me/practice-areas` with the
+/// count on top, "Save" = `PUT /attorneys/me/practice-areas` with the
 /// full set of leaf ids. Before verification the screen is locked with an
 /// explanation (§3.2 «Доступно после верификации»).
 class PracticesScreen extends ConsumerWidget {
@@ -267,14 +267,11 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
       }
     }
 
-    final leafById = {
+    final leafIds = {
       for (final c in widget.tree)
-        for (final l in c.children) l.id: l,
+        for (final l in c.children) l.id,
     };
-    final selectedLeaves = [
-      for (final id in _selected)
-        if (leafById[id] != null) leafById[id]!,
-    ]..sort((a, b) => leafName(a).compareTo(leafName(b)));
+    final selectedCount = _selected.where(leafIds.contains).length;
 
     final list = ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -349,12 +346,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: AppSpacing.lg),
-        _SelectedChips(
-          leaves: selectedLeaves,
-          nameOf: leafName,
-          onRemove: _toggle,
-          t: t,
-        ),
+        _SelectedCount(count: selectedCount, t: t),
         const SizedBox(height: AppSpacing.lg),
         if (visible.isEmpty)
           Padding(
@@ -426,8 +418,10 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
                   key: const ValueKey('practices-save'),
                   label: widget.saveLabel ?? t.t('practices.save'),
                   isLoading: _saving,
+                  disabledHint: _selected.isEmpty
+                      ? t.t('onboarding.attorney.practices.pickOne')
+                      : null,
                   isEnabled: _canSave,
-                  dimWhenDisabled: true,
                   onPressed: () => _save(t),
                 ),
               ),
@@ -439,95 +433,37 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
   }
 }
 
-class _SelectedChips extends StatelessWidget {
-  const _SelectedChips({
-    required this.leaves,
-    required this.nameOf,
-    required this.onRemove,
-    required this.t,
-  });
+/// «Выбрано (N)» — only the count. Owner 2026-10-07 (phone test): the
+/// picked practices stay inside their category cards (checkboxes + count
+/// badge); no long chip list under the counter.
+class _SelectedCount extends StatelessWidget {
+  const _SelectedCount({required this.count, required this.t});
 
-  final List<PracticeLeaf> leaves;
-  final String Function(PracticeLeaf) nameOf;
-  final ValueChanged<String> onRemove;
+  final int count;
   final Translator t;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final reduce = context.reduceMotion;
-    return AnimatedSize(
-      duration: reduce ? Duration.zero : AppMotion.stateChange,
-      curve: AppMotion.enterCurve,
-      alignment: Alignment.topLeft,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(
-              t.t('practices.selected', {'count': '${leaves.length}'}),
-              style: typography.roleTitle.copyWith(color: colors.text),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            t.t('practices.selected', {'count': '$count'}),
+            style: typography.roleTitle.copyWith(color: colors.text),
           ),
+        ),
+        if (count == 0) ...[
           const SizedBox(height: AppSpacing.sm),
-          if (leaves.isEmpty)
-            Text(
-              t.t('practices.selected.none'),
-              style: typography.bodySmall.copyWith(color: colors.textSecondary),
-            )
-          else
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final l in leaves)
-                  _PopIn(
-                    key: ValueKey('chip-${l.id}'),
-                    child: Semantics(
-                      button: true,
-                      label: t.t('practices.remove', {'name': nameOf(l)}),
-                      excludeSemantics: true,
-                      onTap: () => onRemove(l.id),
-                      child: AppChip(
-                        label: nameOf(l),
-                        selected: true,
-                        trailing: AppIcon(
-                          AppIcons.closeRounded,
-                          size: AppSpacing.lg,
-                          color: colors.textSecondary,
-                        ),
-                        onTap: () => onRemove(l.id),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          Text(
+            t.t('practices.selected.none'),
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
         ],
-      ),
-    );
-  }
-}
-
-/// A chip that scales/fades in when it first appears.
-class _PopIn extends StatelessWidget {
-  const _PopIn({required this.child, super.key});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (context.reduceMotion) return child;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: AppMotion.stateChange,
-      curve: AppMotion.enterCurve,
-      builder: (context, v, c) => Opacity(
-        opacity: v,
-        child: Transform.scale(scale: 0.85 + 0.15 * v, child: c),
-      ),
-      child: child,
+      ],
     );
   }
 }

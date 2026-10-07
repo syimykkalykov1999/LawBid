@@ -6,8 +6,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-10-05: the inside of a reel ("Смотреть" under the video):
@@ -33,27 +33,6 @@ class ReelDetailScreen extends ConsumerWidget {
     final title = (p.title ?? '').trim();
     final body = p.body.trim();
 
-    Widget section(String label, int count) => Padding(
-          padding: const EdgeInsets.only(
-            top: AppSpacing.xl,
-            bottom: AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: type.titleMedium.copyWith(color: colors.text),
-                ),
-              ),
-              Text(
-                '$count',
-                style: type.caption.copyWith(color: colors.textSecondary),
-              ),
-            ],
-          ),
-        );
-
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -71,12 +50,22 @@ class ReelDetailScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: colors.surface,
-                  backgroundImage: p.author.avatarUrl == null
+                // Initials under the photo (an empty circle before).
+                GestureDetector(
+                  onTap: p.author.avatarUrl == null
                       ? null
-                      : CachedNetworkImageProvider(p.author.avatarUrl!),
+                      : () => showPhotoGallery(
+                            context,
+                            urls: [p.author.avatarUrl!],
+                            closeLabel: t.t('common.close'),
+                          ),
+                  child: AppAvatar(
+                    size: 36,
+                    initials: p.author.initials,
+                    imageProvider: p.author.avatarUrl == null
+                        ? null
+                        : CachedNetworkImageProvider(p.author.avatarUrl!),
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
@@ -115,44 +104,14 @@ class ReelDetailScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               PostBodyText(body: body, expanded: true, mentions: p.mentions),
             ],
-            if (p.media.isNotEmpty) ...[
-              section(t.t('reels.inside.photos'), p.media.length),
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: AppSpacing.xs,
-                crossAxisSpacing: AppSpacing.xs,
-                children: [
-                  for (var i = 0; i < p.media.length; i++)
-                    Semantics(
-                      button: true,
-                      label: t.t('reels.inside.photoOpen', {'n': '${i + 1}'}),
-                      excludeSemantics: true,
-                      child: GestureDetector(
-                        onTap: () => showPhotoGallery(
-                          context,
-                          urls: [for (final m in p.media) m.url],
-                          initial: i,
-                          closeLabel: t.t('common.close'),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadii.field),
-                          child: CachedNetworkImage(
-                            imageUrl: p.media[i].previewUrl,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) =>
-                                ColoredBox(color: colors.surface),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+            // Owner 2026-10-07 (bug 13): one «Посмотреть · N» button; the
+            // photos and files open in a sheet.
+            if (p.media.isNotEmpty || p.attachments.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              PostAttachmentsButton(
+                media: p.media,
+                documents: p.attachments,
               ),
-            ],
-            if (p.attachments.isNotEmpty) ...[
-              section(t.t('post.docs.title'), p.attachments.length),
-              PostDocumentsList(documents: p.attachments),
             ],
             if (p.commentsEnabled) ...[
               const SizedBox(height: AppSpacing.xl),

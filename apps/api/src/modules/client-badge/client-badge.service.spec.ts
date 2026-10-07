@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { ClientBadgeService } from './client-badge.service';
+import { sanitizeUploadLimits } from '../files/upload-limits';
 
 const NOW = Date.now();
 const row = (over: Record<string, unknown> = {}) => ({
@@ -36,7 +37,10 @@ function setup(current: ReturnType<typeof row> | null, autoApprove = true) {
     },
   };
   const notifications = { emit: jest.fn().mockResolvedValue(undefined) };
-  const files = { assertAttachable: jest.fn().mockResolvedValue({}) };
+  const files = {
+    assertAttachable: jest.fn().mockResolvedValue({}),
+    uploadLimits: jest.fn().mockResolvedValue(sanitizeUploadLimits(undefined)),
+  };
   const settings = {
     number: jest.fn().mockResolvedValue(1000),
     boolean: jest.fn().mockResolvedValue(autoApprove),

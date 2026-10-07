@@ -9,7 +9,7 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { AppSettingKey } from './app-settings.defaults';
 
 /** Object-valued settings a section saves as a whole (not typed tunables). */
-export type RawSettingKey = 'rewards.departments';
+export type RawSettingKey = 'rewards.departments' | 'uploads.limits';
 
 /**
  * Owner 2026-10-05: sections with their own settings card (support desk,

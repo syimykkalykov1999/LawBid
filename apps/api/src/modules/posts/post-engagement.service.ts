@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
+import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import {
   decodeCursor,
@@ -45,6 +46,38 @@ export class PostEngagementService {
         payload: { postId, actorId: userId },
       });
     }
+  }
+
+  /** Owner 2026-10-07: a Threads-style repost. Idempotent by
+   * post_reposts(user_id, post_id); the same checks as a like (visible
+   * post, no block either way, the like rate limit). Not of one's own
+   * post (409 REPOST_OWN_POST). */
+  async repost(userId: string, postId: string): Promise<void> {
+    const post = await this.visible(postId);
+    if (post.author_id === userId) {
+      throw new ConflictException({
+        code: ErrorCode.REPOST_OWN_POST,
+        message: 'You cannot repost your own post.',
+      });
+    }
+    await assertNoBlock(this.prisma, userId, post.author_id);
+    await this.limits.consume('like', userId);
+    const { count } = await this.prisma.postRepost.createMany({
+      data: [{ post_id: postId, user_id: userId }],
+      skipDuplicates: true,
+    });
+    if (count === 0) return;
+    await this.notifications.emit({
+      type: 'post_repost',
+      recipientId: post.author_id,
+      payload: { postId, actorId: userId },
+    });
+  }
+
+  async unrepost(userId: string, postId: string): Promise<void> {
+    await this.prisma.postRepost.deleteMany({
+      where: { post_id: postId, user_id: userId },
+    });
   }
 
   /** OQ-037: the share sheet was completed — counts every share. */

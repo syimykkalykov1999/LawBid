@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -43,21 +44,6 @@ String documentExtension(String name) {
   return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
 }
 
-/// The admin limits of post documents (bootstrap app_config).
-({int eachMb, int totalMb}) postDocumentLimits(WidgetRef ref) {
-  final flags = ref.read(featureFlagsControllerProvider);
-  return (
-    eachMb: flags.configInt(
-      'files.post_attachment_max_size_mb',
-      kPostDocumentDefaultMaxMb,
-    ),
-    totalMb: flags.configInt(
-      'posts.attachments_max_total_mb',
-      kPostDocumentsDefaultTotalMb,
-    ),
-  );
-}
-
 /// Owner 2026-10-05: the admin's photo compression for posts and reels.
 PhotoLimits postPhotoLimits(WidgetRef ref) =>
     photoLimitsOf(ref.read(featureFlagsControllerProvider));
@@ -66,14 +52,33 @@ PhotoLimits postPhotoLimits(WidgetRef ref) =>
 /// text), upload with progress, retry, remove. The server checks the same
 /// limits again.
 class PostDocumentsController extends ChangeNotifier {
-  PostDocumentsController(this._actions);
+  PostDocumentsController(
+    this._actions, {
+    this.limits = const PlaceUploadLimits(
+      maxPhotos: kPostMaxPhotos,
+      maxFiles: kPostMaxDocuments,
+      fileMb: kPostDocumentDefaultMaxMb,
+      totalMb: kPostDocumentsDefaultTotalMb,
+      formats: {'pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'},
+    ),
+  });
 
   final SocialActions _actions;
+
+  /// Owner 2026-10-07 (bug 17): the admin's post or reel limits (count,
+  /// MB, formats) from «Загрузки и файлы».
+  final PlaceUploadLimits limits;
   final items = <PostDocumentDraft>[];
   bool _disposed = false;
 
   bool get ready => items.every((d) => d.fileId != null);
-  bool get full => items.length >= kPostMaxDocuments;
+  bool get full => items.length >= limits.maxFiles;
+
+  /// MIME of a document whose format is on here (photos never).
+  String? mimeForName(String name) {
+    final mime = limits.mimeForName(name);
+    return mime == null || mime.startsWith('image/') ? null : mime;
+  }
 
   List<PostDocumentRef> get refs => [
         for (final d in items)
@@ -81,7 +86,7 @@ class PostDocumentsController extends ChangeNotifier {
       ];
 
   /// Adds what fits the limits and starts uploading; returns how many
-  /// files were skipped (type, size, the total or the 9-file cap).
+  /// files were skipped (type, size, the total or the admin's count).
   int addAll(
     List<({Uint8List bytes, String name})> files, {
     required int eachMb,
@@ -90,7 +95,7 @@ class PostDocumentsController extends ChangeNotifier {
     var skipped = 0;
     var total = items.fold<int>(0, (s, d) => s + d.bytes.length);
     for (final f in files) {
-      final mime = postDocumentMimeForName(f.name);
+      final mime = mimeForName(f.name);
       if (full ||
           mime == null ||
           f.bytes.isEmpty ||
@@ -111,10 +116,11 @@ class PostDocumentsController extends ChangeNotifier {
 
   Future<void> pick(BuildContext context, Translator t, WidgetRef ref) async {
     if (full) return;
-    final limits = postDocumentLimits(ref);
+    final extensions = limits.documentExtensions;
+    if (extensions.isEmpty) return;
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: kPostDocumentExtensions,
+      allowedExtensions: extensions,
       allowMultiple: true,
       withData: true,
     );
@@ -125,7 +131,7 @@ class PostDocumentsController extends ChangeNotifier {
     final unreadable = (result?.files.length ?? 0) - files.length;
     final skipped = addAll(
           files,
-          eachMb: limits.eachMb,
+          eachMb: limits.fileMb,
           totalMb: limits.totalMb,
         ) +
         unreadable;
@@ -134,7 +140,7 @@ class PostDocumentsController extends ChangeNotifier {
         context,
         t.t('post.docs.skipped', {
           'count': '$skipped',
-          'mb': '${limits.eachMb}',
+          'mb': '${limits.fileMb}',
           'total': '${limits.totalMb}',
         }),
       );
@@ -196,7 +202,7 @@ class PostDocumentsEditor extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final limits = postDocumentLimits(ref);
+    final limits = controller.limits;
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) => Column(
@@ -212,7 +218,7 @@ class PostDocumentsEditor extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Text(
-                '${controller.items.length} / $kPostMaxDocuments',
+                '${controller.items.length} / ${limits.maxFiles}',
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ],
@@ -227,7 +233,7 @@ class PostDocumentsEditor extends ConsumerWidget {
               retryLabel: t.t('error.retry'),
               errorText: d.error == null ? null : errorText(t, d.error!),
               onRemove: () => controller.remove(d),
-              onRetry: () => controller.upload(d, eachMb: limits.eachMb),
+              onRetry: () => controller.upload(d, eachMb: limits.fileMb),
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
@@ -242,7 +248,7 @@ class PostDocumentsEditor extends ConsumerWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             t.t('post.docs.hint', {
-              'mb': '${limits.eachMb}',
+              'mb': '${limits.fileMb}',
               'total': '${limits.totalMb}',
             }),
             style: type.caption.copyWith(color: colors.textSecondary),

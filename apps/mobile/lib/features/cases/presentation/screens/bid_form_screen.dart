@@ -383,6 +383,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               label: t.t('cases.bidForm.submit'),
               strike: true,
               isLoading: _busy,
+              disabledHint: t.t('form.disabled.required'),
               isEnabled: _valid,
               onPressed: _submit,
             ),

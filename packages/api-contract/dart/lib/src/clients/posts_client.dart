@@ -83,6 +83,20 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Repost a post, Threads-style (idempotent, owner 2026-10-07)
+  @POST('/posts/{id}/repost')
+  Future<void> repostPost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Undo a repost (idempotent, owner 2026-10-07)
+  @DELETE('/posts/{id}/repost')
+  Future<void> unrepostPost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Saved posts (docs/05 §4, "Моё → Сохранённое").
   ///
   /// [cursor] - meta.nextCursor of the previous page.

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
@@ -69,7 +70,12 @@ class WizardState {
     this.uploads = const [],
     this.missing = const [],
     this.barDocumentRequired = true,
+    this.maxFilesPerDocument = DocSlot.maxFiles,
   });
+
+  /// Owner 2026-10-07 (bug 17): files per document — the admin's
+  /// «Проверка адвоката» limit (the server checks it too).
+  final int maxFilesPerDocument;
 
   final VerificationRequest request;
   final bool identityRequired;
@@ -104,7 +110,7 @@ class WizardState {
   List<UploadTask> tasksFor(DocSlot slot) =>
       uploads.where((u) => u.slot == slot).toList();
 
-  /// Files counted against the 3-per-document limit (docs/03 §2.2).
+  /// Files counted against the per-document limit (docs/03 §2.2).
   int filesIn(DocSlot slot) =>
       request.docsFor(slot).length +
       tasksFor(slot).where((u) => u.phase != UploadPhase.infected).length;
@@ -112,7 +118,9 @@ class WizardState {
   /// In a draft each identity side/selfie takes one file (replace by
   /// removing); licenses and answers to an info request take up to 3.
   int capacityOf(DocSlot slot) =>
-      request.isDraft && slot.kind != DocKind.barLicense ? 1 : DocSlot.maxFiles;
+      request.isDraft && slot.kind != DocKind.barLicense
+          ? 1
+          : maxFilesPerDocument;
 
   bool canAddTo(DocSlot slot) => filesIn(slot) < capacityOf(slot);
 
@@ -158,6 +166,7 @@ class WizardState {
         request: request ?? this.request,
         identityRequired: identityRequired,
         barDocumentRequired: barDocumentRequired,
+        maxFilesPerDocument: maxFilesPerDocument,
         step: step ?? this.step,
         idType: idType ?? this.idType,
         uploads: uploads ?? this.uploads,
@@ -221,6 +230,8 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       request: request,
       identityRequired: overview.identityRequired,
       barDocumentRequired: overview.barDocumentRequired,
+      maxFilesPerDocument:
+          ref.read(uploadLimitsProvider)[UploadPlace.verification].maxFiles,
       step: resumeStep(
         request,
         identityRequired: overview.identityRequired,
@@ -312,11 +323,13 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
   void upload(
     DocSlot slot,
     PickedDocument document, {
-    int maxBytes = _maxBytes,
+    int? maxBytes,
   }) {
     final s = _s;
     if (s == null) return;
-    if (document.sizeBytes > maxBytes) {
+    final limit = maxBytes ??
+        ref.read(uploadLimitsProvider)[UploadPlace.verification].fileBytes;
+    if (document.sizeBytes > limit) {
       throw const ApiException(
         code: ApiErrorCodes.fileTooLarge,
         message: 'File too large.',
@@ -331,9 +344,6 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     _emit(s.copyWith(uploads: [...s.uploads, task], missing: const []));
     _run(task);
   }
-
-  /// docs/03 §9 `files.max_size_mb` default (the API enforces the live one).
-  static const _maxBytes = 10 * 1024 * 1024;
 
   void retry(String localId) {
     final task = _task(localId);

@@ -40,7 +40,8 @@ class GavelStrikeButton extends StatefulWidget {
     this.icon,
     this.isLoading = false,
     this.isEnabled = true,
-    this.dimWhenDisabled = false,
+    this.dimWhenDisabled = true,
+    this.disabledHint,
     this.height = 50,
   });
 
@@ -54,6 +55,9 @@ class GavelStrikeButton extends StatefulWidget {
 
   /// See [AppButton.dimWhenDisabled].
   final bool dimWhenDisabled;
+
+  /// See [AppButton.disabledHint].
+  final String? disabledHint;
   final double height;
 
   @override
@@ -159,6 +163,7 @@ class _GavelStrikeButtonState extends State<GavelStrikeButton>
       icon: widget.icon,
       isLoading: widget.isLoading,
       isEnabled: widget.isEnabled,
+      disabledHint: widget.disabledHint,
       dimWhenDisabled: widget.dimWhenDisabled,
       height: widget.height,
       onTapDown: _handleTapDown,

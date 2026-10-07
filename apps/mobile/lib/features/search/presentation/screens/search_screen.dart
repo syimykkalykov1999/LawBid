@@ -23,6 +23,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 
@@ -275,6 +276,7 @@ class _Results extends ConsumerWidget {
         return PagedTileGrid<FeedCase>(
           value: ref.watch(caseSearchProvider(key)),
           itemBuilder: (c) => SearchCaseTile(item: c),
+          rows: true,
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
@@ -283,7 +285,10 @@ class _Results extends ConsumerWidget {
         final n = ref.read(postSearchProvider(key).notifier);
         return PagedTileGrid<Post>(
           value: ref.watch(postSearchProvider(key)),
-          itemBuilder: (p) => SearchPostTile(post: p),
+          itemBuilder: (p) => SearchPostTile(
+            post: p,
+            feed: ref.read(postSearchProvider(key)).value?.items,
+          ),
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
@@ -415,12 +420,19 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         );
 
-    SliverPadding grid<T>(List<T> items, Widget Function(T) build) =>
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          sliver: SliverGrid.builder(
-            gridDelegate: kSearchGridDelegate,
+    // Owner 2026-10-07 (bug 16): posts as the profile grid, cases as
+    // compact rows.
+    Widget grid<T>(List<T> items, Widget Function(T) build) =>
+        SliverGrid.builder(
+          gridDelegate: kPostGridDelegate,
+          itemCount: items.length,
+          itemBuilder: (context, i) => build(items[i]),
+        );
+    Widget rows<T>(List<T> items, Widget Function(T) build) => SliverPadding(
+          padding: kSearchRowsPadding,
+          sliver: SliverList.separated(
             itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: kSearchRowGap),
             itemBuilder: (context, i) => build(items[i]),
           ),
         );
@@ -439,13 +451,13 @@ class _BeforeTyping extends ConsumerWidget {
             SliverToBoxAdapter(child: PersonTile(row: r)),
         ],
       SearchTab.cases when !attorney => [
-          grid<CaseSummary>(
+          rows<CaseSummary>(
             _myCases(ref, last, filters).take(4).toList(),
             (c) => SearchMyCaseTile(item: c),
           ),
         ],
       SearchTab.cases => [
-          grid<FeedCase>(
+          rows<FeedCase>(
             (ref.watch(caseSearchProvider(lastKey!)).value?.items ??
                     const <FeedCase>[])
                 .take(4)
@@ -457,9 +469,12 @@ class _BeforeTyping extends ConsumerWidget {
           grid<Post>(
             (ref.watch(postSearchProvider(lastKey!)).value?.items ??
                     const <Post>[])
-                .take(4)
+                .take(6)
                 .toList(),
-            (p) => SearchPostTile(post: p),
+            (p) => SearchPostTile(
+              post: p,
+              feed: ref.read(postSearchProvider(lastKey)).value?.items,
+            ),
           ),
         ],
       SearchTab.tags => [
@@ -477,7 +492,7 @@ class _BeforeTyping extends ConsumerWidget {
         ],
       SearchTab.cases when !attorney => [
           SliverToBoxAdapter(child: title(t.t('search.tab.myCases'))),
-          grid<CaseSummary>(
+          rows<CaseSummary>(
             _myCases(ref, '', filters),
             (c) => SearchMyCaseTile(item: c),
           ),
@@ -486,7 +501,7 @@ class _BeforeTyping extends ConsumerWidget {
       // filter, every page), with "Show more".
       SearchTab.cases => [
           SliverToBoxAdapter(child: title(t.t('search.section.cases'))),
-          grid<FeedCase>(
+          rows<FeedCase>(
             ref.watch(exploreCasesProvider(_casesKey(filters))).value?.items ??
                 const <FeedCase>[],
             (c) => SearchCaseTile(item: c),
@@ -507,7 +522,13 @@ class _BeforeTyping extends ConsumerWidget {
           grid<Post>(
             ref.watch(explorePostsProvider(_postsKey(filters))).value?.items ??
                 const <Post>[],
-            (p) => SearchPostTile(post: p),
+            (p) => SearchPostTile(
+              post: p,
+              feed: ref
+                  .read(explorePostsProvider(_postsKey(filters)))
+                  .value
+                  ?.items,
+            ),
           ),
           _MoreButton(
             hasMore: ref
@@ -752,10 +773,10 @@ class _MyCasesGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final items = _myCases(ref, query, filters);
     if (items.isEmpty) return empty;
-    return GridView.builder(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      gridDelegate: kSearchGridDelegate,
+    return ListView.separated(
+      padding: kSearchRowsPadding,
       itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: kSearchRowGap),
       itemBuilder: (context, i) => SearchMyCaseTile(item: items[i]),
     );
   }

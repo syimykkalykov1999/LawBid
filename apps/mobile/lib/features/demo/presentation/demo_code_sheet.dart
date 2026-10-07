@@ -19,8 +19,7 @@ class DemoCodeFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final raw =
-        newValue.text.toUpperCase().replaceAll(RegExp('[^0-9A-Z]'), '');
+    final raw = newValue.text.toUpperCase().replaceAll(RegExp('[^0-9A-Z]'), '');
     final text =
         raw.length > demoCodeLength ? raw.substring(0, demoCodeLength) : raw;
     return TextEditingValue(
@@ -135,8 +134,8 @@ class _DemoCodeSheetState extends ConsumerState<DemoCodeSheet> {
               key: const ValueKey('demo-code-submit'),
               label: t.t('demo.code.submit'),
               isLoading: _busy,
+              disabledHint: t.t('form.disabled.code'),
               isEnabled: complete,
-              dimWhenDisabled: true,
               onPressed: _submit,
             ),
           ],

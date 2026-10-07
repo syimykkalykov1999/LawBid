@@ -303,10 +303,11 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   }) {
     final s = o.subscription;
     // Free under contract: nothing to buy while it runs.
+    // Owner 2026-10-07 (phone test): a checkout left without paying keeps
+    // the plans and their button — never a dead end on «Подтверждаем карту».
     final showCta = o.contractGrant == null &&
         !o.isActive &&
-        s?.status != SubscriptionStatus.pastDue &&
-        !(s?.pendingConfirmation ?? false);
+        s?.status != SubscriptionStatus.pastDue;
     var index = 0;
     Widget section(Widget child) => AppEntrance(
           index: index++,
@@ -898,7 +899,6 @@ class SubscribeCta extends StatelessWidget {
           icon: AppIcons.workspacePremiumOutlined,
           isLoading: state.busy,
           isEnabled: o.canStart,
-          dimWhenDisabled: true,
           onPressed: o.canStart ? onSubscribe : null,
         ),
         AnimatedSwitcher(

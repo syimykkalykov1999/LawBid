@@ -600,6 +600,7 @@ class _HeaderCard extends ConsumerWidget {
           ),
           heroTag: attorneyAvatarHeroTag(profile.username),
           semanticLabel: t.t('profile.avatar.label'),
+          viewerCloseLabel: t.t('common.close'),
         ),
       ),
     );

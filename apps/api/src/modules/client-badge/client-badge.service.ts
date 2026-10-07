@@ -22,6 +22,7 @@ import type {
   ProviderSubscription,
 } from '../billing/payment-provider';
 import { FilesService } from '../files/files.service';
+import { assertUploadCount } from '../files/upload-limits';
 import { NotificationsService } from '../notifications/notifications.service';
 import type {
   ClientBadgeCheckoutDto,
@@ -87,6 +88,13 @@ export class ClientBadgeService {
   ): Promise<ClientBadgeStateDto> {
     await this.requireClient(userId);
     const fileIds = [...new Set(dto.fileIds)];
+    // Owner 2026-10-07 (bug 17): how many files — admin «Значок клиента».
+    assertUploadCount(
+      await this.files.uploadLimits(),
+      'client_badge',
+      'files',
+      fileIds.length,
+    );
     for (const id of fileIds) {
       await this.files.assertAttachable(userId, id, [
         'verification_document',

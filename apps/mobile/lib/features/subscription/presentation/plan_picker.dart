@@ -388,7 +388,6 @@ class _PlanPickerState extends State<PlanPicker> {
           icon: AppIcons.lockOutlineRounded,
           isLoading: widget.state.busy,
           isEnabled: o.canStart,
-          dimWhenDisabled: true,
           onPressed: o.canStart ? _pay : null,
         ),
         AnimatedSwitcher(
@@ -550,7 +549,10 @@ class _ActivePlansState extends State<ActivePlans> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final current = o.currentPlan;
     final plans = <PlanOffer>[
-      if (current != null && !o.plans.any((p) => p.code == current.code))
+      // Owner 2026-10-07: never the «Без подписки» baseline card.
+      if (current != null &&
+          !current.isBaseline &&
+          !o.plans.any((p) => p.code == current.code))
         current,
       for (final p in o.plans)
         if (p.purchasable || p.code == current?.code) p,
