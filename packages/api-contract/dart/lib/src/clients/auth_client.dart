@@ -102,6 +102,11 @@ abstract class AuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  @POST('/auth/reauth/demo')
+  Future<ReauthTokenEnvelope> reauthDemo({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   @POST('/auth/identifiers')
   Future<IdentifierLinkedEnvelope> linkIdentifier({
     @Body() required LinkIdentifierDto body,

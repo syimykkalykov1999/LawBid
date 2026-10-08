@@ -128,6 +128,9 @@ export class TokenService {
       sid: claims.sid as string,
       verified: claims.verified as boolean,
       subscriptionStatus: claims.subscriptionStatus as string,
+      // The signed demo claim must survive verification: JwtAuthGuard,
+      // the realtime gateway and DemoReauthService read it from here.
+      ...(claims.demo === true ? { demo: true } : {}),
     };
   }
 
