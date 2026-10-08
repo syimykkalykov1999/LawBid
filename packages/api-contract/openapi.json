@@ -16789,6 +16789,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict: FILES_COUNT_LIMIT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Error: FILE_NOT_ATTACHABLE",
             "content": {
@@ -17417,7 +17427,7 @@
             }
           },
           "409": {
-            "description": "Conflict: TASK_CLOSED",
+            "description": "Conflict: TASK_CLOSED, FILES_COUNT_LIMIT",
             "content": {
               "application/json": {
                 "schema": {
@@ -59168,6 +59178,15 @@
             "schema": {
               "$ref": "#/components/schemas/PromotionTarget"
             }
+          },
+          {
+            "name": "video",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-07: the post has a video (video prices).",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -59975,6 +59994,93 @@
           }
         ],
         "summary": "A promoted post / case was opened (stats)",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
+    "/promotions/{id}/action": {
+      "post": {
+        "operationId": "actionPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromotionActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionClickResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A real action only the app sees (watched to the end, opened the profile)",
         "tags": [
           "promotions"
         ]
@@ -86767,8 +86873,8 @@
           },
           "body": {
             "type": "string",
-            "maxLength": 2200,
-            "description": "Owner 2026-10-07: the description is optional ('' is fine)."
+            "description": "Owner 2026-10-07: the description is optional ('' is fine).",
+            "maxLength": 2200
           },
           "mediaFileIds": {
             "uniqueItems": true,
@@ -86844,13 +86950,12 @@
           },
           "body": {
             "type": "string",
-            "maxLength": 2200,
-            "description": "Owner 2026-10-07: the description is optional ('' is fine)."
+            "description": "Owner 2026-10-07: the description is optional ('' is fine).",
+            "maxLength": 2200
           },
           "commentsEnabled": {
             "type": "boolean",
-            "description": "Default true; false = nobody can comment.",
-            "default": true
+            "description": "Owner 2026-10-07: comments can be turned off (or on) after posting."
           }
         },
         "required": [
@@ -98482,6 +98587,198 @@
           "data"
         ]
       },
+      "UploadPlace": {
+        "type": "string",
+        "enum": [
+          "post",
+          "reel",
+          "case",
+          "chat",
+          "task",
+          "review",
+          "avatar",
+          "verification",
+          "client_badge"
+        ]
+      },
+      "UploadFormat": {
+        "type": "string",
+        "enum": [
+          "jpeg",
+          "png",
+          "heic",
+          "webp",
+          "gif",
+          "pdf",
+          "doc",
+          "docx",
+          "xls",
+          "xlsx",
+          "ppt",
+          "pptx",
+          "odt",
+          "ods",
+          "odp",
+          "rtf",
+          "txt",
+          "csv"
+        ]
+      },
+      "UploadPlaceLimitsDto": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UploadPlace"
+              }
+            ]
+          },
+          "maxPhotos": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "maxFiles": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "fileMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "totalMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "formats": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/UploadFormat"
+            }
+          }
+        },
+        "required": [
+          "place",
+          "maxPhotos",
+          "maxFiles",
+          "fileMb",
+          "totalMb",
+          "formats"
+        ]
+      },
+      "UploadCountMode": {
+        "type": "string",
+        "enum": [
+          "split",
+          "combined",
+          "photos",
+          "none"
+        ]
+      },
+      "UploadCeilingDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Most photos / files an admin may allow."
+          },
+          "fileMb": {
+            "type": "number",
+            "description": "Most MB per file an admin may allow."
+          },
+          "totalMb": {
+            "type": "number",
+            "description": "Most MB of documents together."
+          }
+        },
+        "required": [
+          "count",
+          "fileMb",
+          "totalMb"
+        ]
+      },
+      "UploadPlaceDto": {
+        "type": "object",
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/UploadPlaceLimitsDto"
+          },
+          "count": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UploadCountMode"
+              }
+            ]
+          },
+          "safeFormats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadFormat"
+            },
+            "description": "Formats that may be turned on here (all safe)."
+          },
+          "ceiling": {
+            "$ref": "#/components/schemas/UploadCeilingDto"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/UploadPlaceLimitsDto"
+          }
+        },
+        "required": [
+          "limits",
+          "count",
+          "safeFormats",
+          "ceiling",
+          "defaults"
+        ]
+      },
+      "UploadSettingsDto": {
+        "type": "object",
+        "properties": {
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadPlaceDto"
+            }
+          }
+        },
+        "required": [
+          "places"
+        ]
+      },
+      "UploadSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UploadSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateUploadSettingsDto": {
+        "type": "object",
+        "properties": {
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadPlaceLimitsDto"
+            }
+          }
+        },
+        "required": [
+          "places"
+        ]
+      },
       "UserStorageQuotaDto": {
         "type": "object",
         "properties": {
@@ -107978,6 +108275,35 @@
           "data"
         ]
       },
+      "BoostBilling": {
+        "type": "string",
+        "enum": [
+          "impressions",
+          "reach",
+          "clicks",
+          "actions"
+        ]
+      },
+      "BoostOfferDto": {
+        "type": "object",
+        "properties": {
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "priceCents": {
+            "type": "integer",
+            "description": "Per 1000 for impressions / reach, per one otherwise."
+          }
+        },
+        "required": [
+          "billing",
+          "priceCents"
+        ]
+      },
       "PromotionQuoteDto": {
         "type": "object",
         "properties": {
@@ -108057,6 +108383,20 @@
           },
           "casesEnabled": {
             "type": "boolean"
+          },
+          "offers": {
+            "description": "Owner 2026-10-07: the ways to pay that are on.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoostOfferDto"
+            }
+          },
+          "actions": {
+            "description": "What counts as a real action (follow, message, bid, …).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -108080,7 +108420,9 @@
           "estReachMin",
           "estReachMax",
           "postsEnabled",
-          "casesEnabled"
+          "casesEnabled",
+          "offers",
+          "actions"
         ]
       },
       "PromotionTarget": {
@@ -108238,6 +108580,34 @@
               }
             ]
           },
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "unitPriceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Units the budget buys (impressions, people, taps, actions)."
+          },
+          "deliveredUnits": {
+            "type": "integer",
+            "description": "Units delivered so far."
+          },
+          "actions": {
+            "type": "integer",
+            "description": "Real actions counted."
+          },
+          "refundedCents": {
+            "type": "integer",
+            "description": "Money given back."
+          },
           "cancelReason": {
             "type": "string",
             "nullable": true
@@ -108257,6 +108627,10 @@
           "impressions",
           "reach",
           "clicks",
+          "billing",
+          "deliveredUnits",
+          "actions",
+          "refundedCents",
           "createdAt"
         ]
       },
@@ -108374,6 +108748,14 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 40
+          },
+          "billing": {
+            "description": "Owner 2026-10-07: what to pay for; default = the first one on.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
           }
         },
         "required": [
@@ -108469,6 +108851,34 @@
               }
             ]
           },
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "unitPriceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Units the budget buys (impressions, people, taps, actions)."
+          },
+          "deliveredUnits": {
+            "type": "integer",
+            "description": "Units delivered so far."
+          },
+          "actions": {
+            "type": "integer",
+            "description": "Real actions counted."
+          },
+          "refundedCents": {
+            "type": "integer",
+            "description": "Money given back."
+          },
           "cancelReason": {
             "type": "string",
             "nullable": true
@@ -108492,6 +108902,10 @@
           "impressions",
           "reach",
           "clicks",
+          "billing",
+          "deliveredUnits",
+          "actions",
+          "refundedCents",
           "createdAt",
           "title"
         ]
@@ -108550,6 +108964,21 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "PromotionActionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "watched",
+              "profile_open"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
         ]
       },
       "AdminPromotionRowDto": {
@@ -108627,6 +109056,34 @@
               }
             ]
           },
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "unitPriceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Units the budget buys (impressions, people, taps, actions)."
+          },
+          "deliveredUnits": {
+            "type": "integer",
+            "description": "Units delivered so far."
+          },
+          "actions": {
+            "type": "integer",
+            "description": "Real actions counted."
+          },
+          "refundedCents": {
+            "type": "integer",
+            "description": "Money given back."
+          },
           "cancelReason": {
             "type": "string",
             "nullable": true
@@ -108643,9 +109100,6 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
-          },
-          "refundedCents": {
-            "type": "integer"
           },
           "cpmCents": {
             "type": "integer",
@@ -108692,9 +109146,12 @@
           "impressions",
           "reach",
           "clicks",
+          "billing",
+          "deliveredUnits",
+          "actions",
+          "refundedCents",
           "createdAt",
           "caseTitle",
-          "refundedCents",
           "caseStatus",
           "ownerId"
         ]
@@ -108797,6 +109254,95 @@
           "data"
         ]
       },
+      "ModelPriceDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "priceCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "Per 1000 for impressions / reach, per one otherwise."
+          }
+        },
+        "required": [
+          "enabled",
+          "priceCents"
+        ]
+      },
+      "BillingModelsDto": {
+        "type": "object",
+        "properties": {
+          "impressions": {
+            "$ref": "#/components/schemas/ModelPriceDto"
+          },
+          "reach": {
+            "$ref": "#/components/schemas/ModelPriceDto"
+          },
+          "clicks": {
+            "$ref": "#/components/schemas/ModelPriceDto"
+          },
+          "actions": {
+            "$ref": "#/components/schemas/ModelPriceDto"
+          }
+        },
+        "required": [
+          "impressions",
+          "reach",
+          "clicks",
+          "actions"
+        ]
+      },
+      "TargetPricingDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "models": {
+            "$ref": "#/components/schemas/BillingModelsDto"
+          },
+          "actions": {
+            "maxItems": 10,
+            "description": "What counts as an action.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "models",
+          "actions"
+        ]
+      },
+      "PricingMatrixDto": {
+        "type": "object",
+        "properties": {
+          "post": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          },
+          "video": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          },
+          "case": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          }
+        },
+        "required": [
+          "post",
+          "video",
+          "case",
+          "profile"
+        ]
+      },
       "PromotionSettingsDto": {
         "type": "object",
         "properties": {
@@ -108877,6 +109423,14 @@
           },
           "requireSubscription": {
             "type": "boolean"
+          },
+          "pricing": {
+            "description": "Owner 2026-10-07: prices per model and per thing.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PricingMatrixDto"
+              }
+            ]
           }
         },
         "required": [
@@ -117270,198 +117824,6 @@
         },
         "required": [
           "version"
-        ]
-      },
-      "UpdateUploadSettingsDto": {
-        "type": "object",
-        "properties": {
-          "places": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UploadPlaceLimitsDto"
-            }
-          }
-        },
-        "required": [
-          "places"
-        ]
-      },
-      "UploadCeilingDto": {
-        "type": "object",
-        "properties": {
-          "count": {
-            "type": "number",
-            "description": "Most photos / files an admin may allow."
-          },
-          "fileMb": {
-            "type": "number",
-            "description": "Most MB per file an admin may allow."
-          },
-          "totalMb": {
-            "type": "number",
-            "description": "Most MB of documents together."
-          }
-        },
-        "required": [
-          "count",
-          "fileMb",
-          "totalMb"
-        ]
-      },
-      "UploadCountMode": {
-        "type": "string",
-        "enum": [
-          "split",
-          "combined",
-          "photos",
-          "none"
-        ]
-      },
-      "UploadFormat": {
-        "type": "string",
-        "enum": [
-          "jpeg",
-          "png",
-          "heic",
-          "webp",
-          "gif",
-          "pdf",
-          "doc",
-          "docx",
-          "xls",
-          "xlsx",
-          "ppt",
-          "pptx",
-          "odt",
-          "ods",
-          "odp",
-          "rtf",
-          "txt",
-          "csv"
-        ]
-      },
-      "UploadPlace": {
-        "type": "string",
-        "enum": [
-          "post",
-          "reel",
-          "case",
-          "chat",
-          "task",
-          "review",
-          "avatar",
-          "verification",
-          "client_badge"
-        ]
-      },
-      "UploadPlaceDto": {
-        "type": "object",
-        "properties": {
-          "limits": {
-            "$ref": "#/components/schemas/UploadPlaceLimitsDto"
-          },
-          "count": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/UploadCountMode"
-              }
-            ]
-          },
-          "safeFormats": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UploadFormat"
-            },
-            "description": "Formats that may be turned on here (all safe)."
-          },
-          "ceiling": {
-            "$ref": "#/components/schemas/UploadCeilingDto"
-          },
-          "defaults": {
-            "$ref": "#/components/schemas/UploadPlaceLimitsDto"
-          }
-        },
-        "required": [
-          "limits",
-          "count",
-          "safeFormats",
-          "ceiling",
-          "defaults"
-        ]
-      },
-      "UploadPlaceLimitsDto": {
-        "type": "object",
-        "properties": {
-          "place": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/UploadPlace"
-              }
-            ]
-          },
-          "maxPhotos": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 30
-          },
-          "maxFiles": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 30
-          },
-          "fileMb": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "totalMb": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 200
-          },
-          "formats": {
-            "type": "array",
-            "uniqueItems": true,
-            "items": {
-              "$ref": "#/components/schemas/UploadFormat"
-            }
-          }
-        },
-        "required": [
-          "place",
-          "maxPhotos",
-          "maxFiles",
-          "fileMb",
-          "totalMb",
-          "formats"
-        ]
-      },
-      "UploadSettingsDto": {
-        "type": "object",
-        "properties": {
-          "places": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UploadPlaceDto"
-            }
-          }
-        },
-        "required": [
-          "places"
-        ]
-      },
-      "UploadSettingsEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/UploadSettingsDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
         ]
       }
     }

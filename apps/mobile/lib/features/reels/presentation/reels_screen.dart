@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_detail_screen.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
@@ -320,7 +321,13 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     active: widget.active && video.ready,
                     muted: widget.muted,
                     paused: _paused || covered,
-                    onProgress: (v) => _progress.value = v,
+                    onProgress: (v) {
+                      _progress.value = v;
+                      final id = widget.post.promotionId;
+                      if (id != null && v >= kWatchedFraction) {
+                        ref.read(promotionsRepositoryProvider).watched(id);
+                      }
+                    },
                   ),
                 if (video != null && !video.ready)
                   Center(

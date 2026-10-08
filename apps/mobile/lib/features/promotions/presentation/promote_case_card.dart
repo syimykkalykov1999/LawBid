@@ -34,8 +34,9 @@ FutureProvider<CasePromotionState> promotionStateProvider(
 Future<void> openPostPromotion(
   BuildContext context,
   WidgetRef ref,
-  String postId,
-) async {
+  String postId, {
+  bool video = false,
+}) async {
   final t = ref.read(translatorProvider);
   try {
     final state = await ref.read(postPromotionProvider(postId).future);
@@ -49,6 +50,7 @@ Future<void> openPostPromotion(
         target: PromotionTarget.post,
         id: postId,
         state: state,
+        video: video,
       );
     } else {
       showAppSnackBar(context, t.t('promote.unavailable'));
@@ -292,10 +294,15 @@ class PromotionStatsBlock extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            t.t('promote.progress', {
-              'shown': f.number(p.impressions),
-              'total': f.number(p.targetImpressions ?? 0),
-            }),
+            t.t(
+              p.billing == BoostBilling.impressions
+                  ? 'promote.progress'
+                  : 'promote.progress.${p.billing.name}',
+              {
+                'shown': f.number(p.deliveredUnits),
+                'total': f.number(p.targetUnits ?? 0),
+              },
+            ),
             style: type.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -306,6 +313,8 @@ class PromotionStatsBlock extends ConsumerWidget {
             stat(f.number(p.impressions), t.t('promote.stat.impressions')),
             stat(f.number(p.reach), t.t('promote.stat.reach')),
             stat(f.number(p.clicks), t.t('promote.stat.clicks')),
+            if (p.billing == BoostBilling.actions)
+              stat(f.number(p.actions), t.t('promote.stat.actions')),
           ],
         ),
       ],
@@ -320,6 +329,7 @@ class PromoteSheet extends ConsumerStatefulWidget {
     required this.target,
     required this.id,
     required this.state,
+    this.video = false,
     super.key,
   });
 
@@ -327,16 +337,25 @@ class PromoteSheet extends ConsumerStatefulWidget {
   final String id;
   final CasePromotionState state;
 
+  /// Owner 2026-10-07: a post with a video is priced as a video.
+  final bool video;
+
   static Future<void> show(
     BuildContext context, {
     required PromotionTarget target,
     required String id,
     required CasePromotionState state,
+    bool video = false,
   }) =>
       showAppBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        builder: (_) => PromoteSheet(target: target, id: id, state: state),
+        builder: (_) => PromoteSheet(
+          target: target,
+          id: id,
+          state: state,
+          video: video,
+        ),
       );
 
   @override
@@ -348,6 +367,9 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
   late int _days = _quote.days.clamp(1, _quote.maxDays);
   late int _budget = _initialBudget(_quote);
   bool _custom = false;
+  late BoostOffer? _offer = widget.state.quote.offers.isEmpty
+      ? null
+      : widget.state.quote.offers.first;
   PromotionAudience _audience = const PromotionAudience();
   String? _promo;
   bool _busy = false;
@@ -383,8 +405,19 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
               _days,
               dailyBudgetCents: _budget,
               target: widget.target,
+              video: widget.video,
             );
-        if (mounted && seq == _seq) setState(() => _quote = q);
+        if (mounted && seq == _seq) {
+          setState(() {
+            _quote = q;
+            final o = _offer;
+            if (o != null) {
+              _offer =
+                  q.offers.where((x) => x.billing == o.billing).firstOrNull ??
+                      (q.offers.isEmpty ? null : q.offers.first);
+            }
+          });
+        }
       } on Object {
         // Keep the last quote; the server prices the purchase anyway.
       }
@@ -446,6 +479,7 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
             dailyBudgetCents: _budget,
             audience: _custom ? _audience : null,
             promoCode: _promo,
+            billing: _offer?.billing,
           );
       if (!mounted) return;
       ref
@@ -543,6 +577,28 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
                 t.t(_isPost ? 'promote.post.title' : 'promote.title'),
                 style: type.titleMedium.copyWith(color: colors.text),
               ),
+              if (base.offers.length > 1) ...[
+                section(t.t('promote.billing')),
+                chips<BoostOffer>(
+                  base.offers,
+                  _offer!,
+                  (o) => t.t('promote.billing.${o.billing.name}'),
+                  (o) => setState(() => _offer = o),
+                ),
+              ],
+              if (_offer?.billing == BoostBilling.actions &&
+                  base.actions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    _capitalize(
+                      base.actions
+                          .map((a) => t.t('promote.action.$a'))
+                          .join(', '),
+                    ),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ),
               if (_isPost) ...[
                 section(t.t('promote.audience')),
                 chips<bool>(
@@ -648,17 +704,18 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
                 child: Column(
                   children: [
                     Text(
-                      t.t('promote.estimate.title'),
+                      t.t(
+                        _offer == null
+                            ? 'promote.estimate.title'
+                            : 'promote.estimate.result',
+                      ),
                       textAlign: TextAlign.center,
                       style:
                           type.bodySmall.copyWith(color: colors.textSecondary),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     FitText(
-                      t.t('promote.estimate.people', {
-                        'min': f.number(q.estReachMin),
-                        'max': f.number(q.estReachMax),
-                      }),
+                      _estimate(t, f, q),
                       style: type.titleLarge.copyWith(
                         color: colors.text,
                         fontWeight: FontWeight.w700,
@@ -666,10 +723,16 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      t.t('promote.estimate.total', {
-                        'price': f.currencyFromCents(q.grossCents),
-                        'days': '$_days',
-                      }),
+                      [
+                        t.t('promote.estimate.total', {
+                          'price': f.currencyFromCents(q.grossCents),
+                          'days': '$_days',
+                        }),
+                        if (_offer != null)
+                          t.t('promote.unit.${_offer!.billing.name}', {
+                            'price': f.currencyFromCents(_offer!.priceCents),
+                          }),
+                      ].join(' · '),
                       textAlign: TextAlign.center,
                       style:
                           type.bodySmall.copyWith(color: colors.textSecondary),
@@ -705,7 +768,11 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                t.t('promote.footnote'),
+                t.t(
+                  _offer == null || _offer!.billing == BoostBilling.impressions
+                      ? 'promote.footnote'
+                      : 'promote.refundUnspent',
+                ),
                 textAlign: TextAlign.center,
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
@@ -715,6 +782,29 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
       ),
     );
   }
+
+  /// Owner 2026-10-07: the estimate in the unit the boost is paid for.
+  String _estimate(Translator t, L10nFormats f, PromotionQuote q) {
+    final o = _offer;
+    final count = o?.unitsFor(q.grossCents) ?? 0;
+    return switch (o?.billing) {
+      null => t.t('promote.estimate.people', {
+          'min': f.number(q.estReachMin),
+          'max': f.number(q.estReachMax),
+        }),
+      BoostBilling.reach =>
+        t.t('promote.estimate.reach', {'count': f.number(count)}),
+      BoostBilling.impressions =>
+        t.t('promote.estimate.impressions', {'count': f.number(count)}),
+      BoostBilling.clicks =>
+        t.t('promote.estimate.clicks', {'count': f.number(count)}),
+      BoostBilling.actions =>
+        t.t('promote.estimate.actions', {'count': f.number(count)}),
+    };
+  }
+
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
   Future<PromoCheck> _validate(String code, SubscriptionPlan _) =>
       ref.read(promotionsRepositoryProvider).validatePromo(code);

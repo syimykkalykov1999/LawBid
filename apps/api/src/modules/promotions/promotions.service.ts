@@ -36,8 +36,16 @@ import type {
   PromotionQuoteDto,
 } from './promotions.dto';
 import { PromotionDeliveryService } from './promotion-delivery.service';
+import { PromotionRefundsService } from './promotion-refunds.service';
 import {
+  billingOf,
+  deliveredUnits,
   impressionsFor,
+  offersFor,
+  pricingTargetOf,
+  targetUnits,
+  unitsFor,
+  type BillingModel,
   parseAudience,
   parsePromotionSettings,
   PENDING_PAYMENT_TTL_MS,
@@ -74,6 +82,12 @@ export function toPromotionDto(p: CasePromotion): CasePromotionDto {
     clicks: p.clicks,
     targetImpressions: p.target_impressions,
     audience: p.audience ? parseAudience(p.audience) : null,
+    billing: billingOf(p.billing),
+    unitPriceCents: p.unit_price_cents ?? p.cpm_cents,
+    targetUnits: targetUnits(p),
+    deliveredUnits: deliveredUnits(p),
+    actions: p.actions,
+    refundedCents: p.refunded_cents,
     cancelReason: p.cancel_reason,
     createdAt: p.created_at.toISOString(),
   };
@@ -92,6 +106,8 @@ interface OwnedTarget {
   id: string;
   /** May be promoted right now (open case / published post). */
   promotable: boolean;
+  /** Owner 2026-10-07: a post with a video has the video prices. */
+  hasVideo?: boolean;
 }
 
 function caseNotFound(): NotFoundException {
@@ -138,6 +154,7 @@ export class PromotionsService {
     // Owner 2026-10-05 (plan builder): promotion is a client plan term.
     @Optional() private readonly entitlements?: EntitlementsService,
     @Optional() private readonly delivery?: PromotionDeliveryService,
+    @Optional() private readonly refunds?: PromotionRefundsService,
   ) {}
 
   /** Only when the admin turned "needs a subscription" on. */
@@ -172,8 +189,14 @@ export class PromotionsService {
     days: number,
     dailyBudgetCents?: number,
     target: PromotionTarget = 'case',
+    video = false,
   ): Promise<PromotionQuoteDto> {
     const settings = await this.settings();
+    const key = pricingTargetOf(target, video);
+    const offers = offersFor(settings.pricing, key);
+    const cpm =
+      offers.find((o) => o.billing === 'impressions')?.priceCents ??
+      settings.pricing[key].models.impressions.priceCents;
     await this.assertEntitled(userId, settings);
     this.assertDays(days, settings);
     const daily = this.dailyBudget(dailyBudgetCents, settings);
@@ -186,7 +209,7 @@ export class PromotionsService {
       useCredits: true,
       creditDayValueCents: settings.priceCentsPerDay,
     });
-    const estImpressions = impressionsFor(q.grossCents, settings.cpmCents);
+    const estImpressions = impressionsFor(q.grossCents, cpm);
     const reach = reachRange(estImpressions, settings.impressionsPerPerson);
     return {
       days,
@@ -198,18 +221,22 @@ export class PromotionsService {
       creditDaysAvailableExact: creditDaysAvailable,
       creditDaysUsedExact: q.creditDaysUsed,
       maxDays: settings.maxDays,
-      enabled: target === 'post' ? settings.postsEnabled : settings.enabled,
+      enabled: offers.length > 0,
       dailyBudgetCents: daily,
       minDailyBudgetCents: settings.minDailyBudgetCents,
       maxDailyBudgetCents: settings.maxDailyBudgetCents,
       budgetPresetsCents: settings.budgetPresetsCents,
       durationPresets: settings.durationPresets,
-      cpmCents: settings.cpmCents,
+      cpmCents: cpm,
       estImpressions,
       estReachMin: reach.min,
       estReachMax: reach.max,
       postsEnabled: settings.postsEnabled,
       casesEnabled: settings.enabled,
+      offers,
+      actions: offers.some((o) => o.billing === 'actions')
+        ? settings.pricing[key].actions
+        : [],
     };
   }
 
@@ -247,7 +274,13 @@ export class PromotionsService {
     );
     const shown =
       active ?? rows.find((r) => r.status === 'pending_payment') ?? rows[0];
-    const quote = await this.quote(userId, 1, undefined, type);
+    const quote = await this.quote(
+      userId,
+      1,
+      undefined,
+      type,
+      target.hasVideo ?? false,
+    );
     return {
       promotion: shown ? toPromotionDto(shown) : null,
       canPromote: quote.enabled && target.promotable && !active,
@@ -281,15 +314,30 @@ export class PromotionsService {
   ): Promise<CreatePromotionResultDto> {
     const settings = await this.settings();
     await this.assertEntitled(userId, settings);
-    if (type === 'post' ? !settings.postsEnabled : !settings.enabled) {
+    const target = await this.ownedTarget(userId, type, id);
+    // Owner 2026-10-07: priced per thing (a post with a video = video) and
+    // per way to pay; only what the admin turned on can be bought.
+    const key = pricingTargetOf(type, target.hasVideo ?? false);
+    const offers = offersFor(settings.pricing, key);
+    if (offers.length === 0) {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
         message: 'Promotion is not available right now.',
       });
     }
+    const offer = dto.billing
+      ? offers.find((o) => o.billing === dto.billing)
+      : offers[0];
+    if (!offer) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This way to pay is not available.',
+        details: { field: 'billing', allowed: offers.map((o) => o.billing) },
+      });
+    }
+    const billing: BillingModel = offer.billing;
     this.assertDays(dto.days, settings);
     const daily = this.dailyBudget(dto.dailyBudgetCents, settings, true);
-    const target = await this.ownedTarget(userId, type, id);
     if (!target.promotable) {
       throw new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,
@@ -350,6 +398,7 @@ export class PromotionsService {
         });
         const free = q.totalCents === 0;
         const startNow = free && !review;
+        const units = unitsFor(billing, q.grossCents, offer.priceCents);
         const created = await tx.casePromotion.create({
           data: {
             target_type: type,
@@ -359,8 +408,13 @@ export class PromotionsService {
             days: dto.days,
             price_cents_per_day: daily,
             total_cents: q.totalCents,
-            cpm_cents: settings.cpmCents,
-            target_impressions: impressionsFor(q.grossCents, settings.cpmCents),
+            cpm_cents: billing === 'impressions' ? offer.priceCents : null,
+            target_impressions: billing === 'impressions' ? units : null,
+            billing,
+            unit_price_cents: offer.priceCents,
+            target_units: units,
+            billed_actions:
+              billing === 'actions' ? settings.pricing[key].actions : [],
             ...(audience
               ? { audience: audience as unknown as Prisma.InputJsonObject }
               : {}),
@@ -554,6 +608,8 @@ export class PromotionsService {
         },
       });
       this.delivery?.invalidate();
+      // Owner 2026-10-07: per people / taps / actions → unspent goes back.
+      await this.refunds?.refundUnspent(id);
     } else {
       throw new ConflictException({
         code: ErrorCode.PROMOTION_INVALID_STATE,
@@ -568,6 +624,19 @@ export class PromotionsService {
   /** POST /promotions/:id/click — a viewer opened a promoted item. */
   async click(userId: string, id: string): Promise<{ ok: boolean }> {
     return { ok: (await this.delivery?.click(userId, id)) ?? false };
+  }
+
+  /** POST /promotions/:id/action — a real action only the app sees
+   * (watched a promoted video to the end, opened the author's profile). */
+  async action(
+    userId: string,
+    id: string,
+    kind: string,
+  ): Promise<{ ok: boolean }> {
+    const n =
+      (await this.delivery?.recordAction(userId, { promotionId: id }, kind)) ??
+      0;
+    return { ok: n > 0 };
   }
 
   // ---- payment confirmation ----------------------------------------------
@@ -838,12 +907,22 @@ export class PromotionsService {
     if (type === 'post') {
       const post = await this.prisma.post.findUnique({
         where: { id },
-        select: { author_id: true, status: true, deleted_at: true },
+        select: {
+          author_id: true,
+          status: true,
+          deleted_at: true,
+          video_asset_id: true,
+        },
       });
       if (!post || post.deleted_at || post.author_id !== userId) {
         throw postNotFound();
       }
-      return { type, id, promotable: post.status === 'published' };
+      return {
+        type,
+        id,
+        promotable: post.status === 'published',
+        hasVideo: !!post.video_asset_id,
+      };
     }
     const kase = await this.prisma.case.findUnique({
       where: { id },

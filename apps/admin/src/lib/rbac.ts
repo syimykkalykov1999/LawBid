@@ -198,7 +198,6 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/cases', label: 'Кейсы', icon: 'briefcase', area: 'cases', hint: 'кейсы, споры, «не могу связаться»' },
       { href: '/bids', label: 'Ставки', icon: 'gavel', area: 'cases' },
-      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платное продвижение постов и кейсов, как в Instagram' },
     ],
   },
   {
@@ -207,6 +206,7 @@ export const GROUPS: readonly SectionGroup[] = [
     icon: 'wallet',
     items: [
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'money', hint: 'стоимость тарифов и галочки' },
+      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'цены за показы, людей, нажатия и действия' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'money', hint: 'планы подписок и их возможности' },
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'money', hint: 'тарифы адвокатов' },
       { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },

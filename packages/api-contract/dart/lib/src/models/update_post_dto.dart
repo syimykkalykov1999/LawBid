@@ -15,6 +15,7 @@ class UpdatePostDto {
     this.title,
     this.practiceCode,
     this.contentClass,
+    this.commentsEnabled,
   });
 
   factory UpdatePostDto.fromJson(Map<String, Object?> json) =>
@@ -26,7 +27,12 @@ class UpdatePostDto {
   /// Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or.
   /// News is always legal; without one the author picks (default general).
   final PostContentClass? contentClass;
+
+  /// Owner 2026-10-07: the description is optional ('' is fine).
   final String body;
+
+  /// Owner 2026-10-07: comments can be turned off (or on) after posting.
+  final bool? commentsEnabled;
 
   Map<String, Object?> toJson() => _$UpdatePostDtoToJson(this);
 }

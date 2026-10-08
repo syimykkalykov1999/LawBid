@@ -17,6 +17,9 @@ CreatePromotionDto _$CreatePromotionDtoFromJson(Map<String, dynamic> json) =>
               json['audience'] as Map<String, dynamic>,
             ),
       promoCode: json['promoCode'] as String?,
+      billing: json['billing'] == null
+          ? null
+          : BoostBilling.fromJson(json['billing'] as String),
     );
 
 Map<String, dynamic> _$CreatePromotionDtoToJson(CreatePromotionDto instance) =>
@@ -26,4 +29,5 @@ Map<String, dynamic> _$CreatePromotionDtoToJson(CreatePromotionDto instance) =>
       'audience': ?instance.audience?.toJson(),
       'useCredits': instance.useCredits,
       'promoCode': ?instance.promoCode,
+      'billing': ?instance.billing?.toJson(),
     };

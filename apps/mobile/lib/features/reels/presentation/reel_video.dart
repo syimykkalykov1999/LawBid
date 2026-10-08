@@ -224,13 +224,24 @@ class _ReelVideoState extends State<ReelVideo> {
   }
 }
 
+/// How much of a video counts as "watched to the end".
+const kWatchedFraction = 0.95;
+
 /// A reel inside a feed card: plays muted while most of it is on screen,
 /// with the reel mark and the length in the corner.
 class InlineReel extends StatefulWidget {
-  const InlineReel({required this.post, required this.onOpen, super.key});
+  const InlineReel({
+    required this.post,
+    required this.onOpen,
+    this.onWatched,
+    super.key,
+  });
 
   final Post post;
   final VoidCallback onOpen;
+
+  /// Owner 2026-10-07: played to the end (a promoted video's action).
+  final VoidCallback? onWatched;
 
   @override
   State<InlineReel> createState() => _InlineReelState();
@@ -255,7 +266,15 @@ class _InlineReelState extends State<InlineReel> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ReelVideo(video: video, active: _visible && video.ready),
+            ReelVideo(
+              video: video,
+              active: _visible && video.ready,
+              onProgress: widget.onWatched == null
+                  ? null
+                  : (v) {
+                      if (v >= kWatchedFraction) widget.onWatched!();
+                    },
+            ),
             if (!video.ready)
               const Center(
                 child: AppIcon(

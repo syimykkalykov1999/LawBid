@@ -318,7 +318,10 @@ export class CasesFeedService {
   async save(viewer: CaseViewer, dto: SavedItemDto): Promise<void> {
     // docs/05 §4: posts are saved by anyone who can see them.
     if (dto.itemType === 'post') {
-      return this.posts.save(viewer.userId, dto.itemId);
+      await this.posts.save(viewer.userId, dto.itemId);
+      // Owner 2026-10-07: a save counts for a boost paid per action.
+      this.promoDelivery?.action(viewer.userId, { postId: dto.itemId }, 'save');
+      return;
     }
     if (viewer.role !== 'attorney') {
       throw forbidden('Only attorneys save cases (§11.2).');
@@ -339,6 +342,7 @@ export class CasesFeedService {
       },
       update: {},
     });
+    this.promoDelivery?.action(viewer.userId, { caseId: dto.itemId }, 'save');
   }
 
   /** DELETE /saved-items. No visibility check on the way out: unsaving a

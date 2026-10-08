@@ -7,6 +7,7 @@ import { AdminPromotionsService } from './admin-promotions.service';
 import { PromotionsController } from './promotions.controller';
 import { PromotionsService } from './promotions.service';
 import { PromotionDeliveryService } from './promotion-delivery.service';
+import { PromotionRefundsService } from './promotion-refunds.service';
 import { RefundsService } from '../admin-billing/refunds.service';
 
 /** The promotion service alone — imported by billing (checkout webhook),
@@ -14,7 +15,11 @@ import { RefundsService } from '../admin-billing/refunds.service';
  * the global PAYMENT_PROVIDER when present. */
 @Module({
   imports: [ReferralsCoreModule, NotificationsModule],
-  providers: [PromotionsService, PromotionDeliveryService],
+  providers: [
+    PromotionsService,
+    PromotionDeliveryService,
+    PromotionRefundsService,
+  ],
   exports: [PromotionsService, PromotionDeliveryService],
 })
 export class PromotionsCoreModule {}

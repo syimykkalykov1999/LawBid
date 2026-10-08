@@ -20,6 +20,7 @@ class PromotionsRepository {
     int days, {
     int? dailyBudgetCents,
     PromotionTarget target = PromotionTarget.case_,
+    bool video = false,
   }) async =>
       _quote(
         (await guardApiCall(
@@ -27,6 +28,7 @@ class PromotionsRepository {
             days: days,
             dailyBudgetCents: dailyBudgetCents,
             target: _target(target),
+            video: video ? true : null,
           ),
         ))
             .data,
@@ -57,8 +59,10 @@ class PromotionsRepository {
     PromotionAudience? audience,
     bool useCredits = true,
     String? promoCode,
+    BoostBilling? billing,
   }) async {
     final body = api.CreatePromotionDto(
+      billing: billing == null ? null : api.BoostBilling.fromJson(billing.name),
       days: days,
       dailyBudgetCents: dailyBudgetCents,
       audience: audience == null || audience.isAutomatic
@@ -115,6 +119,10 @@ class PromotionsRepository {
             endsAt: d.endsAt,
             createdAt: d.createdAt,
             title: d.title,
+            billing: d.billing,
+            targetUnits: d.targetUnits,
+            deliveredUnits: d.deliveredUnits,
+            actions: d.actions,
           ),
       ],
       nextCursor: r.meta?.nextCursor,
@@ -130,6 +138,30 @@ class PromotionsRepository {
   Future<void> click(String id) async {
     try {
       await _api.clickPromotion(id: id);
+    } on Object {
+      // Stats only.
+    }
+  }
+
+  final _watched = <String>{};
+
+  /// Owner 2026-10-07: a promoted video was watched to the end — counts
+  /// once per promotion and person (the server checks too). Best effort.
+  Future<void> watched(String id) async {
+    if (!_watched.add(id)) return;
+    await _action(id, api.PromotionActionDtoKind.watched);
+  }
+
+  /// The author's profile was opened from a promoted post. Best effort.
+  Future<void> profileOpened(String id) =>
+      _action(id, api.PromotionActionDtoKind.profileOpen);
+
+  Future<void> _action(String id, api.PromotionActionDtoKind kind) async {
+    try {
+      await _api.actionPromotion(
+        id: id,
+        body: api.PromotionActionDto(kind: kind),
+      );
     } on Object {
       // Stats only.
     }
@@ -172,7 +204,16 @@ class PromotionsRepository {
         estImpressions: d.estImpressions,
         estReachMin: d.estReachMin,
         estReachMax: d.estReachMax,
+        offers: [
+          for (final o in d.offers)
+            if (_boostBilling(o.billing) case final b?)
+              BoostOffer(b, o.priceCents),
+        ],
+        actions: d.actions,
       );
+
+  static BoostBilling? _boostBilling(api.BoostBilling b) =>
+      BoostBilling.values.where((x) => x.name == b.json).firstOrNull;
 
   static api.PromotionTarget _target(PromotionTarget t) =>
       t == PromotionTarget.post
@@ -196,6 +237,10 @@ class PromotionsRepository {
         startsAt: d.startsAt,
         endsAt: d.endsAt,
         createdAt: d.createdAt,
+        billing: d.billing,
+        targetUnits: d.targetUnits,
+        deliveredUnits: d.deliveredUnits,
+        actions: d.actions,
       );
 
   static CasePromotion _fromFields({
@@ -215,6 +260,10 @@ class PromotionsRepository {
     required DateTime? startsAt,
     required DateTime? endsAt,
     required DateTime createdAt,
+    required api.BoostBilling billing,
+    required int? targetUnits,
+    required int deliveredUnits,
+    required int actions,
     String title = '',
   }) =>
       CasePromotion(
@@ -235,5 +284,9 @@ class PromotionsRepository {
         endsAt: endsAt?.toLocal(),
         createdAt: createdAt.toLocal(),
         title: title,
+        billing: _boostBilling(billing) ?? BoostBilling.impressions,
+        targetUnits: targetUnits,
+        deliveredUnits: deliveredUnits,
+        actions: actions,
       );
 }

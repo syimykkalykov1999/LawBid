@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-145 tables.
+146 tables.
 
 ```mermaid
 erDiagram
@@ -535,6 +535,12 @@ erDiagram
   post_likes {
     String post_id PK,FK
     String user_id PK,FK
+    DateTime created_at
+  }
+  post_reposts {
+    String id PK
+    String post_id FK
+    String user_id FK
     DateTime created_at
   }
   comment_likes {
@@ -1422,6 +1428,10 @@ erDiagram
     Int target_impressions "nullable"
     Int reach
     Int clicks
+    String billing
+    Int unit_price_cents "nullable"
+    Int target_units "nullable"
+    Int actions
     Json audience "nullable"
     Int refunded_cents
     String reviewed_by "nullable"
@@ -1436,6 +1446,7 @@ erDiagram
     String day_key
     Int day_count
     Boolean clicked
+    Boolean acted
     DateTime first_seen_at
     DateTime last_seen_at
   }
@@ -1575,6 +1586,8 @@ erDiagram
     Json stripe_price_ids
     Json stripe_product_ids
     String note "nullable"
+    Int compare_at_cents "nullable"
+    Boolean show_discount
     String created_by "nullable"
     DateTime created_at
   }
@@ -1980,6 +1993,8 @@ erDiagram
   comments }o--o| comments : "parent_comment_id"
   post_likes }o--|| posts : "post_id"
   post_likes }o--|| users : "user_id"
+  post_reposts }o--|| posts : "post_id"
+  post_reposts }o--|| users : "user_id"
   comment_likes }o--|| comments : "comment_id"
   comment_likes }o--|| users : "user_id"
   follows }o--|| users : "follower_id"

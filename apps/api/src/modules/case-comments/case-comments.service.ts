@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { CaseComment } from '@prisma/client';
@@ -13,6 +14,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { assertNoContactInfo } from '../cases/domain/contact-detector';
@@ -55,6 +57,7 @@ export class CaseCommentsService {
     private readonly files: FilesService,
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
   ) {}
 
   /** Access check; returns the case owner's id. */
@@ -141,6 +144,9 @@ export class CaseCommentsService {
         });
       }
     }
+    // Owner 2026-10-07: a question counts for the case's boost per action.
+    if (!parentCommentId)
+      this.promoDelivery?.action(userId, { caseId }, 'question');
     return (await this.present([created], userId, ownerId))[0];
   }
 

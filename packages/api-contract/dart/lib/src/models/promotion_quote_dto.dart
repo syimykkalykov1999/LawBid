@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'boost_offer_dto.dart';
+
 part 'promotion_quote_dto.g.dart';
 
 @JsonSerializable()
@@ -30,6 +32,8 @@ class PromotionQuoteDto {
     required this.estReachMax,
     required this.postsEnabled,
     required this.casesEnabled,
+    required this.offers,
+    required this.actions,
   });
 
   factory PromotionQuoteDto.fromJson(Map<String, Object?> json) =>
@@ -72,6 +76,12 @@ class PromotionQuoteDto {
   final int estReachMax;
   final bool postsEnabled;
   final bool casesEnabled;
+
+  /// Owner 2026-10-07: the ways to pay that are on.
+  final List<BoostOfferDto> offers;
+
+  /// What counts as a real action (follow, message, bid, …).
+  final List<String> actions;
 
   Map<String, Object?> toJson() => _$PromotionQuoteDtoToJson(this);
 }

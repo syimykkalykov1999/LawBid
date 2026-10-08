@@ -2,10 +2,15 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PromotionRefundsService } from './promotion-refunds.service';
 import {
+  budgetSpent,
+  deliveredUnits,
   parseAudience,
   parsePromotionSettings,
   PROMOTION_SETTINGS_KEY,
+  targetUnits,
+  type BoostAction,
   type PromotionAudience,
   type PromotionSettings,
   type PromotionTarget,
@@ -18,8 +23,10 @@ export interface LivePromotion {
   caseId: string | null;
   postId: string | null;
   audience: PromotionAudience;
-  impressions: number;
-  targetImpressions: number | null;
+  /** Owner 2026-10-07: progress in the unit it is paid for (impressions,
+   * people, taps or actions) and what the budget buys (null = no cap). */
+  delivered: number;
+  target: number | null;
   startsAt: Date;
   endsAt: Date;
 }
@@ -62,13 +69,13 @@ export function audienceMatches(
 /** Behind schedule first: delivered share ÷ elapsed share of the period,
  * so a budget is spread over its days instead of burned in an hour. */
 export function pacingScore(p: LivePromotion, now = Date.now()): number {
-  if (!p.targetImpressions) return 0.5;
+  if (!p.target) return 0.5;
   const span = Math.max(1, p.endsAt.getTime() - p.startsAt.getTime());
   const elapsed = Math.min(
     1,
     Math.max(0.01, (now - p.startsAt.getTime()) / span),
   );
-  return p.impressions / p.targetImpressions / elapsed;
+  return p.delivered / p.target / elapsed;
 }
 
 /**
@@ -91,6 +98,7 @@ export class PromotionDeliveryService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly notifications?: NotificationsService,
+    @Optional() private readonly refunds?: PromotionRefundsService,
   ) {}
 
   async settings(): Promise<PromotionSettings> {
@@ -129,8 +137,7 @@ export class PromotionDeliveryService {
         case_id: true,
         post_id: true,
         audience: true,
-        impressions: true,
-        target_impressions: true,
+        ...COUNTS,
         starts_at: true,
         ends_at: true,
       },
@@ -138,18 +145,15 @@ export class PromotionDeliveryService {
       take: 500,
     });
     const list = rows
-      .filter(
-        (r) =>
-          r.target_impressions === null || r.impressions < r.target_impressions,
-      )
+      .filter((r) => !budgetSpent(r))
       .map((r) => ({
         id: r.id,
         userId: r.user_id,
         caseId: r.case_id,
         postId: r.post_id,
         audience: parseAudience(r.audience),
-        impressions: r.impressions,
-        targetImpressions: r.target_impressions,
+        delivered: deliveredUnits(r),
+        target: targetUnits(r),
         startsAt: r.starts_at ?? now,
         endsAt: r.ends_at ?? now,
       }));
@@ -306,20 +310,9 @@ export class PromotionDeliveryService {
           impressions: { increment: 1 },
           ...(newPerson ? { reach: { increment: 1 } } : {}),
         },
-        select: {
-          impressions: true,
-          target_impressions: true,
-          status: true,
-          user_id: true,
-          case_id: true,
-          post_id: true,
-        },
+        select: { ...COUNTS, ...OWNER, status: true },
       });
-      if (
-        p.status === 'active' &&
-        p.target_impressions !== null &&
-        p.impressions >= p.target_impressions
-      ) {
+      if (p.status === 'active' && budgetSpent(p)) {
         await this.finish(id, p, 'budget_spent');
       }
     }
@@ -338,6 +331,9 @@ export class PromotionDeliveryService {
     });
     if (res.count === 0) return false;
     this.live.clear();
+    // Owner 2026-10-07: paid per people / taps / actions and ended early →
+    // the unspent part goes back to the card (impressions: old rule).
+    if (reason !== 'budget_spent') await this.refunds?.refundUnspent(id);
     await this.notifications
       ?.emit({
         type: 'promotion_ended',
@@ -359,10 +355,102 @@ export class PromotionDeliveryService {
       data: { clicked: true },
     });
     if (res.count === 0) return false;
-    await this.prisma.casePromotion.update({
+    const p = await this.prisma.casePromotion.update({
       where: { id: promotionId },
       data: { clicks: { increment: 1 } },
+      select: { ...COUNTS, ...OWNER, status: true },
     });
+    if (p.status === 'active' && budgetSpent(p)) {
+      await this.finish(promotionId, p, 'budget_spent');
+    }
     return true;
   }
+
+  /**
+   * Owner 2026-10-07: [viewerId] did something real (followed, wrote,
+   * saved, bid, …) after seeing a promotion paid per action. Counted once
+   * per person, only for the kinds the buyer paid for, and only when they
+   * were shown it (a promotion_views row). [match] picks the promotions:
+   * of this post / case, or of anything by this author.
+   */
+  async recordAction(
+    viewerId: string,
+    match: {
+      postId?: string;
+      caseId?: string;
+      ownerId?: string;
+      promotionId?: string;
+    },
+    kind: BoostAction,
+  ): Promise<number> {
+    try {
+      if (viewerId === match.ownerId) return 0;
+      const where: Prisma.CasePromotionWhereInput = {
+        status: 'active',
+        billing: 'actions',
+        billed_actions: { has: kind },
+        user_id: { not: viewerId },
+        ...(match.promotionId ? { id: match.promotionId } : {}),
+        ...(match.postId ? { post_id: match.postId } : {}),
+        ...(match.caseId ? { case_id: match.caseId } : {}),
+        ...(match.ownerId ? { user_id: match.ownerId } : {}),
+      };
+      if (
+        !match.promotionId &&
+        !match.postId &&
+        !match.caseId &&
+        !match.ownerId
+      ) {
+        return 0;
+      }
+      const rows = await this.prisma.casePromotion.findMany({
+        where,
+        select: { id: true },
+        take: 20,
+      });
+      let counted = 0;
+      for (const r of rows) {
+        const res = await this.prisma.promotionView.updateMany({
+          where: { promotion_id: r.id, user_id: viewerId, acted: false },
+          data: { acted: true },
+        });
+        if (res.count === 0) continue;
+        const p = await this.prisma.casePromotion.update({
+          where: { id: r.id },
+          data: { actions: { increment: 1 } },
+          select: { ...COUNTS, ...OWNER, status: true },
+        });
+        counted += 1;
+        if (p.status === 'active' && budgetSpent(p)) {
+          await this.finish(r.id, p, 'budget_spent');
+        }
+      }
+      return counted;
+    } catch (e) {
+      this.logger.warn({ err: String(e), kind }, 'promotion action failed');
+      return 0;
+    }
+  }
+
+  /** Fire-and-forget version for the services that see the actions. */
+  action(
+    viewerId: string,
+    match: { postId?: string; caseId?: string; ownerId?: string },
+    kind: BoostAction,
+  ): void {
+    void this.recordAction(viewerId, match, kind);
+  }
 }
+
+/** The counters a promotion's budget is measured in. */
+const COUNTS = {
+  billing: true,
+  impressions: true,
+  reach: true,
+  clicks: true,
+  actions: true,
+  target_units: true,
+  target_impressions: true,
+} as const;
+
+const OWNER = { user_id: true, case_id: true, post_id: true } as const;

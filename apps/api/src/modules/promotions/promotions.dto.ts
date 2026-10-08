@@ -18,8 +18,11 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  BILLING_MODELS,
+  CLIENT_REPORTED_ACTIONS,
   PROMOTION_STATUSES,
   PROMOTION_TARGETS,
+  type BillingModel,
   type PromotionStatus,
   type PromotionTarget,
 } from './promotions.settings';
@@ -74,6 +77,14 @@ export class PromotionQuoteQueryDto {
   @IsOptional()
   @IsIn(PROMOTION_TARGETS)
   target?: PromotionTarget;
+
+  @ApiPropertyOptional({
+    description: 'Owner 2026-10-07: the post has a video (video prices).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  video?: boolean;
 }
 
 /** Owner 2026-10-05: who sees a promoted post (empty = everyone). */
@@ -139,6 +150,28 @@ export class CreatePromotionDto {
   @MinLength(1)
   @MaxLength(40)
   promoCode?: string;
+
+  @ApiPropertyOptional({
+    enum: BILLING_MODELS,
+    enumName: 'BoostBilling',
+    description:
+      'Owner 2026-10-07: what to pay for; default = the first one on.',
+  })
+  @IsOptional()
+  @IsIn(BILLING_MODELS)
+  billing?: BillingModel;
+}
+
+/** Owner 2026-10-07: one way to pay the buyer may pick. */
+export class BoostOfferDto {
+  @ApiProperty({ enum: BILLING_MODELS, enumName: 'BoostBilling' })
+  billing!: BillingModel;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Per 1000 for impressions / reach, per one otherwise.',
+  })
+  priceCents!: number;
 }
 
 export class PromotionQuoteDto {
@@ -209,6 +242,18 @@ export class PromotionQuoteDto {
 
   @ApiProperty()
   casesEnabled!: boolean;
+
+  @ApiProperty({
+    type: [BoostOfferDto],
+    description: 'Owner 2026-10-07: the ways to pay that are on.',
+  })
+  offers!: BoostOfferDto[];
+
+  @ApiProperty({
+    type: [String],
+    description: 'What counts as a real action (follow, message, bid, …).',
+  })
+  actions!: string[];
 }
 
 export class CasePromotionDto {
@@ -261,6 +306,29 @@ export class CasePromotionDto {
   @ApiPropertyOptional({ type: PromotionAudienceDto, nullable: true })
   audience!: PromotionAudienceDto | null;
 
+  // ---- owner 2026-10-07: what it is paid for ----
+  @ApiProperty({ enum: BILLING_MODELS, enumName: 'BoostBilling' })
+  billing!: BillingModel;
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  unitPriceCents!: number | null;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Units the budget buys (impressions, people, taps, actions).',
+  })
+  targetUnits!: number | null;
+
+  @ApiProperty({ type: 'integer', description: 'Units delivered so far.' })
+  deliveredUnits!: number;
+
+  @ApiProperty({ type: 'integer', description: 'Real actions counted.' })
+  actions!: number;
+
+  @ApiProperty({ type: 'integer', description: 'Money given back.' })
+  refundedCents!: number;
+
   @ApiPropertyOptional({ type: String, nullable: true })
   cancelReason!: string | null;
 
@@ -280,6 +348,13 @@ export class MyPromotionsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+}
+
+/** Owner 2026-10-07: a real action only the app can see. */
+export class PromotionActionDto {
+  @ApiProperty({ enum: CLIENT_REPORTED_ACTIONS })
+  @IsIn(CLIENT_REPORTED_ACTIONS)
+  kind!: (typeof CLIENT_REPORTED_ACTIONS)[number];
 }
 
 export class PromotionClickResultDto {
@@ -382,9 +457,6 @@ export class AdminPromotionRowDto extends CasePromotionDto {
 
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   reviewedBy!: string | null;
-
-  @ApiProperty({ type: 'integer' })
-  refundedCents!: number;
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   cpmCents!: number | null;
@@ -552,6 +624,84 @@ export class AdminReviewPromotionDto {
   reason = '';
 }
 
+export class ModelPriceDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    description: 'Per 1000 for impressions / reach, per one otherwise.',
+  })
+  @IsInt()
+  @Min(1)
+  @Max(10_000_000)
+  priceCents!: number;
+}
+
+export class BillingModelsDto {
+  @ApiProperty({ type: ModelPriceDto })
+  @ValidateNested()
+  @Type(() => ModelPriceDto)
+  impressions!: ModelPriceDto;
+
+  @ApiProperty({ type: ModelPriceDto })
+  @ValidateNested()
+  @Type(() => ModelPriceDto)
+  reach!: ModelPriceDto;
+
+  @ApiProperty({ type: ModelPriceDto })
+  @ValidateNested()
+  @Type(() => ModelPriceDto)
+  clicks!: ModelPriceDto;
+
+  @ApiProperty({ type: ModelPriceDto })
+  @ValidateNested()
+  @Type(() => ModelPriceDto)
+  actions!: ModelPriceDto;
+}
+
+export class TargetPricingDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
+
+  @ApiProperty({ type: BillingModelsDto })
+  @ValidateNested()
+  @Type(() => BillingModelsDto)
+  models!: BillingModelsDto;
+
+  @ApiProperty({ type: [String], description: 'What counts as an action.' })
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(20, { each: true })
+  actions!: string[];
+}
+
+export class PricingMatrixDto {
+  @ApiProperty({ type: TargetPricingDto })
+  @ValidateNested()
+  @Type(() => TargetPricingDto)
+  post!: TargetPricingDto;
+
+  @ApiProperty({ type: TargetPricingDto })
+  @ValidateNested()
+  @Type(() => TargetPricingDto)
+  video!: TargetPricingDto;
+
+  @ApiProperty({ type: TargetPricingDto })
+  @ValidateNested()
+  @Type(() => TargetPricingDto)
+  case!: TargetPricingDto;
+
+  @ApiProperty({ type: TargetPricingDto })
+  @ValidateNested()
+  @Type(() => TargetPricingDto)
+  profile!: TargetPricingDto;
+}
+
 export class PromotionSettingsDto {
   @ApiProperty()
   @IsBoolean()
@@ -645,4 +795,13 @@ export class PromotionSettingsDto {
   @ApiProperty()
   @IsBoolean()
   requireSubscription!: boolean;
+
+  @ApiPropertyOptional({
+    type: () => PricingMatrixDto,
+    description: 'Owner 2026-10-07: prices per model and per thing.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PricingMatrixDto)
+  pricing?: PricingMatrixDto;
 }

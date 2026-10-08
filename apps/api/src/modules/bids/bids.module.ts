@@ -1,3 +1,4 @@
+import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
@@ -30,6 +31,8 @@ import { BidStateMachine } from './domain/bid-state-machine';
  */
 @Module({
   imports: [
+    // Owner 2026-10-07: real actions count for boosts paid per action.
+    PromotionsCoreModule,
     JournalModule,
     LegalAcceptanceModule,
     NotificationsModule,

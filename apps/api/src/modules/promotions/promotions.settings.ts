@@ -36,7 +36,97 @@ export interface PromotionSettings {
   /** Off by default: promotion needs no subscription (owner 2026-10-05).
    * On: only plans with the `case_promotion` term may promote. */
   requireSubscription: boolean;
+  /** Owner 2026-10-07: what a boost is paid for, per promotable thing. */
+  pricing: PricingMatrix;
 }
+
+/** Owner 2026-10-07: impressions / people are priced per 1000, taps and
+ * real actions per one. */
+export const BILLING_MODELS = [
+  'impressions',
+  'reach',
+  'clicks',
+  'actions',
+] as const;
+export type BillingModel = (typeof BILLING_MODELS)[number];
+
+/** What has its own prices: posts, posts with a video, cases, attorney
+ * profiles (profile delivery comes later; off until then). */
+export const PRICING_TARGETS = ['post', 'video', 'case', 'profile'] as const;
+export type PricingTarget = (typeof PRICING_TARGETS)[number];
+
+/** What may count as a real result per thing. Never "hired" or "case
+ * won": paying for a client would be fee-sharing (legal/attorney-trust). */
+export const BOOST_ACTIONS: Record<PricingTarget, readonly string[]> = {
+  post: ['follow', 'message', 'save', 'profile_open'],
+  video: ['watched', 'follow', 'message', 'save'],
+  case: ['bid', 'question', 'save'],
+  profile: ['message', 'consultation', 'follow'],
+};
+/** Only the app can see these; the rest the server records itself. */
+export const CLIENT_REPORTED_ACTIONS = ['watched', 'profile_open'] as const;
+export type BoostAction = string;
+
+export interface ModelPrice {
+  enabled: boolean;
+  priceCents: number;
+}
+
+export interface TargetPricing {
+  enabled: boolean;
+  models: Record<BillingModel, ModelPrice>;
+  actions: string[];
+}
+
+export type PricingMatrix = Record<PricingTarget, TargetPricing>;
+
+const price = (priceCents: number, enabled = true): ModelPrice => ({
+  enabled,
+  priceCents,
+});
+
+export const DEFAULT_PRICING: PricingMatrix = {
+  post: {
+    enabled: true,
+    models: {
+      impressions: price(500),
+      reach: price(800),
+      clicks: price(30),
+      actions: price(150),
+    },
+    actions: ['follow', 'message'],
+  },
+  video: {
+    enabled: true,
+    models: {
+      impressions: price(400),
+      reach: price(700),
+      clicks: price(25),
+      actions: price(120),
+    },
+    actions: ['watched', 'follow'],
+  },
+  case: {
+    enabled: true,
+    models: {
+      impressions: price(500),
+      reach: price(800, false),
+      clicks: price(40),
+      actions: price(200),
+    },
+    actions: ['bid'],
+  },
+  profile: {
+    enabled: false,
+    models: {
+      impressions: price(600),
+      reach: price(900),
+      clicks: price(50),
+      actions: price(300),
+    },
+    actions: ['message', 'consultation'],
+  },
+};
 
 export const DEFAULT_PROMOTION_SETTINGS: PromotionSettings = {
   enabled: true,
@@ -55,6 +145,7 @@ export const DEFAULT_PROMOTION_SETTINGS: PromotionSettings = {
   impressionsPerPerson: 1.6,
   autoApprove: true,
   requireSubscription: false,
+  pricing: DEFAULT_PRICING,
 };
 
 /** Promoted cases shown on top of an attorney's first feed page. */
@@ -143,6 +234,117 @@ const intList = (
   return list.length ? list.slice(0, 8) : [...fallback];
 };
 
+/**
+ * Owner 2026-10-07. A stored row without `pricing` (before this change)
+ * keeps what it had: the post / case switches and the CPM become the
+ * impressions price, the other models start off.
+ */
+export function parsePricing(
+  raw: unknown,
+  legacy: { postsEnabled: boolean; casesEnabled: boolean; cpmCents: number },
+): PricingMatrix {
+  const r =
+    raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : null;
+  const out = {} as PricingMatrix;
+  for (const t of PRICING_TARGETS) {
+    const d = DEFAULT_PRICING[t];
+    const tr =
+      r && r[t] && typeof r[t] === 'object' && !Array.isArray(r[t])
+        ? (r[t] as Record<string, unknown>)
+        : null;
+    if (!tr) {
+      const on =
+        t === 'case'
+          ? legacy.casesEnabled
+          : t === 'profile'
+            ? false
+            : legacy.postsEnabled;
+      out[t] = {
+        enabled: on,
+        models: {
+          impressions: price(
+            t === 'profile' ? d.models.impressions.priceCents : legacy.cpmCents,
+          ),
+          reach: { ...d.models.reach, enabled: false },
+          clicks: { ...d.models.clicks, enabled: false },
+          actions: { ...d.models.actions, enabled: false },
+        },
+        actions: [...d.actions],
+      };
+      continue;
+    }
+    const mr =
+      tr.models && typeof tr.models === 'object' && !Array.isArray(tr.models)
+        ? (tr.models as Record<string, unknown>)
+        : {};
+    const models = {} as Record<BillingModel, ModelPrice>;
+    for (const m of BILLING_MODELS) {
+      const x =
+        mr[m] && typeof mr[m] === 'object'
+          ? (mr[m] as Record<string, unknown>)
+          : {};
+      models[m] = {
+        enabled:
+          typeof x.enabled === 'boolean' ? x.enabled : d.models[m].enabled,
+        priceCents: int(x.priceCents, 1, 10_000_000) ?? d.models[m].priceCents,
+      };
+    }
+    const allowed = BOOST_ACTIONS[t];
+    const actions = Array.isArray(tr.actions)
+      ? [
+          ...new Set(
+            tr.actions.filter(
+              (a): a is string => typeof a === 'string' && allowed.includes(a),
+            ),
+          ),
+        ]
+      : [...d.actions];
+    // No action chosen = nothing could ever be billed: model off.
+    if (actions.length === 0) models.actions.enabled = false;
+    out[t] = {
+      enabled: typeof tr.enabled === 'boolean' ? tr.enabled : d.enabled,
+      models,
+      actions,
+    };
+  }
+  return out;
+}
+
+/** The pricing key of a promotion target (a post with a video → video). */
+export function pricingTargetOf(
+  target: PromotionTarget,
+  hasVideo = false,
+): PricingTarget {
+  return target === 'post' ? (hasVideo ? 'video' : 'post') : target;
+}
+
+/** Models a buyer can pick for [t]: on, in the admin's order. */
+export function offersFor(
+  pricing: PricingMatrix,
+  t: PricingTarget,
+): { billing: BillingModel; priceCents: number }[] {
+  const p = pricing[t];
+  if (!p.enabled) return [];
+  return BILLING_MODELS.filter((m) => p.models[m].enabled).map((m) => ({
+    billing: m,
+    priceCents: p.models[m].priceCents,
+  }));
+}
+
+/** Units a budget buys: per 1000 for impressions / people, else one. */
+export function unitsFor(
+  billing: BillingModel,
+  budgetCents: number,
+  priceCents: number,
+): number {
+  const per = Math.max(1, priceCents);
+  return billing === 'impressions' || billing === 'reach'
+    ? Math.max(1, Math.floor((budgetCents * 1000) / per))
+    : Math.max(1, Math.floor(budgetCents / per));
+}
+
 export function parsePromotionSettings(raw: unknown): PromotionSettings {
   const d = DEFAULT_PROMOTION_SETTINGS;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...d };
@@ -164,14 +366,11 @@ export function parsePromotionSettings(raw: unknown): PromotionSettings {
       ? r.impressionsPerPerson
       : d.impressionsPerPerson;
   return {
-    enabled: bool(r.enabled, d.enabled),
-    postsEnabled: bool(r.postsEnabled, d.postsEnabled),
     priceCentsPerDay:
       int(r.priceCentsPerDay, MIN_CHARGE_CENTS, 1_000_000) ??
       d.priceCentsPerDay,
     maxDays,
     maxActivePerCase: int(r.maxActivePerCase, 1, 1) ?? d.maxActivePerCase,
-    cpmCents: int(r.cpmCents, 1, 1_000_000) ?? d.cpmCents,
     minDailyBudgetCents: minDaily,
     maxDailyBudgetCents: maxDaily,
     budgetPresetsCents: intList(
@@ -197,6 +396,30 @@ export function parsePromotionSettings(raw: unknown): PromotionSettings {
     impressionsPerPerson: ipp,
     autoApprove: bool(r.autoApprove, d.autoApprove),
     requireSubscription: bool(r.requireSubscription, d.requireSubscription),
+    ...syncLegacy(
+      parsePricing(r.pricing, {
+        postsEnabled: bool(r.postsEnabled, d.postsEnabled),
+        casesEnabled: bool(r.enabled, d.enabled),
+        cpmCents: int(r.cpmCents, 1, 1_000_000) ?? d.cpmCents,
+      }),
+    ),
+  };
+}
+
+/** The old switches and CPM follow the pricing (older readers, stats). */
+function syncLegacy(pricing: PricingMatrix): {
+  pricing: PricingMatrix;
+  enabled: boolean;
+  postsEnabled: boolean;
+  cpmCents: number;
+} {
+  return {
+    pricing,
+    enabled: offersFor(pricing, 'case').length > 0,
+    postsEnabled:
+      offersFor(pricing, 'post').length > 0 ||
+      offersFor(pricing, 'video').length > 0,
+    cpmCents: pricing.post.models.impressions.priceCents,
   };
 }
 
@@ -294,4 +517,55 @@ export function quotePromotion(input: {
     promoDiscountCents,
     totalCents,
   };
+}
+
+/** What a stored promotion counts toward its budget. */
+export interface DeliveryCounts {
+  billing: string;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  actions: number;
+  target_units: number | null;
+  target_impressions: number | null;
+}
+
+export const billingOf = (raw: string): BillingModel =>
+  (BILLING_MODELS as readonly string[]).includes(raw)
+    ? (raw as BillingModel)
+    : 'impressions';
+
+/** Units delivered in the promotion's own unit. */
+export function deliveredUnits(p: DeliveryCounts): number {
+  switch (billingOf(p.billing)) {
+    case 'reach':
+      return p.reach;
+    case 'clicks':
+      return p.clicks;
+    case 'actions':
+      return p.actions;
+    default:
+      return p.impressions;
+  }
+}
+
+/** Units the budget buys (older rows: their impressions cap). */
+export const targetUnits = (p: DeliveryCounts): number | null =>
+  p.target_units ?? p.target_impressions;
+
+/** The budget is used up. */
+export function budgetSpent(p: DeliveryCounts): boolean {
+  const t = targetUnits(p);
+  return t !== null && deliveredUnits(p) >= t;
+}
+
+/** Cents of [paidCents] not used yet: the undelivered share. */
+export function unspentCents(
+  p: DeliveryCounts & { total_cents: number; refunded_cents: number },
+): number {
+  const left = Math.max(0, p.total_cents - p.refunded_cents);
+  const t = targetUnits(p);
+  if (!t) return 0;
+  const undelivered = Math.max(0, t - deliveredUnits(p));
+  return Math.min(left, Math.floor((p.total_cents * undelivered) / t));
 }

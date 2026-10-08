@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
@@ -12,6 +13,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
@@ -60,6 +62,7 @@ export class FollowsService {
     private readonly clients: ClientProfilesService,
     private readonly blocks: BlocksService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
   ) {}
 
   async follow(user: RequestUser, attorneyId: string): Promise<void> {
@@ -94,6 +97,9 @@ export class FollowsService {
       skipDuplicates: true,
     });
     if (count === 0) return;
+    // Owner 2026-10-07: a follow counts for the author's boosts paid per
+    // action (only when the follower was shown one).
+    this.promoDelivery?.action(user.sub, { ownerId: attorneyId }, 'follow');
     await this.counters.bump(
       profileEntity(target.role),
       attorneyId,

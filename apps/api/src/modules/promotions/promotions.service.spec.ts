@@ -10,15 +10,24 @@ import {
   DEFAULT_PROMOTION_SETTINGS,
   parsePromotionSettings,
   quotePromotion,
+  unitsFor,
+  unspentCents,
 } from './promotions.settings';
 
 const DAY = 86_400_000;
 
 function setup(opts: { enabled?: boolean; credits?: number } = {}) {
+  const d = DEFAULT_PROMOTION_SETTINGS;
   const prisma = {
     appConfig: {
       findUnique: jest.fn().mockResolvedValue({
-        value: { ...DEFAULT_PROMOTION_SETTINGS, enabled: opts.enabled ?? true },
+        value: {
+          ...d,
+          pricing: {
+            ...d.pricing,
+            case: { ...d.pricing.case, enabled: opts.enabled ?? true },
+          },
+        },
       }),
     },
     case: {
@@ -253,6 +262,43 @@ describe('PromotionsService.create', () => {
     await expect(
       s.service.create('owner', 'c1', { days: 1 }),
     ).rejects.toMatchObject({ response: { code: 'FEATURE_DISABLED' } });
+  });
+
+  // Owner 2026-10-07: pay per taps / actions at the admin's price.
+  it('per-tap boost buys budget ÷ price taps, no impressions cap', async () => {
+    const s = setup({ credits: 3 });
+    await s.service.create('owner', 'c1', { days: 2, billing: 'clicks' });
+    const data = s.prisma.casePromotion.create.mock.calls[0][0].data as {
+      billing: string;
+      unit_price_cents: number;
+      target_units: number;
+      target_impressions: number | null;
+    };
+    const price =
+      DEFAULT_PROMOTION_SETTINGS.pricing.case.models.clicks.priceCents;
+    expect(data.billing).toBe('clicks');
+    expect(data.unit_price_cents).toBe(price);
+    expect(data.target_units).toBe(Math.floor(2000 / price));
+    expect(data.target_impressions).toBeNull();
+  });
+
+  it('a way to pay the admin turned off is refused', async () => {
+    const s = setup();
+    // Cases: "people" is off by default.
+    await expect(
+      s.service.create('owner', 'c1', { days: 1, billing: 'reach' }),
+    ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
+  });
+
+  it('per-action boost bills only the chosen actions', async () => {
+    const s = setup({ credits: 3 });
+    await s.service.create('owner', 'c1', { days: 1, billing: 'actions' });
+    const data = s.prisma.casePromotion.create.mock.calls[0][0].data as {
+      billed_actions: string[];
+    };
+    expect(data.billed_actions).toEqual(
+      DEFAULT_PROMOTION_SETTINGS.pricing.case.actions,
+    );
   });
 
   it('fully covered by credits → active now, no checkout', async () => {
@@ -568,5 +614,58 @@ describe('Instagram-style promotion (owner 2026-10-05)', () => {
     });
     expect(r.status).toBe('pending_review');
     expect(r.checkoutUrl).toBeNull();
+  });
+});
+
+describe('pricing (owner 2026-10-07)', () => {
+  it('an old row keeps its switches and CPM as the impressions price', () => {
+    const s = parsePromotionSettings({
+      enabled: false,
+      postsEnabled: true,
+      cpmCents: 700,
+    });
+    expect(s.pricing.case.enabled).toBe(false);
+    expect(s.pricing.post.enabled).toBe(true);
+    expect(s.pricing.post.models.impressions).toEqual({
+      enabled: true,
+      priceCents: 700,
+    });
+    expect(s.pricing.post.models.clicks.enabled).toBe(false);
+    expect(s.pricing.profile.enabled).toBe(false);
+    expect(s.enabled).toBe(false);
+    expect(s.cpmCents).toBe(700);
+  });
+
+  it('drops unknown actions; no action left turns the model off', () => {
+    const d = DEFAULT_PROMOTION_SETTINGS.pricing;
+    const s = parsePromotionSettings({
+      pricing: { ...d, case: { ...d.case, actions: ['hired', 'won'] } },
+    });
+    expect(s.pricing.case.actions).toEqual([]);
+    expect(s.pricing.case.models.actions.enabled).toBe(false);
+  });
+
+  it('unspent = the undelivered share of what was paid', () => {
+    const row = {
+      billing: 'clicks',
+      impressions: 900,
+      reach: 500,
+      clicks: 25,
+      actions: 0,
+      target_units: 100,
+      target_impressions: null,
+      total_cents: 3000,
+      refunded_cents: 0,
+    };
+    expect(unspentCents(row)).toBe(2250);
+    expect(unspentCents({ ...row, refunded_cents: 2900 })).toBe(100);
+    expect(unspentCents({ ...row, clicks: 100 })).toBe(0);
+  });
+
+  it('units: per 1000 for impressions / people, per one for taps', () => {
+    expect(unitsFor('impressions', 1000, 500)).toBe(2000);
+    expect(unitsFor('reach', 1000, 800)).toBe(1250);
+    expect(unitsFor('clicks', 1000, 30)).toBe(33);
+    expect(unitsFor('actions', 1000, 150)).toBe(6);
   });
 });
