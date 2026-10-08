@@ -51,6 +51,9 @@ class ReelsRepository {
     int? trimStartMs,
     int? trimEndMs,
     int? coverTimeMs,
+    // Owner 2026-10-08: a cover photo from the gallery (an uploaded post
+    // photo) instead of the frame.
+    String? coverFileId,
   }) async {
     final d = (await guardApiCall(
       () => _videos.createVideoUpload(
@@ -61,6 +64,7 @@ class ReelsRepository {
           trimStartMs: trimStartMs,
           trimEndMs: trimEndMs,
           coverTimeMs: coverTimeMs,
+          coverFileId: coverFileId,
         ),
       ),
     ))
@@ -125,6 +129,9 @@ class ReelsRepository {
           location,
           data: Stream.fromIterable([bytes]),
           cancelToken: cancel,
+          // Owner 2026-10-08: a smooth bar inside each chunk too.
+          onSendProgress: (sent, _) =>
+              onProgress?.call(math.min(offset + sent, size) / size),
           options: Options(
             headers: {
               ...auth,

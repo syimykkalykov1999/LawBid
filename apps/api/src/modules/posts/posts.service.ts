@@ -567,6 +567,12 @@ export class PostsService {
     await this.assertCanPost(user);
   }
 
+  /** Owner 2026-10-08: a reel's gallery cover — own, `post_image`,
+   * antivirus-clean (else NOT_FOUND / FILE_NOT_ATTACHABLE). */
+  async assertCoverPhoto(userId: string, fileId: string): Promise<void> {
+    await this.files.assertAttachable(userId, fileId, ['post_image']);
+  }
+
   /** An active practice category or subcategory (owner 2026-09-30). */
   private async practiceByCode(code: string): Promise<{ id: string }> {
     const area = await this.prisma.practiceArea.findFirst({

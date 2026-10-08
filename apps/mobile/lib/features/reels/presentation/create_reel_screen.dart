@@ -1,38 +1,39 @@
-import 'dart:io';
-import 'dart:math' as math;
-
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/media/video_compression.dart';
-import 'package:lawbid/features/reels/application/reels_providers.dart';
-import 'package:lawbid/features/reels/domain/reel_cut.dart';
+import 'package:lawbid/core/media/video_frames.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/text/tidy_text.dart';
+import 'package:lawbid/features/reels/application/reel_publish.dart';
+import 'package:lawbid/features/reels/presentation/reel_preview.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
-import 'package:video_player/video_player.dart';
+import 'package:lawbid/features/social/presentation/widgets/tag_text_controller.dart';
+import 'package:lawbid/features/uploads/application/composer_photo.dart';
+import 'package:lawbid/features/uploads/application/upload_queue.dart';
 
 /// Owner 2026-10-01 — "+" → Reel: pick or record a vertical video, add a
-/// title and a caption, publish. The file goes straight to Bunny (with a
-/// progress bar, resumable); the reel appears in the feeds once Bunny has
-/// encoded it — the author gets a notification.
+/// title and a caption, publish; the reel appears in the feeds once Bunny
+/// has encoded it.
 ///
-/// Owner 2026-10-05: like Instagram — a longer video (up to
-/// `video.max_source_duration_sec`) is cut to the part the reel plays (≤
-/// `video.max_duration_sec`), the author picks the cover frame, and adds
-/// what opens with "Смотреть" under the reel: up to 9 photos and up to 9
-/// documents (PDF, Word, text).
+/// Owner 2026-10-08: the video is pinned on top (no trimming: a video
+/// longer than `video.max_duration_sec` is refused with a clear message);
+/// the cover is a frame from a row under it or a photo «Из галереи», shown
+/// large in the video window; one field — the title, a line, the
+/// description with #hashtags and @mentions; then the place, comments and
+/// what opens «Внутри рилса». «Опубликовать» stays grey until it can go
+/// (a tap says what is missing) and closes the screen at once — the reel
+/// uploads in the strip at the top of the feed.
 class CreateReelScreen extends ConsumerStatefulWidget {
   const CreateReelScreen({
     this.initialFile,
@@ -56,34 +57,32 @@ class CreateReelScreen extends ConsumerStatefulWidget {
 /// from the admin panel (bootstrap app_config).
 const _kDefaultMaxSeconds = 90;
 
-/// `video.max_source_duration_sec`: the longest video a reel is cut from.
-const _kDefaultSourceSeconds = 180;
-
-/// A photo of the reel's inner page, uploaded right after it is picked.
-class _Photo {
-  _Photo(this.bytes);
-
-  final Uint8List bytes;
-  final key = UniqueKey();
-  double progress = 0;
-  String? fileId;
-  Object? error;
-
-  bool get uploading => fileId == null && error == null;
-}
+/// Whether a [durationMs] video is too long for a reel of [maxSeconds]
+/// (rounded as the server checks it).
+bool reelTooLong(int durationMs, int maxSeconds) =>
+    (durationMs / 1000).round() > maxSeconds;
 
 class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   late final _title = TextEditingController(text: widget.initialTitle);
-  late final _text = TextEditingController(text: widget.initialText);
+  late final _text = TagTextController(text: widget.initialText);
+  final _textFocus = FocusNode();
   final _place = TextEditingController();
   bool _comments = true;
   XFile? _file;
-  VideoPlayerController? _preview;
-  ReelCut? _cut;
+  ReelPreview? _preview;
 
-  /// The preview stands on the cover frame while it is being chosen.
-  bool _choosingCover = false;
-  final _photos = <_Photo>[];
+  /// The cover row: moments of the video and their frames (null while
+  /// loading or when the phone cannot make one).
+  List<int> _frameTimes = const [];
+  List<Uint8List?> _frames = const [];
+  int _coverIndex = 0;
+
+  /// «Из галереи»: a photo instead of a frame.
+  ComposerPhoto? _coverPhoto;
+
+  /// Bumped per picked video: late frames of an old one are dropped.
+  int _generation = 0;
+  final _photos = <ComposerPhoto>[];
   late final _docs = PostDocumentsController(
     ref.read(socialActionsProvider),
     limits: _limits,
@@ -91,14 +90,6 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
 
   /// Owner 2026-10-07 (bug 17): counts, MB and formats from the admin.
   late final _limits = ref.read(uploadLimitsProvider)[UploadPlace.reel];
-  double? _progress;
-
-  /// Owner 2026-10-05: true while the video is re-encoded on the phone.
-  bool _compressing = false;
-  VideoCompressor? _compressor;
-  bool _publishing = false;
-  CancelToken? _cancel;
-  String? _assetId;
 
   @override
   void initState() {
@@ -118,32 +109,27 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
 
   @override
   void dispose() {
-    _cancel?.cancel();
-    if (_compressing) _compressor?.cancel().ignore();
-    _preview?.removeListener(_loopInCut);
+    _preview?.changes.removeListener(_refresh);
     _preview?.dispose();
+    for (final p in [..._photos, if (_coverPhoto != null) _coverPhoto!]) {
+      p.removeListener(_refresh);
+    }
     _docs.dispose();
     _title.dispose();
     _text.dispose();
+    _textFocus.dispose();
     _place.dispose();
     super.dispose();
   }
 
-  int get _kMaxSeconds => ref
+  int get _maxSeconds => ref
       .read(featureFlagsControllerProvider)
       .configInt('video.max_duration_sec', _kDefaultMaxSeconds);
-
-  int get _kSourceSeconds => ref
-      .read(featureFlagsControllerProvider)
-      .configInt('video.max_source_duration_sec', _kDefaultSourceSeconds)
-      .clamp(_kMaxSeconds, 3600);
 
   Future<void> _pick(ImageSource source) async {
     final x = await ImagePicker().pickVideo(
       source: source,
-      // Recording stops at the reel's length; from the gallery a longer
-      // video is cut below.
-      maxDuration: Duration(seconds: _kMaxSeconds),
+      maxDuration: Duration(seconds: _maxSeconds),
     );
     if (x == null) return;
     await _load(x);
@@ -151,112 +137,93 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
 
   Future<void> _load(XFile file) async {
     final t = ref.read(translatorProvider);
-    // In the browser the picked video is a blob: URL, played as a network
-    // source (video_player_web has no files).
-    final c = kIsWeb
-        ? VideoPlayerController.networkUrl(Uri.parse(file.path))
-        : VideoPlayerController.file(File(file.path));
-    try {
-      await c.initialize();
-    } on Object {
-      await c.dispose();
+    final preview = await ref.read(reelPreviewLoaderProvider)(file);
+    if (!mounted) {
+      await preview?.dispose();
+      return;
+    }
+    final ms = preview?.durationMs ?? 0;
+    if (preview == null || ms <= 0) {
+      await preview?.dispose();
       if (mounted) showAppSnackBar(context, t.t('reels.badFile'));
       return;
     }
-    final totalMs = c.value.duration.inMilliseconds;
-    if (totalMs <= 0 || (totalMs / 1000).ceil() > _kSourceSeconds) {
-      await c.dispose();
+    // Owner 2026-10-08: no trimming — a longer video is refused.
+    if (reelTooLong(ms, _maxSeconds)) {
+      await preview.dispose();
       if (mounted) {
         showAppSnackBar(
           context,
-          t.t(
-            totalMs <= 0 ? 'reels.badFile' : 'reels.tooLong',
-            {'max': '$_kSourceSeconds'},
-          ),
+          t.t('reels.tooLong.max', {
+            'max': '$_maxSeconds',
+            'length': formatReelDuration((ms / 1000).round()),
+          }),
         );
       }
       return;
     }
-    await c.setLooping(true);
-    await c.setVolume(0);
-    await c.play();
     final old = _preview;
-    old?.removeListener(_loopInCut);
+    old?.changes.removeListener(_refresh);
     await old?.dispose();
     if (!mounted) {
-      await c.dispose();
+      await preview.dispose();
       return;
     }
-    c.addListener(_loopInCut);
+    preview.changes.addListener(_refresh);
+    final times = coverFrameTimes(ms);
+    final gen = ++_generation;
     setState(() {
       _file = file;
-      _preview = c;
-      _cut = ReelCut.initial(totalMs, _kMaxSeconds * 1000);
-      _choosingCover = false;
+      _preview = preview;
+      _frameTimes = times;
+      _frames = List<Uint8List?>.filled(times.length, null);
+      _coverIndex = 0;
     });
-  }
-
-  /// The preview plays only the chosen part, round and round.
-  void _loopInCut() {
-    final c = _preview;
-    final cut = _cut;
-    if (c == null || cut == null || _choosingCover || !c.value.isPlaying) {
-      return;
-    }
-    final pos = c.value.position.inMilliseconds;
-    if (pos >= cut.endMs || pos < cut.startMs - 250) {
-      c.seekTo(Duration(milliseconds: cut.startMs));
+    final frames = ref.read(videoFramesProvider);
+    for (var i = 0; i < times.length; i++) {
+      final bytes = await frames(file, times[i]);
+      if (!mounted || gen != _generation) return;
+      if (bytes != null) setState(() => _frames[i] = bytes);
     }
   }
 
-  void _setRange(RangeValues v) {
-    final cut = _cut;
-    if (cut == null) return;
-    final next = cut.withRange(
-      (v.start * 1000).round(),
-      (v.end * 1000).round(),
-      _kMaxSeconds * 1000,
-    );
-    final startMoved = next.startMs != cut.startMs;
+  void _pickFrame(int i) {
+    final old = _coverPhoto;
+    old?.removeListener(_refresh);
     setState(() {
-      _cut = next;
-      _choosingCover = false;
+      _coverIndex = i;
+      _coverPhoto = null;
     });
     final c = _preview;
-    if (c == null) return;
-    c.seekTo(
-      Duration(milliseconds: startMoved ? next.startMs : next.endMs - 300),
-    );
-    if (!c.value.isPlaying) c.play();
+    if (c != null && i < _frameTimes.length) {
+      c
+        ..pause()
+        ..seekTo(_frameTimes[i]);
+    }
   }
 
-  void _setCover(double seconds) {
-    final cut = _cut;
-    final c = _preview;
-    if (cut == null || c == null) return;
-    final next = cut.withCover((seconds * 1000).round());
-    setState(() {
-      _cut = next;
-      _choosingCover = true;
-    });
-    c
-      ..pause()
-      ..seekTo(Duration(milliseconds: next.coverMs));
+  Future<void> _pickCoverPhoto() async {
+    final limits = postPhotoLimits(ref);
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
+      imageQuality: limits.quality,
+    );
+    if (x == null) return;
+    final photo = ComposerPhoto(await x.readAsBytes());
+    if (!mounted) return;
+    _coverPhoto?.removeListener(_refresh);
+    photo.addListener(_refresh);
+    setState(() => _coverPhoto = photo);
+    await _preview?.pause();
+    photo.upload(ref.read(socialActionsProvider)).ignore();
   }
 
   void _togglePreview() {
     final c = _preview;
-    final cut = _cut;
-    if (c == null || cut == null) return;
-    if (c.value.isPlaying) {
-      c.pause();
-    } else {
-      setState(() => _choosingCover = false);
-      c
-        ..seekTo(Duration(milliseconds: cut.startMs))
-        ..play();
-    }
-    setState(() {});
+    if (c == null) return;
+    c.playing ? c.pause() : c.play();
   }
 
   Future<void> _pickPhotos() async {
@@ -270,216 +237,172 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       limit: left,
     );
     for (final f in picked.take(left)) {
-      final photo = _Photo(await f.readAsBytes());
+      final photo = ComposerPhoto(await f.readAsBytes());
       if (!mounted) return;
+      photo.addListener(_refresh);
       setState(() => _photos.add(photo));
-      // ignore: unawaited_futures
-      _uploadPhoto(photo);
+      photo.upload(ref.read(socialActionsProvider)).ignore();
     }
   }
 
-  Future<void> _uploadPhoto(_Photo photo) async {
-    setState(() {
-      photo
-        ..error = null
-        ..progress = 0;
-    });
-    try {
-      final id = await ref.read(socialActionsProvider).uploadPhoto(
-        photo.bytes,
-        onProgress: (p) {
-          if (mounted) setState(() => photo.progress = p);
-        },
-      );
-      if (mounted) setState(() => photo.fileId = id);
-    } on Object catch (e) {
-      if (mounted) setState(() => photo.error = e);
-    }
+  String get _titleText => tidyText(_title.text).trim();
+  String get _bodyText => tidyText(_text.text).trim();
+
+  /// What is still missing, as the `reels.need.*` hint; null = ready.
+  String? get _missing {
+    if (_file == null || _preview == null) return 'reels.need.video';
+    if (_titleText.isEmpty && _bodyText.isEmpty) return 'reels.need.text';
+    if (!_docs.ready) return 'reels.need.files';
+    return null;
   }
 
-  bool get _insideReady =>
-      _photos.every((p) => p.fileId != null) && _docs.ready;
+  Uint8List? get _coverBytes =>
+      _coverPhoto?.bytes ??
+      (_coverIndex < _frames.length ? _frames[_coverIndex] : null);
 
-  Future<void> _publish() async {
-    final t = ref.read(translatorProvider);
+  void _publish() {
     final file = _file;
-    final cut = _cut;
-    if (file == null || cut == null || !_insideReady) return;
-    final repo = ref.read(reelsRepositoryProvider);
-    setState(() {
-      _publishing = true;
-      _progress = 0;
-    });
-    _cancel = CancelToken();
-    try {
-      final video = await _compressed(file, cut);
-      if (!mounted || (_cancel?.isCancelled ?? true)) return;
-      final upload = await repo.createUpload(
-        sizeBytes: await video.length(),
-        durationSec: cut.sourceSec,
-        title: _title.text.trim().isEmpty ? null : _title.text.trim(),
-        trimStartMs: cut.trimmed ? cut.startMs : null,
-        trimEndMs: cut.trimmed ? cut.endMs : null,
-        coverTimeMs: cut.coverMs,
-      );
-      _assetId = upload.videoAssetId;
-      await repo.upload(
-        video,
-        upload,
-        cancel: _cancel,
-        onProgress: (v) {
-          if (mounted) setState(() => _progress = v);
-        },
-      );
-      await ref.read(socialRepositoryProvider).createPost(
-            PostDraft(
-              title: _title.text.trim().isNotEmpty
-                  ? _title.text.trim()
-                  : _text.text.trim().characters.take(60).toString(),
-              // The server needs a non-empty text; a reel without a caption
-              // reuses its title.
-              body: _text.text.trim().isNotEmpty
-                  ? _text.text.trim()
-                  : _title.text.trim(),
-              videoAssetId: upload.videoAssetId,
-              mediaFileIds: [for (final p in _photos) p.fileId!],
-              attachments: _docs.refs,
-              locationName:
-                  _place.text.trim().isEmpty ? null : _place.text.trim(),
-              commentsEnabled: _comments,
-            ),
-          );
-      if (!mounted) return;
-      // ignore: unawaited_futures
-      HapticFeedback.mediumImpact();
-      showAppSnackBar(context, t.t('reels.processing.toast'));
-      Navigator.of(context).pop();
-    } on Object catch (e) {
-      final id = _assetId;
-      if (id != null) repo.cancel(id).ignore();
-      _assetId = null;
-      if (!mounted) return;
-      setState(() {
-        _publishing = false;
-        _progress = null;
-      });
-      if (!(e is DioException && CancelToken.isCancel(e))) {
-        showAppSnackBar(context, errorText(t, e));
-      }
-    }
+    final preview = _preview;
+    if (_missing != null || file == null || preview == null) return;
+    final draft = ReelDraft(
+      file: file,
+      durationMs: preview.durationMs,
+      size: preview.size,
+      coverMs: _coverIndex < _frameTimes.length ? _frameTimes[_coverIndex] : 0,
+      coverPhoto: _coverPhoto,
+      photos: List.of(_photos),
+      documents: _docs.refs,
+      title: _titleText.characters.take(kPostTitleMaxChars).toString(),
+      body: _bodyText,
+      place: _place.text.trim().isEmpty ? null : _place.text.trim(),
+      commentsEnabled: _comments,
+    );
+    ref.read(uploadQueueProvider.notifier).add(
+          (ref, progress) => publishReel(ref, draft, progress),
+          thumbnail: _coverBytes,
+          video: true,
+        );
+    // ignore: unawaited_futures
+    HapticFeedback.mediumImpact();
+    // Owner 2026-10-08: the composer closes at once; the strip on top of
+    // the feed shows the upload.
+    final router = GoRouter.maybeOf(context);
+    Navigator.of(context).pop();
+    router?.go(AppRoutes.feed);
   }
 
-  /// Owner 2026-10-05: up to Full HD (admin: media.video_max_height) on
-  /// the phone first — smaller upload, no visible loss; the original is
-  /// kept when re-encoding fails or would not make it smaller, and in the
-  /// browser (no encoder there).
-  Future<XFile> _compressed(XFile file, ReelCut cut) async {
-    if (kIsWeb) return file;
-    final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final size = _preview?.value.size ?? Size.zero;
-    final need = needsVideoCompression(
-      shortSide: math.min(size.width, size.height).round(),
-      bytes: await file.length(),
-      durationMs: cut.totalMs,
-      limits: limits,
-    );
-    if (!need || !mounted) return file;
-    setState(() {
-      _compressing = true;
-      _progress = 0;
-    });
-    final compressor = ref.read(videoCompressorProvider);
-    _compressor = compressor;
-    final out = await compressor.compress(
-      file,
-      limits: limits,
-      onProgress: (p) {
-        if (mounted) setState(() => _progress = p);
-      },
-    );
-    if (mounted) {
-      setState(() {
-        _compressing = false;
-        _progress = 0;
-      });
-    }
-    return out ?? file;
-  }
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final missing = _missing;
 
-  /// Owner 2026-10-05: the part of the video the reel plays, and its cover.
-  List<Widget> _cutSection(
-    Translator t,
-    AppColorTokens colors,
-    AppTypographyTokens type,
-    ReelCut cut,
-  ) {
-    final totalSec = cut.totalMs / 1000;
-    return [
-      const SizedBox(height: AppSpacing.lg),
-      Row(
-        children: [
-          AppIcon(AppIcons.contentCutRounded, size: 20, color: colors.text),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(t.t('reels.trim.title'), style: type.titleMedium),
-          ),
-          Text(
-            t.t('reels.trim.range', {
-              'start': formatCutTime(cut.startMs),
-              'end': formatCutTime(cut.endMs),
-            }),
-            style: type.caption.copyWith(color: colors.textSecondary),
-          ),
-        ],
-      ),
-      RangeSlider(
-        values: RangeValues(cut.startMs / 1000, cut.endMs / 1000),
-        max: totalSec,
-        activeColor: colors.gold,
-        inactiveColor: colors.border,
-        labels: RangeLabels(
-          formatCutTime(cut.startMs),
-          formatCutTime(cut.endMs),
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        leading: AppIconButton(
+          icon: const AppIcon(AppIcons.closeRounded),
+          semanticLabel: t.t('common.close'),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        semanticFormatterCallback: (v) => formatCutTime((v * 1000).round()),
-        onChanged: _publishing ? null : _setRange,
+        title: Text(t.t('reels.create')),
       ),
-      Text(
-        t.t('reels.trim.hint', {
-          'max': '$_kMaxSeconds',
-          'source': '$_kSourceSeconds',
-        }),
-        style: type.caption.copyWith(color: colors.textSecondary),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Owner 2026-10-08: the video stays on top while the form
+            // scrolls under it.
+            Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.sm,
+                bottom: AppSpacing.md,
+              ),
+              child: _VideoWindow(
+                preview: _preview,
+                cover: _coverBytes,
+                galleryLabel: t.t('reels.pick.gallery'),
+                cameraLabel: t.t('reels.pick.camera'),
+                onGallery: () => _pick(ImageSource.gallery),
+                onCamera: () => _pick(ImageSource.camera),
+                onTap: _togglePreview,
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  0,
+                  AppSpacing.screenSide,
+                  AppSpacing.screenSide,
+                ),
+                children: [
+                  if (_preview != null) ...[
+                    _CoverRow(
+                      frames: _frames,
+                      times: _frameTimes,
+                      selected: _coverPhoto == null ? _coverIndex : null,
+                      photo: _coverPhoto,
+                      galleryLabel: t.t('reels.pick.gallery'),
+                      frameLabel: (ms) => t.t(
+                        'reels.cover.frame',
+                        {'time': formatReelDuration((ms / 1000).round())},
+                      ),
+                      onFrame: _pickFrame,
+                      onGallery: _pickCoverPhoto,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+                  _OneField(
+                    title: _title,
+                    text: _text,
+                    textFocus: _textFocus,
+                    titleHint: t.t('reels.titleHint'),
+                    textHint: t.t('reels.captionHint'),
+                    titleLabel: t.t('post.create.titleField'),
+                    textLabel: t.t('post.create.bodyField'),
+                  ),
+                  // OQ-042: "@…" suggests people to tag.
+                  MentionSuggestions(controller: _text),
+                  const SizedBox(height: AppSpacing.md),
+                  AppTextField(
+                    controller: _place,
+                    hintText: t.t('reels.location'),
+                    semanticLabel: t.t('reels.locationHint'),
+                    maxLength: 120,
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _comments,
+                    activeTrackColor: colors.gold,
+                    onChanged: (v) => setState(() => _comments = v),
+                    title: Text(
+                      t.t('reels.commentsOn'),
+                      style: type.body.copyWith(color: colors.text),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  ..._insideSection(t, colors, type),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.screenSide),
+              child: AppButton(
+                key: const ValueKey('reel-publish'),
+                label: t.t('reels.publish'),
+                icon: AppIcons.sendRounded,
+                // Owner 2026-10-07: say what is missing.
+                disabledHint: missing == null ? null : t.t(missing),
+                isEnabled: missing == null,
+                onPressed: _publish,
+              ),
+            ),
+          ],
+        ),
       ),
-      const SizedBox(height: AppSpacing.lg),
-      Row(
-        children: [
-          AppIcon(AppIcons.imageOutlined, size: 20, color: colors.text),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(t.t('reels.cover.title'), style: type.titleMedium),
-          ),
-          Text(
-            formatCutTime(cut.coverMs),
-            style: type.caption.copyWith(color: colors.textSecondary),
-          ),
-        ],
-      ),
-      Slider(
-        value: cut.coverMs / 1000,
-        min: cut.startMs / 1000,
-        max: cut.endMs / 1000,
-        activeColor: colors.gold,
-        inactiveColor: colors.border,
-        label: formatCutTime(cut.coverMs),
-        semanticFormatterCallback: (v) => formatCutTime((v * 1000).round()),
-        onChanged: _publishing ? null : _setCover,
-      ),
-      Text(
-        t.t('reels.cover.hint'),
-        style: type.caption.copyWith(color: colors.textSecondary),
-      ),
-    ];
+    );
   }
 
   /// Owner 2026-10-05: what opens with "Смотреть" under the reel.
@@ -499,25 +422,6 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(t.t('reels.inside.title'), style: type.titleMedium),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          t.t('reels.inside.hint'),
-          style: type.caption.copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                t.t('reels.inside.photos'),
-                style: type.body.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
             Text(
               '${_photos.length} / ${_limits.maxPhotos}',
@@ -539,10 +443,12 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                     photo: p,
                     removeLabel: t.t('post.create.removePhoto'),
                     retryLabel: t.t('error.retry'),
-                    onRemove: _publishing
-                        ? null
-                        : () => setState(() => _photos.remove(p)),
-                    onRetry: () => _uploadPhoto(p),
+                    onRemove: () => setState(() {
+                      p.removeListener(_refresh);
+                      _photos.remove(p);
+                    }),
+                    onRetry: () =>
+                        p.upload(ref.read(socialActionsProvider)).ignore(),
                   ),
                 ),
               if (_photos.length < _limits.maxPhotos)
@@ -551,7 +457,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                   label: t.t('reels.inside.addPhoto'),
                   excludeSemantics: true,
                   child: AppPressable(
-                    onTap: _publishing ? null : _pickPhotos,
+                    onTap: _pickPhotos,
                     child: Container(
                       width: 80,
                       decoration: BoxDecoration(
@@ -572,234 +478,372 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        PostDocumentsEditor(controller: _docs, enabled: !_publishing),
+        PostDocumentsEditor(controller: _docs),
       ];
+}
+
+/// The 9:16 window on top: the picked video, or the chosen cover large
+/// while it is not playing; before a video, the two ways to get one.
+class _VideoWindow extends StatelessWidget {
+  const _VideoWindow({
+    required this.preview,
+    required this.cover,
+    required this.galleryLabel,
+    required this.cameraLabel,
+    required this.onGallery,
+    required this.onCamera,
+    required this.onTap,
+  });
+
+  final ReelPreview? preview;
+  final Uint8List? cover;
+  final String galleryLabel;
+  final String cameraLabel;
+  final VoidCallback onGallery;
+  final VoidCallback onCamera;
+  final VoidCallback onTap;
+
+  static const height = 260.0;
 
   @override
   Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final c = _preview;
+    final c = preview;
 
-    Widget source(IconData icon, String label, ImageSource s) => Expanded(
-          child: AppPressable(
-            onTap: _publishing ? null : () => _pick(s),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                vertical: AppSpacing.lg,
-                horizontal: AppSpacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.card),
-                border: Border.all(color: colors.border),
-              ),
-              child: Column(
-                children: [
-                  AppIcon(icon, color: colors.goldDark, size: 28),
-                  const SizedBox(height: AppSpacing.sm),
-                  FitText(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: type.body.copyWith(color: colors.text),
-                  ),
-                ],
+    Widget source(IconData icon, String label, VoidCallback onTap) =>
+        AppIconButton(
+          icon: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: c == null ? colors.goldTint : Colors.black45,
+              shape: BoxShape.circle,
+              border: c == null ? Border.all(color: colors.goldStroke) : null,
+            ),
+            child: Center(
+              child: AppIcon(
+                icon,
+                size: 20,
+                color: c == null ? colors.goldDark : Colors.white,
               ),
             ),
           ),
+          semanticLabel: label,
+          onPressed: onTap,
         );
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppIconButton(
-          icon: const AppIcon(AppIcons.closeRounded),
-          semanticLabel: t.t('common.close'),
-          onPressed: () {
-            _cancel?.cancel();
-            if (_compressing) _compressor?.cancel().ignore();
-            Navigator.of(context).maybePop();
-          },
-        ),
-        title: Text(t.t('reels.create')),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.screenSide),
-                children: [
-                  Center(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(AppRadii.card),
-                      child: SizedBox(
-                        width: 200,
-                        height: 356,
-                        child: c == null
-                            ? ColoredBox(
-                                color: colors.surface,
-                                child: Center(
-                                  child: AppIcon(
-                                    AppIcons.filmReelOutlined,
-                                    size: 48,
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                              )
-                            : Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  GestureDetector(
-                                    onTap: _togglePreview,
-                                    child: FittedBox(
-                                      fit: BoxFit.cover,
-                                      clipBehavior: Clip.hardEdge,
-                                      child: SizedBox(
-                                        width: c.value.size.width,
-                                        height: c.value.size.height,
-                                        child: VideoPlayer(c),
-                                      ),
-                                    ),
-                                  ),
-                                  if (!c.value.isPlaying)
-                                    const IgnorePointer(
-                                      child: Center(
-                                        child: AppIcon(
-                                          AppIcons.playArrowRounded,
-                                          size: 48,
-                                          color: Colors.white70,
-                                        ),
-                                      ),
-                                    ),
-                                  PositionedDirectional(
-                                    end: AppSpacing.sm,
-                                    bottom: AppSpacing.sm,
-                                    child: Text(
-                                      formatReelDuration(
-                                        ((_cut?.lengthMs ?? 0) / 1000).round(),
-                                      ),
-                                      style: type.caption.copyWith(
-                                        color: Colors.white,
-                                        shadows: const [
-                                          Shadow(blurRadius: 6),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Row(
+    final sources = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        source(AppIcons.photoLibraryOutlined, galleryLabel, onGallery),
+        source(AppIcons.videoCameraOutlined, cameraLabel, onCamera),
+      ],
+    );
+
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        child: SizedBox(
+          width: height * 9 / 16,
+          height: height,
+          child: c == null
+              ? ColoredBox(
+                  color: colors.surface,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      source(
-                        AppIcons.addPhotoAlternateOutlined,
-                        t.t('reels.pick.gallery'),
-                        ImageSource.gallery,
+                      AppIcon(
+                        AppIcons.filmReelOutlined,
+                        size: 40,
+                        color: colors.textSecondary,
                       ),
-                      const SizedBox(width: AppSpacing.md),
-                      source(
-                        AppIcons.videoCameraOutlined,
-                        t.t('reels.pick.camera'),
-                        ImageSource.camera,
-                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      sources,
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    t.t('reels.limits', {'max': '$_kMaxSeconds'}),
-                    style: type.caption.copyWith(color: colors.textSecondary),
-                  ),
-                  if (_cut != null) ..._cutSection(t, colors, type, _cut!),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppTextField(
-                    controller: _title,
-                    hintText: t.t('reels.titleHint'),
-                    semanticLabel: t.t('post.create.titleField'),
-                    maxLength: kPostTitleMaxChars,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _text,
-                    hintText: t.t('reels.captionHint'),
-                    semanticLabel: t.t('post.create.bodyField'),
-                    maxLength: kPostMaxChars,
-                    maxLines: 4,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  // OQ-042: "@…" suggests people to tag.
-                  MentionSuggestions(controller: _text),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _place,
-                    hintText: t.t('reels.location'),
-                    semanticLabel: t.t('reels.locationHint'),
-                    maxLength: 120,
-                    textCapitalization: TextCapitalization.words,
-                  ),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: _comments,
-                    onChanged: _publishing
-                        ? null
-                        : (v) => setState(() => _comments = v),
-                    title: Text(
-                      t.t('reels.commentsOn'),
-                      style: type.body.copyWith(color: colors.text),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  ..._insideSection(t, colors, type),
-                  if (_progress != null) ...[
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      t.t(
-                        _compressing ? 'reels.compressing' : 'reels.uploading',
-                        {'percent': '${(_progress! * 100).round()}'},
+                )
+              : Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    GestureDetector(onTap: onTap, child: c.view()),
+                    if (!c.playing && cover != null)
+                      IgnorePointer(
+                        child: Image.memory(cover!, fit: BoxFit.cover),
                       ),
-                      style: type.bodySmall.copyWith(color: colors.text),
+                    if (!c.playing)
+                      const IgnorePointer(
+                        child: Center(
+                          child: AppIcon(
+                            AppIcons.playArrowRounded,
+                            size: 44,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                    PositionedDirectional(
+                      top: 0,
+                      end: 0,
+                      child: sources,
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        value: _progress,
-                        minHeight: 6,
-                        color: colors.gold,
-                        backgroundColor: colors.border,
+                    PositionedDirectional(
+                      end: AppSpacing.sm,
+                      bottom: AppSpacing.sm,
+                      child: Text(
+                        formatReelDuration((c.durationMs / 1000).round()),
+                        style: type.caption.copyWith(
+                          color: Colors.white,
+                          shadows: const [Shadow(blurRadius: 6)],
+                        ),
                       ),
                     ),
                   ],
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.screenSide),
-              child: AppButton(
-                label: t.t('reels.publish'),
-                icon: AppIcons.sendRounded,
-                isLoading: _publishing,
-                // Owner 2026-10-07: say what is missing.
-                disabledHint: _file == null
-                    ? t.t('reels.need.video')
-                    : (_title.text.trim().isEmpty && _text.text.trim().isEmpty)
-                        ? t.t('reels.need.text')
-                        : t.t('form.disabled.required'),
-                isEnabled: !_publishing &&
-                    _file != null &&
-                    _insideReady &&
-                    (_title.text.trim().isNotEmpty ||
-                        _text.text.trim().isNotEmpty),
-                onPressed: _publish,
-              ),
-            ),
-          ],
+                ),
         ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-08: the cover — «Из галереи» or one of the frames.
+class _CoverRow extends StatelessWidget {
+  const _CoverRow({
+    required this.frames,
+    required this.times,
+    required this.selected,
+    required this.photo,
+    required this.galleryLabel,
+    required this.frameLabel,
+    required this.onFrame,
+    required this.onGallery,
+  });
+
+  final List<Uint8List?> frames;
+  final List<int> times;
+
+  /// The chosen frame; null = the gallery photo is the cover.
+  final int? selected;
+  final ComposerPhoto? photo;
+  final String galleryLabel;
+  final String Function(int ms) frameLabel;
+  final ValueChanged<int> onFrame;
+  final VoidCallback onGallery;
+
+  static const _w = 40.0;
+  static const _h = 64.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+
+    Widget tile({
+      required bool on,
+      required Widget child,
+      double width = _w,
+    }) =>
+        AnimatedContainer(
+          duration:
+              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+          width: width,
+          height: _h,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            border: Border.all(
+              color: on ? colors.gold : colors.border,
+              width: on ? 2 : 1,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.field - 1),
+            child: child,
+          ),
+        );
+
+    final cover = photo;
+    return SizedBox(
+      height: _h,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          Semantics(
+            button: true,
+            selected: cover != null,
+            label: galleryLabel,
+            excludeSemantics: true,
+            child: AppPressable(
+              onTap: onGallery,
+              child: tile(
+                on: cover != null,
+                width: 72,
+                child: cover != null
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.memory(
+                            cover.bytes,
+                            fit: BoxFit.cover,
+                            cacheWidth: 216,
+                          ),
+                          if (cover.error != null)
+                            const ColoredBox(
+                              color: Colors.black45,
+                              child: Center(
+                                child: AppIcon(
+                                  AppIcons.refreshRounded,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AppIcon(
+                            AppIcons.addPhotoAlternateOutlined,
+                            size: 20,
+                            color: colors.goldDark,
+                          ),
+                          const SizedBox(height: 2),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: FitText(
+                              galleryLabel,
+                              textAlign: TextAlign.center,
+                              style: type.caption.copyWith(color: colors.text),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          for (var i = 0; i < times.length; i++)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 4),
+              child: Semantics(
+                button: true,
+                selected: selected == i,
+                label: frameLabel(times[i]),
+                excludeSemantics: true,
+                child: AppPressable(
+                  key: ValueKey('reel-cover-frame-$i'),
+                  onTap: () => onFrame(i),
+                  child: tile(
+                    on: selected == i,
+                    child: i < frames.length && frames[i] != null
+                        ? Image.memory(
+                            frames[i]!,
+                            fit: BoxFit.cover,
+                            cacheWidth: 120,
+                          )
+                        : const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-08: one field — the title on top, a line, then the
+/// description (#hashtags and @mentions in gold).
+class _OneField extends StatelessWidget {
+  const _OneField({
+    required this.title,
+    required this.text,
+    required this.textFocus,
+    required this.titleHint,
+    required this.textHint,
+    required this.titleLabel,
+    required this.textLabel,
+  });
+
+  final TextEditingController title;
+  final TextEditingController text;
+  final FocusNode textFocus;
+  final String titleHint;
+  final String textHint;
+  final String titleLabel;
+  final String textLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    InputDecoration bare(String hint) => InputDecoration(
+          hintText: hint,
+          hintStyle: type.body.copyWith(color: colors.textSecondary),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.md,
+          ),
+        );
+    Widget? noCounter(
+      BuildContext _, {
+      required int currentLength,
+      required bool isFocused,
+      int? maxLength,
+    }) =>
+        null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.field),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          Semantics(
+            label: titleLabel,
+            textField: true,
+            child: TextField(
+              key: const ValueKey('reel-title'),
+              controller: title,
+              onTapOutside: hideKeyboardOnTapOutside,
+              maxLength: kPostTitleMaxChars,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              buildCounter: noCounter,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) => textFocus.requestFocus(),
+              style: type.body.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w700,
+              ),
+              decoration: bare(titleHint),
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: colors.border),
+          Semantics(
+            label: textLabel,
+            textField: true,
+            child: TextField(
+              key: const ValueKey('reel-text'),
+              controller: text,
+              focusNode: textFocus,
+              onTapOutside: hideKeyboardOnTapOutside,
+              minLines: 3,
+              maxLines: 8,
+              maxLength: kPostMaxChars,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              buildCounter: noCounter,
+              textCapitalization: TextCapitalization.sentences,
+              style: type.body.copyWith(color: colors.text),
+              decoration: bare(textHint),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -814,7 +858,7 @@ class _InsidePhoto extends StatelessWidget {
     required this.onRetry,
   });
 
-  final _Photo photo;
+  final ComposerPhoto photo;
   final String removeLabel;
   final String retryLabel;
   final VoidCallback? onRemove;

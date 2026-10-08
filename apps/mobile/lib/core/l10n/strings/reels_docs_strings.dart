@@ -31,6 +31,13 @@ const reelsDocsRu = <String, String>{
       'Рилс покажет только этот отрезок, до {max} сек. Видео — до {source} сек.',
   'reels.cover.title': 'Обложка',
   'reels.cover.hint': 'Кадр, который увидят в ленте до запуска видео.',
+  // Owner 2026-10-08: the cover row, the 90-second rule, the upload strip.
+  'reels.cover.frame': 'Обложка: кадр {time}',
+  'reels.tooLong.max':
+      'Рилс длится до {max} секунд, а это видео {length}. Выберите видео покороче.',
+  'upload.done': 'Опубликовано',
+  'upload.failed': 'Не удалось опубликовать',
+  'upload.open': 'Опубликовано. Открыть публикацию',
   'call.videoButton': 'Видеозвонок',
   'call.videoLabel': 'Видеозвонок LawBid',
   'call.camera': 'Камера',
@@ -66,6 +73,13 @@ const reelsDocsEn = <String, String>{
       'The reel plays only this part, up to {max} s. Videos up to {source} s.',
   'reels.cover.title': 'Cover',
   'reels.cover.hint': 'The frame people see in the feed before it plays.',
+  // Owner 2026-10-08: the cover row, the 90-second rule, the upload strip.
+  'reels.cover.frame': 'Cover: frame at {time}',
+  'reels.tooLong.max':
+      'A reel is up to {max} seconds; this video is {length}. Pick a shorter one.',
+  'upload.done': 'Published',
+  'upload.failed': "Couldn't publish",
+  'upload.open': 'Published. Open the post',
   'call.videoButton': 'Video call',
   'call.videoLabel': 'LawBid video call',
   'call.camera': 'Camera',

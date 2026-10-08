@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -16,6 +18,7 @@ import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/create_reel_screen.dart';
+import 'package:lawbid/features/social/application/post_publish.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -25,20 +28,8 @@ import 'package:lawbid/features/social/presentation/widgets/post_documents.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-
-/// One photo in the composer: uploaded right after it is picked, so
-/// "Опубликовать" only waits for what is still in flight.
-class _Photo {
-  _Photo(this.bytes);
-
-  final Uint8List bytes;
-  final key = UniqueKey();
-  double progress = 0;
-  String? fileId;
-  Object? error;
-
-  bool get uploading => fileId == null && error == null;
-}
+import 'package:lawbid/features/uploads/application/composer_photo.dart';
+import 'package:lawbid/features/uploads/application/upload_queue.dart';
 
 /// Owner 2026-09-30: "+" → a post (everyone) or News (attorneys): the
 /// card's title, the text (with @mentions and #tags), the qualification
@@ -89,7 +80,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     return (title, body);
   }
 
-  final _photos = <_Photo>[];
+  /// Owner 2026-10-08: uploaded right after they are picked; a post with
+  /// photos publishes in the upload queue, which waits for them.
+  final _photos = <ComposerPhoto>[];
 
   /// Owner 2026-10-05: PDF / Word / text readers download.
   late final _docs = PostDocumentsController(
@@ -121,6 +114,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   @override
   void dispose() {
+    for (final p in _photos) {
+      p.removeListener(_onDocs);
+    }
     _docs.dispose();
     _text.dispose();
     super.dispose();
@@ -195,32 +191,25 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       );
     }
     for (final file in picked.take(left)) {
-      final photo = _Photo(await file.readAsBytes());
+      final photo = ComposerPhoto(await file.readAsBytes());
       if (!mounted) return;
+      photo.addListener(_onDocs);
       setState(() => _photos.add(photo));
-      // ignore: unawaited_futures
       _upload(photo);
     }
   }
 
-  Future<void> _upload(_Photo photo) async {
-    setState(() {
-      photo
-        ..error = null
-        ..progress = 0;
-    });
-    try {
-      final id = await ref.read(socialActionsProvider).uploadPhoto(
-        photo.bytes,
-        onProgress: (p) {
-          if (mounted) setState(() => photo.progress = p);
-        },
-      );
-      if (mounted) setState(() => photo.fileId = id);
-    } on Object catch (e) {
-      if (mounted) setState(() => photo.error = e);
-    }
-  }
+  void _upload(ComposerPhoto photo) =>
+      photo.upload(ref.read(socialActionsProvider)).ignore();
+
+  /// An assistant without "publish" sends a request for approval.
+  bool get _sendsRequest =>
+      ref.read(isAssistantProvider) &&
+      !ref.read(canDoProvider(AssistantDuty.publish));
+
+  /// Owner 2026-10-08: a new post with photos publishes in the background
+  /// (the strip on top of the feed), so it need not wait for them here.
+  bool get _queued => !_editing && !_sendsRequest && _photos.isNotEmpty;
 
   Future<void> _pickPractice() async {
     final t = ref.read(translatorProvider);
@@ -239,7 +228,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   bool get _ready =>
       _parts.$1.isNotEmpty &&
-      _photos.every((p) => p.fileId != null) &&
+      (_queued || _photos.every((p) => p.fileId != null)) &&
       _docs.ready;
 
   Future<void> _publish() async {
@@ -263,8 +252,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         return;
       }
       // OQ-048: an assistant's post goes to the attorney for approval.
-      if (ref.read(isAssistantProvider) &&
-          !ref.read(canDoProvider(AssistantDuty.publish))) {
+      if (_sendsRequest) {
         await ref.read(teamRepositoryProvider).createRequest(
           RequestKind.post,
           {
@@ -288,17 +276,32 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         Navigator.of(context).pop();
         return;
       }
-      final post = await ref.read(socialRepositoryProvider).createPost(
-            PostDraft(
-              title: _parts.$1,
-              body: _parts.$2,
-              practiceCode: _practice,
-              isNews: _news,
-              markedLegal: _markedLegal,
-              mediaFileIds: [for (final p in _photos) p.fileId!],
-              attachments: _docs.refs,
-            ),
-          );
+      final draft = PostDraft(
+        title: _parts.$1,
+        body: _parts.$2,
+        practiceCode: _practice,
+        isNews: _news,
+        markedLegal: _markedLegal,
+        attachments: _docs.refs,
+      );
+      if (_queued) {
+        // Owner 2026-10-08: closes at once; the feed's strip shows the
+        // upload, then «Опубликовано ✓» or «Повторить».
+        final photos = List.of(_photos);
+        ref.read(uploadQueueProvider.notifier).add(
+              (ref, progress) =>
+                  publishPostWithPhotos(ref, draft, photos, progress),
+              thumbnail: photos.first.bytes,
+            );
+        // ignore: unawaited_futures
+        HapticFeedback.mediumImpact();
+        final router = GoRouter.maybeOf(context);
+        Navigator.of(context).pop();
+        router?.go(AppRoutes.feed);
+        return;
+      }
+      final post =
+          await ref.read(socialRepositoryProvider).createPost(draft);
       if (!mounted) return;
       ref.read(feedProvider.notifier).prepend(post);
       // The author's profile grids and post counters follow at once.
@@ -511,8 +514,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                                 index: i,
                                 removeLabel: t.t('post.create.removePhoto'),
                                 retryLabel: t.t('error.retry'),
-                                onRemove: () =>
-                                    setState(() => _photos.removeAt(i)),
+                                onRemove: () => setState(
+                                  () => _photos.removeAt(i)
+                                    ..removeListener(_onDocs),
+                                ),
                                 onRetry: () => _upload(_photos[i]),
                               ),
                             ),
@@ -580,8 +585,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   icon: _editing ? AppIcons.checkRounded : AppIcons.sendRounded,
                   isLoading: _publishing,
-                  isEnabled:
-                      !_publishing && _photos.every((p) => p.fileId != null),
+                  isEnabled: !_publishing &&
+                      (_queued || _photos.every((p) => p.fileId != null)),
                   onPressed: _publish,
                 ),
               ),
@@ -808,7 +813,7 @@ class _PhotoTile extends StatelessWidget {
     required this.onRetry,
   });
 
-  final _Photo photo;
+  final ComposerPhoto photo;
   final int index;
   final String removeLabel;
   final String retryLabel;

@@ -195,6 +195,8 @@ export class VideosService {
         trim_start_ms: trim?.startMs ?? null,
         trim_end_ms: trim?.endMs ?? null,
         cover_time_ms: coverMs,
+        // Checked by the caller (FilesService.assertAttachable).
+        cover_file_id: dto.coverFileId ?? null,
       },
     });
     return {

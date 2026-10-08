@@ -55,7 +55,8 @@ export class PostVideosController {
   @ApiEnvelopeResponse(VideoUploadDto, { status: 201 })
   @ApiErrors({
     403: [E.VIDEO_UNAVAILABLE, E.POST_NOT_ALLOWED, E.ENTITLEMENT_REQUIRED],
-    409: [E.VIDEO_NOT_READY],
+    404: [E.NOT_FOUND],
+    409: [E.VIDEO_NOT_READY, E.FILE_NOT_ATTACHABLE],
     422: [E.VIDEO_TOO_LONG],
     429: [E.RATE_LIMITED],
     503: [E.VIDEO_UNAVAILABLE],
@@ -65,6 +66,11 @@ export class PostVideosController {
     @Body() dto: CreateVideoUploadDto,
   ): Promise<VideoUploadDto> {
     await this.posts.assertCanPublish(user);
+    // Owner 2026-10-08: a gallery cover is one of the author's own clean
+    // post photos.
+    if (dto.coverFileId) {
+      await this.posts.assertCoverPhoto(user.sub, dto.coverFileId);
+    }
     return this.videos.createUpload(user.sub, dto);
   }
 

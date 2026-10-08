@@ -15,6 +15,7 @@ class CreateVideoUploadDto {
     this.trimStartMs,
     this.trimEndMs,
     this.coverTimeMs,
+    this.coverFileId,
   });
 
   factory CreateVideoUploadDto.fromJson(Map<String, Object?> json) =>
@@ -33,6 +34,10 @@ class CreateVideoUploadDto {
 
   /// Owner 2026-10-05: the cover = the frame at this moment.
   final int? coverTimeMs;
+
+  /// Owner 2026-10-08: a cover photo from the gallery (own, clean.
+  /// `post_image`), shown instead of the frame at coverTimeMs.
+  final String? coverFileId;
 
   Map<String, Object?> toJson() => _$CreateVideoUploadDtoToJson(this);
 }
