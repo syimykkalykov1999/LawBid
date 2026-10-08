@@ -33,6 +33,7 @@ import {
   CreatePromotionResultDto,
   MyPromotionDto,
   MyPromotionsQueryDto,
+  PromotionActionDto,
   PromotionCaseIdParamDto,
   PromotionClickResultDto,
   PromotionIdParamDto,
@@ -66,6 +67,7 @@ export class PromotionsController {
       q.days,
       q.dailyBudgetCents,
       q.target ?? 'case',
+      q.video ?? false,
     );
   }
 
@@ -191,5 +193,19 @@ export class PromotionsController {
     @Param() p: PromotionIdParamDto,
   ): Promise<PromotionClickResultDto> {
     return this.promotions.click(user.sub, p.id);
+  }
+
+  @Post('promotions/:id/action')
+  @ApiOperation({
+    summary:
+      'A real action only the app sees (watched to the end, opened the profile)',
+  })
+  @ApiEnvelopeResponse(PromotionClickResultDto)
+  actionPromotion(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PromotionIdParamDto,
+    @Body() dto: PromotionActionDto,
+  ): Promise<PromotionClickResultDto> {
+    return this.promotions.action(user.sub, p.id, dto.kind);
   }
 }

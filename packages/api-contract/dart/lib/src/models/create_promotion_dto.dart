@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'boost_billing.dart';
 import 'promotion_audience_dto.dart';
 
 part 'create_promotion_dto.g.dart';
@@ -16,6 +17,7 @@ class CreatePromotionDto {
     this.dailyBudgetCents,
     this.audience,
     this.promoCode,
+    this.billing,
   });
 
   factory CreatePromotionDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +32,9 @@ class CreatePromotionDto {
   /// Spend free days earned through referrals first.
   final bool useCredits;
   final String? promoCode;
+
+  /// Owner 2026-10-07: what to pay for; default = the first one on.
+  final BoostBilling? billing;
 
   Map<String, Object?> toJson() => _$CreatePromotionDtoToJson(this);
 }

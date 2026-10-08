@@ -1,3 +1,4 @@
+import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { StickersModule } from '../stickers/stickers.module';
 import { Module } from '@nestjs/common';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
@@ -15,6 +16,8 @@ import { TranslationCoreModule } from '../translation/translation.module';
 /** docs/05 §8 chats REST (stage 5.7); realtime in RealtimeModule. */
 @Module({
   imports: [
+    // Owner 2026-10-07: real actions count for boosts paid per action.
+    PromotionsCoreModule,
     UsageLimitsModule,
     BlocksModule,
     FilesModule,

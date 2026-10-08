@@ -71,6 +71,7 @@ export const NOTIFICATION_CATEGORY: Record<
   partner_declined: 'system',
   promotion_started: 'cases',
   promotion_ended: 'cases',
+  promotion_refunded: 'cases',
   // Owner 2026-10-05: client → attorney payments.
   case_payment_received: 'cases',
   case_payment_sent: 'cases',
@@ -152,6 +153,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   partner_declined: false,
   promotion_started: false,
   promotion_ended: false,
+  promotion_refunded: true,
   case_payment_received: true,
   case_payment_sent: true,
   case_payment_refunded: true,

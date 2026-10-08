@@ -28,6 +28,9 @@ PromotionSettingsDto _$PromotionSettingsDtoFromJson(
   impressionsPerPerson: json['impressionsPerPerson'] as num,
   autoApprove: json['autoApprove'] as bool,
   requireSubscription: json['requireSubscription'] as bool,
+  pricing: json['pricing'] == null
+      ? null
+      : PricingMatrixDto.fromJson(json['pricing'] as Map<String, dynamic>),
   maxActivePerCase: (json['maxActivePerCase'] as num?)?.toInt() ?? 1,
 );
 
@@ -50,4 +53,5 @@ Map<String, dynamic> _$PromotionSettingsDtoToJson(
   'impressionsPerPerson': instance.impressionsPerPerson,
   'autoApprove': instance.autoApprove,
   'requireSubscription': instance.requireSubscription,
+  'pricing': ?instance.pricing?.toJson(),
 };

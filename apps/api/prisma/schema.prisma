@@ -476,6 +476,7 @@ enum NotificationType {
   referral_reward
   promotion_started
   promotion_ended
+  promotion_refunded
   // Owner 2026-10-05: partner program — a commission accrued / paid out.
   partner_commission
   partner_payout
@@ -3684,6 +3685,16 @@ model CasePromotion {
   target_impressions  Int?
   reach               Int       @default(0)
   clicks              Int       @default(0)
+  // Owner 2026-10-07: what the buyer pays for — impressions | reach |
+  // clicks | actions — at unit_price_cents (per 1000 for impressions and
+  // reach, per one otherwise), frozen at purchase. target_units = what the
+  // budget buys in that unit; actions = real results counted (only the
+  // kinds in billed_actions); unspent money goes back automatically.
+  billing             String    @default("impressions") @db.String(12)
+  unit_price_cents    Int?
+  target_units        Int?
+  actions             Int       @default(0)
+  billed_actions      String[]  @default([])
   audience            Json?
   // Refunded part (admin cancel with refund).
   refunded_cents      Int       @default(0)
@@ -3714,6 +3725,8 @@ model PromotionView {
   day_key       String        @db.String(10)
   day_count     Int           @default(0)
   clicked       Boolean       @default(false)
+  // Owner 2026-10-07: a real action was counted for this person (once).
+  acted         Boolean       @default(false)
   first_seen_at DateTime      @default(now()) @db.Timestamptz
   last_seen_at  DateTime      @default(now()) @db.Timestamptz
 

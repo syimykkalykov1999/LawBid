@@ -9,6 +9,7 @@ import {
 import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -91,6 +92,7 @@ export class BidsService {
     private readonly trust: AttorneyTrustService,
     // Owner 2026-10-05: the plan's terms (offers in any state, offer limit).
     @Optional() private readonly entitlements?: EntitlementsService,
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
   ) {}
 
   /** POST /cases/:caseId/bids (§5.1). One active-or-ever bid per attorney
@@ -271,6 +273,8 @@ export class BidsService {
       await this.prisma.bidDraft
         .deleteMany({ where: { attorney_id: user.sub, case_id: caseId } })
         .catch(() => undefined);
+      // Owner 2026-10-07: a bid counts for the case's boost paid per action.
+      this.promoDelivery?.action(user.sub, { caseId }, 'bid');
       return toBidDto(bid);
     } catch (error) {
       if (isUniqueViolation(error)) throw bidAlreadyExists();

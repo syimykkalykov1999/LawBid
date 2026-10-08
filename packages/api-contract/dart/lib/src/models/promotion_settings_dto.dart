@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'pricing_matrix_dto.dart';
+
 part 'promotion_settings_dto.g.dart';
 
 @JsonSerializable()
@@ -24,6 +26,7 @@ class PromotionSettingsDto {
     required this.impressionsPerPerson,
     required this.autoApprove,
     required this.requireSubscription,
+    this.pricing,
     this.maxActivePerCase = 1,
   });
 
@@ -48,6 +51,9 @@ class PromotionSettingsDto {
   final num impressionsPerPerson;
   final bool autoApprove;
   final bool requireSubscription;
+
+  /// Owner 2026-10-07: prices per model and per thing.
+  final PricingMatrixDto? pricing;
 
   Map<String, Object?> toJson() => _$PromotionSettingsDtoToJson(this);
 }

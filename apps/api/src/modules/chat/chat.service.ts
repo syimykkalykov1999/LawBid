@@ -17,6 +17,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -105,6 +106,7 @@ export class ChatService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
     // write to attorneys until staff look.
     @Optional() private readonly fraud?: ClientFraudService,
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
   ) {}
 
   /**
@@ -827,6 +829,9 @@ export class ChatService {
       }
       throw error;
     }
+    // Owner 2026-10-07: a new chat with the author counts for their boosts
+    // paid per action.
+    this.promoDelivery?.action(user.sub, { ownerId: other.id }, 'message');
     const [dto] = await this.present([conv], user.sub);
     return dto;
   }

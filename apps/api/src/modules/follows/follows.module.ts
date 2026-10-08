@@ -1,3 +1,4 @@
+import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { BlocksModule } from '../blocks/blocks.module';
@@ -11,6 +12,8 @@ import { FollowsService } from './follows.service';
 @Module({
   // ProfilesModule: client rows of the followers list (OQ-026).
   imports: [
+    // Owner 2026-10-07: real actions count for boosts paid per action.
+    PromotionsCoreModule,
     UsageLimitsModule,
     NotificationsModule,
     FilesModule,

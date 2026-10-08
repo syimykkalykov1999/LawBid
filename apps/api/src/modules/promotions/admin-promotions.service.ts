@@ -31,6 +31,8 @@ import {
   impressionsFor,
   parsePromotionSettings,
   PROMOTION_SETTINGS_KEY,
+  targetUnits,
+  unspentCents,
   type PromotionSettings,
   type PromotionTarget,
 } from './promotions.settings';
@@ -272,6 +274,10 @@ export class AdminPromotionsService {
           total_cents: 0,
           cpm_cents: settings.cpmCents,
           target_impressions: impressionsFor(days * daily, settings.cpmCents),
+          // A staff grant is an impressions boost (nothing to refund).
+          billing: 'impressions',
+          unit_price_cents: settings.cpmCents,
+          target_units: impressionsFor(days * daily, settings.cpmCents),
           status: 'active',
           starts_at: now,
           ends_at: new Date(now.getTime() + days * DAY_MS),
@@ -421,12 +427,13 @@ export class AdminPromotionsService {
     return { promotion: (await this.present([row]))[0], note };
   }
 
-  /** Cents to give back: all, or the share of impressions not delivered. */
+  /** Cents to give back: all, or the share not delivered (in the unit
+   * it is paid for: impressions, people, taps or actions). */
   private refundAmount(p: CasePromotion, mode: PromotionRefundMode): number {
     const left = Math.max(0, p.total_cents - p.refunded_cents);
     if (mode === 'full') return left;
     if (mode !== 'unspent') return 0;
-    if (!p.target_impressions) {
+    if (!targetUnits(p)) {
       // Older rows: by time left.
       if (!p.starts_at || !p.ends_at) return left;
       const span = p.ends_at.getTime() - p.starts_at.getTime();
@@ -436,11 +443,7 @@ export class AdminPromotionsService {
         Math.floor((p.total_cents * rest) / Math.max(1, span)),
       );
     }
-    const undelivered = Math.max(0, p.target_impressions - p.impressions);
-    return Math.min(
-      left,
-      Math.floor((p.total_cents * undelivered) / p.target_impressions),
-    );
+    return unspentCents(p);
   }
 
   async extend(

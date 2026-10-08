@@ -447,6 +447,18 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Продвижение завершилось. Итоги — в «Мои продвижения».',
     },
   },
+  // Owner 2026-10-07: paid per people / taps / actions, ended early.
+  promotion_refunded: {
+    group: 'cases',
+    en: {
+      title: 'Money returned',
+      body: 'We returned {amount} of unspent promotion budget to your card.',
+    },
+    ru: {
+      title: 'Деньги вернулись',
+      body: 'Не потраченные на продвижение {amount} вернули на вашу карту.',
+    },
+  },
   // Owner 2026-10-05: client → attorney payments through the platform.
   case_payment_received: {
     group: 'cases',

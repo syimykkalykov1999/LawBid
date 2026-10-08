@@ -10,6 +10,7 @@ import '../models/case_promotion_state_envelope.dart';
 import '../models/create_promotion_dto.dart';
 import '../models/create_promotion_result_envelope.dart';
 import '../models/my_promotion_list_envelope.dart';
+import '../models/promotion_action_dto.dart';
 import '../models/promotion_click_result_envelope.dart';
 import '../models/promotion_quote_envelope.dart';
 import '../models/promotion_target.dart';
@@ -23,11 +24,14 @@ abstract class PromotionsClient {
   /// Price of promoting a case for N days.
   ///
   /// [dailyBudgetCents] - Owner 2026-10-05: daily budget; default from the admin.
+  ///
+  /// [video] - Owner 2026-10-07: the post has a video (video prices).
   @GET('/promotions/quote')
   Future<PromotionQuoteEnvelope> getPromotionQuote({
     @Query('days') required int days,
     @Query('dailyBudgetCents') int? dailyBudgetCents,
     @Query('target') PromotionTarget? target,
+    @Query('video') bool? video,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -79,6 +83,14 @@ abstract class PromotionsClient {
   @POST('/promotions/{id}/click')
   Future<PromotionClickResultEnvelope> clickPromotion({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A real action only the app sees (watched to the end, opened the profile)
+  @POST('/promotions/{id}/action')
+  Future<PromotionClickResultEnvelope> actionPromotion({
+    @Path('id') required String id,
+    @Body() required PromotionActionDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }
