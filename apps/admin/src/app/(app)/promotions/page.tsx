@@ -19,7 +19,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
-import { DEFAULT_PRICING, PricingModelsCard, type PricingMatrix } from '@/components/promotions/pricing-models';
+import { PricingModelsCard } from '@/components/promotions/pricing-models';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -37,6 +37,12 @@ type Tab = 'all' | PromotionStatus;
 type TargetTab = 'all' | Target;
 
 const STATUSES: PromotionStatus[] = ['active', 'pending_review', 'pending_payment', 'finished', 'canceled', 'refunded', 'rejected'];
+const BILLING_UNIT: Record<components['schemas']['BoostBilling'], string> = {
+  impressions: 'показы',
+  reach: 'люди',
+  clicks: 'нажатия',
+  actions: 'действия',
+};
 const num = (n: number) => new Intl.NumberFormat('ru-RU').format(n);
 const reasonText: Record<string, string> = {
   budget_spent: 'бюджет потрачен',
@@ -194,7 +200,7 @@ export default function PromotionsPage() {
               <Th>Владелец</Th>
               <Th className="text-right">Бюджет</Th>
               <Th>Период</Th>
-              <Th className="min-w-36">Показы</Th>
+              <Th className="min-w-36">Прогресс</Th>
               <Th className="text-right">Охват</Th>
               <Th className="text-right">Клики</Th>
               <Th className="text-right">Оплачено</Th>
@@ -246,12 +252,18 @@ export default function PromotionsPage() {
                     )}
                   </Td>
                   <Td className="tabular-nums text-muted">
+                    <div className="text-xs text-faint">{BILLING_UNIT[p.billing]}</div>
                     <span className="inline-flex items-center gap-1">
-                      <Eye size={13} weight="light" />
-                      {num(p.impressions)}
-                      {p.targetImpressions ? <span className="text-faint"> / {num(p.targetImpressions)}</span> : null}
+                      {num(p.deliveredUnits)}
+                      {p.targetUnits ? <span className="text-faint"> / {num(p.targetUnits)}</span> : null}
                     </span>
-                    {p.targetImpressions ? <ProgressBar className="mt-1.5" value={p.impressions / p.targetImpressions} /> : null}
+                    {p.targetUnits ? <ProgressBar className="mt-1.5" value={p.deliveredUnits / p.targetUnits} /> : null}
+                    {p.billing !== 'impressions' ? (
+                      <div className="mt-1 inline-flex items-center gap-1 text-xs text-faint">
+                        <Eye size={12} weight="light" />
+                        {num(p.impressions)}
+                      </div>
+                    ) : null}
                   </Td>
                   <Td className="text-right tabular-nums text-muted">{num(p.reach)}</Td>
                   <Td className="text-right whitespace-nowrap tabular-nums text-muted">
@@ -365,8 +377,8 @@ function CancelDialog({ promotion, onClose, onDone }: { promotion: Promotion | n
   const reasonOk = !needReason || reason.trim().length >= REASON_MIN;
   const paid = !!promotion?.paymentId && (promotion?.totalCents ?? 0) > 0;
   const unspent =
-    promotion && promotion.targetImpressions
-      ? Math.floor((promotion.totalCents * Math.max(0, promotion.targetImpressions - promotion.impressions)) / promotion.targetImpressions)
+    promotion && promotion.targetUnits
+      ? Math.floor((promotion.totalCents * Math.max(0, promotion.targetUnits - promotion.deliveredUnits)) / promotion.targetUnits)
       : (promotion?.totalCents ?? 0);
   const save = useMutation({
     mutationFn: async () =>
@@ -542,8 +554,8 @@ function PricingSection({ canEdit }: { canEdit: boolean }) {
     queryFn: async () => (await api.GET('/admin/promotions/settings')).data!.data,
   });
   if (q.isPending) return <Skeleton className="h-56 rounded-[var(--radius-lg)]" />;
-  const models = (q.data as (Settings & { models?: PricingMatrix }) | undefined)?.models ?? DEFAULT_PRICING;
-  return <PricingModelsCard initial={models} canEdit={canEdit} />;
+  if (!q.data?.pricing) return <ErrorNote text={q.error ? errorText(q.error) : 'Не удалось загрузить цены'} />;
+  return <PricingModelsCard key={JSON.stringify(q.data)} settings={q.data} canEdit={canEdit} />;
 }
 
 function SettingsCard({ canEdit }: { canEdit: boolean }) {
@@ -581,12 +593,9 @@ function Toggle({ title, text, checked, onChange, disabled }: { title: string; t
 function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [enabled, setEnabled] = useState(initial.enabled);
-  const [postsEnabled, setPostsEnabled] = useState(initial.postsEnabled);
   const [autoApprove, setAutoApprove] = useState(initial.autoApprove);
   const [requireSub, setRequireSub] = useState(initial.requireSubscription);
   const [price, setPrice] = useState(String(initial.priceCentsPerDay / 100));
-  const [cpm, setCpm] = useState(String(initial.cpmCents / 100));
   const [minDaily, setMinDaily] = useState(String(initial.minDailyBudgetCents / 100));
   const [maxDaily, setMaxDaily] = useState(String(initial.maxDailyBudgetCents / 100));
   const [presets, setPresets] = useState(initial.budgetPresetsCents.map((c) => c / 100).join(', '));
@@ -599,7 +608,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
 
   const body: Settings | null = (() => {
     const p = dollarsToCents(price);
-    const c = dollarsToCents(cpm);
     const mn = dollarsToCents(minDaily);
     const mx = dollarsToCents(maxDaily);
     const ps = centsList(presets);
@@ -609,20 +617,22 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     const cs = Number(caseSlots);
     const fc = Number(cap);
     const pp = Number(perPerson);
-    if (p == null || p < 50 || c == null || c < 1 || mn == null || mn < 50 || mx == null || mx < mn) return null;
+    if (p == null || p < 50 || mn == null || mn < 50 || mx == null || mx < mn) return null;
     if (!ps || !ds || !ps.length || !ds.length) return null;
     if (!Number.isInteger(md) || md < 1 || md > 365) return null;
     if (!Number.isInteger(en) || en < 2 || en > 50 || !Number.isInteger(cs) || cs < 0 || cs > 10) return null;
     if (!Number.isInteger(fc) || fc < 1 || fc > 50 || !(pp >= 1 && pp <= 10)) return null;
     return {
-      enabled,
-      postsEnabled,
+      // On/off and prices live in «Цены» above; sent back unchanged.
+      enabled: initial.enabled,
+      postsEnabled: initial.postsEnabled,
+      pricing: initial.pricing,
       autoApprove,
       requireSubscription: requireSub,
       priceCentsPerDay: p,
       maxDays: md,
       maxActivePerCase: initial.maxActivePerCase,
-      cpmCents: c,
+      cpmCents: initial.cpmCents,
       minDailyBudgetCents: mn,
       maxDailyBudgetCents: mx,
       budgetPresetsCents: ps.filter((x) => x >= mn && x <= mx),
@@ -666,17 +676,12 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           }}
         >
           <div className="divide-y divide-line border-b border-line pb-2">
-            <Toggle title="Продвижение постов" text="Любой клиент или адвокат может продвинуть свой пост. Пост показывается в ленте с пометкой «Реклама»." checked={postsEnabled} onChange={setPostsEnabled} disabled={!canEdit} />
-            <Toggle title="Продвижение кейсов" text="Клиент поднимает свой открытый кейс вверх ленты адвокатов. Уже идущие продвижения доработают свой срок." checked={enabled} onChange={setEnabled} disabled={!canEdit} />
             <Toggle title="Автопроверка" text="Включено: продвижение стартует сразу после оплаты, если на контент нет открытых жалоб. Выключено: каждое продвижение ждёт проверки сотрудника." checked={autoApprove} onChange={setAutoApprove} disabled={!canEdit} />
             <Toggle title="Только по подписке" text="Выключено (как в Instagram): продвигать может любой. Включено: только те, у кого в плане есть «Продвижение»." checked={requireSub} onChange={setRequireSub} disabled={!canEdit} />
           </div>
 
-          <h3 className="mt-5 font-medium text-heading">Цены и охват</h3>
+          <h3 className="mt-5 font-medium text-heading">Бюджет и сроки</h3>
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Цена 1000 показов, $" htmlFor="ps-cpm" hint="Из неё считается «покажем N людям».">
-              <Input id="ps-cpm" inputMode="decimal" value={cpm} disabled={!canEdit} onChange={(e) => setCpm(e.target.value)} />
-            </Field>
             <Field label="Бюджет по умолчанию, $/день" htmlFor="ps-price" hint="Столько же стоит один бесплатный день за приглашение.">
               <Input id="ps-price" inputMode="decimal" value={price} disabled={!canEdit} onChange={(e) => setPrice(e.target.value)} />
             </Field>

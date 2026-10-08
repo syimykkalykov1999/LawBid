@@ -1,13 +1,18 @@
 'use client';
 
 import { Article, Briefcase, CursorClick, Eye, FilmStrip, HandTap, IdentificationCard, UsersThree } from '@phosphor-icons/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { useState } from 'react';
 import { fadeUp } from '@/components/billing/shared';
+import { growthError } from '@/components/growth/errors';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Badge, Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/components/ui/toast';
+import { api } from '@/lib/api/client';
+import type { components } from '@/lib/api/schema';
 import { cn } from '@/lib/utils';
 
 /**
@@ -16,22 +21,14 @@ import { cn } from '@/lib/utils';
  * four billing models — impressions, reach, taps, real actions — each with
  * its own switch and price. The app offers only what is on here.
  */
-export type BillingModel = 'impressions' | 'reach' | 'clicks' | 'actions';
-export type BoostTarget = 'post' | 'video' | 'case' | 'profile';
+type Settings = components['schemas']['PromotionSettingsDto'];
+export type PricingMatrix = components['schemas']['PricingMatrixDto'];
+type TargetPricing = components['schemas']['TargetPricingDto'];
+type BillingModel = keyof components['schemas']['BillingModelsDto'];
+type BoostTarget = keyof PricingMatrix;
 
-export interface ModelPrice {
-  enabled: boolean;
-  priceCents: number;
-}
-
-export interface TargetPricing {
-  enabled: boolean;
-  models: Record<BillingModel, ModelPrice>;
-  /** Which actions count for the `actions` model. */
-  actions: string[];
-}
-
-export type PricingMatrix = Record<BoostTarget, TargetPricing>;
+/** Priced here already; the app cannot boost these yet. */
+const SOON: BoostTarget[] = ['profile'];
 
 const TARGETS: { key: BoostTarget; label: string; icon: typeof Article }[] = [
   { key: 'post', label: 'Посты', icon: Article },
@@ -80,7 +77,10 @@ const toCents = (s: string): number | null => {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null;
 };
 
-export function PricingModelsCard({ initial, canEdit }: { initial: PricingMatrix; canEdit: boolean }) {
+export function PricingModelsCard({ settings, canEdit }: { settings: Settings; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const initial = settings.pricing!;
   const [m, setM] = useState<PricingMatrix>(initial);
   const [text, setText] = useState<Record<string, string>>(() => {
     const out: Record<string, string> = {};
@@ -92,11 +92,21 @@ export function PricingModelsCard({ initial, canEdit }: { initial: PricingMatrix
   const valid = Object.values(text).every((v) => toCents(v) != null);
   const dirty = JSON.stringify(m) !== JSON.stringify(initial);
 
+  const save = useMutation({
+    mutationFn: async () => (await api.PUT('/admin/promotions/settings', { body: { ...settings, pricing: m } })).data!.data,
+    onSuccess: (data) => {
+      toast.success('Цены продвижения сохранены');
+      qc.setQueryData(['promotions-settings'], data);
+    },
+    onError: (e) => toast.error(growthError(e)),
+  });
+
   return (
     <motion.div {...fadeUp(0)}>
       <div className="grid gap-4 lg:grid-cols-2">
         {TARGETS.map(({ key: t, label, icon: Icon }) => {
-          const p = m[t];
+          const soon = SOON.includes(t);
+          const p = soon ? { ...m[t], enabled: false } : m[t];
           return (
             <Card key={t} className="p-5">
               <div className="flex items-center justify-between gap-3">
@@ -105,8 +115,9 @@ export function PricingModelsCard({ initial, canEdit }: { initial: PricingMatrix
                     <Icon size={18} weight="light" />
                   </span>
                   <h3 className="truncate font-medium text-heading">{label}</h3>
+                  {soon ? <Badge>скоро</Badge> : null}
                 </div>
-                <Switch checked={p.enabled} onChange={(v) => patch(t, (x) => ({ ...x, enabled: v }))} disabled={!canEdit} label={label} />
+                <Switch checked={p.enabled} onChange={(v) => patch(t, (x) => ({ ...x, enabled: v }))} disabled={!canEdit || soon} label={label} />
               </div>
 
               <div className={cn('mt-4 divide-y divide-line', !p.enabled && 'opacity-45')}>
@@ -177,7 +188,7 @@ export function PricingModelsCard({ initial, canEdit }: { initial: PricingMatrix
       {canEdit ? (
         <div className="mt-4 flex items-center justify-end gap-3">
           {!valid ? <span className="text-xs text-danger">Проверьте цены</span> : null}
-          <Button type="button" disabled={!valid || !dirty}>
+          <Button type="button" loading={save.isPending} disabled={!valid || !dirty || save.isPending} onClick={() => save.mutate()}>
             Сохранить
           </Button>
         </div>
@@ -185,13 +196,3 @@ export function PricingModelsCard({ initial, canEdit }: { initial: PricingMatrix
     </motion.div>
   );
 }
-
-const on = (priceCents: number, enabled = true): ModelPrice => ({ enabled, priceCents });
-
-/** Starting prices until the owner sets their own. */
-export const DEFAULT_PRICING: PricingMatrix = {
-  post: { enabled: true, models: { impressions: on(500), reach: on(800), clicks: on(30), actions: on(150) }, actions: ['follow', 'message'] },
-  video: { enabled: true, models: { impressions: on(400), reach: on(700), clicks: on(25), actions: on(120) }, actions: ['watched', 'follow'] },
-  case: { enabled: true, models: { impressions: on(500), reach: on(800, false), clicks: on(40), actions: on(200) }, actions: ['bid'] },
-  profile: { enabled: false, models: { impressions: on(600), reach: on(900), clicks: on(50), actions: on(300) }, actions: ['message', 'consultation'] },
-};
