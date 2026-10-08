@@ -1,6 +1,6 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:video_compress/video_compress.dart';
 
@@ -45,10 +45,11 @@ VideoQuality videoQualityFor(int maxHeight) => maxHeight <= 540
         : VideoQuality.Res1920x1080Quality;
 
 /// Re-encodes a video on the device; null = keep the original (failed,
-/// cancelled or not smaller).
+/// cancelled, not smaller, or the browser build — no encoder there, the
+/// original is uploaded).
 abstract class VideoCompressor {
-  Future<File?> compress(
-    File source, {
+  Future<XFile?> compress(
+    XFile source, {
     required VideoLimits limits,
     void Function(double progress)? onProgress,
   });
@@ -60,11 +61,12 @@ abstract class VideoCompressor {
 /// MediaCodec on Android) — no paid service, nothing leaves the phone.
 class PluginVideoCompressor implements VideoCompressor {
   @override
-  Future<File?> compress(
-    File source, {
+  Future<XFile?> compress(
+    XFile source, {
     required VideoLimits limits,
     void Function(double progress)? onProgress,
   }) async {
+    if (kIsWeb) return null;
     final sub = VideoCompress.compressProgress$.subscribe(
       (p) => onProgress?.call((p / 100).clamp(0, 1)),
     );
@@ -78,7 +80,7 @@ class PluginVideoCompressor implements VideoCompressor {
       final out = info?.file;
       if (out == null || (info!.isCancel ?? false)) return null;
       if (await out.length() >= await source.length()) return null;
-      return out;
+      return XFile(out.path, mimeType: 'video/mp4');
     } on Object {
       return null;
     } finally {
@@ -87,7 +89,9 @@ class PluginVideoCompressor implements VideoCompressor {
   }
 
   @override
-  Future<void> cancel() => VideoCompress.cancelCompression();
+  Future<void> cancel() async {
+    if (!kIsWeb) await VideoCompress.cancelCompression();
+  }
 }
 
 final videoCompressorProvider =

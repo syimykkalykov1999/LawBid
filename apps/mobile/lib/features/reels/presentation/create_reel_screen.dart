@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,7 +42,7 @@ class CreateReelScreen extends ConsumerStatefulWidget {
   });
 
   /// A video already chosen in the post's gallery picker.
-  final File? initialFile;
+  final XFile? initialFile;
 
   /// The title and text already typed on the post screen.
   final String initialTitle;
@@ -76,7 +77,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   late final _text = TextEditingController(text: widget.initialText);
   final _place = TextEditingController();
   bool _comments = true;
-  File? _file;
+  XFile? _file;
   VideoPlayerController? _preview;
   ReelCut? _cut;
 
@@ -145,12 +146,16 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       maxDuration: Duration(seconds: _kMaxSeconds),
     );
     if (x == null) return;
-    await _load(File(x.path));
+    await _load(x);
   }
 
-  Future<void> _load(File file) async {
+  Future<void> _load(XFile file) async {
     final t = ref.read(translatorProvider);
-    final c = VideoPlayerController.file(file);
+    // In the browser the picked video is a blob: URL, played as a network
+    // source (video_player_web has no files).
+    final c = kIsWeb
+        ? VideoPlayerController.networkUrl(Uri.parse(file.path))
+        : VideoPlayerController.file(File(file.path));
     try {
       await c.initialize();
     } on Object {
@@ -366,8 +371,10 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
 
   /// Owner 2026-10-05: up to Full HD (admin: media.video_max_height) on
   /// the phone first — smaller upload, no visible loss; the original is
-  /// kept when re-encoding fails or would not make it smaller.
-  Future<File> _compressed(File file, ReelCut cut) async {
+  /// kept when re-encoding fails or would not make it smaller, and in the
+  /// browser (no encoder there).
+  Future<XFile> _compressed(XFile file, ReelCut cut) async {
+    if (kIsWeb) return file;
     final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
     final size = _preview?.value.size ?? Size.zero;
     final need = needsVideoCompression(

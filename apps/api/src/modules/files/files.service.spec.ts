@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { HttpException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { File } from '@prisma/client';
@@ -215,6 +216,45 @@ describe('FilesService', () => {
       expect(deps.costGuard.consume).not.toHaveBeenCalled();
     });
 
+    it('accepts browser voice formats (audio/webm, audio/mp4) for chat_voice only', async () => {
+      const { service } = make();
+      for (const mime of ['audio/mp4', 'audio/webm']) {
+        expect(
+          await code(
+            service.presign('u1', {
+              purpose: 'chat_voice',
+              mime,
+              sizeBytes: 1000,
+              sha256: SHA,
+            }),
+          ),
+        ).toBe('resolved');
+        for (const purpose of ['chat_attachment', 'avatar'] as const) {
+          expect(
+            await code(
+              service.presign('u1', {
+                purpose,
+                mime,
+                sizeBytes: 1,
+                sha256: SHA,
+              }),
+            ),
+          ).toBe('FILE_TYPE_NOT_ALLOWED');
+        }
+      }
+      // Same size limit as before (files.max_size_mb = 10 here).
+      expect(
+        await code(
+          service.presign('u1', {
+            purpose: 'chat_voice',
+            mime: 'audio/webm',
+            sizeBytes: 10 * 1024 * 1024 + 1,
+            sha256: SHA,
+          }),
+        ),
+      ).toBe('FILE_TOO_LARGE');
+    });
+
     it('uses the admin MB per file: avatar 5 by default, posts 10', async () => {
       const { service } = make();
       expect(
@@ -407,6 +447,106 @@ describe('FilesService', () => {
       expect(await code(make().service.verificationFileUrl('f1'))).toBe(
         'NOT_FOUND',
       );
+    });
+  });
+  describe('confirm (voice container must match the declared type)', () => {
+    const m4a = (): Buffer => {
+      const b = Buffer.alloc(32);
+      b.writeUInt32BE(16, 0);
+      b.write('ftyp', 4, 'latin1');
+      b.write('M4A ', 8, 'latin1');
+      return b;
+    };
+    const setup = (declared: string, data: Buffer) => {
+      const { service, deps } = make();
+      const sha = createHash('sha256').update(data).digest('hex');
+      const intent = {
+        userId: 'u1',
+        purpose: 'chat_voice',
+        mime: declared,
+        size: data.length,
+        sha256: sha,
+        bucket: 'lawbid-documents',
+        key: 'chat_voice/u1/f1',
+      };
+      const remove = jest.fn().mockResolvedValue(undefined);
+      const create = jest.fn().mockResolvedValue({});
+      Object.assign(deps.redis, {
+        get: jest.fn().mockResolvedValue(JSON.stringify(intent)),
+        del: jest.fn().mockResolvedValue(1),
+        zrem: jest.fn().mockResolvedValue(1),
+      });
+      Object.assign(deps.storage, {
+        head: jest.fn().mockResolvedValue({ size: data.length }),
+        read: jest.fn().mockResolvedValue(data),
+        remove,
+      });
+      Object.assign(deps.prisma.file, { create });
+      return { service, deps, remove, create };
+    };
+
+    it('rejects WebM bytes declared as audio/mp4 and m4a bytes declared as audio/webm', async () => {
+      const webm = Buffer.from([
+        0x1a,
+        0x45,
+        0xdf,
+        0xa3,
+        0x87,
+        0x42,
+        0x82,
+        0x84,
+        ...Buffer.from('webm'),
+        0xa3,
+        0x86,
+        ...Buffer.from('A_OPUS'),
+      ]);
+      for (const [declared, data] of [
+        ['audio/mp4', webm],
+        ['audio/webm', m4a()],
+        ['audio/webm', Buffer.from('not audio at all')],
+      ] as const) {
+        const { service, remove, create } = setup(declared, data);
+        expect(await code(service.confirm('u1', 'f1'))).toBe(
+          'FILE_TYPE_NOT_ALLOWED',
+        );
+        expect(remove).toHaveBeenCalled();
+        expect(create).not.toHaveBeenCalled();
+      }
+    });
+
+    it('accepts WebM declared as audio/webm and queues the antivirus scan', async () => {
+      const webm = Buffer.from([
+        0x1a,
+        0x45,
+        0xdf,
+        0xa3,
+        0x87,
+        0x42,
+        0x82,
+        0x84,
+        ...Buffer.from('webm'),
+        0xa3,
+        0x86,
+        ...Buffer.from('A_OPUS'),
+      ]);
+      const { service, deps, create } = setup('audio/webm', webm);
+      deps.prisma.file.findUnique.mockResolvedValue({
+        id: 'f1',
+        owner_user_id: 'u1',
+        purpose: 'chat_voice',
+        mime: 'audio/webm',
+        size_bytes: BigInt(webm.length),
+        scan_status: 'pending',
+        s3_bucket: 'lawbid-documents',
+        s3_key: 'chat_voice/u1/f1',
+        deleted_at: null,
+        created_at: new Date(),
+      });
+      await service.confirm('u1', 'f1');
+      expect(create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ mime: 'audio/webm' }),
+      });
+      expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1');
     });
   });
 });

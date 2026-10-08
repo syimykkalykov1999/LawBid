@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -16,7 +17,9 @@ const kVoiceBars = 48;
 typedef VoiceRecording = ({String path, int durationMs, List<int> waveform});
 
 /// Records a voice note (AAC in .m4a, mono, 64 kbit/s), sampling the level
-/// every 80 ms for the live meter and the stored waveform.
+/// every 80 ms for the live meter and the stored waveform. In a browser the
+/// note is AAC in MP4 where the browser can (Safari) and Opus in WebM
+/// otherwise (Chrome, Firefox); `stop` then gives a blob: URL, not a file.
 class VoiceRecorder {
   VoiceRecorder() : _rec = AudioRecorder();
 
@@ -43,11 +46,17 @@ class VoiceRecorder {
   Future<bool> start({void Function()? onCap}) async {
     if (recording) return true;
     if (!await _rec.hasPermission()) return false;
-    final dir = await getTemporaryDirectory();
-    final path =
-        '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    var encoder = AudioEncoder.aacLc;
+    var path = '';
+    if (kIsWeb) {
+      if (!await _rec.isEncoderSupported(encoder)) encoder = AudioEncoder.opus;
+    } else {
+      final dir = await getTemporaryDirectory();
+      path = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    }
     await _rec.start(
-      const RecordConfig(
+      RecordConfig(
+        encoder: encoder,
         bitRate: 64000,
         numChannels: 1,
       ),

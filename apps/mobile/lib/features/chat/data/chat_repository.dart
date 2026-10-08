@@ -127,11 +127,12 @@ class ApiChatRepository implements ChatRepository {
         message: 'size',
       );
     }
+    final webm = isWebmVoice(bytes);
     final target = (await guardApiCall(
       () => _files.presign(
         body: api.PresignFileDto(
           purpose: api.FilePurpose.chatVoice,
-          mime: 'audio/mp4',
+          mime: webm ? 'audio/webm' : 'audio/mp4',
           sizeBytes: bytes.length,
           sha256: sha256Hex(bytes),
         ),
@@ -147,8 +148,8 @@ class ApiChatRepository implements ChatRepository {
           // S3 POST policy: the file must be the LAST field.
           'file': MultipartFile.fromBytes(
             bytes,
-            filename: 'voice.m4a',
-            contentType: DioMediaType('audio', 'mp4'),
+            filename: webm ? 'voice.webm' : 'voice.m4a',
+            contentType: DioMediaType('audio', webm ? 'webm' : 'mp4'),
           ),
         }),
       );
@@ -595,6 +596,15 @@ const kChatFileExtensions = [
 /// OQ-040: the server's files.max_size_mb (10 MB) — about 20 minutes of
 /// 64 kbit/s AAC, more than the 15-minute cap.
 const kVoiceMaxBytes = 10 * 1024 * 1024;
+
+/// A note recorded in Chrome/Firefox is Opus in WebM (EBML header);
+/// everything else (the phones, Safari) is AAC in MP4.
+bool isWebmVoice(List<int> bytes) =>
+    bytes.length >= 4 &&
+    bytes[0] == 0x1A &&
+    bytes[1] == 0x45 &&
+    bytes[2] == 0xDF &&
+    bytes[3] == 0xA3;
 
 abstract final class ChatMappers {
   static ChatMessage message(api.MessageDto d) => ChatMessage(

@@ -21,6 +21,11 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "cors_allowed_origins" {
+  type        = list(string)
+  default     = ["https://syimykkalykov1999.github.io"]
+  description = "Browser origins allowed to upload (presigned POST) and read (signed GET) directly. The mobile app needs none."
+}
 
 locals {
   documents = "${var.name}-documents"
@@ -121,6 +126,21 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
       days          = 0
       storage_class = "INTELLIGENT_TIERING"
     }
+  }
+}
+
+# Owner 2026-10-07 (browser beta): the web app on GitHub Pages uploads
+# straight to S3 with the presigned POST policy of FilesService and reads
+# private files over short signed GET links. Browsers need CORS for both;
+# the native app does not. The replica is never read by clients.
+resource "aws_s3_bucket_cors_configuration" "documents" {
+  bucket = aws_s3_bucket.documents.id
+  cors_rule {
+    allowed_origins = var.cors_allowed_origins
+    allowed_methods = ["POST", "GET", "HEAD"]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
   }
 }
 
@@ -241,11 +261,43 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
   }
 }
 
+# Same as documents: avatars, post photos, stickers are POSTed straight to
+# the bucket; without MEDIA_CDN_BASE_URL they are also read by signed GET.
+resource "aws_s3_bucket_cors_configuration" "media" {
+  bucket = aws_s3_bucket.media.id
+  cors_rule {
+    allowed_origins = var.cors_allowed_origins
+    allowed_methods = ["POST", "GET", "HEAD"]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
+
 resource "aws_cloudfront_origin_access_control" "media" {
   name                              = "${var.name}-media"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
+}
+
+# Flutter web (CanvasKit) loads every image with fetch(), so CDN answers
+# must carry Access-Control-Allow-Origin for the web app. CloudFront adds
+# the header itself for a matching Origin (after the cache, so one cached
+# object serves every origin); the cache policy does not forward Origin
+# to S3, so S3 never sends its own CORS headers here.
+resource "aws_cloudfront_response_headers_policy" "media_cors" {
+  name    = "${var.name}-media-cors"
+  comment = "CORS for the web app (s3_cors_allowed_origins)"
+  cors_config {
+    access_control_allow_credentials = false
+    access_control_allow_origins { items = var.cors_allowed_origins }
+    access_control_allow_methods { items = ["GET", "HEAD", "OPTIONS"] }
+    access_control_allow_headers { items = ["*"] }
+    access_control_expose_headers { items = ["ETag"] }
+    access_control_max_age_sec = 3000
+    origin_override            = false
+  }
 }
 
 resource "aws_cloudfront_distribution" "media" {
@@ -267,7 +319,8 @@ resource "aws_cloudfront_distribution" "media" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
     # AWS managed CachingOptimized policy.
-    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.media_cors.id
   }
 
   restrictions {

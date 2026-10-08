@@ -100,6 +100,8 @@ class JustAudioAppSounds implements AppSounds {
 
   @override
   Future<void> startRingtone() async {
+    // Web: a page can't reach the device ringtone — loop the ringback.
+    if (kIsWeb) return startRingback();
     try {
       await _ringtone.invokeMethod<void>('start');
     } on Object catch (e) {
@@ -109,6 +111,7 @@ class JustAudioAppSounds implements AppSounds {
 
   @override
   Future<void> stopRingtone() async {
+    if (kIsWeb) return stopRingback();
     try {
       await _ringtone.invokeMethod<void>('stop');
     } on Object {

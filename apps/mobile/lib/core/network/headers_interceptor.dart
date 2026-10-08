@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/app_update/app_version.dart';
@@ -37,7 +38,8 @@ class HeadersInterceptor extends Interceptor {
   /// `runApp` — see core/app_update/app_version.dart).
   static String get appVersion => AppVersion.current;
 
-  static String get platformName => Platform.isIOS ? 'ios' : 'android';
+  static String get platformName =>
+      kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android');
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {

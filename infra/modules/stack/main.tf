@@ -31,6 +31,11 @@ variable "admin_allowed_cidrs" {
   default     = []
   description = "When set, admin.<domain> answers only these CIDRs (WAF); empty = open, 2FA only."
 }
+variable "s3_cors_allowed_origins" {
+  type        = list(string)
+  default     = ["https://syimykkalykov1999.github.io"]
+  description = "Web origins allowed to upload to / read from the S3 buckets directly (presigned POST / signed GET)."
+}
 variable "domain" { type = string }
 variable "api_host" { type = string }
 variable "admin_host" { type = string }
@@ -207,6 +212,8 @@ module "s3" {
   kms_key_arn         = module.kms.key_arn
   replica_kms_key_arn = module.kms_replica.key_arn
   tags                = local.tags
+
+  cors_allowed_origins = var.s3_cors_allowed_origins
 }
 
 module "ses" {

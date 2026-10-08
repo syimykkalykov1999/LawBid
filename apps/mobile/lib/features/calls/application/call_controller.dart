@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -349,7 +349,9 @@ class CallController extends Notifier<CallSession> {
     // system call screen rings on both (push / callkit).
     final foreground =
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    if (foreground && defaultTargetPlatform == TargetPlatform.android) {
+    // Web: no system call screen — the open tab rings and shows its own.
+    if (kIsWeb ||
+        (foreground && defaultTargetPlatform == TargetPlatform.android)) {
       unawaited(ref.read(appSoundsProvider).startRingtone());
     } else if (showSystemUi) {
       unawaited(ref.read(systemCallUiProvider).showIncoming(call));

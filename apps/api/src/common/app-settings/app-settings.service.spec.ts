@@ -34,6 +34,21 @@ describe('AppSettingsService (docs/03 §9)', () => {
     expect(await s.stringList('profile.reserved_usernames')).toContain('admin');
   });
 
+  it('storedNumber: only a saved finite number, never the default', async () => {
+    const saved = withConfig({ 'security.otp_per_identifier_per_day': 25 });
+    expect(
+      await saved.storedNumber('security.otp_per_identifier_per_day'),
+    ).toBe(25);
+    const missing = withConfig({});
+    expect(
+      await missing.storedNumber('security.otp_per_identifier_per_day'),
+    ).toBeNull();
+    const wrong = withConfig({ 'security.otp_per_identifier_per_day': '25' });
+    expect(
+      await wrong.storedNumber('security.otp_per_identifier_per_day'),
+    ).toBeNull();
+  });
+
   it('defaults match docs/03 §9', () => {
     expect(FILE_03_SETTINGS).toMatchObject({
       'verification.max_submissions_30d': 5,

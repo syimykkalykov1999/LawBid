@@ -46,9 +46,14 @@ class AppEnvironment {
   }) {
     return AppEnvironment(
       flavor: flavor,
-      apiBaseUrl: apiBaseUrlOverride.isNotEmpty
-          ? apiBaseUrlOverride
-          : defaultApiBaseUrl(flavor),
+      apiBaseUrl: apiBaseUrlOverride.isEmpty
+          ? defaultApiBaseUrl(flavor)
+          // A path (`/api/v1`) means "the server this page came from": the
+          // browser preview (tool/web_preview) is served next to a proxy
+          // to the real API, so the app needs no CORS.
+          : apiBaseUrlOverride.startsWith('/')
+              ? Uri.base.resolve(apiBaseUrlOverride).toString()
+              : apiBaseUrlOverride,
       deepLinkHost: deepLinkHostOverride.isNotEmpty
           ? deepLinkHostOverride
           : defaultDeepLinkHost,

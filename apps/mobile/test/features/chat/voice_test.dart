@@ -212,6 +212,17 @@ void main() {
     expect(VoiceRecorder.bars(const [], 3), [8, 8, 8]);
   });
 
+  test('a browser note in WebM is told apart from AAC in MP4', () {
+    // EBML header (Chrome/Firefox MediaRecorder).
+    expect(isWebmVoice([0x1A, 0x45, 0xDF, 0xA3, 0x9F]), isTrue);
+    // ....ftypM4A (the phones, Safari).
+    expect(
+      isWebmVoice([0, 0, 0, 0x20, 0x66, 0x74, 0x79, 0x70, 0x4D, 0x34]),
+      isFalse,
+    );
+    expect(isWebmVoice(const []), isFalse);
+  });
+
   test('clock format', () {
     expect(voiceClock(const Duration(seconds: 7)), '0:07');
     expect(voiceClock(const Duration(minutes: 12, seconds: 30)), '12:30');
