@@ -58,14 +58,14 @@ const FIELD_BY_NAME: Record<string, string> = {
   secretKey: 'Секретный ключ',
   webhookSecret: 'Секрет подписи вебхука',
   connectWebhookSecret: 'Секрет вебхука Connect (оплаты клиент → адвокат)',
-  appToken: 'App token',
+  appToken: 'Токен приложения',
   priceId: 'ID цены (месяц)',
   priceSeatId: 'ID цены места помощника',
   priceYearlyId: 'ID цены (год, Prime)',
-  accountSid: 'Account SID',
+  accountSid: 'SID аккаунта',
   authToken: 'Токен авторизации',
   fromNumber: 'Номер отправителя',
-  messagingServiceSid: 'Messaging service SID',
+  messagingServiceSid: 'SID службы сообщений',
   androidAppHash: 'Хэш автоподстановки SMS на Android',
   region: 'Регион',
   fromAddress: 'Адрес отправителя',
@@ -77,18 +77,18 @@ const FIELD_BY_NAME: Record<string, string> = {
   urls: 'Адреса TURN (через запятую)',
   secret: 'Общий секрет',
   stunUrls: 'Адреса STUN (через запятую)',
-  clientIds: 'Client ID (через запятую)',
-  bundleIds: 'Bundle ID (через запятую)',
-  teamId: 'Team ID',
+  clientIds: 'ID клиентов OAuth (через запятую)',
+  bundleIds: 'ID приложений (через запятую)',
+  teamId: 'ID команды Apple',
   bucketDocuments: 'Бакет документов',
   bucketMedia: 'Бакет медиа',
   cdnBaseUrl: 'Базовый адрес CDN для медиа',
-  dsn: 'DSN',
+  dsn: 'Адрес для отчётов',
 };
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
   'bunny_stream.apiKey': 'API-ключ библиотеки',
-  'google_translate.apiKey': 'API-ключ (Cloud Translation API)',
+  'google_translate.apiKey': 'API-ключ',
   'ses.accessKeyId': 'ID ключа доступа AWS (только без роли сервера)',
   'cockroach_cloud.apiKey': 'API-ключ (сервисный аккаунт, только чтение)',
   'cockroach_cloud.clusterId': 'ID кластера',
@@ -112,8 +112,58 @@ export function providerDescription(id: string, fallback: string): string {
 export function providerWarning(id: string, fallback: string | null | undefined): string | null {
   return PROVIDER_RU[id]?.warning ?? fallback ?? null;
 }
+/** Owner 2026-10-07: the exact English name the service itself uses on its
+ * site, shown next to the Russian one so it's clear what to copy where. */
+const FIELD_EN: Record<string, string> = {
+  'bunny_stream.libraryId': 'Video Library ID',
+  'bunny_stream.cdnHostname': 'CDN Hostname',
+  'bunny_stream.apiKey': 'API Key',
+  'bunny_stream.tokenAuthKey': 'Token Authentication Key',
+  'google_translate.apiKey': 'API key',
+  'stripe.secretKey': 'Secret key / Restricted key',
+  'stripe.webhookSecret': 'Signing secret',
+  'stripe.connectWebhookSecret': 'Signing secret',
+  'stripe.priceId': 'Price ID',
+  'stripe.priceSeatId': 'Price ID',
+  'stripe.priceYearlyId': 'Price ID',
+  'twilio.accountSid': 'Account SID',
+  'twilio.authToken': 'Auth Token',
+  'twilio.fromNumber': 'Phone Number',
+  'twilio.messagingServiceSid': 'Messaging Service SID',
+  'twilio.androidAppHash': 'App hash',
+  'ses.region': 'AWS Region',
+  'ses.fromAddress': 'Verified identity',
+  'ses.accessKeyId': 'Access key ID',
+  'ses.secretAccessKey': 'Secret access key',
+  'fcm.projectId': 'project_id',
+  'fcm.clientEmail': 'client_email',
+  'fcm.privateKey': 'private_key',
+  'turn.urls': 'TURN URLs',
+  'turn.secret': 'static-auth-secret',
+  'turn.stunUrls': 'STUN URLs',
+  'persona.apiKey': 'API Key',
+  'google_signin.clientIds': 'Client ID',
+  'apple_signin.bundleIds': 'Bundle ID',
+  'apple_signin.teamId': 'Team ID',
+  'ny_registry.appToken': 'App Token',
+  'storage.region': 'AWS Region',
+  'storage.bucketDocuments': 'Bucket name',
+  'storage.bucketMedia': 'Bucket name',
+  'storage.accessKeyId': 'Access key ID',
+  'storage.secretAccessKey': 'Secret access key',
+  'storage.cdnBaseUrl': 'Distribution domain name',
+  'sentry.dsn': 'DSN',
+  'cockroach_cloud.apiKey': 'API key',
+  'cockroach_cloud.clusterId': 'Cluster ID',
+};
+
 export function fieldLabel(provider: string, name: string, fallback: string): string {
-  return FIELD_BY_PROVIDER[`${provider}.${name}`] ?? FIELD_BY_NAME[name] ?? fallback;
+  const ru = FIELD_BY_PROVIDER[`${provider}.${name}`] ?? FIELD_BY_NAME[name] ?? fallback;
+  const en = FIELD_EN[`${provider}.${name}`];
+  if (!en || ru === en) return ru;
+  // «ID ключа (только без роли)» → «ID ключа (Access key ID), только без роли»
+  const at = ru.indexOf(' (');
+  return at < 0 ? `${ru} (${en})` : `${ru.slice(0, at)} (${en}), ${ru.slice(at + 2, -1)}`;
 }
 export function fieldHint(hint: string | null | undefined): string | null {
   if (!hint) return null;

@@ -2,13 +2,12 @@
 
 import { ArrowRight } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { OverflowTabs } from '@/components/ui/overflow-tabs';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
-import { cn } from '@/lib/utils';
 import { canWriteSupport } from './support-labels';
 
 const LINKS = [
@@ -18,32 +17,10 @@ const LINKS = [
   { href: '/support/settings', label: 'Часы и SLA' },
 ];
 
-/** Pages inside «Поддержка»; scrolls sideways on narrow screens. */
+/** Pages inside «Поддержка»; one even row, «Ещё ▾» on narrow screens. */
 export function SupportNav() {
   const pathname = usePathname();
-  return (
-    <nav aria-label="Поддержка" className="-mx-1 mb-5 overflow-x-auto px-1">
-      <ul className="flex w-max gap-1 rounded-[12px] border border-line bg-surface-2 p-1">
-        {LINKS.map((l) => {
-          const active = pathname === l.href;
-          return (
-            <li key={l.href}>
-              <Link
-                href={l.href}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'block rounded-[9px] px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors',
-                  active ? 'bg-surface text-heading shadow-sm' : 'text-muted hover:text-ink',
-                )}
-              >
-                {l.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
+  return <OverflowTabs className="mb-5" label="Поддержка" items={LINKS} active={LINKS.find((l) => l.href === pathname)?.href} />;
 }
 
 /**

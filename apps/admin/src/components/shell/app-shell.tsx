@@ -79,6 +79,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className={cn('relative transition-[padding] duration-300', collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
         <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={() => setPalette(true)} />
         <main className="mx-auto w-full max-w-[1480px] px-4 py-7 sm:px-6 lg:px-10 lg:py-9">
+          {/* Owner 2026-10-07: the tabs stay put while the page below
+              changes, so a far-right tab doesn't throw the strip back. */}
+          {hidden ? null : <SectionTabs me={me} />}
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 8 }}
@@ -91,10 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <p className="mt-3 text-sm text-muted">Такой страницы нет.</p>
               </div>
             ) : (
-              <>
-                <SectionTabs me={me} />
-                {children}
-              </>
+              children
             )}
           </motion.div>
         </main>
