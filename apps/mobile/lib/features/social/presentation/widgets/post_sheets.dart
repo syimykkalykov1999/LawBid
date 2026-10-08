@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
+import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
@@ -56,15 +59,27 @@ void openProfile(
   );
 }
 
-/// [openProfile] for a post's author.
-void openAuthorProfile(BuildContext context, WidgetRef ref, PostAuthor a) =>
-    openProfile(
-      context,
-      ref,
-      id: a.id,
-      username: a.username,
-      isClient: a.isClient,
+/// [openProfile] for a post's author. Owner 2026-10-07: from a promoted
+/// post ([promotionId]) it counts as a "profile visit" action.
+void openAuthorProfile(
+  BuildContext context,
+  WidgetRef ref,
+  PostAuthor a, {
+  String? promotionId,
+}) {
+  if (promotionId != null) {
+    unawaited(
+      ref.read(promotionsRepositoryProvider).profileOpened(promotionId),
     );
+  }
+  openProfile(
+    context,
+    ref,
+    id: a.id,
+    username: a.username,
+    isClient: a.isClient,
+  );
+}
 
 /// Reloads every post list after a block (the blocked person's posts go).
 void refreshPostLists(WidgetRef ref) {
@@ -115,7 +130,12 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   showChevron: false,
                   onTap: () {
                     Navigator.of(sheet).pop();
-                    openPostPromotion(context, ref, post.id);
+                    openPostPromotion(
+                      context,
+                      ref,
+                      post.id,
+                      video: post.video != null,
+                    );
                   },
                 ),
               if (!ref.read(isAssistantProvider))

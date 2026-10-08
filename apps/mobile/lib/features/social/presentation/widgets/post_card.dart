@@ -187,7 +187,15 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
     // full-screen reels starting with it.
     final picture = p.video != null
-        ? InlineReel(post: p, onOpen: () => ReelsScreen.open(context, from: p))
+        ? InlineReel(
+            post: p,
+            onOpen: () => ReelsScreen.open(context, from: p),
+            onWatched: promotionId == null
+                ? null
+                : () => ProviderScope.containerOf(context)
+                    .read(promotionsRepositoryProvider)
+                    .watched(promotionId),
+          )
         : p.media.isNotEmpty
             ? PostMediaCarousel(
                 media: p.media,
@@ -217,7 +225,7 @@ class PostCard extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!fromProfile)
-          _AuthorRow(post: p, sponsored: post.promotionId != null)
+          _AuthorRow(post: p, promotionId: post.promotionId)
         else
           const SizedBox(height: AppSpacing.md),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
@@ -350,7 +358,7 @@ class PostCard extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!fromProfile)
-          _AuthorRow(post: p, sponsored: post.promotionId != null)
+          _AuthorRow(post: p, promotionId: post.promotionId)
         else
           const SizedBox(height: AppSpacing.md),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
@@ -614,7 +622,7 @@ class _InstagramPost extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!fromProfile) _AuthorRow(post: p, sponsored: promotionId != null),
+        if (!fromProfile) _AuthorRow(post: p, promotionId: promotionId),
         if (p.video != null)
           AspectRatio(
             aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
@@ -849,7 +857,12 @@ class _ThreadsPost extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             GestureDetector(
-              onTap: () => openAuthorProfile(context, ref, a),
+              onTap: () => openAuthorProfile(
+                context,
+                ref,
+                a,
+                promotionId: promotionId,
+              ),
               child: GoldRingAvatar(
                 url: a.avatarUrl,
                 initials: a.initials,
@@ -895,7 +908,12 @@ class _ThreadsPost extends ConsumerWidget {
                           children: [
                             Flexible(
                               child: GestureDetector(
-                                onTap: () => openAuthorProfile(context, ref, a),
+                                onTap: () => openAuthorProfile(
+                                  context,
+                                  ref,
+                                  a,
+                                  promotionId: promotionId,
+                                ),
                                 child: Text(
                                   a.username,
                                   maxLines: 1,
@@ -1278,12 +1296,14 @@ class _TopicChips extends ConsumerWidget {
 }
 
 class _AuthorRow extends ConsumerWidget {
-  const _AuthorRow({required this.post, this.sponsored = false});
+  const _AuthorRow({required this.post, this.promotionId});
 
   final Post post;
 
   /// Owner 2026-10-05: a paid promoted post says «Реклама» under the name.
-  final bool sponsored;
+  final String? promotionId;
+
+  bool get sponsored => promotionId != null;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1305,7 +1325,12 @@ class _AuthorRow extends ConsumerWidget {
               button: true,
               label: t.t('post.author.open', {'name': a.displayName}),
               child: AppPressable(
-                onTap: () => openAuthorProfile(context, ref, a),
+                onTap: () => openAuthorProfile(
+                  context,
+                  ref,
+                  a,
+                  promotionId: promotionId,
+                ),
                 child: Row(
                   children: [
                     GoldRingAvatar(

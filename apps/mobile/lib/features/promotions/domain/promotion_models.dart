@@ -165,6 +165,10 @@ class CasePromotion {
     this.endsAt,
     this.createdAt,
     this.title = '',
+    this.billing = BoostBilling.impressions,
+    this.targetUnits,
+    this.deliveredUnits = 0,
+    this.actions = 0,
   });
 
   final String id;
@@ -189,10 +193,19 @@ class CasePromotion {
   /// "My promotions": the case title or the post's title / text.
   final String title;
 
-  /// 0..1 of the bought impressions delivered (null = no cap).
-  double? get progress => targetImpressions == null || targetImpressions == 0
+  /// Owner 2026-10-07: what was paid for, how many were bought (null on
+  /// older promotions) and delivered.
+  final BoostBilling billing;
+  final int? targetUnits;
+  final int deliveredUnits;
+
+  /// Real actions counted (follows, messages, bids, …).
+  final int actions;
+
+  /// 0..1 of the bought units delivered (null = no cap).
+  double? get progress => targetUnits == null || targetUnits == 0
       ? null
-      : (impressions / targetImpressions!).clamp(0, 1).toDouble();
+      : (deliveredUnits / targetUnits!).clamp(0, 1).toDouble();
 
   bool get isRunning =>
       status == PromotionStatus.active ||

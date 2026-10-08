@@ -144,6 +144,9 @@ String? notificationRoute({
       if (caseId != null) return AppRoutes.myCase(caseId);
       // Owner 2026-10-05: a promoted post → "My promotions".
       return AppRoutes.myPromotions;
+    // Owner 2026-10-07: the unspent part of a boost went back to the card.
+    case 'promotion_refunded':
+      return AppRoutes.myPromotions;
     // Owner 2026-10-05: client → attorney payments.
     case 'case_payment_received' || 'case_payment_disputed':
       if (caseId == null) return CasePaymentsRoutes.history;
@@ -370,7 +373,10 @@ IconData _icon(AppNotification n) => switch (n.type) {
       'partner_approved' ||
       'partner_declined' =>
         AppIcons.handshakeOutlined,
-      'promotion_started' || 'promotion_ended' => AppIcons.campaignOutlined,
+      'promotion_started' ||
+      'promotion_ended' ||
+      'promotion_refunded' =>
+        AppIcons.campaignOutlined,
       'case_payment_received' ||
       'case_payment_sent' ||
       'case_payment_refunded' ||

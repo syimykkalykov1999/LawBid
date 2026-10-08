@@ -76,6 +76,11 @@ const boostRu = <String, String>{
   'promote.action.question': 'вопрос по кейсу',
   'promote.action.consultation': 'запрос консультации',
   'promote.refundUnspent': 'Не потраченное к концу срока вернётся на карту.',
+  'promote.estimate.reach': '≈ {count} человек',
+  'promote.progress.reach': 'Увидели {shown} из {total} человек',
+  'promote.progress.clicks': 'Нажатий {shown} из {total}',
+  'promote.progress.actions': 'Действий {shown} из {total}',
+  'promote.stat.actions': 'Действия',
   'promote.status.rejected': 'Отклонено',
 };
 
@@ -151,6 +156,12 @@ const boostEn = <String, String>{
   'promote.action.bid': 'attorney bid',
   'promote.action.question': 'question on the case',
   'promote.action.consultation': 'consultation request',
-  'promote.refundUnspent': 'Whatever is not spent by the end goes back to your card.',
+  'promote.refundUnspent':
+      'Whatever is not spent by the end goes back to your card.',
+  'promote.estimate.reach': '≈ {count} people',
+  'promote.progress.reach': '{shown} of {total} people reached',
+  'promote.progress.clicks': '{shown} of {total} taps',
+  'promote.progress.actions': '{shown} of {total} actions',
+  'promote.stat.actions': 'Actions',
   'promote.status.rejected': 'Rejected',
 };
