@@ -852,6 +852,7 @@ model File {
   data_export_jobs       DataExportJob[]
 
   post_media        PostMedia[]
+  video_covers      VideoAsset[]      @relation("VideoAssetCover")
   post_attachments  PostAttachment[]
   case_photos       CasePhoto[]
   voice_messages    Message[]         @relation("MessageVoice")
@@ -3287,6 +3288,10 @@ model VideoAsset {
   trim_start_ms     Int?
   trim_end_ms       Int?
   cover_time_ms     Int?
+  /// Owner 2026-10-08: a cover photo picked from the gallery (a clean
+  /// post_image), shown instead of the frame at cover_time_ms.
+  cover_file_id     String?          @db.Uuid
+  cover_file        File?            @relation("VideoAssetCover", fields: [cover_file_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "video_assets_cover_file_fkey")
   upload_expires_at DateTime         @db.Timestamptz
   created_at        DateTime         @default(now()) @db.Timestamptz
   ready_at          DateTime?        @db.Timestamptz
@@ -3296,6 +3301,7 @@ model VideoAsset {
 
   @@index([status, created_at], map: "video_assets_status_created_idx")
   @@index([owner_user_id, created_at(sort: Desc)], map: "video_assets_owner_created_idx")
+  @@index([cover_file_id], map: "video_assets_cover_file_id_idx")
   @@map("video_assets")
 }
 

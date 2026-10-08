@@ -1535,6 +1535,82 @@
         ]
       }
     },
+    "/auth/reauth/demo": {
+      "post": {
+        "operationId": "reauthDemo",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthTokenEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/identifiers": {
       "post": {
         "operationId": "linkIdentifier",
@@ -19866,8 +19942,18 @@
               }
             }
           },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "Conflict: VIDEO_NOT_READY",
+            "description": "Conflict: VIDEO_NOT_READY, FILE_NOT_ATTACHABLE",
             "content": {
               "application/json": {
                 "schema": {
@@ -87018,6 +87104,11 @@
             "description": "Owner 2026-10-05: the cover = the frame at this moment.",
             "minimum": 0,
             "maximum": 3600000
+          },
+          "coverFileId": {
+            "type": "string",
+            "description": "Owner 2026-10-08: a cover photo from the gallery (own, clean\n`post_image`), shown instead of the frame at coverTimeMs.",
+            "format": "uuid"
           }
         },
         "required": [

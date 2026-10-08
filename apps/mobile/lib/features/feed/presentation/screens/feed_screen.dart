@@ -12,6 +12,7 @@ import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/uploads/presentation/upload_strip.dart';
 
 /// Feed tab (docs/01 §3.1, docs/05 §2). Header per docs/07 §10: the small
 /// static ScalesLogo on the left; the right side ([AppFeedHeader.trailing])
@@ -85,21 +86,29 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: header,
-      body: attorney
-          ? TabSwipe<_FeedTab>(
-              value: _tab,
-              values: _FeedTab.values,
-              onChanged: (v) => setState(() => _tab = v),
-              child: IndexedStack(
-                index: _tab.index,
-                children: const [
-                  // Owner 2026-09-30: the topic slider for every role.
-                  _TopicFeed(),
-                  AttorneyCasesTab(),
-                ],
-              ),
-            )
-          : const _TopicFeed(),
+      body: Column(
+        children: [
+          // Owner 2026-10-08: posts and reels publishing in the background.
+          const UploadStrip(),
+          Expanded(
+            child: attorney
+                ? TabSwipe<_FeedTab>(
+                    value: _tab,
+                    values: _FeedTab.values,
+                    onChanged: (v) => setState(() => _tab = v),
+                    child: IndexedStack(
+                      index: _tab.index,
+                      children: const [
+                        // Owner 2026-09-30: the topic slider for every role.
+                        _TopicFeed(),
+                        AttorneyCasesTab(),
+                      ],
+                    ),
+                  )
+                : const _TopicFeed(),
+          ),
+        ],
+      ),
     );
   }
 }
