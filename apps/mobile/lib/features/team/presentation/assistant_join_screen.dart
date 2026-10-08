@@ -168,8 +168,8 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
             key: const ValueKey('join-verify'),
             label: t.t('assistant.join.verify'),
             isLoading: _busy,
+            disabledHint: t.t('form.disabled.code'),
             isEnabled: isCompleteAssistantCode(_code.text),
-            dimWhenDisabled: true,
             onPressed: () => _run(() => repo.joinWithCode(_code.text)),
           ),
           if (_error != null) ...[

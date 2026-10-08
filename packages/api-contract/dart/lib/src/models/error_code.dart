@@ -120,6 +120,8 @@ enum ErrorCode {
   taskClosed('TASK_CLOSED'),
   @JsonValue('TASK_STEPS_LIMIT')
   taskStepsLimit('TASK_STEPS_LIMIT'),
+  @JsonValue('FILES_COUNT_LIMIT')
+  filesCountLimit('FILES_COUNT_LIMIT'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')
@@ -258,6 +260,8 @@ enum ErrorCode {
   postNotFound('POST_NOT_FOUND'),
   @JsonValue('POST_NOT_ALLOWED')
   postNotAllowed('POST_NOT_ALLOWED'),
+  @JsonValue('REPOST_OWN_POST')
+  repostOwnPost('REPOST_OWN_POST'),
   @JsonValue('COMMENT_NOT_FOUND')
   commentNotFound('COMMENT_NOT_FOUND'),
   @JsonValue('FOLLOW_NOT_ALLOWED')

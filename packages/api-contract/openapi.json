@@ -19565,6 +19565,174 @@
         ]
       }
     },
+    "/posts/{id}/repost": {
+      "post": {
+        "operationId": "repostPost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: USER_BLOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: REPOST_OWN_POST",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Repost a post, Threads-style (idempotent, owner 2026-10-07)",
+        "tags": [
+          "posts"
+        ]
+      },
+      "delete": {
+        "operationId": "unrepostPost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Undo a repost (idempotent, owner 2026-10-07)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/saved-items/posts": {
       "get": {
         "operationId": "listSavedPosts",
@@ -40513,6 +40681,178 @@
           }
         ],
         "summary": "Run the cleanup now (unused files, abandoned uploads)",
+        "tags": [
+          "admin-storage"
+        ]
+      }
+    },
+    "/admin/storage/uploads": {
+      "get": {
+        "operationId": "getUploadSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Upload limits and file formats per place",
+        "tags": [
+          "admin-storage"
+        ]
+      },
+      "put": {
+        "operationId": "updateUploadSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUploadSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change upload limits and file formats",
         "tags": [
           "admin-storage"
         ]
@@ -75647,6 +75987,7 @@
           "ASSISTANT_LIABILITY_REQUIRED",
           "TASK_CLOSED",
           "TASK_STEPS_LIMIT",
+          "FILES_COUNT_LIMIT",
           "ATTORNEY_NOT_VERIFIED",
           "USERNAME_TAKEN",
           "USERNAME_RESERVED",
@@ -75715,6 +76056,7 @@
           "CONTACT_ISSUE_INVALID_STATE",
           "POST_NOT_FOUND",
           "POST_NOT_ALLOWED",
+          "REPOST_OWN_POST",
           "COMMENT_NOT_FOUND",
           "FOLLOW_NOT_ALLOWED",
           "CONVERSATION_NOT_FOUND",
@@ -85157,7 +85499,7 @@
             "description": "Email tasks: the address."
           },
           "fileIds": {
-            "maxItems": 200,
+            "maxItems": 100,
             "type": "array",
             "items": {
               "type": "string",
@@ -85568,7 +85910,7 @@
             "format": "email"
           },
           "fileIds": {
-            "maxItems": 200,
+            "maxItems": 100,
             "type": "array",
             "items": {
               "type": "string",
@@ -86315,7 +86657,14 @@
             "type": "integer",
             "description": "OQ-037."
           },
+          "repostCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-07: Threads-style reposts."
+          },
           "likedByMe": {
+            "type": "boolean"
+          },
+          "repostedByMe": {
             "type": "boolean"
           },
           "savedByMe": {
@@ -86355,7 +86704,9 @@
           "commentCount",
           "saveCount",
           "shareCount",
+          "repostCount",
           "likedByMe",
+          "repostedByMe",
           "savedByMe",
           "isMine",
           "createdAt"
@@ -86416,12 +86767,12 @@
           },
           "body": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 2200
+            "maxLength": 2200,
+            "description": "Owner 2026-10-07: the description is optional ('' is fine)."
           },
           "mediaFileIds": {
             "uniqueItems": true,
-            "maxItems": 9,
+            "maxItems": 20,
             "description": "Clean post_image file ids, in display order.",
             "type": "array",
             "items": {
@@ -86430,8 +86781,8 @@
             }
           },
           "attachments": {
-            "description": "Owner 2026-10-05: up to 9 documents (PDF, Word, text).",
-            "maxItems": 9,
+            "description": "Owner 2026-10-05: documents (count and formats: admin, bug 17).",
+            "maxItems": 20,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PostAttachmentInputDto"
@@ -86493,8 +86844,13 @@
           },
           "body": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 2200
+            "maxLength": 2200,
+            "description": "Owner 2026-10-07: the description is optional ('' is fine)."
+          },
+          "commentsEnabled": {
+            "type": "boolean",
+            "description": "Default true; false = nobody can comment.",
+            "default": true
           }
         },
         "required": [
@@ -87243,7 +87599,7 @@
           "photoFileIds": {
             "description": "Clean case_photo file ids (0-9), display order.",
             "uniqueItems": true,
-            "maxItems": 9,
+            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "string",
@@ -87400,7 +87756,7 @@
           "photoFileIds": {
             "description": "Full set of clean case_photo / case_attachment file ids (0-9), display order.",
             "uniqueItems": true,
-            "maxItems": 9,
+            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "string",
@@ -101089,8 +101445,8 @@
             "maxLength": 2000
           },
           "photoIds": {
-            "description": "Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files.",
-            "maxItems": 10,
+            "description": "Owner 2026-10-01 (Google Maps-style): `review_photo` files (count: admin, bug 17).",
+            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "string",
@@ -110675,7 +111031,7 @@
         "properties": {
           "fileIds": {
             "minItems": 1,
-            "maxItems": 5,
+            "maxItems": 10,
             "description": "Uploaded verification_document / verification_selfie files.",
             "type": "array",
             "items": {
@@ -115152,8 +115508,8 @@
             "maxLength": 1000
           },
           "photoIds": {
-            "description": "Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files.",
-            "maxItems": 10,
+            "description": "Owner 2026-10-01 (Google Maps-style): `review_photo` files (count: admin, bug 17).",
+            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "string",
@@ -115193,7 +115549,7 @@
             "maxLength": 1000
           },
           "photoIds": {
-            "maxItems": 10,
+            "maxItems": 20,
             "type": "array",
             "items": {
               "type": "string",
@@ -116914,6 +117270,198 @@
         },
         "required": [
           "version"
+        ]
+      },
+      "UpdateUploadSettingsDto": {
+        "type": "object",
+        "properties": {
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadPlaceLimitsDto"
+            }
+          }
+        },
+        "required": [
+          "places"
+        ]
+      },
+      "UploadCeilingDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Most photos / files an admin may allow."
+          },
+          "fileMb": {
+            "type": "number",
+            "description": "Most MB per file an admin may allow."
+          },
+          "totalMb": {
+            "type": "number",
+            "description": "Most MB of documents together."
+          }
+        },
+        "required": [
+          "count",
+          "fileMb",
+          "totalMb"
+        ]
+      },
+      "UploadCountMode": {
+        "type": "string",
+        "enum": [
+          "split",
+          "combined",
+          "photos",
+          "none"
+        ]
+      },
+      "UploadFormat": {
+        "type": "string",
+        "enum": [
+          "jpeg",
+          "png",
+          "heic",
+          "webp",
+          "gif",
+          "pdf",
+          "doc",
+          "docx",
+          "xls",
+          "xlsx",
+          "ppt",
+          "pptx",
+          "odt",
+          "ods",
+          "odp",
+          "rtf",
+          "txt",
+          "csv"
+        ]
+      },
+      "UploadPlace": {
+        "type": "string",
+        "enum": [
+          "post",
+          "reel",
+          "case",
+          "chat",
+          "task",
+          "review",
+          "avatar",
+          "verification",
+          "client_badge"
+        ]
+      },
+      "UploadPlaceDto": {
+        "type": "object",
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/UploadPlaceLimitsDto"
+          },
+          "count": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UploadCountMode"
+              }
+            ]
+          },
+          "safeFormats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadFormat"
+            },
+            "description": "Formats that may be turned on here (all safe)."
+          },
+          "ceiling": {
+            "$ref": "#/components/schemas/UploadCeilingDto"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/UploadPlaceLimitsDto"
+          }
+        },
+        "required": [
+          "limits",
+          "count",
+          "safeFormats",
+          "ceiling",
+          "defaults"
+        ]
+      },
+      "UploadPlaceLimitsDto": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UploadPlace"
+              }
+            ]
+          },
+          "maxPhotos": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "maxFiles": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 30
+          },
+          "fileMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "totalMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "formats": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/UploadFormat"
+            }
+          }
+        },
+        "required": [
+          "place",
+          "maxPhotos",
+          "maxFiles",
+          "fileMb",
+          "totalMb",
+          "formats"
+        ]
+      },
+      "UploadSettingsDto": {
+        "type": "object",
+        "properties": {
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UploadPlaceDto"
+            }
+          }
+        },
+        "required": [
+          "places"
+        ]
+      },
+      "UploadSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UploadSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       }
     }

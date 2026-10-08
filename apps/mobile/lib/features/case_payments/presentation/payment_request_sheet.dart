@@ -315,6 +315,7 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
                   : t.t('cpay.req.sheet.send'),
               icon: AppIcons.receiptLongOutlined,
               isLoading: _busy,
+              disabledHint: t.t('form.disabled.required'),
               isEnabled: _ok,
               onPressed: _send,
             ),

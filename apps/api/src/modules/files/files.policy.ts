@@ -35,13 +35,11 @@ export type BucketKind = 'documents' | 'media';
 
 export interface PurposeRule {
   readonly mimes: readonly FileMime[];
-  /** app_config key holding the size limit in MB (docs/03 §9). */
-  readonly sizeSetting:
+  /** app_config key holding the size limit in MB (docs/03 §9). None for
+   * the purposes of upload-limits.ts (their MB come from there). */
+  readonly sizeSetting?:
     | 'files.max_size_mb'
-    | 'files.avatar_max_size_mb'
-    | 'files.chat_max_size_mb'
     | 'files.sticker_max_size_mb'
-    | 'files.post_attachment_max_size_mb'
     | 'files.document_template_max_size_mb';
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
@@ -52,35 +50,42 @@ const IMAGES: readonly FileMime[] = [
   FILE_MIME.jpeg,
   FILE_MIME.png,
   FILE_MIME.heic,
+  // Owner 2026-10-07 (bug 17): may be turned on in «Загрузки и файлы».
+  FILE_MIME.webp,
 ];
 
-/** Owner 2026-10-05: what a post may carry as a document. */
-export const POST_ATTACHMENT_MIMES: readonly FileMime[] = [
+/** Every document format (the admin picks which are on, bug 17). */
+const DOCS: readonly FileMime[] = [
   FILE_MIME.pdf,
   FILE_MIME.doc,
   FILE_MIME.docx,
-  FILE_MIME.txt,
-  FILE_MIME.rtf,
+  FILE_MIME.xls,
+  FILE_MIME.xlsx,
+  FILE_MIME.ppt,
+  FILE_MIME.pptx,
   FILE_MIME.odt,
+  FILE_MIME.ods,
+  FILE_MIME.odp,
+  FILE_MIME.rtf,
+  FILE_MIME.txt,
+  FILE_MIME.csv,
 ];
 
 /**
- * Per-purpose rules:
- * - avatar: JPEG/PNG/HEIC up to files.avatar_max_size_mb (docs/03 §4.1);
- * - post_image: JPEG/PNG/HEIC up to 10 MB (docs/05 §3.2 = files.max_size_mb);
- * - verification_document: JPEG/PNG/HEIC/PDF (PDF for licenses) up to
- *   files.max_size_mb (docs/03 §2.2);
- * - verification_selfie: camera photo, JPEG/PNG/HEIC.
+ * Per-purpose rules. `mimes` is the widest safe set of a purpose; for the
+ * places of upload-limits.ts the admin's format choice narrows it.
+ * - avatar: photos (docs/03 §4.1);
+ * - post_image: photos (docs/05 §3.2);
+ * - verification_document: photos and PDF (PDF for licenses, docs/03 §2.2);
+ * - verification_selfie: camera photo.
  */
 export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   avatar: {
     mimes: IMAGES,
-    sizeSetting: 'files.avatar_max_size_mb',
     bucket: 'media',
   },
   post_image: {
     mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
     bucket: 'media',
   },
   // Owner 2026-10-01: sticker images — PNG/WebP with transparency, kept
@@ -93,75 +98,35 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   // Owner 2026-10-01: photos in reviews — public like post photos.
   review_photo: {
     mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
     bucket: 'media',
   },
   // OQ-031: private (documents bucket, short signed links, never the CDN).
   case_photo: {
     mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   // OQ-034: case documents — photos, PDF, Word; private like case photos
   // (only the owner and the attorney whose bid was accepted open them).
   case_attachment: {
-    mimes: [...IMAGES, FILE_MIME.pdf, FILE_MIME.docx],
-    sizeSetting: 'files.max_size_mb',
+    mimes: [...IMAGES, ...DOCS],
     bucket: 'documents',
   },
   // OQ-047: photos and documents in a chat once the bid is accepted;
-  // private, up to files.chat_max_size_mb each.
+  // private.
   chat_attachment: {
-    mimes: [
-      ...IMAGES,
-      FILE_MIME.webp,
-      FILE_MIME.gif,
-      FILE_MIME.pdf,
-      FILE_MIME.doc,
-      FILE_MIME.docx,
-      FILE_MIME.xls,
-      FILE_MIME.xlsx,
-      FILE_MIME.ppt,
-      FILE_MIME.pptx,
-      FILE_MIME.odt,
-      FILE_MIME.ods,
-      FILE_MIME.odp,
-      FILE_MIME.rtf,
-      FILE_MIME.txt,
-      FILE_MIME.csv,
-    ],
-    sizeSetting: 'files.chat_max_size_mb',
+    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS],
     bucket: 'documents',
   },
   // OQ-048: documents an assistant attaches to a task (same formats).
   task_attachment: {
-    mimes: [
-      ...IMAGES,
-      FILE_MIME.webp,
-      FILE_MIME.gif,
-      FILE_MIME.pdf,
-      FILE_MIME.doc,
-      FILE_MIME.docx,
-      FILE_MIME.xls,
-      FILE_MIME.xlsx,
-      FILE_MIME.ppt,
-      FILE_MIME.pptx,
-      FILE_MIME.odt,
-      FILE_MIME.ods,
-      FILE_MIME.odp,
-      FILE_MIME.rtf,
-      FILE_MIME.txt,
-      FILE_MIME.csv,
-    ],
-    sizeSetting: 'files.chat_max_size_mb',
+    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS],
     bucket: 'documents',
   },
   // Owner 2026-10-05: documents in a post or a reel's inner page — PDF,
   // Word and plain text. Private bucket with short signed links (the
-  // post's viewers get one), small (files.post_attachment_max_size_mb).
+  // post's viewers get one).
   post_attachment: {
-    mimes: POST_ATTACHMENT_MIMES,
-    sizeSetting: 'files.post_attachment_max_size_mb',
+    mimes: DOCS,
     bucket: 'documents',
   },
   // Owner 2026-10-05: a document template (PDF, Word) the admin
@@ -180,12 +145,10 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   },
   verification_document: {
     mimes: [...IMAGES, FILE_MIME.pdf],
-    sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   verification_selfie: {
     mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   // docs/05 §3.6: prepared, off behind the `video_posts` flag (presign

@@ -105,7 +105,8 @@ export class SubmitClientBadgeDto {
   })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(5)
+  // Hard ceiling; the live count is the admin's (bug 17, default 5).
+  @ArrayMaxSize(10)
   @IsUUID('all', { each: true })
   fileIds!: string[];
 

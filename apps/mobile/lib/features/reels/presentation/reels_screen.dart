@@ -377,12 +377,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         () => run(() => actions.toggleLike(p)),
                         color: p.likedByMe ? colors.danger : null,
                       ),
-                      rail(
-                        AppIcons.modeCommentOutlined,
-                        t.t('post.comments'),
-                        p.commentCount,
-                        () => context.push(SocialRoutes.post(p.id)),
-                      ),
+                      // Owner 2026-10-07: comments off → no comments
+                      // button (the server refuses them anyway).
+                      if (p.commentsEnabled)
+                        rail(
+                          AppIcons.modeCommentOutlined,
+                          t.t('post.comments'),
+                          p.commentCount,
+                          () => context.push(SocialRoutes.post(p.id)),
+                        ),
                       rail(
                         AppIcons.sendOutlined,
                         t.t('post.share'),
@@ -435,15 +438,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    CircleAvatar(
-                                      radius: 16,
-                                      backgroundColor: Colors.white24,
-                                      backgroundImage:
-                                          p.author.avatarUrl == null
-                                              ? null
-                                              : CachedNetworkImageProvider(
-                                                  p.author.avatarUrl!,
-                                                ),
+                                    // Initials under the photo.
+                                    AppAvatar(
+                                      size: 32,
+                                      initials: p.author.initials,
+                                      imageProvider: p.author.avatarUrl == null
+                                          ? null
+                                          : CachedNetworkImageProvider(
+                                              p.author.avatarUrl!,
+                                            ),
                                     ),
                                     const SizedBox(width: AppSpacing.sm),
                                     Flexible(

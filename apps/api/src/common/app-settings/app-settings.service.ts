@@ -46,4 +46,9 @@ export class AppSettingsService {
       ? value
       : [...(APP_SETTINGS[key] as readonly string[])];
   }
+
+  /** An object-valued setting as stored (the caller validates it). */
+  async raw(key: string): Promise<unknown> {
+    return (await this.appConfig.getConfig())[key];
+  }
 }

@@ -65,8 +65,7 @@ String? parseReferralCodeFromReferrer(String? referrer) {
   try {
     decoded = Uri.decodeComponent(referrer);
   } catch (_) {}
-  final m =
-      _refPattern.firstMatch(decoded) ?? _refPattern.firstMatch(referrer);
+  final m = _refPattern.firstMatch(decoded) ?? _refPattern.firstMatch(referrer);
   return m?.group(1)?.toUpperCase();
 }
 

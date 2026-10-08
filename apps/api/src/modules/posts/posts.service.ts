@@ -16,7 +16,6 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
-import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -26,6 +25,7 @@ import {
   profileEntity,
 } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
+import { assertUploadCount, type UploadPlace } from '../files/upload-limits';
 import {
   CONTENT_MODERATION_HOOK,
   type ContentModerationHook,
@@ -79,7 +79,6 @@ export class PostsService {
     private readonly moderation: ContentModerationHook,
     private readonly videos: VideosService,
     private readonly notifications: NotificationsService,
-    private readonly settings: AppSettingsService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
@@ -123,12 +122,20 @@ export class PostsService {
         ? 'processing'
         : verdict;
     const fileIds = dto.mediaFileIds ?? [];
+    // Owner 2026-10-07 (bug 17): counts, formats and MB of a post or a
+    // reel come from «Загрузки и файлы» in the admin panel.
+    const place = video ? 'reel' : 'post';
+    const upload = await this.files.uploadLimits();
+    assertUploadCount(upload, place, 'photos', fileIds.length);
+    assertUploadCount(upload, place, 'files', dto.attachments?.length ?? 0);
     const files: File[] = [];
     for (const id of fileIds) {
       // Own, `post_image`, antivirus-clean (§3.2) — else FILE_NOT_ATTACHABLE.
-      files.push(
-        await this.files.assertAttachable(user.sub, id, ['post_image']),
-      );
+      const file = await this.files.assertAttachable(user.sub, id, [
+        'post_image',
+      ]);
+      await this.files.assertFitsPlace(place, file);
+      files.push(file);
     }
     if (fileIds.length > 0) {
       const used = await this.prisma.postMedia.findFirst({
@@ -146,6 +153,8 @@ export class PostsService {
     const attachments = await this.attachableDocuments(
       user.sub,
       dto.attachments ?? [],
+      place,
+      upload[place].totalMb,
     );
     const tags = extractHashtags(dto.body);
     const createPost = (st: ContentStatus) =>
@@ -280,12 +289,14 @@ export class PostsService {
 
   /**
    * Owner 2026-10-05: documents of a post — own, `post_attachment`,
-   * antivirus-clean, not in another post, together under
-   * `posts.attachments_max_total_mb`.
+   * antivirus-clean, not in another post, of a format and size [place]
+   * allows, together under [maxMb] (admin «Загрузки и файлы», bug 17).
    */
   private async attachableDocuments(
     userId: string,
     input: { fileId: string; fileName: string }[],
+    place: UploadPlace,
+    maxMb: number,
   ): Promise<{ fileId: string; fileName: string }[]> {
     if (input.length === 0) return [];
     const ids = input.map((a) => a.fileId);
@@ -301,9 +312,9 @@ export class PostsService {
       const f = await this.files.assertAttachable(userId, id, [
         'post_attachment',
       ]);
+      await this.files.assertFitsPlace(place, f);
       total += Number(f.size_bytes);
     }
-    const maxMb = await this.settings.number('posts.attachments_max_total_mb');
     if (total > maxMb * 1024 * 1024) {
       throw new BadRequestException({
         code: ErrorCode.FILE_TOO_LARGE,
@@ -393,6 +404,9 @@ export class PostsService {
                       : undefined),
                 }),
               }),
+          ...(dto.commentsEnabled === undefined
+            ? {}
+            : { comments_enabled: dto.commentsEnabled }),
           edited_at: new Date(),
           // A held edit hides the post; moderation never re-publishes here.
           ...(verdict === 'hidden' ? { status: 'hidden' as const } : {}),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
@@ -48,7 +49,7 @@ class PostTextCover extends ConsumerWidget {
   /// The card title and the text under it, as on the feed card.
   static (String, String) titleAndRest(Post p) {
     final title = p.title?.trim();
-    if (title != null && title.isNotEmpty) return (title, p.body.trim());
+    if (title != null && title.isNotEmpty) return (title, tidyText(p.body));
     return splitPostBody(p.body);
   }
 

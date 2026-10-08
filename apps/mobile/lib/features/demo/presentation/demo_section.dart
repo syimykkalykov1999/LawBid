@@ -79,7 +79,6 @@ class DemoSection extends ConsumerWidget {
                 icon: AppIcons.addRounded,
                 variant: AppButtonVariant.secondary,
                 isEnabled: me.canCreate && !busy,
-                dimWhenDisabled: true,
                 onPressed: () => _RolePickerSheet.show(context),
               ),
               if (!me.canCreate) ...[
@@ -115,8 +114,7 @@ class _AccountRow extends ConsumerWidget {
     if (busy) return;
     showAppSnackBar(context, t.t('demo.entering'));
     try {
-      final session =
-          await ref.read(demoRepositoryProvider).enter(account.id);
+      final session = await ref.read(demoRepositoryProvider).enter(account.id);
       if (!context.mounted) return;
       await enterDemoAndGo(context, ref, session);
     } catch (e) {
@@ -193,8 +191,7 @@ class _AccountRow extends ConsumerWidget {
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          type.caption.copyWith(color: colors.textSecondary),
+                      style: type.caption.copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ),

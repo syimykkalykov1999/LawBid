@@ -22,6 +22,7 @@ import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -304,6 +305,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ReelDetailScreen), findsOneWidget);
     expect(find.text('Внутри рилса'), findsOneWidget);
+    // Owner 2026-10-07: one «Посмотреть · N» button opens the files.
+    final view = find.descendant(
+      of: find.byType(PostAttachmentsButton),
+      matching: find.byType(AppPressable),
+    );
+    await tester.ensureVisible(view);
+    await tester.pumpAndSettle();
+    await tester.tap(view);
+    await tester.pumpAndSettle();
     expect(find.byType(PostDocumentsList), findsOneWidget);
     expect(find.text('Notes.docx'), findsOneWidget);
     expect(tester.takeException(), isNull);

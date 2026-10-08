@@ -19,6 +19,7 @@ import {
 } from '../../users/dto/onboarding-profile.dto';
 import { USERNAME_PATTERN } from '../../users/services/username.util';
 import { SelectedPracticeAreaDto } from './practice-areas.dto';
+import { tidy } from '../../../common/utils/tidy-text';
 
 /** docs/03 §4.1: first/last name 1-50, firm up to 80. */
 export const ATTORNEY_NAME_MAX = 50;
@@ -56,7 +57,7 @@ export class UpdateAttorneyProfileDto {
   lastName?: string;
 
   @IsOptional()
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
   @MaxLength(BIO_MAX_LENGTH)
   bio?: string;

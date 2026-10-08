@@ -356,11 +356,12 @@ void main() {
       expect(find.textContaining('7 days free'), findsNothing);
     });
 
-    testWidgets('incomplete: hint + Refresh, no CTA', (tester) async {
+    // Owner 2026-10-07: a checkout left without paying must never hide
+    // the plans — the hint stays, the subscribe button too.
+    testWidgets('incomplete: hint + Refresh, CTA still there', (tester) async {
       repo.current = makeOverview(
         subscription:
             makeInfo(status: SubscriptionStatus.incomplete, isActive: false),
-        canStart: false,
       );
       await pump(tester, const SubscriptionScreen());
       expect(
@@ -368,7 +369,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('under a minute'), findsOneWidget);
-      expect(find.byKey(const ValueKey('subscribe-cta')), findsNothing);
+      expect(find.byType(PlanPicker), findsOneWidget);
     });
 
     testWidgets('dark theme and 200% text: no overflow', (tester) async {

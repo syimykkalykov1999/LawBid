@@ -960,38 +960,14 @@ class MapsReviewTile extends ConsumerStatefulWidget {
 class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
   bool _expanded = false;
 
-  void _openPhoto(int index) {
-    final photos = widget.photos;
-    showGeneralDialog<void>(
-      context: context,
-      barrierColor: Colors.black,
-      barrierDismissible: true,
-      barrierLabel: 'photo',
-      pageBuilder: (ctx, _, __) => SafeArea(
-        child: Stack(
-          children: [
-            PageView.builder(
-              controller: PageController(initialPage: index),
-              itemCount: photos.length,
-              itemBuilder: (_, i) => InteractiveViewer(
-                child: Center(
-                  child: Image.network(photos[i].url, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-            Positioned(
-              top: AppSpacing.sm,
-              right: AppSpacing.sm,
-              child: IconButton(
-                icon: const AppIcon(AppIcons.closeRounded, color: Colors.white),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  /// Owner 2026-10-07: the app's one photo viewer (zoom, double tap,
+  /// swipe down to close).
+  void _openPhoto(int index) => showPhotoGallery(
+        context,
+        urls: [for (final p in widget.photos) p.url],
+        initial: index,
+        closeLabel: ref.read(translatorProvider).t('common.close'),
+      );
 
   @override
   Widget build(BuildContext context) {

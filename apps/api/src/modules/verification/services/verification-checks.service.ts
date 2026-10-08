@@ -174,7 +174,14 @@ export class VerificationChecksService {
         {
           type: 'verification_update',
           recipientId: req.attorney_id,
-          payload: { kind: KIND.approved, requestId: req.id, partial: false },
+          // Owner 2026-10-07 (phone test): a sworn statement is not a
+          // confirmed license — say so, not «Верификация пройдена».
+          payload: {
+            kind:
+              note === SELF_ATTESTED_NOTE ? KIND.selfAttested : KIND.approved,
+            requestId: req.id,
+            partial: false,
+          },
         },
         tx,
       );

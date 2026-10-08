@@ -591,6 +591,10 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       .send({ sessionId: c.sessionId })
       .expect(200);
     expect((early.body as Body).data.isActive).toBe(false);
+    // Owner 2026-10-07: the unpaid checkout is not shown as a subscription
+    // («Подтверждаем карту» with no buttons), nor the baseline as a plan.
+    expect((early.body as Body).data.subscription).toBeNull();
+    expect((early.body as Body).data.plan).toBeNull();
 
     await fake.payCheckout(c.sessionId, {
       paymentMethodId: 'pm_web_1',

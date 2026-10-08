@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -82,8 +83,13 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   /// The preview stands on the cover frame while it is being chosen.
   bool _choosingCover = false;
   final _photos = <_Photo>[];
-  late final _docs = PostDocumentsController(ref.read(socialActionsProvider))
-    ..addListener(_refresh);
+  late final _docs = PostDocumentsController(
+    ref.read(socialActionsProvider),
+    limits: _limits,
+  )..addListener(_refresh);
+
+  /// Owner 2026-10-07 (bug 17): counts, MB and formats from the admin.
+  late final _limits = ref.read(uploadLimitsProvider)[UploadPlace.reel];
   double? _progress;
 
   /// Owner 2026-10-05: true while the video is re-encoded on the phone.
@@ -249,7 +255,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
   }
 
   Future<void> _pickPhotos() async {
-    final left = kPostMaxPhotos - _photos.length;
+    final left = _limits.maxPhotos - _photos.length;
     if (left <= 0) return;
     final limits = postPhotoLimits(ref);
     final picked = await ImagePicker().pickMultiImage(
@@ -507,7 +513,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
               ),
             ),
             Text(
-              '${_photos.length} / $kPostMaxPhotos',
+              '${_photos.length} / ${_limits.maxPhotos}',
               style: type.caption.copyWith(color: colors.textSecondary),
             ),
           ],
@@ -532,7 +538,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                     onRetry: () => _uploadPhoto(p),
                   ),
                 ),
-              if (_photos.length < kPostMaxPhotos)
+              if (_photos.length < _limits.maxPhotos)
                 Semantics(
                   button: true,
                   label: t.t('reels.inside.addPhoto'),
@@ -771,6 +777,12 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                 label: t.t('reels.publish'),
                 icon: AppIcons.sendRounded,
                 isLoading: _publishing,
+                // Owner 2026-10-07: say what is missing.
+                disabledHint: _file == null
+                    ? t.t('reels.need.video')
+                    : (_title.text.trim().isEmpty && _text.text.trim().isEmpty)
+                        ? t.t('reels.need.text')
+                        : t.t('form.disabled.required'),
                 isEnabled: !_publishing &&
                     _file != null &&
                     _insideReady &&

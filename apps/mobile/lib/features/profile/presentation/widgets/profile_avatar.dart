@@ -21,7 +21,12 @@ class ProfileAvatar extends StatelessWidget {
     this.heroTag,
     this.progress,
     this.semanticLabel,
+    this.viewerCloseLabel,
   });
+
+  /// Owner 2026-10-07: set → a tap opens the photo full screen (zoom,
+  /// double tap, swipe down to close); this is its close button label.
+  final String? viewerCloseLabel;
 
   final double size;
   final String? url;
@@ -48,6 +53,22 @@ class ProfileAvatar extends StatelessWidget {
       semanticLabel: semanticLabel,
     );
     if (heroTag != null) avatar = Hero(tag: heroTag!, child: avatar);
+    final photo = url;
+    if (viewerCloseLabel != null &&
+        preview == null &&
+        photo != null &&
+        photo.isNotEmpty) {
+      avatar = GestureDetector(
+        key: const ValueKey('avatar-open'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => showPhotoGallery(
+          context,
+          urls: [photo],
+          closeLabel: viewerCloseLabel!,
+        ),
+        child: avatar,
+      );
+    }
     if (progress == null) return avatar;
 
     return Stack(

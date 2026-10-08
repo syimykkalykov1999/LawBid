@@ -108,6 +108,9 @@ export enum ErrorCode {
   TASK_CLOSED = 'TASK_CLOSED',
   /** A task holds up to 100 steps. */
   TASK_STEPS_LIMIT = 'TASK_STEPS_LIMIT',
+  /** Owner 2026-10-07 (bugs 14, 17): more photos or files than the
+   * admin's limit for this place (details: place, kind, max). */
+  FILES_COUNT_LIMIT = 'FILES_COUNT_LIMIT',
   // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
   // stages 3.5–3.6)
   // 403: the action needs verification_status = verified (practices).
@@ -297,6 +300,8 @@ export enum ErrorCode {
   POST_NOT_FOUND = 'POST_NOT_FOUND',
   // 403: posting needs a verified, active attorney (§3.1).
   POST_NOT_ALLOWED = 'POST_NOT_ALLOWED',
+  // 409: reposting one's own post (owner 2026-10-07, Threads-style).
+  REPOST_OWN_POST = 'REPOST_OWN_POST',
   // 404: no such comment (or deleted).
   COMMENT_NOT_FOUND = 'COMMENT_NOT_FOUND',
   // 422: follow a client or yourself (§6.1).

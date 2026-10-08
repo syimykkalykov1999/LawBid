@@ -229,7 +229,7 @@ export class PushDispatcher
       typeof payload.body === 'string'
         ? { title: payload.title, body: payload.body }
         : fillTemplate(
-            await this.templates.render(n.type, n.user.ui_language),
+            await this.templates.renderFor(n.type, payload, n.user.ui_language),
             payload,
           );
     const deepLink: Record<string, string> = {

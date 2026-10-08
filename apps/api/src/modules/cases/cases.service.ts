@@ -318,7 +318,7 @@ export class CasesService {
     const budgetCents = budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
     const urgency = urgencyColumnsOf(dto, null);
 
-    // OQ-031: 0-9 of the author's own clean case photos.
+    // OQ-031: the author's own clean case photos (count: admin, bug 17).
     const photoIds = dto.photoFileIds ?? [];
     await this.photos.assertAttachable(user.sub, photoIds);
 
@@ -438,7 +438,7 @@ export class CasesService {
       : null;
     // Owner 2026-10-05: files can be added/removed while the case is open.
     if (dto.photoFileIds) {
-      await this.photos.assertAttachable(user.sub, dto.photoFileIds);
+      await this.photos.assertAttachable(user.sub, dto.photoFileIds, caseId);
     }
 
     const updated = await withTxRetry(this.prisma, async (tx) => {

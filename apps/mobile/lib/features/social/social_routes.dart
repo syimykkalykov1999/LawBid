@@ -8,7 +8,10 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
 /// docs/05 feed routes. `/post/:id` is also the published deep link
 /// (docs/01 §12) — registered by deep_link_routes.dart with [PostScreen].
 abstract final class SocialRoutes {
-  static String post(String id) => '/post/${Uri.encodeComponent(id)}';
+  /// [fromProfile]: opened from someone's grid — no author row (owner
+  /// 2026-10-07).
+  static String post(String id, {bool fromProfile = false}) =>
+      '/post/${Uri.encodeComponent(id)}${fromProfile ? '?from=profile' : ''}';
 
   static const tagPattern = '/tag/:tag';
   static String tag(String tag) => '/tag/${Uri.encodeComponent(tag)}';

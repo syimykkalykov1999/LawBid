@@ -11,6 +11,7 @@ import { Prisma, type Review } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { FilesService } from '../files/files.service';
+import { assertUploadCount } from '../files/upload-limits';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -472,12 +473,22 @@ export class ReviewsService {
     return out;
   }
 
-  /** Own, clean `review_photo` files only. */
+  /** Own, clean `review_photo` files only; count, formats and MB per
+   * photo are the admin's «Отзывы» limits (bug 17). */
   private async checkPhotos(userId: string, ids?: string[]): Promise<string[]> {
     const unique = [...new Set(ids ?? [])];
+    if (!this.files) return unique;
+    assertUploadCount(
+      await this.files.uploadLimits(),
+      'review',
+      'photos',
+      unique.length,
+    );
     for (const id of unique) {
-      if (!this.files) break;
-      await this.files.assertAttachable(userId, id, ['review_photo']);
+      const file = await this.files.assertAttachable(userId, id, [
+        'review_photo',
+      ]);
+      await this.files.assertFitsPlace('review', file);
     }
     return unique;
   }

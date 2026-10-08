@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/trust/application/trust_providers.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
@@ -288,6 +290,7 @@ Widget verificationApp({
   bool disableAnimations = true,
   double textScale = 1,
   List<Override> extra = const [],
+  OwnTrust? trust,
 }) {
   final router = GoRouter(
     initialLocation: initial,
@@ -313,6 +316,7 @@ Widget verificationApp({
         scanPollingProvider.overrideWithValue(
           const ScanPolling(interval: Duration(milliseconds: 10), maxPolls: 3),
         ),
+        myTrustProvider.overrideWith((ref) async => trust ?? trustOf()),
         ...extra,
       ],
     ),
@@ -359,4 +363,57 @@ VerificationRequest draft({
         ],
         if (selfie) doc(const DocSlot.selfie(), id: 'doc-selfie'),
       ],
+    );
+
+/// Owner 2026-10-07: the attorney's trust facts behind the status screen
+/// — [badge] is the blue check; off = a license declared under oath.
+OwnTrust trustOf({bool badge = true, bool licenseConfirmed = true}) => OwnTrust(
+      public: PublicTrust(
+        attorneyId: 'att-1',
+        level: badge ? 2 : 0,
+        badge: badge,
+        cleared: badge,
+        signals: TrustSignals(
+          selfAttested: true,
+          licenseConfirmed: licenseConfirmed,
+          licenseConfirmedBy:
+              licenseConfirmed ? LicenseConfirmedBy.registry : null,
+          documentsVerified: false,
+          stripeKyc: false,
+          stripeIdentity: false,
+          identityConfirmed: badge,
+          nameCheck: NameCheck.unknown,
+          firmLinkConfirmed: false,
+        ),
+        acceptsPayments: false,
+        canBid: true,
+        registryLinks: const [],
+      ),
+      bidsGate: const TrustGate(
+        ok: true,
+        reason: null,
+        missing: [],
+        currentLevel: 0,
+        hold: null,
+      ),
+      paymentsGate: const TrustGate(
+        ok: true,
+        reason: null,
+        missing: [],
+        currentLevel: 0,
+        hold: null,
+      ),
+      requirements: const {},
+      missing: const [],
+      staffStatus: TrustStaffStatus.selfDeclared,
+      documentsRequested: null,
+      payoutDelayDays: null,
+      nextSteps: const [],
+      firmLink: const FirmLink(
+        status: FirmLinkStatus.none,
+        source: null,
+        at: null,
+        emailDomain: null,
+      ),
+      stripeBusinessType: null,
     );

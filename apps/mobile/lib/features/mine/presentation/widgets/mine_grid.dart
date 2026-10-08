@@ -182,21 +182,24 @@ class MineTile extends StatelessWidget {
 }
 
 /// A paged 3-column grid with pull-to-refresh, loading, error, empty and
-/// "load more" near the end.
+/// "load more" near the end. With [rowOf] it is a list of compact rows
+/// instead (owner 2026-10-07, "My cases").
 class MinePagedGrid<T> extends ConsumerWidget {
   const MinePagedGrid({
     required this.value,
-    required this.tileOf,
     required this.empty,
     required this.onRefresh,
     required this.onLoadMore,
     required this.onRetryMore,
+    this.tileOf,
+    this.rowOf,
     this.header,
     super.key,
-  });
+  }) : assert(tileOf != null || rowOf != null, 'tileOf or rowOf');
 
   final AsyncValue<PaginatedList<T>> value;
-  final MineTileData Function(T item) tileOf;
+  final MineTileData Function(T item)? tileOf;
+  final Widget Function(T item)? rowOf;
   final Widget empty;
   final Future<void> Function() onRefresh;
   final VoidCallback onLoadMore;
@@ -235,6 +238,19 @@ class MinePagedGrid<T> extends ConsumerWidget {
                 if (header != null) SliverToBoxAdapter(child: header),
                 if (value.items.isEmpty && !value.hasMore)
                   SliverFillRemaining(child: empty)
+                else if (rowOf != null)
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.xs,
+                    ),
+                    sliver: SliverList.separated(
+                      itemCount: value.items.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (context, i) => rowOf!(value.items[i]),
+                    ),
+                  )
                 else
                   SliverPadding(
                     padding: const EdgeInsets.all(2),
@@ -247,7 +263,7 @@ class MinePagedGrid<T> extends ConsumerWidget {
                       ),
                       itemCount: value.items.length,
                       itemBuilder: (context, i) =>
-                          MineTile(data: tileOf(value.items[i])),
+                          MineTile(data: tileOf!(value.items[i])),
                     ),
                   ),
                 if (value.isLoadingMore)
@@ -294,6 +310,16 @@ class MinePagedGrid<T> extends ConsumerWidget {
           error: error,
           t: t,
           onRetry: pull,
+        ),
+      _ when rowOf != null => ListView.separated(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xs,
+          ),
+          itemCount: 5,
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+          itemBuilder: (_, __) =>
+              const AppSkeleton(height: 86, borderRadius: AppRadii.card),
         ),
       _ => GridView.count(
           crossAxisCount: 3,

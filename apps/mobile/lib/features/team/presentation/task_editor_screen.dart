@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -115,10 +116,29 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   String? _clean(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
 
+  /// Owner 2026-10-07 (bugs 14, 17): files on one task, their MB and
+  /// formats — the admin's «Задачи» limits (the server checks them too).
+  PlaceUploadLimits get _limits =>
+      ref.read(uploadLimitsProvider)[UploadPlace.task];
+  int get _maxFiles => _limits.maxFiles;
+
+  bool get _filesFull => _files.length >= _maxFiles;
+
+  String _filesLimitText(Translator t) =>
+      t.t('tasks.files.limit', {'max': '$_maxFiles'});
+
   Future<void> _attach() async {
     final t = ref.read(translatorProvider);
-    final picked = await pickChatFiles(context, t);
+    if (_filesFull) {
+      showAppSnackBar(context, _filesLimitText(t));
+      return;
+    }
+    var picked = await pickChatFiles(context, t, limits: _limits);
     if (picked.isEmpty || !mounted) return;
+    if (_files.length + picked.length > _maxFiles) {
+      picked = picked.take(_maxFiles - _files.length).toList();
+      showAppSnackBar(context, _filesLimitText(t));
+    }
     final repo = ref.read(teamRepositoryProvider);
     for (final f in picked) {
       final index = _files.length;
@@ -799,7 +819,23 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
               const SizedBox(height: AppSpacing.lg),
             ],
             if (TaskKindForm.of(_kind).files) ...[
-              Text(t.t('tasks.field.files'), style: label),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(t.t('tasks.field.files'), style: label),
+                  ),
+                  if (_maxFiles > 0)
+                    Text(
+                      '${_files.length}/$_maxFiles',
+                      key: const ValueKey('task-files-count'),
+                      style: typography.bodySmall.copyWith(
+                        color: _filesFull
+                            ? colors.dangerText
+                            : colors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.sm),
               for (final (i, f) in _files.indexed)
                 Padding(
@@ -845,11 +881,20 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                 ),
               Align(
                 alignment: AlignmentDirectional.centerStart,
+                // Full: greyed, a tap says why (bug 7 rule).
                 child: TextButton.icon(
                   key: const ValueKey('task-attach'),
                   onPressed: _attach,
+                  style: _filesFull
+                      ? TextButton.styleFrom(
+                          foregroundColor:
+                              colors.textSecondary.withValues(alpha: 0.6),
+                        )
+                      : null,
                   icon: const AppIcon(AppIcons.attachFileRounded),
-                  label: Text(t.t('tasks.field.attach')),
+                  label: Text(
+                    _filesFull ? _filesLimitText(t) : t.t('tasks.field.attach'),
+                  ),
                 ),
               ),
             ],

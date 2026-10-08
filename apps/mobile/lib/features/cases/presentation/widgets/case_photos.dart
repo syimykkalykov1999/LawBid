@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
@@ -28,9 +29,12 @@ class CasePhotosPicker extends ConsumerWidget {
     final photos =
         ref.watch(createCaseControllerProvider.select((s) => s.photos));
     final c = ref.read(createCaseControllerProvider.notifier);
+    // Owner 2026-10-07 (bug 17): count and formats from the admin.
+    final upload = ref.watch(uploadLimitsProvider)[UploadPlace.kase];
+    final maxFiles = upload.maxFiles;
 
     Future<void> pick() async {
-      final left = kCaseMaxPhotos - photos.length;
+      final left = maxFiles - photos.length;
       if (left <= 0) return;
       final limits = photoLimitsOf(ref.read(featureFlagsControllerProvider));
       final picked = await ImagePicker().pickMultiImage(
@@ -47,11 +51,11 @@ class CasePhotosPicker extends ConsumerWidget {
 
     // OQ-034: PDF / Word documents next to the photos.
     Future<void> pickFiles() async {
-      final left = kCaseMaxPhotos - photos.length;
+      final left = maxFiles - photos.length;
       if (left <= 0) return;
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: const ['pdf', 'docx'],
+        allowedExtensions: upload.documentExtensions,
         allowMultiple: true,
         withData: true,
       );
@@ -77,7 +81,7 @@ class CasePhotosPicker extends ConsumerWidget {
               ),
             ),
             Text(
-              '${photos.length} / $kCaseMaxPhotos',
+              '${photos.length} / $maxFiles',
               style: type.caption.copyWith(color: colors.textSecondary),
             ),
           ],
@@ -161,7 +165,7 @@ class CasePhotosPicker extends ConsumerWidget {
                   ],
                 ),
               ),
-            if (photos.length < kCaseMaxPhotos)
+            if (photos.length < maxFiles)
               Semantics(
                 button: true,
                 label: t.t('cases.photos.add'),
@@ -182,7 +186,7 @@ class CasePhotosPicker extends ConsumerWidget {
                   ),
                 ),
               ),
-            if (photos.length < kCaseMaxPhotos)
+            if (photos.length < maxFiles)
               Semantics(
                 button: true,
                 label: t.t('cases.files.add'),

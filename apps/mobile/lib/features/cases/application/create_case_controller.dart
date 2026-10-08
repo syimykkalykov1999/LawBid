@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -42,6 +43,7 @@ class CasePhotoUpload {
 }
 
 /// OQ-031: photos per case.
+/// OQ-031 default; the live count is the admin's (bug 17, [UploadPlace.kase]).
 const kCaseMaxPhotos = 9;
 
 class CreateCaseState {
@@ -179,14 +181,15 @@ class CreateCaseController extends Notifier<CreateCaseState> {
 
   int _photoKey = 0;
 
-  /// OQ-031: add picked photos (up to [kCaseMaxPhotos]) and upload each.
+  /// OQ-031: add picked photos (up to the admin's count) and upload each.
   void addPhotos(List<Uint8List> picked) => addFiles([
         for (final b in picked) (bytes: b, name: null),
       ]);
 
-  /// OQ-034: photos and documents share the 9 slots.
+  /// OQ-034: photos and documents share the admin's slots (bug 17).
   void addFiles(List<({Uint8List bytes, String? name})> picked) {
-    final left = kCaseMaxPhotos - state.photos.length;
+    final left = ref.read(uploadLimitsProvider)[UploadPlace.kase].maxFiles -
+        state.photos.length;
     for (final f in picked.take(left)) {
       final item =
           CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);
@@ -198,9 +201,13 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   Future<void> _upload(CasePhotoUpload item) async {
     CasePhotoUpload done;
     try {
-      final id = await ref
-          .read(socialActionsProvider)
-          .uploadPhoto(item.bytes, casePhoto: true);
+      final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+      final id = await ref.read(socialActionsProvider).uploadPhoto(
+            item.bytes,
+            casePhoto: true,
+            fileName: item.name,
+            maxBytes: limits.fileBytes,
+          );
       done = CasePhotoUpload(
         key: item.key,
         bytes: item.bytes,

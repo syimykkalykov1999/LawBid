@@ -90,8 +90,7 @@ class DemoSession {
   factory DemoSession.fromJson(Map<String, dynamic> json) {
     final tokens = json['tokens'] as Map<String, dynamic>? ?? const {};
     return DemoSession(
-      account:
-          DemoAccount.fromJson(json['account'] as Map<String, dynamic>),
+      account: DemoAccount.fromJson(json['account'] as Map<String, dynamic>),
       tokens: AuthTokensResult(
         accessToken: tokens['accessToken'] as String,
         refreshToken: tokens['refreshToken'] as String,

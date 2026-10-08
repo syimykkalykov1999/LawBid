@@ -20,6 +20,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { assertNoContactInfo } from '../cases/domain/contact-detector';
 import { FilesService } from '../files/files.service';
+import { assertUploadCount } from '../files/upload-limits';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { ReviewSummaryDto } from '../reviews/dto/review-responses.dto';
 import { displayRating } from '../reviews/review-rating';
@@ -545,11 +546,21 @@ export class ClientReviewsService {
     return { decided: pending.length };
   }
 
-  /** Own, clean `review_photo` files only (owner 2026-10-01). */
+  /** Own, clean `review_photo` files only (owner 2026-10-01); count,
+   * formats and MB per photo are the admin's «Отзывы» limits (bug 17). */
   private async checkPhotos(userId: string, ids?: string[]): Promise<string[]> {
     const unique = [...new Set(ids ?? [])];
+    assertUploadCount(
+      await this.files.uploadLimits(),
+      'review',
+      'photos',
+      unique.length,
+    );
     for (const id of unique) {
-      await this.files.assertAttachable(userId, id, ['review_photo']);
+      const file = await this.files.assertAttachable(userId, id, [
+        'review_photo',
+      ]);
+      await this.files.assertFitsPlace('review', file);
     }
     return unique;
   }

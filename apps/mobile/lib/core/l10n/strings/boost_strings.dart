@@ -96,7 +96,8 @@ const boostEn = <String, String>{
       'An automatic check runs before start. The post is marked "Sponsored" in the feed.',
   'promote.mine.title': 'My promotions',
   'promote.mine.hint': 'Impressions, reach and clicks',
-  'promote.mine.empty': 'No promotions yet. Tap "Boost" under your post or case.',
+  'promote.mine.empty':
+      'No promotions yet. Tap "Boost" under your post or case.',
   'promote.mine.retry': 'Try again',
   'promote.mine.post': 'Post',
   'promote.mine.case': 'Case',

@@ -25,6 +25,16 @@ import { RateLimitService } from '../auth/services/rate-limit.service';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FileScanRunner } from './jobs/file-scan.runner';
 import { detectMime } from './magic-bytes';
+import { dangerousContent } from './content-guard';
+import {
+  PURPOSE_PLACES,
+  UPLOAD_LIMITS_KEY,
+  placeMimes,
+  sanitizeUploadLimits,
+  type PlaceLimits,
+  type UploadLimits,
+  type UploadPlace,
+} from './upload-limits';
 import {
   MB,
   MEDIA_SIGNED_URL_TTL_SEC,
@@ -126,12 +136,13 @@ export class FilesService {
       });
     }
     const rule = PURPOSE_RULES[dto.purpose];
-    const mime = rule.mimes.find((m) => m === dto.mime);
+    const allowed = await this.allowedMimes(dto.purpose);
+    const mime = allowed.find((m) => m === dto.mime);
     if (!mime) {
       throw new BadRequestException({
         code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
         message: 'This file type is not allowed here.',
-        details: { allowed: rule.mimes },
+        details: { allowed },
       });
     }
     const maxBytes = await this.maxBytes(dto.purpose);
@@ -236,13 +247,24 @@ export class FilesService {
     if (
       detected === null ||
       detected !== intent.mime ||
-      !PURPOSE_RULES[intent.purpose].mimes.includes(detected)
+      !(await this.allowedMimes(intent.purpose)).includes(detected)
     ) {
       await this.reject(fileId, intent);
       throw new BadRequestException({
         code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
         message: 'The file content does not match an allowed type.',
         details: { declared: intent.mime, detected },
+      });
+    }
+    // Owner 2026-10-07: no program, macro or script hidden inside an
+    // allowed document (APK in a .docx, a macro, PDF JavaScript).
+    const danger = dangerousContent(data, detected);
+    if (danger) {
+      await this.reject(fileId, intent);
+      throw new BadRequestException({
+        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+        message: 'The file contains content that is not allowed.',
+        details: { declared: intent.mime, detected, reason: danger },
       });
     }
 
@@ -705,11 +727,12 @@ export class FilesService {
       });
     }
     const rule = PURPOSE_RULES[purpose];
-    if (!rule.mimes.includes(src.mime as FileMime)) {
+    const allowed = await this.allowedMimes(purpose);
+    if (!allowed.includes(src.mime as FileMime)) {
       throw new BadRequestException({
         code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
         message: 'This file type is not allowed here.',
-        details: { allowed: rule.mimes },
+        details: { allowed },
       });
     }
     const maxBytes = await this.maxBytes(purpose);
@@ -928,9 +951,59 @@ export class FilesService {
     }
   }
 
+  /** Owner 2026-10-07 (bug 17): the admin's upload limits, inside the
+   * hard ceilings and safe format lists of upload-limits.ts. */
+  async uploadLimits(): Promise<UploadLimits> {
+    return sanitizeUploadLimits(await this.settings.raw(UPLOAD_LIMITS_KEY));
+  }
+
+  async placeLimits(place: UploadPlace): Promise<PlaceLimits> {
+    return (await this.uploadLimits())[place];
+  }
+
+  /**
+   * A file attached to [place] must be of a format that is on there and
+   * not bigger than its MB per file (a post photo was checked at upload
+   * against the wider of post and reel; this is the exact place).
+   */
+  async assertFitsPlace(
+    place: UploadPlace,
+    file: { id: string; mime: string; size_bytes: bigint | number },
+  ): Promise<void> {
+    const limits = await this.placeLimits(place);
+    if (!placeMimes(limits).includes(file.mime as FileMime)) {
+      throw new BadRequestException({
+        code: ErrorCode.FILE_TYPE_NOT_ALLOWED,
+        message: 'This file type is not allowed here.',
+        details: { fileId: file.id, allowed: limits.formats },
+      });
+    }
+    if (limits.fileMb > 0 && Number(file.size_bytes) > limits.fileMb * MB) {
+      throw this.tooLarge(limits.fileMb * MB);
+    }
+  }
+
+  /** Types a purpose accepts now: its safe set, narrowed by the formats
+   * the admin turned on for its places. */
+  private async allowedMimes(purpose: FilePurpose): Promise<FileMime[]> {
+    const rule = PURPOSE_RULES[purpose];
+    const places = PURPOSE_PLACES[purpose];
+    if (!places) return [...rule.mimes];
+    const limits = await this.uploadLimits();
+    const on = new Set(places.flatMap((p) => placeMimes(limits[p])));
+    return rule.mimes.filter((m) => on.has(m));
+  }
+
   private async maxBytes(purpose: FilePurpose): Promise<number> {
+    const places = PURPOSE_PLACES[purpose];
+    if (places) {
+      const limits = await this.uploadLimits();
+      return Math.max(...places.map((p) => limits[p].fileMb)) * MB;
+    }
     return (
-      (await this.settings.number(PURPOSE_RULES[purpose].sizeSetting)) * MB
+      (await this.settings.number(
+        PURPOSE_RULES[purpose].sizeSetting ?? 'files.max_size_mb',
+      )) * MB
     );
   }
 

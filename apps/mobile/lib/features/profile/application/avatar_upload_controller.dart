@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -80,7 +81,9 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
     try {
       final mime = sniffImageMime(bytes);
       if (mime == null) throw _local(ApiErrorCodes.fileTypeNotAllowed);
-      if (bytes.length > kAvatarMaxBytes) {
+      // Owner 2026-10-07 (bug 17): the admin's «Фото профиля» MB.
+      if (bytes.length >
+          ref.read(uploadLimitsProvider)[UploadPlace.avatar].fileBytes) {
         throw _local(ApiErrorCodes.fileTooLarge);
       }
       final target = await repo.presign(

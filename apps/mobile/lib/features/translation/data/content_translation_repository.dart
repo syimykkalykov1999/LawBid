@@ -21,8 +21,7 @@ enum TranslatableKind {
 }
 
 class ContentTranslationRepository {
-  ContentTranslationRepository(Dio dio)
-      : _client = api.TranslationsClient(dio);
+  ContentTranslationRepository(Dio dio) : _client = api.TranslationsClient(dio);
 
   final api.TranslationsClient _client;
 

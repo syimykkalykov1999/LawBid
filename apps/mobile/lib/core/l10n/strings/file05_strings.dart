@@ -22,6 +22,7 @@ const file05Ru = <String, String>{
 
   // --- post card / screen ---
   'post.title': 'Пост',
+  'post.feed.title': 'Публикации',
   'post.media.label': 'Фото поста. Двойное нажатие — нравится',
   'post.author.open': 'Открыть профиль {name}',
   'post.verified': 'Проверенный адвокат',
@@ -268,6 +269,7 @@ const file05En = <String, String>{
 
   // --- post card / screen ---
   'post.title': 'Post',
+  'post.feed.title': 'Posts',
   'post.media.label': 'Post photos. Double tap to like',
   'post.author.open': 'Open the profile of {name}',
   'post.verified': 'Verified attorney',

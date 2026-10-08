@@ -514,6 +514,8 @@ enum NotificationType {
   case_deadline_passed
   case_deadline_changed
   new_urgent_case
+  // Owner 2026-10-07: someone reposted your post (Threads-style).
+  post_repost
 
   @@map("notification_type")
 }
@@ -735,6 +737,7 @@ model User {
   posts                       Post[]                         @relation("PostAuthor")
   comments                    Comment[]                      @relation("CommentAuthor")
   post_likes                  PostLike[]                     @relation("PostLiker")
+  post_reposts                PostRepost[]                   @relation("PostReposter")
   comment_likes               CommentLike[]                  @relation("CommentLiker")
   following                   Follow[]                       @relation("Follower")
   followers                   Follow[]                       @relation("Followee")
@@ -1787,6 +1790,7 @@ model Post {
   tags        PostTag[]
   comments    Comment[]
   likes       PostLike[]
+  reposts     PostRepost[]
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -1907,6 +1911,22 @@ model PostLike {
   @@id([post_id, user_id])
   @@index([user_id, created_at(sort: Desc)])
   @@map("post_likes")
+}
+
+/// Owner 2026-10-07: a Threads-style repost — one per user and post.
+/// Not of one's own post (checked in the service).
+model PostRepost {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("PostReposter", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([user_id, post_id])
+  @@index([post_id])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("post_reposts")
 }
 
 model CommentLike {

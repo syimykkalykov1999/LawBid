@@ -25,8 +25,10 @@ TaskItem makeTask(
   String? caseId,
   String? caseTitle,
   bool canComplete = true,
+  List<TaskFile> files = const [],
 }) =>
     TaskItem(
+      files: files,
       steps: steps,
       places: places,
       people: const [TaskPerson(name: 'John Brown', phone: '+13125550199')],

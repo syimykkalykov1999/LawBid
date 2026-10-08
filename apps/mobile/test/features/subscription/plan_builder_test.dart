@@ -74,6 +74,24 @@ void main() {
   });
 
   group('PlanPicker with server plans', () {
+    // Owner 2026-10-07 (phone test): back from Stripe without paying — no
+    // «Без подписки» baseline card, and the plans keep their pay button.
+    testWidgets('unpaid checkout: no baseline card, picker stays',
+        (tester) async {
+      repo = FakeSubscriptionRepository(
+        makeOverview(
+          subscription:
+              makeInfo(status: SubscriptionStatus.incomplete, isActive: false),
+          plans: const [soloPlan, teamPlan],
+          plan: baselinePlan,
+        ),
+      );
+      await pump(tester, const SubscriptionScreen());
+      expect(find.byKey(const ValueKey('plan-attorney_free')), findsNothing);
+      expect(find.byKey(const ValueKey('plan-solo')), findsOneWidget);
+      expect(find.byKey(const ValueKey('subscribe-cta')), findsOneWidget);
+    });
+
     testWidgets('cards from the server, default plan selected, features',
         (tester) async {
       await pump(tester, const SubscriptionScreen());

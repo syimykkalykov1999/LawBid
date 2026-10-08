@@ -240,7 +240,6 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
             label: t.t('cases.counter.button'),
             variant: AppButtonVariant.secondary,
             isEnabled: myTurn && bid.canCounter,
-            dimWhenDisabled: true,
             onPressed: _busy ? null : () => _counter(bid),
           ),
         ),
@@ -255,7 +254,6 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
             label: t.t('cases.counter.button'),
             variant: AppButtonVariant.secondary,
             isEnabled: myTurn && bid.canCounter,
-            dimWhenDisabled: true,
             onPressed: _busy ? null : () => _counter(bid),
           ),
         ),
@@ -582,8 +580,8 @@ class _CounterSheetState extends State<_CounterSheet> {
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: t.t('cases.counter.send'),
+                disabledHint: t.t('form.disabled.required'),
                 isEnabled: _cents != null,
-                dimWhenDisabled: true,
                 onPressed: () =>
                     Navigator.of(context).pop((_cents!, _message.text)),
               ),

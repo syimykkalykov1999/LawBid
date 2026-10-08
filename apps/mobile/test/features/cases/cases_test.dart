@@ -430,7 +430,13 @@ void main() {
       await tester.pumpWidget(wrap(const OwnerCaseScreen(caseId: 'case-1')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('stale-prompt')), findsOneWidget);
-      await tester.tap(find.text('Yes, still relevant'));
+      // Owner 2026-10-07: one thin line with a short «Да».
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('stale-prompt')),
+          matching: find.text('Yes'),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(repo.kept, ['case-1']);
       expect(find.byKey(const ValueKey('stale-prompt')), findsNothing);

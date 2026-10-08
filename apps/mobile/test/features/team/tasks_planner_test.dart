@@ -370,4 +370,28 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  testWidgets('owner 2026-10-07: 10 files at most — counter, grey button, hint',
+      (tester) async {
+    await pump(
+      tester,
+      TaskEditorScreen(
+        existing: makeTask(
+          'f',
+          kind: TaskKind.meeting,
+          files: [
+            for (var i = 0; i < 10; i++)
+              TaskFile(fileId: 'f$i', url: 'https://x.test/$i.pdf'),
+          ],
+        ),
+      ),
+      size: const Size(800, 3000),
+    );
+    expect(find.text('10/10'), findsOneWidget);
+    expect(find.text('A task can hold up to 10 files'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('task-attach')));
+    await tester.pump();
+    // The hint as a snackbar too; no file picker opened.
+    expect(find.text('A task can hold up to 10 files'), findsNWidgets(2));
+  });
 }

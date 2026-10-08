@@ -30,10 +30,8 @@ export const FILE_03_SETTINGS = {
   ],
   'review.edit_window_days': 14,
   'review.reminder_after_days': 7,
+  // Voice messages and other files outside «Загрузки и файлы» (bug 17).
   'files.max_size_mb': 10,
-  'files.avatar_max_size_mb': 5,
-  // OQ-047: photos and documents in chats.
-  'files.chat_max_size_mb': 25,
 } as const;
 
 export type File03SettingKey = keyof typeof FILE_03_SETTINGS;
@@ -89,9 +87,6 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
   'video.max_source_duration_sec': 180,
-  // Owner 2026-10-05: documents in posts / reels — small on purpose.
-  'files.post_attachment_max_size_mb': 10,
-  'posts.attachments_max_total_mb': 30,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by
   // their own size) are shrunk on the phone before upload — longest side,
   // JPEG quality — no visible loss, small files. Videos are re-encoded by

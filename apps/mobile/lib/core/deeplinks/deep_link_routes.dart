@@ -50,7 +50,10 @@ List<RouteBase> deepLinkRoutes() => [
         path: DeepLinkRoutes.postPath,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          PostScreen(postId: state.pathParameters['id'] ?? ''),
+          PostScreen(
+            postId: state.pathParameters['id'] ?? '',
+            fromProfile: state.uri.queryParameters['from'] == 'profile',
+          ),
         ),
       ),
     ];

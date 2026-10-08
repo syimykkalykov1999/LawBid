@@ -368,7 +368,7 @@ void main() {
 
   group('practices (docs/03 §3.2)', () {
     testWidgets(
-        'select all in a category, chips on top, save replaces the full set',
+        'select all in a category, count on top, save replaces the full set',
         (tester) async {
       final practices = FakePracticesRepo(
         selected: const [
@@ -388,6 +388,9 @@ void main() {
         overrides: profileOverrides(practices: practices),
       );
       expect(find.text('Selected (1)'), findsOneWidget);
+      // Picked practices live only inside their (collapsed) category card,
+      // not as a chip list under the counter.
+      expect(find.text('Work Visas'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('category-cat-family')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('select-all-cat-family')));

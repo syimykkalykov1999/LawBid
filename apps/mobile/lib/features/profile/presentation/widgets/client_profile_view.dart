@@ -138,6 +138,7 @@ class _ClientBody extends ConsumerWidget {
               fallback: profile.username,
             ),
             semanticLabel: t.t('profile.avatar.label'),
+            viewerCloseLabel: t.t('common.close'),
           ),
           const SizedBox(width: AppSpacing.lg),
           Expanded(

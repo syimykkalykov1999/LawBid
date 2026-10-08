@@ -169,6 +169,34 @@ export class PostsController {
     return this.engagement.unlike(user.sub, p.id);
   }
 
+  @Post('posts/:id/repost')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Repost a post, Threads-style (idempotent, owner 2026-10-07)',
+  })
+  @ApiErrors({
+    403: [E.USER_BLOCKED],
+    404: [E.POST_NOT_FOUND],
+    409: [E.REPOST_OWN_POST],
+    429: [E.RATE_LIMITED],
+  })
+  repostPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<void> {
+    return this.engagement.repost(user.sub, p.id);
+  }
+
+  @Delete('posts/:id/repost')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Undo a repost (idempotent, owner 2026-10-07)' })
+  unrepostPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<void> {
+    return this.engagement.unrepost(user.sub, p.id);
+  }
+
   @Get('saved-items/posts')
   @ApiOperation({ summary: 'Saved posts (docs/05 §4, "Моё → Сохранённое")' })
   @ApiEnvelopeResponse(SavedPostItemDto, { isArray: true })

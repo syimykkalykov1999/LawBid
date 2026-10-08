@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -27,7 +28,10 @@ class ClientBadgeScreen extends ConsumerStatefulWidget {
 
 class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
     with WidgetsBindingObserver {
-  static const _maxDocs = 5;
+  /// Owner 2026-10-07 (bug 17): files in the request — admin «Значок
+  /// клиента».
+  int get _maxDocs =>
+      ref.read(uploadLimitsProvider)[UploadPlace.clientBadge].maxFiles;
   final List<PickedDocument> _docs = [];
   bool _busy = false;
   String? _progress;
