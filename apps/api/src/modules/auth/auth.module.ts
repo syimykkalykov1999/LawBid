@@ -22,6 +22,7 @@ import { AssistantCodeService } from './assistant/assistant-code.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ReauthGuard } from './guards/reauth.guard';
 import { ReauthVerifier } from './services/reauth-verifier.service';
+import { DemoReauthService } from './services/demo-reauth.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
 import type { SmsProvider } from './providers/sms/sms-provider.interface';
 import { MockSmsProvider } from './providers/sms/mock-sms.provider';
@@ -106,6 +107,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
     AuthEventService,
     ReauthGuard,
     ReauthVerifier,
+    DemoReauthService,
     LoginMethodPolicy,
     AssistantCodeService,
     // docs/01 §10.6 new-device alert: one entry per delivery channel.

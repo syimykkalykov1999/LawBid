@@ -182,6 +182,15 @@ class AuthApiClient {
     return envelope.data.reauthToken;
   }
 
+  /// `POST /auth/reauth/demo` (owner 2026-10-08): a DEMO session's
+  /// `reauthToken` without the one-time code, which the demo world cannot
+  /// deliver. The server decides from the signed `demo` claim and answers
+  /// 403 FORBIDDEN to any real session.
+  Future<String> reauthDemo() async {
+    final envelope = await guardApiCall(_auth.reauthDemo);
+    return envelope.data.reauthToken;
+  }
+
   /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
   /// period; the server revokes every session (including this one)
   /// immediately on success, so the caller must treat a successful call as
