@@ -350,6 +350,7 @@ export 'models/checkout_request_dto.dart';
 export 'models/checkout_session_envelope.dart';
 export 'models/subscription_dto.dart';
 export 'models/contract_grant_info_dto.dart';
+export 'models/price_discount_dto.dart';
 export 'models/plan_prices_dto.dart';
 export 'models/localized_text_dto.dart';
 export 'models/plan_entitlements_dto.dart';

@@ -64,7 +64,10 @@ export class AdminPricingController {
     @Param() p: PlanKindParamDto,
     @Body() dto: SetPlanPriceDto,
   ): Promise<AdminSetPlanPriceResultDto> {
-    return this.prices.set(admin, p.kind, dto.amountCents, dto.note);
+    return this.prices.set(admin, p.kind, dto.amountCents, dto.note, {
+      compareAtCents: dto.compareAtCents,
+      showDiscount: dto.showDiscount,
+    });
   }
 
   @Post(':kind/move-subscribers')

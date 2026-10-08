@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'client_badge_status.dart';
 import 'client_badge_subscription_dto.dart';
+import 'price_discount_dto.dart';
 
 part 'client_badge_state_dto.g.dart';
 
@@ -15,6 +16,7 @@ class ClientBadgeStateDto {
     required this.status,
     required this.badgeActive,
     required this.priceCents,
+    required this.discount,
     required this.currency,
     required this.canSubmit,
     required this.canSubscribe,
@@ -36,6 +38,9 @@ class ClientBadgeStateDto {
 
   /// Per month, in cents.
   final int priceCents;
+
+  /// Owner 2026-10-07: the strikethrough old price, or null.
+  final PriceDiscountDto? discount;
   final String currency;
 
   /// Documents can be sent (none / rejected / revoked).

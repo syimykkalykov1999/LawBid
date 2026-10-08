@@ -13,6 +13,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import {
@@ -107,6 +108,29 @@ export class PlanFieldsDto {
   @Max(10_000_000)
   amountCents?: number;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    minimum: 100,
+    maximum: 10_000_000,
+    description:
+      'Owner 2026-10-07: the strikethrough old price in cents; null clears it, absent keeps it.',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsInt()
+  @Min(100)
+  @Max(10_000_000)
+  compareAtCents?: number | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Show the discount (only while the old price is above the price).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  showDiscount?: boolean;
+
   @ApiPropertyOptional({ enum: ['draft', 'active', 'archived'] })
   @IsOptional()
   @IsIn(['draft', 'active', 'archived'])
@@ -193,6 +217,13 @@ export class AdminPlanDto extends PublicPlanDto {
   @ApiProperty({ type: String, nullable: true }) stripePriceId!: string | null;
   @ApiProperty({ type: String, nullable: true }) priceKind!: string | null;
   @ApiProperty({ format: 'date-time' }) updatedAt!: string;
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Old price as entered (shown only with showDiscount).',
+  })
+  compareAtCents!: number | null;
+  @ApiProperty() showDiscount!: boolean;
 }
 
 export class AdminPlansDto {

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PriceDiscountDto } from '../billing/price-discount.dto';
 import { IsIn, IsOptional } from 'class-validator';
 import {
   type Audience,
@@ -100,6 +101,12 @@ export class PublicPlanDto {
       'Price of one extra assistant seat per month (attorney plans).',
   })
   extraSeatCents!: number | null;
+  @ApiProperty({
+    type: PriceDiscountDto,
+    nullable: true,
+    description: 'Owner 2026-10-07: the strikethrough old price, or null.',
+  })
+  discount!: PriceDiscountDto | null;
   @ApiProperty({ type: PlanEntitlementsDto })
   entitlements!: PlanEntitlementsDto;
   @ApiProperty({ type: [LocalizedTextDto] }) highlights!: LocalizedTextDto[];

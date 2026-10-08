@@ -571,6 +571,10 @@ class ClientPlanPicker extends StatelessWidget {
       title: p.name.resolve(formats.locale),
       price: PlanFeatures.amount(t, formats, p),
       period: PlanFeatures.period(t, p),
+      discount: p.discount,
+      formatCents: (c) => PlanFeatures.price(formats, c, currency: p.currency),
+      translator: t,
+      yearly: p.yearly,
       features: PlanFeatures.lines(t, formats, p, language: formats.locale),
       status: mine
           ? t.t('plan.status.yours')

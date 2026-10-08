@@ -15,6 +15,26 @@ PublicPricingDto _$PublicPricingDtoFromJson(Map<String, dynamic> json) =>
       maxSeats: (json['maxSeats'] as num).toInt(),
       trialDays: (json['trialDays'] as num).toInt(),
       clientBadgeCents: (json['clientBadgeCents'] as num).toInt(),
+      monthlyDiscount: json['monthlyDiscount'] == null
+          ? null
+          : PriceDiscountDto.fromJson(
+              json['monthlyDiscount'] as Map<String, dynamic>,
+            ),
+      seatDiscount: json['seatDiscount'] == null
+          ? null
+          : PriceDiscountDto.fromJson(
+              json['seatDiscount'] as Map<String, dynamic>,
+            ),
+      yearlyDiscount: json['yearlyDiscount'] == null
+          ? null
+          : PriceDiscountDto.fromJson(
+              json['yearlyDiscount'] as Map<String, dynamic>,
+            ),
+      clientBadgeDiscount: json['clientBadgeDiscount'] == null
+          ? null
+          : PriceDiscountDto.fromJson(
+              json['clientBadgeDiscount'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$PublicPricingDtoToJson(PublicPricingDto instance) =>
@@ -26,4 +46,8 @@ Map<String, dynamic> _$PublicPricingDtoToJson(PublicPricingDto instance) =>
       'maxSeats': instance.maxSeats,
       'trialDays': instance.trialDays,
       'clientBadgeCents': instance.clientBadgeCents,
+      'monthlyDiscount': ?instance.monthlyDiscount?.toJson(),
+      'seatDiscount': ?instance.seatDiscount?.toJson(),
+      'yearlyDiscount': ?instance.yearlyDiscount?.toJson(),
+      'clientBadgeDiscount': ?instance.clientBadgeDiscount?.toJson(),
     };

@@ -14,6 +14,7 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
 import type { PaymentProvider } from '../billing/payment-provider';
 import {
+  discountOf,
   jsonMap,
   PLAN_KINDS,
   PLAN_META,
@@ -75,6 +76,9 @@ export class AdminPricingService {
             : null,
           subscribers: counts[kind],
           updatedAt: row?.created_at.toISOString() ?? null,
+          compareAtCents: row?.compare_at_cents ?? null,
+          showDiscount: row?.show_discount ?? false,
+          discount: discountOf(row),
         };
       }),
       history: history.map(presentHistory),
@@ -86,10 +90,44 @@ export class AdminPricingService {
     kind: string,
     amountCents: number,
     note?: string,
+    disc: { compareAtCents?: number | null; showDiscount?: boolean } = {},
   ): Promise<AdminSetPlanPriceResultDto> {
     const before = (await this.pricing.activeRows()).get(kind) ?? null;
     const beforeCents = await this.pricing.amountOf(kind);
+    // Owner 2026-10-07: the old price and its switch ride along with a new
+    // amount; absent = keep what the current row has.
+    const compareAt =
+      disc.compareAtCents !== undefined
+        ? disc.compareAtCents
+        : (before?.compare_at_cents ?? null);
+    const showDiscount = disc.showDiscount ?? before?.show_discount ?? false;
     let row: PlanPrice | null = null;
+    if (
+      before &&
+      beforeCents === amountCents &&
+      (compareAt !== before.compare_at_cents ||
+        showDiscount !== before.show_discount)
+    ) {
+      await this.prisma.planPrice.update({
+        where: { id: before.id },
+        data: { compare_at_cents: compareAt, show_discount: showDiscount },
+      });
+      this.pricing.invalidate();
+      await this.audit.record({
+        adminId: admin.id,
+        action: 'billing.price.discount',
+        targetType: 'plan_price',
+        targetId: before.id,
+        before: {
+          kind,
+          compareAtCents: before.compare_at_cents,
+          showDiscount: before.show_discount,
+        },
+        after: { kind, compareAtCents: compareAt, showDiscount },
+        ip: admin.ip,
+        justification: note ?? null,
+      });
+    }
     if (beforeCents !== amountCents || !before) {
       row = await withTxRetry(this.prisma, async (tx) => {
         await tx.planPrice.updateMany({
@@ -102,6 +140,8 @@ export class AdminPricingService {
             amount_cents: amountCents,
             currency: this.pricing.currency(),
             note: note ?? null,
+            compare_at_cents: compareAt,
+            show_discount: showDiscount,
             created_by: admin.id,
           },
         });
@@ -112,8 +152,13 @@ export class AdminPricingService {
         action: 'billing.price.update',
         targetType: 'plan_price',
         targetId: row.id,
-        before: { kind, amountCents: beforeCents },
-        after: { kind, amountCents },
+        before: {
+          kind,
+          amountCents: beforeCents,
+          compareAtCents: before?.compare_at_cents ?? null,
+          showDiscount: before?.show_discount ?? false,
+        },
+        after: { kind, amountCents, compareAtCents: compareAt, showDiscount },
         ip: admin.ip,
         justification: note ?? null,
       });

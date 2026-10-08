@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+import { PriceDiscountDto } from '../billing/price-discount.dto';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -56,6 +57,13 @@ export class ClientBadgeStateDto {
 
   @ApiProperty({ type: 'integer', description: 'Per month, in cents.' })
   priceCents!: number;
+
+  @ApiProperty({
+    type: PriceDiscountDto,
+    nullable: true,
+    description: 'Owner 2026-10-07: the strikethrough old price, or null.',
+  })
+  discount!: PriceDiscountDto | null;
 
   @ApiProperty({ example: 'usd' })
   currency!: string;

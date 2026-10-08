@@ -350,6 +350,9 @@ export class ClientBadgeService {
       badgeActive: active,
       includedInPlan: included,
       priceCents: await this.priceCents(),
+      discount: this.pricing
+        ? await this.pricing.discount('client_badge')
+        : null,
       currency: CURRENCY,
       canSubmit:
         status === 'none' || status === 'rejected' || status === 'revoked',

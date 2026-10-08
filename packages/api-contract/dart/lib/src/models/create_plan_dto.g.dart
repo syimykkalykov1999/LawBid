@@ -28,6 +28,8 @@ CreatePlanDto _$CreatePlanDtoFromJson(
       ?.map((e) => LocalizedTextInputDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   amountCents: (json['amountCents'] as num?)?.toInt(),
+  compareAtCents: (json['compareAtCents'] as num?)?.toInt(),
+  showDiscount: json['showDiscount'] as bool?,
   status: json['status'] == null
       ? null
       : CreatePlanDtoStatus.fromJson(json['status'] as String),
@@ -45,6 +47,8 @@ Map<String, dynamic> _$CreatePlanDtoToJson(CreatePlanDto instance) =>
       'entitlements': ?instance.entitlements,
       'highlights': ?instance.highlights?.map((e) => e.toJson()).toList(),
       'amountCents': ?instance.amountCents,
+      'compareAtCents': ?instance.compareAtCents,
+      'showDiscount': ?instance.showDiscount,
       'status': ?instance.status?.toJson(),
       'sort': ?instance.sort,
       'isDefault': ?instance.isDefault,

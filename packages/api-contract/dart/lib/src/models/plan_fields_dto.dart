@@ -19,6 +19,8 @@ class PlanFieldsDto {
     this.entitlements,
     this.highlights,
     this.amountCents,
+    this.compareAtCents,
+    this.showDiscount,
     this.status,
     this.sort,
     this.isDefault,
@@ -39,6 +41,12 @@ class PlanFieldsDto {
 
   /// Price per interval in cents; a change creates a new Stripe price (history kept).
   final int? amountCents;
+
+  /// Owner 2026-10-07: the strikethrough old price in cents; null clears it, absent keeps it.
+  final int? compareAtCents;
+
+  /// Show the discount (only while the old price is above the price).
+  final bool? showDiscount;
   final PlanFieldsDtoStatus? status;
   final int? sort;
 

@@ -7,6 +7,10 @@ abstract final class PlanMappers {
   static LocalizedText text(api.LocalizedTextDto? d) =>
       d == null ? LocalizedText.empty : LocalizedText(en: d.en, ru: d.ru);
 
+  static PriceDiscount? discount(api.PriceDiscountDto? d) => d == null
+      ? null
+      : PriceDiscount(compareAtCents: d.compareAtCents, percent: d.percent);
+
   static PlanEntitlements entitlements(api.PlanEntitlementsDto? d) => d == null
       ? PlanEntitlements.none
       : PlanEntitlements(
@@ -43,6 +47,7 @@ abstract final class PlanMappers {
         currency: d.currency,
         amountCents: d.amountCents,
         extraSeatCents: d.extraSeatCents,
+        discount: discount(d.discount),
         entitlements: entitlements(d.entitlements),
         highlights: [for (final h in d.highlights) text(h)],
         isDefault: d.isDefault,

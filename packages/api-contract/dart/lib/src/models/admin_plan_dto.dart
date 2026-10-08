@@ -10,6 +10,7 @@ import 'admin_plan_dto_kind.dart';
 import 'admin_plan_dto_status.dart';
 import 'localized_text_dto.dart';
 import 'plan_entitlements_dto.dart';
+import 'price_discount_dto.dart';
 
 part 'admin_plan_dto.g.dart';
 
@@ -27,6 +28,7 @@ class AdminPlanDto {
     required this.currency,
     required this.amountCents,
     required this.extraSeatCents,
+    required this.discount,
     required this.entitlements,
     required this.highlights,
     required this.isDefault,
@@ -37,6 +39,8 @@ class AdminPlanDto {
     required this.stripePriceId,
     required this.priceKind,
     required this.updatedAt,
+    required this.compareAtCents,
+    required this.showDiscount,
   });
 
   factory AdminPlanDto.fromJson(Map<String, Object?> json) =>
@@ -57,6 +61,9 @@ class AdminPlanDto {
 
   /// Price of one extra assistant seat per month (attorney plans).
   final int? extraSeatCents;
+
+  /// Owner 2026-10-07: the strikethrough old price, or null.
+  final PriceDiscountDto? discount;
   final PlanEntitlementsDto entitlements;
   final List<LocalizedTextDto> highlights;
   final bool isDefault;
@@ -69,6 +76,10 @@ class AdminPlanDto {
   final String? stripePriceId;
   final String? priceKind;
   final DateTime updatedAt;
+
+  /// Old price as entered (shown only with showDiscount).
+  final int? compareAtCents;
+  final bool showDiscount;
 
   Map<String, Object?> toJson() => _$AdminPlanDtoToJson(this);
 }

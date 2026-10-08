@@ -19,6 +19,11 @@ AdminPlanPriceItemDto _$AdminPlanPriceItemDtoFromJson(
   updatedAt: json['updatedAt'] == null
       ? null
       : DateTime.parse(json['updatedAt'] as String),
+  compareAtCents: (json['compareAtCents'] as num?)?.toInt(),
+  showDiscount: json['showDiscount'] as bool,
+  discount: json['discount'] == null
+      ? null
+      : PriceDiscountDto.fromJson(json['discount'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$AdminPlanPriceItemDtoToJson(
@@ -32,4 +37,7 @@ Map<String, dynamic> _$AdminPlanPriceItemDtoToJson(
   'stripePriceId': ?instance.stripePriceId,
   'subscribers': instance.subscribers,
   'updatedAt': ?instance.updatedAt?.toIso8601String(),
+  'compareAtCents': ?instance.compareAtCents,
+  'showDiscount': instance.showDiscount,
+  'discount': ?instance.discount?.toJson(),
 };

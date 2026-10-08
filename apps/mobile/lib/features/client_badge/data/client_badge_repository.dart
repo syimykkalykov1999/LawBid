@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
+import 'package:lawbid/features/plans/data/plan_mappers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-02 — `/verification/client/*`.
@@ -47,6 +48,7 @@ class ClientBadgeRepository {
         status: ClientBadgeStatus.parse(d.status.json),
         badgeActive: d.badgeActive,
         priceCents: d.priceCents,
+        discount: PlanMappers.discount(d.discount),
         canSubmit: d.canSubmit,
         canSubscribe: d.canSubscribe,
         includedInPlan: d.includedInPlan,

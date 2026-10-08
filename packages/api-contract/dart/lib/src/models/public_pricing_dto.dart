@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'price_discount_dto.dart';
+
 part 'public_pricing_dto.g.dart';
 
 @JsonSerializable()
@@ -16,6 +18,10 @@ class PublicPricingDto {
     required this.maxSeats,
     required this.trialDays,
     required this.clientBadgeCents,
+    required this.monthlyDiscount,
+    required this.seatDiscount,
+    required this.yearlyDiscount,
+    required this.clientBadgeDiscount,
   });
 
   factory PublicPricingDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +34,10 @@ class PublicPricingDto {
   final int maxSeats;
   final int trialDays;
   final int clientBadgeCents;
+  final PriceDiscountDto? monthlyDiscount;
+  final PriceDiscountDto? seatDiscount;
+  final PriceDiscountDto? yearlyDiscount;
+  final PriceDiscountDto? clientBadgeDiscount;
 
   Map<String, Object?> toJson() => _$PublicPricingDtoToJson(this);
 }

@@ -22,6 +22,9 @@ AdminPlanDto _$AdminPlanDtoFromJson(Map<String, dynamic> json) => AdminPlanDto(
   currency: json['currency'] as String,
   amountCents: (json['amountCents'] as num?)?.toInt(),
   extraSeatCents: (json['extraSeatCents'] as num?)?.toInt(),
+  discount: json['discount'] == null
+      ? null
+      : PriceDiscountDto.fromJson(json['discount'] as Map<String, dynamic>),
   entitlements: PlanEntitlementsDto.fromJson(
     json['entitlements'] as Map<String, dynamic>,
   ),
@@ -36,6 +39,8 @@ AdminPlanDto _$AdminPlanDtoFromJson(Map<String, dynamic> json) => AdminPlanDto(
   stripePriceId: json['stripePriceId'] as String?,
   priceKind: json['priceKind'] as String?,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
+  compareAtCents: (json['compareAtCents'] as num?)?.toInt(),
+  showDiscount: json['showDiscount'] as bool,
 );
 
 Map<String, dynamic> _$AdminPlanDtoToJson(AdminPlanDto instance) =>
@@ -51,6 +56,7 @@ Map<String, dynamic> _$AdminPlanDtoToJson(AdminPlanDto instance) =>
       'currency': instance.currency,
       'amountCents': ?instance.amountCents,
       'extraSeatCents': ?instance.extraSeatCents,
+      'discount': ?instance.discount?.toJson(),
       'entitlements': instance.entitlements.toJson(),
       'highlights': instance.highlights.map((e) => e.toJson()).toList(),
       'isDefault': instance.isDefault,
@@ -61,4 +67,6 @@ Map<String, dynamic> _$AdminPlanDtoToJson(AdminPlanDto instance) =>
       'stripePriceId': ?instance.stripePriceId,
       'priceKind': ?instance.priceKind,
       'updatedAt': instance.updatedAt.toIso8601String(),
+      'compareAtCents': ?instance.compareAtCents,
+      'showDiscount': instance.showDiscount,
     };

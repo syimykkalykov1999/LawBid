@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'localized_text_dto.dart';
 import 'plan_entitlements_dto.dart';
+import 'price_discount_dto.dart';
 import 'public_plan_dto_audience.dart';
 import 'public_plan_dto_interval.dart';
 import 'public_plan_dto_kind.dart';
@@ -26,6 +27,7 @@ class PublicPlanDto {
     required this.currency,
     required this.amountCents,
     required this.extraSeatCents,
+    required this.discount,
     required this.entitlements,
     required this.highlights,
     required this.isDefault,
@@ -50,6 +52,9 @@ class PublicPlanDto {
 
   /// Price of one extra assistant seat per month (attorney plans).
   final int? extraSeatCents;
+
+  /// Owner 2026-10-07: the strikethrough old price, or null.
+  final PriceDiscountDto? discount;
   final PlanEntitlementsDto entitlements;
   final List<LocalizedTextDto> highlights;
   final bool isDefault;
