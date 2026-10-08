@@ -28,6 +28,7 @@ export const FILE_REFERENCES = [
   'data_export_jobs.file_id',
   'post_media.file_id',
   'post_attachments.file_id',
+  'video_assets.cover_file_id',
   'case_photos.file_id',
   'messages.file_id',
   'stickers.file_id',
@@ -234,6 +235,9 @@ export class StorageCleanupService {
           SELECT 1 FROM post_attachments pa JOIN posts p ON p.id = pa.post_id
           WHERE pa.file_id = f.id
             AND (p.deleted_at IS NULL OR p.deleted_at >= ${postCutoff}))
+        AND NOT EXISTS (
+          SELECT 1 FROM video_assets va
+          WHERE va.cover_file_id = f.id AND va.deleted_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM case_photos cp WHERE cp.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)

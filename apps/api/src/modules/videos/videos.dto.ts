@@ -67,6 +67,13 @@ export class CreateVideoUploadDto {
   @Min(0)
   @Max(3_600_000)
   coverTimeMs?: number;
+
+  /** Owner 2026-10-08: a cover photo from the gallery (own, clean
+   * `post_image`), shown instead of the frame at coverTimeMs. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  coverFileId?: string;
 }
 
 /** TUS credentials for one direct upload to Bunny. */

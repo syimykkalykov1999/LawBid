@@ -169,13 +169,21 @@ export class PostPresenter {
     const assetIds = posts
       .map((p) => p.video_asset_id)
       .filter((x): x is string => !!x);
-    const videos = await this.videos.present(
-      assetIds.length
-        ? await this.prisma.videoAsset.findMany({
-            where: { id: { in: assetIds } },
-          })
-        : [],
+    const assets = assetIds.length
+      ? await this.prisma.videoAsset.findMany({
+          where: { id: { in: assetIds } },
+        })
+      : [];
+    const videos = await this.videos.present(assets);
+    // Owner 2026-10-08: a cover photo from the gallery replaces the frame.
+    const covers = await this.files.postImageUrls(
+      assets.map((a) => a.cover_file_id).filter((x): x is string => !!x),
     );
+    for (const a of assets) {
+      const cover = a.cover_file_id ? covers.get(a.cover_file_id) : undefined;
+      const v = videos.get(a.id);
+      if (cover && v) v.thumbnailUrl = cover.mediumUrl;
+    }
     // Owner 2026-09-30: each post's qualification.
     const practiceIds = [
       ...new Set(
