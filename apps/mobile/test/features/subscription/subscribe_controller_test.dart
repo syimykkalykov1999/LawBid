@@ -67,6 +67,28 @@ void main() {
     expect(shown.subscription?.status, SubscriptionStatus.trialing);
   });
 
+  test('the chosen plan, seats, phones and promo travel with start', () async {
+    repo.onConfirm = (_) => makeOverview(subscription: makeInfo());
+    final outcome =
+        await container.read(subscribeControllerProvider.notifier).subscribe(
+              confirmChargeNow: (_) async => true,
+              buildRequest: request,
+              plan: SubscriptionPlan.yearly,
+              assistantSeats: 2,
+              assistantPhones: const ['+13125550111'],
+              promoCode: 'WELCOME',
+              planCode: 'pro',
+            );
+    expect(outcome, SubscribeOutcome.trialStarted);
+    expect(repo.lastStartOrder, (
+      plan: SubscriptionPlan.yearly,
+      seats: 2,
+      phones: const ['+13125550111'],
+      promo: 'WELCOME',
+      planCode: 'pro',
+    ),);
+  });
+
   test('no trial on the account: consent is asked BEFORE the card sheet',
       () async {
     repo.startResult = const SubscriptionStart(

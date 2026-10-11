@@ -161,8 +161,29 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
       _overview((await guardApiCall(_api.switchToYearly)).data);
 
   @override
-  Future<SubscriptionStart> start() async {
-    final d = (await guardApiCall(_api.startSubscription)).data;
+  Future<SubscriptionStart> start({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
+  }) async {
+    final d = (await guardApiCall(
+      () => _api.startSubscription(
+        body: api.CheckoutRequestDto(
+          promoCode: promoCode,
+          planCode: planCode,
+          plan: plan == SubscriptionPlan.yearly
+              ? api.SubscriptionPlan.yearly
+              : api.SubscriptionPlan.monthly,
+          assistantSeats: planCode == null && plan == SubscriptionPlan.yearly
+              ? 0
+              : assistantSeats,
+          assistantPhones: assistantPhones.isEmpty ? null : assistantPhones,
+        ),
+      ),
+    ))
+        .data;
     return SubscriptionStart(
       clientSecret: d.clientSecret,
       setupIntentId: d.setupIntentId,
