@@ -37,7 +37,10 @@ describe('default legal texts', () => {
 
 describe('LegalDocumentsSeed', () => {
   function setup(
-    rows: Record<string, { content_md: string; status: string }[]>,
+    rows: Record<
+      string,
+      { content_md: string; status: string; id?: string; version?: string }[]
+    >,
   ) {
     const prisma = {
       legalDocument: {
@@ -45,8 +48,24 @@ describe('LegalDocumentsSeed', () => {
           ({ where }: { where: { doc_type: string; locale: string } }) =>
             Promise.resolve(rows[`${where.doc_type}.${where.locale}`] ?? []),
         ),
+        findFirst: jest.fn(
+          ({
+            where,
+          }: {
+            where: { doc_type: string; locale: string; is_current?: boolean };
+          }) => {
+            const list = rows[`${where.doc_type}.${where.locale}`] ?? [];
+            return Promise.resolve(
+              where.is_current
+                ? (list.find((r) => r.status === 'published') ?? null)
+                : (list.find((r) => r.status === 'draft') ?? null),
+            );
+          },
+        ),
         create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
       },
+      $transaction: jest.fn().mockResolvedValue([]),
     };
     return {
       prisma,
@@ -60,19 +79,25 @@ describe('LegalDocumentsSeed', () => {
         {
           content_md: '# Terms of Service\n\nPLACEHOLDER — replace',
           status: 'published',
+          id: 't1',
+          version: '1.0',
         },
       ],
       'eula.en': [{ content_md: '# EULA real text', status: 'published' }],
       'refund.ru': [{ content_md: '# Черновик', status: 'draft' }],
     });
     const created = await seed.seed();
-    // 10 types x 2 languages, minus the real eula.en and the refund.ru draft.
-    expect(created).toBe(18);
+    // 10 types x 2 languages + disclaimer.en, minus the real eula.en and the
+    // refund.ru draft.
+    expect(created).toBe(19);
     const calls = (
       prisma.legalDocument.create.mock.calls as [
         { data: Record<string, unknown> },
       ][]
-    ).map(([a]) => a.data);
+    )
+      .map(([a]) => a.data)
+      // The placeholder of a consent document is published over (below).
+      .filter((d) => d.status !== 'published');
     expect(
       calls.every((d) => d.status === 'draft' && d.is_current === false),
     ).toBe(true);
@@ -84,6 +109,40 @@ describe('LegalDocumentsSeed', () => {
     );
   });
 
+  it('publishes real text over a placeholder of a consent document, and over nothing else', async () => {
+    const { seed, prisma } = setup({
+      'terms.en': [
+        {
+          content_md: '# Terms\n\nPLACEHOLDER — replace',
+          status: 'published',
+          id: 't1',
+          version: '1.0',
+        },
+      ],
+      'privacy.en': [
+        { content_md: '# Privacy (owner text)', status: 'published', id: 'p1' },
+      ],
+    });
+    expect(await seed.publishOverPlaceholders()).toBe(1);
+    const created = (
+      prisma.legalDocument.create.mock.calls as [
+        { data: Record<string, unknown> },
+      ][]
+    ).map(([a]) => a.data);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({
+      doc_type: 'terms',
+      locale: 'en',
+      status: 'published',
+      is_current: true,
+    });
+    expect(String(created[0].content_md)).toContain('Terms of Service');
+    expect(prisma.legalDocument.update).toHaveBeenCalledWith({
+      where: { id: 't1' },
+      data: { is_current: false, status: 'archived' },
+    });
+  });
+
   it('does nothing the second time', async () => {
     const all: Record<string, { content_md: string; status: string }[]> = {};
     for (const t of SEEDED) {
@@ -91,6 +150,7 @@ describe('LegalDocumentsSeed', () => {
         all[`${t}.${l}`] = [{ content_md: '# real', status: 'published' }];
       }
     }
+    all['disclaimer.en'] = [{ content_md: '# real', status: 'published' }];
     const { seed, prisma } = setup(all);
     expect(await seed.seed()).toBe(0);
     expect(prisma.legalDocument.create).not.toHaveBeenCalled();
