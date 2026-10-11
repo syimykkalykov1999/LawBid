@@ -17,6 +17,7 @@ class StepActions {
     required this.cancel,
     required this.addLicense,
     required this.removeLicense,
+    required this.editLicense,
     required this.selectIdType,
     required this.goTo,
   });
@@ -27,6 +28,7 @@ class StepActions {
   final ValueChanged<UploadTask> cancel;
   final VoidCallback addLicense;
   final ValueChanged<VerificationLicense> removeLicense;
+  final ValueChanged<VerificationLicense> editLicense;
   final ValueChanged<IdDocumentType> selectIdType;
   final ValueChanged<WizardStep> goTo;
 }
@@ -317,6 +319,18 @@ class _LicenseBlock extends StatelessWidget {
                 ],
               ),
             ),
+            if (state.request.isDraft)
+              PopupMenuButton<void>(
+                tooltip: '',
+                icon: AppIcon(
+                  AppIcons.moreHorizRounded,
+                  color: colors.textSecondary,
+                ),
+                onSelected: (_) => actions.editLicense(license),
+                itemBuilder: (_) => [
+                  PopupMenuItem<void>(child: Text(t.t('common.edit'))),
+                ],
+              ),
             if (state.request.isDraft)
               AppIconButton(
                 semanticLabel: t.t(

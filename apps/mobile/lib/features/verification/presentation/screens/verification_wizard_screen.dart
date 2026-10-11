@@ -141,6 +141,19 @@ class _VerificationWizardScreenState
     if (mounted) setState(() => _stepError = null);
   }
 
+  /// "⋯ → Edit" on a license card: the same form, filled; saving replaces it.
+  Future<void> _editLicense(WizardState s, VerificationLicense l) async {
+    await AddLicenseSheet.show(
+      context,
+      {
+        for (final other in s.request.licenses)
+          if (other.id != l.id) other.stateCode,
+      },
+      initial: l,
+    );
+    if (mounted) setState(() => _stepError = null);
+  }
+
   void _onCommentChanged(String value) {
     _commentSave?.cancel();
     _commentSave = Timer(const Duration(milliseconds: 800), () {
@@ -335,6 +348,7 @@ class _VerificationWizardScreenState
       cancel: (u) => _c.cancel(u.localId),
       addLicense: () => _addLicense(s),
       removeLicense: _removeLicense,
+      editLicense: (l) => _editLicense(s, l),
       selectIdType: _c.selectIdType,
       goTo: (step) {
         setState(() => _stepError = null);

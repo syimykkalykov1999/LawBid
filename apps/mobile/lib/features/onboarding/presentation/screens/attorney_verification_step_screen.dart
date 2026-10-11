@@ -40,6 +40,8 @@ class AttorneyVerificationStepScreen extends ConsumerStatefulWidget {
 
 class _AttorneyVerificationStepScreenState
     extends ConsumerState<AttorneyVerificationStepScreen> {
+  bool _licenseOpened = false;
+
   void _back() {
     final role = ref.read(currentUserRoleProvider);
     final previous = OnboardingStepId.verification.previousFor(role);
@@ -128,31 +130,34 @@ class _AttorneyVerificationStepScreenState
 
     switch (stage) {
       case AttorneySetupStage.license:
+        // Owner 2026-10-11: no intro screen — the licence form opens right
+        // after the profile; "Back" from it returns to the profile.
+        if (!_licenseOpened) {
+          _licenseOpened = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            await _openLicense(view);
+            if (!mounted) return;
+            VerificationView? latest;
+            try {
+              latest =
+                  viewOf(await ref.read(verificationOverviewProvider.future));
+            } on Object {
+              latest = null;
+            }
+            if (!mounted) return;
+            final stillLicense = latest == null ||
+                attorneySetupStage(verification: latest) ==
+                    AttorneySetupStage.license;
+            if (stillLicense) _back();
+          });
+        }
         return OnboardingScaffold(
           key: const ValueKey('attorney-setup-license'),
           step: OnboardingStepId.verification,
           progress: progress,
           title: t.t('onboarding.attorney.license.title'),
-          subtitle: t.t('onboarding.attorney.license.subtitle'),
           onBack: _back,
-          error: action.error,
-          primaryLabel: switch (view) {
-            VerificationView.draft => t.t('onboarding.attorney.license.resume'),
-            VerificationView.needsMoreInfo ||
-            VerificationView.rejected =>
-              t.t('onboarding.attorney.license.fix'),
-            _ => t.t('onboarding.attorney.license.cta'),
-          },
-          onPrimary: () => _openLicense(view),
-          children: const [
-            Center(
-              child: AppIconMedallion(
-                icon: AppIcons.verifiedUserOutlined,
-                size: AppSizes.rowMedallion * 2,
-                iconSize: AppSizes.iconLg,
-              ),
-            ),
-          ],
+          children: const [AppSkeletonCard()],
         );
       case AttorneySetupStage.licensePending:
         return OnboardingScaffold(
