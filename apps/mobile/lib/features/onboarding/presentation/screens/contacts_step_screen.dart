@@ -104,32 +104,37 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
             highlightMissing: _attempted && emailMissing,
           ),
         ],
-        const SizedBox(height: AppSpacing.lg),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppIcon(
-              AppIcons.lockOutlineRounded,
-              size: AppSizes.iconSm,
-              color:
-                  Theme.of(context).extension<AppColorTokens>()!.textSecondary,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                t.t('onboarding.contacts.privacy'),
-                style: Theme.of(context)
-                    .extension<AppTypographyTokens>()!
-                    .caption
-                    .copyWith(
-                      color: Theme.of(context)
-                          .extension<AppColorTokens>()!
-                          .textSecondary,
-                    ),
+        // "Shared only with the attorney whose offer you accept" is about a
+        // client's contacts; it is not shown to an attorney.
+        if (user.isClient) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppIcon(
+                AppIcons.lockOutlineRounded,
+                size: AppSizes.iconSm,
+                color: Theme.of(context)
+                    .extension<AppColorTokens>()!
+                    .textSecondary,
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  t.t('onboarding.contacts.privacy'),
+                  style: Theme.of(context)
+                      .extension<AppTypographyTokens>()!
+                      .caption
+                      .copyWith(
+                        color: Theme.of(context)
+                            .extension<AppColorTokens>()!
+                            .textSecondary,
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

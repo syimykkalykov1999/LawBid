@@ -257,10 +257,8 @@ void main() {
       (tester) async {
     final router = await pumpFlow(tester);
 
-    // 1. Licence.
-    expect(stage('license'), findsOneWidget);
-    await tester.tap(find.text('Confirm license'));
-    await tester.pumpAndSettle();
+    // 1. Licence — no intro screen: the form is open right away.
+    expect(find.text('Submit licence'), findsOneWidget);
     await tester.tap(find.text('Submit licence'));
     await tester.pumpAndSettle();
 
@@ -408,7 +406,7 @@ void main() {
     testWidgets('no overflow at 360 dp on every stage ($name)', (tester) async {
       final t = LongestTranslator();
       await pumpFlow(tester, translator: t, direction: direction);
-      expect(stage('license'), findsOneWidget);
+      expect(find.text('Submit licence'), findsOneWidget);
       expect(tester.takeException(), isNull);
       server.verification = VerificationStatus.suspended;
       await tearDownTree(tester);

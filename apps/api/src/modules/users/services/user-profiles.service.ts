@@ -128,7 +128,9 @@ export class UserProfilesService {
       });
       return {
         ...none,
-        attorneyHasLicensedStates: licensedStates.length > 0,
+        // Owner 2026-10-11: licensed states are entered only on the License
+        // step; a saved attorney profile no longer needs them.
+        attorneyHasLicensedStates: licensedStates.length > 0 || row !== null,
         view: row
           ? {
               username: row.username,

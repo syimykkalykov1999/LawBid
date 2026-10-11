@@ -7,22 +7,36 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
+import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 
 /// "Добавить штат" (docs/03 §8 step 2, §2.1): state, bar number and the
 /// optional expiry. The server keeps it in the draft right away; the bar
 /// document is uploaded on the license card afterwards.
 class AddLicenseSheet extends ConsumerStatefulWidget {
-  const AddLicenseSheet({required this.takenStates, super.key});
+  const AddLicenseSheet({
+    required this.takenStates,
+    this.initial,
+    super.key,
+  });
 
   /// States already in the request (one license per state).
   final Set<String> takenStates;
 
-  static Future<bool?> show(BuildContext context, Set<String> takenStates) =>
+  /// A license being edited: the form opens filled with it, and saving
+  /// replaces it.
+  final VerificationLicense? initial;
+
+  static Future<bool?> show(
+    BuildContext context,
+    Set<String> takenStates, {
+    VerificationLicense? initial,
+  }) =>
       showAppBottomSheet<bool>(
         context: context,
         isScrollControlled: true,
-        builder: (_) => AddLicenseSheet(takenStates: takenStates),
+        builder: (_) =>
+            AddLicenseSheet(takenStates: takenStates, initial: initial),
       );
 
   @override
@@ -40,6 +54,17 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
   bool _busy = false;
   bool _tried = false;
   String? _serverError;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    if (initial != null) {
+      _state = initial.stateCode;
+      _bar.text = initial.barNumber;
+      _expires = initial.expiresAt;
+    }
+  }
 
   @override
   void dispose() {
@@ -90,11 +115,14 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
     if (bar == null || state == null) return;
     setState(() => _busy = true);
     try {
-      await ref.read(verificationWizardProvider.notifier).addLicense(
-            stateCode: state,
-            barNumber: bar,
-            expiresAt: _expires,
-          );
+      final wizard = ref.read(verificationWizardProvider.notifier);
+      final initial = widget.initial;
+      if (initial != null) await wizard.removeLicense(initial);
+      await wizard.addLicense(
+        stateCode: state,
+        barNumber: bar,
+        expiresAt: _expires,
+      );
       if (mounted) Navigator.of(context).pop(true);
     } on Object catch (e) {
       if (mounted) {

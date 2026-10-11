@@ -119,18 +119,15 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
         LayoutBuilder(
           builder: (context, constraints) {
             const docs = ['terms', 'privacy', 'disclaimer'];
-            final itemWidth = (constraints.maxWidth - AppSpacing.sm) / 2;
             return Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,
               children: [
                 for (var i = 0; i < docs.length; i++)
                   SizedBox(
-                    // An odd last item spans the full row, edge to edge
-                    // with the two columns above it.
-                    width: docs.length.isOdd && i == docs.length - 1
-                        ? constraints.maxWidth
-                        : itemWidth,
+                    // One per row: a long title ("Политика
+                    // конфиденциальности") never breaks mid-word.
+                    width: constraints.maxWidth,
                     child: _DocLink(
                       label: t.t('legal.doc.${docs[i]}'),
                       onTap: () => context.push(AppRoutes.legalDoc(docs[i])),
