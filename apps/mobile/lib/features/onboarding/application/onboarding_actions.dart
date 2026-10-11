@@ -159,7 +159,13 @@ class OnboardingActions extends Notifier<StepActionState> {
   /// Saves the name + structured profile (client_profiles /
   /// attorney_profiles) and moves on — one server transaction.
   Future<bool> saveProfile(ProfileInput profile) => _run(() async {
-        final next = OnboardingStepId.profile.nextFor(_me?.role)!;
+        final next = OnboardingStepId.profile.nextFor(_me?.role);
+        // A client's profile is the last step (no push / tour any more):
+        // save it, then finish onboarding.
+        if (next == null) {
+          await _repo.saveProfileStep(OnboardingStepId.profile, profile);
+          return _repo.completeOnboarding();
+        }
         return _repo.saveProfileStep(next, profile);
       });
 

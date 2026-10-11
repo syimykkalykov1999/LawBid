@@ -81,9 +81,7 @@ class OnboardingScaffold extends ConsumerWidget {
     final extra = role == UserRole.attorney ? 2 : 0;
     final (current, total) = progress ??
         (
-          index < 0
-              ? order.length + extra
-              : (step == OnboardingStepId.tour ? index + 1 + extra : index + 1),
+          index < 0 ? order.length + extra : index + 1,
           order.length + extra,
         );
 

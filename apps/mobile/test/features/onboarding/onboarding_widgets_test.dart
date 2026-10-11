@@ -10,9 +10,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/attorney_verific
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../helpers/email_flows_overrides.dart';
@@ -275,7 +273,7 @@ void main() {
       await tester.tap(find.text('Continue'));
       await _settle(tester);
 
-      expect(repo.calls, ['saveProfileStep:push']);
+      expect(repo.calls, ['saveProfileStep:profile', 'complete']);
       final sent = repo.lastProfile! as ClientProfileInput;
       expect(sent.toJson(), {
         'firstName': 'Ann',
@@ -406,9 +404,7 @@ void main() {
       'consents': () => const ConsentsStepScreen(),
       'contacts': () => const ContactsStepScreen(),
       'profile': () => const ProfileStepScreen(),
-      'push': () => const PushStepScreen(),
       'verification': () => const AttorneyVerificationStepScreen(),
-      'tour': () => const TourStepScreen(),
     };
     for (final entry in screens.entries) {
       testWidgets(entry.key, (tester) async {

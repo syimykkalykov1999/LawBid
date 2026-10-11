@@ -306,10 +306,10 @@ class WelcomeScreen extends ConsumerWidget {
                             LegalText(
                               text: t.t('auth.welcome.legal'),
                               links: {
-                                t.t('auth.welcome.legal.terms'): () => context
-                                    .push(AppRoutes.legalDoc('terms')),
-                                t.t('auth.welcome.legal.privacy'): () => context
-                                    .push(AppRoutes.legalDoc('privacy')),
+                                t.t('auth.welcome.legal.terms'): () =>
+                                    context.push(AppRoutes.legalDoc('terms')),
+                                t.t('auth.welcome.legal.privacy'): () =>
+                                    context.push(AppRoutes.legalDoc('privacy')),
                               },
                               style: typography.legalFine,
                             ),

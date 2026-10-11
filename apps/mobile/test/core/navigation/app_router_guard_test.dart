@@ -326,7 +326,7 @@ void main() {
         'attorney with a verified phone and no email is NOT held on contacts',
         '/feed',
         _signedIn(_readyAttorney(step: OnboardingStepId.push)),
-        '/onboarding/push',
+        '/onboarding/verification',
       ),
     ],
     'row 6: онбординг не завершён → /onboarding/{текущий шаг}': [
@@ -337,16 +337,16 @@ void main() {
         '/onboarding/profile',
       ),
       _Case(
-        'saved push',
+        'saved push (a removed step) → the last step',
         '/welcome',
         _signedIn(_readyClient(step: OnboardingStepId.push)),
-        '/onboarding/push',
+        '/onboarding/profile',
       ),
       _Case(
-        'saved tour',
+        'saved tour (a removed step) → the last step',
         '/splash',
         _signedIn(_readyClient(step: OnboardingStepId.tour)),
-        '/onboarding/tour',
+        '/onboarding/profile',
       ),
       _Case(
         'saved step still "role" (role just set) → first step after role',
@@ -361,10 +361,10 @@ void main() {
         '/onboarding/contacts',
       ),
       _Case(
-        'attorney-only step saved for a client → tour',
+        'attorney-only step saved for a client → the last step',
         '/feed',
         _signedIn(_readyClient(step: OnboardingStepId.verification)),
-        '/onboarding/tour',
+        '/onboarding/profile',
       ),
       _Case(
         'name missing but saved past profile → profile',
@@ -380,9 +380,9 @@ void main() {
       ),
       _Case(
         'forward past the saved step is not',
-        '/onboarding/tour',
-        _signedIn(_readyClient(step: OnboardingStepId.push)),
         '/onboarding/push',
+        _signedIn(_readyClient(step: OnboardingStepId.contacts)),
+        '/onboarding/contacts',
       ),
       _Case(
         'attorney verification step',
@@ -410,16 +410,10 @@ void main() {
         '/onboarding/verification',
       ),
       _Case(
-        '…but not from the push step',
-        '/profile/practices',
-        _signedIn(_readyAttorney(step: OnboardingStepId.push)),
-        '/onboarding/push',
-      ),
-      _Case(
         '…but not from other steps',
         '/verification',
         _signedIn(_readyClient(step: OnboardingStepId.push)),
-        '/onboarding/push',
+        '/onboarding/profile',
       ),
       _Case(
         'legal docs open from onboarding',

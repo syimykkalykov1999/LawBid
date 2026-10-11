@@ -160,7 +160,11 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
               const Center(child: AppSheetHandle()),
               const SizedBox(height: AppSpacing.lg),
               Text(
-                t.t('verification.license.add.title'),
+                t.t(
+                  widget.initial == null
+                      ? 'verification.license.add.title'
+                      : 'common.edit',
+                ),
                 style: typography.titleMedium.copyWith(color: colors.text),
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -229,7 +233,11 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
               ],
               const SizedBox(height: AppSpacing.xl),
               AppButton(
-                label: t.t('verification.license.add.save'),
+                label: t.t(
+                  widget.initial == null
+                      ? 'verification.license.add.save'
+                      : 'common.save',
+                ),
                 isLoading: _busy,
                 onPressed: _save,
               ),

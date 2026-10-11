@@ -67,7 +67,8 @@ void main() {
       AppRouterGuard.requiredStep(
         _user(role: UserRole.client, step: OnboardingStepId.tour),
       ),
-      OnboardingStepId.tour,
+      // A removed step (tour) → the last step of the role.
+      OnboardingStepId.profile,
     );
     expect(
       AppRouterGuard.requiredStep(

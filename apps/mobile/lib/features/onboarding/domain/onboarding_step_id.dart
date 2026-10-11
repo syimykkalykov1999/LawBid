@@ -36,11 +36,10 @@ enum OnboardingStepId {
         OnboardingStepId.role,
         if (role != UserRole.assistant) contacts,
         profile,
-        if (role != UserRole.assistant) ...[
-          push,
-          if (role == UserRole.attorney) verification,
-          tour,
-        ],
+        // Owner 2026-10-11: no "Stay in the loop" and no tour — the system
+        // asks for notifications after sign-in, and the last step here
+        // completes onboarding.
+        if (role == UserRole.attorney) verification,
       ];
 
   /// The step after this one for [role], or `null` when this is the last.

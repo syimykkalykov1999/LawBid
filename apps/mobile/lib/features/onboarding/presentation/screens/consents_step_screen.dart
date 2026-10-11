@@ -116,26 +116,28 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
         ),
         const SizedBox(height: AppSpacing.xl),
         StepSectionLabel(t.t('onboarding.consents.docs')),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const docs = ['terms', 'privacy', 'disclaimer'];
-            return Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (var i = 0; i < docs.length; i++)
-                  SizedBox(
-                    // One per row: a long title ("Политика
-                    // конфиденциальности") never breaks mid-word.
-                    width: constraints.maxWidth,
-                    child: _DocLink(
-                      label: t.t('legal.doc.${docs[i]}'),
-                      onTap: () => context.push(AppRoutes.legalDoc(docs[i])),
-                    ),
+        // Terms and Privacy side by side (same height, wrapping by words),
+        // the disclaimer below them across the full width.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final doc in const ['terms', 'privacy']) ...[
+                if (doc == 'privacy') const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _DocLink(
+                    label: t.t('legal.doc.$doc'),
+                    onTap: () => context.push(AppRoutes.legalDoc(doc)),
                   ),
+                ),
               ],
-            );
-          },
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _DocLink(
+          label: t.t('legal.doc.disclaimer'),
+          onTap: () => context.push(AppRoutes.legalDoc('disclaimer')),
         ),
       ],
     );
@@ -162,7 +164,7 @@ class _DocLink extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minHeight: AppSizes.hitTarget),
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
+              horizontal: AppSpacing.sm,
               vertical: AppSpacing.sm,
             ),
             decoration: BoxDecoration(

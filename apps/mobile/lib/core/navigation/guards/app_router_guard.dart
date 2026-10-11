@@ -7,6 +7,7 @@ import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/profile/domain/verification_gate.dart';
+import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// OQ-048: where an assistant stands — still loading, joined an
@@ -239,6 +240,11 @@ abstract final class AppRouterGuard {
   ) {
     if (location == AppRoutes.verification ||
         location == AppRoutes.verificationWizard) {
+      return required == OnboardingStepId.verification;
+    }
+    // Owner 2026-10-11: "All plans" on the subscription offer opens the
+    // plans screen from the verification step.
+    if (location == SubscriptionRoutes.subscription) {
       return required == OnboardingStepId.verification;
     }
     // Owner 2026-10-04: practice areas and the subscription offer are
