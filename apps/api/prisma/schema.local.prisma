@@ -1,0 +1,4590 @@
+// LawBid — Prisma schema (CockroachDB).
+//
+// Stage 1.3 scope (docs/01_FOUNDATION_AUTH.md §15, "Этап 1.3: Схема БД для
+// auth"): models needed for stages 1.4-1.7 — users, user_identifiers,
+// sessions, auth_events, user_consents, legal_documents, onboarding_state,
+// feature_flags, i18n_* — plus blocked_email_domains, which stage 1.4's
+// POST /users/me/contacts/request needs for the disposable/relay-domain
+// check (docs/01_FOUNDATION_AUTH.md §10.5, §11 Шаг 3A).
+//
+// Column-level source of truth: docs/02_DATABASE.md §4.A (users, auth,
+// consents, files) and §4.B (config, i18n). Everything else in file 02
+// (profiles, cases, bids, feed, chats, subscriptions, moderation — §4.C-4.J)
+// is out of scope for this stage and intentionally not modeled yet. Do not
+// add those tables here; extend the schema in the stage that owns them.
+//
+// Stage 2.6 migration (raw SQL) added: the partial sessions(user_id) WHERE
+// revoked_at IS NULL index, hash-sharded indexes on auth_events(created_at),
+// and the lawbid_app / lawbid_retention DB role grants that make
+// auth_events / user_consents append-only at the DB level (§6.2/6.3).
+// Application code must not rely on those constraints existing yet — the
+// app-level service checks noted in docs/02_DATABASE.md §4.A stand in until
+// stage 2.6 lands.
+//
+// users.avatar_file_id -> files FK and the `files` table itself were
+// added in stage 2.2 (docs/02_DATABASE.md §8).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------
+// Enums (docs/02_DATABASE.md §2) — the full list. Stage 1.3 added the six
+// auth enums below; stage 2.1 ("все enum из раздела 2") adds the rest,
+// after LegalDocType. Enums not yet referenced by a model are still
+// created in the DB so later stages only add tables.
+// -----------------------------------------------------------------------
+
+enum UserRole {
+  client
+  attorney
+  admin
+  // OQ-048: works inside an attorney's account (assistant_memberships).
+  assistant
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  suspended
+  deletion_pending
+  deleted
+
+  @@map("user_status")
+}
+
+enum ThemePref {
+  system
+  light
+  dark
+
+  @@map("theme_pref")
+}
+
+enum IdentifierType {
+  phone
+  email
+  apple
+  google
+
+  @@map("identifier_type")
+}
+
+enum ConsentType {
+  terms
+  privacy
+  disclaimer
+  client_contact_sharing
+  age_18
+  marketing_email
+  marketing_push
+  analytics
+  // Owner 2026-10-05 (legal documents): accepted with the role documents.
+  attorney_agreement
+  client_agreement
+  eula
+
+  @@map("consent_type")
+}
+
+enum LegalDocType {
+  terms
+  privacy
+  disclaimer
+  client_contact_sharing
+  // Owner 2026-10-05 (legal documents): edited in Система → Юридические
+  // документы, shown on lawbid.dev and in the app.
+  attorney_agreement
+  client_agreement
+  eula
+  refund
+  cookies
+  third_party_services
+  partner_terms
+  dmca_policy
+
+  @@map("legal_doc_type")
+}
+
+// Stage 2.1 (docs/02_DATABASE.md §8, "Этап 2.1"): remaining §2 enums.
+
+enum FilePurpose {
+  avatar
+  post_image
+  verification_document
+  verification_selfie
+  // docs/05 §3.6, §14 (stage 5.1): enabled later by the video_posts flag.
+  post_video
+  // docs/06 §5.2 (stage 6.9): "Скачать мои данные" ZIP in the private bucket.
+  data_export
+  // Owner 2026-09-30 (OQ-031): case photos, private bucket.
+  case_photo
+  // Owner 2026-09-30 (OQ-034): case documents (PDF, Word), private bucket.
+  case_attachment
+  // Owner 2026-09-30 (OQ-040): chat voice messages, private bucket.
+  chat_voice
+  // OQ-047: chat photos and documents after acceptance, private bucket.
+  chat_attachment
+  // OQ-048: files an assistant attaches to a task for the attorney.
+  task_attachment
+  // Owner 2026-10-01: photos in reviews (public media, like posts).
+  review_photo
+  // Owner 2026-10-01: a sticker image (public media, ≤512 px).
+  sticker
+  // Owner 2026-10-05: PDF / Word / text documents in posts and reels.
+  post_attachment
+  // Owner 2026-10-05: a document template the admin publishes (PDF/Word).
+  document_template
+
+  @@map("file_purpose")
+}
+
+enum ScanStatus {
+  pending
+  clean
+  infected
+  failed
+
+  @@map("scan_status")
+}
+
+enum ContactMethod {
+  call
+  sms
+  email
+  in_app_chat
+
+  @@map("contact_method")
+}
+
+enum VerificationStatus {
+  unverified
+  pending
+  verified
+  rejected
+  suspended
+
+  @@map("verification_status")
+}
+
+enum LicenseStatus {
+  pending
+  verified
+  rejected
+  expired
+  suspended
+
+  @@map("license_status")
+}
+
+enum VerificationRequestStatus {
+  draft
+  submitted
+  in_review
+  needs_more_info
+  approved
+  rejected
+
+  @@map("verification_request_status")
+}
+
+enum VerificationDocType {
+  bar_license
+  drivers_license
+  passport
+  state_id
+  selfie
+  other
+
+  @@map("verification_doc_type")
+}
+
+enum VerificationProvider {
+  manual
+  stripe_identity
+  persona
+
+  @@map("verification_provider")
+}
+
+enum VerificationCheckType {
+  bar_lookup
+  id_check
+  face_match
+
+  @@map("verification_check_type")
+}
+
+enum CheckResult {
+  pass
+  fail
+  manual_review
+
+  @@map("check_result")
+}
+
+enum CaseStatus {
+  open
+  in_progress
+  pending_completion
+  disputed
+  closed
+  archived
+
+  @@map("case_status")
+}
+
+enum BudgetMode {
+  amount
+  clarify_later
+
+  @@map("budget_mode")
+}
+
+enum BidStatus {
+  active
+  accepted
+  rejected_by_client
+  rejected_auto
+  withdrawn
+  failed_negotiation
+
+  @@map("bid_status")
+}
+
+enum FeeType {
+  fixed
+  hourly
+  free_consultation
+
+  @@map("fee_type")
+}
+
+enum StartAvailability {
+  immediately
+  within_week
+  custom_date
+
+  @@map("start_availability")
+}
+
+enum PartyRole {
+  client
+  attorney
+
+  @@map("party_role")
+}
+
+enum OfferStatus {
+  pending
+  accepted
+  declined
+  countered
+  superseded
+
+  @@map("offer_status")
+}
+
+enum CaseJournalEvent {
+  created
+  updated
+  bid_placed
+  offer_made
+  bid_accepted
+  bid_rejected
+  bid_withdrawn
+  negotiation_failed
+  contacts_disclosed
+  completion_requested
+  completion_confirmed
+  auto_closed
+  disputed
+  dispute_resolved
+  archived
+  restored
+  deleted
+  closed
+
+  @@map("case_journal_event")
+}
+
+enum ContactIssueType {
+  phone_invalid
+  no_answer
+  email_bounce
+  wrong_person
+  other
+
+  @@map("contact_issue_type")
+}
+
+enum ContactIssueStatus {
+  open
+  confirmed
+  rejected
+
+  @@map("contact_issue_status")
+}
+
+enum DisputeStatus {
+  open
+  resolved
+
+  @@map("dispute_status")
+}
+
+enum ReviewStatus {
+  published
+  hidden
+  removed
+
+  @@map("review_status")
+}
+
+enum ContentStatus {
+  published
+  hidden
+  removed
+  /// Owner 2026-10-01: a video post whose video is still encoding.
+  processing
+
+  @@map("content_status")
+}
+
+enum SavedItemType {
+  post
+  case
+
+  @@map("saved_item_type")
+}
+
+enum MediaType {
+  image
+  video
+
+  @@map("media_type")
+}
+
+enum ConversationStatus {
+  pre_acceptance
+  active
+  closed
+
+  @@map("conversation_status")
+}
+
+/// OQ-043: a direct chat started from a profile waits in the recipient's
+/// "Requests" until accepted (case chats: none).
+enum MessageRequestStatus {
+  none
+  pending
+  accepted
+  declined
+
+  @@map("message_request_status")
+}
+
+/// OQ-041: life of an in-app audio call.
+enum CallStatus {
+  ringing
+  active
+  ended
+  missed
+  declined
+  busy
+  canceled
+  failed
+
+  @@map("call_status")
+}
+
+enum MessageType {
+  text
+  system
+  // OQ-040: an audio note (messages.file_id, duration_ms, waveform).
+  voice
+  // OQ-041: a call in the chat log (body = outcome, duration_ms).
+  call
+  // OQ-047: a photo or a document (file_id, file_name, optional caption).
+  attachment
+  // Owner 2026-10-01: a Telegram-style sticker (messages.sticker_id).
+  sticker
+
+  @@map("message_type")
+}
+
+enum NotificationType {
+  bid_received
+  offer_countered
+  offer_accepted
+  bid_accepted
+  bid_rejected
+  negotiation_failed
+  case_stale_prompt
+  case_archived
+  completion_requested
+  completion_reminder
+  case_closed
+  new_message
+  new_follower
+  post_like
+  post_comment
+  comment_reply
+  comment_like
+  verification_update
+  subscription_trial_ending
+  subscription_payment_failed
+  subscription_status
+  contact_issue_update
+  moderation_notice
+  security_new_device
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  review_requested
+  review_received
+  // docs/04_CASES_BIDS.md §3.5, §14 (stage 4.1): a case with bids was edited.
+  case_updated
+  // docs/06 §5.2 (stage 6.9): the data export ZIP is ready (link by email).
+  data_export_ready
+  // docs/04 §12: the case-history PDF is ready (download from the app).
+  case_history_export_ready
+  // Owner 2026-09-30 (OQ-034): someone commented under the client's case.
+  case_comment
+  // OQ-041: a call nobody answered.
+  missed_call
+  // OQ-042: someone @mentioned you in a post or a comment.
+  mention
+  // Owner 2026-09-30 (opt-in): a person I follow published a post / news.
+  followed_post
+  // Owner 2026-09-30 (opt-in, attorneys): a new case in my practices.
+  new_case
+  // OQ-048: an assistant asks to publish / edit; set a task; joined.
+  assistant_request
+  assistant_task
+  assistant_joined
+  assistant_result
+  // Owner 2026-10-05: the planner — a reminder, a task assigned to an
+  // assistant, archived tasks about to be removed.
+  task_reminder
+  task_assigned
+  task_purge_soon
+  admin_broadcast
+  referral_reward
+  promotion_started
+  promotion_ended
+  // Owner 2026-10-05: partner program — a commission accrued / paid out.
+  partner_commission
+  partner_payout
+  // Owner 2026-10-05: a self-enrolment request answered by the admin.
+  partner_approved
+  partner_declined
+  // Owner 2026-10-01: an admin changed the phone on the user's request.
+  security_phone_changed
+  // Owner 2026-10-05: client → attorney payments through the platform.
+  case_payment_received
+  case_payment_sent
+  case_payment_refunded
+  case_payment_disputed
+  payout_account_status
+  // Owner 2026-10-05: payment requests (invoices) from the attorney.
+  payment_request_created
+  payment_request_due
+  payment_request_overdue
+  payment_request_canceled
+  // Owner 2026-10-05: who covers Stripe's fee is agreed like a bid.
+  payment_fee_countered
+  payment_fee_agreed
+
+  // Owner 2026-10-04: the other side disputed completion / support decided.
+  case_disputed
+  dispute_resolved
+  // Owner 2026-10-05: a client offered their case to the attorney / the
+  // attorney declined it.
+  case_invite_received
+  case_invite_declined
+  // Owner 2026-10-05: the case's date (court hearing, filing deadline…)
+  // is near / today / passed with nobody hired; the other side moved it;
+  // an urgent case was posted in the attorney's practice.
+  case_deadline_soon
+  case_deadline_today
+  case_deadline_passed
+  case_deadline_changed
+  new_urgent_case
+  // Owner 2026-10-07: someone reposted your post (Threads-style).
+  post_repost
+
+  @@map("notification_type")
+}
+
+/// Owner 2026-09-30: a regular post or News (attorneys only).
+enum PostKind {
+  post
+  news
+
+  @@map("post_kind")
+}
+
+enum NotificationCategory {
+  messages
+  // Owner 2026-09-30: incoming calls and missed calls.
+  calls
+  // Owner 2026-09-30, opt-in: posts and news of people I follow.
+  following
+  // Owner 2026-09-30, opt-in (attorneys): new cases for me.
+  new_cases
+  bids
+  cases
+  social
+  system
+  marketing
+
+  @@map("notification_category")
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  incomplete
+  expired
+
+  @@map("subscription_status")
+}
+
+enum PaymentStatus {
+  pending
+  succeeded
+  failed
+  refunded
+
+  @@map("payment_status")
+}
+
+enum ReportTargetType {
+  post
+  comment
+  user
+  message
+  case
+  review
+  // Owner 2026-09-30 (OQ-034): comments under cases.
+  case_comment
+  // Owner 2026-10-01: reviews of clients and assistants.
+  client_review
+  // Owner 2026-10-02: user sticker packs can be reported.
+  sticker_pack
+
+  @@map("report_target_type")
+}
+
+enum ReportReason {
+  spam
+  abuse
+  misinformation
+  impersonation
+  inappropriate
+  other
+  // Owner 2026-10-01: Google's review policy categories.
+  off_topic
+  conflict_of_interest
+  profanity
+  harassment
+  hate_speech
+  personal_info
+  // Owner 2026-10-05: a client paid an attorney who vanished / used
+  // someone else's bar number (attorney trust levels).
+  fraud
+  // Owner 2026-10-05 (legal): a DMCA / copyright notice; the report is
+  // created by POST /legal/dmca together with a dmca_notices row.
+  copyright
+
+  @@map("report_reason")
+}
+
+enum ReportStatus {
+  open
+  actioned
+  dismissed
+
+  @@map("report_status")
+}
+
+enum ModerationActionType {
+  hide
+  remove
+  warn
+  suspend
+  restore
+
+  @@map("moderation_action_type")
+}
+
+enum AdminRole {
+  super_admin
+  moderator
+  verifier
+  support
+  finance
+
+  @@map("admin_role")
+}
+
+enum DataRequestType {
+  subpoena
+  court_order
+
+  @@map("data_request_type")
+}
+
+enum DataRequestStatus {
+  received
+  in_progress
+  fulfilled
+  rejected
+
+  @@map("data_request_status")
+}
+
+// -----------------------------------------------------------------------
+// 4.A — Users, auth, consents, files (docs/02_DATABASE.md §4.A)
+// -----------------------------------------------------------------------
+
+model User {
+  id                      String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Nullable: docs/01_FOUNDATION_AUTH.md §11 "Guard-логика навигации" treats "no role yet"
+  // as a real intermediate state ("нет роли → /onboarding/role") -- a user exists
+  // from the moment OTP/social login succeeds (stage 1.4), but role is
+  // chosen afterward during onboarding step 2, not at creation. Added in
+  // stage 1.4 (docs/CHANGELOG.md) -- the stage 1.3 migration is not
+  // modified, only extended, per .cursorrules.
+  role                    UserRole?
+  status                  UserStatus              @default(active)
+  first_name              String?
+  last_name               String?
+  avatar_file_id          String?                 @db.Uuid
+  avatar_file             File?                   @relation("UserAvatar", fields: [avatar_file_id], references: [id], onDelete: Restrict)
+  /// Owner 2026-10-05: a personal storage cap in MB set by an admin
+  /// (null = storage.user_quota_mb, 0 = no cap).
+  storage_quota_mb        Int?
+  // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
+  // number of NULLs in CockroachDB, which is exactly the §8 stage-2.2
+  // acceptance ("несколько NULL допускаются"); a partial index can't be
+  // expressed in Prisma 6 and would be dropped as drift by the next
+  // `migrate dev`, so @unique is used instead.
+  email                   String?                 @unique
+  email_verified_at       DateTime?               @db.Timestamptz
+  phone_e164              String?                 @unique
+  phone_verified_at       DateTime?               @db.Timestamptz
+  ui_language             String                  @default("en")
+  theme                   ThemePref               @default(system)
+  suspended_reason        String?
+  last_active_at          DateTime?               @db.Timestamptz
+  integration_credentials IntegrationCredential[] @relation("IntegrationCredentialCreator")
+  video_assets            VideoAsset[]            @relation("VideoAssetOwner")
+  sticker_packs           StickerPack[]           @relation("StickerPackOwner")
+  installed_sticker_packs UserStickerPack[]
+  client_verification     ClientVerification?
+  client_subscription     ClientSubscription?
+  recent_stickers         UserRecentSticker[]
+  /// Owner 2026-10-01: others see "online / last seen" (reciprocal).
+  show_activity_status    Boolean                 @default(true)
+  /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
+  /// posts hidden from feed, search and recommendations); null = the admin
+  /// default `feed.default_content_mode`.
+  feed_content_mode       String?                 @db.VarChar(16)
+  deletion_requested_at   DateTime?               @db.Timestamptz
+  deleted_at              DateTime?               @db.Timestamptz
+  anonymized_at           DateTime?               @db.Timestamptz
+  // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
+  // trigram GIN-indexed. Read-only — never write it.
+  full_name_lower         String?
+  created_at              DateTime                @default(now()) @db.Timestamptz
+  updated_at              DateTime                @updatedAt @db.Timestamptz
+
+  identifiers          UserIdentifier[]
+  sessions             Session[]
+  auth_events          AuthEvent[]
+  consents             UserConsent[]
+  onboarding_state     OnboardingState?
+  feature_flag_updates FeatureFlag[]
+  files                File[]           @relation("FileOwner")
+
+  client_profile         ClientProfile?
+  attorney_profile       AttorneyProfile?
+  licenses_verified      AttorneyLicense[]     @relation("LicenseVerifier")
+  verifications_reviewed VerificationRequest[] @relation("VerificationReviewer")
+
+  cases_as_client         Case[]               @relation("CaseClient")
+  bids_as_attorney        Bid[]                @relation("BidAttorney")
+  journal_as_client       CaseJournal[]        @relation("JournalClient")
+  journal_as_actor        CaseJournal[]        @relation("JournalActor")
+  journal_as_attorney     CaseJournal[]        @relation("JournalAttorney")
+  disclosures_as_client   ContactDisclosure[]  @relation("DisclosureClient")
+  disclosures_as_attorney ContactDisclosure[]  @relation("DisclosureAttorney")
+  issues_as_attorney      ContactIssueReport[] @relation("IssueAttorney")
+  issues_as_client        ContactIssueReport[] @relation("IssueClient")
+  issues_resolved         ContactIssueReport[] @relation("IssueResolver")
+  disputes_opened         CaseDispute[]        @relation("DisputeOpener")
+  disputes_resolved       CaseDispute[]        @relation("DisputeResolver")
+  reviews_as_client       Review[]             @relation("ReviewClient")
+  reviews_as_attorney     Review[]             @relation("ReviewAttorney")
+
+  posts                       Post[]                         @relation("PostAuthor")
+  comments                    Comment[]                      @relation("CommentAuthor")
+  post_likes                  PostLike[]                     @relation("PostLiker")
+  post_reposts                PostRepost[]                   @relation("PostReposter")
+  comment_likes               CommentLike[]                  @relation("CommentLiker")
+  following                   Follow[]                       @relation("Follower")
+  followers                   Follow[]                       @relation("Followee")
+  // Owner 2026-09-29 (OQ-028): user-level blocks, both roles.
+  blocks_made                 UserBlock[]                    @relation("Blocker")
+  blocked_by                  UserBlock[]                    @relation("Blocked")
+  saved_items                 SavedItem[]
+  conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
+  conversations_client        Conversation[]                 @relation("ConversationClient")
+  conversation_memberships    ConversationParticipant[]
+  messages_sent               Message[]                      @relation("MessageSender")
+  calls_made                  Call[]                         @relation("CallCaller")
+  chat_requests_sent          Conversation[]                 @relation("ConversationRequester")
+  calls_received              Call[]                         @relation("CallCallee")
+  notifications               Notification[]
+  notification_settings       NotificationSetting[]
+  quiet_hours                 NotificationQuietHours?
+  push_tokens                 PushToken[]
+  stripe_customer             StripeCustomer?
+  subscription                Subscription?
+  payments                    Payment[]
+  reports_filed               Report[]                       @relation("Reporter")
+  reports_handled             Report[]                       @relation("ReportHandler")
+  moderation_actions          ModerationAction[]             @relation("ModerationAdmin")
+  admin_profile               AdminProfile?
+  admin_credential            AdminCredential?
+  data_export_jobs            DataExportJob[]
+  audit_entries               AuditLog[]                     @relation("AuditAdmin")
+  data_requests_handled       DataAccessRequest[]            @relation("DataRequestHandler")
+  data_access_entries         DataAccessLog[]                @relation("DataAccessAdmin")
+  case_comments               CaseComment[]                  @relation("CaseCommentAuthor")
+  case_comment_likes          CaseCommentLike[]              @relation("CaseCommentLiker")
+  post_shares                 PostShare[]                    @relation("PostSharer")
+  case_shares                 CaseShare[]                    @relation("CaseSharer")
+  client_reviews_given        ClientReview[]                 @relation("ClientReviewAttorney")
+  client_reviews_received     ClientReview[]                 @relation("ClientReviewClient")
+  assistant_team              AssistantMembership[]          @relation("AssistantAttorney")
+  assistant_memberships       AssistantMembership[]          @relation("AssistantUser")
+  attorney_tasks              AttorneyTask[]                 @relation("AttorneyTasks")
+  task_people                 AttorneyTaskPerson[]           @relation("TaskPeople")
+  bid_drafts                  BidDraft[]                     @relation("BidDrafts")
+  case_invites_sent           CaseInvite[]                   @relation("CaseInvitesSent")
+  case_invites_received       CaseInvite[]                   @relation("CaseInvitesReceived")
+  liability_acceptances       AssistantLiabilityAcceptance[] @relation("AssistantLiability")
+  client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
+  review_helpful_votes        ReviewHelpfulVote[]            @relation("ReviewHelpfulVoter")
+  client_review_helpful_votes ClientReviewHelpfulVote[]      @relation("ClientReviewHelpfulVoter")
+  /// Owner 2026-10-05: the country the person works in (from the phone
+  /// number at sign-up, then from the state/province they pick). Admin
+  /// staff assigned to a country see only its people.
+  // Owner 2026-10-05: a row that stands for a person outside the app (an
+  // external partner — a blogger whose referral code the admin hands out
+  // before they register). No identifiers, cannot sign in, hidden from
+  // the people lists. Values: external_partner.
+  placeholder_kind            String?                        @db.VarChar(24)
+  country_code                String                         @default("US") @db.Char(2)
+  country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
+  /// Owner 2026-10-05 (legal): DMCA removals counted against the author;
+  /// at legal.settings.dmcaStrikesToSuspend the account is suspended
+  /// (repeat-infringer policy, 17 U.S.C. §512(i)). A restore takes one back.
+  copyright_strikes           Int                            @default(0)
+  dmca_notices_submitted      DmcaNotice[]                   @relation("DmcaSubmitter")
+
+  // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
+  // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
+  // indexes in its diff.
+  // docs/06 stage 6.12 (load review): ops counters and the anonymization
+  // scan must not walk the whole table.
+  @@index([created_at])
+  @@index([status, deletion_requested_at])
+  // Owner 2026-10-05: the storage cleanup asks "is this file an avatar?".
+  @@index([avatar_file_id])
+  @@index([country_code])
+  @@map("users")
+}
+
+// docs/02_DATABASE.md §4.A (stage 2.2). Binary content lives only in S3
+// (§1.6); this row is the reference. Soft delete via deleted_at.
+model File {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id  String      @db.Uuid
+  owner          User        @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
+  purpose        FilePurpose
+  s3_bucket      String
+  /// Owner 2026-10-05 (storage like Telegram): one object can back many
+  /// rows — identical uploads share it (no longer unique). The object is
+  /// removed only when no live row points at it (FileReleaseService).
+  s3_key         String
+  mime           String
+  size_bytes     BigInt
+  sha256         String
+  /// SHA-256 of the bytes as uploaded (sha256 above describes the stored,
+  /// processed object). The deduplication key together with the bucket.
+  source_sha256  String?
+  width          Int?
+  height         Int?
+  scan_status    ScanStatus  @default(pending)
+  is_public      Boolean     @default(false)
+  deleted_at     DateTime?   @db.Timestamptz
+  /// Why the row was deleted: orphan (never attached / detached), released
+  /// (its owner entity went away), infected, failed.
+  deleted_reason String?     @db.VarChar(16)
+  /// The S3 object (and its variants) is gone; the row stays only while
+  /// something still references it.
+  purged_at      DateTime?   @db.Timestamptz
+  created_at     DateTime    @default(now()) @db.Timestamptz
+  updated_at     DateTime    @updatedAt @db.Timestamptz
+
+  avatar_of User[] @relation("UserAvatar")
+
+  verification_documents VerificationDocument[]
+  data_export_jobs       DataExportJob[]
+
+  post_media        PostMedia[]
+  post_attachments  PostAttachment[]
+  case_photos       CasePhoto[]
+  voice_messages    Message[]         @relation("MessageVoice")
+  sticker           Sticker?
+  document_template DocumentTemplate?
+
+  @@index([owner_user_id])
+  @@index([s3_bucket, s3_key])
+  @@index([s3_bucket, source_sha256])
+  @@index([deleted_at, created_at])
+  @@map("files")
+}
+
+model UserIdentifier {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String         @db.Uuid
+  user         User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  provider     IdentifierType
+  provider_uid String
+  verified_at  DateTime?      @db.Timestamptz
+  created_at   DateTime       @default(now()) @db.Timestamptz
+  updated_at   DateTime       @updatedAt @db.Timestamptz
+
+  @@unique([provider, provider_uid])
+  @@index([user_id])
+  @@map("user_identifiers")
+}
+
+model Session {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id String @db.Uuid
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Restrict)
+
+  // Stable across refresh rotation (docs/01_FOUNDATION_AUTH.md §10.4): one
+  // chain = one device/login. Each `Session` row is one refresh-token
+  // generation within that chain; `id` therefore changes every rotation,
+  // but `session_chain_id` does not. The JWT `sid` claim, `GET
+  // /auth/sessions`, and `DELETE /auth/sessions/:id` all key off the chain
+  // id, not the row id, so the "active devices" list stays stable and
+  // "revoke the whole chain on refresh-token reuse" is a single indexed
+  // UPDATE (`WHERE session_chain_id = ? AND revoked_at IS NULL`) instead of
+  // walking `replaced_by_session_id` back through the rotation history.
+  // Added in stage 1.4 (docs/CHANGELOG.md), additive to the stage 1.3
+  // migration — that migration is not modified, only extended.
+  session_chain_id String @db.Uuid
+
+  device_id              String?
+  device_name            String?
+  platform               String?
+  app_version            String?
+  ip                     String?
+  user_agent             String?
+  refresh_hash           String    @unique
+  last_used_at           DateTime? @db.Timestamptz
+  expires_at             DateTime  @db.Timestamptz
+  revoked_at             DateTime? @db.Timestamptz
+  revoked_reason         String?
+  // Audit trail of rotation order within a chain — NOT used for revocation
+  // logic anymore (see session_chain_id above), kept as a bare pointer
+  // (not an enforced FK) purely for forensic "what replaced what" queries.
+  replaced_by_session_id String?   @db.Uuid
+  created_at             DateTime  @default(now()) @db.Timestamptz
+  updated_at             DateTime  @updatedAt @db.Timestamptz
+
+  // Partial index sessions(user_id) WHERE revoked_at IS NULL is raw SQL,
+  // stage 2.6 (docs/02_DATABASE.md §5.2). This plain index covers lookups
+  // until then.
+  push_tokens PushToken[]
+
+  // (user_id) WHERE revoked_at IS NULL: partial index, raw SQL (2.6).
+  @@index([session_chain_id])
+  // SessionService.isNewDevice (docs/01 §10.6 new-device signal): point
+  // lookup by (user_id, device_id) over ALL of a user's sessions, revoked
+  // ones included — the partial active-sessions index can't serve it.
+  @@index([user_id, device_id])
+  @@map("sessions")
+}
+
+model AuthEvent {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String?  @db.Uuid
+  user            User?    @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  event_type      String
+  success         Boolean
+  identifier_hash String?
+  ip              String?
+  device_id       String?
+  user_agent      String?
+  meta            Json?
+  created_at      DateTime @default(now()) @db.Timestamptz
+  // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
+  // computed column, indexed as (created_shard, created_at). Replaces a
+  // USING HASH index, which crashes Prisma's introspection. Read-only.
+  created_shard   Int      @default(0) @db.SmallInt
+
+  // Append-only (docs/02_DATABASE.md §6.2) — no updated_at, and the
+  // lawbid_app DB role gets INSERT/SELECT only (raw SQL grant, stage 2.6).
+  // Hash-sharded (created_at) index is also raw SQL, stage 2.6 (§5.2).
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([created_shard, created_at], map: "auth_events_created_at_idx")
+  @@map("auth_events")
+}
+
+model LegalDocument {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doc_type     LegalDocType
+  version      String
+  locale       String
+  content_url  String?
+  content_md   String?
+  published_at DateTime?    @db.Timestamptz
+  is_current   Boolean
+  created_at   DateTime     @default(now()) @db.Timestamptz
+  updated_at   DateTime     @updatedAt @db.Timestamptz
+
+  // Owner 2026-10-05 (legal documents): `draft` (version = 'draft', one per
+  // type + locale, edited freely), `published` (the current version) or
+  // `archived` (a former version; never deleted — it is what users accepted).
+  status                String    @default("draft") @db.VarChar(16)
+  // The users accepted an older version → ask them again when this one is
+  // published (material change). Stored on the version that was published.
+  requires_reacceptance Boolean   @default(true)
+  // Admin ids (users.id of the admin) and the note shown in the history.
+  created_by            String?   @db.Uuid
+  changed_by            String?   @db.Uuid
+  change_note           String?   @db.VarChar(1000)
+  // Rollback = the old text published as a new version; points at the
+  // version it was copied from.
+  rollback_of_id        String?   @db.Uuid
+
+  consents UserConsent[]
+
+  @@unique([doc_type, version, locale])
+  @@index([doc_type, locale, status])
+  @@map("legal_documents")
+}
+
+model UserConsent {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String         @db.Uuid
+  user         User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  consent_type ConsentType
+  document_id  String?        @db.Uuid
+  document     LegalDocument? @relation(fields: [document_id], references: [id], onDelete: Restrict)
+  granted      Boolean
+  ip           String?
+  device_id    String?
+  created_at   DateTime       @default(now()) @db.Timestamptz
+
+  // Append-only (docs/02_DATABASE.md §6.2) — no updated_at. Current
+  // consent state = latest row per (user_id, consent_type).
+  @@index([user_id, consent_type, created_at(sort: Desc)])
+  @@map("user_consents")
+}
+
+model OnboardingState {
+  user_id      String    @id @db.Uuid
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  current_step String?
+  completed_at DateTime? @db.Timestamptz
+  data         Json?
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  updated_at   DateTime  @updatedAt @db.Timestamptz
+
+  @@map("onboarding_state")
+}
+
+model BlockedEmailDomain {
+  domain String @id
+  reason String
+
+  // Reference/seed table (docs/02_DATABASE.md §3.3) — no timestamps, same
+  // minimal shape as states/practice_areas (§3.1/3.2).
+  @@map("blocked_email_domains")
+}
+
+// -----------------------------------------------------------------------
+// 4.B — Config and translations (docs/02_DATABASE.md §4.B)
+// feature_flags + i18n_* were modeled in stage 1.3; app_config is added
+// here in stage 1.8 (docs/01_FOUNDATION_AUTH.md §15, "Этап 1.8: Feature
+// flags и обязательное обновление") — see migration
+// 20260923010000_stage_1_8_app_config.
+// -----------------------------------------------------------------------
+
+model FeatureFlag {
+  key             String   @id
+  enabled         Boolean
+  rollout_percent Int      @default(100)
+  description     String?
+  updated_by      String?  @db.Uuid
+  updated_by_user User?    @relation(fields: [updated_by], references: [id], onDelete: Restrict)
+  updated_at      DateTime @updatedAt @db.Timestamptz
+
+  // No created_at — docs/02_DATABASE.md §4.B lists only key/enabled/
+  // rollout_percent/description/updated_by/updated_at for this table.
+  @@map("feature_flags")
+}
+
+// docs/02_DATABASE.md §4.B: "app_config: key text PK, value jsonb,
+// updated_at. Ключи: min_app_version_ios, min_app_version_android,
+// soft_update_version_ios, soft_update_version_android." A generic
+// key->jsonb store (like feature_flags) rather than four dedicated
+// columns, matching the doc's own shape and letting a later stage add
+// more app_config keys without a migration.
+model AppConfig {
+  key        String   @id
+  value      Json
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  // No created_at, no updated_by — docs/02_DATABASE.md §4.B lists only
+  // key/value/updated_at for this table (unlike feature_flags, it has no
+  // updated_by FK either).
+  @@map("app_config")
+}
+
+model I18nLanguage {
+  code        String  @id
+  name_native String
+  is_active   Boolean
+  is_rtl      Boolean @default(false)
+  sort        Int
+
+  translations   I18nTranslation[]
+  bundle_version I18nBundleVersion?
+
+  // Reference/seed table (docs/02_DATABASE.md §3.3) — no timestamps, same
+  // minimal shape as states/practice_areas (§3.1/3.2).
+  @@map("i18n_languages")
+}
+
+model I18nKey {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String   @unique
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @updatedAt @db.Timestamptz
+
+  translations I18nTranslation[]
+
+  @@map("i18n_keys")
+}
+
+model I18nTranslation {
+  key_id     String       @db.Uuid
+  i18n_key   I18nKey      @relation(fields: [key_id], references: [id], onDelete: Restrict)
+  lang       String
+  language   I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
+  value      String
+  version    Int
+  updated_at DateTime     @updatedAt @db.Timestamptz
+
+  // No created_at — docs/02_DATABASE.md §4.B lists only key_id/lang/value/
+  // version/updated_at for this table.
+  @@id([key_id, lang])
+  @@map("i18n_translations")
+}
+
+model I18nBundleVersion {
+  lang       String       @id
+  language   I18nLanguage @relation(fields: [lang], references: [code], onDelete: Restrict)
+  version    Int
+  updated_at DateTime     @updatedAt @db.Timestamptz
+
+  // No created_at — docs/02_DATABASE.md §4.B lists only lang/version/
+  // updated_at for this table.
+  @@map("i18n_bundle_versions")
+}
+
+// -----------------------------------------------------------------------
+// Reference data (docs/02_DATABASE.md §3.1/§3.2) — stage 2.1.
+// -----------------------------------------------------------------------
+
+/// Owner 2026-10-05: countries LawBid can work in (ISO 3166-1 alpha-2),
+/// switched on one by one in the admin (Система → Страны) like the app
+/// languages. A switched-off country takes no new sign-ups, profiles or
+/// cases; people already there keep their accounts.
+model Country {
+  code             String    @id @db.Char(2)
+  name             String
+  is_enabled       Boolean   @default(false)
+  /// E.164 country calling code without "+", e.g. "1", "52".
+  calling_code     String
+  /// ISO 4217, upper case (USD, CAD, MXN).
+  currency         String    @db.Char(3)
+  /// Default app language for new people there (i18n code).
+  language         String    @default("en")
+  /// What a first-level region is called: state | province | region.
+  region_kind      String    @default("region")
+  timezone         String?
+  /// Stripe Connect pays attorneys out in this country.
+  stripe_supported Boolean   @default(false)
+  sort             Int
+  enabled_at       DateTime? @db.Timestamptz
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  states   State[]
+  users    User[]
+  waitlist CountryWaitlist[]
+
+  @@index([is_enabled, sort])
+  @@map("countries")
+}
+
+/// Owner 2026-10-05: people who tried LawBid in a country that is not
+/// switched on yet; they get an e-mail automatically when it is.
+model CountryWaitlist {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  country_code String    @db.Char(2)
+  country      Country   @relation(fields: [country_code], references: [code], onDelete: Cascade)
+  email        String
+  locale       String    @default("en")
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  notified_at  DateTime? @db.Timestamptz
+
+  @@unique([country_code, email])
+  @@index([country_code, notified_at])
+  @@map("country_waitlist")
+}
+
+// docs/02_DATABASE.md §3.1: states(code PK char(2), name, is_active
+// default true). 50 states + DC; UI names come from i18n `state.<code>`.
+model State {
+  code         String  @id @db.Char(2)
+  name         String
+  is_active    Boolean @default(true)
+  /// Owner 2026-10-05: states, provinces and other first-level regions of
+  /// every country live here; a region is usable only while its country
+  /// is switched on. iso_code is the ISO 3166-2 code (US-NY, CA-ON, MX-JAL).
+  country_code String  @default("US") @db.Char(2)
+  country      Country @relation(fields: [country_code], references: [code], onDelete: Restrict)
+  iso_code     String?
+
+  // Reference/seed table — no timestamps, per §3.1's column list.
+  client_profiles        ClientProfile[]
+  attorney_licenses      AttorneyLicense[]
+  verification_documents VerificationDocument[]
+
+  primary_for_cases CaseState[]
+  cases_primary     Case[]            @relation("CasePrimaryState")
+  bar_registry      StateBarRegistry?
+
+  @@index([country_code])
+  @@map("states")
+}
+
+// docs/02_DATABASE.md §3.2: two-level tree category -> specialization.
+// parent_id is null for a category. code is UQ and follows the §3.2
+// generation rule (see prisma/seed/practice-areas.util.ts). Cases and
+// attorney selections always reference leaves (enforced in services).
+model PracticeArea {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parent_id String? @db.Uuid
+  code      String  @unique
+  name_en   String
+  i18n_key  String
+  sort      Int
+  is_active Boolean @default(true)
+
+  parent   PracticeArea?  @relation("PracticeAreaTree", fields: [parent_id], references: [id], onDelete: Restrict)
+  children PracticeArea[] @relation("PracticeAreaTree")
+
+  // Reference/seed table — no timestamps, per §3.2's column list.
+  attorney_practice_areas  AttorneyPracticeArea[]
+  new_case_alert_practices NewCaseAlertPractice[]
+
+  cases              Case[]
+  posts              Post[]
+  document_templates DocumentTemplate[]
+
+  @@index([parent_id])
+  @@map("practice_areas")
+}
+
+// -----------------------------------------------------------------------
+// 4.C — Profiles and verification (docs/02_DATABASE.md §4.C) — stage 2.3.
+// -----------------------------------------------------------------------
+
+model ClientProfile {
+  user_id                  String         @id @db.Uuid
+  user                     User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  state_code               String         @db.Char(2)
+  state                    State          @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  preferred_languages      String[]
+  preferred_contact_method ContactMethod?
+  // ≤200 chars (§4.C), CHECK in the migration.
+  preferred_contact_note   String?
+  // Owner decision 2026-09-29 (OQ-026): clients have @usernames too (same
+  // rules as attorneys, one namespace with attorney_profiles — enforced in
+  // UsernameRegistry). Nullable: legacy rows get one lazily on first read.
+  username                 String?
+  username_lower           String?        @unique
+  username_changed_at      DateTime?      @db.Timestamptz
+  // Owner 2026-09-30 (OQ-038): Instagram-like client profile counters and
+  // the attorneys' rating of the client (visible to attorneys and self).
+  posts_count              Int            @default(0)
+  followers_count          Int            @default(0)
+  following_count          Int            @default(0)
+  rating_avg               Decimal        @default(0) @db.Decimal(3, 2)
+  rating_count             Int            @default(0)
+  created_at               DateTime       @default(now()) @db.Timestamptz
+  updated_at               DateTime       @updatedAt @db.Timestamptz
+
+  // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
+  // migration; declared so Prisma's diff matches the DB.
+  @@index([preferred_languages], map: "client_profiles_languages_idx", type: Gin)
+  @@map("client_profiles")
+}
+
+model AttorneyProfile {
+  user_id             String             @id @db.Uuid
+  user                User               @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  username            String
+  username_lower      String             @unique
+  // ≤300 chars (§4.C / §6.1), CHECK in the migration.
+  bio                 String?
+  firm_name           String?
+  // Owner 2026-09-30 (OQ-030): several firms; firm_name mirrors the first.
+  firm_names          String[]           @default([])
+  languages           String[]
+  verification_status VerificationStatus @default(unverified)
+  verified_at         DateTime?          @db.Timestamptz
+  // Owner 2026-09-30 (OQ-029): the name the attorney was verified under;
+  // a big later change hides the blue check automatically (no admin).
+  verified_first_name String?
+  verified_last_name  String?
+  name_mismatch       Boolean            @default(false)
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  username_changed_at DateTime?          @db.Timestamptz
+  rating_avg          Decimal            @default(0) @db.Decimal(3, 2)
+  rating_count        Int                @default(0)
+  posts_count         Int                @default(0)
+  followers_count     Int                @default(0)
+  following_count     Int                @default(0)
+  created_at          DateTime           @default(now()) @db.Timestamptz
+  updated_at          DateTime           @updatedAt @db.Timestamptz
+
+  licenses                    AttorneyLicense[]
+  practice_areas              AttorneyPracticeArea[]
+  /// Owner 2026-10-01: true = new-case alerts follow new_case_alert_practices.
+  new_case_alerts_custom      Boolean                @default(false)
+  /// Owner 2026-10-05: new-case alerts only for urgent cases.
+  new_case_alerts_urgent_only Boolean                @default(false)
+  new_case_alert_practices    NewCaseAlertPractice[]
+  verification_requests       VerificationRequest[]
+  // Owner 2026-10-05: a personal assistant limit set by an admin on
+  // the attorney's request; null = the global billing.max_assistant_seats.
+  assistant_seat_limit        Int?                   @db.SmallInt
+  // Owner 2026-10-05 (attorney trust levels): 0 self-attested, 1 license
+  // confirmed (registry / staff), 2 identity confirmed (Stripe KYC with a
+  // matching name, or staff-checked documents), 3 both. Recomputed by
+  // AttorneyTrustService from events; `trust_badge` is the blue check
+  // (level >= trust.min_level_badge, verified, no name mismatch).
+  trust_level                 Int                    @default(0) @db.SmallInt
+  trust_badge                 Boolean                @default(false)
+  trust                       AttorneyTrust?
+  trust_events                AttorneyTrustEvent[]
+
+  // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
+  // migration; declared so Prisma's diff matches the DB.
+  @@index([languages], map: "attorney_profiles_languages_idx", type: Gin)
+  @@map("attorney_profiles")
+}
+
+model AttorneyLicense {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id         String          @db.Uuid
+  attorney            AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
+  state_code          String          @db.Char(2)
+  state               State           @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  bar_number          String
+  license_status      LicenseStatus   @default(pending)
+  expires_at          DateTime?       @db.Date
+  verified_at         DateTime?       @db.Timestamptz
+  verified_by         String?         @db.Uuid
+  verifier            User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)
+  auto_check_result   Json?
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  rejection_code      String?
+  rejection_note      String?
+  /// Owner 2026-10-05: the state registry disagreed with a self-attested
+  /// license (name_mismatch / not_found / not_active). The license stays
+  /// verified; the flag puts it on the admin's "registry" list.
+  registry_flag       String?
+  registry_flagged_at DateTime?       @db.Timestamptz
+  created_at          DateTime        @default(now()) @db.Timestamptz
+  updated_at          DateTime        @updatedAt @db.Timestamptz
+
+  // One license can't be attached to two accounts (§4.C, §5.1).
+  @@unique([state_code, bar_number])
+  @@index([attorney_id])
+  @@index([registry_flag])
+  @@index([state_code, license_status])
+  // Nightly license-expiry job (docs/03 §9, stage 4.1 migration).
+  @@index([license_status, expires_at])
+  @@map("attorney_licenses")
+}
+
+model AttorneyPracticeArea {
+  attorney_id      String          @db.Uuid
+  attorney         AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
+  practice_area_id String          @db.Uuid
+  practice_area    PracticeArea    @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  created_at       DateTime        @default(now()) @db.Timestamptz
+
+  @@id([attorney_id, practice_area_id])
+  @@index([practice_area_id, attorney_id])
+  @@map("attorney_practice_areas")
+}
+
+/// Owner 2026-10-01: the qualifications that send "new case" alerts when
+/// the attorney chose their own list (attorney_profiles.new_case_alerts_custom).
+/// A category covers its subcategories.
+model NewCaseAlertPractice {
+  attorney_id      String          @db.Uuid
+  attorney         AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade, map: "new_case_alert_practices_attorney_fkey", onUpdate: NoAction)
+  practice_area_id String          @db.Uuid
+  practice_area    PracticeArea    @relation(fields: [practice_area_id], references: [id], onDelete: Cascade, map: "new_case_alert_practices_area_fkey", onUpdate: NoAction)
+  created_at       DateTime        @default(now()) @db.Timestamptz
+
+  @@id([attorney_id, practice_area_id])
+  @@index([practice_area_id, attorney_id], map: "new_case_alert_practices_area_idx")
+  @@map("new_case_alert_practices")
+}
+
+model VerificationRequest {
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id          String                    @db.Uuid
+  attorney             AttorneyProfile           @relation(fields: [attorney_id], references: [user_id], onDelete: Restrict)
+  status               VerificationRequestStatus
+  provider             VerificationProvider      @default(manual)
+  provider_ref         String?
+  submitted_at         DateTime?                 @db.Timestamptz
+  reviewed_by          String?                   @db.Uuid
+  reviewer             User?                     @relation("VerificationReviewer", fields: [reviewed_by], references: [id], onDelete: Restrict)
+  reviewed_at          DateTime?                 @db.Timestamptz
+  rejection_reason     String?
+  admin_note           String?
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  info_request_message String?
+  // ≤500 chars, CHECK in the migration
+  applicant_comment    String?
+  rejection_code       String?
+  // Owner 2026-10-04: sworn self-attestation of the license.
+  attested_at          DateTime?                 @db.Timestamptz
+  attestation_ip       String?
+  attestation_version  String?
+  created_at           DateTime                  @default(now()) @db.Timestamptz
+  updated_at           DateTime                  @updatedAt @db.Timestamptz
+
+  documents VerificationDocument[]
+  checks    VerificationCheck[]
+
+  @@index([attorney_id])
+  @@index([status, submitted_at])
+  @@map("verification_requests")
+}
+
+model VerificationDocument {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id String              @db.Uuid
+  request    VerificationRequest @relation(fields: [request_id], references: [id], onDelete: Restrict)
+  doc_type   VerificationDocType
+  file_id    String              @db.Uuid
+  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  state_code String?             @db.Char(2)
+  state      State?              @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  notes      String?
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  // front | back, for identity documents
+  side       String?
+  created_at DateTime            @default(now()) @db.Timestamptz
+  updated_at DateTime            @updatedAt @db.Timestamptz
+
+  @@index([request_id])
+  @@map("verification_documents")
+}
+
+model VerificationCheck {
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id String                @db.Uuid
+  request    VerificationRequest   @relation(fields: [request_id], references: [id], onDelete: Restrict)
+  check_type VerificationCheckType
+  provider   VerificationProvider
+  result     CheckResult
+  details    Json
+  checked_at DateTime              @db.Timestamptz
+  created_at DateTime              @default(now()) @db.Timestamptz
+
+  @@index([request_id])
+  @@map("verification_checks")
+}
+
+// -----------------------------------------------------------------------
+// 4.D — Cases, bids, negotiation, journal (docs/02_DATABASE.md §4.D) and
+// 4.E — Reviews — stage 2.4. CHECKs from §6.1 are raw SQL in the
+// migration. Legally significant tables use ON DELETE RESTRICT (§1.4).
+// -----------------------------------------------------------------------
+
+model Case {
+  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  client_id             String                   @db.Uuid
+  client                User                     @relation("CaseClient", fields: [client_id], references: [id], onDelete: Restrict)
+  // ≤120 / ≤5000 chars (§6.1), CHECK in the migration.
+  title                 String
+  description           String
+  // Leaf specialization only (enforced in the case service, file 04).
+  practice_area_id      String                   @db.Uuid
+  practice_area         PracticeArea             @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  // Denormalized primary state for indexes; must match the is_primary
+  // case_states row (service invariant, §4.D).
+  primary_state_code    String                   @db.Char(2)
+  primary_state         State                    @relation("CasePrimaryState", fields: [primary_state_code], references: [code], onDelete: Restrict)
+  city                  String?
+  budget_mode           BudgetMode
+  budget_cents          Int?
+  // Owner 2026-10-04: the client's card cover (`art:0..3` / `icon:<name>`,
+  // never a personal photo; null = picked from the id) and urgency
+  // (flexible | within_month | soon | urgent | very_urgent | by_date —
+  // owner 2026-10-05). `by_date` keeps the date in deadline_at (a
+  // calendar date: court hearing, filing deadline…) and what it is in
+  // deadline_kind. CHECKs in the migrations.
+  cover_key             String?
+  urgency               String?
+  deadline_at           DateTime?                @db.Date
+  deadline_kind         String?
+  status                CaseStatus               @default(open)
+  accepted_bid_id       String?                  @unique @db.Uuid
+  accepted_bid          Bid?                     @relation("CaseAcceptedBid", fields: [accepted_bid_id], references: [id], onDelete: Restrict)
+  view_count            Int                      @default(0)
+  bids_count            Int                      @default(0)
+  // Owner 2026-09-30 (OQ-034): published comments under the case.
+  comment_count         Int                      @default(0)
+  // OQ-037: times shared.
+  share_count           Int                      @default(0)
+  shares                CaseShare[]
+  comments              CaseComment[]
+  last_activity_at      DateTime                 @default(now()) @db.Timestamptz
+  stale_prompt_sent_at  DateTime?                @db.Timestamptz
+  archived_at           DateTime?                @db.Timestamptz
+  client_completed_at   DateTime?                @db.Timestamptz
+  attorney_confirmed_at DateTime?                @db.Timestamptz
+  auto_close_at         DateTime?                @db.Timestamptz
+  closed_at             DateTime?                @db.Timestamptz
+  deleted_at            DateTime?                @db.Timestamptz
+  // STORED computed column (§5.3): to_tsvector('english', title || ' ' ||
+  // description). Read-only.
+  search_tsv            Unsupported("tsvector")?
+  created_at            DateTime                 @default(now()) @db.Timestamptz
+  updated_at            DateTime                 @updatedAt @db.Timestamptz
+
+  states              CaseState[]
+  // Owner 2026-09-30 (OQ-031): 0–9 photos; owner + accepted attorney only.
+  photos              CasePhoto[]
+  attorney_tasks      AttorneyTask[]
+  bid_drafts          BidDraft[]
+  invites             CaseInvite[]
+  bids                Bid[]                @relation("CaseBids")
+  journal             CaseJournal[]
+  contact_disclosures ContactDisclosure[]
+  contact_issues      ContactIssueReport[]
+  disputes            CaseDispute[]
+  review              Review?
+
+  conversations  Conversation[]
+  client_reviews ClientReview[]
+
+  // Partial indexes (§5.2) and the search_tsv GIN index are raw SQL in the
+  // stage 2.6 migration.
+  // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
+  // migration; declared so Prisma's diff matches the DB.
+  @@index([search_tsv], map: "cases_search_tsv_idx", type: Gin)
+  // Review-reminder job: status = 'closed' AND closed_at range (docs/03
+  // §7, stage 4.1 migration, file-03 DB review).
+  @@index([status, closed_at])
+  // Owner 2026-10-05: the daily deadline-reminder job.
+  @@index([deadline_at])
+  @@map("cases")
+}
+
+model CaseState {
+  case_id    String  @db.Uuid
+  case       Case    @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  state_code String  @db.Char(2)
+  state      State   @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  is_primary Boolean @default(false)
+
+  @@id([case_id, state_code])
+  @@index([state_code, case_id])
+  @@map("case_states")
+}
+
+model Bid {
+  id                      String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                 String            @db.Uuid
+  case                    Case              @relation("CaseBids", fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id             String            @db.Uuid
+  attorney                User              @relation("BidAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  status                  BidStatus         @default(active)
+  fee_type                FeeType
+  amount_cents            Int
+  // ≤2000 chars (§6.1), CHECK in the migration.
+  message                 String
+  start_availability      StartAvailability
+  start_date              DateTime?         @db.Date
+  estimated_duration_days Int?
+  round_count             Int               @default(0) @db.SmallInt
+  turn                    PartyRole
+  // Owner 2026-09-30: the case's practice is not one of the attorney's.
+  outside_practice        Boolean           @default(false)
+  // Owner 2026-10-04: no verified licence in the case's states.
+  outside_licensed_states Boolean           @default(false)
+  decided_at              DateTime?         @db.Timestamptz
+  created_at              DateTime          @default(now()) @db.Timestamptz
+  updated_at              DateTime          @updatedAt @db.Timestamptz
+
+  accepted_for_case  Case?                @relation("CaseAcceptedBid")
+  offers             BidOffer[]
+  contact_disclosure ContactDisclosure?
+  contact_issues     ContactIssueReport[]
+
+  // One bid per attorney per case (§4.D, §5.1).
+  conversations Conversation[]
+
+  @@unique([case_id, attorney_id])
+  @@index([case_id, status])
+  @@index([attorney_id, status, updated_at(sort: Desc)])
+  // docs/04 §11.2 "Мои биды" finished filter (migration file04_scale_indexes).
+  @@index([attorney_id, updated_at(sort: Desc), id(sort: Desc)], map: "bids_attorney_updated_idx")
+  // docs/06 §8 business counter (active bids) and the hourly lapse job.
+  @@index([status])
+  @@map("bids")
+}
+
+// Negotiation history. Append-only except the pending -> accepted/
+// declined/countered/superseded status transition (§4.D).
+model BidOffer {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bid_id       String      @db.Uuid
+  bid          Bid         @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  round_no     Int         @db.SmallInt
+  from_role    PartyRole
+  fee_type     FeeType
+  amount_cents Int
+  message      String?
+  status       OfferStatus
+  created_at   DateTime    @default(now()) @db.Timestamptz
+
+  @@unique([bid_id, round_no])
+  @@map("bid_offers")
+}
+
+// Append-only, kept 5 years, hash-chained per case (§4.D). No
+// updated_at. retain_until defaults to created_at + 5 years.
+model CaseJournal {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id       String           @db.Uuid
+  case          Case             @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  client_id     String           @db.Uuid
+  client        User             @relation("JournalClient", fields: [client_id], references: [id], onDelete: Restrict)
+  actor_user_id String?          @db.Uuid
+  actor         User?            @relation("JournalActor", fields: [actor_user_id], references: [id], onDelete: Restrict)
+  actor_role    UserRole?
+  // docs/04_CASES_BIDS.md §14 (stage 4.1): set for events tied to a bid or
+  // to the attorney's work, for the attorney's "Case history".
+  attorney_id   String?          @db.Uuid
+  attorney      User?            @relation("JournalAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  event_type    CaseJournalEvent
+  payload       Json
+  prev_hash     String?
+  row_hash      String
+  retain_until  DateTime         @default(dbgenerated("now() + '5 years'::INTERVAL")) @db.Timestamptz
+  created_at    DateTime         @default(now()) @db.Timestamptz
+
+  @@index([case_id, created_at])
+  @@index([client_id, created_at])
+  @@index([attorney_id, created_at])
+  @@index([retain_until])
+  // docs/06 §5.3: the daily chain check picks the last 24 h of rows.
+  @@index([created_at])
+  @@map("case_journal")
+}
+
+// Append-only (§4.D, §6.2).
+model ContactDisclosure {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id      String   @db.Uuid
+  case         Case     @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  bid_id       String   @unique @db.Uuid
+  bid          Bid      @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  client_id    String   @db.Uuid
+  client       User     @relation("DisclosureClient", fields: [client_id], references: [id], onDelete: Restrict)
+  attorney_id  String   @db.Uuid
+  attorney     User     @relation("DisclosureAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  fields       String[]
+  ip           String?
+  device_id    String?
+  disclosed_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("contact_disclosures")
+}
+
+model ContactIssueReport {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id         String             @db.Uuid
+  case            Case               @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  bid_id          String             @db.Uuid
+  bid             Bid                @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  attorney_id     String             @db.Uuid
+  attorney        User               @relation("IssueAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  client_id       String             @db.Uuid
+  client          User               @relation("IssueClient", fields: [client_id], references: [id], onDelete: Restrict)
+  issue_type      ContactIssueType
+  note            String?
+  status          ContactIssueStatus @default(open)
+  resolved_by     String?            @db.Uuid
+  resolver        User?              @relation("IssueResolver", fields: [resolved_by], references: [id], onDelete: Restrict)
+  resolved_at     DateTime?          @db.Timestamptz
+  resolution_note String?
+  created_at      DateTime           @default(now()) @db.Timestamptz
+  updated_at      DateTime           @updatedAt @db.Timestamptz
+
+  @@index([status, created_at])
+  @@map("contact_issue_reports")
+}
+
+model CaseDispute {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id         String        @db.Uuid
+  case            Case          @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  opened_by       String        @db.Uuid
+  opener          User          @relation("DisputeOpener", fields: [opened_by], references: [id], onDelete: Restrict)
+  reason          String
+  status          DisputeStatus @default(open)
+  resolved_by     String?       @db.Uuid
+  resolver        User?         @relation("DisputeResolver", fields: [resolved_by], references: [id], onDelete: Restrict)
+  resolved_at     DateTime?     @db.Timestamptz
+  resolution_note String?
+  created_at      DateTime      @default(now()) @db.Timestamptz
+  updated_at      DateTime      @updatedAt @db.Timestamptz
+
+  @@index([case_id])
+  @@map("case_disputes")
+}
+
+model Review {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Owner 2026-10-01: null = an open review (anyone, one per author);
+  /// set = verified by a closed case.
+  case_id       String?      @unique @db.Uuid
+  case          Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  /// The author (a client for case reviews; anyone for open ones).
+  client_id     String       @db.Uuid
+  client        User         @relation("ReviewClient", fields: [client_id], references: [id], onDelete: Restrict)
+  attorney_id   String       @db.Uuid
+  attorney      User         @relation("ReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  // CHECK 1..5; body ≤ 1000 (§6.1), in the migration.
+  rating        Int          @db.SmallInt
+  body          String?
+  status        ReviewStatus @default(published)
+  // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
+  edited_at     DateTime?    @db.Timestamptz
+  /// Owner 2026-10-01 (Google-style): the attorney's public reply.
+  reply         String?      @db.VarChar(1000)
+  reply_at      DateTime?    @db.Timestamptz
+  helpful_count Int          @default(0)
+  /// Owner 2026-10-01: up to 10 `review_photo` files.
+  photo_ids     String[]     @default([]) @db.Uuid
+  created_at    DateTime     @default(now()) @db.Timestamptz
+  updated_at    DateTime     @updatedAt @db.Timestamptz
+
+  helpful_votes ReviewHelpfulVote[]
+
+  @@index([attorney_id, created_at(sort: Desc)])
+  // Owner 2026-10-05: the storage cleanup looks photos up by id.
+  @@index([photo_ids], map: "reviews_photo_ids_idx", type: Gin)
+  @@map("reviews")
+}
+
+// -----------------------------------------------------------------------
+// Stage 2.5 (docs/02_DATABASE.md §8): 4.F feed/social, 4.G chats,
+// 4.H notifications/push, 4.I Stripe subscriptions, 4.J moderation/admin/
+// audit. Auxiliary rows (likes, saves, follows, tags, participants,
+// media) cascade (§1.4); everything else is RESTRICT. Counters are
+// denormalized per §1.5.
+// -----------------------------------------------------------------------
+
+model Post {
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Attorneys only (checked in the service, file 05).
+  author_id        String                   @db.Uuid
+  author           User                     @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  // ≤2200 chars (§6.1), CHECK in the migration.
+  body             String
+  // Owner 2026-09-30: card title (≤120, CHECK in the migration), the
+  // qualification (category or subcategory) and Post / News.
+  title            String?
+  practice_area_id String?                  @db.Uuid
+  practice_area    PracticeArea?            @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  kind             PostKind                 @default(post)
+  /// Owner 2026-10-01: the post's video (Bunny Stream), one per post.
+  video_asset_id   String?                  @unique @db.Uuid
+  video_asset      VideoAsset?              @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "posts_video_asset_fkey")
+  language         String?
+  /// Owner 2026-10-02: "Added location" (reels/posts, like Instagram).
+  location_name    String?
+  location_lat     Float?
+  location_lng     Float?
+  /// Owner 2026-10-02: the author can turn comments off.
+  comments_enabled Boolean                  @default(true)
+  /// Owner 2026-10-05: 'legal' (a law topic, news, or marked by the author)
+  /// or 'general' (personal, no law topic). Viewers can hide general posts.
+  content_class    String                   @default("general") @db.VarChar(16)
+  /// Set by moderation: the author's edits no longer change content_class.
+  content_class_locked Boolean              @default(false)
+  status           ContentStatus            @default(published)
+  like_count       Int                      @default(0)
+  comment_count    Int                      @default(0)
+  save_count       Int                      @default(0)
+  // Owner 2026-09-30 (OQ-037): times shared (share sheet completed).
+  share_count      Int                      @default(0)
+  shares           PostShare[]
+  // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
+  edited_at        DateTime?                @db.Timestamptz
+  deleted_at       DateTime?                @db.Timestamptz
+  // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
+  search_tsv       Unsupported("tsvector")?
+  created_at       DateTime                 @default(now()) @db.Timestamptz
+  // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
+  // computed column, indexed as (created_shard, created_at). Replaces a
+  // USING HASH index, which crashes Prisma's introspection. Read-only.
+  created_shard    Int                      @default(0) @db.SmallInt
+  updated_at       DateTime                 @updatedAt @db.Timestamptz
+
+  media       PostMedia[]
+  attachments PostAttachment[]
+  tags        PostTag[]
+  comments    Comment[]
+  likes       PostLike[]
+  reposts     PostRepost[]
+
+  // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
+  // migration; declared so Prisma's diff matches the DB.
+  @@index([search_tsv], map: "posts_search_tsv_idx", type: Gin)
+  @@index([practice_area_id, created_at(sort: Desc)])
+  @@index([kind, created_at(sort: Desc)])
+  @@index([content_class, created_at(sort: Desc)])
+  @@map("posts")
+}
+
+/// Owner decision 2026-09-30 (OQ-031): up to 9 photos per case, stored in
+/// the private documents bucket; visible to the case owner and the
+/// attorney whose bid was accepted — never in the feed or to other bidders.
+model CasePhoto {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id    String   @db.Uuid
+  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  file_id    String   @db.Uuid
+  file       File     @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  position   Int      @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([case_id, position])
+  @@index([file_id])
+  @@map("case_photos")
+}
+
+model PostMedia {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String    @db.Uuid
+  post       Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  file_id    String    @db.Uuid
+  file       File      @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  media_type MediaType @default(image)
+  position   Int       @db.SmallInt
+  width      Int?
+  height     Int?
+  created_at DateTime  @default(now()) @db.Timestamptz
+
+  @@unique([post_id, position])
+  @@index([file_id])
+  @@map("post_media")
+}
+
+/// Owner 2026-10-05: up to 9 documents (PDF, Word, text) in a post or
+/// in a reel's inner page; private bucket, signed download links.
+model PostAttachment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  file_id    String   @unique @db.Uuid
+  file       File     @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  file_name  String
+  position   Int      @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([post_id, position])
+  @@map("post_attachments")
+}
+
+model Tag {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Without '#', lowercase.
+  tag_lower  String   @unique
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  posts PostTag[]
+
+  // Trigram GIN on tag_lower: partial index, raw SQL (see User).
+  @@map("tags")
+}
+
+model PostTag {
+  post_id String @db.Uuid
+  post    Post   @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  tag_id  String @db.Uuid
+  tag     Tag    @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([post_id, tag_id])
+  @@index([tag_id, post_id])
+  @@map("post_tags")
+}
+
+model Comment {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id           String        @db.Uuid
+  post              Post          @relation(fields: [post_id], references: [id], onDelete: Restrict)
+  author_id         String        @db.Uuid
+  author            User          @relation("CommentAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  // One nesting level: replies to replies are attached to the top-level
+  // parent by the service (§4.F).
+  parent_comment_id String?       @db.Uuid
+  parent            Comment?      @relation("CommentReplies", fields: [parent_comment_id], references: [id], onDelete: Restrict)
+  replies           Comment[]     @relation("CommentReplies")
+  // ≤1000 chars (§6.1), CHECK in the migration.
+  body              String
+  status            ContentStatus @default(published)
+  like_count        Int           @default(0)
+  reply_count       Int           @default(0)
+  deleted_at        DateTime?     @db.Timestamptz
+  created_at        DateTime      @default(now()) @db.Timestamptz
+  updated_at        DateTime      @updatedAt @db.Timestamptz
+
+  likes CommentLike[]
+
+  @@index([post_id, created_at])
+  @@index([parent_comment_id, created_at])
+  @@map("comments")
+}
+
+model PostLike {
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("PostLiker", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([post_id, user_id])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("post_likes")
+}
+
+/// Owner 2026-10-07: a Threads-style repost — one per user and post.
+/// Not of one's own post (checked in the service).
+model PostRepost {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("PostReposter", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([user_id, post_id])
+  @@index([post_id])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("post_reposts")
+}
+
+model CommentLike {
+  comment_id String   @db.Uuid
+  comment    Comment  @relation(fields: [comment_id], references: [id], onDelete: Cascade)
+  user_id    String   @db.Uuid
+  user       User     @relation("CommentLiker", fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([comment_id, user_id])
+  @@map("comment_likes")
+}
+
+// followee must be an attorney (service check); follower <> followee is a
+// CHECK in the migration.
+model Follow {
+  follower_id String   @db.Uuid
+  follower    User     @relation("Follower", fields: [follower_id], references: [id], onDelete: Cascade)
+  followee_id String   @db.Uuid
+  followee    User     @relation("Followee", fields: [followee_id], references: [id], onDelete: Cascade)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@id([follower_id, followee_id])
+  @@index([followee_id, follower_id])
+  @@map("follows")
+}
+
+/// Owner decision 2026-09-29 (OQ-028): any user may block any other.
+/// Effects (BlocksService): no messages either way, no follows (existing
+/// follows removed), hidden from each other's People search, profile
+/// flags. Cases/bids already in progress are untouched.
+model UserBlock {
+  blocker_id String   @db.Uuid
+  blocker    User     @relation("Blocker", fields: [blocker_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  blocked_id String   @db.Uuid
+  blocked    User     @relation("Blocked", fields: [blocked_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([blocker_id, blocked_id])
+  @@index([blocked_id])
+  @@map("user_blocks")
+}
+
+// Polymorphic item_id (post or case) — no FK by design.
+model SavedItem {
+  user_id    String        @db.Uuid
+  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  item_type  SavedItemType
+  item_id    String        @db.Uuid
+  created_at DateTime      @default(now()) @db.Timestamptz
+
+  @@id([user_id, item_type, item_id])
+  @@index([user_id, item_type, created_at(sort: Desc)])
+  @@map("saved_items")
+}
+
+model Conversation {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Nullable since 2026-09-28 (migration applied, then the owner kept
+  // chats case-only per docs/04 §9 — no code writes NULL today; partial UQ
+  // (attorney_id, client_id) WHERE case_id IS NULL is raw SQL).
+  case_id           String?              @db.Uuid
+  case              Case?                @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id       String               @db.Uuid
+  attorney          User                 @relation("ConversationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
+  client_id         String               @db.Uuid
+  client            User                 @relation("ConversationClient", fields: [client_id], references: [id], onDelete: Restrict)
+  bid_id            String?              @db.Uuid
+  bid               Bid?                 @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  status            ConversationStatus   @default(pre_acceptance)
+  contacts_unlocked Boolean              @default(false)
+  // OQ-043: direct chats (case_id NULL) start as a request of `requested_by`.
+  request_status    MessageRequestStatus @default(none)
+  requested_by      String?              @db.Uuid
+  requester         User?                @relation("ConversationRequester", fields: [requested_by], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  last_message_at   DateTime?            @db.Timestamptz
+  // Bare uuid: an FK here would make conversations <-> messages a cycle
+  // on every insert; it's a denormalized pointer for the chat list.
+  last_message_id   String?              @db.Uuid
+  created_at        DateTime             @default(now()) @db.Timestamptz
+  updated_at        DateTime             @updatedAt @db.Timestamptz
+
+  participants ConversationParticipant[]
+  messages     Message[]
+  calls        Call[]
+
+  @@unique([case_id, attorney_id])
+  @@index([client_id, last_message_at(sort: Desc)])
+  @@index([attorney_id, last_message_at(sort: Desc)])
+  @@map("conversations")
+}
+
+/// Owner 2026-10-01: a member's own chat folder.
+enum ChatFolder {
+  primary
+  general
+
+  @@map("chat_folder")
+}
+
+model ConversationParticipant {
+  conversation_id      String       @db.Uuid
+  conversation         Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  user_id              String       @db.Uuid
+  user                 User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  last_read_message_id String?      @db.Uuid
+  muted_until          DateTime?    @db.Timestamptz
+  /// Owner 2026-10-01: my folder for this chat; null = automatic (a case
+  /// chat is Primary, a direct chat General).
+  folder               ChatFolder?
+  /// "Waiting for my answer" since (the Waiting folder).
+  waiting_since        DateTime?    @db.Timestamptz
+  /// My note pinned on the chat ("send him the documents").
+  note                 String?      @db.VarChar(280)
+  pinned_at            DateTime?    @db.Timestamptz
+  /// Owner 2026-10-02: "deleted" from my list (only for me); a new message
+  /// brings the chat back. The history itself is never erased.
+  hidden_at            DateTime?    @db.Timestamptz
+  created_at           DateTime     @default(now()) @db.Timestamptz
+  updated_at           DateTime     @updatedAt @db.Timestamptz
+
+  @@id([conversation_id, user_id])
+  @@index([user_id])
+  @@map("conversation_participants")
+}
+
+/// OQ-041 (owner 2026-09-30): an in-app audio call between the two chat
+/// members (WebRTC; the server relays signaling, never the audio).
+model Call {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String       @db.Uuid
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  caller_id       String       @db.Uuid
+  caller          User         @relation("CallCaller", fields: [caller_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  callee_id       String       @db.Uuid
+  callee          User         @relation("CallCallee", fields: [callee_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  status          CallStatus   @default(ringing)
+  answered_at     DateTime?    @db.Timestamptz
+  ended_at        DateTime?    @db.Timestamptz
+  duration_sec    Int?
+  end_reason      String?
+  /// Owner 2026-10-05: a video call (camera on both sides).
+  video           Boolean      @default(false)
+  created_at      DateTime     @default(now()) @db.Timestamptz
+  updated_at      DateTime     @updatedAt @db.Timestamptz
+
+  @@index([callee_id, status])
+  @@index([caller_id, status])
+  @@index([conversation_id, created_at])
+  @@index([status, created_at])
+  @@map("calls")
+}
+
+model Message {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id       String       @db.Uuid
+  conversation          Conversation @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
+  // NULL for system messages.
+  sender_id             String?      @db.Uuid
+  sender                User?        @relation("MessageSender", fields: [sender_id], references: [id], onDelete: Restrict)
+  type                  MessageType
+  // Server/moderation/legal only (§1.6).
+  body_original         String
+  body_display          String
+  contact_masked        Boolean      @default(false)
+  // Client-generated idempotency key.
+  client_message_id     String
+  // OQ-040 voice messages: the audio file, its length, 0–100 bars for the
+  // bubble and when the recipient first played it (Telegram's blue dot).
+  file_id               String?      @db.Uuid
+  file                  File?        @relation("MessageVoice", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  duration_ms           Int?
+  waveform              Int[]        @default([])
+  // OQ-047: the original name of an attached document (≤200, CHECK).
+  file_name             String?
+  // OQ-048: sent by an assistant on the attorney's behalf.
+  sent_by_membership_id String?      @db.Uuid
+  sent_by_name          String?      @db.VarChar(80)
+  listened_at           DateTime?    @db.Timestamptz
+  // Owner 2026-10-01: a sticker message.
+  sticker_id            String?      @db.Uuid
+  sticker               Sticker?     @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
+  deleted_at            DateTime?    @db.Timestamptz
+  created_at            DateTime     @default(now()) @db.Timestamptz
+  updated_at            DateTime     @updatedAt @db.Timestamptz
+
+  @@unique([conversation_id, sender_id, client_message_id])
+  @@index([file_id])
+  @@index([sticker_id])
+  @@index([conversation_id, created_at(sort: Desc)])
+  // docs/06 §5.1: anonymization scrubs a user's messages by sender.
+  @@index([sender_id])
+  @@map("messages")
+}
+
+model Notification {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String               @db.Uuid
+  user            User                 @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  type            NotificationType
+  category        NotificationCategory
+  payload         Json
+  read_at         DateTime?            @db.Timestamptz
+  created_at      DateTime             @default(now()) @db.Timestamptz
+  // docs/05 §9.4, §14 (stage 5.1): aggregation window key; partial UQ
+  // (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL is raw SQL.
+  dedupe_key      String?
+  aggregate_count Int                  @default(1)
+
+  @@index([user_id, created_at(sort: Desc)])
+  // Kept (migration 20260928140000): the retention job scans by age.
+  @@index([created_at], map: "notifications_created_at_idx")
+  @@map("notifications")
+}
+
+model NotificationSetting {
+  user_id       String               @db.Uuid
+  user          User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  category      NotificationCategory
+  push_enabled  Boolean              @default(true)
+  email_enabled Boolean              @default(true)
+  updated_at    DateTime             @updatedAt @db.Timestamptz
+
+  @@id([user_id, category])
+  @@map("notification_settings")
+}
+
+model NotificationQuietHours {
+  user_id    String   @id @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  start_time DateTime @db.Time
+  end_time   DateTime @db.Time
+  timezone   String
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@map("notification_quiet_hours")
+}
+
+model PushToken {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id   String   @db.Uuid
+  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  fcm_token    String   @unique
+  platform     String
+  last_seen_at DateTime @default(now()) @db.Timestamptz
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id])
+  @@map("push_tokens")
+}
+
+model StripeCustomer {
+  user_id            String   @id @db.Uuid
+  user               User     @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  stripe_customer_id String   @unique
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@map("stripe_customers")
+}
+
+model Subscription {
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // One row per attorney.
+  user_id                String             @unique @db.Uuid
+  user                   User               @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  stripe_subscription_id String?            @unique
+  status                 SubscriptionStatus
+  // 39900 at launch.
+  price_cents            Int
+  trial_started_at       DateTime?          @db.Timestamptz
+  trial_ends_at          DateTime?          @db.Timestamptz
+  current_period_start   DateTime?          @db.Timestamptz
+  current_period_end     DateTime?          @db.Timestamptz
+  cancel_at_period_end   Boolean            @default(false)
+  canceled_at            DateTime?          @db.Timestamptz
+  // docs/06 §1.2 (stage 6.1): past_due keeps access until this moment.
+  grace_ends_at          DateTime?          @db.Timestamptz
+  // One card = one trial.
+  card_fingerprint       String?
+  // OQ-048: monthly ($399 + $100 per seat) or yearly (6 seats, −20 %).
+  plan                   SubscriptionPlan   @default(monthly)
+  // 0–6 (CHECK in the migration). Owner 2026-10-05: with a plan_id these
+  // are the EXTRA seats bought on top of the plan's included ones.
+  assistant_seats        Int                @default(0) @db.SmallInt
+  // Owner 2026-10-05 (plan builder): the plan bought and the entitlements
+  // frozen at purchase — a later edit of the plan does not change a
+  // subscriber's terms until the admin applies it.
+  plan_id                String?            @db.Uuid
+  plan_ref               Plan?              @relation(fields: [plan_id], references: [id], onDelete: SetNull)
+  entitlements           Json?
+  created_at             DateTime           @default(now()) @db.Timestamptz
+  updated_at             DateTime           @updatedAt @db.Timestamptz
+
+  @@index([status, trial_ends_at])
+  @@index([current_period_end])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                  String        @db.Uuid
+  user                     User          @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  stripe_invoice_id        String?       @unique
+  stripe_payment_intent_id String?
+  amount_cents             Int
+  currency                 String        @default("usd")
+  status                   PaymentStatus
+  paid_at                  DateTime?     @db.Timestamptz
+  failure_code             String?
+  created_at               DateTime      @default(now()) @db.Timestamptz
+  updated_at               DateTime      @updatedAt @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("payments")
+}
+
+// Existence of the row = event already handled (webhook idempotency).
+model StripeWebhookEvent {
+  stripe_event_id String    @id
+  type            String
+  payload         Json
+  processed_at    DateTime? @db.Timestamptz
+  attempts        Int       @default(0)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+
+  @@map("stripe_webhook_events")
+}
+
+model Report {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id String           @db.Uuid
+  reporter    User             @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Restrict)
+  target_type ReportTargetType
+  target_id   String           @db.Uuid
+  reason      ReportReason
+  note        String?
+  status      ReportStatus     @default(open)
+  handled_by  String?          @db.Uuid
+  handler     User?            @relation("ReportHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  handled_at  DateTime?        @db.Timestamptz
+  created_at  DateTime         @default(now()) @db.Timestamptz
+  updated_at  DateTime         @updatedAt @db.Timestamptz
+
+  actions      ModerationAction[]
+  dmca_notices DmcaNotice[]
+
+  @@index([status, created_at])
+  // Duplicate-report lookup per target and "my reports" (stage 4.1
+  // migration, file-03 DB review).
+  @@index([target_type, target_id, status])
+  @@index([reporter_id])
+  @@map("reports")
+}
+
+/// Owner 2026-10-05 (legal): a DMCA takedown notice (17 U.S.C. §512(c)(3))
+/// with the statutory elements — identification of the work, the location
+/// (our target or a URL), contact details, the good-faith statement, the
+/// accuracy statement under penalty of perjury and a signature — and the
+/// counter-notice (§512(g)) the content's author may file after a removal.
+/// new → removed | rejected; removed → counter_received → restored.
+model DmcaNotice {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id            String?           @db.Uuid
+  report               Report?           @relation(fields: [report_id], references: [id], onDelete: SetNull)
+  target_type          ReportTargetType?
+  target_id            String?           @db.Uuid
+  infringing_url       String?           @db.VarChar(1000)
+  complainant_name     String            @db.VarChar(200)
+  complainant_email    String            @db.VarChar(254)
+  complainant_address  String            @db.VarChar(500)
+  complainant_phone    String?           @db.VarChar(40)
+  work_description     String            @db.VarChar(4000)
+  good_faith           Boolean
+  accuracy_sworn       Boolean
+  signature            String            @db.VarChar(200)
+  // new | removed | rejected | counter_received | restored
+  status               String            @default("new") @db.VarChar(24)
+  submitted_by_user_id String?           @db.Uuid
+  submitted_by         User?             @relation("DmcaSubmitter", fields: [submitted_by_user_id], references: [id], onDelete: SetNull)
+  // The content's author at decision time (who gets the strike and may
+  // file the counter-notice).
+  author_user_id       String?           @db.Uuid
+  // {name, address, phone, email, consentJurisdiction, sworn, signature, submittedAt}
+  counter              Json?
+  decided_by           String?           @db.Uuid
+  decided_at           DateTime?         @db.Timestamptz
+  decision_note        String?           @db.VarChar(1000)
+  created_at           DateTime          @default(now()) @db.Timestamptz
+  updated_at           DateTime          @updatedAt @db.Timestamptz
+
+  @@index([status, created_at])
+  @@index([submitted_by_user_id])
+  @@index([target_type, target_id])
+  @@map("dmca_notices")
+}
+
+model ModerationAction {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id   String?              @db.Uuid
+  report      Report?              @relation(fields: [report_id], references: [id], onDelete: Restrict)
+  admin_id    String               @db.Uuid
+  admin       User                 @relation("ModerationAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
+  target_type ReportTargetType
+  target_id   String               @db.Uuid
+  action      ModerationActionType
+  reason      String?
+  created_at  DateTime             @default(now()) @db.Timestamptz
+
+  @@index([target_type, target_id])
+  @@map("moderation_actions")
+}
+
+model AdminProfile {
+  user_id     String    @id @db.Uuid
+  user        User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  admin_role  AdminRole
+  // Per-area access for non-super admins: {"users":"view","support":"manage"}.
+  // Money and API keys are never grantable (hard-denied in the API).
+  permissions Json      @default("{}")
+  created_at  DateTime  @default(now()) @db.Timestamptz
+  updated_at  DateTime  @updatedAt @db.Timestamptz
+
+  @@map("admin_profiles")
+}
+
+/// Owner 2026-10-02: named sets of admin rights ("Verifier", "Support", ...).
+model AdminRoleTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.VarChar(60)
+  permissions Json     @default("{}")
+  created_by  String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @updatedAt @db.Timestamptz
+
+  @@map("admin_role_templates")
+}
+
+/// Owner 2026-10-02: sign-in blocks. kind = user | phone | email | device;
+/// value = user id, E.164 phone, lower-cased email or the app's device id.
+/// Active while lifted_at is null and expires_at is empty or in the future.
+model AccountBan {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind        String    @db.VarChar(10)
+  value       String
+  user_id     String?   @db.Uuid
+  reason      String
+  expires_at  DateTime? @db.Timestamptz
+  created_by  String    @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz
+  lifted_at   DateTime? @db.Timestamptz
+  lifted_by   String?   @db.Uuid
+  lift_reason String?
+
+  @@index([kind, value])
+  @@index([created_at])
+  @@map("account_bans")
+}
+
+// Append-only (§6.2).
+model AuditLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id      String   @db.Uuid
+  admin         User     @relation("AuditAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
+  action        String
+  target_type   String
+  target_id     String?  @db.Uuid
+  // docs/06 §2.1 (stage 6.1): why sensitive data was viewed (≥ 10 chars).
+  justification String?
+  before        Json?
+  after         Json?
+  ip            String?
+  created_at    DateTime @default(now()) @db.Timestamptz
+  // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
+  // computed column, indexed as (created_shard, created_at). Replaces a
+  // USING HASH index, which crashes Prisma's introspection. Read-only.
+  created_shard Int      @default(0) @db.SmallInt
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([created_shard, created_at], map: "audit_log_created_at_idx")
+  @@map("audit_log")
+}
+
+model DataAccessRequest {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_type     DataRequestType
+  reference_number String
+  agency           String
+  received_at      DateTime          @db.Timestamptz
+  scope            String
+  handled_by       String            @db.Uuid
+  handler          User              @relation("DataRequestHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  status           DataRequestStatus
+  closed_at        DateTime?         @db.Timestamptz
+  notes            String?
+  created_at       DateTime          @default(now()) @db.Timestamptz
+  updated_at       DateTime          @updatedAt @db.Timestamptz
+
+  access_log DataAccessLog[]
+
+  @@map("data_access_requests")
+}
+
+// Append-only (§6.2).
+model DataAccessLog {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id  String            @db.Uuid
+  request     DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict)
+  admin_id    String            @db.Uuid
+  admin       User              @relation("DataAccessAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
+  entity_type String
+  entity_id   String            @db.Uuid
+  accessed_at DateTime          @default(now()) @db.Timestamptz
+
+  @@index([request_id])
+  @@map("data_access_log")
+}
+
+// docs/06 §2.1, §10 (stage 6.1): admin 2FA. The TOTP secret is stored
+// encrypted (AES-256-GCM with ADMIN_TOTP_ENC_KEY; KMS envelope when the AWS
+// stack exists — OQ-016), recovery codes only as hashes.
+model AdminCredential {
+  user_id              String    @id @db.Uuid
+  user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  totp_secret_enc      String
+  totp_enabled_at      DateTime? @db.Timestamptz
+  recovery_codes_hash  String[]  @default([])
+  last_login_at        DateTime? @db.Timestamptz
+  // Login + password as the first factor (lower case, unique). The password
+  // is a scrypt hash; the security answer (super admin only) is hashed too.
+  login                String?   @unique @db.VarChar(40)
+  password_hash        String?
+  password_changed_at  DateTime? @db.Timestamptz
+  security_question    String?   @db.VarChar(200)
+  security_answer_hash String?
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+
+  @@map("admin_credentials")
+}
+
+enum DataExportType {
+  user_data
+  case_history_pdf
+
+  @@map("data_export_type")
+}
+
+enum DataExportStatus {
+  queued
+  processing
+  ready
+  failed
+  expired
+
+  @@map("data_export_status")
+}
+
+// docs/06 §5.2, §10 (stage 6.1): user data export / case history PDF jobs.
+model DataExportJob {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String           @db.Uuid
+  user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type       DataExportType
+  status     DataExportStatus @default(queued)
+  file_id    String?          @db.Uuid
+  file       File?            @relation(fields: [file_id], references: [id], onDelete: SetNull)
+  expires_at DateTime?        @db.Timestamptz
+  error      String?
+  created_at DateTime         @default(now()) @db.Timestamptz
+  updated_at DateTime         @updatedAt @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([status, expires_at])
+  @@map("data_export_jobs")
+}
+
+// Owner 2026-09-30 (OQ-034): comments under a case, like post comments —
+// one reply level, likes, soft delete, moderation. Written by attorneys
+// who can see the case and by its client; contacts are refused.
+model CaseComment {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id           String        @db.Uuid
+  case              Case          @relation(fields: [case_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  author_id         String        @db.Uuid
+  author            User          @relation("CaseCommentAuthor", fields: [author_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  parent_comment_id String?       @db.Uuid
+  parent            CaseComment?  @relation("CaseCommentReplies", fields: [parent_comment_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  replies           CaseComment[] @relation("CaseCommentReplies")
+  // ≤1000 chars, CHECK in the migration.
+  body              String
+  status            ContentStatus @default(published)
+  like_count        Int           @default(0)
+  reply_count       Int           @default(0)
+  deleted_at        DateTime?     @db.Timestamptz
+  created_at        DateTime      @default(now()) @db.Timestamptz
+  updated_at        DateTime      @updatedAt @db.Timestamptz
+
+  likes CaseCommentLike[]
+
+  @@index([case_id, created_at])
+  @@index([parent_comment_id, created_at])
+  @@map("case_comments")
+}
+
+model CaseCommentLike {
+  comment_id String      @db.Uuid
+  comment    CaseComment @relation(fields: [comment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id    String      @db.Uuid
+  user       User        @relation("CaseCommentLiker", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([comment_id, user_id])
+  @@map("case_comment_likes")
+}
+
+// Owner 2026-09-30 (OQ-037): one row per completed share (the share
+// counter's source of truth for the nightly reconcile).
+model PostShare {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id    String   @db.Uuid
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id    String   @db.Uuid
+  user       User     @relation("PostSharer", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([post_id])
+  @@map("post_shares")
+}
+
+model CaseShare {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id    String   @db.Uuid
+  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user_id    String   @db.Uuid
+  user       User     @relation("CaseSharer", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([case_id])
+  @@map("case_shares")
+}
+
+// Owner 2026-09-30 (OQ-038): an attorney's review of a client, left by the
+// attorney whose bid the client accepted. Visible to attorneys and to the
+// client; never to other clients.
+model ClientReview {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Owner 2026-09-30: null for a review written without a shared case.
+  case_id       String?      @db.Uuid
+  case          Case?        @relation(fields: [case_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  // The author (owner 2026-09-30: any attorney or client, not only the
+  // hired attorney; the column keeps its original name).
+  attorney_id   String       @db.Uuid
+  attorney      User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  client_id     String       @db.Uuid
+  client        User         @relation("ClientReviewClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  rating        Int          @db.SmallInt
+  body          String?
+  status        ReviewStatus @default(published)
+  /// Owner 2026-10-01 (Google-style): the reviewed person's public reply.
+  reply         String?      @db.VarChar(1000)
+  reply_at      DateTime?    @db.Timestamptz
+  helpful_count Int          @default(0)
+  /// Owner 2026-10-01: up to 10 `review_photo` files.
+  photo_ids     String[]     @default([]) @db.Uuid
+  edited_at     DateTime?    @db.Timestamptz
+  created_at    DateTime     @default(now()) @db.Timestamptz
+  updated_at    DateTime     @updatedAt @db.Timestamptz
+
+  appeal        ClientReviewAppeal?
+  helpful_votes ClientReviewHelpfulVote[]
+
+  @@unique([case_id, attorney_id])
+  @@index([client_id, created_at(sort: Desc)])
+  @@index([client_id, attorney_id])
+  @@index([photo_ids], map: "client_reviews_photo_ids_idx", type: Gin)
+  @@map("client_reviews")
+}
+
+/// Owner 2026-09-30: the reviewed client asks to remove a review. Admins
+/// accept (remove) or reject (keep); undecided after 30 days → removed.
+/// Owner 2026-10-01: "Helpful" on reviews (Google-style).
+model ReviewHelpfulVote {
+  review_id  String   @db.Uuid
+  review     Review   @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_review_fkey", onUpdate: NoAction)
+  user_id    String   @db.Uuid
+  user       User     @relation("ReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "review_helpful_votes_user_fkey", onUpdate: NoAction)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([review_id, user_id])
+  @@map("review_helpful_votes")
+}
+
+model ClientReviewHelpfulVote {
+  review_id  String       @db.Uuid
+  review     ClientReview @relation(fields: [review_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_review_fkey", onUpdate: NoAction)
+  user_id    String       @db.Uuid
+  user       User         @relation("ClientReviewHelpfulVoter", fields: [user_id], references: [id], onDelete: Cascade, map: "client_review_helpful_votes_user_fkey", onUpdate: NoAction)
+  created_at DateTime     @default(now()) @db.Timestamptz
+
+  @@id([review_id, user_id])
+  @@map("client_review_helpful_votes")
+}
+
+model ClientReviewAppeal {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  review_id      String             @unique @db.Uuid
+  review         ClientReview       @relation(fields: [review_id], references: [id], onDelete: Cascade)
+  appellant_id   String             @db.Uuid
+  appellant      User               @relation("ClientReviewAppellant", fields: [appellant_id], references: [id], onDelete: Cascade)
+  // 1–1000 chars, CHECK in the migration.
+  reason         String
+  status         ReviewAppealStatus @default(pending)
+  auto_remove_at DateTime           @db.Timestamptz
+  decided_at     DateTime?          @db.Timestamptz
+  // Admin user id (admin_profiles) — no FK, like the audit log.
+  decided_by     String?            @db.Uuid
+  admin_note     String?
+  created_at     DateTime           @default(now()) @db.Timestamptz
+
+  @@index([status, created_at])
+  @@index([status, auto_remove_at])
+  @@map("client_review_appeals")
+}
+
+enum ReviewAppealStatus {
+  pending
+  accepted
+  rejected
+  auto_removed
+
+  @@map("review_appeal_status")
+}
+
+/// OQ-048: plans.
+enum SubscriptionPlan {
+  monthly
+  yearly
+
+  @@map("subscription_plan")
+}
+
+enum AssistantStatus {
+  invited
+  active
+  removed
+
+  @@map("assistant_status")
+}
+
+enum AssistantApproval {
+  purchase
+  attorney_added
+  attorney_otp
+
+  @@map("assistant_approval")
+}
+
+/// OQ-048: an assistant in an attorney's team. Partial unique index on
+/// phone_e164 for live rows lives in the migration.
+model AssistantMembership {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id          String            @db.Uuid
+  attorney             User              @relation("AssistantAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
+  assistant_user_id    String?           @db.Uuid
+  assistant_user       User?             @relation("AssistantUser", fields: [assistant_user_id], references: [id], onDelete: SetNull)
+  phone_e164           String?
+  display_name         String?
+  status               AssistantStatus   @default(invited)
+  /// Owner 2026-10-04: one-time join / sign-in code (sha256, unique),
+  /// the same code encrypted for the attorney to show again, and its end.
+  join_code_hash       String?           @unique
+  join_code_enc        String?
+  join_code_expires_at DateTime?         @db.Timestamptz
+  approval             AssistantApproval
+  duties               String[]          @default([])
+  created_at           DateTime          @default(now()) @db.Timestamptz
+  joined_at            DateTime?         @db.Timestamptz
+  removed_at           DateTime?         @db.Timestamptz
+
+  activity              AssistantActivity[]
+  requests              AssistantRequest[]
+  tasks                 AttorneyTask[]                 @relation("CreatedTasks")
+  assigned_tasks        AttorneyTask[]                 @relation("AssignedTasks")
+  liability_acceptances AssistantLiabilityAcceptance[]
+
+  @@index([attorney_id, status])
+  @@index([phone_e164, status])
+  @@index([assistant_user_id])
+  @@map("assistant_memberships")
+}
+
+model AssistantActivity {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id   String              @db.Uuid
+  membership_id String              @db.Uuid
+  membership    AssistantMembership @relation(fields: [membership_id], references: [id], onDelete: Cascade)
+  action        String
+  target_type   String?
+  target_id     String?
+  summary       String?
+  created_at    DateTime            @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([membership_id, created_at(sort: Desc)])
+  // Owner 2026-10-05: the nightly retention removes old rows by date.
+  @@index([created_at])
+  @@map("assistant_activity")
+}
+
+enum AssistantRequestKind {
+  post
+  comment
+  case_comment
+  profile_edit
+
+  @@map("assistant_request_kind")
+}
+
+enum AssistantRequestStatus {
+  pending
+  approved
+  rejected
+
+  @@map("assistant_request_status")
+}
+
+model AssistantRequest {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id   String                 @db.Uuid
+  membership_id String                 @db.Uuid
+  membership    AssistantMembership    @relation(fields: [membership_id], references: [id], onDelete: Cascade)
+  kind          AssistantRequestKind
+  payload       Json
+  status        AssistantRequestStatus @default(pending)
+  result_id     String?
+  note          String?
+  created_at    DateTime               @default(now()) @db.Timestamptz
+  decided_at    DateTime?              @db.Timestamptz
+
+  @@index([attorney_id, status, created_at(sort: Desc)])
+  @@map("assistant_requests")
+}
+
+enum AttorneyTaskKind {
+  call
+  meeting
+  court
+  deadline
+  documents
+  print
+  visit
+  other
+  consultation
+  hearing_prep
+  deposition
+  mediation
+  filing
+  review
+  email
+  sign
+  payment
+  research
+  jail_visit
+
+  @@map("attorney_task_kind")
+}
+
+enum AttorneyTaskStatus {
+  open
+  taken
+  done
+  not_done
+  cancelled
+
+  @@map("attorney_task_status")
+}
+
+/// Owner 2026-10-05: how urgent a task is (sorting, the card's mark).
+enum AttorneyTaskPriority {
+  low
+  normal
+  high
+  urgent
+
+  @@map("attorney_task_priority")
+}
+
+/// Owner 2026-10-05: a repeating task — when one is finished the next
+/// one appears at the next time.
+enum AttorneyTaskRepeat {
+  none
+  daily
+  weekdays
+  weekly
+  monthly
+  yearly
+
+  @@map("attorney_task_repeat")
+}
+
+model AttorneyTask {
+  id                       String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id              String               @db.Uuid
+  attorney                 User                 @relation("AttorneyTasks", fields: [attorney_id], references: [id], onDelete: Cascade)
+  created_by_membership_id String?              @db.Uuid
+  created_by               AssistantMembership? @relation("CreatedTasks", fields: [created_by_membership_id], references: [id], onDelete: SetNull, map: "attorney_tasks_membership_fkey")
+  /// Owner 2026-10-05: the assistant the task is assigned to (they see
+  /// and check it off even without the tasks duty).
+  assignee_membership_id   String?              @db.Uuid
+  assignee                 AssistantMembership? @relation("AssignedTasks", fields: [assignee_membership_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "attorney_tasks_assignee_fkey")
+  kind                     AttorneyTaskKind
+  title                    String
+  notes                    String?
+  due_at                   DateTime?            @db.Timestamptz
+  case_id                  String?              @db.Uuid
+  case                     Case?                @relation(fields: [case_id], references: [id], onDelete: SetNull)
+  /// Owner 2026-10-05: the chat the task came from (bare uuid: a chat is
+  /// never deleted, and the link is only a shortcut).
+  conversation_id          String?              @db.Uuid
+  file_ids                 String[]             @default([]) @db.Uuid
+  status                   AttorneyTaskStatus   @default(open)
+  priority                 AttorneyTaskPriority @default(normal)
+  repeat                   AttorneyTaskRepeat   @default(none)
+  repeat_until             DateTime?            @db.Timestamptz
+  /// The next task of a repeating series was created from this one.
+  repeated_at              DateTime?            @db.Timestamptz
+  /// Minutes before due_at for the reminder push (0 = at the time).
+  remind_before_min        Int?
+  remind_at                DateTime?            @db.Timestamptz
+  reminded_at              DateTime?            @db.Timestamptz
+  outcome_note             String?
+  rescheduled_to           DateTime?            @db.Timestamptz
+  done_at                  DateTime?            @db.Timestamptz
+  /// Owner 2026-10-05: finished tasks go to the archive; the archive is
+  /// cleaned after tasks.archive_retention_days unless kept forever.
+  archived_at              DateTime?            @db.Timestamptz
+  keep_forever             Boolean              @default(false)
+  /// Days-before-removal of the last "will be removed" notice (30, 7).
+  purge_notice_days        Int?
+  created_at               DateTime             @default(now()) @db.Timestamptz
+  updated_at               DateTime             @default(now()) @updatedAt @db.Timestamptz
+  steps                    AttorneyTaskStep[]
+  places                   AttorneyTaskPlace[]
+  people                   AttorneyTaskPerson[]
+
+  @@index([attorney_id, status, due_at])
+  @@index([remind_at], map: "attorney_tasks_remind_idx")
+  @@index([archived_at], map: "attorney_tasks_archived_idx")
+  @@index([file_ids], map: "attorney_tasks_file_ids_idx", type: Gin)
+  @@map("attorney_tasks")
+}
+
+/// Owner 2026-10-05: any number of addresses on a task, each opened in
+/// Google / Apple Maps by a plain link (no maps API).
+model AttorneyTaskPlace {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id    String       @db.Uuid
+  task       AttorneyTask @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "attorney_task_places_task_fkey")
+  position   Int          @default(0)
+  label      String?      @db.VarChar(80)
+  address    String       @db.VarChar(300)
+  created_at DateTime     @default(now()) @db.Timestamptz
+
+  @@index([task_id, position], map: "attorney_task_places_task_idx")
+  @@map("attorney_task_places")
+}
+
+/// Owner 2026-10-05: people on a task — someone from the app (client,
+/// assistant, attorney: opens the chat) or an outside contact with a
+/// phone (call) and an email (write).
+model AttorneyTaskPerson {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id    String       @db.Uuid
+  task       AttorneyTask @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "attorney_task_people_task_fkey")
+  position   Int          @default(0)
+  user_id    String?      @db.Uuid
+  user       User?        @relation("TaskPeople", fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "attorney_task_people_user_fkey")
+  /// What the person is to the task ("witness", "judge"), free text.
+  role       String?      @db.VarChar(60)
+  name       String       @db.VarChar(120)
+  phone      String?      @db.VarChar(20)
+  email      String?      @db.VarChar(254)
+  created_at DateTime     @default(now()) @db.Timestamptz
+
+  @@index([task_id, position], map: "attorney_task_people_task_idx")
+  @@index([user_id], map: "attorney_task_people_user_idx")
+  @@map("attorney_task_people")
+}
+
+/// Owner 2026-10-01: a checklist step inside a task — any number per task,
+/// each with its own time/place/contact and checkmark.
+model AttorneyTaskStep {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id         String             @db.Uuid
+  task            AttorneyTask       @relation(fields: [task_id], references: [id], onDelete: Cascade, map: "attorney_task_steps_task_fkey", onUpdate: NoAction)
+  position        Int                @default(0)
+  kind            AttorneyTaskKind?
+  title           String             @db.VarChar(160)
+  due_at          DateTime?          @db.Timestamptz
+  location        String?            @db.VarChar(200)
+  contact_name    String?            @db.VarChar(120)
+  contact_phone   String?            @db.VarChar(20)
+  contact_email   String?            @db.VarChar(254)
+  status          AttorneyTaskStatus @default(open)
+  note            String?            @db.VarChar(1000)
+  done_at         DateTime?          @db.Timestamptz
+  created_by_name String?            @db.VarChar(120)
+  created_at      DateTime           @default(now()) @db.Timestamptz
+  updated_at      DateTime           @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([task_id, position], map: "attorney_task_steps_task_idx")
+  @@map("attorney_task_steps")
+}
+
+/// OQ-048: a bid an assistant prepared for the attorney to review and send.
+model BidDraft {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id      String   @db.Uuid
+  attorney         User     @relation("BidDrafts", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  case_id          String   @db.Uuid
+  case             Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  payload          Json
+  prepared_by_name String?  @db.VarChar(80)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([attorney_id, case_id], map: "bid_drafts_attorney_case_key")
+  @@map("bid_drafts")
+}
+
+/// Owner 2026-10-05: a client offers one of their open cases to a chosen
+/// attorney. One row per (case, attorney): a re-invite after a decline,
+/// cancel or expiry reuses it. status: pending / accepted (the attorney
+/// answered with a bid, `bid_id`) / declined / cancelled / expired.
+model CaseInvite {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                 String    @db.Uuid
+  case                    Case      @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  client_id               String    @db.Uuid
+  client                  User      @relation("CaseInvitesSent", fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attorney_id             String    @db.Uuid
+  attorney                User      @relation("CaseInvitesReceived", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  status                  String    @default("pending") @db.VarChar(20)
+  message                 String?   @db.VarChar(1000)
+  budget_cents            Int?
+  decline_reason          String?   @db.VarChar(500)
+  outside_practice        Boolean   @default(false)
+  outside_licensed_states Boolean   @default(false)
+  bid_id                  String?   @db.Uuid
+  expires_at              DateTime  @db.Timestamptz
+  decided_at              DateTime? @db.Timestamptz
+  created_at              DateTime  @default(now()) @db.Timestamptz
+  updated_at              DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([case_id, attorney_id], map: "case_invites_case_attorney_key")
+  @@index([attorney_id, status], map: "case_invites_attorney_status_idx")
+  @@index([client_id, created_at], map: "case_invites_client_created_idx")
+  @@map("case_invites")
+}
+
+/// Owner 2026-09-30: a push + in-app message an admin sent to an audience.
+model AdminBroadcast {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id    String   @db.Uuid
+  title       String   @db.VarChar(120)
+  body        String   @db.VarChar(1000)
+  audience    String   @db.VarChar(20)
+  state_code  String?  @db.VarChar(2)
+  /// Owner 2026-10-04: any set of states (empty = every state);
+  /// `state_code` keeps the first one for older readers.
+  state_codes String[] @default([])
+  recipients  BigInt   @default(0)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@map("admin_broadcasts")
+}
+
+/// OQ-049: the attorney accepted (or withdrew) responsibility for an
+/// assistant's bids / publications. Append-only.
+model AssistantLiabilityAcceptance {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id   String              @db.Uuid
+  attorney      User                @relation("AssistantLiability", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  membership_id String              @db.Uuid
+  membership    AssistantMembership @relation(fields: [membership_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  duties        String[]
+  granted       Boolean
+  terms_version String              @db.VarChar(20)
+  ip            String?             @db.VarChar(64)
+  user_agent    String?             @db.VarChar(300)
+  created_at    DateTime            @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, created_at(sort: Desc)], map: "assistant_liability_by_attorney")
+  @@map("assistant_liability_acceptances")
+}
+
+/// Owner 2026-10-01: third-party API keys managed in the admin
+/// (Integrations & API keys). Secrets are one AES-256-GCM envelope.
+enum IntegrationCredentialStatus {
+  pending
+  active
+  retired
+
+  @@map("integration_credential_status")
+}
+
+model IntegrationCredential {
+  id              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider        String
+  version         Int
+  status          IntegrationCredentialStatus @default(pending)
+  secret_enc      String
+  kid             String
+  public_config   Json                        @default("{}")
+  masked          Json                        @default("{}")
+  fingerprint     String
+  created_by      String?                     @db.Uuid
+  created_by_user User?                       @relation("IntegrationCredentialCreator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  created_at      DateTime                    @default(now()) @db.Timestamptz
+  activated_at    DateTime?                   @db.Timestamptz
+  retired_at      DateTime?                   @db.Timestamptz
+  last_test_at    DateTime?                   @db.Timestamptz
+  last_test_ok    Boolean?
+  last_test_error String?
+  /// Owner 2026-10-05: several key sets per service ("main", "backup", …).
+  /// One active version per (provider, slot); the API uses the enabled
+  /// sets in [priority] order and falls back to the next on a failure.
+  slot            String                      @default("main")
+  label           String?
+  priority        Int                         @default(0)
+  enabled         Boolean                     @default(true)
+
+  @@unique([provider, version])
+  @@map("integration_credentials")
+}
+
+/// Owner 2026-10-05: how a state's attorney registry is checked
+/// automatically. `adapter` is manual | ny_open_data | socrata |
+/// generic_rest; `config` holds the non-secret settings (URL template,
+/// field paths…), `secret_enc` the API key (AES-256-GCM envelope, AAD
+/// "bar_registry:<state>"). A state without a row, disabled or `manual`
+/// is checked by a verifier through the bar's lookup link.
+model StateBarRegistry {
+  state_code       String    @id @db.Char(2)
+  state            State     @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  adapter          String    @default("manual")
+  enabled          Boolean   @default(false)
+  config           Json      @default("{}")
+  secret_enc       String?
+  secret_masked    String?
+  test_bar_number  String?
+  last_test_at     DateTime? @db.Timestamptz
+  last_test_result Json?
+  updated_by       String?   @db.Uuid
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@map("state_bar_registries")
+}
+
+/// Owner 2026-10-05: what has actually been checked about an attorney and
+/// the holds on them. One row per attorney, created lazily. The level and
+/// badge mirror on attorney_profiles (trust_level / trust_badge) for cheap
+/// reads in lists.
+model AttorneyTrust {
+  attorney_id                  String          @id @db.Uuid
+  attorney                     AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
+  level                        Int             @default(0) @db.SmallInt
+  // Signals ----------------------------------------------------------
+  // The license was confirmed outside the attorney's word: 'registry'
+  // (state registry match) or 'staff' (verifier opened the state bar's
+  // page). Null = only self-attested.
+  license_confirmed_at         DateTime?       @db.Timestamptz
+  license_confirmed_by         String?         @db.VarChar(16)
+  license_confirmed_note       String?         @db.VarChar(500)
+  // A verifier checked bar card + ID + selfie.
+  documents_verified_at        DateTime?       @db.Timestamptz
+  documents_verified_by        String?         @db.Uuid
+  // Stripe Connect KYC (account.updated): charges enabled and details
+  // submitted; the legal name Stripe verified.
+  stripe_kyc_at                DateTime?       @db.Timestamptz
+  stripe_charges_enabled       Boolean         @default(false)
+  stripe_legal_name            String?         @db.VarChar(200)
+  // Owner 2026-10-05 (LLC question): individual | company | non_profit |
+  // government_entity; for a company the representative / owners are the
+  // people compared with the profile, never the company name.
+  stripe_business_type         String?         @db.VarChar(24)
+  stripe_company_name          String?         @db.VarChar(200)
+  // Host of business_profile.url (a firm's website), for the firm e-mail check.
+  stripe_company_domain        String?         @db.VarChar(200)
+  // The representative / owner whose name matched the profile (or the first).
+  stripe_representative        String?         @db.VarChar(200)
+  // Legal name (Stripe) vs profile / registry: match | mismatch | unknown.
+  name_check                   String          @default("unknown") @db.VarChar(16)
+  name_checked_at              DateTime?       @db.Timestamptz
+  // Firm link (a company account the attorney neither owns nor represents):
+  // none | pending | confirmed; source registry | email | staff.
+  firm_link_status             String          @default("none") @db.VarChar(16)
+  firm_link_source             String?         @db.VarChar(16)
+  firm_link_at                 DateTime?       @db.Timestamptz
+  firm_link_note               String?         @db.VarChar(500)
+  // The firm e-mail domain the attorney confirmed with a code.
+  firm_email_domain            String?         @db.VarChar(200)
+  firm_email_verified_at       DateTime?       @db.Timestamptz
+  // Staff clearance (owner 2026-10-05, «Борьба с мошенниками»): a verifier
+  // pressed «Подтвердить» after checking what the rules require; from then
+  // on the badge and payments stay open with no re-checks (only complaints
+  // and an explicit withdrawal close them).
+  staff_cleared_at             DateTime?       @db.Timestamptz
+  staff_cleared_by             String?         @db.Uuid
+  staff_cleared_note           String?         @db.VarChar(500)
+  // «Запросить ещё»: the last request for more documents and its template.
+  documents_requested_at       DateTime?       @db.Timestamptz
+  documents_requested_template String?         @db.VarChar(32)
+  // Holds -------------------------------------------------------------
+  // A code (complaint | name_mismatch | duplicate_claim | admin | ...) or
+  // null. While set, the gate is closed whatever the level.
+  payments_hold                String?         @db.VarChar(32)
+  payments_hold_at             DateTime?       @db.Timestamptz
+  bids_hold                    String?         @db.VarChar(32)
+  bids_hold_at                 DateTime?       @db.Timestamptz
+  hold_note                    String?         @db.VarChar(500)
+  // Counters ----------------------------------------------------------
+  complaints_total             Int             @default(0)
+  duplicate_claims             Int             @default(0)
+  // Payout delay (days) LawBid asked Stripe to apply; null = Stripe default.
+  payout_delay_days            Int?            @db.SmallInt
+  payout_delay_synced_at       DateTime?       @db.Timestamptz
+  computed_at                  DateTime        @default(now()) @db.Timestamptz
+  created_at                   DateTime        @default(now()) @db.Timestamptz
+  updated_at                   DateTime        @updatedAt @db.Timestamptz
+
+  @@index([level])
+  @@index([payments_hold])
+  @@index([bids_hold])
+  @@map("attorney_trust")
+}
+
+/// Owner 2026-10-05: history of an attorney's trust: level changes, signals,
+/// holds and who caused them (system, admin, attorney, client).
+model AttorneyTrustEvent {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id String          @db.Uuid
+  attorney    AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
+  kind        String          @db.VarChar(48)
+  from_level  Int?            @db.SmallInt
+  to_level    Int?            @db.SmallInt
+  actor_type  String          @default("system") @db.VarChar(16)
+  actor_id    String?         @db.Uuid
+  details     Json            @default("{}")
+  created_at  DateTime        @default(now()) @db.Timestamptz
+
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([kind, created_at(sort: Desc)])
+  @@map("attorney_trust_events")
+}
+
+/// Owner 2026-10-05 07:00: a bar number that staff rejected or an account
+/// that was blocked cannot register again under another name or account.
+/// One row per (state, bar number); `active` flips on unblock, the history
+/// lives in bar_number_block_events and is never deleted.
+model BarNumberBlock {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  state_code      String                @db.Char(2)
+  bar_number      String
+  /// Normalised for matching: upper-case, no spaces / punctuation.
+  bar_key         String
+  active          Boolean               @default(true)
+  reason          String                @db.VarChar(500)
+  /// 'staff_reject' | 'verification_reject' | 'suspend' | 'manual'
+  source          String                @db.VarChar(32)
+  /// The attorney whose rejection / block created it (may be gone later).
+  attorney_id     String?               @db.Uuid
+  blocked_by      String?               @db.Uuid
+  blocked_at      DateTime              @default(now()) @db.Timestamptz
+  /// Also refuse the e-mail / phone that were on the blocked account.
+  block_contacts  Boolean               @default(false)
+  email_lower     String?
+  phone_e164      String?
+  unblocked_at    DateTime?             @db.Timestamptz
+  unblocked_by    String?               @db.Uuid
+  unblock_reason  String?               @db.VarChar(500)
+  attempts        Int                   @default(0)
+  last_attempt_at DateTime?             @db.Timestamptz
+  created_at      DateTime              @default(now()) @db.Timestamptz
+  updated_at      DateTime              @updatedAt @db.Timestamptz
+  events          BarNumberBlockEvent[]
+
+  @@unique([state_code, bar_key])
+  @@index([active, blocked_at(sort: Desc)])
+  @@index([email_lower])
+  @@index([phone_e164])
+  @@map("bar_number_blocks")
+}
+
+/// Immutable history of a blocked bar number: blocked / unblocked /
+/// attempt (someone tried to register it again).
+model BarNumberBlockEvent {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  block_id   String         @db.Uuid
+  block      BarNumberBlock @relation(fields: [block_id], references: [id], onDelete: Cascade)
+  kind       String         @db.VarChar(32)
+  actor_type String         @default("system") @db.VarChar(16)
+  actor_id   String?        @db.Uuid
+  reason     String?        @db.VarChar(500)
+  details    Json           @default("{}")
+  created_at DateTime       @default(now()) @db.Timestamptz
+
+  @@index([block_id, created_at(sort: Desc)])
+  @@map("bar_number_block_events")
+}
+
+/// Owner 2026-10-05: a service the owner adds in the admin without a code
+/// change (name + its own key fields); code reads it with
+/// SecretsService.get(id) like a built-in one.
+model IntegrationCustomProvider {
+  id          String   @id
+  label       String
+  description String   @default("")
+  /// [{ name, label, secret, required }]
+  fields      Json     @default("[]")
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+  updated_at  DateTime @default(now()) @db.Timestamptz
+
+  @@map("integration_custom_providers")
+}
+
+/// Owner 2026-10-01: Bunny Stream video of a post.
+enum VideoAssetStatus {
+  awaiting_upload
+  processing
+  ready
+  failed
+  rejected
+  deleted
+
+  @@map("video_asset_status")
+}
+
+model VideoAsset {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id     String           @db.Uuid
+  owner             User             @relation("VideoAssetOwner", fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "video_assets_owner_fkey")
+  provider          String           @default("bunny")
+  library_id        String
+  external_id       String           @unique
+  status            VideoAssetStatus @default(awaiting_upload)
+  duration_sec      Int?
+  width             Int?
+  height            Int?
+  storage_bytes     BigInt?
+  failure_reason    String?
+  /// Owner 2026-10-05: the reel plays only [trim_start_ms, trim_end_ms)
+  /// of the uploaded video; cover = the frame at cover_time_ms.
+  trim_start_ms     Int?
+  trim_end_ms       Int?
+  cover_time_ms     Int?
+  upload_expires_at DateTime         @db.Timestamptz
+  created_at        DateTime         @default(now()) @db.Timestamptz
+  ready_at          DateTime?        @db.Timestamptz
+  deleted_at        DateTime?        @db.Timestamptz
+  purged_at         DateTime?        @db.Timestamptz
+  post              Post?
+
+  @@index([status, created_at], map: "video_assets_status_created_idx")
+  @@index([owner_user_id, created_at(sort: Desc)], map: "video_assets_owner_created_idx")
+  @@map("video_assets")
+}
+
+// ---------------------------------------------------------------------------
+// Owner 2026-10-02 — admin growth & support tools. Status/kind columns are
+// short strings validated by the DTOs (no new enum types: CockroachDB can't
+// use an enum created in the same migration). User/admin ids are plain UUID
+// columns so these tables don't add back-relations to `User`.
+// ---------------------------------------------------------------------------
+
+// Free subscription under a contract (blogger attorneys): 3–12 months,
+// optionally with assistant seats. SubscriptionAccessService treats an
+// unrevoked grant inside [starts_at, ends_at) as an active subscription.
+model ContractGrant {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String    @db.Uuid
+  months          Int       @db.SmallInt
+  assistant_seats Int       @default(0) @db.SmallInt
+  starts_at       DateTime  @db.Timestamptz
+  ends_at         DateTime  @db.Timestamptz
+  // Contract reference / blogger handle, shown to admins only.
+  contract_ref    String?   @db.VarChar(200)
+  note            String?   @db.VarChar(1000)
+  created_by      String    @db.Uuid
+  revoked_at      DateTime? @db.Timestamptz
+  revoked_by      String?   @db.Uuid
+  revoke_reason   String?   @db.VarChar(500)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@index([user_id, ends_at])
+  @@index([ends_at])
+  @@map("contract_grants")
+}
+
+// Owner 2026-10-05: an attorney asks for more assistant seats than the
+// global limit; an admin approves (sets attorney_profiles.
+// assistant_seat_limit) or rejects.
+model SeatLimitRequest {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id     String    @db.Uuid
+  requested_seats Int       @db.SmallInt
+  note            String?   @db.VarChar(1000)
+  // pending | approved | rejected
+  status          String    @default("pending") @db.VarChar(20)
+  granted_seats   Int?      @db.SmallInt
+  decision_note   String?   @db.VarChar(500)
+  decided_by      String?   @db.Uuid
+  decided_at      DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, created_at], map: "seat_limit_requests_status_created_idx")
+  @@index([attorney_id, created_at], map: "seat_limit_requests_attorney_created_idx")
+  @@map("seat_limit_requests")
+}
+
+// Promo codes: percent / fixed amount off, or free days of subscription.
+model PromoCode {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Upper-case, unique.
+  code             String    @unique @db.VarChar(40)
+  description      String?   @db.VarChar(300)
+  // percent | amount | free_days
+  discount_type    String    @db.VarChar(16)
+  percent_off      Int?      @db.SmallInt
+  amount_off_cents Int?
+  free_days        Int?
+  // all | attorney | client
+  audience         String    @default("attorney") @db.VarChar(16)
+  // any | monthly | yearly | promotion
+  applies_to       String    @default("any") @db.VarChar(16)
+  max_redemptions  Int?
+  redeemed_count   Int       @default(0)
+  starts_at        DateTime? @db.Timestamptz
+  expires_at       DateTime? @db.Timestamptz
+  active           Boolean   @default(true)
+  // Owner 2026-10-05: «удалить» a code that was already used archives it
+  // (history of payments keeps pointing at it); unused codes are deleted.
+  archived_at      DateTime? @db.Timestamptz
+  stripe_coupon_id String?
+  created_by       String    @db.Uuid
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@index([active, expires_at])
+  @@map("promo_codes")
+}
+
+model PromoRedemption {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  promo_id         String   @db.Uuid
+  user_id          String   @db.Uuid
+  amount_off_cents Int?
+  payment_id       String?  @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  @@unique([promo_id, user_id])
+  @@index([user_id])
+  @@map("promo_redemptions")
+}
+
+// Refunds issued from the admin (Stripe refund or manual record).
+model Refund {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_id       String   @db.Uuid
+  user_id          String   @db.Uuid
+  amount_cents     Int
+  reason           String   @db.VarChar(500)
+  // pending | succeeded | failed
+  status           String   @db.VarChar(16)
+  stripe_refund_id String?  @unique
+  failure_reason   String?
+  admin_id         String   @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @updatedAt @db.Timestamptz
+
+  @@index([payment_id])
+  @@index([created_at(sort: Desc)])
+  @@map("refunds")
+}
+
+// Referrals: every user has one code; a referee joins with it once.
+model ReferralCode {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @unique @db.Uuid
+  code       String   @unique @db.VarChar(24)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("referral_codes")
+}
+
+model Referral {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referrer_id     String    @db.Uuid
+  referee_id      String    @unique @db.Uuid
+  code            String    @db.VarChar(24)
+  // pending | qualified | rewarded | rejected
+  status          String    @default("pending") @db.VarChar(16)
+  referrer_role   String    @db.VarChar(16)
+  referee_role    String    @db.VarChar(16)
+  // Snapshot of the program at sign-up time.
+  referrer_reward Json      @default("{}")
+  referee_reward  Json      @default("{}")
+  qualified_at    DateTime? @db.Timestamptz
+  rewarded_at     DateTime? @db.Timestamptz
+  rejected_reason String?   @db.VarChar(300)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
+
+  @@index([referrer_id, created_at(sort: Desc)])
+  @@index([status, created_at])
+  @@map("referrals")
+}
+
+// Owner 2026-10-05: partner (affiliate) program. A partner is a user the
+// admin pays per referred attorney who buys a subscription and per
+// referred client who hires (plus an optional monthly base). Attribution
+// reuses referral_codes / referrals; this is the pay side.
+model Partner {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String    @unique @db.Uuid
+  // active | paused | ended
+  status              String    @default("active") @db.VarChar(16)
+  // How the admin calls them ("blogger Ivan"); admin only.
+  label               String?   @db.VarChar(120)
+  note                String?   @db.VarChar(1000)
+  // null = program default (app_config partners.program).
+  attorney_rate_cents Int?
+  client_rate_cents   Int?
+  monthly_base_cents  Int       @default(0)
+  // null = program default; case_published | bid_accepted
+  client_rule         String?   @db.VarChar(24)
+  hold_days           Int?      @db.SmallInt
+  created_by          String?   @db.Uuid
+  // Owner 2026-10-05: partner without an app account (user is a placeholder
+  // row, users.placeholder_kind = external_partner): who they are and how
+  // to reach them, admin only. Cleared when a real account is linked.
+  external_name       String?   @db.VarChar(120)
+  external_contact    String?   @db.VarChar(200)
+  // Owner 2026-10-05 («Продвижение»): may create demo accounts for videos.
+  demo_access         Boolean   @default(false)
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+  ended_at            DateTime? @db.Timestamptz
+  // Owner 2026-10-05 (legal): the partner rules (FTC disclosure, no spam,
+  // independent contractor, ...) accepted in the app — when, which
+  // version (PARTNER_TERMS_VERSION) and from which IP.
+  terms_accepted_at   DateTime? @db.Timestamptz
+  terms_version       String?   @db.VarChar(16)
+  terms_ip            String?   @db.VarChar(45)
+  // A W-9 (or W-8) on file; required before the first payout when
+  // partners.program.requireW9 is on (IRS 1099 reporting).
+  w9_received_at      DateTime? @db.Timestamptz
+
+  commissions PartnerCommission[]
+  leads       OutreachLead[]
+
+  @@index([status, created_at])
+  @@map("partners")
+}
+
+// One accrual (or payout adjustment) of a partner. `event_ref` makes an
+// accrual idempotent per qualifying event. held → approved (after the
+// anti-fraud hold or by an admin) → paid; reversed on refund / rejection.
+model PartnerCommission {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partner_id       String    @db.Uuid
+  partner          Partner   @relation(fields: [partner_id], references: [id], onDelete: Cascade)
+  partner_user_id  String    @db.Uuid
+  referral_id      String?   @db.Uuid
+  referred_user_id String?   @db.Uuid
+  // attorney_subscription | client_qualified | monthly_base | adjustment
+  kind             String    @db.VarChar(32)
+  // Negative for a reversal of an already paid commission.
+  amount_cents     Int
+  // held | approved | paid | reversed
+  status           String    @default("held") @db.VarChar(16)
+  // "referral:<id>:attorney_subscription", "base:<partnerId>:2026-10", ...
+  event_ref        String    @unique @db.VarChar(120)
+  // Payroll period YYYY-MM the accrual belongs to.
+  period           String    @db.VarChar(7)
+  // null while held = manual hold (released only by an admin).
+  hold_until       DateTime? @db.Timestamptz
+  approved_at      DateTime? @db.Timestamptz
+  approved_by      String?   @db.Uuid
+  paid_at          DateTime? @db.Timestamptz
+  paid_by          String?   @db.Uuid
+  payout_ref       String?   @db.VarChar(120)
+  reversed_at      DateTime? @db.Timestamptz
+  reversed_reason  String?   @db.VarChar(300)
+  note             String?   @db.VarChar(300)
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@index([partner_id, created_at(sort: Desc)])
+  @@index([status, hold_until])
+  @@index([referred_user_id])
+  @@index([period, status])
+  @@map("partner_commissions")
+}
+
+/// Owner 2026-10-05: outreach (Привлечение). A lead is a lawyer or a
+/// prospective client the team cold-calls or emails; assigned to a
+/// partner (employee) whose referral link the lead is invited with.
+/// status: new | working | contacted | replied | registered | paid | lost.
+/// source: csv | manual | ny_registry. kind: attorney | client.
+model OutreachLead {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind              String    @default("attorney") @db.VarChar(10)
+  first_name        String?   @db.VarChar(80)
+  last_name         String?   @db.VarChar(80)
+  company           String?   @db.VarChar(160)
+  state_code        String?   @db.VarChar(2)
+  city              String?   @db.VarChar(80)
+  practice          String?   @db.VarChar(80)
+  // Digits only (E.164 without "+"); unique when present.
+  phone             String?   @unique @db.VarChar(20)
+  // Lower-cased; unique when present.
+  email             String?   @unique @db.VarChar(254)
+  source            String    @default("manual") @db.VarChar(20)
+  source_ref        String?   @db.VarChar(64)
+  status            String    @default("new") @db.VarChar(16)
+  partner_id        String?   @db.Uuid
+  partner           Partner?  @relation(fields: [partner_id], references: [id], onDelete: SetNull)
+  converted_user_id String?   @db.Uuid
+  unsubscribe_token String    @unique @db.VarChar(48)
+  unsubscribed_at   DateTime? @db.Timestamptz
+  last_activity_at  DateTime? @db.Timestamptz
+  next_action_at    DateTime? @db.Timestamptz
+  note              String?   @db.VarChar(2000)
+  // Owner 2026-10-05 (legal): do-not-contact (TCPA / DNC). Reason:
+  // manual | not_interested | wrong_number | unsubscribed | suppression |
+  // retention. While set, phone and email are hidden and no call/email
+  // may be logged or sent.
+  do_not_contact_at     DateTime? @db.Timestamptz
+  do_not_contact_reason String?   @db.VarChar(24)
+  // Where the contact came from and on what basis we may reach out
+  // (required for CSV imports and for client leads).
+  source_note       String?   @db.VarChar(300)
+  // Cold emails sent to this lead (cap + cooldown in outreach settings).
+  emails_sent       Int       @default(0) @db.Integer
+  last_email_at     DateTime? @db.Timestamptz
+  created_by        String    @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+
+  activities OutreachActivity[]
+
+  @@index([partner_id, status, created_at])
+  @@index([status, created_at])
+  @@index([state_code, kind])
+  @@index([converted_user_id])
+  @@index([next_action_at])
+  @@index([do_not_contact_at])
+  @@map("outreach_leads")
+}
+
+/// One touch on a lead: call | email | note | status | assign | system.
+/// outcome (calls): no_answer | voicemail | talked | interested |
+/// not_interested | callback | wrong_number; (emails): sent | failed.
+model OutreachActivity {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lead_id        String       @db.Uuid
+  lead           OutreachLead @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  partner_id     String?      @db.Uuid
+  actor_admin_id String?      @db.Uuid
+  kind           String       @db.VarChar(12)
+  outcome        String?      @db.VarChar(24)
+  body           String?      @db.VarChar(4000)
+  meta           Json?
+  created_at     DateTime     @default(now()) @db.Timestamptz
+
+  @@index([lead_id, created_at])
+  @@index([partner_id, kind, created_at])
+  @@index([created_at])
+  @@map("outreach_activities")
+}
+
+/// Cold-email templates: {{first_name}} {{last_name}} {{company}}
+/// {{sender_name}} {{link}} (the partner's referral link). kind:
+/// attorney | client | any.
+model OutreachTemplate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String   @db.VarChar(80)
+  kind       String   @default("any") @db.VarChar(10)
+  subject    String   @db.VarChar(200)
+  body       String   @db.VarChar(8000)
+  active     Boolean  @default(true)
+  created_by String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@index([active, kind])
+  @@map("outreach_templates")
+}
+
+/// Owner 2026-10-05 (legal): outreach stop-list — phones (digits only) and
+/// e-mails (lower-cased) that must never be called or written to, from
+/// the admin's manual list and from deleted do-not-contact leads.
+model OutreachSuppression {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // phone | email
+  kind       String   @db.VarChar(8)
+  value      String   @db.VarChar(254)
+  note       String?  @db.VarChar(200)
+  created_by String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([kind, value])
+  @@map("outreach_suppressions")
+}
+
+// Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.
+// Owner 2026-10-05: also posts (Instagram-style boost, no subscription):
+// target_type = case | post; the owner picks a daily budget and days, the
+// budget buys target_impressions at the admin's CPM, and an optional
+// audience (role, states, countries, topics) narrows who sees a post.
+model CasePromotion {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // case | post
+  target_type         String    @default("case") @db.VarChar(8)
+  case_id             String?   @db.Uuid
+  post_id             String?   @db.Uuid
+  user_id             String    @db.Uuid
+  days                Int       @db.SmallInt
+  // The chosen daily budget (= price per day).
+  price_cents_per_day Int
+  total_cents         Int
+  // pending_payment | pending_review | active | paused | finished |
+  // canceled | refunded | rejected
+  status              String    @db.VarChar(20)
+  starts_at           DateTime? @db.Timestamptz
+  ends_at             DateTime? @db.Timestamptz
+  stripe_checkout_id  String?   @unique
+  payment_id          String?   @db.Uuid
+  promo_code_id       String?   @db.Uuid
+  // Granted for free by an admin (no payment).
+  granted_by          String?   @db.Uuid
+  canceled_by         String?   @db.Uuid
+  cancel_reason       String?   @db.VarChar(500)
+  impressions         Int       @default(0)
+  // Owner 2026-10-05: delivery. cpm_cents frozen at purchase; null target
+  // = no cap (older rows). reach = distinct people shown it.
+  cpm_cents           Int?
+  target_impressions  Int?
+  reach               Int       @default(0)
+  clicks              Int       @default(0)
+  audience            Json?
+  // Refunded part (admin cancel with refund).
+  refunded_cents      Int       @default(0)
+  // Who approved it (null = automatic) and when.
+  reviewed_by         String?   @db.Uuid
+  reviewed_at         DateTime? @db.Timestamptz
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+
+  views PromotionView[]
+
+  @@index([status, ends_at])
+  @@index([case_id])
+  @@index([post_id])
+  @@index([target_type, status, ends_at])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("case_promotions")
+}
+
+// Owner 2026-10-05: who saw a promotion — unique reach, the per-person
+// daily frequency cap and clicks. One row per (promotion, viewer).
+model PromotionView {
+  promotion_id  String        @db.Uuid
+  promotion     CasePromotion @relation(fields: [promotion_id], references: [id], onDelete: Cascade)
+  user_id       String        @db.Uuid
+  impressions   Int           @default(0)
+  // Impressions on day_key (UTC date) for the daily cap.
+  day_key       String        @db.VarChar(10)
+  day_count     Int           @default(0)
+  clicked       Boolean       @default(false)
+  first_seen_at DateTime      @default(now()) @db.Timestamptz
+  last_seen_at  DateTime      @default(now()) @db.Timestamptz
+
+  @@id([promotion_id, user_id])
+  @@index([user_id, last_seen_at(sort: Desc)])
+  @@map("promotion_views")
+}
+
+// Support tickets from the app (any user) answered in the admin.
+model SupportTicket {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String    @db.Uuid
+  subject           String    @db.VarChar(200)
+  // account | billing | verification | case | bug | abuse | other
+  category          String    @default("other") @db.VarChar(20)
+  // open | waiting_user | resolved | closed
+  status            String    @default("open") @db.VarChar(16)
+  // low | normal | high | urgent
+  priority          String    @default("normal") @db.VarChar(8)
+  assignee_id       String?   @db.Uuid
+  unread_by_admin   Boolean   @default(true)
+  unread_by_user    Boolean   @default(false)
+  last_message_at   DateTime  @default(now()) @db.Timestamptz
+  resolved_at       DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+  // Owner 2026-10-05 (support 24/7): when the ticket was given to someone,
+  // the team's first public answer and who gave it, who resolved it.
+  assigned_at       DateTime? @db.Timestamptz
+  first_response_at DateTime? @db.Timestamptz
+  first_response_by String?   @db.Uuid
+  resolved_by       String?   @db.Uuid
+  // The answer the user is waiting for is due by sla_due_at (null = the
+  // ball is on the user's side); sla_breached_at once it was missed.
+  sla_due_at        DateTime? @db.Timestamptz
+  sla_breached_at   DateTime? @db.Timestamptz
+  // Owner 2026-10-05: the asker's country, copied at creation, so support
+  // staff assigned to a country see only its tickets.
+  country_code      String    @default("US") @db.Char(2)
+
+  @@index([status, last_message_at(sort: Desc)])
+  @@index([country_code, status])
+  @@index([user_id, last_message_at(sort: Desc)])
+  @@index([assignee_id, status])
+  @@index([sla_due_at])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticket_id       String   @db.Uuid
+  // Exactly one of author_user_id (the app user) / author_admin_id.
+  author_user_id  String?  @db.Uuid
+  author_admin_id String?  @db.Uuid
+  // Admin-only note, never shown to the user.
+  internal        Boolean  @default(false)
+  // Owner 2026-10-05: an automatic answer (after hours, "we got it"):
+  // neither author id is set; shown as "LawBid Support".
+  auto            Boolean  @default(false)
+  body            String   @db.VarChar(5000)
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@index([ticket_id, created_at])
+  @@map("support_messages")
+}
+
+/// Owner 2026-10-05: ready answers for support («Шаблоны ответов»).
+/// `{name}` in the body becomes the user's first name.
+model SupportMacro {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title      String   @db.VarChar(120)
+  body       String   @db.VarChar(5000)
+  /// null = any category.
+  category   String?  @db.VarChar(20)
+  active     Boolean  @default(true)
+  uses       Int      @default(0)
+  created_by String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@index([active, title])
+  @@map("support_macros")
+}
+
+/// Owner 2026-10-05: a support agent's shift switch. New tickets go to the
+/// agents on shift, the one with the fewest open tickets first.
+model SupportAgent {
+  admin_id   String   @id @db.Uuid
+  on_shift   Boolean  @default(false)
+  /// Open tickets at which auto-assignment skips this agent.
+  max_open   Int      @default(25)
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@map("support_agents")
+}
+
+/// Owner 2026-10-05: «Лучший сотрудник» — a prize given to an employee for
+/// a period and a department. A bonus becomes a payroll accrual.
+model StaffReward {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// "2026-10" (month) or "2026-W41" (week).
+  period      String   @db.VarChar(20)
+  /// verification · moderation · support · finance
+  department  String   @db.VarChar(24)
+  admin_id    String   @db.Uuid
+  rank        Int      @default(1)
+  score       Int      @default(0)
+  prize       String   @default("") @db.VarChar(200)
+  bonus_cents Int      @default(0)
+  currency    String   @default("usd") @db.VarChar(3)
+  /// The payroll accrual created for the bonus, when there is one.
+  accrual_id  String?  @db.Uuid
+  /// Given by the period-end job (true) or by hand.
+  auto        Boolean  @default(false)
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@unique([period, department, admin_id])
+  @@index([admin_id, created_at(sort: Desc)])
+  @@map("staff_rewards")
+}
+
+// Admin overrides of the built-in transactional emails, per locale.
+// Missing row (or enabled=false) = the built-in text is sent.
+model EmailTemplate {
+  key        String   @db.VarChar(64)
+  locale     String   @db.VarChar(5)
+  subject    String   @db.VarChar(200)
+  text_body  String
+  html_body  String?
+  enabled    Boolean  @default(true)
+  updated_by String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@id([key, locale])
+  @@map("email_templates")
+}
+
+// Owner 2026-10-01: Telegram-style sticker packs. owner_user_id NULL =
+// official (admin panel); status `hidden` = taken down by moderation.
+model StickerPack {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_user_id String?           @db.Uuid
+  owner         User?             @relation("StickerPackOwner", fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "sticker_packs_owner_fkey")
+  title         String            @db.VarChar(64)
+  short_name    String            @unique @db.VarChar(40)
+  is_official   Boolean           @default(false)
+  status        String            @default("active") @db.VarChar(16)
+  sticker_count Int               @default(0)
+  install_count Int               @default(0)
+  created_at    DateTime          @default(now()) @db.Timestamptz
+  updated_at    DateTime          @default(now()) @updatedAt @db.Timestamptz
+  deleted_at    DateTime?         @db.Timestamptz
+  stickers      Sticker[]
+  installs      UserStickerPack[]
+
+  @@index([owner_user_id, created_at(sort: Desc)], map: "sticker_packs_owner_idx")
+  @@index([is_official, status, install_count(sort: Desc)], map: "sticker_packs_official_idx")
+  @@map("sticker_packs")
+}
+
+model Sticker {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pack_id    String              @db.Uuid
+  pack       StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stickers_pack_fkey")
+  file_id    String              @unique @db.Uuid
+  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stickers_file_fkey")
+  emoji      String              @default("🙂") @db.VarChar(16)
+  position   Int                 @default(0)
+  created_at DateTime            @default(now()) @db.Timestamptz
+  deleted_at DateTime?           @db.Timestamptz
+  messages   Message[]
+  recent     UserRecentSticker[]
+
+  @@index([pack_id, position], map: "stickers_pack_position_idx")
+  @@map("stickers")
+}
+
+model UserStickerPack {
+  user_id      String      @db.Uuid
+  user         User        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_sticker_packs_user_fkey")
+  pack_id      String      @db.Uuid
+  pack         StickerPack @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_sticker_packs_pack_fkey")
+  position     Int         @default(0)
+  installed_at DateTime    @default(now()) @db.Timestamptz
+
+  @@id([user_id, pack_id])
+  @@index([pack_id], map: "user_sticker_packs_pack_idx")
+  @@map("user_sticker_packs")
+}
+
+model UserRecentSticker {
+  user_id    String   @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_recent_stickers_user_fkey")
+  sticker_id String   @db.Uuid
+  sticker    Sticker  @relation(fields: [sticker_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_recent_stickers_sticker_fkey")
+  used_at    DateTime @default(now()) @db.Timestamptz
+
+  @@id([user_id, sticker_id])
+  @@index([user_id, used_at(sort: Desc)], map: "user_recent_stickers_used_idx")
+  @@map("user_recent_stickers")
+}
+
+/// Owner 2026-10-02: the paid verified badge of a client (gold). Documents
+/// → approval in the admin → a $10/month subscription; the badge shows
+/// only while approved AND the subscription is paid (cancel or revoke
+/// removes it). One row per client.
+model ClientVerification {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                String    @unique @db.Uuid
+  user                   User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_verifications_user_fkey")
+  /// pending · approved · rejected · revoked
+  status                 String    @default("pending") @db.VarChar(16)
+  /// File ids (verification_document / verification_selfie), private bucket.
+  document_file_ids      Json      @default("[]")
+  note                   String?   @db.VarChar(500)
+  submitted_at           DateTime  @default(now()) @db.Timestamptz
+  reviewed_at            DateTime? @db.Timestamptz
+  reviewed_by            String?   @db.Uuid
+  reject_reason          String?   @db.VarChar(500)
+  revoke_reason          String?   @db.VarChar(500)
+  stripe_checkout_id     String?   @db.VarChar(255)
+  stripe_subscription_id String?   @unique @db.VarChar(255)
+  /// none · active · past_due · canceled
+  sub_status             String    @default("none") @db.VarChar(16)
+  current_period_end     DateTime? @db.Timestamptz
+  cancel_at_period_end   Boolean   @default(false)
+  created_at             DateTime  @default(now()) @db.Timestamptz
+  updated_at             DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, submitted_at(sort: Desc)], map: "client_verifications_queue_idx")
+  @@map("client_verifications")
+}
+
+/// Owner 2026-10-03: plan prices set in the admin (Billing → Prices).
+/// One active row per kind; a change inserts a new row (history). Stripe
+/// prices are immutable, so each row has its own Stripe price per mode
+/// (test / live / fake), created when first needed. Existing subscribers
+/// keep the price they bought unless the admin moves them.
+model PlanPrice {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// monthly · seat · yearly · client_badge, or a plan code / seat.<plan code>
+  /// (owner 2026-10-05, plan builder).
+  kind               String   @db.VarChar(64)
+  amount_cents       Int
+  currency           String   @default("usd") @db.VarChar(3)
+  active             Boolean  @default(true)
+  /// {"test": "price_…", "live": "price_…", "fake": "price_fake_…"}
+  stripe_price_ids   Json     @default("{}")
+  /// {"test": "prod_…", "live": "prod_…"}
+  stripe_product_ids Json     @default("{}")
+  note               String?  @db.VarChar(300)
+  /// Owner 2026-10-07: the strikethrough "old price" ($149 → $99). Shown
+  /// only while show_discount is on and it is above amount_cents.
+  compare_at_cents   Int?
+  show_discount      Boolean  @default(false)
+  created_by         String?  @db.Uuid
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@index([kind, active, created_at(sort: Desc)], map: "plan_prices_kind_idx")
+  @@map("plan_prices")
+}
+
+/// Owner 2026-10-05: staff on payroll ("Зарплаты"): an admin of the panel
+/// or anyone else, with a fixed monthly amount. Super admin, the deputy
+/// and admins with the payroll area manage it; every change is audited.
+model PayrollEmployee {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The admin account this person uses, when they have one.
+  admin_user_id          String?          @db.Uuid
+  /// Owner 2026-10-05: any LawBid account paid through payroll (a partner
+  /// blogger, …); commissions from other modules land on this person.
+  user_id                String?          @unique @db.Uuid
+  name                   String           @db.VarChar(120)
+  role_title             String           @default("") @db.VarChar(120)
+  amount_cents           Int
+  currency               String           @default("usd") @db.VarChar(3)
+  /// How the money goes: bank transfer details, Zelle, cash… (free text).
+  method_note            String           @default("") @db.VarChar(300)
+  /// For the Stripe Connect invite (optional).
+  email                  String?          @db.VarChar(254)
+  /// Stripe Connect Express account (payroll_stripe_payouts).
+  stripe_account_id      String?          @db.VarChar(64)
+  /// Stripe says the bank account / card is linked and payouts work.
+  stripe_payouts_enabled Boolean          @default(false)
+  active                 Boolean          @default(true)
+  created_by             String?          @db.Uuid
+  created_at             DateTime         @default(now()) @db.Timestamptz
+  updated_at             DateTime         @default(now()) @db.Timestamptz
+  payouts                PayrollPayout[]
+  accruals               PayrollAccrual[]
+
+  @@index([active, name])
+  @@map("payroll_employees")
+}
+
+/// One payment to a person: fixed salary plus accrued commissions. Recorded
+/// by hand (bank, Zelle, cash) or sent through Stripe Connect;
+/// `batch_id` groups one "Выплатить" run.
+model PayrollPayout {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id      String          @db.Uuid
+  employee         PayrollEmployee @relation(fields: [employee_id], references: [id], onDelete: Restrict)
+  batch_id         String          @db.Uuid
+  /// "2026-10" (month) or any label the owner gives the period.
+  period           String          @db.VarChar(40)
+  amount_cents     Int
+  currency         String          @default("usd") @db.VarChar(3)
+  /// manual · bank · zelle · cash · other · stripe
+  method           String          @default("manual") @db.VarChar(20)
+  /// paid · canceled · processing (Stripe transfer in flight) · failed
+  status           String          @default("paid") @db.VarChar(16)
+  /// Gross = base + commissions; net = gross - fee (what the person gets).
+  base_cents       Int             @default(0)
+  commission_cents Int             @default(0)
+  /// Stripe's cost, taken from the person's payout (owner 2026-10-05).
+  fee_cents        Int             @default(0)
+  net_cents        Int             @default(0)
+  /// Stripe transfer id (method = stripe).
+  transfer_id      String?         @db.VarChar(64)
+  /// Why the Stripe transfer failed.
+  failure          String?         @db.VarChar(300)
+  note             String?         @db.VarChar(300)
+  cancel_reason    String?         @db.VarChar(500)
+  created_by       String?         @db.Uuid
+  created_at       DateTime        @default(now()) @db.Timestamptz
+  canceled_at      DateTime?       @db.Timestamptz
+
+  @@index([employee_id, created_at(sort: Desc)])
+  @@index([period, created_at(sort: Desc)])
+  @@index([batch_id])
+  @@map("payroll_payouts")
+}
+
+/// Owner 2026-10-05: money owed to a person besides the fixed salary — a
+/// commission from the partner program, a bonus, an adjustment. Paid with
+/// the next «Выплатить»; `event_ref` makes each accrual idempotent.
+model PayrollAccrual {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employee_id  String          @db.Uuid
+  employee     PayrollEmployee @relation(fields: [employee_id], references: [id], onDelete: Restrict)
+  /// partner · admin · …
+  source       String          @db.VarChar(24)
+  /// commission · bonus · adjustment
+  kind         String          @default("commission") @db.VarChar(24)
+  event_ref    String          @unique @db.VarChar(120)
+  /// Negative for a reversal.
+  amount_cents Int
+  currency     String          @default("usd") @db.VarChar(3)
+  period       String          @db.VarChar(40)
+  note         String?         @db.VarChar(300)
+  /// pending · paid · canceled
+  status       String          @default("pending") @db.VarChar(16)
+  payout_id    String?         @db.Uuid
+  created_at   DateTime        @default(now()) @db.Timestamptz
+  paid_at      DateTime?       @db.Timestamptz
+  canceled_at  DateTime?       @db.Timestamptz
+
+  @@index([employee_id, status])
+  @@index([payout_id])
+  @@map("payroll_accruals")
+}
+
+/// Owner 2026-10-05 «Прибыль и резерв»: what the services charge the
+/// expense card a month (AWS, database, Twilio, Bunny, …). The monthly
+/// split sends this much to the «Расходы» bank before any profit.
+model TreasuryExpense {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String   @db.VarChar(80)
+  monthly_cents Int
+  /// manual · aws (taken from the AWS budget when it is higher)
+  source        String   @default("manual") @db.VarChar(16)
+  active        Boolean  @default(true)
+  sort          Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @db.Timestamptz
+
+  @@index([active, sort])
+  @@map("treasury_expenses")
+}
+
+/// Owner 2026-10-05: one payout of the monthly split from the platform's
+/// Stripe balance to a bank the owner added in Stripe.
+model TreasuryPayout {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Idempotency: auto:<period>:<kind> once a month; manual ones are unique.
+  key               String   @unique @db.VarChar(80)
+  /// YYYY-MM of the run.
+  period            String   @db.VarChar(7)
+  /// expenses · profit
+  kind              String   @db.VarChar(16)
+  /// auto · manual
+  trigger           String   @default("auto") @db.VarChar(8)
+  amount_cents      Int
+  currency          String   @default("usd") @db.VarChar(3)
+  /// Stripe bank id (null = Stripe's default bank).
+  destination_id    String?  @db.VarChar(64)
+  destination_label String?  @db.VarChar(80)
+  stripe_payout_id  String?  @db.VarChar(64)
+  /// pending · in_transit · paid · failed · canceled
+  status            String   @default("pending") @db.VarChar(16)
+  failure           String?  @db.VarChar(300)
+  /// The numbers the amount came from (reserve, expenses, balance).
+  plan              Json?
+  created_by        String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @db.Timestamptz
+
+  @@index([period, kind])
+  @@index([status])
+  @@index([created_at(sort: Desc)])
+  @@map("treasury_payouts")
+}
+
+// Owner 2026-10-05: client → attorney payments through the platform.
+// The attorney's own Stripe Connect (Express) account: money settles on
+// the attorney's balance (direct charges), the platform keeps only its
+// fee (`application_fee_amount`) and never holds the client's funds.
+model PayoutAccount {
+  user_id              String    @id @db.Uuid
+  provider             String    @default("stripe") @db.VarChar(16)
+  stripe_account_id    String    @unique
+  // pending | onboarding | active | restricted | disabled
+  status               String    @default("pending") @db.VarChar(16)
+  charges_enabled      Boolean   @default(false)
+  payouts_enabled      Boolean   @default(false)
+  details_submitted    Boolean   @default(false)
+  requirements_due     String[]  @default([])
+  disabled_reason      String?   @db.VarChar(200)
+  country              String?   @db.VarChar(2)
+  // Owner 2026-10-05: the attorney's own default for who covers Stripe's
+  // card fee on their invoices (client | attorney | split); null = the
+  // admin default for new attorneys applies.
+  processing_fee_payer String?   @db.VarChar(16)
+  last_synced_at       DateTime? @db.Timestamptz
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+
+  @@index([status])
+  @@map("payout_accounts")
+}
+
+// One payment of a client to the accepted attorney of a case (the bid
+// amount, a deposit, the balance or any amount). Fee columns are a
+// snapshot of the admin's commission settings at creation.
+model CasePayment {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                  String    @db.Uuid
+  bid_id                   String?   @db.Uuid
+  client_id                String    @db.Uuid
+  attorney_id              String    @db.Uuid
+  // bid | deposit | balance | custom | invoice
+  kind                     String    @db.VarChar(16)
+  // The attorney's payment request this pays (kind = invoice).
+  request_id               String?   @db.Uuid
+  // pending_payment | succeeded | failed | canceled | refunded |
+  // partially_refunded | disputed
+  status                   String    @db.VarChar(24)
+  // What the attorney charges for the work.
+  amount_cents             Int
+  // The platform's fee (application fee) and the card-processing fee
+  // passed to the client (an estimate of Stripe's charge).
+  platform_fee_cents       Int       @default(0)
+  processing_fee_cents     Int       @default(0)
+  client_total_cents       Int
+  attorney_net_cents       Int
+  // fixed | none; client | attorney
+  fee_type                 String    @db.VarChar(16)
+  fee_payer                String    @db.VarChar(16)
+  // Who covered Stripe's card fee: client | attorney | split.
+  processing_fee_payer     String    @default("client") @db.VarChar(16)
+  currency                 String    @default("usd") @db.VarChar(3)
+  note                     String?   @db.VarChar(200)
+  stripe_account_id        String?
+  stripe_checkout_id       String?   @unique
+  stripe_payment_intent_id String?   @unique
+  stripe_charge_id         String?
+  receipt_url              String?
+  refunded_cents           Int       @default(0)
+  // Stripe dispute status while / after a chargeback.
+  dispute_status           String?   @db.VarChar(32)
+  disputed_at              DateTime? @db.Timestamptz
+  paid_at                  DateTime? @db.Timestamptz
+  canceled_reason          String?   @db.VarChar(100)
+  failure_code             String?   @db.VarChar(100)
+  created_at               DateTime  @default(now()) @db.Timestamptz
+  updated_at               DateTime  @updatedAt @db.Timestamptz
+
+  @@index([case_id, created_at(sort: Desc)])
+  @@index([client_id, created_at(sort: Desc)])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([status, created_at(sort: Desc)])
+  @@index([request_id])
+  @@map("case_payments")
+}
+
+// Owner 2026-10-05: a payment request (invoice) the attorney sends the
+// client from the case: an amount, a description, an optional due date.
+// Installments = several requests sharing a plan_id. The client pays it in
+// two taps; reminders go out before and after the due date.
+model PaymentRequest {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id              String    @db.Uuid
+  attorney_id          String    @db.Uuid
+  client_id            String    @db.Uuid
+  // Who actually created it (the attorney or one of their assistants).
+  created_by           String    @db.Uuid
+  amount_cents         Int
+  description          String    @db.VarChar(200)
+  due_at               DateTime? @db.Timestamptz
+  // Who covers Stripe's fee on this invoice: client | attorney | split.
+  // Owner 2026-10-05 03:03: agreed like a bid — the attorney proposes, the
+  // client accepts or counters, the attorney answers; paying is possible
+  // once agreed (or by accepting the attorney's proposal with the payment).
+  processing_fee_payer String    @default("client") @db.VarChar(16)
+  // proposed | countered | agreed
+  fee_payer_status     String    @default("proposed") @db.VarChar(16)
+  // Who made the current proposal: attorney | client.
+  fee_payer_by         String    @default("attorney") @db.VarChar(16)
+  // Counter-offers so far (the admin caps them like bid rounds).
+  fee_payer_rounds     Int       @default(0)
+  fee_payer_agreed_at  DateTime? @db.Timestamptz
+  // open | paid | canceled | expired
+  status               String    @default("open") @db.VarChar(16)
+  plan_id              String?   @db.Uuid
+  seq                  Int       @default(1)
+  total                Int       @default(1)
+  payment_id           String?   @unique @db.Uuid
+  paid_at              DateTime? @db.Timestamptz
+  canceled_at          DateTime? @db.Timestamptz
+  last_reminded_at     DateTime? @db.Timestamptz
+  reminders_sent       Int       @default(0)
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+
+  @@index([case_id, created_at(sort: Desc)])
+  @@index([client_id, status, due_at])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([status, due_at])
+  @@map("payment_requests")
+}
+
+// Owner 2026-10-05: the client as a Stripe customer on one attorney's
+// connected account, so Checkout can offer their saved card next time.
+model ConnectedCustomer {
+  client_id          String   @db.Uuid
+  stripe_account_id  String
+  stripe_customer_id String
+  created_at         DateTime @default(now()) @db.Timestamptz
+
+  @@id([client_id, stripe_account_id])
+  @@map("connected_customers")
+}
+
+// A refund of a case payment, started by the attorney (the app), an admin
+// or Stripe (a lost dispute).
+model CasePaymentRefund {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payment_id        String   @db.Uuid
+  amount_cents      Int
+  reason            String   @db.VarChar(500)
+  // attorney | admin | stripe
+  initiated_by_type String   @db.VarChar(16)
+  initiated_by      String?  @db.Uuid
+  stripe_refund_id  String?  @unique
+  // pending | succeeded | failed
+  status            String   @db.VarChar(16)
+  failure_reason    String?
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @updatedAt @db.Timestamptz
+
+  @@index([payment_id])
+  @@map("case_payment_refunds")
+}
+
+// Owner 2026-10-05: the document templates library (admin → Content →
+// Document templates; app → "Templates"). A template is one clean
+// `document_template` file the admin uploaded; `state` NULL = every
+// state, `practice_area_id` NULL = any practice. `audience` lawyers =
+// attorneys (and their assistants) only. Downloads are counted once per
+// user a day.
+enum DocumentTemplateAudience {
+  everyone
+  lawyers
+
+  @@map("document_template_audience")
+}
+
+model DocumentTemplate {
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  file_id          String                   @unique @db.Uuid
+  file             File                     @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  file_name        String
+  title            String
+  description      String                   @default("")
+  practice_area_id String?                  @db.Uuid
+  practice_area    PracticeArea?            @relation(fields: [practice_area_id], references: [id], onDelete: SetNull)
+  state            String?                  @db.Char(2)
+  language         String                   @default("en")
+  audience         DocumentTemplateAudience @default(everyone)
+  is_published     Boolean                  @default(false)
+  download_count   Int                      @default(0)
+  created_by       String?                  @db.Uuid
+  created_at       DateTime                 @default(now()) @db.Timestamptz
+  updated_at       DateTime                 @updatedAt @db.Timestamptz
+  deleted_at       DateTime?                @db.Timestamptz
+
+  @@index([is_published, deleted_at, created_at])
+  @@index([practice_area_id])
+  @@map("document_templates")
+}
+
+/// Owner 2026-10-05 (plan builder): a subscription plan the admin
+/// assembles in Деньги → Планы. `kind` = paid (sold through plan_prices /
+/// Stripe) or baseline (what a user with no subscription gets; one per
+/// audience, never sold). `entitlements` = {key: value} over the catalog in
+/// apps/api/src/modules/plans/entitlement-catalog.ts; `highlights` = the
+/// admin's own bullet lines [{en, ru}]. Subscribers keep the entitlements
+/// frozen on their subscription row until the admin applies a change.
+model Plan {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String   @unique @db.VarChar(64)
+  /// attorney · client
+  audience     String   @db.VarChar(16)
+  /// paid · baseline
+  kind         String   @default("paid") @db.VarChar(16)
+  /// {"en": "...", "ru": "..."}
+  name         Json     @default("{}")
+  tagline      Json     @default("{}")
+  description  Json     @default("{}")
+  /// month · year (null for a baseline)
+  interval     String?  @db.VarChar(8)
+  /// plan_prices.kind that carries this plan's price (null for a baseline).
+  price_kind   String?  @db.VarChar(64)
+  entitlements Json     @default("{}")
+  highlights   Json     @default("[]")
+  /// draft · active · archived
+  status       String   @default("draft") @db.VarChar(16)
+  sort         Int      @default(0)
+  /// The plan legacy flows (no planCode given) buy for this audience+interval.
+  is_default   Boolean  @default(false)
+  created_by   String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  subscriptions        Subscription[]
+  client_subscriptions ClientSubscription[]
+
+  @@index([audience, status, sort], map: "plans_audience_idx")
+  @@map("plans")
+}
+
+/// Owner 2026-10-05 (plan builder): a client's paid plan (badge, cases
+/// first in the attorneys' feed, …). One row per client, driven by Stripe
+/// webhooks like the attorney's `subscriptions` row.
+model ClientSubscription {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                String    @unique @db.Uuid
+  user                   User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  plan_id                String?   @db.Uuid
+  plan                   Plan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
+  stripe_checkout_id     String?   @db.VarChar(255)
+  stripe_subscription_id String?   @unique @db.VarChar(255)
+  /// incomplete · trialing · active · past_due · canceled · expired
+  status                 String    @default("incomplete") @db.VarChar(16)
+  price_cents            Int       @default(0)
+  trial_ends_at          DateTime? @db.Timestamptz
+  current_period_end     DateTime? @db.Timestamptz
+  cancel_at_period_end   Boolean   @default(false)
+  canceled_at            DateTime? @db.Timestamptz
+  entitlements           Json?
+  created_at             DateTime  @default(now()) @db.Timestamptz
+  updated_at             DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, current_period_end], map: "client_subscriptions_status_idx")
+  @@map("client_subscriptions")
+}
+
+// Owner 2026-10-05 («Продвижение»): registry of demo accounts. The demo
+// user itself (and everything it does) lives in the DEMO database
+// (src/common/demo); this row in the real database says who created it,
+// when it was last used and the one-time code a blogger without an app
+// account enters to get in. Deleting the row deletes the demo user.
+model DemoAccount {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // users.id inside the demo database.
+  demo_user_id        String    @unique @db.Uuid
+  // client | attorney | assistant
+  role                String    @db.VarChar(16)
+  display_name        String    @db.VarChar(120)
+  // Admin's note: "блогер Иван, Instagram".
+  label               String?   @db.VarChar(200)
+  // The partner (real user) who created it from the app; null when the
+  // admin created it for a blogger without an account.
+  created_by_user_id  String?   @db.Uuid
+  created_by_admin_id String?   @db.Uuid
+  invite_code_hash    String?   @unique @db.VarChar(64)
+  invite_expires_at   DateTime? @db.Timestamptz
+  last_seen_at        DateTime? @db.Timestamptz
+  created_at          DateTime  @default(now()) @db.Timestamptz
+  updated_at          DateTime  @updatedAt @db.Timestamptz
+
+  @@index([created_by_user_id, created_at])
+  @@index([last_seen_at])
+  @@map("demo_accounts")
+}
+
+/// Owner 2026-10-05 (storage like Telegram): one row a day — how much the
+/// files take by type, how much deduplication saved, the biggest tables.
+/// The admin «Хранилище» page draws growth from these; the growth alert
+/// compares the newest two.
+model StorageSnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  day          DateTime @unique @db.Date
+  /// Sum of live files as users see them (each copy counted).
+  files_bytes  BigInt
+  /// What S3 really keeps (shared objects counted once).
+  stored_bytes BigInt
+  files_count  Int
+  /// { purpose: { bytes, count } }
+  by_purpose   Json
+  /// [{ table, rows, bytes }] — estimates from CockroachDB statistics.
+  db_tables    Json
+  db_bytes     BigInt   @default(0)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@map("storage_snapshots")
+}
+
+/// Owner 2026-10-05 (docs/CLIENT_FRAUD.md): hashed identity signals of an
+/// account — phone, e-mail, Apple / Google subject, on-device key, card,
+/// IP, case text. HMAC-SHA256 only, never the value. A sign-in sharing a
+/// strong one with a blocked account is refused or held for review.
+model IdentityFingerprint {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  /// phone | email | apple | google | device | card | ip | text
+  kind          String    @db.VarChar(16)
+  hash          String    @db.VarChar(64)
+  first_seen_at DateTime  @default(now()) @db.Timestamptz
+  last_seen_at  DateTime  @default(now()) @db.Timestamptz
+  /// Set when the owner's account was blocked and then deleted: the hash
+  /// keeps blocking after the account row is anonymised.
+  banned_at     DateTime? @db.Timestamptz
+
+  @@unique([user_id, kind, hash])
+  @@index([kind, hash])
+  @@index([last_seen_at])
+  @@map("identity_fingerprints")
+}
+
+/// Owner 2026-10-05: one client's risk score and fraud status
+/// (ok | review | restricted | banned), recomputed on every signal.
+model ClientFraudProfile {
+  user_id        String    @id @db.Uuid
+  score          Int       @default(0)
+  status         String    @default("ok") @db.VarChar(16)
+  /// [{ code, points, count }] — what the score is made of.
+  signals        Json      @default("[]")
+  /// The blocked account a sign-in matched, if any.
+  linked_user_id String?   @db.Uuid
+  /// What put the account in the queue: 'score' | 'linked' | 'staff'.
+  queue_reason   String?   @db.VarChar(16)
+  queued_at      DateTime? @db.Timestamptz
+  /// A staff «Снять» freezes the score: automatic actions return only when
+  /// the score grows past it.
+  cleared_score  Int?
+  cleared_by     String?   @db.Uuid
+  cleared_at     DateTime? @db.Timestamptz
+  computed_at    DateTime  @default(now()) @db.Timestamptz
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @updatedAt @db.Timestamptz
+
+  @@index([status, score(sort: Desc)])
+  @@map("client_fraud_profiles")
+}
+
+/// Append-only history of automatic and staff decisions.
+model ClientFraudEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?  @db.Uuid
+  kind       String   @db.VarChar(32)
+  /// system | admin
+  actor_type String   @default("system") @db.VarChar(16)
+  actor_id   String?  @db.Uuid
+  note       String?  @db.VarChar(500)
+  details    Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([kind, created_at(sort: Desc)])
+  @@index([actor_id, created_at(sort: Desc)])
+  @@map("client_fraud_events")
+}
+
+/// Owner 2026-10-06: «Главный партнёр страны». A business partner abroad
+/// promotes LawBid in one country at their own cost and gets a share of
+/// that country's net revenue. All money still goes to the owner's Stripe;
+/// the share is settled monthly and paid through payroll. Their admin team
+/// (the lead + up to `max_admins` staff) carries `country_partner` in
+/// admin_profiles.permissions and only sees this country. Only the super
+/// admin creates, changes the share, enables payouts or disables.
+model CountryPartner {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  country_code         String    @db.Char(2)
+  /// Company or person (contract party).
+  name                 String    @db.VarChar(120)
+  contact              String?   @db.VarChar(200)
+  /// The partner's own admin account (users.id with an admin profile).
+  lead_admin_id        String    @unique @db.Uuid
+  /// Share of the country's net revenue, basis points (2000 = 20 %).
+  share_bps            Int
+  /// active · paused · disabled
+  status               String    @default("active") @db.VarChar(16)
+  /// Staff the lead may hire (the lead not counted).
+  max_admins           Int       @default(10)
+  /// Owner switches payouts on per partner; until then settlements wait.
+  payouts_enabled      Boolean   @default(false)
+  /// Payroll entry the monthly share is accrued to.
+  payroll_employee_id  String?   @db.Uuid
+  contract_starts_at   DateTime? @db.Timestamptz
+  contract_ends_at     DateTime? @db.Timestamptz
+  /// Contract version the lead accepted (country_partners.contract in
+  /// app_config); null = not accepted yet, the portal asks first.
+  contract_version     Int?
+  contract_accepted_at DateTime? @db.Timestamptz
+  contract_accepted_ip String?   @db.VarChar(64)
+  /// [{metric: attorneys|clients|revenue_cents, target, deadline, alerted}]
+  goals                Json      @default("[]")
+  /// Team accounts suspended by «Отключить» / «Пауза» (restored together).
+  suspended_admin_ids  String[]  @default([])
+  note                 String?   @db.VarChar(1000)
+  created_by           String?   @db.Uuid
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @updatedAt @db.Timestamptz
+  disabled_at          DateTime? @db.Timestamptz
+  /// Set when the daily sweep switched the partner off because the
+  /// contract ended («Договор до»); what was earned before is still paid.
+  contract_expired_at  DateTime? @db.Timestamptz
+
+  settlements CountryPartnerSettlement[]
+
+  @@index([country_code, status])
+  @@map("country_partners")
+}
+
+/// One month of one partner in one currency: the country's paid revenue,
+/// refunds, estimated Stripe fees and the partner's share. Paid through
+/// payroll (accrual `country_partner:<id>`); its state is read from there.
+model CountryPartnerSettlement {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partner_id    String         @db.Uuid
+  partner       CountryPartner @relation(fields: [partner_id], references: [id], onDelete: Restrict)
+  /// "2026-10"
+  period        String         @db.VarChar(7)
+  currency      String         @default("usd") @db.VarChar(3)
+  gross_cents   Int
+  refunds_cents Int            @default(0)
+  fees_cents    Int            @default(0)
+  net_cents     Int
+  share_bps     Int
+  amount_cents  Int
+  /// held (payouts off / paused) · zero · accrued (sent to payroll)
+  status        String         @default("held") @db.VarChar(16)
+  /// payroll_accruals.event_ref of the latest send to payroll.
+  accrual_ref   String?        @db.VarChar(120)
+  created_at    DateTime       @default(now()) @db.Timestamptz
+  updated_at    DateTime       @updatedAt @db.Timestamptz
+
+  @@unique([partner_id, period, currency])
+  @@index([status, period])
+  @@map("country_partner_settlements")
+}
