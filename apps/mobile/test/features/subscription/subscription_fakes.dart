@@ -137,6 +137,15 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   Completer<void>? hold;
   Object? overviewError;
   Object? startError;
+
+  /// The order the last `start` call carried (owner 2026-10-11).
+  ({
+    SubscriptionPlan plan,
+    int seats,
+    List<String> phones,
+    String? promo,
+    String? planCode,
+  })? lastStartOrder;
   SubscriptionStart startResult = startFixture;
 
   /// What `confirm` returns; the `chargeNow` flag is recorded in [calls].
@@ -215,8 +224,21 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   }
 
   @override
-  Future<SubscriptionStart> start() async {
+  Future<SubscriptionStart> start({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
+  }) async {
     calls.add('start');
+    lastStartOrder = (
+      plan: plan,
+      seats: assistantSeats,
+      phones: assistantPhones,
+      promo: promoCode,
+      planCode: planCode,
+    );
     // ignore: only_throw_errors
     if (startError != null) throw startError!;
     return startResult;

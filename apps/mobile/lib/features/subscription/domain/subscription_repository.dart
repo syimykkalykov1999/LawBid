@@ -32,8 +32,16 @@ abstract interface class SubscriptionRepository {
   /// Back from the browser: apply the paid session (no-op until paid).
   Future<SubscriptionOverview> completeCheckout(String sessionId);
 
-  /// Customer + SetupIntent for the PaymentSheet.
-  Future<SubscriptionStart> start();
+  /// Customer + SetupIntent for the PaymentSheet. Owner 2026-10-11: the
+  /// order (plan, seats, assistant phones, promo) is kept on the server
+  /// until the card is confirmed.
+  Future<SubscriptionStart> start({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
+  });
 
   /// Card confirmed → create the subscription. [chargeNow] is the explicit
   /// consent to be charged immediately when no trial is available

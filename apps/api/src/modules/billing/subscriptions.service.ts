@@ -56,7 +56,11 @@ import type {
   SubscriptionDto,
   SubscriptionMeDto,
 } from './billing.dto';
-import type { PaymentProvider } from './payment-provider';
+import type {
+  PaymentProvider,
+  ProviderSetupIntent,
+  ProviderSubscription,
+} from './payment-provider';
 import { SubscriptionSyncService } from './subscription-sync.service';
 
 const PAYMENTS_PAGE = 20;
@@ -99,27 +103,47 @@ export class SubscriptionsService {
       this.queue = new Queue(SUBSCRIPTION_JOBS_QUEUE, { connection: { url } });
   }
 
-  async start(user: RequestUser): Promise<StartSubscriptionResultDto> {
-    const attorney = await this.verifiedAttorney(user);
+  /**
+   * POST /subscriptions/start — the card sheet inside the app (owner
+   * 2026-10-11): the order (plan, seats, assistant phones, promo) is
+   * priced like a hosted checkout and kept on the SetupIntent; `confirm`
+   * creates the subscription from it once the card is saved.
+   */
+  async start(
+    user: RequestUser,
+    req: CheckoutRequestDto = {},
+  ): Promise<StartSubscriptionResultDto> {
     await this.assertConfigured();
-    const existing = await this.prisma.subscription.findUnique({
-      where: { user_id: user.sub },
-    });
-    if (existing && SubscriptionAccessService.rowIsActive(existing)) {
-      throw new ConflictException({
-        code: ErrorCode.SUBSCRIPTION_ALREADY_ACTIVE,
-        message: 'A subscription is already active.',
-      });
-    }
-    const customerId = await this.customerId(user.sub, attorney.email);
-    const si = await this.provider.createSetupIntent(customerId);
+    const o = await this.prepareOrder(user, req, false);
+    const meta: Record<string, string> = {
+      userId: user.sub,
+      plan: o.plan,
+      planId: o.planRow.id,
+      planCode: o.planRow.code,
+      seats: String(o.seats),
+      priceCents: String(o.priceCents),
+      phones: o.phones.join(','),
+      items: o.lineItems.map((l) => `${l.priceId}:${l.quantity}`).join(','),
+      planTrialDays: String(o.planTrialDays),
+      ...(o.couponId ? { couponId: o.couponId } : {}),
+      ...(o.promo
+        ? {
+            promoId: o.promo.id,
+            promoFreeDays: String(o.promoDays),
+            promoOffCents: String(
+              promoDiscountCents(o.promo, o.priceCents) ?? '',
+            ),
+          }
+        : {}),
+    };
+    const si = await this.provider.createSetupIntent(o.customerId, meta);
     return {
       clientSecret: si.clientSecret,
       setupIntentId: si.id,
-      customerId,
-      trialEligible: await this.attorneyTrialEligible(user.sub),
-      priceCents: await this.pricing.amount('monthly'),
-      trialDays: await this.pricing.defaultTrialDays(),
+      customerId: o.customerId,
+      trialEligible: o.eligible,
+      priceCents: o.priceCents,
+      trialDays: o.planTrialDays,
     };
   }
 
@@ -133,6 +157,82 @@ export class SubscriptionsService {
     user: RequestUser,
     req: CheckoutRequestDto = {},
   ): Promise<CheckoutSessionDto> {
+    const o = await this.prepareOrder(user, req, true);
+    const {
+      customerId,
+      lineItems,
+      planRow,
+      plan,
+      seats,
+      phones,
+      priceCents,
+      planTrialDays,
+      eligible,
+      promo,
+      promoDays,
+      couponId,
+      trialDays,
+    } = o;
+    const base = this.checkoutReturnBase;
+    const session = await this.provider.createCheckoutSession({
+      customerId,
+      lineItems,
+      trialDays: trialDays > 0 ? trialDays : null,
+      successUrl: `${base}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${base}/subscription/cancel`,
+      metadata: {
+        userId: user.sub,
+        plan,
+        planId: planRow.id,
+        planCode: planRow.code,
+        seats: String(seats),
+        // Owner 2026-10-03: the amount the attorney saw, so the row keeps
+        // it even if the admin changes the price before the webhook.
+        priceCents: String(priceCents),
+        phones: phones.join(','),
+        ...(promo
+          ? {
+              promoId: promo.id,
+              promoFreeDays: String(promoDays),
+              promoOffCents: String(
+                promoDiscountCents(promo, priceCents) ?? '',
+              ),
+            }
+          : {}),
+      },
+      ...(couponId ? { couponId } : {}),
+    });
+    return {
+      url: session.url ?? '',
+      sessionId: session.id,
+      trialEligible: eligible,
+      priceCents,
+      trialDays: planTrialDays,
+      ...(promo
+        ? {
+            promo: {
+              code: promo.code,
+              discountType: promo.discount_type as PromoDiscountType,
+              discountCents: promoDiscountCents(promo, priceCents),
+              freeDays: promoDays || null,
+            },
+          }
+        : {}),
+    };
+  }
+
+  /**
+   * Owner 2026-10-11 (in-app payment sheet): the order the attorney chose
+   * (plan, extra seats, assistant phones, promo code) turned into prices,
+   * trial and coupon — the same for the hosted page and for the card
+   * sheet. [placeholder] opens the `incomplete` row a hosted checkout
+   * keys its webhooks to.
+   */
+  private async prepareOrder(
+    user: RequestUser,
+    req: CheckoutRequestDto,
+    placeholder: boolean,
+  ) {
     const attorney = await this.verifiedAttorney(user);
     // Owner 2026-10-05 (plan builder): the plan chosen in the app; the
     // legacy `plan` field picks the audience's default of that interval.
@@ -203,7 +303,7 @@ export class SubscriptionsService {
       planRow,
     ) as PrismaNs.InputJsonObject;
     // A row keyed to the customer, so the provider's webhooks find it.
-    if (!existing) {
+    if (placeholder && !existing) {
       await this.prisma.subscription.create({
         data: {
           user_id: user.sub,
@@ -235,51 +335,22 @@ export class SubscriptionsService {
     const promoDays =
       promo?.discount_type === 'free_days' ? (promo.free_days ?? 0) : 0;
     const trialDays = (eligible ? planTrialDays : 0) + promoDays;
-    const base = this.checkoutReturnBase;
-    const session = await this.provider.createCheckoutSession({
-      customerId,
-      lineItems,
-      trialDays: trialDays > 0 ? trialDays : null,
-      successUrl: `${base}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${base}/subscription/cancel`,
-      metadata: {
-        userId: user.sub,
-        plan,
-        planId: planRow.id,
-        planCode: planRow.code,
-        seats: String(seats),
-        // Owner 2026-10-03: the amount the attorney saw, so the row keeps
-        // it even if the admin changes the price before the webhook.
-        priceCents: String(priceCents),
-        phones: phones.join(','),
-        ...(promo
-          ? {
-              promoId: promo.id,
-              promoFreeDays: String(promoDays),
-              promoOffCents: String(
-                promoDiscountCents(promo, priceCents) ?? '',
-              ),
-            }
-          : {}),
-      },
-      ...(couponId ? { couponId } : {}),
-    });
     return {
-      url: session.url ?? '',
-      sessionId: session.id,
-      trialEligible: eligible,
+      attorney,
+      customerId,
+      existing,
+      lineItems,
+      planRow,
+      plan,
+      seats,
+      phones,
       priceCents,
-      trialDays: planTrialDays,
-      ...(promo
-        ? {
-            promo: {
-              code: promo.code,
-              discountType: promo.discount_type as PromoDiscountType,
-              discountCents: promoDiscountCents(promo, priceCents),
-              freeDays: promoDays || null,
-            },
-          }
-        : {}),
+      planTrialDays,
+      eligible,
+      promo,
+      promoDays,
+      couponId,
+      trialDays,
     };
   }
 
@@ -312,10 +383,25 @@ export class SubscriptionsService {
     ) {
       return;
     }
-    let remote = await this.provider.retrieveSubscription(
+    const first = await this.provider.retrieveSubscription(
       session.subscriptionId,
     );
-    if (!remote) return;
+    if (!first) return;
+    await this.applyOrder(first, session.metadata, owner);
+  }
+
+  /**
+   * A paid subscription of [owner] — from a hosted checkout session or from
+   * the in-app card sheet (owner 2026-10-11) — becomes the row, the
+   * assistants joined at purchase and the redeemed promo. [meta] is the
+   * order the attorney chose (see [prepareOrder]).
+   */
+  private async applyOrder(
+    first: ProviderSubscription,
+    meta: Record<string, string>,
+    owner: string,
+  ): Promise<void> {
+    let remote = first;
     // Audit 2026-10-01: a second paid checkout (two devices, an old tab)
     // while a live subscription exists must not replace it — the first
     // would keep billing unseen. The newcomer is cancelled at once.
@@ -340,7 +426,7 @@ export class SubscriptionsService {
           remote.defaultPaymentMethodId,
         )
       : null;
-    const promoDays = Number(session.metadata.promoFreeDays ?? 0) || 0;
+    const promoDays = Number(meta.promoFreeDays ?? 0) || 0;
     if (
       remote.status === 'trialing' &&
       !(await this.cardTrialEligible(fingerprint, owner))
@@ -359,21 +445,15 @@ export class SubscriptionsService {
       where: { user_id: owner },
     });
     const trialing = remote.status === 'trialing';
-    const plan = session.metadata.plan === 'yearly' ? 'yearly' : 'monthly';
+    const plan = meta.plan === 'yearly' ? 'yearly' : 'monthly';
     // Owner 2026-10-05: the plan bought, its terms frozen on the row.
-    const planRow = session.metadata.planId
-      ? await this.plans.byId(session.metadata.planId).catch(() => null)
+    const planRow = meta.planId
+      ? await this.plans.byId(meta.planId).catch(() => null)
       : null;
     const seats = planRow
-      ? Math.max(
-          0,
-          Math.min(SEATS_HARD_CAP, Number(session.metadata.seats ?? 0) || 0),
-        )
-      : Math.min(
-          SEATS_HARD_CAP,
-          Math.max(0, Number(session.metadata.seats ?? 0) || 0),
-        );
-    const quoted = Number(session.metadata.priceCents);
+      ? Math.max(0, Math.min(SEATS_HARD_CAP, Number(meta.seats ?? 0) || 0))
+      : Math.min(SEATS_HARD_CAP, Math.max(0, Number(meta.seats ?? 0) || 0));
+    const quoted = Number(meta.priceCents);
     const priceCents =
       Number.isFinite(quoted) && quoted > 0
         ? quoted
@@ -423,7 +503,7 @@ export class SubscriptionsService {
       await this.scheduleTrialReminder(row);
     }
     // OQ-048: assistants added at purchase join without the attorney's OTP.
-    const phones = (session.metadata.phones ?? '')
+    const phones = (meta.phones ?? '')
       .split(',')
       .filter((p) => /^\+[1-9][0-9]{7,14}$/.test(p))
       .slice(0, totalSeats);
@@ -449,10 +529,10 @@ export class SubscriptionsService {
     }
     // Owner 2026-10-02: the promo code is used once the checkout is paid
     // (an abandoned page does not burn it). Idempotent per user.
-    if (session.metadata.promoId) {
-      const off = Number(session.metadata.promoOffCents);
+    if (meta.promoId) {
+      const off = Number(meta.promoOffCents);
       await recordPromoRedemption(this.prisma, {
-        promoId: session.metadata.promoId,
+        promoId: meta.promoId,
         userId: owner,
         amountOffCents: Number.isFinite(off) && off > 0 ? off : null,
       });
@@ -670,6 +750,10 @@ export class SubscriptionsService {
     const fingerprint = await this.provider.paymentMethodFingerprint(
       si.paymentMethodId,
     );
+    // Owner 2026-10-11: the order kept on the SetupIntent by `start`.
+    if (si.metadata?.planId && si.metadata.items) {
+      return this.confirmOrder(user, si, fingerprint, chargeNow, customerId);
+    }
     const eligible =
       (await this.attorneyTrialEligible(user.sub)) &&
       (await this.cardTrialEligible(fingerprint, user.sub));
@@ -726,6 +810,57 @@ export class SubscriptionsService {
     if (row?.status === 'trialing' && row.trial_ends_at)
       await this.scheduleTrialReminder(row);
     await this.access.invalidate(user.sub);
+    return this.me(user);
+  }
+
+  /** `confirm` for an order made by `start` (plan, seats, promo). */
+  private async confirmOrder(
+    user: RequestUser,
+    si: ProviderSetupIntent,
+    fingerprint: string | null,
+    chargeNow: boolean,
+    customerId: string,
+  ): Promise<SubscriptionMeDto> {
+    const meta = si.metadata;
+    const lineItems = meta.items
+      .split(',')
+      .map((part) => {
+        const [priceId, qty] = part.split(':');
+        return { priceId, quantity: Math.max(1, Number(qty) || 1) };
+      })
+      .filter((l) => l.priceId);
+    if (lineItems.length === 0) {
+      throw new ConflictException({
+        code: ErrorCode.SUBSCRIPTION_SETUP_INCOMPLETE,
+        message: 'The order was not found for this card.',
+      });
+    }
+    const planTrialDays = Number(meta.planTrialDays ?? 0) || 0;
+    const promoDays = Number(meta.promoFreeDays ?? 0) || 0;
+    const eligible =
+      (await this.attorneyTrialEligible(user.sub, planTrialDays)) &&
+      (await this.cardTrialEligible(fingerprint, user.sub));
+    const priceCents = Number(meta.priceCents) || 0;
+    if (!eligible && promoDays === 0 && !chargeNow) {
+      // §1.1: no trial → the price is charged now, with the explicit OK.
+      throw new ConflictException({
+        code: ErrorCode.SUBSCRIPTION_TRIAL_UNAVAILABLE,
+        message:
+          'No trial is available for this account or card; the price will be charged now.',
+        details: { chargeNowCents: priceCents },
+      });
+    }
+    const trialDays = (eligible ? planTrialDays : 0) + promoDays;
+    const remote = await this.provider.createSubscription({
+      customerId,
+      priceId: lineItems[0].priceId,
+      lineItems,
+      couponId: meta.couponId ?? null,
+      paymentMethodId: si.paymentMethodId ?? '',
+      trialDays: trialDays > 0 ? trialDays : null,
+      metadata: { ...meta, userId: user.sub },
+    });
+    await this.applyOrder(remote, { ...meta, userId: user.sub }, user.sub);
     return this.me(user);
   }
 

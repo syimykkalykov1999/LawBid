@@ -53,6 +53,7 @@ abstract class SubscriptionsClient {
   /// Customer + SetupIntent for the PaymentSheet; trial eligibility
   @POST('/subscriptions/start')
   Future<StartSubscriptionResultEnvelope> startSubscription({
+    @Body() required CheckoutRequestDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

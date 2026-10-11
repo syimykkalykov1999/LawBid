@@ -18,6 +18,7 @@ import 'package:lawbid/features/plans/presentation/plan_features.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/pay_for_plan.dart';
 import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
@@ -136,14 +137,15 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
 
   /// OQ-048: the chosen plan is paid on Stripe's page in the browser.
   Future<void> _subscribeWeb(PlanChoice c) async {
-    final outcome =
-        await ref.read(subscribeControllerProvider.notifier).subscribeWeb(
-              plan: c.plan,
-              assistantSeats: c.seats,
-              assistantPhones: c.phones,
-              promoCode: c.promoCode,
-              planCode: c.planCode,
-            );
+    final outcome = await payForPlan(
+      context,
+      ref,
+      plan: c.plan,
+      assistantSeats: c.seats,
+      assistantPhones: c.phones,
+      promoCode: c.promoCode,
+      planCode: c.planCode,
+    );
     if (!mounted) return;
     switch (outcome) {
       case SubscribeOutcome.trialStarted:

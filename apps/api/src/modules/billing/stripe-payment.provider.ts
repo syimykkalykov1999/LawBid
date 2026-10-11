@@ -73,11 +73,13 @@ export class StripePaymentProvider implements PaymentProvider {
 
   async createSetupIntent(
     customerId: string,
+    metadata?: Record<string, string>,
   ): Promise<{ id: string; clientSecret: string }> {
     const si = await this.stripe.setupIntents.create({
       customer: customerId,
       payment_method_types: ['card'],
       usage: 'off_session',
+      ...(metadata ? { metadata } : {}),
     });
     return { id: si.id, clientSecret: si.client_secret ?? '' };
   }
@@ -96,6 +98,7 @@ export class StripePaymentProvider implements PaymentProvider {
           typeof si.payment_method === 'string'
             ? si.payment_method
             : (si.payment_method?.id ?? null),
+        metadata: si.metadata ?? {},
       };
     } catch (e) {
       if (isNotFound(e)) return null;
@@ -113,6 +116,8 @@ export class StripePaymentProvider implements PaymentProvider {
   async createSubscription(input: {
     customerId: string;
     priceId: string;
+    lineItems?: { priceId: string; quantity: number }[];
+    couponId?: string | null;
     paymentMethodId: string;
     trialDays: number | null;
     metadata: Record<string, string>;
@@ -120,7 +125,13 @@ export class StripePaymentProvider implements PaymentProvider {
     const sub = await this.stripe.subscriptions.create(
       {
         customer: input.customerId,
-        items: [{ price: input.priceId }],
+        items: input.lineItems?.length
+          ? input.lineItems.map((l) => ({
+              price: l.priceId,
+              quantity: l.quantity,
+            }))
+          : [{ price: input.priceId }],
+        ...(input.couponId ? { discounts: [{ coupon: input.couponId }] } : {}),
         default_payment_method: input.paymentMethodId,
         ...(input.trialDays ? { trial_period_days: input.trialDays } : {}),
         payment_settings: { save_default_payment_method: 'on_subscription' },

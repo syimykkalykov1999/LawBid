@@ -281,6 +281,7 @@ export class FakePaymentProvider implements PaymentProvider {
 
   createSetupIntent(
     customerId: string,
+    metadata: Record<string, string> = {},
   ): Promise<{ id: string; clientSecret: string }> {
     const id = `seti_fake_${randomUUID().slice(0, 12)}`;
     this.setupIntents.set(id, {
@@ -288,6 +289,7 @@ export class FakePaymentProvider implements PaymentProvider {
       customerId,
       status: 'requires_payment_method',
       paymentMethodId: null,
+      metadata,
     });
     return Promise.resolve({ id, clientSecret: `${id}_secret_fake` });
   }
@@ -317,6 +319,8 @@ export class FakePaymentProvider implements PaymentProvider {
   createSubscription(input: {
     customerId: string;
     priceId: string;
+    lineItems?: { priceId: string; quantity: number }[];
+    couponId?: string | null;
     paymentMethodId: string;
     trialDays: number | null;
     metadata: Record<string, string>;

@@ -54,6 +54,9 @@ export interface ProviderSetupIntent {
   customerId: string | null;
   status: string;
   paymentMethodId: string | null;
+  /** Owner 2026-10-11 (in-app payment sheet): the order the app asked
+   * for, kept on the SetupIntent until the card is confirmed. */
+  metadata: Record<string, string>;
 }
 
 export interface ProviderEvent {
@@ -93,6 +96,7 @@ export interface PaymentProvider {
   }): Promise<string>;
   createSetupIntent(
     customerId: string,
+    metadata?: Record<string, string>,
   ): Promise<{ id: string; clientSecret: string }>;
   retrieveSetupIntent(id: string): Promise<ProviderSetupIntent | null>;
   /** Card fingerprint of a payment method (§1.1: one trial per card). */
@@ -100,6 +104,11 @@ export interface PaymentProvider {
   createSubscription(input: {
     customerId: string;
     priceId: string;
+    /** Owner 2026-10-11: the plan's prices with quantities (plan + extra
+     * seats); [priceId] alone is the single-price legacy call. */
+    lineItems?: { priceId: string; quantity: number }[];
+    /** A promo / referral coupon applied to the subscription. */
+    couponId?: string | null;
     paymentMethodId: string;
     trialDays: number | null;
     metadata: Record<string, string>;

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/config/app_config.dart';
@@ -113,6 +114,18 @@ final checkoutLauncherProvider = Provider<CheckoutLauncher>(
 final checkoutPollIntervalProvider =
     Provider<Duration>((ref) => const Duration(seconds: 3));
 
+/// Tells the subscribe controller the app is in front again.
+class _ResumeWatcher with WidgetsBindingObserver {
+  _ResumeWatcher(this._onResumed);
+
+  final VoidCallback _onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _onResumed();
+  }
+}
+
 /// The browser could not open the payment page.
 class CheckoutNotOpened implements Exception {
   const CheckoutNotOpened();
@@ -160,8 +173,22 @@ final subscribeControllerProvider =
 class SubscribeController extends Notifier<SubscribeState> {
   static const _maxPolls = 15;
 
+  /// Owner 2026-10-11 (bug: «Ожидаем оплату» never ended): when the app
+  /// comes back from the payment page the answer is known within moments —
+  /// paid (the check sees it) or not. After a short grace the wait stops by
+  /// itself instead of spinning for the full 15 minutes.
+  DateTime? _stopWaitingAfter;
+  late final _ResumeWatcher _resumeWatcher;
+
   @override
-  SubscribeState build() => const SubscribeState.idle();
+  SubscribeState build() {
+    _resumeWatcher = _ResumeWatcher(
+      () => _stopWaitingAfter = DateTime.now().add(const Duration(seconds: 8)),
+    );
+    WidgetsBinding.instance.addObserver(_resumeWatcher);
+    ref.onDispose(() => WidgetsBinding.instance.removeObserver(_resumeWatcher));
+    return const SubscribeState.idle();
+  }
 
   void _phase(SubscribePhase phase) {
     if (ref.mounted) state = SubscribeState._(phase, null);
@@ -175,13 +202,24 @@ class SubscribeController extends Notifier<SubscribeState> {
     required Future<bool> Function(int chargeNowCents) confirmChargeNow,
     required CardCollectionRequest Function(SubscriptionStart start)
         buildRequest,
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
   }) async {
     if (state.busy) return SubscribeOutcome.cancelled;
     final repo = ref.read(subscriptionRepositoryProvider);
     final collector = ref.read(cardCollectorProvider);
     try {
       _phase(SubscribePhase.starting);
-      final start = await repo.start();
+      final start = await repo.start(
+        plan: plan,
+        assistantSeats: assistantSeats,
+        assistantPhones: assistantPhones,
+        promoCode: promoCode,
+        planCode: planCode,
+      );
       var chargeNow = false;
       if (!start.trialEligible) {
         if (!await confirmChargeNow(start.priceCents)) {
@@ -261,6 +299,7 @@ class SubscribeController extends Notifier<SubscribeState> {
       );
       _sessionId = checkout.sessionId;
       _stopWaiting = false;
+      _stopWaitingAfter = null;
       // Only https in production; the dev payment page is http://localhost.
       final okScheme = checkout.url.scheme == 'https' ||
           (kDebugMode && checkout.url.scheme == 'http');
@@ -271,8 +310,10 @@ class SubscribeController extends Notifier<SubscribeState> {
       _phase(SubscribePhase.awaitingPayment);
       final interval = ref.read(checkoutPollIntervalProvider);
       final deadline = DateTime.now().add(const Duration(minutes: 15));
-      while (
-          ref.mounted && !_stopWaiting && DateTime.now().isBefore(deadline)) {
+      while (ref.mounted &&
+          !_stopWaiting &&
+          DateTime.now().isBefore(deadline) &&
+          !(_stopWaitingAfter?.isBefore(DateTime.now()) ?? false)) {
         final overview = await _check(repo);
         if (overview != null && overview.isActive) {
           if (!ref.mounted) return SubscribeOutcome.activated;
