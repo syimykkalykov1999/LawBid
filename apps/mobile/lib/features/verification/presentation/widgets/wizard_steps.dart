@@ -320,7 +320,7 @@ class _LicenseBlock extends StatelessWidget {
               ),
             ),
             if (state.request.isDraft)
-              PopupMenuButton<void>(
+              PopupMenuButton<bool>(
                 tooltip: '',
                 icon: AppIcon(
                   AppIcons.moreHorizRounded,
@@ -328,7 +328,10 @@ class _LicenseBlock extends StatelessWidget {
                 ),
                 onSelected: (_) => actions.editLicense(license),
                 itemBuilder: (_) => [
-                  PopupMenuItem<void>(child: Text(t.t('common.edit'))),
+                  PopupMenuItem<bool>(
+                    value: true,
+                    child: Text(t.t('common.edit')),
+                  ),
                 ],
               ),
             if (state.request.isDraft)
