@@ -89,16 +89,6 @@ class WelcomeScreen extends ConsumerWidget {
       }
     }
 
-    // Legal-document screens (Terms/Privacy) are out of scope for this
-    // stage-1.7 "screens" slice — served from file 06's legal-document
-    // bootstrap config, not yet built. Same "not built yet" affordance as
-    // the social buttons rather than a silently-dead link.
-    void showLegalDocNotBuiltYet() {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.t('auth.welcome.notBuiltYet'))),
-      );
-    }
-
     final flowState = ref.watch(onboardingFlowProvider);
     final themeMode =
         ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
@@ -316,10 +306,10 @@ class WelcomeScreen extends ConsumerWidget {
                             LegalText(
                               text: t.t('auth.welcome.legal'),
                               links: {
-                                t.t('auth.welcome.legal.terms'):
-                                    showLegalDocNotBuiltYet,
-                                t.t('auth.welcome.legal.privacy'):
-                                    showLegalDocNotBuiltYet,
+                                t.t('auth.welcome.legal.terms'): () => context
+                                    .push(AppRoutes.legalDoc('terms')),
+                                t.t('auth.welcome.legal.privacy'): () => context
+                                    .push(AppRoutes.legalDoc('privacy')),
                               },
                               style: typography.legalFine,
                             ),

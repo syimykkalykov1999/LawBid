@@ -7,6 +7,11 @@ import {
   LEGAL_DOC_TYPE_LIST,
   LEGAL_LOCALES,
 } from './legal-documents.constants';
+import { nextVersion } from './legal-documents.logic';
+
+/** The documents the sign-up consent screen links to: they must never be
+ * the one-line placeholder, or a new user is asked to accept nothing. */
+const CONSENT_DOC_TYPES = ['terms', 'privacy', 'disclaimer'] as const;
 
 /** apps/api/assets/legal: 3 levels up from src/modules/legal-documents,
  * 4 from dist/src/modules/legal-documents. */
@@ -81,6 +86,74 @@ export class LegalDocumentsSeed implements OnModuleInit {
       }
     }
     if (created > 0) this.log.log(`legal document drafts seeded: ${created}`);
+    await this.publishOverPlaceholders();
     return created;
+  }
+
+  /**
+   * Owner 2026-10-11 (sign-up consent): where the CURRENT text of Terms,
+   * Privacy or the disclaimer is still the one-line placeholder, publish
+   * the real text over it as a new version (the admin's draft if there is
+   * one, else the shipped default) and archive the placeholder. Only
+   * placeholders are replaced; a text the owner published is left alone.
+   */
+  async publishOverPlaceholders(): Promise<number> {
+    const dir = seedDir();
+    if (!dir) return 0;
+    let published = 0;
+    for (const type of CONSENT_DOC_TYPES) {
+      for (const locale of LEGAL_LOCALES) {
+        const current = await this.prisma.legalDocument.findFirst({
+          where: { doc_type: type, locale, is_current: true },
+        });
+        if (!current || !isPlaceholder(current.content_md)) continue;
+        const draft = await this.prisma.legalDocument.findFirst({
+          where: { doc_type: type, locale, status: 'draft', is_current: false },
+        });
+        const draftText = isPlaceholder(draft?.content_md ?? null)
+          ? null
+          : (draft?.content_md ?? null);
+        const file = join(dir, `${type}.${locale}.md`);
+        const content =
+          draftText ?? (existsSync(file) ? readFileSync(file, 'utf8') : null);
+        if (!content) continue;
+        const versions = await this.prisma.legalDocument.findMany({
+          where: { doc_type: type, locale },
+          select: { version: true },
+        });
+        const data = {
+          version: nextVersion(
+            new Date(),
+            versions.map((v) => v.version),
+          ),
+          content_md: content,
+          status: 'published',
+          is_current: true,
+          published_at: new Date(),
+          requires_reacceptance: false,
+          change_note:
+            'Заглушка заменена нормальным текстом; проверить юристом США',
+        };
+        await this.prisma.$transaction([
+          this.prisma.legalDocument.update({
+            where: { id: current.id },
+            data: { is_current: false, status: 'archived' },
+          }),
+          draft && draftText
+            ? this.prisma.legalDocument.update({
+                where: { id: draft.id },
+                data,
+              })
+            : this.prisma.legalDocument.create({
+                data: { ...data, doc_type: type, locale },
+              }),
+        ]);
+        published += 1;
+      }
+    }
+    if (published > 0) {
+      this.log.log(`legal placeholders replaced with real text: ${published}`);
+    }
+    return published;
   }
 }
