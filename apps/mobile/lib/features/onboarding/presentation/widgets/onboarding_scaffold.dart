@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Shared frame for every `/onboarding/<step>` screen (docs/01_FOUNDATION_
 /// AUTH.md §11: "Прогресс-бар сверху, кнопка «Назад» везде"):
@@ -74,8 +75,17 @@ class OnboardingScaffold extends ConsumerWidget {
     final shownError = error ?? (blocker?.step == step ? blocker!.error : null);
     final order = OnboardingStepId.orderFor(role);
     final index = order.indexOf(step);
-    final (current, total) =
-        progress ?? (index < 0 ? order.length : index + 1, order.length);
+    // An attorney's verification step shows three sub-steps (licence,
+    // practices, subscription) instead of one segment: count them on every
+    // step so the bar has the same length from start to finish.
+    final extra = role == UserRole.attorney ? 2 : 0;
+    final (current, total) = progress ??
+        (
+          index < 0
+              ? order.length + extra
+              : (step == OnboardingStepId.tour ? index + 1 + extra : index + 1),
+          order.length + extra,
+        );
 
     return Scaffold(
       backgroundColor: colors.bg,

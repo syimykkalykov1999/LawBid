@@ -146,7 +146,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           .saveAssistantName(_first.text, _last.text);
       return;
     }
-    final statesOk = _states.isNotEmpty;
+    final statesOk = user.isAttorney || _states.isNotEmpty;
     if (_first.text.trim().isEmpty ||
         _last.text.trim().isEmpty ||
         !statesOk ||
@@ -334,18 +334,17 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           const SizedBox(height: AppSpacing.lg),
         ],
         if (!assistant) ...[
-          PickerField(
-            label: t.t(
-              attorney
-                  ? 'onboarding.profile.licensedStates'
-                  : 'onboarding.profile.state',
+          // An attorney's states are entered only on the License step.
+          if (!attorney) ...[
+            PickerField(
+              label: t.t('onboarding.profile.state'),
+              placeholder: t.t('onboarding.profile.select'),
+              value: statesValue,
+              errorText: statesError,
+              onTap: pickStates,
             ),
-            placeholder: t.t('onboarding.profile.select'),
-            value: statesValue,
-            errorText: statesError,
-            onTap: pickStates,
-          ),
-          const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.lg),
+          ],
           PickerField(
             label: t.t('onboarding.profile.languages'),
             placeholder: t.t('onboarding.profile.select'),
