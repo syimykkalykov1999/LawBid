@@ -45,12 +45,16 @@ class TopicFilterBar extends ConsumerWidget {
     this.showNews = true,
     this.showNotSure = false,
     this.allowedStates,
+    this.onDark = false,
     super.key,
   });
 
   /// Audit 2026-10-01: the case feed only shows cases in the attorney's
   /// verified-license states — the picker lists just those.
   final List<String>? allowedStates;
+
+  /// Owner 2026-10-12: over the Reels video — white text, always shown.
+  final bool onDark;
 
   /// The "News" pill (the post feed; not the attorney's case feed).
   final bool showNews;
@@ -317,7 +321,11 @@ class TopicFilterBar extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: type.bodySmall.copyWith(
-                          color: selected ? colors.text : colors.textSecondary,
+                          color: onDark
+                              ? (selected
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.7))
+                              : (selected ? colors.text : colors.textSecondary),
                           fontWeight:
                               selected ? FontWeight.w700 : FontWeight.w500,
                         ),
@@ -333,7 +341,7 @@ class TopicFilterBar extends ConsumerWidget {
                     width: selected ? 18 : 0,
                     height: 2.5,
                     decoration: BoxDecoration(
-                      color: colors.gold,
+                      color: onDark ? Colors.white : colors.gold,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -344,7 +352,8 @@ class TopicFilterBar extends ConsumerWidget {
           ),
         );
 
-    return ChromeCollapse(
+    return _Chrome(
+      collapse: !onDark,
       child: SizedBox(
         height: kTopicBarHeight,
         child: ListView(
@@ -365,7 +374,9 @@ class TopicFilterBar extends ConsumerWidget {
                       AppIcons.tuneRounded,
                       size: 20,
                       // Gold while a state narrows the feed.
-                      color: _hasState ? colors.gold : colors.text,
+                      color: _hasState
+                          ? colors.gold
+                          : (onDark ? Colors.white : colors.text),
                     ),
                   ),
                 ),
@@ -425,4 +436,15 @@ class TopicFilterBar extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _Chrome extends StatelessWidget {
+  const _Chrome({required this.collapse, required this.child});
+
+  final bool collapse;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      collapse ? ChromeCollapse(child: child) : child;
 }

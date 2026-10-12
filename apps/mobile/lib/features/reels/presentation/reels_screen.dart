@@ -28,8 +28,17 @@ class ReelsScreen extends ConsumerStatefulWidget {
   const ReelsScreen({
     this.initial = const [],
     this.initialIndex = 0,
+    this.embedded = false,
+    this.filter,
     super.key,
   });
+
+  /// Owner 2026-10-12: the Reels tab of the feed — the player without its
+  /// own back row, under the feed's filter row.
+  final bool embedded;
+
+  /// Keeps only the reels it accepts (the tab's topic filter).
+  final bool Function(Post)? filter;
 
   /// Opened from a feed card: that reel first, then the reels feed.
   final List<Post> initial;
@@ -98,8 +107,44 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     final deleted = ref.watch(deletedPostsProvider);
     final items = [
       for (final p in _items)
-        if (!deleted.contains(p.id)) p,
+        if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
     ];
+    if (widget.embedded) {
+      return ColoredBox(
+        color: Colors.black,
+        child: Padding(
+          padding: EdgeInsets.zero,
+          child: items.isEmpty
+              ? Center(
+                  child: _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          _error != null
+                              ? errorText(t, _error!)
+                              : t.t('reels.empty'),
+                          textAlign: TextAlign.center,
+                          style: type.body.copyWith(color: Colors.white70),
+                        ),
+                )
+              : PageView.builder(
+                  controller: _pages,
+                  scrollDirection: Axis.vertical,
+                  itemCount: items.length,
+                  onPageChanged: (i) {
+                    setState(() => _index = i);
+                    if (i >= items.length - 3) _load();
+                  },
+                  itemBuilder: (_, i) => _ReelPage(
+                    key: ValueKey(items[i].id),
+                    post: items[i],
+                    active: i == _index,
+                    muted: muted,
+                    embedded: true,
+                  ),
+                ),
+        ),
+      );
+    }
     return SystemNavBandColor(
       color: Colors.black,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -205,12 +250,16 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.post,
     required this.active,
     required this.muted,
+    this.embedded = false,
     super.key,
   });
 
   final Post post;
   final bool active;
   final bool muted;
+
+  /// The Reels tab: no "Watch" button; the caption opens the inside.
+  final bool embedded;
 
   @override
   ConsumerState<_ReelPage> createState() => _ReelPageState();
@@ -362,7 +411,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   end: AppSpacing.md,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: (widget.embedded ? 0 : kReelMoreButtonSpace) +
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -416,7 +465,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 PositionedDirectional(
                   start: AppSpacing.lg,
                   end: 72,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: (widget.embedded ? 0 : kReelMoreButtonSpace) +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -521,13 +570,16 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         const SizedBox(height: AppSpacing.sm),
                         // A short caption; the whole text is inside (the
                         // button below).
-                        Text(
-                          caption,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.body.copyWith(
-                            color: Colors.white,
-                            shadows: shadow,
+                        GestureDetector(
+                          onTap: widget.embedded ? () => _openInside(p) : null,
+                          child: Text(
+                            caption,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.body.copyWith(
+                              color: Colors.white,
+                              shadows: shadow,
+                            ),
                           ),
                         ),
                       ],
@@ -552,15 +604,16 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
             ),
           ),
         ),
-        PositionedDirectional(
-          start: AppSpacing.lg,
-          end: AppSpacing.lg,
-          bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
-          child: ReelMoreButton(
-            label: t.t(reelMoreLabelKey(p)),
-            onTap: () => _openInside(p),
+        if (!widget.embedded)
+          PositionedDirectional(
+            start: AppSpacing.lg,
+            end: AppSpacing.lg,
+            bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
+            child: ReelMoreButton(
+              label: t.t(reelMoreLabelKey(p)),
+              onTap: () => _openInside(p),
+            ),
           ),
-        ),
       ],
     );
   }
