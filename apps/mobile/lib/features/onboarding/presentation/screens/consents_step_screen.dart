@@ -80,6 +80,7 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,
+      primaryEnabled: _requiredOk,
       onPrimary: _continue,
       footnote: _attempted && !_requiredOk
           ? t.t('onboarding.consents.requiredHint')

@@ -33,7 +33,10 @@ class CountryWaitlistSheet extends ConsumerStatefulWidget {
 }
 
 class _CountryWaitlistSheetState extends ConsumerState<CountryWaitlistSheet> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController()
+    ..addListener(() {
+      if (mounted) setState(() {});
+    });
   String? _error;
   bool _busy = false;
 
@@ -119,6 +122,8 @@ class _CountryWaitlistSheetState extends ConsumerState<CountryWaitlistSheet> {
             AppButton(
               label: t.t('auth.phone.waitlist.submit'),
               isLoading: _busy,
+              isEnabled:
+                  isPlausibleEmail(_controller.text.trim().toLowerCase()),
               onPressed: _busy ? null : _submit,
             ),
           ],

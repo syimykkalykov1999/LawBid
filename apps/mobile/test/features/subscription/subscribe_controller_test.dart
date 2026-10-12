@@ -80,13 +80,16 @@ void main() {
               planCode: 'pro',
             );
     expect(outcome, SubscribeOutcome.trialStarted);
-    expect(repo.lastStartOrder, (
-      plan: SubscriptionPlan.yearly,
-      seats: 2,
-      phones: const ['+13125550111'],
-      promo: 'WELCOME',
-      planCode: 'pro',
-    ),);
+    expect(
+      repo.lastStartOrder,
+      (
+        plan: SubscriptionPlan.yearly,
+        seats: 2,
+        phones: const ['+13125550111'],
+        promo: 'WELCOME',
+        planCode: 'pro',
+      ),
+    );
   });
 
   test('no trial on the account: consent is asked BEFORE the card sheet',

@@ -27,6 +27,7 @@ class OnboardingScaffold extends ConsumerWidget {
     this.primaryLabel,
     this.onPrimary,
     this.primaryLoading = false,
+    this.primaryEnabled = true,
     this.secondary,
     this.onBack,
     this.error,
@@ -52,6 +53,9 @@ class OnboardingScaffold extends ConsumerWidget {
   final String? primaryLabel;
   final VoidCallback? onPrimary;
   final bool primaryLoading;
+
+  /// False while the form is incomplete: the button is grey and inert.
+  final bool primaryEnabled;
 
   /// Usually a text-style "Skip"/"Later" [AppButton] (secondary variant).
   final Widget? secondary;
@@ -194,6 +198,9 @@ class OnboardingScaffold extends ConsumerWidget {
                       AppButton(
                         label: primaryLabel!,
                         isLoading: primaryLoading,
+                        // Owner 2026-10-11: grey and not tappable until the
+                        // required data is in.
+                        isEnabled: primaryEnabled,
                         onPressed: onPrimary,
                       ),
                     if (footnote != null) ...[

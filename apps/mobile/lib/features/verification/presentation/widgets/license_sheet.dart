@@ -64,6 +64,8 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
       _bar.text = initial.barNumber;
       _expires = initial.expiresAt;
     }
+    // Save turns from grey to active as the bar number becomes valid.
+    _bar.addListener(() => setState(() {}));
   }
 
   @override
@@ -239,6 +241,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
                       : 'common.save',
                 ),
                 isLoading: _busy,
+                isEnabled: _state != null && _barValue != null,
                 onPressed: _save,
               ),
             ],

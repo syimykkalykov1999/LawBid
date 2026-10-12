@@ -74,6 +74,7 @@ class _ContactsStepScreenState extends ConsumerState<ContactsStepScreen> {
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,
+      primaryEnabled: missingKeys.isEmpty,
       footnote: footnote,
       onPrimary: () {
         if (missingKeys.isNotEmpty) {

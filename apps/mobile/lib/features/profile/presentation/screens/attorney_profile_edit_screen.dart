@@ -488,6 +488,14 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         _SaveBar(
           label: t.t('profile.edit.save'),
           loading: _saving,
+          enabled: _first.text.trim().isNotEmpty &&
+              _last.text.trim().isNotEmpty &&
+              !const {
+                UsernameStatus.checking,
+                UsernameStatus.taken,
+                UsernameStatus.reserved,
+                UsernameStatus.invalid,
+              }.contains(_usernameStatus),
           onPressed: () => _save(t),
         ),
       ],
@@ -574,11 +582,13 @@ class _SaveBar extends StatelessWidget {
     required this.label,
     required this.loading,
     required this.onPressed,
+    this.enabled = true,
   });
 
   final String label;
   final bool loading;
   final VoidCallback onPressed;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -601,6 +611,7 @@ class _SaveBar extends StatelessWidget {
             key: const ValueKey('profile-save'),
             label: label,
             isLoading: loading,
+            isEnabled: enabled,
             onPressed: onPressed,
           ),
         ),
@@ -616,15 +627,23 @@ class ProfileSaveBar extends StatelessWidget {
     required this.loading,
     required this.onPressed,
     super.key,
+    this.enabled = true,
   });
 
   final String label;
   final bool loading;
   final VoidCallback onPressed;
 
+  /// Grey and inert while the required fields are not valid.
+  final bool enabled;
+
   @override
-  Widget build(BuildContext context) =>
-      _SaveBar(label: label, loading: loading, onPressed: onPressed);
+  Widget build(BuildContext context) => _SaveBar(
+        label: label,
+        loading: loading,
+        onPressed: onPressed,
+        enabled: enabled,
+      );
 }
 
 class _EditSkeleton extends StatelessWidget {

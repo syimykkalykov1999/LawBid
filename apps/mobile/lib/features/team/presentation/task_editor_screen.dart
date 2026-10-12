@@ -57,7 +57,10 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
   /// Owner 2026-10-01: a new task first shows only "What to do"; the
   /// fields of the chosen kind open after a tap (editing: open at once).
   late bool _picked = widget.existing != null || widget.initialKind != null;
-  late final _title = TextEditingController(text: widget.existing?.title);
+  late final _title = TextEditingController(text: widget.existing?.title)
+    ..addListener(() {
+      if (mounted) setState(() {});
+    });
   late final _notes = TextEditingController(text: widget.existing?.notes);
   late DateTime? _due = widget.existing?.dueAt?.toLocal();
 
@@ -904,6 +907,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
               label: t.t('tasks.save'),
               icon: AppIcons.checkRounded,
               isLoading: _saving || _uploading > 0,
+              isEnabled: _title.text.trim().isNotEmpty,
               onPressed: _save,
             ),
           ],

@@ -150,9 +150,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                               AutofillHints.telephoneNumberNational,
                             ],
                             onChanged: (_) {
-                              if (_localError != null) {
-                                setState(() => _localError = null);
-                              }
+                              setState(() => _localError = null);
                               ref
                                   .read(onboardingFlowProvider.notifier)
                                   .clearError();
@@ -191,6 +189,13 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                                 GavelStrikeButton(
                                   label: t.t('auth.phone.submit'),
                                   isLoading: flowState.isSubmitting,
+                                  // Grey until the number is complete.
+                                  isEnabled: UsPhone.isValid(
+                                    _controller.text,
+                                    callingCode: UsPhone.callingCodeFor(
+                                      ref.watch(phoneCountryProvider),
+                                    ),
+                                  ),
                                   onPressed: () => _submit(context, ref, t),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),

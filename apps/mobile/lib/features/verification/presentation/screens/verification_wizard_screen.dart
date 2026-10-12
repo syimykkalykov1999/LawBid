@@ -457,6 +457,12 @@ class _VerificationWizardScreenState
                     },
                     icon: isReview ? AppIcons.gavelRounded : null,
                     isLoading: _submitting,
+                    // Owner 2026-10-11: grey until the step is complete.
+                    isEnabled: isReview
+                        ? s.blocker == null &&
+                            s.localMissing.isEmpty &&
+                            (!s.request.isDraft || _attested)
+                        : _stepProblem(s) == null,
                     onPressed: isReview ? () => _submit(s) : () => _next(s),
                   ),
                 ],

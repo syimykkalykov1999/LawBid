@@ -162,7 +162,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             semanticLabel: t.t('auth.otp.fieldLabel'),
                             controller: _codeController,
                             errorText: flowState.errorMessage,
-                            onChanged: (value) => _currentCode = value,
+                            onChanged: (value) =>
+                                setState(() => _currentCode = value),
                             onCompleted: _handleCompleted,
                           ),
                           const SizedBox(height: 14),
@@ -190,6 +191,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             child: GavelStrikeButton(
                               label: t.t('auth.otp.submit'),
                               isLoading: flowState.isSubmitting,
+                              isEnabled: _currentCode.length == 6,
                               // AppOtpField.onCompleted already auto-submits
                               // the instant the 6th digit lands (unchanged
                               // stage-1.5 contract). This button — required

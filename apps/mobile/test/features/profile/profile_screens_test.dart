@@ -441,12 +441,13 @@ void main() {
         ),
         findsOneWidget,
       );
+      // Owner 2026-10-11: grey and inert until a rating is chosen.
       await tester.tap(find.byKey(const ValueKey('review-submit')));
       await tester.pumpAndSettle();
-      expect(find.text('Please choose a rating'), findsOneWidget);
       expect(reviews.created, isEmpty);
 
       await tester.tap(find.byKey(const ValueKey('star-input-4')));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const ValueKey('review-body')).first,
         'Great work',
@@ -593,6 +594,7 @@ void main() {
         overrides: profileOverrides(reviews: reviews),
       );
       await tester.tap(find.byKey(const ValueKey('star-input-5')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('review-submit')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('review-error')), findsOneWidget);
