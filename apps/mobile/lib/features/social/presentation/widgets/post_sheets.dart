@@ -333,8 +333,17 @@ class PostTextField extends ConsumerWidget {
     required this.controller,
     this.autofocus = false,
     this.hint,
+    this.maxChars = kPostMaxChars,
+    this.limitHint,
     super.key,
   });
+
+  /// Shown small and red under the counter once the text is over the limit
+  /// of a post with files (Owner 2026-10-12).
+  final String? limitHint;
+
+  /// 5000 for a text-only thread, 2200 with files.
+  final int maxChars;
 
   final TextEditingController controller;
   final bool autofocus;
@@ -353,8 +362,8 @@ class PostTextField extends ConsumerWidget {
           autofocus: autofocus,
           minLines: 4,
           maxLines: 10,
-          maxLength: kPostMaxChars,
-          maxLengthEnforcement: MaxLengthEnforcement.enforced,
+          maxLength: maxChars,
+          maxLengthEnforcement: MaxLengthEnforcement.none,
           buildCounter: (
             _, {
             required currentLength,
@@ -386,12 +395,28 @@ class PostTextField extends ConsumerWidget {
           valueListenable: controller,
           builder: (context, v, _) {
             final n = v.text.characters.length;
-            final near = n > kPostMaxChars * 0.9;
-            return Text(
-              '$n / $kPostMaxChars',
-              style: type.caption.copyWith(
-                color: near ? colors.warning : colors.textSecondary,
-              ),
+            final near = n > maxChars * 0.9;
+            final over = n > maxChars;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$n / $maxChars',
+                  style: type.caption.copyWith(
+                    color: over
+                        ? colors.danger
+                        : (near ? colors.warning : colors.textSecondary),
+                  ),
+                ),
+                if (over && limitHint != null)
+                  Text(
+                    limitHint!,
+                    style: type.caption.copyWith(
+                      color: colors.danger,
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
             );
           },
         ),

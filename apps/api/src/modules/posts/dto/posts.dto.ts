@@ -26,7 +26,11 @@ import {
 } from 'class-validator';
 import { tidy } from '../../../common/utils/tidy-text';
 
-export const POST_BODY_MAX = 2200;
+/** Owner 2026-10-12: a thread (text only, no files) is up to 5000 characters. */
+export const POST_BODY_MAX = 5000;
+
+/** A post with photos, video or documents keeps 2200 (Instagram). */
+export const POST_BODY_MAX_WITH_FILES = 2200;
 export const POST_TITLE_MAX = 120;
 export const POST_KINDS = ['post', 'news'] as const;
 export type PostKindValue = (typeof POST_KINDS)[number];

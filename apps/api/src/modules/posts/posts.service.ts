@@ -31,6 +31,7 @@ import {
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
 import {
+  POST_BODY_MAX_WITH_FILES,
   POSTS_PAGE_DEFAULT,
   type CreatePostDto,
   type UpdatePostDto,
@@ -107,6 +108,19 @@ export class PostsService {
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
+    // Owner 2026-10-12: only a text-only thread may be longer than 2200.
+    if (
+      dto.body.length > POST_BODY_MAX_WITH_FILES &&
+      ((dto.mediaFileIds?.length ?? 0) > 0 ||
+        (dto.attachments?.length ?? 0) > 0 ||
+        dto.videoAssetId)
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `A post with files is up to ${POST_BODY_MAX_WITH_FILES} characters.`,
+        details: { field: 'body' },
+      });
+    }
     const video = dto.videoAssetId
       ? await this.attachableVideo(user.sub, dto.videoAssetId)
       : null;
@@ -373,6 +387,19 @@ export class PostsService {
     });
     if (!current) throw postNotFound();
     const body = dto.body;
+    if (body.length > POST_BODY_MAX_WITH_FILES) {
+      const files =
+        (await this.prisma.postMedia.count({ where: { post_id: id } })) +
+        (await this.prisma.postAttachment.count({ where: { post_id: id } })) +
+        (current.video_asset_id ? 1 : 0);
+      if (files > 0) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: `A post with files is up to ${POST_BODY_MAX_WITH_FILES} characters.`,
+          details: { field: 'body' },
+        });
+      }
+    }
     const title = dto.title ?? current.title;
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)

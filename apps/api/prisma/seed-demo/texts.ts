@@ -262,6 +262,19 @@ export const DEMO_POSTS: readonly DemoPostSpec[] = [
     minutesAgo: 10,
   },
   {
+    key: 'th-sofia-essay-long',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: fill(
+      'How a marriage green card case really runs, start to finish. First comes the petition: the citizen spouse files the I-130 and the foreign spouse files the I-485, usually together. Then biometrics, then a long quiet period, then an interview notice. Use the quiet period well: rebuild the evidence folder every month, because the interview is decided by what is in it. Joint lease or mortgage, shared bank statements, insurance naming each other, photos across years, messages that show daily life, and two or three short letters from people who know the couple. On the day, arrive early, bring originals and one clean set of copies, answer only the question asked and ask to repeat anything unclear.',
+      ' If the officer issues a request for evidence, treat it as a checklist and not as a warning: answer every point inside the deadline, label every exhibit, and add a one-page cover letter that maps documents to points. Keep a copy of everything you send and a delivery receipt.',
+      3000,
+    ),
+    legal: true,
+    minutesAgo: 12,
+  },
+  {
     key: 'th-sofia-practice',
     author: 'sofia.hernandez',
     style: 'text',

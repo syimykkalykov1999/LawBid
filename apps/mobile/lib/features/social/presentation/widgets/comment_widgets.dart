@@ -586,6 +586,28 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
+                    // Owner 2026-10-12: a live "n/1000" next to the send
+                    // button while typing.
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _text,
+                      builder: (context, v, _) {
+                        final n = v.text.characters.length;
+                        if (n == 0) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            end: AppSpacing.xs,
+                          ),
+                          child: Text(
+                            '$n/$kCommentMaxChars',
+                            style: type.caption.copyWith(
+                              color: n > kCommentMaxChars * 0.9
+                                  ? colors.warning
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     ValueListenableBuilder<TextEditingValue>(
                       valueListenable: _text,
                       builder: (context, v, _) {

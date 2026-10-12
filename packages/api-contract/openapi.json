@@ -86862,7 +86862,7 @@
           },
           "body": {
             "type": "string",
-            "maxLength": 2200,
+            "maxLength": 5000,
             "description": "Owner 2026-10-07: the description is optional ('' is fine)."
           },
           "mediaFileIds": {
@@ -86939,7 +86939,7 @@
           },
           "body": {
             "type": "string",
-            "maxLength": 2200,
+            "maxLength": 5000,
             "description": "Owner 2026-10-07: the description is optional ('' is fine)."
           },
           "commentsEnabled": {

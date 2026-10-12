@@ -20,6 +20,9 @@ const kPostMaxPhotos = 9;
 /// docs/05 §3.1: post text limit (server-enforced too).
 const kPostMaxChars = 2200;
 
+/// Owner 2026-10-12: a text-only post (a thread) is up to 5000 characters.
+const kThreadMaxChars = 5000;
+
 /// Owner 2026-09-30: the card title limit (server-enforced too).
 const kPostTitleMaxChars = 120;
 
