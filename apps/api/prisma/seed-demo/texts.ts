@@ -233,6 +233,44 @@ export const DEMO_POSTS: readonly DemoPostSpec[] = [
   },
 
   // ---- Threads card: text only -------------------------------------------
+  // ---- Threads cards for the card review (owner 2026-10-12) ---------------
+  {
+    key: 'th-sofia-one-line',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'Bring originals. Always.',
+    legal: true,
+    minutesAgo: 8,
+  },
+  {
+    key: 'th-sofia-medium',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'Three things I tell every family-based green card client before the interview:\n\n1. Read your own file again the night before.\n2. Answer only the question asked.\n3. If you do not know, say so. A guess is worse than a pause.',
+    legal: true,
+    minutesAgo: 9,
+  },
+  {
+    key: 'th-sofia-long',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'A request for evidence is not a denial. It is the officer telling you exactly what is missing, and you usually get 87 days to answer. Read every line of the notice, make a checklist, gather one document per point, add a short cover letter that maps each document to the point it answers, and send it as a single package with the notice on top. Do not send more than they asked for, and do not wait for the last day. Officers who see a clean, organised response approve far more often than officers who see a pile of paper. If you are unsure which point a document answers, ask your attorney before you send it, not after. #greencard #immigration #rfe',
+    legal: true,
+    minutesAgo: 10,
+  },
+  {
+    key: 'th-sofia-docs',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'Evidence checklist for a marriage green card, attached. Edit the brackets, keep the order.',
+    legal: true,
+    docs: ['Marriage_evidence_checklist.pdf', 'Cover_letter_template.docx'],
+    minutesAgo: 11,
+  },
   {
     key: 'th-short',
     author: 'daniel.okafor',

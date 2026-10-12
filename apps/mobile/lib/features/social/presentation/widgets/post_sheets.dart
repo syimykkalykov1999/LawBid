@@ -93,6 +93,19 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
+            // Owner 2026-10-12 (Threads): Save lives in the "⋯" menu.
+            AppListRow(
+              key: const ValueKey('post-menu-save'),
+              icon: post.savedByMe
+                  ? AppIcons.bookmarkRounded
+                  : AppIcons.bookmarkBorderRounded,
+              label: t.t(post.savedByMe ? 'post.unsave' : 'post.save'),
+              showChevron: false,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                ref.read(socialActionsProvider).toggleSave(post);
+              },
+            ),
             if (post.isMine) ...[
               // Audit 2026-10-02: an assistant edits only with "publish" and
               // never deletes the attorney's posts.
