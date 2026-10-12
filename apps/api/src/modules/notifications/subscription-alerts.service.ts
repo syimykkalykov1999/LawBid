@@ -31,7 +31,11 @@ export class SubscriptionAlertsService {
   ) {}
 
   /** A published post / news of [authorId]. */
-  async followersOfPost(authorId: string, postId: string): Promise<number> {
+  async followersOfPost(
+    authorId: string,
+    postId: string,
+    brief = false,
+  ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT f.follower_id::TEXT AS id
       FROM follows f
@@ -50,7 +54,11 @@ export class SubscriptionAlertsService {
       await this.notifications.emit({
         type: 'followed_post',
         recipientId: r.id,
-        payload: { postId, actorId: authorId },
+        payload: {
+          postId,
+          actorId: authorId,
+          ...(brief ? { kind: 'brief' } : {}),
+        },
       });
     }
     return rows.length;

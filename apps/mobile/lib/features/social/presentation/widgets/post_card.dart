@@ -113,7 +113,11 @@ class PostCard extends ConsumerWidget {
     // no side border or rounded corners, hairlines on top and bottom.
     // Owner 2026-10-07: the open post and a profile's feed of posts are
     // full width too (Instagram), no card around them.
-    final edge = (feedHeight != null && !inDetail) || inDetail || fromProfile;
+    // Owner 2026-10-12: a text post is edge to edge in every list (Threads).
+    final edge = (feedHeight != null && !inDetail) ||
+        inDetail ||
+        fromProfile ||
+        isThreadsStyle(p);
     // Owner 2026-10-12: the practice card in a list has no side borders or
     // shadow, only a thin divider (a strip of the page background) below.
     final flat = !inDetail && !isThreadsStyle(p);
@@ -962,22 +966,33 @@ class _ThreadsPost extends ConsumerWidget {
           ],
         );
 
+    // Owner 2026-10-12 (Threads): above the card, the icon in the avatar
+    // column and "name reposted" aligned with the name below.
     Widget repostLine() => Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.xs),
           child: Row(
             children: [
-              AppIcon(
-                AppIcons.autoModeRounded,
-                size: 14,
-                color: colors.textSecondary,
+              SizedBox(
+                width: 36,
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: AppIcon(
+                    AppIcons.autoModeRounded,
+                    size: 14,
+                    color: colors.textSecondary,
+                  ),
+                ),
               ),
-              const SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.md),
               Flexible(
                 child: Text(
                   t.t('post.repostedBy', {'username': repostedBy!.username}),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(color: colors.textSecondary),
+                  style: type.caption.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -1007,63 +1022,74 @@ class _ThreadsPost extends ConsumerWidget {
     // Owner 2026-10-12 (Threads): like, reply, repost, share with counts.
     final actionRow = Row(
       children: [
-        action(
-          BounceIcon(
-            active: p.likedByMe,
-            activeIcon: AppIcons.favoriteRounded,
-            icon: AppIcons.favoriteBorderRounded,
-            activeColor: colors.danger,
-            size: 20,
-            label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-            onTap: () => run(() => actions.toggleLike(p)),
-          ),
-          p.likeCount,
-        ),
-        action(
-          BounceIcon(
-            active: false,
-            activeIcon: AppIcons.modeCommentOutlined,
-            icon: AppIcons.modeCommentOutlined,
-            size: 20,
-            label: t.t('post.comments'),
-            // In the open thread the replies are right below: no sheet.
-            onTap: () => inDetail
-                ? onReply?.call()
-                : context.push(SocialRoutes.post(p.id)),
-          ),
-          p.commentCount,
-        ),
-        action(
-          BounceIcon(
-            active: p.repostedByMe,
-            activeIcon: AppIcons.autoModeRounded,
-            icon: AppIcons.autoModeRounded,
-            activeColor: colors.success,
-            size: 20,
-            label: t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
-            onTap: () => run(() => actions.toggleRepost(p)),
-          ),
-          p.repostCount,
-        ),
-        action(
-          BounceIcon(
-            active: false,
-            activeIcon: AppIcons.sendOutlined,
-            icon: AppIcons.sendOutlined,
-            size: 20,
-            label: t.t('post.share'),
-            onTap: () => sharePost(context, ref, p),
-          ),
-          p.shareCount,
-        ),
         Expanded(
-          child: !inDetail && p.isMine && !ref.watch(isAssistantProvider)
-              ? Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: BoostButton(postId: p.id),
-                )
-              : const SizedBox.shrink(),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Row(
+              children: [
+                action(
+                  BounceIcon(
+                    active: p.likedByMe,
+                    activeIcon: AppIcons.favoriteRounded,
+                    icon: AppIcons.favoriteBorderRounded,
+                    activeColor: colors.danger,
+                    size: 20,
+                    extent: 34,
+                    label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
+                    onTap: () => run(() => actions.toggleLike(p)),
+                  ),
+                  p.likeCount,
+                ),
+                action(
+                  BounceIcon(
+                    active: false,
+                    activeIcon: AppIcons.modeCommentOutlined,
+                    icon: AppIcons.modeCommentOutlined,
+                    size: 20,
+                    extent: 34,
+                    label: t.t('post.comments'),
+                    // In the open thread the replies are right below: no sheet.
+                    onTap: () => inDetail
+                        ? onReply?.call()
+                        : context.push(SocialRoutes.post(p.id)),
+                  ),
+                  p.commentCount,
+                ),
+                action(
+                  BounceIcon(
+                    active: p.repostedByMe,
+                    activeIcon: AppIcons.autoModeRounded,
+                    icon: AppIcons.autoModeRounded,
+                    activeColor: colors.success,
+                    size: 20,
+                    extent: 34,
+                    label:
+                        t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
+                    onTap: () => run(() => actions.toggleRepost(p)),
+                  ),
+                  p.repostCount,
+                ),
+                action(
+                  BounceIcon(
+                    active: false,
+                    activeIcon: AppIcons.sendOutlined,
+                    icon: AppIcons.sendOutlined,
+                    size: 20,
+                    extent: 34,
+                    label: t.t('post.share'),
+                    onTap: () => sharePost(context, ref, p),
+                  ),
+                  p.shareCount,
+                ),
+              ],
+            ),
+          ),
         ),
+        if (!inDetail && p.isMine && !ref.watch(isAssistantProvider)) ...[
+          const SizedBox(width: AppSpacing.sm),
+          BoostButton(postId: p.id),
+        ],
       ],
     );
 
@@ -1107,22 +1133,27 @@ class _ThreadsPost extends ConsumerWidget {
           AppSpacing.xs,
           AppSpacing.xs,
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            avatar,
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (repostedBy != null) repostLine(),
-                  nameRow(),
-                  textBlock,
-                  _PracticeChips(post: p, inset: 0),
-                  actionRow,
-                ],
-              ),
+            if (repostedBy != null) repostLine(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                avatar,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      nameRow(),
+                      textBlock,
+                      _PracticeChips(post: p, inset: 0),
+                      actionRow,
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -2155,8 +2186,12 @@ class BounceIcon extends StatefulWidget {
     required this.onTap,
     this.activeColor,
     this.size = 26,
+    this.extent = AppSizes.touchTarget,
     super.key,
   });
+
+  /// The tap target's width (its height stays a touch target).
+  final double extent;
 
   final bool active;
   final IconData icon;
@@ -2213,8 +2248,9 @@ class _BounceIconState extends State<BounceIcon>
             HapticFeedback.selectionClick();
             widget.onTap();
           },
-          child: SizedBox.square(
-            dimension: AppSizes.touchTarget,
+          child: SizedBox(
+            width: widget.extent,
+            height: AppSizes.touchTarget,
             child: Center(
               child: ScaleTransition(
                 scale: _scale,

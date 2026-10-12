@@ -39,7 +39,7 @@ import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 // Owner 2026-09-30: News — the attorney's news posts, apart.
-enum AttorneyProfileTab { posts, news, reviews }
+enum AttorneyProfileTab { posts, threads, news, reviews }
 
 /// Public link of an attorney profile (docs/03 §4.2 «Поделиться», deep
 /// link of docs/01 §12).
@@ -376,27 +376,39 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     var items = const <Review>[];
     if (!reviewsTab) {
       // docs/05: the attorney's posts as a grid (text posts as tiles).
-      footer = _tab == AttorneyProfileTab.news
+      footer = _tab == AttorneyProfileTab.threads
           ? ProfilePostsGrid(
-              key: const ValueKey('news'),
+              key: const ValueKey('threads'),
               attorneyId: p.id,
-              newsOnly: true,
-              emptyTitle: t.t('profile.news.empty.title'),
-              emptyMessage: t.t(
-                p.isSelf
-                    ? 'profile.news.empty.self'
-                    : 'profile.news.empty.other',
-              ),
-            )
-          : ProfilePostsGrid(
-              attorneyId: p.id,
+              threadsOnly: true,
               emptyTitle: t.t('profile.posts.empty.title'),
               emptyMessage: t.t(
                 p.isSelf
                     ? 'profile.posts.empty.self'
                     : 'profile.posts.empty.other',
               ),
-            );
+            )
+          : _tab == AttorneyProfileTab.news
+              ? ProfilePostsGrid(
+                  key: const ValueKey('news'),
+                  attorneyId: p.id,
+                  newsOnly: true,
+                  emptyTitle: t.t('profile.news.empty.title'),
+                  emptyMessage: t.t(
+                    p.isSelf
+                        ? 'profile.news.empty.self'
+                        : 'profile.news.empty.other',
+                  ),
+                )
+              : ProfilePostsGrid(
+                  attorneyId: p.id,
+                  emptyTitle: t.t('profile.posts.empty.title'),
+                  emptyMessage: t.t(
+                    p.isSelf
+                        ? 'profile.posts.empty.self'
+                        : 'profile.posts.empty.other',
+                  ),
+                );
     } else if (reviews == null || reviews.isLoading && state == null) {
       footer = const Column(
         children: [
@@ -442,7 +454,24 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
         items: items,
         itemKey: (r) => r.id,
         status: status,
-        header: header,
+        // Owner 2026-10-12: the Briefs tab runs edge to edge (Threads); the
+        // header keeps its side padding.
+        padding: _tab == AttorneyProfileTab.threads
+            ? const EdgeInsets.only(top: AppSpacing.sm, bottom: AppSpacing.xxl)
+            : const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.sm,
+                AppSpacing.screenSide,
+                AppSpacing.xxl,
+              ),
+        header: _tab == AttorneyProfileTab.threads
+            ? Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenSide,
+                ),
+                child: header,
+              )
+            : header,
         footer: footer,
         labels: AppPaginationLabels(
           loadingMore: t.t('pagination.loadingMore'),
@@ -1296,6 +1325,11 @@ class _Tabs extends ConsumerWidget {
               tab,
               t.t('profile.tab.posts'),
               AppIcons.gridOnRounded
+            ),
+          AttorneyProfileTab.threads => (
+              tab,
+              t.t('profile.tab.threads'),
+              AppIcons.chatBubbleOutlineRounded
             ),
           AttorneyProfileTab.news => (
               tab,
