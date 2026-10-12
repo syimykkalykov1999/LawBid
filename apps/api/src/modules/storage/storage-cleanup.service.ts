@@ -219,10 +219,10 @@ export class StorageCleanupService {
   private async unused(where: Prisma.Sql, postCutoff: Date): Promise<string[]> {
     const exempt = [...CLEANUP_EXEMPT_PURPOSES];
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT f.id::STRING AS id
+      SELECT f.id::TEXT AS id
       FROM files f
       WHERE ${where}
-        AND f.purpose::STRING <> ALL(${exempt}::STRING[])
+        AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
         AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)
@@ -243,7 +243,7 @@ export class StorageCleanupService {
         AND NOT EXISTS (SELECT 1 FROM client_reviews cr WHERE cr.photo_ids @> ARRAY[f.id])
         AND NOT EXISTS (
           SELECT 1 FROM client_verifications cv
-          WHERE cv.document_file_ids @> jsonb_build_array(f.id::STRING))
+          WHERE cv.document_file_ids @> jsonb_build_array(f.id::TEXT))
       ORDER BY f.created_at
       LIMIT ${BATCH}`;
     return rows.map((r) => r.id);
@@ -253,10 +253,10 @@ export class StorageCleanupService {
   private async onPosts(ids: string[]): Promise<string[]> {
     if (ids.length === 0) return [];
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT file_id::STRING AS id FROM post_media
+      SELECT file_id::TEXT AS id FROM post_media
       WHERE file_id = ANY(${ids}::UUID[])
       UNION
-      SELECT file_id::STRING AS id FROM post_attachments
+      SELECT file_id::TEXT AS id FROM post_attachments
       WHERE file_id = ANY(${ids}::UUID[])`;
     return rows.map((r) => r.id);
   }

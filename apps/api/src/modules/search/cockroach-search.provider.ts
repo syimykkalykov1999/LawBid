@@ -92,7 +92,7 @@ export class CockroachSearchProvider implements SearchProvider {
           : Prisma.empty
       }
       ${f.minRating !== undefined ? Prisma.sql`AND a.rating_avg >= ${f.minRating}` : Prisma.empty}
-      ${f.language ? Prisma.sql`AND a.languages @> ARRAY[${f.language}]::STRING[]` : Prisma.empty}
+      ${f.language ? Prisma.sql`AND a.languages @> ARRAY[${f.language}]::TEXT[]` : Prisma.empty}
       ${f.verifiedOnly ? Prisma.sql`AND a.verification_status = 'verified'` : Prisma.empty}
       ${f.role === 'client' ? Prisma.sql`AND FALSE` : Prisma.empty}`;
     // Clients: state of residence; the check mark = verified phone (OQ-029).
@@ -162,7 +162,7 @@ export class CockroachSearchProvider implements SearchProvider {
         WHERE TRUE ${filters}
         ${clients}
       )
-      SELECT id::STRING AS id, role
+      SELECT id::TEXT AS id, role
       FROM people
       ORDER BY
         (uname = ${q}) DESC,
@@ -258,7 +258,7 @@ export class CockroachSearchProvider implements SearchProvider {
         ORDER BY p.created_at DESC
         LIMIT ${POST_CANDIDATES}
       )
-      SELECT m.id::STRING AS id FROM m
+      SELECT m.id::TEXT AS id FROM m
       JOIN posts p ON p.id = m.id
       JOIN users u ON u.id = p.author_id AND u.status = 'active'
         -- OQ-038: clients post too; suspended attorneys never show.

@@ -333,14 +333,14 @@ export class FollowsService {
     if (cached) return JSON.parse(cached) as string[];
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT a.user_id::STRING AS id
+      SELECT a.user_id::TEXT AS id
       FROM attorney_profiles AS a
       JOIN users AS u ON u.id = a.user_id AND u.status = 'active' AND u.deleted_at IS NULL
       WHERE a.verification_status = 'verified'
       ORDER BY
-        (${state}::STRING IS NOT NULL AND EXISTS (
+        (${state}::TEXT IS NOT NULL AND EXISTS (
           SELECT 1 FROM attorney_licenses l
-          WHERE l.attorney_id = a.user_id AND l.state_code = ${state}::STRING
+          WHERE l.attorney_id = a.user_id AND l.state_code = ${state}::TEXT
             AND l.license_status = 'verified')) DESC,
         a.rating_avg DESC,
         (SELECT count(*) FROM posts p

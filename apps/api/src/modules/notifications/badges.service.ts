@@ -159,7 +159,7 @@ export class BadgesService {
       SELECT count(*) AS n FROM (
         SELECT 1 FROM notifications
         WHERE user_id = ${userId}::UUID AND read_at IS NULL
-          AND NOT (category::STRING = ANY(${muted}::STRING[]))
+          AND NOT (category::TEXT = ANY(${muted}::TEXT[]))
         LIMIT ${NOTIFS_CAP}) x`;
     return Number(row?.n ?? 0);
   }
@@ -186,7 +186,7 @@ export class BadgesService {
         AND cp.hidden_at IS NULL
         -- Message requests sent to me (pending or declined) never count:
         -- the same rule as the "All" folder (OQ-043).
-        AND (c.request_status::STRING IN ('none', 'accepted')
+        AND (c.request_status::TEXT IN ('none', 'accepted')
              OR c.requested_by = ${userId}::UUID)`;
     return Number(row?.n ?? 0);
   }
