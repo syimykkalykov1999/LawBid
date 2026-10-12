@@ -7,6 +7,9 @@
 const file05Ru = <String, String>{
   // --- relative time ---
   'time.justNow': 'только что',
+  'time.short.m': '{count} мин',
+  'time.short.h': '{count} ч',
+  'time.short.d': '{count} д',
   'time.minutesAgo.one': '{count} мин назад',
   'time.minutesAgo.few': '{count} мин назад',
   'time.minutesAgo.many': '{count} мин назад',
@@ -260,6 +263,9 @@ const file05Ru = <String, String>{
 const file05En = <String, String>{
   // --- relative time ---
   'time.justNow': 'just now',
+  'time.short.m': '{count}m',
+  'time.short.h': '{count}h',
+  'time.short.d': '{count}d',
   'time.minutesAgo.one': '{count} min ago',
   'time.minutesAgo.other': '{count} min ago',
   'time.hoursAgo.one': '{count} h ago',
