@@ -230,9 +230,59 @@ class PostCard extends ConsumerWidget {
         return fill ? Expanded(child: carousel) : carousel;
       }
       final picture = p.video != null
-          ? InlineReel(
-              post: p,
-              onOpen: () => ReelsScreen.open(context, from: p),
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                InlineReel(
+                  post: p,
+                  onOpen: () => ReelsScreen.open(context, from: p),
+                  topInset: fromProfile ? 0 : 52,
+                ),
+                // The sound circle (reels play muted in the feed).
+                PositionedDirectional(
+                  end: AppSpacing.md,
+                  bottom: AppSpacing.md,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.volume_off_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                if (!fromProfile)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.5),
+                            Colors.black.withValues(alpha: 0),
+                          ],
+                        ),
+                      ),
+                      child: _AuthorRow(
+                        post: p,
+                        sponsored: post.promotionId != null,
+                        compact: true,
+                        onDark: true,
+                      ),
+                    ),
+                  ),
+              ],
             )
           : p.media.isNotEmpty
               ? PostMediaCarousel(
@@ -262,7 +312,8 @@ class PostCard extends ConsumerWidget {
         mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!fromProfile)
+          // Owner 2026-10-12: on a reel the author row lies over the video.
+          if (!fromProfile && p.video == null)
             _AuthorRow(
               post: p,
               sponsored: post.promotionId != null,
@@ -1278,7 +1329,11 @@ class _AuthorRow extends ConsumerWidget {
     required this.post,
     this.sponsored = false,
     this.compact = false,
+    this.onDark = false,
   });
+
+  /// White text and icons (the row over a reel's video).
+  final bool onDark;
 
   final Post post;
 
@@ -1331,7 +1386,7 @@ class _AuthorRow extends ConsumerWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: type.body.copyWith(
-                                    color: colors.text,
+                                    color: onDark ? Colors.white : colors.text,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -1357,8 +1412,11 @@ class _AuthorRow extends ConsumerWidget {
                                             : '@${a.username}'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: type.caption
-                                .copyWith(color: colors.textSecondary),
+                            style: type.caption.copyWith(
+                              color: onDark
+                                  ? Colors.white70
+                                  : colors.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -1378,7 +1436,10 @@ class _AuthorRow extends ConsumerWidget {
             const SizedBox(width: AppSpacing.xs),
           ],
           AppIconButton(
-            icon: const AppIcon(AppIcons.moreHorizRounded),
+            icon: AppIcon(
+              AppIcons.moreHorizRounded,
+              color: onDark ? Colors.white : null,
+            ),
             semanticLabel: t.t('post.menu'),
             onPressed: () => showPostMenu(context, ref, post),
           ),
