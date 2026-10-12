@@ -19,6 +19,9 @@ const newsOffRu = <String, String>{
   'notif.list.generic': 'Новое уведомление',
   'notif.list.followed_post': '{name} опубликовал(-а) новое',
   'notif.list.followed_post.many': '{name} и ещё {others} опубликовали новое',
+  // Owner 2026-10-12: «Brief» is the name of a text post, never translated.
+  'notif.list.followed_brief': '{name} опубликовал(-а) brief',
+  'notif.list.followed_brief.many': '{name} и ещё {others} опубликовали brief',
   'notif.list.new_case': 'Новый кейс по вашим практикам',
   'notif.list.case_invite_received': 'Клиент предлагает вам дело',
   'notif.list.case_invite_declined': 'Адвокат отказался от вашего дела',
@@ -42,6 +45,8 @@ const newsOffEn = <String, String>{
   'notif.empty.other': 'No other notifications',
   'notif.list.generic': 'New notification',
   'notif.list.followed_post': '{name} posted something new',
+  'notif.list.followed_brief': '{name} posted a brief',
+  'notif.list.followed_brief.many': '{name} and {others} more posted briefs',
   'notif.list.followed_post.many':
       '{name} and {others} more posted something new',
   'notif.list.new_case': 'A new case in your practice areas',

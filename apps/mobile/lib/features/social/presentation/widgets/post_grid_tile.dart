@@ -29,40 +29,63 @@ class PostGridTile extends StatelessWidget {
       label: semanticLabel,
       child: AppPressable(
         onTap: onTap,
-        child: p.media.isEmpty && p.video?.thumbnailUrl == null
-            ? cover()
-            : Stack(
-                fit: StackFit.expand,
-                children: [
-                  CachedNetworkImage(
-                    imageUrl: p.media.isNotEmpty
-                        ? p.media.first.previewUrl
-                        : p.video!.thumbnailUrl!,
-                    cacheKey: p.media.isNotEmpty
-                        ? '${p.media.first.fileId}:320'
-                        : p.video!.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) =>
-                        ColoredBox(color: colors.skeletonBase),
-                    errorWidget: (_, __, ___) => cover(),
-                  ),
-                  if (p.media.length > 1 || p.video != null)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: AppIcon(
-                        p.video != null
-                            ? AppIcons.playArrowRounded
-                            : AppIcons.collectionsRounded,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                ],
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _tile(colors, p, cover),
+            // Owner 2026-10-12: a pinned post wears a pin (Instagram).
+            if (p.pinSlot != null)
+              const Positioned(
+                top: 6,
+                right: 6,
+                child: AppIcon(
+                  AppIcons.pushPin,
+                  size: 16,
+                  color: Colors.white,
+                ),
               ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _tile(
+    AppColorTokens colors,
+    Post p,
+    Widget Function() cover,
+  ) =>
+      p.media.isEmpty && p.video?.thumbnailUrl == null
+          ? cover()
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: p.media.isNotEmpty
+                      ? p.media.first.previewUrl
+                      : p.video!.thumbnailUrl!,
+                  cacheKey: p.media.isNotEmpty
+                      ? '${p.media.first.fileId}:320'
+                      : p.video!.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) =>
+                      ColoredBox(color: colors.skeletonBase),
+                  errorWidget: (_, __, ___) => cover(),
+                ),
+                if (p.media.length > 1 || p.video != null)
+                  Positioned(
+                    top: 6,
+                    right: p.pinSlot != null ? 28 : 6,
+                    child: AppIcon(
+                      p.video != null
+                          ? AppIcons.playArrowRounded
+                          : AppIcons.collectionsRounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+              ],
+            );
 }
 
 /// The profile grid's spacing: three columns, 2 px gutters, square tiles.

@@ -318,7 +318,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       HapticFeedback.mediumImpact();
       showAppSnackBar(
         context,
-        t.t(_news ? 'post.news.published' : 'post.published'),
+        t.t(
+          _news
+              ? 'post.news.published'
+              : (_hasFiles ? 'post.published' : 'post.brief.published'),
+        ),
       );
       Navigator.of(context).pop();
     } on Object catch (e) {

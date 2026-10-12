@@ -194,6 +194,10 @@ abstract interface class SocialRepository {
   });
   Future<void> deletePost(String id);
 
+  /// Owner 2026-10-12: pin an own post to slot 1..3 / take it off.
+  Future<Post> pinPost(String id, int slot);
+  Future<Post> unpinPost(String id);
+
   /// Owner 2026-10-05: the feed shows legal posts only (general, personal
   /// posts hidden in the feed, topics, search and recommendations).
   Future<bool> legalOnlyFeed();
@@ -484,6 +488,19 @@ class ApiSocialRepository implements SocialRepository {
   @override
   Future<void> deletePost(String id) =>
       guardApiCall(() => _posts.deletePost(id: id));
+
+  @override
+  Future<Post> pinPost(String id, int slot) async => SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.pinPost(id: id, body: api.PinPostDto(slot: slot)),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> unpinPost(String id) async => SocialMappers.post(
+        (await guardApiCall(() => _posts.unpinPost(id: id))).data,
+      );
 
   @override
   Future<void> recordPostShare(String postId) =>
@@ -939,6 +956,14 @@ abstract final class SocialMappers {
         viewCount: d.viewCount,
         repostCount: d.repostCount,
         repostedByMe: d.repostedByMe,
+        pinSlot: d.pinSlot,
+        repostedBy: d.repostedBy == null
+            ? null
+            : PostReposter(
+                id: d.repostedBy!.id,
+                username: d.repostedBy!.username,
+                isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
+              ),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,

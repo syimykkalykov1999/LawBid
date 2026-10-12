@@ -168,10 +168,15 @@ class PostAttachment {
 /// (Threads-style «{username} сделал(а) репост»).
 @immutable
 class PostReposter {
-  const PostReposter({required this.id, required this.username});
+  const PostReposter({
+    required this.id,
+    required this.username,
+    this.isClient = false,
+  });
 
   final String id;
   final String username;
+  final bool isClient;
 }
 
 class Post {
@@ -204,6 +209,7 @@ class Post {
     this.repostCount = 0,
     this.repostedByMe = false,
     this.repostedBy,
+    this.pinSlot,
   });
 
   /// Owner 2026-10-07: Threads-style reposts — how many people reposted
@@ -214,6 +220,10 @@ class Post {
   /// Owner 2026-10-07: set when the post reached the feed as someone's
   /// repost; null otherwise (and while the API does not send it).
   final PostReposter? repostedBy;
+
+  /// Owner 2026-10-12: 1..3 when the author pinned it to the top of their
+  /// profile list.
+  final int? pinSlot;
 
   /// Owner 2026-10-05: a general (personal) post rather than a legal one.
   final bool isGeneral;
@@ -286,6 +296,8 @@ class Post {
     int? viewCount,
     int? repostCount,
     bool? repostedByMe,
+    int? pinSlot,
+    bool unpin = false,
   }) =>
       Post(
         id: id,
@@ -316,6 +328,7 @@ class Post {
         repostCount: repostCount ?? this.repostCount,
         repostedByMe: repostedByMe ?? this.repostedByMe,
         repostedBy: repostedBy,
+        pinSlot: unpin ? null : (pinSlot ?? this.pinSlot),
       );
 }
 
