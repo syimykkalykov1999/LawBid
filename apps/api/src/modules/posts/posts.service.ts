@@ -481,7 +481,7 @@ export class PostsService {
   async remove(user: RequestUser, id: string): Promise<{ deleted: true }> {
     const { count } = await this.prisma.post.updateMany({
       where: { id, author_id: user.sub, deleted_at: null },
-      data: { deleted_at: new Date() },
+      data: { deleted_at: new Date(), pin_slot: null, pin_group: null },
     });
     if (count !== 1) throw postNotFound();
     const post = await this.prisma.post.findFirst({
@@ -505,6 +505,67 @@ export class PostsService {
       );
     }
     return { deleted: true };
+  }
+
+  /** Owner 2026-10-12: pins an own post to slot 1..3 of its list (posts
+   * with files, or text-only briefs). A taken slot is not refused: the post
+   * that held it takes the pinned post's old slot, or loses its pin. */
+  async pin(user: RequestUser, id: string, slot: number): Promise<PostDto> {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        author_id: user.sub,
+        deleted_at: null,
+        status: 'published',
+        kind: 'post',
+      },
+    });
+    if (!post) throw postNotFound();
+    const brief =
+      (await this.prisma.post.count({
+        where: { id, ...BRIEF_POST_WHERE },
+      })) > 0;
+    const group = brief ? 'brief' : 'grid';
+    const oldSlot = post.pin_group === group ? post.pin_slot : null;
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const occupant = await tx.post.findFirst({
+        where: {
+          author_id: user.sub,
+          pin_group: group,
+          pin_slot: slot,
+          id: { not: id },
+        },
+        select: { id: true },
+      });
+      const ids = occupant ? [id, occupant.id] : [id];
+      await tx.post.updateMany({
+        where: { id: { in: ids } },
+        data: { pin_slot: null, pin_group: null },
+      });
+      const mine = await tx.post.update({
+        where: { id },
+        data: { pin_slot: slot, pin_group: group },
+      });
+      if (occupant && oldSlot) {
+        await tx.post.update({
+          where: { id: occupant.id },
+          data: { pin_slot: oldSlot, pin_group: group },
+        });
+      }
+      return mine;
+    });
+    return (await this.presenter.present([updated], user.sub))[0];
+  }
+
+  /** Owner 2026-10-12: takes an own post off the top of the list. */
+  async unpin(user: RequestUser, id: string): Promise<PostDto> {
+    const { count } = await this.prisma.post.updateMany({
+      where: { id, author_id: user.sub, deleted_at: null },
+      data: { pin_slot: null, pin_group: null },
+    });
+    if (count !== 1) throw postNotFound();
+    const post = await this.prisma.post.findFirstOrThrow({ where: { id } });
+    return (await this.presenter.present([post], user.sub))[0];
   }
 
   /** GET /posts/:id — the author also sees their own hidden post. */
@@ -535,6 +596,8 @@ export class PostsService {
         // Owner 2026-09-30: the profile's News tab.
         ...(query.kind ? { kind: query.kind } : {}),
         ...(own ? { deleted_at: null } : VISIBLE_POST_WHERE),
+        // Owner 2026-10-12: pinned posts lead the first page, once.
+        ...(query.kind === 'news' ? {} : { pin_slot: null }),
         ...(c
           ? {
               OR: [
@@ -601,9 +664,21 @@ export class PostsService {
     if (reposter) {
       for (const e of page) if (e.repost) reposters.set(e.post.id, reposter);
     }
+    const pinned =
+      !c && query.kind !== 'news'
+        ? await this.prisma.post.findMany({
+            where: {
+              author_id: attorneyId,
+              kind: 'post',
+              pin_slot: { not: null },
+              ...(own ? { deleted_at: null } : VISIBLE_POST_WHERE),
+            },
+            orderBy: [{ pin_group: 'asc' }, { pin_slot: 'asc' }],
+          })
+        : [];
     return {
       items: await this.presenter.present(
-        page.map((e) => e.post),
+        [...pinned, ...page.map((e) => e.post)],
         user.sub,
         reposters,
       ),

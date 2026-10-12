@@ -78,6 +78,76 @@ void refreshPostLists(WidgetRef ref) {
     ..invalidate(attorneyNewsProvider);
 }
 
+/// Owner 2026-10-12: a small sheet with three numbers — the slot the post
+/// takes at the top of the profile (a taken slot is handed over).
+Future<void> showPinSlotSheet(BuildContext context, WidgetRef ref, Post post) {
+  final t = ref.read(translatorProvider);
+  return showAppBottomSheet<void>(
+    context: context,
+    builder: (sheet) => Consumer(
+      builder: (_, ref, __) {
+        final colors = Theme.of(sheet).extension<AppColorTokens>()!;
+        final type = Theme.of(sheet).extension<AppTypographyTokens>()!;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              0,
+              AppSpacing.screenSide,
+              AppSpacing.lg,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AppSheetHandle(),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (final slot in const [1, 2, 3])
+                      Semantics(
+                        button: true,
+                        label: t.t('post.pin.slot', {'n': '$slot'}),
+                        excludeSemantics: true,
+                        child: AppPressable(
+                          key: ValueKey('pin-slot-$slot'),
+                          onTap: () async {
+                            Navigator.of(sheet).pop();
+                            final error = await ref
+                                .read(socialActionsProvider)
+                                .pinPost(post, slot);
+                            if (error != null && context.mounted) {
+                              showAppSnackBar(context, errorText(t, error));
+                            }
+                          },
+                          child: Container(
+                            width: 64,
+                            height: 64,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: colors.surface,
+                              border: Border.all(color: colors.gold),
+                            ),
+                            child: Text(
+                              '$slot',
+                              style:
+                                  type.titleMedium.copyWith(color: colors.text),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
 /// §2.4 "⋯": your own post — edit, delete; someone else's — the author's
 /// profile, unfollow (when following), block, report.
 Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
@@ -117,6 +187,34 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   onTap: () {
                     Navigator.of(sheet).pop();
                     showEditPostSheet(context, ref, post);
+                  },
+                ),
+              // Owner 2026-10-12: pin to the top of the profile (slots 1..3).
+              if (!post.isNews &&
+                  post.status == 'published' &&
+                  ref.read(canDoProvider(AssistantDuty.publish)))
+                AppListRow(
+                  key: const ValueKey('post-menu-pin'),
+                  icon: post.pinSlot == null
+                      ? AppIcons.pushPinOutlined
+                      : AppIcons.pushPin,
+                  label: t.t(
+                    post.pinSlot == null ? 'post.menu.pin' : 'post.menu.unpin',
+                  ),
+                  showChevron: false,
+                  onTap: () async {
+                    Navigator.of(sheet).pop();
+                    if (post.pinSlot != null) {
+                      final error =
+                          await ref.read(socialActionsProvider).unpinPost(post);
+                      if (error != null && context.mounted) {
+                        showAppSnackBar(context, errorText(t, error));
+                      }
+                      return;
+                    }
+                    if (context.mounted) {
+                      await showPinSlotSheet(context, ref, post);
+                    }
                   },
                 ),
               // Owner 2026-10-05: Instagram-style "Promote" (money: the

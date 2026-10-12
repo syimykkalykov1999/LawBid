@@ -330,6 +330,7 @@ export class PostPresenter {
         isMine: p.author_id === viewerId,
         createdAt: p.created_at.toISOString(),
         editedAt: p.edited_at?.toISOString() ?? null,
+        pinSlot: p.pin_slot ?? null,
       };
     });
   }

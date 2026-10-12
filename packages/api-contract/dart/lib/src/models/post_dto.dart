@@ -50,6 +50,7 @@ class PostDto {
     this.repostedBy,
     this.editedAt,
     this.promotionId,
+    this.pinSlot,
   });
 
   factory PostDto.fromJson(Map<String, Object?> json) =>
@@ -109,6 +110,9 @@ class PostDto {
   /// Owner 2026-10-05: set on a paid promoted post in the feed — the app.
   /// shows «Реклама» and reports the open to POST /promotions/:id/click.
   final String? promotionId;
+
+  /// Owner 2026-10-12: 1..3 when pinned to the top of the author's list.
+  final int? pinSlot;
 
   Map<String, Object?> toJson() => _$PostDtoToJson(this);
 }

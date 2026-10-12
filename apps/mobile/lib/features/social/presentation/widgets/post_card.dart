@@ -58,6 +58,7 @@ class PostCard extends ConsumerWidget {
     this.feedHeight,
     this.fromProfile = false,
     this.onReply,
+    this.showPin = false,
     super.key,
   });
 
@@ -65,6 +66,9 @@ class PostCard extends ConsumerWidget {
 
   /// The open thread of a text post: the reply icon focuses the field.
   final VoidCallback? onReply;
+
+  /// Owner 2026-10-12: the profile's list shows a pinned post's "Pinned".
+  final bool showPin;
 
   /// Owner 2026-10-12: a text-only post without a qualification is a
   /// Threads thread (replies right under it when opened).
@@ -161,6 +165,7 @@ class PostCard extends ConsumerWidget {
                 promotionId: post.promotionId,
                 fromProfile: fromProfile,
                 onReply: onReply,
+                showPin: showPin,
               )
             // Owner 2026-10-12: one card for every post with a photo or a
             // reel in a list — with a practice or without (no chips then).
@@ -332,7 +337,9 @@ class PostCard extends ConsumerWidget {
               post: p,
               sponsored: post.promotionId != null,
               compact: true,
-            ),
+            )
+          else if (fromProfile && p.isMine)
+            _OwnMenuRow(post: p),
           photoFor(fill: fill),
           _ActionsBar(post: p, run: run, showTime: true),
           _PracticeChips(post: p),
@@ -420,6 +427,8 @@ class PostCard extends ConsumerWidget {
       children: [
         if (!fromProfile)
           _AuthorRow(post: p, sponsored: post.promotionId != null)
+        else if (p.isMine)
+          _OwnMenuRow(post: p)
         else
           const SizedBox(height: AppSpacing.md),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
@@ -683,7 +692,10 @@ class _InstagramPost extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!fromProfile) _AuthorRow(post: p, sponsored: promotionId != null),
+        if (!fromProfile)
+          _AuthorRow(post: p, sponsored: promotionId != null)
+        else if (p.isMine)
+          _OwnMenuRow(post: p),
         if (p.video != null)
           AspectRatio(
             aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
@@ -856,6 +868,7 @@ class _ThreadsPost extends ConsumerWidget {
     this.promotionId,
     this.fromProfile = false,
     this.onReply,
+    this.showPin = false,
   });
 
   final Post post;
@@ -866,6 +879,9 @@ class _ThreadsPost extends ConsumerWidget {
 
   /// Open thread: the reply icon focuses the reply field below.
   final VoidCallback? onReply;
+
+  /// Owner 2026-10-12: the profile's list shows a pinned post's "Pinned".
+  final bool showPin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1011,6 +1027,33 @@ class _ThreadsPost extends ConsumerWidget {
       );
     }
 
+    Widget pinLine() => Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 36,
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: AppIcon(
+                    AppIcons.pushPin,
+                    size: 14,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Text(
+                t.t('post.pinned'),
+                style: type.caption.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+
     final avatar = GestureDetector(
       onTap: () => openAuthorProfile(context, ref, a),
       child: GoldRingAvatar(
@@ -1119,6 +1162,7 @@ class _ThreadsPost extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (repostedBy != null) repostLine(),
+            if (showPin && p.pinSlot != null) pinLine(),
             Row(
               children: [
                 avatar,
@@ -1149,6 +1193,7 @@ class _ThreadsPost extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (repostedBy != null) repostLine(),
+            if (showPin && p.pinSlot != null) pinLine(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1514,6 +1559,48 @@ class _AuthorRow extends ConsumerWidget {
               AppIcons.moreHorizRounded,
               color: onDark ? Colors.white : null,
             ),
+            semanticLabel: t.t('post.menu'),
+            onPressed: () => showPostMenu(context, ref, post),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-12: in the author's own feed of posts (no author row) the
+/// "…" menu stays reachable (pin, edit, delete), with "Pinned" on the left.
+class _OwnMenuRow extends ConsumerWidget {
+  const _OwnMenuRow({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+        start: AppSpacing.lg,
+        end: AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          if (post.pinSlot != null) ...[
+            AppIcon(AppIcons.pushPin, size: 14, color: colors.textSecondary),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              t.t('post.pinned'),
+              style: type.caption.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const Spacer(),
+          AppIconButton(
+            icon: const AppIcon(AppIcons.moreHorizRounded),
             semanticLabel: t.t('post.menu'),
             onPressed: () => showPostMenu(context, ref, post),
           ),

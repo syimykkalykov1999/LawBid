@@ -706,7 +706,8 @@ class ProfilePostsGrid extends ConsumerWidget {
         if (threadsOnly) {
           return Column(
             children: [
-              for (final p in posts) PostCard(key: ValueKey(p.id), post: p),
+              for (final p in posts)
+                PostCard(key: ValueKey(p.id), post: p, showPin: true),
               if (page.canLoadMore)
                 TextButton(
                   onPressed: () => ref.read(_provider.notifier).loadMore(),
