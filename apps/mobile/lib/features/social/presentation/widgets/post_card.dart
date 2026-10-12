@@ -209,6 +209,13 @@ class PostCard extends ConsumerWidget {
     // none, the default art of the post's practice — full card width.
     // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
     // full-screen reels starting with it.
+    // Owner 2026-10-12: one photo height for every post — what a screen
+    // (without the header) leaves after the fullest card's text blocks —
+    // so a post with everything does not squeeze its photo.
+    final width = MediaQuery.sizeOf(context).width;
+    final photoHeight = fillHeight == null
+        ? width * 1.25
+        : (fillHeight - 240).clamp(width * 0.9, width * 1.5);
     Widget photoFor() {
       if (p.video == null && p.media.length > 1) {
         final carousel = _FeedCarousel(
@@ -216,8 +223,9 @@ class PostCard extends ConsumerWidget {
           semanticLabel: t.t('post.media.label'),
           onDoubleTap: like,
           onTap: open,
+          height: photoHeight,
         );
-        return Flexible(child: carousel);
+        return carousel;
       }
       final picture = p.video != null
           ? InlineReel(
@@ -240,7 +248,7 @@ class PostCard extends ConsumerWidget {
                   seed: p.id,
                 );
       final tappable = AppPressable(onTap: open, child: picture);
-      return _feedPhotoBox(tappable);
+      return _feedPhotoBox(tappable, photoHeight);
     }
 
     // Owner 2026-10-12: the height the compact header frees goes to the
@@ -2201,11 +2209,9 @@ class PostDisclaimer extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-12: the feed photo is a little taller than a square
-/// (height 1.5 x width at most) and shrinks to the height the card has.
-Widget _feedPhotoBox(Widget child) => Flexible(
-      child: AspectRatio(aspectRatio: 1 / 1.5, child: child),
-    );
+/// Owner 2026-10-12: the feed photo box, the same height for every post.
+Widget _feedPhotoBox(Widget child, double height) =>
+    SizedBox(height: height, child: child);
 
 /// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
 /// "Mar 14, 2024").
@@ -2240,12 +2246,14 @@ class _FeedCarousel extends StatefulWidget {
     required this.semanticLabel,
     required this.onDoubleTap,
     required this.onTap,
+    required this.height,
   });
 
   final List<PostMedia> media;
   final String semanticLabel;
   final VoidCallback onDoubleTap;
   final VoidCallback onTap;
+  final double height;
 
   @override
   State<_FeedCarousel> createState() => _FeedCarouselState();
@@ -2305,6 +2313,7 @@ class _FeedCarouselState extends State<_FeedCarousel> {
               ),
             ],
           ),
+          widget.height,
         ),
         Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -2332,8 +2341,8 @@ class _FeedCarouselState extends State<_FeedCarousel> {
 }
 
 /// Owner 2026-10-12: the post's qualifications under the actions — the
-/// practice, its sub-practice and the other topics its hashtags name (up
-/// to five), all alike and light: no dot, radius 6, aligned with the text,
+/// practice, its sub-practice and the other topics its hashtags name (no
+/// limit), all alike and light: no dot, radius 6, aligned with the text,
 /// one row that scrolls sideways when it does not fit.
 class _PracticeChips extends ConsumerWidget {
   const _PracticeChips({required this.post});
@@ -2348,7 +2357,7 @@ class _PracticeChips extends ConsumerWidget {
     final pr = post.practice;
     final chips = <(String, VoidCallback)>[];
     void add(String label, VoidCallback onTap) {
-      if (chips.length < 5 && !chips.any((c) => c.$1 == label)) {
+      if (!chips.any((c) => c.$1 == label)) {
         chips.add((label, onTap));
       }
     }
@@ -2735,16 +2744,9 @@ class _FeedFillState extends State<_FeedFill> {
 
   @override
   Widget build(BuildContext context) {
-    final capped = widget.height != null && !_expanded;
-    final body = widget.builder(
-      fill: capped,
+    return widget.builder(
+      fill: widget.height != null && !_expanded,
       onExpand: () => setState(() => _expanded = true),
     );
-    return capped
-        ? ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: widget.height!),
-            child: body,
-          )
-        : body;
   }
 }
