@@ -12,7 +12,10 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 /// The Feed header's Chats icon (docs/05 §2.1) with the §10 badge: unread
 /// messages + unread notifications. The count pops when it changes.
 class ChatsIconButton extends ConsumerWidget {
-  const ChatsIconButton({super.key});
+  const ChatsIconButton({this.onDark = false, super.key});
+
+  /// White icon over the Reels video.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +50,7 @@ class ChatsIconButton extends ConsumerWidget {
                   chats
                       ? AppIcons.forumOutlined
                       : AppIcons.notificationsNoneRounded,
-                  color: colors.text,
+                  color: onDark ? Colors.white : colors.text,
                   size: AppSizes.iconMd,
                 ),
                 if (total > 0)

@@ -54,73 +54,51 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     final attorney = ref.watch(actsAsAttorneyProvider) &&
         ref.watch(canDoProvider(AssistantDuty.cases));
 
-    // Owner 2026-09-30 header: clients — scales left, "LawBid" centred,
-    // chats right; attorneys — "LawBid" left, Posts | Cases centred,
-    // chats right.
-    final header = attorney
-        ? AppFeedHeader(
-            logoSemanticLabel: t.t('brand.name'),
-            // Owner 2026-09-30: the animated scales from the welcome
-            // screen, header-sized, instead of the text wordmark.
-            leading: ExcludeSemantics(
-              child: ScalesLogo(
-                size: 44,
-                animated: true,
-                runFor: const Duration(seconds: 6),
-                semanticLabel: t.t('brand.name'),
-              ),
+    // Owner 2026-10-12: one header for every tab — the logo on the left,
+    // Posts | Reels (| Cases) in the middle, chats on the right — with the
+    // same size and place in Posts, Cases and Reels. In Reels it only lies
+    // over the video (white, no fill).
+    Widget buildHeader({required bool onDark, bool bare = false}) =>
+        AppFeedHeader(
+          logoSemanticLabel: t.t('brand.name'),
+          onDark: onDark,
+          bare: bare,
+          // Decorative: the header itself is announced as "LawBid".
+          leading: ExcludeSemantics(
+            child: ScalesLogo(
+              size: attorney ? 44 : 40,
+              animated: true,
+              runFor: const Duration(seconds: 6),
+              semanticLabel: t.t('brand.name'),
             ),
-            center: PillTabs<_FeedTab>(
+          ),
+          // The tabs leave with the filters on a scroll down; the logo and
+          // the chats stay.
+          center: ChromeFade(
+            child: PillTabs<_FeedTab>(
               value: _tab,
               padding: EdgeInsets.zero,
+              onDark: onDark,
               tabs: [
                 (_FeedTab.posts, t.t('feed.tab.posts')),
                 (_FeedTab.reels, t.t('reels.title')),
-                (_FeedTab.cases, t.t('feed.tab.cases')),
-              ],
-              onChanged: (v) => setState(() => _tab = v),
-            ),
-            trailing: const [ChatsIconButton()],
-          )
-        : AppFeedHeader(
-            logoSemanticLabel: t.t('brand.name'),
-            // Decorative: the header itself is announced as "LawBid".
-            leading: ExcludeSemantics(
-              child: ScalesLogo(
-                size: 40,
-                animated: true,
-                runFor: const Duration(seconds: 6),
-                semanticLabel: t.t('brand.name'),
-              ),
-            ),
-            center: PillTabs<_FeedTab>(
-              value: _tab,
-              padding: EdgeInsets.zero,
-              tabs: [
-                (_FeedTab.posts, t.t('feed.tab.posts')),
-                (_FeedTab.reels, t.t('reels.title')),
+                if (attorney) (_FeedTab.cases, t.t('feed.tab.cases')),
               ],
               onChanged: (v) => setState(() {
                 _tab = v;
                 _chrome.show();
               }),
             ),
-            trailing: const [ChatsIconButton()],
-          );
+          ),
+          trailing: [ChatsIconButton(onDark: onDark)],
+        );
 
     // Owner 2026-10-12: the Reels tab is the player over the whole screen;
-    // the tabs and the filters lie over the video, the app header is gone.
+    // the same header and the filters lie over the video.
     if (_tab == _FeedTab.reels) {
-      return _ReelsTab(
-        tabs: [
-          (_FeedTab.posts, t.t('feed.tab.posts')),
-          (_FeedTab.reels, t.t('reels.title')),
-          if (attorney) (_FeedTab.cases, t.t('feed.tab.cases')),
-        ],
-        onTab: (v) => setState(() {
-          _tab = v;
-          _chrome.show();
-        }),
+      return FeedChrome(
+        controller: _chrome,
+        child: _ReelsTab(header: buildHeader(onDark: true)),
       );
     }
     final topInset = MediaQuery.paddingOf(context).top;
@@ -157,28 +135,60 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         controller: _chrome,
         child: LayoutBuilder(
           builder: (context, box) {
-            // Cards are sized for the hidden header (the rows leave on the
-            // first scroll); the floating nav bar is a bottom inset.
-            _chrome.cardHeight =
-                feedCardHeight(box.maxHeight - topInset - bottomInset);
+            // Cards are sized for the scrolled state: the slim header only
+            // floats over them; the floating nav bar is a bottom inset.
+            _chrome.cardHeight = feedCardHeight(
+              box.maxHeight - topInset - bottomInset,
+            );
             return NotificationListener<ScrollNotification>(
               onNotification: (n) =>
                   _tab != _FeedTab.reels && _chrome.onScroll(n),
-              child: Column(
-                children: [
-                  ColoredBox(
-                    color: colors.bg,
-                    child: SizedBox(height: topInset, width: double.infinity),
-                  ),
-                  ChromeCollapse(
-                    child: MediaQuery.removePadding(
-                      context: context,
-                      removeTop: true,
-                      child: header,
-                    ),
-                  ),
-                  Expanded(child: content),
-                ],
+              child: AnimatedBuilder(
+                animation: _chrome,
+                builder: (context, _) {
+                  final shown = _chrome.visible;
+                  final reduce = MediaQuery.disableAnimationsOf(context);
+                  final duration = reduce
+                      ? Duration.zero
+                      : const Duration(milliseconds: 200);
+                  return Stack(
+                    children: [
+                      // Owner 2026-10-12: scrolled, the header is only the
+                      // logo and the chats over the feed (no white bar), so
+                      // the content gives its place back.
+                      Positioned.fill(
+                        child: AnimatedPadding(
+                          duration: duration,
+                          curve: Curves.easeOutCubic,
+                          padding: EdgeInsets.only(
+                            top: topInset + (shown ? AppSizes.feedHeader : 0),
+                          ),
+                          child: content,
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Column(
+                          children: [
+                            AnimatedContainer(
+                              duration: duration,
+                              color: shown ? colors.bg : Colors.transparent,
+                              height: topInset,
+                              width: double.infinity,
+                            ),
+                            MediaQuery.removePadding(
+                              context: context,
+                              removeTop: true,
+                              child: buildHeader(onDark: false, bare: !shown),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             );
           },
@@ -324,13 +334,12 @@ class FeedPreviewIllustration extends StatelessWidget {
 }
 
 /// The Reels tab (owner 2026-10-12): the vertical player over the whole
-/// screen, the tabs (Posts | Reels | Cases) and the topic filters lie over
+/// screen; the app header (same as in Posts) and the topic filters lie over
 /// the video in white, no bar or fill; the nav bar floats over it.
 class _ReelsTab extends ConsumerStatefulWidget {
-  const _ReelsTab({required this.tabs, required this.onTab});
+  const _ReelsTab({required this.header});
 
-  final List<(_FeedTab, String)> tabs;
-  final ValueChanged<_FeedTab> onTab;
+  final Widget header;
 
   @override
   ConsumerState<_ReelsTab> createState() => _ReelsTabState();
@@ -351,23 +360,19 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
   Widget build(BuildContext context) {
     final legalOnly =
         ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final media = MediaQuery.of(context);
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            Positioned.fill(
-              // The floating nav bar is a bottom inset for the reel's
-              // buttons; the video itself runs under it.
-              child: MediaQuery(
-                data: media.copyWith(
-                  padding: media.padding.copyWith(
-                    bottom: media.padding.bottom + 62,
-                  ),
-                ),
+    return SystemNavBandColor(
+      color: Colors.black,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              Positioned.fill(
+                // The shell (extendBody) already reports the floating nav bar
+                // as the bottom padding, so the reel's buttons clear it
+                // while the video runs under it.
                 child: ReelsScreen(
                   // A new filter starts the player over.
                   key: ValueKey('reels|$_category|$legalOnly'),
@@ -375,70 +380,30 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
                   filter: (p) => _accepts(p, legalOnly: legalOnly),
                 ),
               ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.5),
-                      Colors.black.withValues(alpha: 0),
-                    ],
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.5),
+                        Colors.black.withValues(alpha: 0),
+                      ],
+                    ),
                   ),
-                ),
-                child: SafeArea(
-                  bottom: false,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        height: 44,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (final (tab, label) in widget.tabs)
-                              Semantics(
-                                button: true,
-                                selected: tab == _FeedTab.reels,
-                                label: label,
-                                excludeSemantics: true,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () => widget.onTab(tab),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.md,
-                                      vertical: AppSpacing.sm,
-                                    ),
-                                    child: Text(
-                                      label,
-                                      style: type.titleMedium.copyWith(
-                                        fontSize: 18,
-                                        color: tab == _FeedTab.reels
-                                            ? Colors.white
-                                            : Colors.white
-                                                .withValues(alpha: 0.7),
-                                        fontWeight: tab == _FeedTab.reels
-                                            ? FontWeight.w700
-                                            : FontWeight.w500,
-                                        shadows: const [
-                                          Shadow(
-                                            blurRadius: 8,
-                                            color: Colors.black54,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                      // Same status-bar band and header as the other tabs.
+                      SizedBox(height: media.padding.top),
+                      MediaQuery.removePadding(
+                        context: context,
+                        removeTop: true,
+                        child: widget.header,
                       ),
                       TopicFilterBar(
                         category: _category,
@@ -450,8 +415,8 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

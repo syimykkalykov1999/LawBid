@@ -84,3 +84,25 @@ class ChromeCollapse extends StatelessWidget {
     );
   }
 }
+
+/// Fades [child] out (and makes it untouchable) while the feed chrome is
+/// hidden; the space it takes stays, so nothing around it moves.
+class ChromeFade extends StatelessWidget {
+  const ChromeFade({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = FeedChrome.maybeOf(context)?.visible ?? true;
+    final instant = MediaQuery.disableAnimationsOf(context);
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: instant ? Duration.zero : const Duration(milliseconds: 200),
+        child: child,
+      ),
+    );
+  }
+}

@@ -23,7 +23,15 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
     this.showLogo = true,
     this.leading,
     this.center,
+    this.onDark = false,
+    this.bare = false,
   });
+
+  /// Owner 2026-10-12: scrolled feed — no bar behind, only the icons.
+  final bool bare;
+
+  /// Owner 2026-10-12: over the Reels video — transparent, no hairline.
+  final bool onDark;
 
   /// Owner 2026-09-30: left slot (clients: the scales mark; attorneys:
   /// the wordmark).
@@ -60,8 +68,12 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
         0,
       ),
       decoration: BoxDecoration(
-        color: colors.bg,
-        border: Border(bottom: BorderSide(color: colors.border)),
+        color: onDark || bare ? Colors.transparent : colors.bg,
+        border: Border(
+          bottom: BorderSide(
+            color: onDark || bare ? Colors.transparent : colors.border,
+          ),
+        ),
       ),
       child: center != null
           ? Row(

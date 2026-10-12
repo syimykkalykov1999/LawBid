@@ -258,7 +258,7 @@ class _ReelPage extends ConsumerStatefulWidget {
   final bool active;
   final bool muted;
 
-  /// The Reels tab: no "Watch" button; the caption opens the inside.
+  /// The Reels tab: the compact «Watch» strip sits right above the nav bar.
   final bool embedded;
 
   @override
@@ -411,7 +411,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   end: AppSpacing.md,
-                  bottom: (widget.embedded ? 0 : kReelMoreButtonSpace) +
+                  bottom: kReelMoreButtonSpace +
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -465,7 +465,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 PositionedDirectional(
                   start: AppSpacing.lg,
                   end: 72,
-                  bottom: (widget.embedded ? 0 : kReelMoreButtonSpace) +
+                  bottom: kReelMoreButtonSpace +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -589,7 +589,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: MediaQuery.paddingOf(context).bottom,
+                  // In the Reels tab the nav bar floats over the video's
+                  // bottom edge: the thin line sits at the very bottom.
+                  bottom: widget.embedded
+                      ? 0
+                      : MediaQuery.paddingOf(context).bottom,
                   child: ValueListenableBuilder<double>(
                     valueListenable: _progress,
                     builder: (_, v, __) => LinearProgressIndicator(
@@ -604,16 +608,16 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
             ),
           ),
         ),
-        if (!widget.embedded)
-          PositionedDirectional(
-            start: AppSpacing.lg,
-            end: AppSpacing.lg,
-            bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
-            child: ReelMoreButton(
-              label: t.t(reelMoreLabelKey(p)),
-              onTap: () => _openInside(p),
-            ),
+        PositionedDirectional(
+          start: AppSpacing.lg,
+          end: AppSpacing.lg,
+          bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
+              MediaQuery.paddingOf(context).bottom,
+          child: ReelMoreButton(
+            label: t.t(reelMoreLabelKey(p)),
+            onTap: () => _openInside(p),
           ),
+        ),
       ],
     );
   }
