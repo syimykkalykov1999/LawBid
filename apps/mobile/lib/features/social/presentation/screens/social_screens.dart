@@ -351,8 +351,9 @@ List<Widget> commentThreadSlivers(
   WidgetRef ref,
   String threadId,
   AsyncValue<PaginatedList<Comment>> value,
-  void Function(ReplyTarget) onReply,
-) {
+  void Function(ReplyTarget) onReply, {
+  bool threads = false,
+}) {
   final t = ref.read(translatorProvider);
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -401,6 +402,7 @@ List<Widget> commentThreadSlivers(
             return CommentTile(
               key: ValueKey(c.id),
               comment: c,
+              threads: threads,
               onReply: onReply,
             );
           },
@@ -638,11 +640,16 @@ class ProfilePostsGrid extends ConsumerWidget {
     required this.emptyTitle,
     required this.emptyMessage,
     this.newsOnly = false,
+    this.threadsOnly = false,
     super.key,
   });
 
   /// Owner 2026-09-30: the profile's News tab.
   final bool newsOnly;
+
+  /// Owner 2026-10-12 (Threads): the profile's threads tab — text posts as
+  /// cards in a list; the grid tab keeps the posts with a photo or video.
+  final bool threadsOnly;
 
   final String attorneyId;
   final String emptyTitle;
@@ -678,7 +685,13 @@ class ProfilePostsGrid extends ConsumerWidget {
         ),
       ),
       data: (page) {
-        final posts = page.items.where((p) => !deleted.contains(p.id)).toList();
+        final posts = page.items
+            .where(
+              (p) =>
+                  !deleted.contains(p.id) &&
+                  (newsOnly || PostCard.isThreadsStyle(p) == threadsOnly),
+            )
+            .toList();
         if (posts.isEmpty) {
           // The grid sits in the profile's scroll view: a bounded height.
           return SizedBox(
@@ -688,6 +701,18 @@ class ProfilePostsGrid extends ConsumerWidget {
               title: emptyTitle,
               message: emptyMessage,
             ),
+          );
+        }
+        if (threadsOnly) {
+          return Column(
+            children: [
+              for (final p in posts) PostCard(key: ValueKey(p.id), post: p),
+              if (page.canLoadMore)
+                TextButton(
+                  onPressed: () => ref.read(_provider.notifier).loadMore(),
+                  child: Text(t.t('pagination.loadingMore')),
+                ),
+            ],
           );
         }
         return Column(
@@ -783,7 +808,14 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
                 SliverToBoxAdapter(
                   child: Divider(height: 1, color: colors.border),
                 ),
-                ...commentThreadSlivers(context, ref, p.id, comments, _reply),
+                ...commentThreadSlivers(
+                  context,
+                  ref,
+                  p.id,
+                  comments,
+                  _reply,
+                  threads: true,
+                ),
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.symmetric(

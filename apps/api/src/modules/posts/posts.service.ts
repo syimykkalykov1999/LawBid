@@ -268,6 +268,9 @@ export class PostsService {
         id: true,
         body: true,
         author_id: true,
+        kind: true,
+        video_asset_id: true,
+        _count: { select: { media: true, attachments: true } },
         author: { select: { role: true } },
       },
     });
@@ -286,7 +289,13 @@ export class PostsService {
     });
     // Owner 2026-09-30: followers who turned "Following" alerts on.
     const alerts = this.alerts;
-    alerts?.later(() => alerts.followersOfPost(post.author_id, post.id));
+    // Owner 2026-10-12: a text-only post is a "Brief"; the alert says so.
+    const brief =
+      post.kind === 'post' &&
+      !post.video_asset_id &&
+      post._count.media === 0 &&
+      post._count.attachments === 0;
+    alerts?.later(() => alerts.followersOfPost(post.author_id, post.id, brief));
   }
 
   /** Owner 2026-10-01: the reel's video could not be used. */
