@@ -302,7 +302,9 @@ export async function seedDemoContent(
     if (spec.style === 'video' && !opts.videoStubs) continue;
     const postId = det(`post:${spec.key}`);
     const at = new Date(
-      now.getTime() - (1 + ((i * 5) % 38)) * DAY - i * 17 * MIN,
+      spec.minutesAgo !== undefined
+        ? now.getTime() - spec.minutesAgo * MIN
+        : now.getTime() - (1 + ((i * 5) % 38)) * DAY - i * 17 * MIN,
     );
     let videoId: string | null = null;
     if (spec.style === 'video') {
@@ -370,6 +372,30 @@ export async function seedDemoContent(
         file_id: fileId,
         file_name: `${spec.key}.pdf`,
         position: 0,
+        created_at: at,
+      });
+    }
+    for (const [n, name] of (spec.docs ?? []).entries()) {
+      if (!storage) break;
+      const pdf = name.toLowerCase().endsWith('.pdf');
+      const fileId = await addFile({
+        key: `post-doc:${spec.key}:${n}`,
+        owner: author.id,
+        purpose: 'post_attachment',
+        bucket: 'documents',
+        s3Key: `demo/post_attachment/${author.id}/${det(`file:post-doc:${spec.key}:${n}`)}`,
+        mime: pdf
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        body: samplePdf(name),
+        createdAt: at,
+      });
+      attachRows.push({
+        id: det(`attach:${spec.key}:${n}`),
+        post_id: postId,
+        file_id: fileId,
+        file_name: name,
+        position: n,
         created_at: at,
       });
     }
