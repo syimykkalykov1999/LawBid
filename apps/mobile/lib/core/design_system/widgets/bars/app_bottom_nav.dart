@@ -92,38 +92,40 @@ class AppBottomNav extends StatelessWidget {
               if (!selected) HapticFeedback.selectionClick();
               onTabSelected(index);
             },
-            child: AnimatedContainer(
-              duration: stateDuration,
-              curve: AppMotion.enterCurve,
-              margin: const EdgeInsets.symmetric(
-                horizontal: 2,
-                vertical: 3,
-              ),
-              decoration: BoxDecoration(
-                color: selected
-                    ? colors.goldTint
-                    : colors.goldTint.withValues(alpha: 0),
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedSwitcher(
-                    duration: stateDuration,
-                    transitionBuilder: (child, animation) => ScaleTransition(
-                      scale:
-                          Tween<double>(begin: 0.85, end: 1).animate(animation),
-                      child: FadeTransition(opacity: animation, child: child),
+            // Owner 2026-10-12: a narrow pill (52) behind the icon, centred,
+            // not the whole fifth of the bar.
+            child: Center(
+              child: AnimatedContainer(
+                duration: stateDuration,
+                curve: AppMotion.enterCurve,
+                width: 52,
+                margin: const EdgeInsets.symmetric(vertical: 3),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? colors.goldTint
+                      : colors.goldTint.withValues(alpha: 0),
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: stateDuration,
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: Tween<double>(begin: 0.85, end: 1)
+                            .animate(animation),
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: AppIcon(
+                        selected ? tab.activeIcon : tab.icon,
+                        key: ValueKey<bool>(selected),
+                        size: AppSizes.iconMd + 2,
+                        color: iconColor,
+                      ),
                     ),
-                    child: AppIcon(
-                      selected ? tab.activeIcon : tab.icon,
-                      key: ValueKey<bool>(selected),
-                      size: AppSizes.iconMd + 2,
-                      color: iconColor,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
