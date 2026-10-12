@@ -511,7 +511,7 @@ class PostCard extends ConsumerWidget {
             ),
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
-        _ActionsBar(post: p, run: run, boost: false),
+        _ActionsBar(post: p, run: run, boost: false, reactions: false),
         if (p.likeCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -575,7 +575,7 @@ class PostCard extends ConsumerWidget {
                   .copyWith(color: colors.textSecondary),
             ),
           ),
-        if (!inDetail && p.commentCount > 0)
+        if (p.commentCount > 0)
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton(
@@ -715,6 +715,7 @@ class _InstagramPost extends ConsumerWidget {
           run: run,
           showCounts: false,
           boost: !inDetail,
+          reactions: !inDetail,
           // Inside the post the comment field is right below.
           // Owner 2026-10-07: the comment button opens the comments sheet,
           // inside the post too.
@@ -765,7 +766,7 @@ class _InstagramPost extends ConsumerWidget {
               documents: p.attachments,
             ),
           ),
-        if (!inDetail && p.commentCount > 0)
+        if (p.commentCount > 0)
           AppPressable(
             onTap: () => showCommentsSheet(
               context,
@@ -1015,33 +1016,36 @@ class _ThreadsPost extends ConsumerWidget {
                   ],
                   Row(
                     children: [
-                      action(
-                        BounceIcon(
-                          active: p.likedByMe,
-                          activeIcon: AppIcons.favoriteRounded,
-                          icon: AppIcons.favoriteBorderRounded,
-                          activeColor: colors.danger,
-                          size: 20,
-                          label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-                          onTap: () => run(() => actions.toggleLike(p)),
-                        ),
-                        p.likeCount,
-                      ),
-                      action(
-                        BounceIcon(
-                          active: false,
-                          activeIcon: AppIcons.modeCommentOutlined,
-                          icon: AppIcons.modeCommentOutlined,
-                          size: 20,
-                          label: t.t('post.comments'),
-                          onTap: () => showCommentsSheet(
-                            context,
-                            postId: p.id,
-                            commentsEnabled: p.commentsEnabled,
+                      if (!inDetail)
+                        action(
+                          BounceIcon(
+                            active: p.likedByMe,
+                            activeIcon: AppIcons.favoriteRounded,
+                            icon: AppIcons.favoriteBorderRounded,
+                            activeColor: colors.danger,
+                            size: 20,
+                            label:
+                                t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
+                            onTap: () => run(() => actions.toggleLike(p)),
                           ),
+                          p.likeCount,
                         ),
-                        p.commentCount,
-                      ),
+                      if (!inDetail)
+                        action(
+                          BounceIcon(
+                            active: false,
+                            activeIcon: AppIcons.modeCommentOutlined,
+                            icon: AppIcons.modeCommentOutlined,
+                            size: 20,
+                            label: t.t('post.comments'),
+                            onTap: () => showCommentsSheet(
+                              context,
+                              postId: p.id,
+                              commentsEnabled: p.commentsEnabled,
+                            ),
+                          ),
+                          p.commentCount,
+                        ),
                       // Owner 2026-10-07: Threads-style repost.
                       action(
                         BounceIcon(
@@ -1057,17 +1061,18 @@ class _ThreadsPost extends ConsumerWidget {
                         ),
                         p.repostCount,
                       ),
-                      action(
-                        BounceIcon(
-                          active: false,
-                          activeIcon: AppIcons.sendOutlined,
-                          icon: AppIcons.sendOutlined,
-                          size: 20,
-                          label: t.t('post.share'),
-                          onTap: () => sharePost(context, ref, p),
+                      if (!inDetail)
+                        action(
+                          BounceIcon(
+                            active: false,
+                            activeIcon: AppIcons.sendOutlined,
+                            icon: AppIcons.sendOutlined,
+                            size: 20,
+                            label: t.t('post.share'),
+                            onTap: () => sharePost(context, ref, p),
+                          ),
+                          p.shareCount,
                         ),
-                        p.shareCount,
-                      ),
                       Expanded(
                         child: !inDetail &&
                                 p.isMine &&
@@ -1414,7 +1419,7 @@ class _AuthorRow extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: type.caption.copyWith(
                               color: onDark
-                                  ? Colors.white70
+                                  ? Colors.white.withValues(alpha: 0.9)
                                   : colors.textSecondary,
                             ),
                           ),
@@ -1995,7 +2000,12 @@ class _ActionsBar extends ConsumerWidget {
     this.showTime = false,
     this.showCounts = true,
     this.boost = true,
+    this.reactions = true,
   });
+
+  /// Owner 2026-10-12: inside an open post there are no like / comment /
+  /// share icons — comments only through the sheet.
+  final bool reactions;
 
   /// Owner 2026-10-07: «Продвигать» only on the cards in a list, never
   /// inside the open post.
@@ -2020,39 +2030,41 @@ class _ActionsBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       child: Row(
         children: [
-          BounceIcon(
-            active: post.likedByMe,
-            activeIcon: AppIcons.favoriteRounded,
-            icon: AppIcons.favoriteBorderRounded,
-            activeColor: colors.danger,
-            label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
-            onTap: () => run(() => actions.toggleLike(post)),
-          ),
-          // Owner 2026-09-30 design: counts next to the icons.
-          if (showCounts && (showTime || post.likeCount > 0))
-            _Count(post.likeCount),
-          BounceIcon(
-            active: false,
-            activeIcon: AppIcons.modeCommentOutlined,
-            icon: AppIcons.modeCommentOutlined,
-            label: t.t('post.comments'),
-            onTap: () => showCommentsSheet(
-              context,
-              postId: post.id,
-              commentsEnabled: post.commentsEnabled,
+          if (reactions) ...[
+            BounceIcon(
+              active: post.likedByMe,
+              activeIcon: AppIcons.favoriteRounded,
+              icon: AppIcons.favoriteBorderRounded,
+              activeColor: colors.danger,
+              label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
+              onTap: () => run(() => actions.toggleLike(post)),
             ),
-          ),
-          if (showCounts && (showTime || post.commentCount > 0))
-            _Count(post.commentCount),
-          BounceIcon(
-            active: false,
-            activeIcon: AppIcons.sendOutlined,
-            icon: AppIcons.sendOutlined,
-            label: t.t('post.share'),
-            onTap: () => sharePost(context, ref, post),
-          ),
-          if (showCounts && (showTime || post.shareCount > 0))
-            _Count(post.shareCount),
+            // Owner 2026-09-30 design: counts next to the icons.
+            if (showCounts && (showTime || post.likeCount > 0))
+              _Count(post.likeCount),
+            BounceIcon(
+              active: false,
+              activeIcon: AppIcons.modeCommentOutlined,
+              icon: AppIcons.modeCommentOutlined,
+              label: t.t('post.comments'),
+              onTap: () => showCommentsSheet(
+                context,
+                postId: post.id,
+                commentsEnabled: post.commentsEnabled,
+              ),
+            ),
+            if (showCounts && (showTime || post.commentCount > 0))
+              _Count(post.commentCount),
+            BounceIcon(
+              active: false,
+              activeIcon: AppIcons.sendOutlined,
+              icon: AppIcons.sendOutlined,
+              label: t.t('post.share'),
+              onTap: () => sharePost(context, ref, post),
+            ),
+            if (showCounts && (showTime || post.shareCount > 0))
+              _Count(post.shareCount),
+          ],
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: showTime
