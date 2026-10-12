@@ -34,6 +34,7 @@ import {
   CreatePostDto,
   PostDeletedDto,
   PostDto,
+  PinPostDto,
   PostIdParamDto,
   PostsPageQueryDto,
   SavedPostItemDto,
@@ -123,6 +124,32 @@ export class PostsController {
     @Param() p: PostIdParamDto,
   ): Promise<{ deleted: true }> {
     return this.posts.remove(user, p.id);
+  }
+
+  // Owner 2026-10-12: pin an own post (slot 1..3) to the top of the profile.
+  @AttorneyOnly('publish')
+  @Post('posts/:id/pin')
+  @ApiOperation({ summary: 'Pin an own post to slot 1, 2 or 3' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.POST_NOT_FOUND] })
+  pinPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Body() dto: PinPostDto,
+  ): Promise<PostDto> {
+    return this.posts.pin(user, p.id, dto.slot);
+  }
+
+  @AttorneyOnly('publish')
+  @Delete('posts/:id/pin')
+  @ApiOperation({ summary: 'Unpin an own post' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  unpinPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<PostDto> {
+    return this.posts.unpin(user, p.id);
   }
 
   @Get('attorneys/:id/posts')
