@@ -287,6 +287,18 @@ export class PostAuthorDto {
   isFollowing!: boolean;
 }
 
+/** Owner 2026-10-12 (Threads): who put this post into the list. */
+export class PostReposterDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiProperty({ enum: ['attorney', 'client'] })
+  role!: 'attorney' | 'client';
+}
+
 export class PostMediaDto {
   @ApiProperty({ format: 'uuid' })
   fileId!: string;
@@ -432,6 +444,11 @@ export class PostDto {
 
   @ApiProperty()
   repostedByMe!: boolean;
+
+  /** Set when the post reaches this list as someone's repost (a followed
+   * account in the feed, or the profile's own list). */
+  @ApiPropertyOptional({ type: PostReposterDto, nullable: true })
+  repostedBy?: PostReposterDto | null;
 
   @ApiProperty()
   savedByMe!: boolean;

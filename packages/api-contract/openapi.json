@@ -86465,6 +86465,30 @@
           "isFollowing"
         ]
       },
+      "PostReposterDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "attorney",
+              "client"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "role"
+        ]
+      },
       "PostMediaDto": {
         "type": "object",
         "properties": {
@@ -86760,6 +86784,15 @@
           },
           "repostedByMe": {
             "type": "boolean"
+          },
+          "repostedBy": {
+            "nullable": true,
+            "description": "Set when the post reaches this list as someone's repost (a followed account in the feed, or the profile's own list).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostReposterDto"
+              }
+            ]
           },
           "savedByMe": {
             "type": "boolean"
