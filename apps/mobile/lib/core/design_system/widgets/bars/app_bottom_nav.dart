@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
-import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
@@ -64,7 +63,6 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
 
     // First 2 tabs, center "+", last 2 tabs — matches the spec's visual
     // order (Лента, Поиск, [+], Моё, Профиль).
@@ -81,7 +79,6 @@ class AppBottomNav extends StatelessWidget {
       final selected = index == currentIndex;
       // Label contrast (WCAG 4.5:1) on the tinted block: the selected
       // label uses the text colour, the icon carries the gold accent.
-      final color = selected ? colors.text : colors.textSecondary;
       final iconColor = selected ? colors.goldDark : colors.textSecondary;
       return Expanded(
         child: Semantics(
@@ -122,27 +119,8 @@ class AppBottomNav extends StatelessWidget {
                     child: AppIcon(
                       selected ? tab.activeIcon : tab.icon,
                       key: ValueKey<bool>(selected),
-                      size: AppSizes.iconMd - 2,
+                      size: AppSizes.iconMd + 2,
                       color: iconColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  AnimatedDefaultTextStyle(
-                    duration: stateDuration,
-                    style: typography.caption.copyWith(
-                      color: color,
-                      fontSize: 11,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                    // Tab labels grow with the system text size only up to
-                    // 1.35x (platform convention for tab bars, docs/01 §8.4).
-                    child: MediaQuery.withClampedTextScaling(
-                      maxScaleFactor: AppSizes.navLabelMaxTextScale,
-                      child: Text(
-                        tab.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ),
                   ),
                 ],
@@ -175,7 +153,7 @@ class AppBottomNav extends StatelessWidget {
                 border: Border.all(color: colors.border),
               ),
               child: SizedBox(
-                height: 52,
+                height: 46,
                 child: Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
