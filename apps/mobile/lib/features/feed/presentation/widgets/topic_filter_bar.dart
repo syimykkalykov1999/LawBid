@@ -287,7 +287,7 @@ class TopicFilterBar extends ConsumerWidget {
                   context.reduceMotion ? Duration.zero : AppMotion.stateChange,
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
+                vertical: 6,
               ),
               decoration: BoxDecoration(
                 color: selected ? colors.navy : colors.surface,
@@ -331,11 +331,14 @@ class TopicFilterBar extends ConsumerWidget {
         );
 
     return SizedBox(
-      height: 60,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
         // Owner 2026-09-30: starts at the left edge, like the header logo.
-        padding: const EdgeInsets.all(AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 6,
+        ),
         children: [
           Semantics(
             button: true,
@@ -344,7 +347,7 @@ class TopicFilterBar extends ConsumerWidget {
             child: AppPressable(
               onTap: () => _openFilters(context, ref),
               child: Container(
-                width: 44,
+                width: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: colors.surface,

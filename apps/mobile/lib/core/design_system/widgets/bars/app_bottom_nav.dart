@@ -98,7 +98,7 @@ class AppBottomNav extends StatelessWidget {
               curve: AppMotion.enterCurve,
               margin: const EdgeInsets.symmetric(
                 horizontal: 2,
-                vertical: AppSpacing.xs + 1,
+                vertical: 3,
               ),
               decoration: BoxDecoration(
                 color: selected
@@ -153,7 +153,7 @@ class AppBottomNav extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.only(bottom: AppSpacing.sm),
+      minimum: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
@@ -175,7 +175,7 @@ class AppBottomNav extends StatelessWidget {
             ],
           ),
           child: SizedBox(
-            height: 60,
+            height: 52,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
               child: Row(
@@ -190,8 +190,8 @@ class AppBottomNav extends StatelessWidget {
                       child: AppPressable(
                         onTap: onCreatePressed,
                         child: Container(
-                          width: 42,
-                          height: 42,
+                          width: 38,
+                          height: 38,
                           margin: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.xs,
                           ),
@@ -214,7 +214,7 @@ class AppBottomNav extends StatelessWidget {
                           child: AppIcon(
                             AppIcons.addRounded,
                             color: colors.navy,
-                            size: 24,
+                            size: 22,
                           ),
                         ),
                       ),
