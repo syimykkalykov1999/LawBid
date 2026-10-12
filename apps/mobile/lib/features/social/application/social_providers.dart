@@ -606,6 +606,27 @@ class SocialActions {
           ..invalidate(publicClientProfileProvider);
       });
 
+  /// Owner 2026-10-12: pin to slot 1..3 / unpin; the profile lists reload
+  /// (pinned posts lead them).
+  Future<Object?> pinPost(Post post, int slot) =>
+      _guard('pin:${post.id}', () async {
+        final updated = await _repo.pinPost(post.id, slot);
+        _ref.read(postOverridesProvider.notifier).put(updated);
+        _refreshProfileLists(post);
+      });
+
+  Future<Object?> unpinPost(Post post) => _guard('pin:${post.id}', () async {
+        final updated = await _repo.unpinPost(post.id);
+        _ref.read(postOverridesProvider.notifier).put(updated);
+        _refreshProfileLists(post);
+      });
+
+  void _refreshProfileLists(Post post) {
+    _ref
+      ..invalidate(attorneyPostsProvider(post.author.id))
+      ..invalidate(attorneyNewsProvider(post.author.id));
+  }
+
   /// Owner 2026-09-30: title, text and qualification.
   Future<Object?> editPost(
     Post post, {

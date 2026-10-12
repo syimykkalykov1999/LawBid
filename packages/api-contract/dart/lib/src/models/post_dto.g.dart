@@ -50,6 +50,7 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
       : PostReposterDto.fromJson(json['repostedBy'] as Map<String, dynamic>),
   editedAt: json['editedAt'] as String?,
   promotionId: json['promotionId'] as String?,
+  pinSlot: (json['pinSlot'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
@@ -82,4 +83,5 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'createdAt': instance.createdAt,
   'editedAt': ?instance.editedAt,
   'promotionId': ?instance.promotionId,
+  'pinSlot': ?instance.pinSlot,
 };

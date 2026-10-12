@@ -229,6 +229,16 @@ export class PostIdParamDto {
   id!: string;
 }
 
+/** Owner 2026-10-12: where to pin a post — slot 1, 2 or 3. */
+export class PinPostDto {
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 3 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  slot!: number;
+}
+
 export class PostsPageQueryDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
@@ -465,6 +475,10 @@ export class PostDto {
     description: '"Изменено" (§3.3).',
   })
   editedAt!: string | null;
+
+  /** Owner 2026-10-12: 1..3 when pinned to the top of the author's list. */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  pinSlot?: number | null;
 
   /** Owner 2026-10-05: set on a paid promoted post in the feed — the app
    * shows «Реклама» and reports the open to POST /promotions/:id/click. */

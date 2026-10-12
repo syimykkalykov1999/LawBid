@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/create_post_dto.dart';
+import '../models/pin_post_dto.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
 import '../models/post_kind.dart';
@@ -59,6 +60,21 @@ abstract class PostsClient {
     @Query('limit') num? limit = 20,
     @Query('cursor') String? cursor,
     @Query('kind') PostKind? kind,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pin an own post to slot 1, 2 or 3
+  @POST('/posts/{id}/pin')
+  Future<PostEnvelope> pinPost({
+    @Path('id') required String id,
+    @Body() required PinPostDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Unpin an own post
+  @DELETE('/posts/{id}/pin')
+  Future<PostEnvelope> unpinPost({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
