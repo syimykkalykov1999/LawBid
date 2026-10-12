@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Owner 2026-10-12 (Instagram): the feed's top rows (Posts | Cases and the
-/// filter chips) slide away while the list is scrolled down and come back
-/// as soon as it is scrolled up. The feed screen owns the controller; a
+/// Owner 2026-10-12: the feed's top rows (Posts | Cases and the filter
+/// chips) slide away when the list is scrolled down and come back only at
+/// the very top of the list (the Feed tab button scrolls there).
 /// row wrapped in [ChromeCollapse] follows it, anywhere else it stays.
 class FeedChromeController extends ChangeNotifier {
   bool _visible = true;
@@ -33,11 +33,11 @@ class FeedChromeController extends ChangeNotifier {
       // A change of direction starts a new run.
       if ((d > 0) != (_run > 0)) _run = 0;
       _run += d;
+      // Owner 2026-10-12: once hidden the rows stay away while scrolling
+      // up; they return at the very top (or on the Feed tab button).
       if (_run > 24 && _visible) {
         _visible = false;
         notifyListeners();
-      } else if (_run < -24 && !_visible) {
-        show();
       }
     }
     return false;

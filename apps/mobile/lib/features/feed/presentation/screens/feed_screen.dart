@@ -118,11 +118,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         controller: _chrome,
         child: LayoutBuilder(
           builder: (context, box) {
-            // Header + filter row + the status bar on top, and the
-            // floating nav bar at the bottom (the list runs under it).
-            _chrome.cardHeight = feedCardHeight(
-              box.maxHeight - topInset - AppSizes.feedHeader - 48 - bottomInset,
-            );
+            // Cards are sized for the hidden header (the rows leave on the
+            // first scroll); the floating nav bar is a bottom inset.
+            _chrome.cardHeight =
+                feedCardHeight(box.maxHeight - topInset - bottomInset);
             return NotificationListener<ScrollNotification>(
               onNotification: _chrome.onScroll,
               child: Column(

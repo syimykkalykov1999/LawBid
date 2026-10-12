@@ -2202,9 +2202,9 @@ class PostDisclaimer extends ConsumerWidget {
 }
 
 /// Owner 2026-10-12: the feed photo is a little taller than a square
-/// (height 1.35 x width at most) and shrinks to the height the card has.
+/// (height 1.5 x width at most) and shrinks to the height the card has.
 Widget _feedPhotoBox(Widget child) => Flexible(
-      child: AspectRatio(aspectRatio: 1 / 1.35, child: child),
+      child: AspectRatio(aspectRatio: 1 / 1.5, child: child),
     );
 
 /// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
