@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -13,10 +12,10 @@ import 'package:lawbid/features/reels/presentation/reel_detail_screen.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
 /// for the next one, the current reel plays with sound and loops; tap
@@ -384,7 +383,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           AppIcons.modeCommentOutlined,
                           t.t('post.comments'),
                           p.commentCount,
-                          () => context.push(SocialRoutes.post(p.id)),
+                          () => showCommentsSheet(
+                            context,
+                            postId: p.id,
+                            commentsEnabled: p.commentsEnabled,
+                          ),
                         ),
                       rail(
                         AppIcons.sendOutlined,
