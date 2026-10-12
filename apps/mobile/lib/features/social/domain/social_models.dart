@@ -190,6 +190,7 @@ class Post {
     this.editedAt,
     this.status = 'published',
     this.shareCount = 0,
+    this.viewCount = 0,
     this.mentions = const [],
     this.title,
     this.isNews = false,
@@ -246,6 +247,9 @@ class Post {
   /// OQ-037: completed shares.
   final int shareCount;
 
+  /// Owner 2026-10-12: views of a video post / reel.
+  final int viewCount;
+
   /// OQ-042: people @mentioned in [body] (links to their profiles).
   final List<Mention> mentions;
 
@@ -279,6 +283,7 @@ class Post {
     bool? savedByMe,
     DateTime? editedAt,
     int? shareCount,
+    int? viewCount,
     int? repostCount,
     bool? repostedByMe,
   }) =>
@@ -297,6 +302,7 @@ class Post {
         editedAt: editedAt ?? this.editedAt,
         status: status,
         shareCount: shareCount ?? this.shareCount,
+        viewCount: viewCount ?? this.viewCount,
         mentions: mentions,
         title: title ?? this.title,
         isNews: isNews,

@@ -2070,7 +2070,10 @@ class _ActionsBar extends ConsumerWidget {
             child: showTime
                 ? Align(
                     alignment: AlignmentDirectional.centerEnd,
-                    child: _ShortDate(at: post.createdAt),
+                    child: _ShortDate(
+                      at: post.createdAt,
+                      views: post.video != null ? post.viewCount : 0,
+                    ),
                   )
                 // Owner 2026-10-07: «Продвигать» / «Boost» under my own
                 // post, right before Save; it may use all the free width.
@@ -2288,9 +2291,12 @@ class PostDisclaimer extends ConsumerWidget {
 /// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
 /// "Mar 14, 2024").
 class _ShortDate extends ConsumerWidget {
-  const _ShortDate({required this.at});
+  const _ShortDate({required this.at, this.views = 0});
 
   final DateTime at;
+
+  /// Owner 2026-10-12: views of a video post, shown before the date.
+  final int views;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2300,11 +2306,31 @@ class _ShortDate extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
-      child: Text(
-        SocialFormat.shortDate(t, f, at),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: type.caption.copyWith(color: colors.textSecondary),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (views > 0) ...[
+            AppIcon(
+              AppIcons.visibilityOutlined,
+              size: 16,
+              color: colors.textSecondary,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              SocialFormat.count(f, views),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+          Flexible(
+            child: Text(
+              SocialFormat.shortDate(t, f, at),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }

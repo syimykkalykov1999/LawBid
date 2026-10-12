@@ -562,6 +562,25 @@ class SocialActions {
     }
   }
 
+  /// Owner 2026-10-12: a reel / video was watched; the counter moves at
+  /// once and the server counts it once per viewer.
+  Future<void> recordView(Post post) async {
+    if (!_viewed.add(post.id)) return;
+    final before = _latest(post);
+    _ref
+        .read(postOverridesProvider.notifier)
+        .put(before.copyWith(viewCount: before.viewCount + 1));
+    try {
+      await _repo.recordPostView(post.id);
+    } on Object {
+      _viewed.remove(post.id);
+      _ref.read(postOverridesProvider.notifier).put(before);
+    }
+  }
+
+  /// Posts already counted in this session (one view per post).
+  static final _viewed = <String>{};
+
   Future<Object?> toggleSave(Post post) => _guard('save:${post.id}', () async {
         final before = _latest(post);
         final saved = !before.savedByMe;
