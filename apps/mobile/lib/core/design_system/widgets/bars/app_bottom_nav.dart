@@ -133,7 +133,7 @@ class AppBottomNav extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.only(bottom: AppSpacing.xs),
+      minimum: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
