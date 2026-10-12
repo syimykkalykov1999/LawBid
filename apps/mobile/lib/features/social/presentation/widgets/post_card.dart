@@ -209,23 +209,23 @@ class PostCard extends ConsumerWidget {
     // none, the default art of the post's practice — full card width.
     // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
     // full-screen reels starting with it.
-    // Owner 2026-10-12: one photo height for every post — what a screen
-    // (without the header) leaves after the fullest card's text blocks —
-    // so a post with everything does not squeeze its photo.
+    // Owner 2026-10-12: a card is one screen — from the status bar to the
+    // nav bar; the photo takes what the other blocks leave (the fullest
+    // post has a smaller photo, a photo-only post a full-screen one).
     final width = MediaQuery.sizeOf(context).width;
-    final photoHeight = fillHeight == null
-        ? width * 1.25
-        : (fillHeight - 240).clamp(width * 0.9, width * 1.5);
-    Widget photoFor() {
+    Widget photoBox(Widget child, {required bool fill}) => fill
+        ? Expanded(child: child)
+        : SizedBox(height: width * 1.25, child: child);
+    Widget photoFor({required bool fill}) {
       if (p.video == null && p.media.length > 1) {
         final carousel = _FeedCarousel(
           media: p.media,
           semanticLabel: t.t('post.media.label'),
           onDoubleTap: like,
           onTap: open,
-          height: photoHeight,
+          fill: fill,
         );
-        return carousel;
+        return fill ? Expanded(child: carousel) : carousel;
       }
       final picture = p.video != null
           ? InlineReel(
@@ -248,7 +248,7 @@ class PostCard extends ConsumerWidget {
                   seed: p.id,
                 );
       final tappable = AppPressable(onTap: open, child: picture);
-      return _feedPhotoBox(tappable, photoHeight);
+      return photoBox(tappable, fill: fill);
     }
 
     // Owner 2026-10-12: the height the compact header frees goes to the
@@ -257,7 +257,7 @@ class PostCard extends ConsumerWidget {
     return _FeedFill(
       height: fillHeight,
       builder: ({required fill, required onExpand}) => Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (!fromProfile)
@@ -266,7 +266,7 @@ class PostCard extends ConsumerWidget {
               sponsored: post.promotionId != null,
               compact: true,
             ),
-          photoFor(),
+          photoFor(fill: fill),
           _ActionsBar(post: p, run: run, showTime: true),
           _PracticeChips(post: p),
           if (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty)
@@ -1497,6 +1497,7 @@ class PostBodyText extends ConsumerStatefulWidget {
 
   /// OQ-042: real people among the @handles — tappable, open the profile.
   final List<Mention> mentions;
+
   final double height;
   final bool expanded;
   final bool large;
@@ -2209,10 +2210,6 @@ class PostDisclaimer extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-12: the feed photo box, the same height for every post.
-Widget _feedPhotoBox(Widget child, double height) =>
-    SizedBox(height: height, child: child);
-
 /// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
 /// "Mar 14, 2024").
 class _ShortDate extends ConsumerWidget {
@@ -2246,14 +2243,16 @@ class _FeedCarousel extends StatefulWidget {
     required this.semanticLabel,
     required this.onDoubleTap,
     required this.onTap,
-    required this.height,
+    required this.fill,
   });
 
   final List<PostMedia> media;
   final String semanticLabel;
   final VoidCallback onDoubleTap;
   final VoidCallback onTap;
-  final double height;
+
+  /// Fill the height the card gives (otherwise a 1:1.25 box).
+  final bool fill;
 
   @override
   State<_FeedCarousel> createState() => _FeedCarouselState();
@@ -2267,11 +2266,14 @@ class _FeedCarouselState extends State<_FeedCarousel> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final count = widget.media.length;
+    Widget box(Widget child) => widget.fill
+        ? Expanded(child: child)
+        : AspectRatio(aspectRatio: 1 / 1.25, child: child);
     return Column(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: widget.fill ? MainAxisSize.max : MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _feedPhotoBox(
+        box(
           Stack(
             fit: StackFit.expand,
             children: [
@@ -2313,7 +2315,6 @@ class _FeedCarouselState extends State<_FeedCarousel> {
               ),
             ],
           ),
-          widget.height,
         ),
         Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -2744,9 +2745,11 @@ class _FeedFillState extends State<_FeedFill> {
 
   @override
   Widget build(BuildContext context) {
-    return widget.builder(
-      fill: widget.height != null && !_expanded,
+    final fill = widget.height != null && !_expanded;
+    final body = widget.builder(
+      fill: fill,
       onExpand: () => setState(() => _expanded = true),
     );
+    return fill ? SizedBox(height: widget.height, child: body) : body;
   }
 }
