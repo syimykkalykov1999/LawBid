@@ -19,6 +19,8 @@ Future<void> showCommentsSheet(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    // Over the nav bar too, like Instagram.
+    useRootNavigator: true,
     useSafeArea: true,
     backgroundColor: colors.surface,
     shape: const RoundedRectangleBorder(
@@ -71,10 +73,12 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
+        // Owner 2026-10-12: opens at about half the screen, drags up to the
+        // top, down to close.
+        initialChildSize: 0.55,
+        minChildSize: 0.3,
         snap: true,
-        snapSizes: const [0.7],
+        snapSizes: const [0.55],
         builder: (context, controller) => Column(
           children: [
             const SizedBox(height: AppSpacing.sm),
