@@ -22,7 +22,13 @@ export const COUNTERS = {
   post: {
     table: 'posts',
     key: 'id',
-    fields: ['like_count', 'comment_count', 'save_count', 'share_count'],
+    fields: [
+      'like_count',
+      'comment_count',
+      'save_count',
+      'share_count',
+      'view_count',
+    ],
   },
   comment: {
     table: 'comments',
@@ -254,7 +260,8 @@ export class CounterAggregator
                              AND c.status = 'published'),
           save_count = (SELECT count(*) FROM saved_items s
                         WHERE s.item_type = 'post' AND s.item_id = p.id),
-          share_count = (SELECT count(*) FROM post_shares x WHERE x.post_id = p.id)
+          share_count = (SELECT count(*) FROM post_shares x WHERE x.post_id = p.id),
+          view_count = (SELECT count(*) FROM post_views v WHERE v.post_id = p.id)
         WHERE p.id = ANY(${ids}::UUID[])`;
     } else if (entity === 'comment') {
       await this.prisma.$executeRaw`

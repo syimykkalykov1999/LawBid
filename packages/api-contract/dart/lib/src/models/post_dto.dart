@@ -34,6 +34,7 @@ class PostDto {
     required this.commentCount,
     required this.saveCount,
     required this.shareCount,
+    required this.viewCount,
     required this.repostCount,
     required this.likedByMe,
     required this.repostedByMe,
@@ -85,6 +86,9 @@ class PostDto {
 
   /// OQ-037.
   final int shareCount;
+
+  /// Owner 2026-10-12: views of a video post / reel.
+  final int viewCount;
 
   /// Owner 2026-10-07: Threads-style reposts.
   final int repostCount;

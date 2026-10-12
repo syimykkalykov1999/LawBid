@@ -53,6 +53,7 @@ export class PostPresenter {
       pComment,
       pSave,
       pShare,
+      pView,
       follows,
       docs,
       reposts,
@@ -103,6 +104,7 @@ export class PostPresenter {
       this.counters.pending('post', 'comment_count', ids),
       this.counters.pending('post', 'save_count', ids),
       this.counters.pending('post', 'share_count', ids),
+      this.counters.pending('post', 'view_count', ids),
       // Owner 2026-09-30: the card's Follow button needs the state.
       this.prisma.follow.findMany({
         where: { follower_id: viewerId, followee_id: { in: authorIds } },
@@ -278,6 +280,7 @@ export class PostPresenter {
         commentCount: clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
         saveCount: clamp(p.save_count + (pSave.get(p.id) ?? 0)),
         shareCount: clamp(p.share_count + (pShare.get(p.id) ?? 0)),
+        viewCount: clamp(p.view_count + (pView.get(p.id) ?? 0)),
         repostCount: repostCounts.get(p.id) ?? 0,
         likedByMe: liked.has(p.id),
         repostedByMe: reposted.has(p.id),

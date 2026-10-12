@@ -668,6 +668,11 @@ export async function seedDemoContent(
       reply_count = (SELECT count(*) FROM comments r WHERE r.parent_comment_id = c.id),
       like_count  = (SELECT count(*) FROM comment_likes l WHERE l.comment_id = c.id)
   `);
+  // Owner 2026-10-12: demo view counts on the video posts (reels), 150–9000.
+  await prisma.$executeRawUnsafe(`
+    UPDATE posts SET view_count = 150 + (abs(hashtext(id::text)) % 8850)
+    WHERE video_asset_id IS NOT NULL AND view_count = 0
+  `);
   await prisma.$executeRawUnsafe(`
     UPDATE attorney_profiles a SET
       posts_count = (SELECT count(*) FROM posts p WHERE p.author_id = a.user_id AND p.deleted_at IS NULL)

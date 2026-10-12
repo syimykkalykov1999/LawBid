@@ -83,6 +83,13 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Count a view of a video post / reel (idempotent, one per viewer)
+  @POST('/posts/{id}/view')
+  Future<void> viewPost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Repost a post, Threads-style (idempotent, owner 2026-10-07)
   @POST('/posts/{id}/repost')
   Future<void> repostPost({

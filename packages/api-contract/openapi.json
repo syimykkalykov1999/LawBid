@@ -19575,6 +19575,86 @@
         ]
       }
     },
+    "/posts/{id}/view": {
+      "post": {
+        "operationId": "viewPost",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Count a view of a video post / reel (idempotent, one per viewer)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/posts/{id}/repost": {
       "post": {
         "operationId": "repostPost",
@@ -86667,6 +86747,10 @@
             "type": "integer",
             "description": "OQ-037."
           },
+          "viewCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-12: views of a video post / reel."
+          },
           "repostCount": {
             "type": "integer",
             "description": "Owner 2026-10-07: Threads-style reposts."
@@ -86714,6 +86798,7 @@
           "commentCount",
           "saveCount",
           "shareCount",
+          "viewCount",
           "repostCount",
           "likedByMe",
           "repostedByMe",
