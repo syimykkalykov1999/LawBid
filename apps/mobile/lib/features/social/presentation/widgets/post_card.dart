@@ -209,16 +209,15 @@ class PostCard extends ConsumerWidget {
     // none, the default art of the post's practice — full card width.
     // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
     // full-screen reels starting with it.
-    Widget photoFor({required bool fill}) {
+    Widget photoFor() {
       if (p.video == null && p.media.length > 1) {
         final carousel = _FeedCarousel(
           media: p.media,
           semanticLabel: t.t('post.media.label'),
           onDoubleTap: like,
           onTap: open,
-          fill: fill,
         );
-        return fill ? Expanded(child: carousel) : carousel;
+        return Flexible(child: carousel);
       }
       final picture = p.video != null
           ? InlineReel(
@@ -241,9 +240,7 @@ class PostCard extends ConsumerWidget {
                   seed: p.id,
                 );
       final tappable = AppPressable(onTap: open, child: picture);
-      return fill
-          ? Expanded(child: tappable)
-          : AspectRatio(aspectRatio: 1, child: tappable);
+      return _feedPhotoBox(tappable);
     }
 
     // Owner 2026-10-12: the height the compact header frees goes to the
@@ -252,6 +249,7 @@ class PostCard extends ConsumerWidget {
     return _FeedFill(
       height: fillHeight,
       builder: ({required fill, required onExpand}) => Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (!fromProfile)
@@ -260,18 +258,19 @@ class PostCard extends ConsumerWidget {
               sponsored: post.promotionId != null,
               compact: true,
             ),
-          photoFor(fill: fill),
+          photoFor(),
           _ActionsBar(post: p, run: run, showTime: true),
           _PracticeChips(post: p),
-          _FeedCaption(
-            // A new text (translation) starts collapsed again.
-            key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
-            title: title,
-            text: text,
-            hashtags: hashtags,
-            onOpen: open,
-            onExpand: onExpand,
-          ),
+          if (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty)
+            _FeedCaption(
+              // A new text (translation) starts collapsed again.
+              key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
+              title: title,
+              text: text,
+              hashtags: hashtags,
+              onOpen: open,
+              onExpand: onExpand,
+            ),
           if (p.attachments.isNotEmpty)
             _DocChips(documents: p.attachments, onOpen: open),
           const SizedBox(height: AppSpacing.md),
@@ -2202,6 +2201,12 @@ class PostDisclaimer extends ConsumerWidget {
   }
 }
 
+/// Owner 2026-10-12: the feed photo is a little taller than a square
+/// (height 1.35 x width at most) and shrinks to the height the card has.
+Widget _feedPhotoBox(Widget child) => Flexible(
+      child: AspectRatio(aspectRatio: 1 / 1.35, child: child),
+    );
+
 /// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
 /// "Mar 14, 2024").
 class _ShortDate extends ConsumerWidget {
@@ -2235,16 +2240,12 @@ class _FeedCarousel extends StatefulWidget {
     required this.semanticLabel,
     required this.onDoubleTap,
     required this.onTap,
-    this.fill = false,
   });
 
   final List<PostMedia> media;
   final String semanticLabel;
   final VoidCallback onDoubleTap;
   final VoidCallback onTap;
-
-  /// Fill the height the card gives (otherwise a square).
-  final bool fill;
 
   @override
   State<_FeedCarousel> createState() => _FeedCarouselState();
@@ -2253,19 +2254,16 @@ class _FeedCarousel extends StatefulWidget {
 class _FeedCarouselState extends State<_FeedCarousel> {
   int _page = 0;
 
-  Widget _box(Widget child) => widget.fill
-      ? Expanded(child: child)
-      : AspectRatio(aspectRatio: 1, child: child);
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final count = widget.media.length;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _box(
+        _feedPhotoBox(
           Stack(
             fit: StackFit.expand,
             children: [
@@ -2553,15 +2551,16 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppPressable(
-            onTap: widget.onOpen,
-            child: Text(
-              widget.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: titleStyle,
+          if (widget.title.isNotEmpty)
+            AppPressable(
+              onTap: widget.onOpen,
+              child: Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: titleStyle,
+              ),
             ),
-          ),
           if (hasText)
             LayoutBuilder(
               builder: (context, box) {
@@ -2736,11 +2735,16 @@ class _FeedFillState extends State<_FeedFill> {
 
   @override
   Widget build(BuildContext context) {
-    final fill = widget.height != null && !_expanded;
+    final capped = widget.height != null && !_expanded;
     final body = widget.builder(
-      fill: fill,
+      fill: capped,
       onExpand: () => setState(() => _expanded = true),
     );
-    return fill ? SizedBox(height: widget.height, child: body) : body;
+    return capped
+        ? ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: widget.height!),
+            child: body,
+          )
+        : body;
   }
 }
