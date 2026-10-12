@@ -100,33 +100,38 @@ class PostCard extends ConsumerWidget {
     // not News) is an everyday post and looks exactly like an Instagram
     // post; a post with a qualification keeps the LawBid card.
     final insta = isInstagramStyle(p);
-    // At large text sizes the text alone may need the whole screen: then
-    // the card keeps its natural height instead of squeezing the photo.
-    // Instagram-style posts always keep their natural height.
-    final fill = feedHeight != null &&
-        !inDetail &&
-        !insta &&
-        MediaQuery.textScalerOf(context).scale(10) <= 13;
     // Owner 2026-09-30: feed cards run edge to edge (Instagram style):
     // no side border or rounded corners, hairlines on top and bottom.
     // Owner 2026-10-07: the open post and a profile's feed of posts are
     // full width too (Instagram), no card around them.
     final edge = (feedHeight != null && !inDetail) || inDetail || fromProfile;
+    // Owner 2026-10-12: the practice card in a list has no side borders or
+    // shadow, only a thin divider (a strip of the page background) below.
+    final flat = !insta && !inDetail;
     return Container(
-      height: fill ? feedHeight : null,
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: edge ? null : BorderRadius.circular(AppRadii.card),
-        border: edge
-            ? Border.symmetric(horizontal: BorderSide(color: colors.border))
-            : Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow,
-            blurRadius: AppSizes.cardShadowBlur,
-            offset: const Offset(0, AppSizes.cardShadowOffsetY),
-          ),
-        ],
+        borderRadius:
+            edge || flat ? null : BorderRadius.circular(AppRadii.card),
+        border: flat
+            ? Border(
+                bottom: BorderSide(
+                  color: colors.textSecondary.withValues(alpha: 0.14),
+                  width: 8,
+                ),
+              )
+            : edge
+                ? Border.symmetric(horizontal: BorderSide(color: colors.border))
+                : Border.all(color: colors.border),
+        boxShadow: flat
+            ? null
+            : [
+                BoxShadow(
+                  color: colors.shadow,
+                  blurRadius: AppSizes.cardShadowBlur,
+                  offset: const Offset(0, AppSizes.cardShadowOffsetY),
+                ),
+              ],
       ),
       clipBehavior: Clip.antiAlias,
       // Owner 2026-09-30: double tap anywhere on the post likes it, with
@@ -153,23 +158,36 @@ class PostCard extends ConsumerWidget {
                   )
                 : inDetail
                     ? _detail(context, ref, p, t, colors, actions, run)
-                    : _feed(context, p, t, colors, run, fill: fill),
+                    : _feed(
+                        context,
+                        p,
+                        t,
+                        colors,
+                        run,
+                        fillHeight: feedHeight != null &&
+                                !inDetail &&
+                                MediaQuery.textScalerOf(context).scale(10) <= 13
+                            ? feedHeight
+                            : null,
+                      ),
       ),
     );
   }
 
-  /// Owner 2026-09-30 design (feed): author with Follow, topic chips,
-  /// time, bold title, 4 lines of text + "Read more", the photo, actions.
+  /// Owner 2026-10-12 design (feed, variant A2): edge to edge like
+  /// Instagram — author, square photo(s), actions with the date by Save,
+  /// up to two practice chips, title, two lines of text with "more", the
+  /// hashtags, document chips.
   Widget _feed(
     BuildContext context,
     Post p,
     Translator t,
     AppColorTokens colors,
     Future<void> Function(Future<Object?> Function()) run, {
-    required bool fill,
+    double? fillHeight,
   }) {
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final (title, rest) = _titleAndRest(p);
+    final (text, hashtags) = _splitTrailingTags(rest);
     // Owner 2026-10-05: a promoted post reports the open for the owner's
     // stats (reach / clicks), like Instagram.
     final promotionId = post.promotionId;
@@ -182,126 +200,103 @@ class PostCard extends ConsumerWidget {
       context.push(SocialRoutes.post(p.id, fromProfile: fromProfile));
     }
 
+    void like() => run(
+          () => ProviderScope.containerOf(context)
+              .read(socialActionsProvider)
+              .like(p),
+        );
     // Owner 2026-09-30: the author's photos (up to 9) or, when there are
     // none, the default art of the post's practice — full card width.
     // Owner 2026-10-01: a reel plays muted in the card; a tap opens the
     // full-screen reels starting with it.
-    final picture = p.video != null
-        ? InlineReel(post: p, onOpen: () => ReelsScreen.open(context, from: p))
-        : p.media.isNotEmpty
-            ? PostMediaCarousel(
-                media: p.media,
-                semanticLabel: t.t('post.media.label'),
-                // The card sizes the photo box (a 2:1 band or the rest of a
-                // full-height card).
-                fill: true,
-                onDoubleTap: () => run(
-                  () => ProviderScope.containerOf(context)
-                      .read(socialActionsProvider)
-                      .like(p),
-                ),
-              )
-            : PracticePhoto(
-                // Owner 2026-09-30: the post's qualification; older posts by
-                // their topic hashtag.
-                categoryCode: p.practice?.categoryCode ??
-                    p.tags
-                        .map(topicCategory)
-                        .firstWhere((c) => c != null, orElse: () => null),
-                practiceCode: p.practice?.code,
-                // Owner 2026-10-05: no practice photo → the pattern this
-                // post id picks (the same one its grid cover uses).
-                seed: p.id,
-              );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!fromProfile)
-          _AuthorRow(post: p, sponsored: post.promotionId != null)
-        else
-          const SizedBox(height: AppSpacing.md),
-        if (p.tags.isNotEmpty || p.practice != null || p.isNews)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.sm,
-            ),
-            child: _TopicChips(
-              tags: p.tags,
-              practice: p.practice,
-              news: p.isNews,
-            ),
-          ),
-        AppPressable(
+    Widget photoFor({required bool fill}) {
+      if (p.video == null && p.media.length > 1) {
+        final carousel = _FeedCarousel(
+          media: p.media,
+          semanticLabel: t.t('post.media.label'),
+          onDoubleTap: like,
           onTap: open,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.titleMedium.copyWith(
-                    fontFamily: typography.body.fontFamily,
-                    color: colors.text,
-                    fontWeight: FontWeight.w700,
-                    height: 1.25,
-                  ),
-                ),
-                if (rest.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    rest,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: typography.body.copyWith(
-                      color: colors.text,
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          t.t('post.readMore'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: typography.body.copyWith(
-                            color: colors.goldDark,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      AppIcon(
-                        AppIcons.chevronRightRounded,
-                        size: 20,
-                        color: colors.goldDark,
-                      ),
-                    ],
-                  ),
-                ],
-              ],
+          fill: fill,
+        );
+        return fill ? Expanded(child: carousel) : carousel;
+      }
+      final picture = p.video != null
+          ? InlineReel(
+              post: p,
+              onOpen: () => ReelsScreen.open(context, from: p),
+            )
+          : p.media.isNotEmpty
+              ? PostMediaCarousel(
+                  media: p.media,
+                  semanticLabel: t.t('post.media.label'),
+                  fill: true,
+                  onDoubleTap: like,
+                )
+              : PracticePhoto(
+                  categoryCode: p.practice?.categoryCode ??
+                      p.tags
+                          .map(topicCategory)
+                          .firstWhere((c) => c != null, orElse: () => null),
+                  practiceCode: p.practice?.code,
+                  seed: p.id,
+                );
+      final tappable = AppPressable(onTap: open, child: picture);
+      return fill
+          ? Expanded(child: tappable)
+          : AspectRatio(aspectRatio: 1, child: tappable);
+    }
+
+    // Owner 2026-10-12: the height the compact header frees goes to the
+    // card — it fills the list's viewport, the photo takes what the text
+    // leaves (square when the card is natural height).
+    return _FeedFill(
+      height: fillHeight,
+      builder: ({required fill, required onExpand}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!fromProfile)
+            _AuthorRow(
+              post: p,
+              sponsored: post.promotionId != null,
+              compact: true,
             ),
+          photoFor(fill: fill),
+          _ActionsBar(post: p, run: run, showTime: true),
+          _PracticeChips(post: p),
+          _FeedCaption(
+            // A new text (translation) starts collapsed again.
+            key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
+            title: title,
+            text: text,
+            hashtags: hashtags,
+            onOpen: open,
+            onExpand: onExpand,
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (fill)
-          Expanded(child: AppPressable(onTap: open, child: picture))
-        else
-          AspectRatio(
-            aspectRatio: 2,
-            child: AppPressable(onTap: open, child: picture),
-          ),
-        // Owner 2026-09-30: time and "Public" sit next to Save.
-        _ActionsBar(post: p, run: run, showTime: true),
-        const SizedBox(height: AppSpacing.xs),
-      ],
+          if (p.attachments.isNotEmpty)
+            _DocChips(documents: p.attachments, onOpen: open),
+          const SizedBox(height: AppSpacing.md),
+        ],
+      ),
     );
+  }
+
+  static final _trailingTags = RegExp(
+    r'(?:^|\s+)(?:#[\p{L}\p{N}_]+\s*)+$',
+    unicode: true,
+  );
+
+  /// The hashtags that close a text are shown apart, in grey, at the very
+  /// bottom of the description (owner 2026-10-12).
+  static (String, List<String>) _splitTrailingTags(String text) {
+    final trimmed = text.trim();
+    final m = _trailingTags.firstMatch(trimmed);
+    if (m == null) return (trimmed, const []);
+    final tags = [
+      for (final x
+          in RegExp(r'#[\p{L}\p{N}_]+', unicode: true).allMatches(m.group(0)!))
+        x.group(0)!,
+    ];
+    return (trimmed.substring(0, m.start).trim(), tags);
   }
 
   /// Owner 2026-09-30: the post's own title and its whole text; older
@@ -1046,12 +1041,9 @@ class _ThreadsPost extends ConsumerWidget {
 
 /// "2 hours ago · Public" under the chips (owner design).
 class _TimeLine extends ConsumerWidget {
-  const _TimeLine({required this.post, this.inline = false});
+  const _TimeLine({required this.post});
 
   final Post post;
-
-  /// In the actions row (no side padding, shrinks with ellipsis).
-  final bool inline;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1060,16 +1052,13 @@ class _TimeLine extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
-      padding: inline
-          ? const EdgeInsetsDirectional.only(end: AppSpacing.xs)
-          : const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.sm,
-            ),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
       child: Row(
-        mainAxisSize: inline ? MainAxisSize.min : MainAxisSize.max,
         children: [
           Flexible(
             child: Text(
@@ -1090,17 +1079,15 @@ class _TimeLine extends ConsumerWidget {
               color: colors.textSecondary,
             ),
           ),
-          if (!inline) ...[
-            const SizedBox(width: AppSpacing.xs),
-            Flexible(
-              child: Text(
-                t.t('post.public'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.caption.copyWith(color: colors.textSecondary),
-              ),
+          const SizedBox(width: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              t.t('post.public'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -1278,9 +1265,17 @@ class _TopicChips extends ConsumerWidget {
 }
 
 class _AuthorRow extends ConsumerWidget {
-  const _AuthorRow({required this.post, this.sponsored = false});
+  const _AuthorRow({
+    required this.post,
+    this.sponsored = false,
+    this.compact = false,
+  });
 
   final Post post;
+
+  /// Owner 2026-10-12: the practice card's slim header — avatar, name,
+  /// check, role and the menu only (no Follow button).
+  final bool compact;
 
   /// Owner 2026-10-05: a paid promoted post says «Реклама» under the name.
   final bool sponsored;
@@ -1292,11 +1287,11 @@ class _AuthorRow extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = post.author;
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppSpacing.lg,
-        AppSpacing.md,
+      padding: EdgeInsetsDirectional.fromSTEB(
+        compact ? AppSpacing.md : AppSpacing.lg,
+        compact ? 6 : AppSpacing.md,
         AppSpacing.xs,
-        AppSpacing.md,
+        compact ? 6 : AppSpacing.md,
       ),
       child: Row(
         children: [
@@ -1311,10 +1306,10 @@ class _AuthorRow extends ConsumerWidget {
                     GoldRingAvatar(
                       url: a.avatarUrl,
                       initials: a.initials,
-                      size: AppSizes.cardAvatar,
+                      size: compact ? 34 : AppSizes.cardAvatar,
                       ring: a.verified,
                     ),
-                    const SizedBox(width: AppSpacing.md),
+                    SizedBox(width: compact ? 10 : AppSpacing.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1365,7 +1360,7 @@ class _AuthorRow extends ConsumerWidget {
             ),
           ),
           // Owner 2026-09-30: a working Follow on the card.
-          if (!post.isMine) ...[
+          if (!post.isMine && !compact) ...[
             // Capped so a long "Follow" can't squeeze the author's name.
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 136),
@@ -1666,8 +1661,16 @@ class PostMediaCarousel extends StatefulWidget {
     this.compact = false,
     this.fill = false,
     this.onTap,
+    this.onPage,
+    this.showDots = true,
     super.key,
   });
+
+  /// The visible photo changed (the feed card draws its own indicators).
+  final ValueChanged<int>? onPage;
+
+  /// The gold dots over the photo; the feed card puts them below it.
+  final bool showDots;
 
   /// Tap on photo `index` (the open post shows the full-screen gallery).
   final void Function(int index)? onTap;
@@ -1721,7 +1724,10 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
         children: [
           PageView.builder(
             itemCount: media.length,
-            onPageChanged: (i) => _page.value = i,
+            onPageChanged: (i) {
+              _page.value = i;
+              widget.onPage?.call(i);
+            },
             // Owner 2026-09-30: the whole photo is always visible — shown
             // "contain" over a blurred copy of itself filling the frame
             // (no half-cropped portraits). Tap in the open post = full
@@ -1763,7 +1769,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
             },
           ),
           IgnorePointer(child: _HeartBurst(animation: _heart)),
-          if (media.length > 1)
+          if (media.length > 1 && widget.showDots)
             Positioned(
               left: 0,
               right: 0,
@@ -1952,7 +1958,8 @@ class _ActionsBar extends ConsumerWidget {
             onTap: () => run(() => actions.toggleLike(post)),
           ),
           // Owner 2026-09-30 design: counts next to the icons.
-          if (showCounts && post.likeCount > 0) _Count(post.likeCount),
+          if (showCounts && (showTime || post.likeCount > 0))
+            _Count(post.likeCount),
           BounceIcon(
             active: false,
             activeIcon: AppIcons.modeCommentOutlined,
@@ -1964,7 +1971,8 @@ class _ActionsBar extends ConsumerWidget {
               commentsEnabled: post.commentsEnabled,
             ),
           ),
-          if (showCounts && post.commentCount > 0) _Count(post.commentCount),
+          if (showCounts && (showTime || post.commentCount > 0))
+            _Count(post.commentCount),
           BounceIcon(
             active: false,
             activeIcon: AppIcons.sendOutlined,
@@ -1972,13 +1980,14 @@ class _ActionsBar extends ConsumerWidget {
             label: t.t('post.share'),
             onTap: () => sharePost(context, ref, post),
           ),
-          if (showCounts && post.shareCount > 0) _Count(post.shareCount),
+          if (showCounts && (showTime || post.shareCount > 0))
+            _Count(post.shareCount),
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: showTime
                 ? Align(
                     alignment: AlignmentDirectional.centerEnd,
-                    child: _TimeLine(post: post, inline: true),
+                    child: _ShortDate(at: post.createdAt),
                   )
                 // Owner 2026-10-07: «Продвигать» / «Boost» under my own
                 // post, right before Save; it may use all the free width.
@@ -2190,5 +2199,548 @@ class PostDisclaimer extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+/// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
+/// "Mar 14, 2024").
+class _ShortDate extends ConsumerWidget {
+  const _ShortDate({required this.at});
+
+  final DateTime at;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+      child: Text(
+        SocialFormat.shortDate(t, f, at),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: type.caption.copyWith(color: colors.textSecondary),
+      ),
+    );
+  }
+}
+
+/// Several photos: a "1/5" counter over the top right corner and the
+/// page dots under the photo (owner 2026-10-12, Instagram).
+class _FeedCarousel extends StatefulWidget {
+  const _FeedCarousel({
+    required this.media,
+    required this.semanticLabel,
+    required this.onDoubleTap,
+    required this.onTap,
+    this.fill = false,
+  });
+
+  final List<PostMedia> media;
+  final String semanticLabel;
+  final VoidCallback onDoubleTap;
+  final VoidCallback onTap;
+
+  /// Fill the height the card gives (otherwise a square).
+  final bool fill;
+
+  @override
+  State<_FeedCarousel> createState() => _FeedCarouselState();
+}
+
+class _FeedCarouselState extends State<_FeedCarousel> {
+  int _page = 0;
+
+  Widget _box(Widget child) => widget.fill
+      ? Expanded(child: child)
+      : AspectRatio(aspectRatio: 1, child: child);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final count = widget.media.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _box(
+          Stack(
+            fit: StackFit.expand,
+            children: [
+              PostMediaCarousel(
+                media: widget.media,
+                semanticLabel: widget.semanticLabel,
+                fill: true,
+                showDots: false,
+                onDoubleTap: widget.onDoubleTap,
+                onTap: (_) => widget.onTap(),
+                onPage: (i) => setState(() => _page = i),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.navy.withValues(alpha: 0.78),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                      ),
+                      child: Text(
+                        '${_page + 1}/$count',
+                        style: type.caption.copyWith(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < count; i++)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i == _page ? colors.gold : colors.border,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Owner 2026-10-12: the post's qualifications under the actions — the
+/// practice, its sub-practice and the other topics its hashtags name (up
+/// to five), all alike and light: no dot, radius 6, aligned with the text,
+/// one row that scrolls sideways when it does not fit.
+class _PracticeChips extends ConsumerWidget {
+  const _PracticeChips({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final pr = post.practice;
+    final chips = <(String, VoidCallback)>[];
+    void add(String label, VoidCallback onTap) {
+      if (chips.length < 5 && !chips.any((c) => c.$1 == label)) {
+        chips.add((label, onTap));
+      }
+    }
+
+    void openPractice(String code) => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => PracticePostsScreen(practice: code),
+          ),
+        );
+    if (pr != null) {
+      final isSub = pr.code.contains('.');
+      final own = CaseFormat.practice(t, pr.i18nKey, pr.nameEn);
+      add(
+        isSub ? (kPracticeCategoryNamesEn[pr.categoryCode] ?? own) : own,
+        () => openPractice(pr.categoryCode),
+      );
+      if (isSub) add(own, () => openPractice(pr.code));
+    }
+    for (final tag in post.tags) {
+      final cat = topicCategory(tag);
+      if (cat != null) {
+        add(
+          kPracticeCategoryNamesEn[cat] ?? topicLabel(tag),
+          () => context.push(SocialRoutes.tag(tag)),
+        );
+      } else if (pr == null && chips.isEmpty) {
+        add(topicLabel(tag), () => context.push(SocialRoutes.tag(tag)));
+      }
+    }
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Row(
+          children: [
+            for (final (i, c) in chips.indexed) ...[
+              if (i > 0) const SizedBox(width: 6),
+              AppPressable(
+                onTap: c.$2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.textSecondary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    c.$1,
+                    maxLines: 1,
+                    style: type.caption.copyWith(
+                      fontSize: 11.5,
+                      height: 18 / 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-12: the title (one line) and two lines of text with a
+/// grey "more" at the end of the second line. A short text (up to 4 lines)
+/// opens in place and then shows the hashtags; a longer one opens the post.
+class _FeedCaption extends ConsumerStatefulWidget {
+  const _FeedCaption({
+    required this.title,
+    required this.text,
+    required this.hashtags,
+    required this.onOpen,
+    this.onExpand,
+    super.key,
+  });
+
+  final String title;
+  final String text;
+  final List<String> hashtags;
+  final VoidCallback onOpen;
+
+  /// The text opened in place (the card gives up its fixed height).
+  final VoidCallback? onExpand;
+
+  @override
+  ConsumerState<_FeedCaption> createState() => _FeedCaptionState();
+}
+
+class _FeedCaptionState extends ConsumerState<_FeedCaption> {
+  bool _expanded = false;
+  final _more = TapGestureRecognizer();
+  final _tagTaps = <TapGestureRecognizer>[];
+
+  @override
+  void dispose() {
+    _more.dispose();
+    for (final r in _tagTaps) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  /// The longest start of [text] that, followed by [tail], fits two lines.
+  int _fit(
+    String text,
+    String tail,
+    TextStyle style,
+    double width,
+    BuildContext context,
+  ) {
+    bool fits(int n) {
+      final p = TextPainter(
+        text: TextSpan(
+          text: n >= text.length
+              ? '$text $tail'
+              : '${text.substring(0, n).trimRight()}$tail',
+          style: DefaultTextStyle.of(context).style.merge(style),
+        ),
+        maxLines: 2,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout(maxWidth: width);
+      return !p.didExceedMaxLines;
+    }
+
+    if (fits(text.length)) return text.length;
+    var lo = 0;
+    var hi = text.length;
+    while (lo < hi) {
+      final mid = (lo + hi + 1) ~/ 2;
+      if (fits(mid)) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return lo;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final titleStyle = type.titleMedium.copyWith(
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: FontWeight.w600,
+      height: 1.25,
+    );
+    final bodyStyle = type.bodySmall.copyWith(
+      color: colors.text.withValues(alpha: 0.8),
+      fontSize: 13.5,
+      height: 1.4,
+    );
+    final moreStyle = bodyStyle.copyWith(
+      color: colors.textSecondary,
+      fontWeight: FontWeight.w500,
+    );
+    final hasText = widget.text.isNotEmpty;
+    final hasTags = widget.hashtags.isNotEmpty;
+    for (final r in _tagTaps) {
+      r.dispose();
+    }
+    _tagTaps.clear();
+    final tags = hasTags
+        ? Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  for (final (i, tag) in widget.hashtags.indexed) ...[
+                    if (i > 0) const TextSpan(text: ' '),
+                    TextSpan(
+                      text: tag,
+                      recognizer: () {
+                        final r = TapGestureRecognizer()
+                          ..onTap = () =>
+                              context.push(SocialRoutes.tag(tag.substring(1)));
+                        _tagTaps.add(r);
+                        return r;
+                      }(),
+                    ),
+                  ],
+                ],
+              ),
+              style: bodyStyle.copyWith(color: colors.textSecondary),
+            ),
+          )
+        : const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppPressable(
+            onTap: widget.onOpen,
+            child: Text(
+              widget.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: titleStyle,
+            ),
+          ),
+          if (hasText)
+            LayoutBuilder(
+              builder: (context, box) {
+                final painter = TextPainter(
+                  text: TextSpan(
+                    text: widget.text,
+                    style: DefaultTextStyle.of(context).style.merge(bodyStyle),
+                  ),
+                  textDirection: Directionality.of(context),
+                  textScaler: MediaQuery.textScalerOf(context),
+                )..layout(maxWidth: box.maxWidth);
+                final lines = painter.computeLineMetrics().length;
+                final collapsed = (lines > 2 || hasTags) && !_expanded;
+                _more.onTap = () {
+                  if (lines > 4) {
+                    widget.onOpen();
+                  } else {
+                    widget.onExpand?.call();
+                    setState(() => _expanded = true);
+                  }
+                };
+                final moreLabel = t.t('post.more');
+                final cut = collapsed
+                    ? _fit(
+                        widget.text,
+                        '… $moreLabel',
+                        bodyStyle,
+                        box.maxWidth - 4,
+                        context,
+                      )
+                    : widget.text.length;
+                final shown = !collapsed
+                    ? widget.text
+                    : cut < widget.text.length
+                        ? '${widget.text.substring(0, cut).trimRight()}… '
+                        : '${widget.text} ';
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: GestureDetector(
+                        onTap: widget.onOpen,
+                        child: Text.rich(
+                          TextSpan(
+                            style: bodyStyle,
+                            children: [
+                              TextSpan(text: shown),
+                              if (collapsed)
+                                TextSpan(
+                                  text: moreLabel,
+                                  style: moreStyle,
+                                  recognizer: _more,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_expanded) tags,
+                  ],
+                );
+              },
+            )
+          else
+            tags,
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-12: document chips under the text (icon + name, the first
+/// two and "+N"); a tap opens the post.
+class _DocChips extends StatelessWidget {
+  const _DocChips({required this.documents, required this.onOpen});
+
+  final List<PostAttachment> documents;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final shown = documents.take(2).toList();
+    final rest = documents.length - shown.length;
+    Widget box(Widget child) => AppPressable(
+          onTap: onOpen,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: colors.textSecondary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border),
+            ),
+            child: child,
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 0),
+      child: LayoutBuilder(
+        builder: (context, box0) => Row(
+          children: [
+            for (final d in shown) ...[
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: box0.maxWidth * 0.62),
+                  child: box(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AppIcon(
+                          AppIcons.descriptionOutlined,
+                          size: 14,
+                          color: colors.gold,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            d.fileName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: colors.text,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            if (rest > 0)
+              box(
+                Text(
+                  '+$rest',
+                  style: type.caption.copyWith(
+                    color: colors.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A card of the given height (the photo takes the rest) until its text is
+/// opened in place; then it keeps its natural height.
+class _FeedFill extends StatefulWidget {
+  const _FeedFill({required this.height, required this.builder});
+
+  final double? height;
+  final Widget Function({
+    required bool fill,
+    required VoidCallback onExpand,
+  }) builder;
+
+  @override
+  State<_FeedFill> createState() => _FeedFillState();
+}
+
+class _FeedFillState extends State<_FeedFill> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = widget.height != null && !_expanded;
+    final body = widget.builder(
+      fill: fill,
+      onExpand: () => setState(() => _expanded = true),
+    );
+    return fill ? SizedBox(height: widget.height, child: body) : body;
   }
 }

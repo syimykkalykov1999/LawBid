@@ -16,6 +16,29 @@ abstract final class SocialFormat {
     return f.date(at);
   }
 
+  /// Owner 2026-10-12: the slim date by Save — "now", "5m", "3h", "2d" for
+  /// the first week, then "Mar 14", and with the year for another year.
+  static String shortDate(
+    Translator t,
+    L10nFormats f,
+    DateTime at, {
+    DateTime? now,
+  }) {
+    final n = now ?? DateTime.now();
+    final diff = n.difference(at);
+    if (diff.inMinutes < 1) return t.t('time.justNow');
+    if (diff.inHours < 1) {
+      return t.t('time.short.m', {'count': '${diff.inMinutes}'});
+    }
+    if (diff.inDays < 1) {
+      return t.t('time.short.h', {'count': '${diff.inHours}'});
+    }
+    if (diff.inDays < 7) {
+      return t.t('time.short.d', {'count': '${diff.inDays}'});
+    }
+    return at.year == n.year ? f.dayMonth(at) : f.date(at);
+  }
+
   /// 1 234 / 12.5K / 3.4M — compact counters under posts.
   /// Owner 2026-09-30 (OQ-037): compact counters everywhere — 999,
   /// 1.3K, 12K, 500K, 1.3M, 2B (one decimal only below 10 of the unit,
