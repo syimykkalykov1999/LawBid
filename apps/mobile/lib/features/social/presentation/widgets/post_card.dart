@@ -69,7 +69,7 @@ class PostCard extends ConsumerWidget {
   /// Owner 2026-10-12: a text-only post without a qualification is a
   /// Threads thread (replies right under it when opened).
   static bool isThreadsStyle(Post p) =>
-      isInstagramStyle(p) && p.video == null && p.media.isEmpty;
+      !p.isNews && p.video == null && p.media.isEmpty && p.attachments.isEmpty;
 
   /// Owner 2026-10-07: a post opened from someone's grid (their own feed
   /// of posts, or the post screen reached from it): no author row — the
@@ -116,7 +116,7 @@ class PostCard extends ConsumerWidget {
     final edge = (feedHeight != null && !inDetail) || inDetail || fromProfile;
     // Owner 2026-10-12: the practice card in a list has no side borders or
     // shadow, only a thin divider (a strip of the page background) below.
-    final flat = !inDetail && !(insta && p.video == null && p.media.isEmpty);
+    final flat = !inDetail && !isThreadsStyle(p);
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -147,7 +147,7 @@ class PostCard extends ConsumerWidget {
       // the heart (Instagram).
       child: DoubleTapLike(
         onLike: () => run(() => actions.like(p)),
-        child: insta && p.video == null && p.media.isEmpty
+        child: isThreadsStyle(p)
             // Owner 2026-10-07: a post without photos or video looks like
             // a Threads post.
             ? _ThreadsPost(
@@ -1004,16 +1004,6 @@ class _ThreadsPost extends ConsumerWidget {
           )
         : (text.isNotEmpty ? bodyText(text) : const SizedBox.shrink());
 
-    final attachments = p.attachments.isEmpty
-        ? const SizedBox.shrink()
-        : Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: PostAttachmentsButton(
-              media: p.media,
-              documents: p.attachments,
-            ),
-          );
-
     // Owner 2026-10-12 (Threads): like, reply, repost, share with counts.
     final actionRow = Row(
       children: [
@@ -1100,7 +1090,7 @@ class _ThreadsPost extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             textBlock,
-            attachments,
+            _PracticeChips(post: p, inset: 0),
             const SizedBox(height: AppSpacing.xs),
             actionRow,
           ],
@@ -1129,7 +1119,7 @@ class _ThreadsPost extends ConsumerWidget {
                   if (repostedBy != null) repostLine(),
                   nameRow(),
                   textBlock,
-                  attachments,
+                  _PracticeChips(post: p, inset: 0),
                   actionRow,
                 ],
               ),
@@ -2483,9 +2473,12 @@ class _FeedCarouselState extends State<_FeedCarousel> {
 /// limit), all alike and light: no dot, radius 6, aligned with the text,
 /// one row that scrolls sideways when it does not fit.
 class _PracticeChips extends ConsumerWidget {
-  const _PracticeChips({required this.post});
+  const _PracticeChips({required this.post, this.inset = AppSpacing.md});
 
   final Post post;
+
+  /// Side padding of the chip row (zero inside the Threads text column).
+  final double inset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2528,7 +2521,7 @@ class _PracticeChips extends ConsumerWidget {
       padding: const EdgeInsets.only(top: 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: EdgeInsets.symmetric(horizontal: inset),
         child: Row(
           children: [
             for (final (i, c) in chips.indexed) ...[

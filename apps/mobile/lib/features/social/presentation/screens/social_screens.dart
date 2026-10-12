@@ -326,9 +326,10 @@ class PostScreen extends ConsumerWidget {
                         ),
                         children: [
                           PostCard(
-                              post: p,
-                              inDetail: true,
-                              fromProfile: fromProfile,),
+                            post: p,
+                            inDetail: true,
+                            fromProfile: fromProfile,
+                          ),
                           const Padding(
                             padding: EdgeInsets.symmetric(
                               horizontal: AppSpacing.screenSide,

@@ -262,13 +262,13 @@ export const DEMO_POSTS: readonly DemoPostSpec[] = [
     minutesAgo: 10,
   },
   {
-    key: 'th-sofia-docs',
+    key: 'th-sofia-practice',
     author: 'sofia.hernandez',
     style: 'text',
     lang: 'en',
-    body: 'Evidence checklist for a marriage green card, attached. Edit the brackets, keep the order.',
+    body: 'Marriage green card: the evidence folder matters more than the interview. Joint lease, shared accounts, photos across the years. #greencard #marriage',
+    practice: 'immigration.green_card',
     legal: true,
-    docs: ['Marriage_evidence_checklist.pdf', 'Cover_letter_template.docx'],
     minutesAgo: 11,
   },
   {
