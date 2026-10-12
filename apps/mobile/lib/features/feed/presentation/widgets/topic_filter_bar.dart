@@ -5,10 +5,10 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/feed_content.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -24,6 +24,9 @@ const kMyLicensedStates = '*licensed';
 const kLegalGroup = '@legal';
 const kLegalAll = '@legal:all';
 const kLegalMine = '@legal:mine';
+
+/// Height of the topic row (owner 2026-10-12: a slim Temu-style row).
+const double kTopicBarHeight = 36;
 
 /// Owner 2026-09-30 (OQ-034): the topic slider above the post feed and
 /// the attorney's case feed. The filter button on the left opens "Topics"
@@ -246,13 +249,11 @@ class TopicFilterBar extends ConsumerWidget {
           children: [
             const AppSheetHandle(),
             AppListRow(
-              icon: AppIcons.gridViewRounded,
               label: t.t('feed.topics.pick'),
               trailingText: '$count',
               onTap: () => Navigator.of(sheet).pop('topics'),
             ),
             AppListRow(
-              icon: AppIcons.mapOutlined,
               label: t.t('feed.state.pick'),
               trailingText: _stateSummary(t),
               onTap: () => Navigator.of(sheet).pop('state'),
@@ -284,7 +285,6 @@ class TopicFilterBar extends ConsumerWidget {
 
     Widget pill({
       required String label,
-      required IconData icon,
       required bool selected,
       required VoidCallback onTap,
       Key? key,
@@ -298,149 +298,130 @@ class TopicFilterBar extends ConsumerWidget {
           excludeSemantics: true,
           child: AppPressable(
             onTap: onTap,
-            child: AnimatedContainer(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: 6,
-              ),
-              decoration: BoxDecoration(
-                color: selected ? colors.navy : colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-                border: Border.all(
-                  color: selected ? colors.gold : colors.border,
-                  width: selected ? 1.5 : 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            // Owner 2026-10-12 (Temu): plain text tabs, no frame or fill;
+            // the open one is bold with a short bar under it.
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  AppIcon(
-                    icon,
-                    size: 18,
-                    color: selected ? colors.goldLight : colors.text,
-                  ),
-                  const SizedBox(width: AppSpacing.xs + 2),
-                  // Capped: a long qualification name ends with "…" instead
-                  // of a pill wider than the screen.
+                  const Spacer(),
+                  // Capped: a long qualification name ends with "…".
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 220),
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.bodySmall.copyWith(
-                        color: selected ? Colors.white : colors.text,
-                        fontWeight: FontWeight.w600,
+                    // A slim tab row: the text grows only up to 1.2x.
+                    child: MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: 1.2,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.bodySmall.copyWith(
+                          color: selected ? colors.text : colors.textSecondary,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
-                  if (trailing != null) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    trailing,
-                  ],
+                  if (trailing != null) trailing,
+                  const SizedBox(height: 4),
+                  AnimatedContainer(
+                    duration: context.reduceMotion
+                        ? Duration.zero
+                        : AppMotion.stateChange,
+                    width: selected ? 18 : 0,
+                    height: 2.5,
+                    decoration: BoxDecoration(
+                      color: colors.gold,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
                 ],
               ),
             ),
           ),
         );
 
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        // Owner 2026-09-30: starts at the left edge, like the header logo.
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: 6,
-        ),
-        children: [
-          Semantics(
-            button: true,
-            label: t.t('feed.filters'),
-            excludeSemantics: true,
-            child: AppPressable(
-              onTap: () => _openFilters(context, ref),
-              child: Container(
-                width: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _hasState ? colors.gold : colors.border,
-                    width: _hasState ? 1.5 : 1,
+    return ChromeCollapse(
+      child: SizedBox(
+        height: kTopicBarHeight,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          // Owner 2026-09-30: starts at the left edge, like the header logo.
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          children: [
+            Semantics(
+              button: true,
+              label: t.t('feed.filters'),
+              excludeSemantics: true,
+              child: AppPressable(
+                onTap: () => _openFilters(context, ref),
+                child: SizedBox(
+                  width: 36,
+                  child: Center(
+                    child: AppIcon(
+                      AppIcons.tuneRounded,
+                      size: 20,
+                      // Gold while a state narrows the feed.
+                      color: _hasState ? colors.gold : colors.text,
+                    ),
                   ),
                 ),
-                child: AppIcon(
-                  AppIcons.tuneRounded,
-                  size: 20,
-                  color: colors.goldDark,
+              ),
+            ),
+            // Owner 2026-10-06: "All" = every post, no topic; "Legal posts"
+            // right after it = legal posts only (the same setting as
+            // Filters → Content), then the topics.
+            pill(
+              key: const ValueKey('feed-all'),
+              label: t.t('feed.topics.all'),
+              selected: category == null && !legalOnly,
+              onTap: () {
+                onCategory(null);
+                if (legalOnly) _setContent(context, ref, FeedContentMode.all);
+              },
+            ),
+            if (showNews) ...[
+              pill(
+                key: const ValueKey('feed-legal-posts'),
+                label: t.t('feed.legalPosts'),
+                selected: legalOnly,
+                onTap: () => _setContent(
+                  context,
+                  ref,
+                  legalOnly ? FeedContentMode.all : FeedContentMode.legalOnly,
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          // Owner 2026-10-06: "All" = every post, no topic; "Legal posts"
-          // right after it = legal posts only (the same setting as
-          // Filters → Content), then the topics.
-          pill(
-            key: const ValueKey('feed-all'),
-            label: t.t('feed.topics.all'),
-            icon: AppIcons.gridViewRounded,
-            selected: category == null && !legalOnly,
-            onTap: () {
-              onCategory(null);
-              if (legalOnly) _setContent(context, ref, FeedContentMode.all);
-            },
-          ),
-          if (showNews) ...[
-            const SizedBox(width: AppSpacing.sm),
-            pill(
-              key: const ValueKey('feed-legal-posts'),
-              label: t.t('feed.legalPosts'),
-              icon: AppIcons.gavelRounded,
-              selected: legalOnly,
-              onTap: () => _setContent(
-                context,
-                ref,
-                legalOnly ? FeedContentMode.all : FeedContentMode.legalOnly,
+            ],
+            if (showNotSure) ...[
+              pill(
+                key: const ValueKey('topic-not-sure'),
+                label: t.t('feed.topics.notSure'),
+                selected: category == kNotSureTopic,
+                onTap: () => onCategory(kNotSureTopic),
               ),
-            ),
+            ],
+            if (showNews && newsOn && topics.contains(kNewsTopic)) ...[
+              pill(
+                label: t.t('feed.topics.news'),
+                selected: category == kNewsTopic,
+                onTap: () => onCategory(kNewsTopic),
+              ),
+            ],
+            // Owner 2026-10-07: the "Posts" topic is gone everywhere.
+            for (final c in topics.where(
+              (c) => c != kNewsTopic && !(showNotSure && c == kNotSureTopic),
+            )) ...[
+              pill(
+                label: topicName(ref, c),
+                selected: category == c,
+                onTap: () => onCategory(c),
+              ),
+            ],
           ],
-          if (showNotSure) ...[
-            const SizedBox(width: AppSpacing.sm),
-            pill(
-              key: const ValueKey('topic-not-sure'),
-              label: t.t('feed.topics.notSure'),
-              icon: AppIcons.helpOutlineRounded,
-              selected: category == kNotSureTopic,
-              onTap: () => onCategory(kNotSureTopic),
-            ),
-          ],
-          if (showNews && newsOn && topics.contains(kNewsTopic)) ...[
-            const SizedBox(width: AppSpacing.sm),
-            pill(
-              label: t.t('feed.topics.news'),
-              icon: AppIcons.newspaperRounded,
-              selected: category == kNewsTopic,
-              onTap: () => onCategory(kNewsTopic),
-            ),
-          ],
-          // Owner 2026-10-07: the "Posts" topic is gone everywhere.
-          for (final c in topics.where(
-            (c) => c != kNewsTopic && !(showNotSure && c == kNotSureTopic),
-          )) ...[
-            const SizedBox(width: AppSpacing.sm),
-            pill(
-              label: topicName(ref, c),
-              icon: practiceGlyph(practiceCategoryOf(c)),
-              selected: category == c,
-              onTap: () => onCategory(c),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

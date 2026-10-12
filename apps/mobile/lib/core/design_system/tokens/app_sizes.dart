@@ -55,11 +55,11 @@ abstract final class AppSizes {
   /// Feed header. Owner decision 2026-09-29 (OQ-027): centered text
   /// wordmark "LawBid" instead of the scales logo, and a lower bar.
   static const double feedHeaderLogo = 96;
-  static const double feedHeader = 46;
+  static const double feedHeader = 40;
   static const double feedWordmark = 26;
 
   /// Segmented tabs (owner 2026-09-29): row height.
-  static const double segmentedTabs = 38;
+  static const double segmentedTabs = 32;
 
   /// The big search field at the top of the Search tab (owner 2026-09-29).
   // Owner 2026-10-01: "the search bar is huge" — 44 visible (the bar keeps

@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
@@ -161,68 +163,69 @@ class AppBottomNav extends StatelessWidget {
           AppSpacing.md,
           0,
         ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: colors.border),
-            boxShadow: [
-              BoxShadow(
-                color: colors.shadow,
-                blurRadius: 18,
-                offset: const Offset(0, 6),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                // Owner 2026-10-12: see-through, the feed shows under it.
+                color: colors.surface.withValues(alpha: 0.86),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(color: colors.border),
               ),
-            ],
-          ),
-          child: SizedBox(
-            height: 52,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-              child: Row(
-                children: [
-                  buildTab(left[0], 0),
-                  buildTab(left[1], 1),
-                  AppTapTarget(
-                    child: Semantics(
-                      button: true,
-                      label: createSemanticLabel,
-                      excludeSemantics: true,
-                      child: AppPressable(
-                        onTap: onCreatePressed,
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.xs,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [colors.goldLight, colors.gold],
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: colors.gold.withValues(alpha: 0.35),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
+              child: SizedBox(
+                height: 52,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      buildTab(left[0], 0),
+                      buildTab(left[1], 1),
+                      AppTapTarget(
+                        child: Semantics(
+                          button: true,
+                          label: createSemanticLabel,
+                          excludeSemantics: true,
+                          child: AppPressable(
+                            onTap: onCreatePressed,
+                            child: Container(
+                              width: 38,
+                              height: 38,
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.xs,
                               ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: AppIcon(
-                            AppIcons.addRounded,
-                            color: colors.navy,
-                            size: 22,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [colors.goldLight, colors.gold],
+                                ),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: colors.gold.withValues(alpha: 0.35),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: AppIcon(
+                                AppIcons.addRounded,
+                                color: colors.navy,
+                                size: 22,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      buildTab(right[0], 2),
+                      buildTab(right[1], 3),
+                    ],
                   ),
-                  buildTab(right[0], 2),
-                  buildTab(right[1], 3),
-                ],
+                ),
               ),
             ),
           ),

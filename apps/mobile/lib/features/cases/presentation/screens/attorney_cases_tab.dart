@@ -10,6 +10,7 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -97,7 +98,8 @@ class _AttorneyCasesTabState extends ConsumerState<AttorneyCasesTab> {
         Expanded(
           child: LayoutBuilder(
             builder: (context, box) {
-              final height = feedCardHeight(box.maxHeight);
+              final height = feedChromeCardHeight(context) ??
+                  feedCardHeight(box.maxHeight);
               return PagedListBody<FeedCase>(
                 value: value,
                 t: t,
