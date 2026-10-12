@@ -580,8 +580,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   icon: _editing ? AppIcons.checkRounded : AppIcons.sendRounded,
                   isLoading: _publishing,
-                  isEnabled:
-                      !_publishing && _photos.every((p) => p.fileId != null),
+                  // Grey until there is text and the photos are uploaded.
+                  isEnabled: !_publishing && _ready,
                   onPressed: _publish,
                 ),
               ),
