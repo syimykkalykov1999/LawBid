@@ -7,6 +7,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
@@ -58,7 +59,8 @@ class PostsFeedView extends ConsumerWidget {
     final notifier = ref.read(feedProvider.notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: value,
           t: t,
@@ -104,7 +106,8 @@ class LatestPostsView extends ConsumerWidget {
     final notifier = ref.read(latestPostsProvider(stateCode).notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: _withoutDeleted(
             ref.watch(latestPostsProvider(stateCode)),
@@ -166,7 +169,8 @@ class FilteredPostsView extends ConsumerWidget {
     final notifier = ref.read(filteredPostsProvider(key).notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: _withoutDeleted(
             ref.watch(filteredPostsProvider(key)),
@@ -237,7 +241,8 @@ class TopicPostsView extends ConsumerWidget {
     final notifier = ref.read(tagPostsProvider(key).notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: _withoutDeleted(
             ref.watch(tagPostsProvider(key)),

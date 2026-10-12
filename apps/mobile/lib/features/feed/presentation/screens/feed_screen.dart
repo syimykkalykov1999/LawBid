@@ -8,8 +8,11 @@ import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
 import 'package:lawbid/features/feed/application/feed_content.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
+    show feedCardHeight;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -32,6 +35,13 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   // docs/05 §2.1: attorneys get "Лента" (posts) and "Кейсы"; switching
   // keeps each tab's scroll position (IndexedStack keeps both alive).
   _FeedTab _tab = _FeedTab.posts;
+  final _chrome = FeedChromeController();
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,24 +92,59 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             trailing: const [ChatsIconButton()],
           );
 
+    final topInset = MediaQuery.paddingOf(context).top;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final content = attorney
+        ? TabSwipe<_FeedTab>(
+            value: _tab,
+            values: _FeedTab.values,
+            onChanged: (v) => setState(() {
+              _tab = v;
+              _chrome.show();
+            }),
+            child: IndexedStack(
+              index: _tab.index,
+              children: const [
+                // Owner 2026-09-30: the topic slider for every role.
+                _TopicFeed(),
+                AttorneyCasesTab(),
+              ],
+            ),
+          )
+        : const _TopicFeed();
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: header,
-      body: attorney
-          ? TabSwipe<_FeedTab>(
-              value: _tab,
-              values: _FeedTab.values,
-              onChanged: (v) => setState(() => _tab = v),
-              child: IndexedStack(
-                index: _tab.index,
-                children: const [
-                  // Owner 2026-09-30: the topic slider for every role.
-                  _TopicFeed(),
-                  AttorneyCasesTab(),
+      body: FeedChrome(
+        controller: _chrome,
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // Header + filter row + the status bar on top, and the
+            // floating nav bar at the bottom (the list runs under it).
+            _chrome.cardHeight = feedCardHeight(
+              box.maxHeight - topInset - AppSizes.feedHeader - 48 - bottomInset,
+            );
+            return NotificationListener<ScrollNotification>(
+              onNotification: _chrome.onScroll,
+              child: Column(
+                children: [
+                  ColoredBox(
+                    color: colors.bg,
+                    child: SizedBox(height: topInset, width: double.infinity),
+                  ),
+                  ChromeCollapse(
+                    child: MediaQuery.removePadding(
+                      context: context,
+                      removeTop: true,
+                      child: header,
+                    ),
+                  ),
+                  Expanded(child: content),
                 ],
               ),
-            )
-          : const _TopicFeed(),
+            );
+          },
+        ),
+      ),
     );
   }
 }
