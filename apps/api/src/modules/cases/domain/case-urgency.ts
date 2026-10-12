@@ -283,7 +283,7 @@ export function urgencyFilterSql(
     (l, i) => l !== 'overdue' && i >= minRank,
   );
   return Prisma.sql`
-    ${minRank >= 0 ? Prisma.sql`AND ${effectiveUrgencySql(t)} = ANY(${atLeast}::STRING[])` : Prisma.empty}
+    ${minRank >= 0 ? Prisma.sql`AND ${effectiveUrgencySql(t)} = ANY(${atLeast}::TEXT[])` : Prisma.empty}
     ${hasDeadline ? Prisma.sql`AND c.deadline_at >= CURRENT_DATE` : Prisma.empty}`;
 }
 

@@ -359,6 +359,7 @@ class _Compose extends StatelessWidget {
         key: const ValueKey('review-submit'),
         label: t.t(isEdit ? 'reviews.form.saveEdit' : 'reviews.form.submit'),
         isLoading: submitting,
+        isEnabled: rating > 0,
         onPressed: onSubmit,
       ),
       if (onCancel != null)

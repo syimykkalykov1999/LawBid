@@ -57,7 +57,7 @@ export class StorageStatsService {
   async usage(): Promise<StorageUsage> {
     const [byPurpose, stored, pending] = await Promise.all([
       this.prisma.$queryRaw<{ purpose: string; n: bigint; bytes: bigint }[]>`
-        SELECT purpose::STRING AS purpose, count(*)::INT8 AS n,
+        SELECT purpose::TEXT AS purpose, count(*)::INT8 AS n,
                coalesce(sum(size_bytes), 0)::INT8 AS bytes
         FROM files WHERE deleted_at IS NULL
         GROUP BY purpose ORDER BY bytes DESC`,
@@ -129,7 +129,7 @@ export class StorageStatsService {
         n: bigint;
       }[]
     >`
-      SELECT u.id::STRING AS id, u.first_name, u.last_name, u.email,
+      SELECT u.id::TEXT AS id, u.first_name, u.last_name, u.email,
              u.storage_quota_mb AS quota, x.bytes, x.n
       FROM (
         SELECT owner_user_id, sum(size_bytes)::INT8 AS bytes,

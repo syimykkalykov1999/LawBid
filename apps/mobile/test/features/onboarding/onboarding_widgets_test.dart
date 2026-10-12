@@ -35,6 +35,10 @@ Future<void> _tearDownDrift(WidgetTester tester) async {
   await tester.pump(Duration.zero);
 }
 
+/// Owner 2026-10-11: a form's button is grey and inert until it is ready.
+bool _buttonEnabled(WidgetTester tester, String label) =>
+    tester.widget<AppButton>(find.widgetWithText(AppButton, label)).isEnabled;
+
 void main() {
   final clientPhoneOnly = meFixture(
     role: UserRole.client,
@@ -46,7 +50,7 @@ void main() {
 
   group('consents step (§10.2 H)', () {
     testWidgets(
-        'Continue with required boxes unchecked explains instead of submitting',
+        'Continue is grey with required boxes unchecked and does nothing',
         (tester) async {
       tester.view.physicalSize = const Size(390, 1400);
       tester.view.devicePixelRatio = 1;
@@ -58,12 +62,9 @@ void main() {
       await tester.pumpWidget(wrap(const ConsentsStepScreen()));
       await _settle(tester);
 
+      expect(_buttonEnabled(tester, 'Continue'), isFalse);
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(
-        find.text('Please accept the required items above to continue.'),
-        findsOneWidget,
-      );
       expect(repo.calls, isEmpty);
 
       // Owner decision 2026-09-27: required consents are role-style cards;
@@ -202,7 +203,7 @@ void main() {
   });
 
   group('profile step (§11 Шаг 3A/3B)', () {
-    testWidgets('required fields are flagged next to the field',
+    testWidgets('Continue is grey until the required fields are filled',
         (tester) async {
       final repo = FakeOnboardingRepository(clientPhoneOnly);
       final wrap = await onboardingWrapper(
@@ -212,9 +213,9 @@ void main() {
       );
       await tester.pumpWidget(wrap(const ProfileStepScreen()));
       await _settle(tester);
+      expect(_buttonEnabled(tester, 'Continue'), isFalse);
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(find.text('Required'), findsWidgets);
       expect(repo.calls, isEmpty);
       await _tearDownDrift(tester);
     });
@@ -331,8 +332,7 @@ void main() {
   });
 
   group('attorney photo is mandatory (docs/03 §4.1, OQ-012)', () {
-    testWidgets('no photo: Continue flags the photo row, nothing is sent',
-        (tester) async {
+    testWidgets('no photo: Continue is grey, nothing is sent', (tester) async {
       tester.view.physicalSize = const Size(390, 1600);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -371,18 +371,9 @@ void main() {
           await onboardingWrapper(AppTheme.light(), user: me, repo: repo);
       await tester.pumpWidget(wrap(const ProfileStepScreen()));
       await _settle(tester);
-      // Before an attempt: the neutral hint, no error.
-      expect(
-        find.text('Add a photo — it is required for attorneys.'),
-        findsNothing,
-      );
-
+      expect(_buttonEnabled(tester, 'Continue'), isFalse);
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(
-        find.text('Add a photo — it is required for attorneys.'),
-        findsOneWidget,
-      );
       expect(repo.calls, isEmpty);
       await _tearDownDrift(tester);
     });

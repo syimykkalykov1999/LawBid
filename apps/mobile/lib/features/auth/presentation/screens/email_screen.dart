@@ -133,9 +133,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             textInputAction: TextInputAction.go,
                             onSubmitted: (_) => _submit(t),
                             onChanged: (_) {
-                              if (_localError != null) {
-                                setState(() => _localError = null);
-                              }
+                              setState(() => _localError = null);
                               ref
                                   .read(onboardingFlowProvider.notifier)
                                   .clearError();
@@ -161,6 +159,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                                 AppButton(
                                   label: t.t('auth.phone.submit'),
                                   isLoading: flowState.isSubmitting,
+                                  isEnabled: isPlausibleEmail(_controller.text),
                                   onPressed: () => _submit(t),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),

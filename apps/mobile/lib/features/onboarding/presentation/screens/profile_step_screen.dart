@@ -136,6 +136,13 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
       user.missing.contains(MissingRequirement.photo) &&
       ref.read(avatarUploadControllerProvider).stage != AvatarUploadStage.done;
 
+  /// Owner 2026-10-11: Continue is grey until the required data is in.
+  bool _ready(CurrentUser user) {
+    if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) return false;
+    if (user.role == UserRole.assistant) return true;
+    return (user.isAttorney || _states.isNotEmpty) && !_photoMissing(user);
+  }
+
   Future<void> _submit(CurrentUser user) async {
     setState(() => _attempted = true);
     // OQ-048: an assistant needs only a name (no states, no profile).
@@ -181,6 +188,8 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     ref.watch(onboardingBlockerProvider);
     if (user == null) return const SizedBox.shrink();
     _prefill(user);
+    // The photo upload finishing re-evaluates the Continue button.
+    ref.watch(avatarUploadControllerProvider);
     final attorney = user.isAttorney;
     final assistant = user.role == UserRole.assistant;
 
@@ -265,6 +274,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,
+      primaryEnabled: _ready(user),
       onPrimary: () => _submit(user),
       children: [
         if (attorney) ...[
@@ -284,7 +294,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.givenName],
           inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
-          onChanged: (_) => _attempted ? setState(() {}) : null,
+          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: AppSpacing.lg),
         AppTextField(
@@ -295,7 +305,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.familyName],
           inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
-          onChanged: (_) => _attempted ? setState(() {}) : null,
+          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(

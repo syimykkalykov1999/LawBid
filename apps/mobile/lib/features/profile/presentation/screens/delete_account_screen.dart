@@ -333,7 +333,7 @@ class _ReauthCodeStepState extends ConsumerState<_ReauthCodeStep> {
         const SizedBox(height: AppSpacing.md),
         AppOtpField(
           semanticLabel: t.t('auth.otp.fieldLabel'),
-          onChanged: (value) => _currentCode = value,
+          onChanged: (value) => setState(() => _currentCode = value),
           onCompleted: notifier.submitCode,
           errorText: state.errorMessage == 'invalid'
               ? t.t('deleteAccount.reauth.error.invalid')
@@ -343,6 +343,7 @@ class _ReauthCodeStepState extends ConsumerState<_ReauthCodeStep> {
       action: AppButton(
         label: t.t('deleteAccount.reauth.submit'),
         isLoading: state.isSubmitting,
+        isEnabled: _currentCode.length == 6,
         onPressed: () {
           if (_currentCode.length == 6) notifier.submitCode(_currentCode);
         },

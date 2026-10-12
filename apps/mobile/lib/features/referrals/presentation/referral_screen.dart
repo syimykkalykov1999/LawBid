@@ -42,7 +42,10 @@ class ReferralScreen extends ConsumerStatefulWidget {
 }
 
 class _ReferralScreenState extends ConsumerState<ReferralScreen> {
-  late final _code = TextEditingController(text: widget.initialCode);
+  late final _code = TextEditingController(text: widget.initialCode)
+    ..addListener(() {
+      if (mounted) setState(() {});
+    });
   bool _busy = false;
 
   void _leave(BuildContext context) {
@@ -349,6 +352,9 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
                           label: t.t('referral.apply'),
                           variant: AppButtonVariant.secondary,
                           isLoading: _busy,
+                          isEnabled: _code.text
+                              .replaceAll(RegExp('[^A-Za-z0-9]'), '')
+                              .isNotEmpty,
                           onPressed: _apply,
                         ),
                       ),

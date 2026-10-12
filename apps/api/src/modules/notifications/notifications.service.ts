@@ -301,7 +301,7 @@ export class NotificationsService {
                       payload = excluded.payload,
                       read_at = NULL,
                       created_at = now()
-        RETURNING id::STRING AS id, aggregate_count::INT8 AS n`;
+        RETURNING id::TEXT AS id, aggregate_count::INT8 AS n`;
       await this.badges?.invalidateNotifications(input.recipientId);
       await this.push?.enqueue(row.id, input.type, Number(row.n));
       return { id: row.id };
