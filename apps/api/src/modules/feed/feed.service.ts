@@ -20,6 +20,7 @@ import {
   PostPresenter,
   VISIBLE_POST_WHERE,
 } from '../posts/post-presenter.service';
+import type { PostReposterDto } from '../posts/dto/posts.dto';
 import {
   decodeFeedCursor,
   encodeFeedCursor,
@@ -160,7 +161,11 @@ export class FeedService implements FeedProvider {
       if (cached) {
         return this.fromIds(
           viewer,
-          JSON.parse(cached) as { ids: string[]; next: string | null },
+          JSON.parse(cached) as {
+            ids: string[];
+            next: string | null;
+            rep?: Record<string, PostReposterDto>;
+          },
           only,
         );
       }
@@ -292,6 +297,7 @@ export class FeedService implements FeedProvider {
     page.push(...tail);
     const lastL = tail[tail.length - 1];
     const lastF = usedFollowing[usedFollowing.length - 1];
+    const moreFollowed = !!lastF && following.length > usedFollowing.length;
     const next: FeedCursor = {
       // More followed posts exist only if some fetched ones were not used.
       f:
@@ -304,6 +310,32 @@ export class FeedService implements FeedProvider {
     };
     const nextCursor = page.length < limit ? null : encodeFeedCursor(next);
 
+    // Owner 2026-10-12 (Threads): what the people I follow reposted, in the
+    // time window this page covers — "reposted by @name" over the card.
+    const reposters = new Map<string, PostReposterDto>();
+    if (streamOpen) {
+      const reposts = await this.repostsInWindow(
+        viewer,
+        authorIds,
+        after ? new Date(after.t) : null,
+        moreFollowed && lastF ? lastF.created_at : null,
+        only,
+        new Set(page.map((p) => p.id)),
+      );
+      const names = await this.presenter.reposterNames(
+        reposts.map((r) => r.userId),
+      );
+      for (const r of reposts) {
+        let i = page.findIndex(
+          (p) => followingIds.has(p.id) && p.created_at < r.at,
+        );
+        if (i < 0) i = page.length;
+        page.splice(i, 0, r.post);
+        const who = names.get(r.userId);
+        if (who) reposters.set(r.post.id, who);
+      }
+    }
+
     await this.markSeen(
       viewer.sub,
       usedReco.map((p) => p.id),
@@ -311,15 +343,60 @@ export class FeedService implements FeedProvider {
     if (first) {
       await this.redis.set(
         firstPageKey(viewer.sub, limit, mode),
-        JSON.stringify({ ids: page.map((p) => p.id), next: nextCursor }),
+        JSON.stringify({
+          ids: page.map((p) => p.id),
+          next: nextCursor,
+          rep: Object.fromEntries(reposters),
+        }),
         'EX',
         FIRST_PAGE_TTL_SEC,
       );
     }
     return {
-      items: await this.presenter.present(page, viewer.sub),
+      items: await this.presenter.present(page, viewer.sub, reposters),
       nextCursor,
     };
+  }
+
+  /** Reposts by [authorIds] made inside (lower, upper): newest first, at
+   * most a handful per page; not of blocked people, not already on the
+   * page, one per post. */
+  private async repostsInWindow(
+    viewer: RequestUser,
+    authorIds: string[],
+    upper: Date | null,
+    lower: Date | null,
+    only: Prisma.PostWhereInput,
+    onPage: Set<string>,
+  ): Promise<{ post: Post; userId: string; at: Date }[]> {
+    const blocked = await this.blockedAuthors(viewer);
+    const rows = await this.prisma.postRepost.findMany({
+      where: {
+        user_id: { in: authorIds.filter((id) => id !== viewer.sub) },
+        created_at: {
+          ...(upper ? { lt: upper } : {}),
+          ...(lower ? { gt: lower } : {}),
+        },
+        post: {
+          AND: [
+            VISIBLE_POST_WHERE,
+            only,
+            ...(blocked.length > 0 ? [{ author_id: { notIn: blocked } }] : []),
+          ],
+        },
+      },
+      include: { post: true },
+      orderBy: { created_at: 'desc' },
+      take: 10,
+    });
+    const seen = new Set(onPage);
+    const out: { post: Post; userId: string; at: Date }[] = [];
+    for (const r of rows) {
+      if (seen.has(r.post_id) || blocked.includes(r.user_id)) continue;
+      seen.add(r.post_id);
+      out.push({ post: r.post, userId: r.user_id, at: r.created_at });
+    }
+    return out;
   }
 
   /** Walks the pinned snapshot from [offset], skipping followed/own
@@ -452,7 +529,11 @@ export class FeedService implements FeedProvider {
 
   private async fromIds(
     viewer: RequestUser,
-    cached: { ids: string[]; next: string | null },
+    cached: {
+      ids: string[];
+      next: string | null;
+      rep?: Record<string, PostReposterDto>;
+    },
     only: Prisma.PostWhereInput,
   ): Promise<PostPage> {
     const rows = await this.prisma.post.findMany({
@@ -463,7 +544,11 @@ export class FeedService implements FeedProvider {
       byId.has(id) ? [byId.get(id)!] : [],
     );
     return {
-      items: await this.presenter.present(ordered, viewer.sub),
+      items: await this.presenter.present(
+        ordered,
+        viewer.sub,
+        new Map(Object.entries(cached.rep ?? {})),
+      ),
       nextCursor: cached.next,
     };
   }
