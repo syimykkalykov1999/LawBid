@@ -1135,7 +1135,7 @@ export class ChatService {
           },
         }),
         this.prisma.$queryRaw<{ id: string; n: bigint }[]>`
-          SELECT cp.conversation_id::STRING AS id,
+          SELECT cp.conversation_id::TEXT AS id,
                  (SELECT count(*) FROM (
                     SELECT 1 FROM messages m
                     WHERE m.conversation_id = cp.conversation_id

@@ -328,7 +328,7 @@ export class SearchService {
         -- Only posts anyone can see (active, not deleted authors).
         AND EXISTS (SELECT 1 FROM users u WHERE u.id = p.author_id
                     AND u.status = 'active' AND u.deleted_at IS NULL)
-      WHERE t.tag_lower = ANY(${tags}::STRING[])
+      WHERE t.tag_lower = ANY(${tags}::TEXT[])
       GROUP BY t.tag_lower`;
     const byTag = new Map(counts.map((c) => [c.tag, Number(c.n)]));
     return tags
@@ -546,7 +546,7 @@ export class SearchService {
         ORDER BY p.created_at DESC
         LIMIT ${TAG_TOP_CANDIDATES}
       )
-      SELECT p.id::STRING AS id FROM recent
+      SELECT p.id::TEXT AS id FROM recent
       JOIN posts p ON p.id = recent.id
       JOIN users u ON u.id = p.author_id AND u.status = 'active'
         -- OQ-038: clients post too; suspended attorneys never show.

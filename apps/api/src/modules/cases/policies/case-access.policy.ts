@@ -182,7 +182,7 @@ export class CaseAccessPolicy {
     if (caseIds.length === 0) return new Set();
     const a = attorneyId;
     const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT c.id::STRING AS id
+      SELECT c.id::TEXT AS id
       FROM cases c
       JOIN practice_areas pa ON pa.id = c.practice_area_id
       WHERE c.id = ANY(${caseIds}::UUID[]) AND c.deleted_at IS NULL
