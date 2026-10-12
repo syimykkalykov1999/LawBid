@@ -159,6 +159,19 @@ export class PostsController {
     return this.engagement.share(user.sub, p.id);
   }
 
+  @Post('posts/:id/view')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Count a view of a video post / reel (idempotent, one per viewer)',
+  })
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  viewPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<void> {
+    return this.engagement.view(user.sub, p.id);
+  }
+
   @Delete('posts/:id/like')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove a like (idempotent, docs/05 §4)' })

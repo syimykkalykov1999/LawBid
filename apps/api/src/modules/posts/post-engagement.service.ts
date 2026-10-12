@@ -90,6 +90,18 @@ export class PostEngagementService {
     await this.counters.bump('post', postId, 'share_count', 1);
   }
 
+  /** Owner 2026-10-12: a video post / reel was watched (a few seconds or a
+   * tap). One view per viewer, never the author's own; a repeat is a no-op. */
+  async view(userId: string, postId: string): Promise<void> {
+    const post = await this.visible(postId);
+    if (post.author_id === userId) return;
+    const { count } = await this.prisma.postView.createMany({
+      data: [{ post_id: postId, user_id: userId }],
+      skipDuplicates: true,
+    });
+    if (count > 0) await this.counters.bump('post', postId, 'view_count', 1);
+  }
+
   async unlike(userId: string, postId: string): Promise<void> {
     const { count } = await this.prisma.postLike.deleteMany({
       where: { post_id: postId, user_id: userId },
