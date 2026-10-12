@@ -25,6 +25,10 @@ export interface DemoPostSpec {
   legal?: boolean;
   /** Attach a PDF document. */
   pdf?: boolean;
+  /** Attach several documents by file name (.pdf or .docx). */
+  docs?: string[];
+  /** Publish this long ago instead of the spread-out default (newest). */
+  minutesAgo?: number;
 }
 
 const PAD_EN =
@@ -52,6 +56,26 @@ export const MAX_TITLE_RU =
   ) + '!';
 
 export const DEMO_POSTS: readonly DemoPostSpec[] = [
+  // ---- LawBid card, everything at once: the owner's «full stuffing» ------
+  {
+    key: 'lb-full',
+    author: 'sofia.hernandez',
+    style: 'lawbid',
+    lang: 'en',
+    title:
+      'Marriage green card, step by step: the evidence file, the interview and what to do when an officer asks for more',
+    body: 'A marriage green card is won on paper before the interview. Build one folder: joint lease or mortgage, shared bank statements, insurance policies naming each other, photos across several years and messages that show daily life. Bring originals and one clean set of copies, answer short and honest, and ask the officer to repeat anything unclear. If you get a request for evidence, answer every point inside the deadline and add a short cover letter. #greencard #familylaw #dui #realestate',
+    practice: 'immigration.green_card',
+    photos: 5,
+    ratio: 'square',
+    legal: true,
+    docs: [
+      'Green_card_evidence_checklist.pdf',
+      'Marriage_evidence_list.pdf',
+      'Affidavit_of_support_sample.docx',
+    ],
+    minutesAgo: 20,
+  },
   // ---- LawBid card, almost empty: no title and no text / short -----------
   {
     key: 'lb-photo-only',
