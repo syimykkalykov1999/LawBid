@@ -235,6 +235,15 @@ export const DEMO_POSTS: readonly DemoPostSpec[] = [
   // ---- Threads card: text only -------------------------------------------
   // ---- Threads cards for the card review (owner 2026-10-12) ---------------
   {
+    key: 'th-sofia-paragraphs',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'What to do the week before a green card interview.\n\nFirst, rebuild the folder. Put the newest documents on top: lease or mortgage, bank statements, insurance, utility bills. One page per fact, no duplicates.\n\nSecond, sit down together and tell the story of the relationship out loud, from the first meeting to today. Do not memorise answers. Just remember the dates and the places.\n\nThird, plan the day. Arrive early, bring originals and one clean set of copies, and keep your phone in your pocket.\n\nIf anything in the file changed this year, a new address, a new job, a baby, bring the proof of that too. Officers like to see that the folder is alive.\n\n#greencard #interview',
+    legal: true,
+    minutesAgo: 3,
+  },
+  {
     key: 'th-sofia-one-line',
     author: 'sofia.hernandez',
     style: 'text',

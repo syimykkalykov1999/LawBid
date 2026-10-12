@@ -1329,7 +1329,7 @@ class _Tabs extends ConsumerWidget {
           AttorneyProfileTab.threads => (
               tab,
               t.t('profile.tab.threads'),
-              AppIcons.chatBubbleOutlineRounded
+              AppIcons.editNoteRounded
             ),
           AttorneyProfileTab.news => (
               tab,
