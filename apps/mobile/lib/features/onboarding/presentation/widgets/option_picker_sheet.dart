@@ -96,8 +96,17 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     required this.initial,
     required this.multi,
     this.searchHint,
+    this.back = false,
     super.key,
   });
+
+  /// Owner 2026-10-12: a picker opened from a menu (feed filters) has a
+  /// back arrow on the left and a centred title; arrow and system Back
+  /// both return [backResult] instead of closing everything.
+  final bool back;
+
+  /// What a picker with [back] returns when the user steps back.
+  static final Set<String> backResult = <String>{};
 
   /// "Start typing: arbitration, visa…" (owner 2026-09-30).
   final String? searchHint;
@@ -115,6 +124,7 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     required Set<String> initial,
     bool multi = false,
     String? searchHint,
+    bool back = false,
   }) {
     return showAppBottomSheet<Set<String>>(
       context: context,
@@ -125,6 +135,7 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
         initial: initial,
         multi: multi,
         searchHint: searchHint,
+        back: back,
       ),
     );
   }
@@ -217,7 +228,7 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
     final filtered = suggestOptions(widget.options, q);
 
     // Owner 2026-09-29: draggable all the way to the top.
-    return DraggableScrollableSheet(
+    final sheet = DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
       minChildSize: 0.4,
@@ -236,10 +247,31 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
               const AppSheetHandle(),
               Semantics(
                 header: true,
-                child: Text(
-                  widget.title,
-                  style: typography.titleMedium.copyWith(color: colors.text),
-                ),
+                child: widget.back
+                    ? Row(
+                        children: [
+                          AppBackButton(
+                            semanticLabel: t.t('common.back'),
+                            onPressed: () => Navigator.of(context)
+                                .pop(OptionPickerSheet.backResult),
+                          ),
+                          Expanded(
+                            child: Text(
+                              widget.title,
+                              textAlign: TextAlign.center,
+                              style: typography.titleMedium
+                                  .copyWith(color: colors.text),
+                            ),
+                          ),
+                          // Balances the back button so the title is centred.
+                          const SizedBox(width: AppSizes.touchTarget),
+                        ],
+                      )
+                    : Text(
+                        widget.title,
+                        style:
+                            typography.titleMedium.copyWith(color: colors.text),
+                      ),
               ),
               const SizedBox(height: AppSpacing.md),
               AppTextField(
@@ -300,6 +332,14 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
           ),
         ),
       ),
+    );
+    if (!widget.back) return sheet;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) Navigator.of(context).pop(OptionPickerSheet.backResult);
+      },
+      child: sheet,
     );
   }
 }

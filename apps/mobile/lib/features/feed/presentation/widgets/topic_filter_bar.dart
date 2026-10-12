@@ -72,7 +72,8 @@ class TopicFilterBar extends ConsumerWidget {
   bool get _hasState =>
       _multiState ? (stateCodes ?? const {}).isNotEmpty : stateCode != null;
 
-  Future<void> _pickTopics(BuildContext context, WidgetRef ref) async {
+  /// True when the user stepped back (to the filters menu).
+  Future<bool> _pickTopics(BuildContext context, WidgetRef ref) async {
     final t = ref.read(translatorProvider);
     // Owner 2026-09-30: every category and subcategory, with suggestions
     // while typing.
@@ -81,6 +82,7 @@ class TopicFilterBar extends ConsumerWidget {
       context,
       title: t.t('feed.topics.pick'),
       multi: true,
+      back: true,
       searchHint: t.t('practice.search.hint'),
       initial: {
         ...ref.read(feedTopicsProvider),
@@ -121,7 +123,8 @@ class TopicFilterBar extends ConsumerWidget {
         ...practiceOptions(ref),
       ],
     );
-    if (picked == null) return;
+    if (picked == null) return false;
+    if (identical(picked, OptionPickerSheet.backResult)) return true;
     if (showNews) {
       ref.read(feedLegalScopeProvider.notifier).set(
             picked.contains(kLegalMine)
@@ -141,9 +144,11 @@ class TopicFilterBar extends ConsumerWidget {
     if (open != null && !topics.contains(open)) {
       onCategory(null);
     }
+    return false;
   }
 
-  Future<void> _pickState(BuildContext context, WidgetRef ref) async {
+  /// True when the user stepped back (to the filters menu).
+  Future<bool> _pickState(BuildContext context, WidgetRef ref) async {
     final t = ref.read(translatorProvider);
     if (_multiState) {
       // Owner 2026-10-06: several states at once; none picked = all.
@@ -151,6 +156,7 @@ class TopicFilterBar extends ConsumerWidget {
         context,
         title: t.t('feed.state.pick'),
         multi: true,
+        back: true,
         initial: {...?stateCodes},
         options: [
           // The attorney's own licensed states as a group (case feed).
@@ -163,12 +169,16 @@ class TopicFilterBar extends ConsumerWidget {
             PickerOption(value: s.code, label: s.name, sublabel: s.code),
         ],
       );
+      if (picked != null && identical(picked, OptionPickerSheet.backResult)) {
+        return true;
+      }
       if (picked != null) onStates!(picked);
-      return;
+      return false;
     }
     final picked = await OptionPickerSheet.show(
       context,
       title: t.t('feed.state.pick'),
+      back: true,
       initial: {if (stateCode != null) stateCode!},
       options: [
         PickerOption(value: '', label: t.t('cases.feed.allStates')),
@@ -183,9 +193,11 @@ class TopicFilterBar extends ConsumerWidget {
           PickerOption(value: s.code, label: s.name, sublabel: s.code),
       ],
     );
-    if (picked == null) return;
+    if (picked == null) return false;
+    if (identical(picked, OptionPickerSheet.backResult)) return true;
     final v = picked.isEmpty ? '' : picked.first;
     onState?.call(v.isEmpty ? null : v);
+    return false;
   }
 
   /// The filter sheet's state row: "All states", "IL", or "IL, NY, CA +2".
@@ -251,9 +263,13 @@ class TopicFilterBar extends ConsumerWidget {
       ),
     );
     if (!context.mounted) return;
-    if (choice == 'topics') await _pickTopics(context, ref);
+    var back = false;
+    if (choice == 'topics') back = await _pickTopics(context, ref);
     // ignore: use_build_context_synchronously
-    if (choice == 'state') await _pickState(context, ref);
+    if (choice == 'state') back = await _pickState(context, ref);
+    // Owner 2026-10-12: back from a picker returns to the filters menu.
+    // ignore: use_build_context_synchronously
+    if (back && context.mounted) await _openFilters(context, ref);
   }
 
   @override
