@@ -227,10 +227,18 @@ class _ReelVideoState extends State<ReelVideo> {
 /// A reel inside a feed card: plays muted while most of it is on screen,
 /// with the reel mark and the length in the corner.
 class InlineReel extends StatefulWidget {
-  const InlineReel({required this.post, required this.onOpen, super.key});
+  const InlineReel({
+    required this.post,
+    required this.onOpen,
+    this.topInset = 0,
+    super.key,
+  });
 
   final Post post;
   final VoidCallback onOpen;
+
+  /// Space kept free at the top (an author row lies over the video).
+  final double topInset;
 
   @override
   State<InlineReel> createState() => _InlineReelState();
@@ -265,7 +273,7 @@ class _InlineReelState extends State<InlineReel> {
                 ),
               ),
             PositionedDirectional(
-              top: AppSpacing.md,
+              top: AppSpacing.md + widget.topInset,
               end: AppSpacing.md,
               child: Container(
                 padding: const EdgeInsets.symmetric(
