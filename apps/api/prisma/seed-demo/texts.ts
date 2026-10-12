@@ -52,6 +52,30 @@ export const MAX_TITLE_RU =
   ) + '!';
 
 export const DEMO_POSTS: readonly DemoPostSpec[] = [
+  // ---- LawBid card, almost empty: no title and no text / short -----------
+  {
+    key: 'lb-photo-only',
+    author: 'sofia.hernandez',
+    style: 'lawbid',
+    lang: 'en',
+    body: '',
+    practice: 'immigration.green_card',
+    photos: 1,
+    ratio: 'square',
+    legal: true,
+  },
+  {
+    key: 'lb-short-title',
+    author: 'sofia.hernandez',
+    style: 'lawbid',
+    lang: 'en',
+    title: 'Bring originals',
+    body: 'Copies are never enough at the interview.',
+    practice: 'immigration.green_card',
+    photos: 1,
+    ratio: 'portrait',
+    legal: true,
+  },
   // ---- LawBid card: practice + photo -------------------------------------
   {
     key: 'lb-divorce-checklist',
