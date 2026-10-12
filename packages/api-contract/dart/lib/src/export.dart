@@ -446,6 +446,8 @@ export 'models/post_kind.dart';
 export 'models/post_practice_dto.dart';
 export 'models/post_content_class.dart';
 export 'models/post_author_dto.dart';
+export 'models/post_reposter_dto.dart';
+export 'models/post_reposter_dto_role.dart';
 export 'models/post_media_dto.dart';
 export 'models/post_attachment_dto.dart';
 export 'models/video_asset_status.dart';

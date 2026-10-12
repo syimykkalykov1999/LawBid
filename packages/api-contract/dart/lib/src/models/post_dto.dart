@@ -13,6 +13,7 @@ import 'post_kind.dart';
 import 'post_location_dto.dart';
 import 'post_media_dto.dart';
 import 'post_practice_dto.dart';
+import 'post_reposter_dto.dart';
 import 'post_video_dto.dart';
 
 part 'post_dto.g.dart';
@@ -46,6 +47,7 @@ class PostDto {
     this.title,
     this.practice,
     this.video,
+    this.repostedBy,
     this.editedAt,
     this.promotionId,
   });
@@ -94,6 +96,9 @@ class PostDto {
   final int repostCount;
   final bool likedByMe;
   final bool repostedByMe;
+
+  /// Set when the post reaches this list as someone's repost (a followed account in the feed, or the profile's own list).
+  final PostReposterDto? repostedBy;
   final bool savedByMe;
   final bool isMine;
   final String createdAt;

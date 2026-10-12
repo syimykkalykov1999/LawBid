@@ -939,6 +939,13 @@ abstract final class SocialMappers {
         viewCount: d.viewCount,
         repostCount: d.repostCount,
         repostedByMe: d.repostedByMe,
+        repostedBy: d.repostedBy == null
+            ? null
+            : PostReposter(
+                id: d.repostedBy!.id,
+                username: d.repostedBy!.username,
+                isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
+              ),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,

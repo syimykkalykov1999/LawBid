@@ -168,10 +168,15 @@ class PostAttachment {
 /// (Threads-style «{username} сделал(а) репост»).
 @immutable
 class PostReposter {
-  const PostReposter({required this.id, required this.username});
+  const PostReposter({
+    required this.id,
+    required this.username,
+    this.isClient = false,
+  });
 
   final String id;
   final String username;
+  final bool isClient;
 }
 
 class Post {
