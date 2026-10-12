@@ -67,28 +67,21 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           bare: bare,
           // Decorative: the header itself is announced as "LawBid".
           leading: ExcludeSemantics(
-            child: bare
-                // Owner 2026-10-12: scrolled — only two round discs
-                // (Instagram): white + dark icon on light content, dark +
-                // white icon on dark content.
-                ? _FloatDisc(
-                    icon: ({required dark}) => ColorFiltered(
-                      colorFilter: ColorFilter.mode(
-                        dark ? Colors.white : colors.navy,
-                        BlendMode.srcIn,
-                      ),
-                      child: ScalesLogo(
-                        size: 26,
-                        semanticLabel: t.t('brand.name'),
-                      ),
-                    ),
-                  )
-                : ScalesLogo(
-                    size: attorney ? 44 : 40,
-                    animated: true,
-                    runFor: const Duration(seconds: 6),
-                    semanticLabel: t.t('brand.name'),
-                  ),
+            // Owner 2026-10-12: always a round disc (top of the feed and
+            // scrolled alike), so nothing morphs while scrolling.
+            child: _FloatDisc(
+              forceDark: onDark,
+              icon: ({required dark}) => ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  dark ? Colors.white : colors.navy,
+                  BlendMode.srcIn,
+                ),
+                child: ScalesLogo(
+                  size: 26,
+                  semanticLabel: t.t('brand.name'),
+                ),
+              ),
+            ),
           ),
           // The tabs leave with the filters on a scroll down; the logo and
           // the chats stay.
@@ -109,12 +102,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             ),
           ),
           trailing: [
-            if (bare)
-              _FloatDisc(
-                icon: ({required dark}) => ChatsIconButton(onDark: dark),
-              )
-            else
-              ChatsIconButton(onDark: onDark),
+            _FloatDisc(
+              forceDark: onDark,
+              icon: ({required dark}) => ChatsIconButton(onDark: dark),
+            ),
           ],
         );
 
@@ -453,13 +444,16 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
 /// content under it): light theme — light frosted disc, dark icon; dark theme
 /// — dark frosted disc, white icon.
 class _FloatDisc extends StatelessWidget {
-  const _FloatDisc({required this.icon});
+  const _FloatDisc({required this.icon, this.forceDark = false});
+
+  /// Over the Reels video the disc is dark whatever the theme.
+  final bool forceDark;
 
   final Widget Function({required bool dark}) icon;
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final dark = forceDark || Theme.of(context).brightness == Brightness.dark;
     return Stack(
       alignment: Alignment.center,
       clipBehavior: Clip.none,
@@ -474,9 +468,11 @@ class _FloatDisc extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: dark
                     ? Colors.black.withValues(alpha: 0.5)
-                    : Colors.white.withValues(alpha: 0.7),
+                    : const Color(0xFFEDEFF3).withValues(alpha: 0.85),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: dark ? 0.18 : 0.8),
+                  color: dark
+                      ? Colors.white.withValues(alpha: 0.18)
+                      : Colors.black.withValues(alpha: 0.08),
                 ),
               ),
             ),
