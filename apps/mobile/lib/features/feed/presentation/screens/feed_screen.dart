@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -40,10 +43,99 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   _FeedTab _tab = _FeedTab.posts;
   final _chrome = FeedChromeController();
 
+  // Owner 2026-10-12: the logo / chats discs follow the content under them
+  // (Instagram): light content → white disc, dark icon; dark content → dark
+  // disc, white icon. The strip under the icons is sampled a few times a
+  // second while the header is scrolled away, with hysteresis.
+  final _contentKey = GlobalKey();
+  final _leftDark = ValueNotifier<bool>(false);
+  final _rightDark = ValueNotifier<bool>(false);
+  Timer? _probe;
+  bool _probing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _chrome.addListener(_scheduleProbe);
+  }
+
   @override
   void dispose() {
-    _chrome.dispose();
+    _probe?.cancel();
+    _chrome
+      ..removeListener(_scheduleProbe)
+      ..dispose();
+    _leftDark.dispose();
+    _rightDark.dispose();
     super.dispose();
+  }
+
+  void _scheduleProbe() {
+    if (_chrome.visible) {
+      // At the top of the feed the page behind the icons is light.
+      _leftDark.value = false;
+      _rightDark.value = false;
+    }
+    if (_chrome.visible || (_probe?.isActive ?? false)) return;
+    _probe = Timer(const Duration(milliseconds: 220), _sample);
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    final handled = _tab != _FeedTab.reels && _chrome.onScroll(n);
+    if (!_chrome.visible && n is ScrollUpdateNotification) _scheduleProbe();
+    if (!_chrome.visible && n is ScrollEndNotification) {
+      _probe?.cancel();
+      _probe = Timer(const Duration(milliseconds: 120), _sample);
+    }
+    return handled;
+  }
+
+  Future<void> _sample() async {
+    if (_probing || !mounted || _chrome.visible) return;
+    final box = _contentKey.currentContext?.findRenderObject();
+    if (box is! RenderRepaintBoundary) return;
+    _probing = true;
+    try {
+      const ratio = 0.1;
+      final image = await box.toImage(pixelRatio: ratio);
+      final data = await image.toByteData();
+      if (data == null) return;
+      final w = image.width;
+      final rows = (AppSizes.feedHeader * ratio).ceil().clamp(1, image.height);
+      final cols = (44 * ratio).ceil();
+      double lum(int x0, int x1) {
+        var sum = 0.0;
+        var n = 0;
+        for (var y = 0; y < rows; y++) {
+          for (var x = x0; x < x1; x++) {
+            final i = (y * w + x) * 4;
+            final a = data.getUint8(i + 3) / 255;
+            final l = (0.2126 * data.getUint8(i) +
+                    0.7152 * data.getUint8(i + 1) +
+                    0.0722 * data.getUint8(i + 2)) /
+                255;
+            // Transparent = the white page behind.
+            sum += a * l + (1 - a);
+            n++;
+          }
+        }
+        return n == 0 ? 1 : sum / n;
+      }
+
+      bool next({required bool dark, required double l}) =>
+          dark ? l < 0.55 : l < 0.40; // hysteresis
+      _leftDark.value =
+          next(dark: _leftDark.value, l: lum(0, cols.clamp(1, w)));
+      _rightDark.value = next(
+        dark: _rightDark.value,
+        l: lum((w - cols).clamp(0, w - 1), w),
+      );
+      image.dispose();
+    } on Object {
+      // A frame in flight: the next probe will do.
+    } finally {
+      _probing = false;
+    }
   }
 
   @override
@@ -65,12 +157,32 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
           bare: bare,
           // Decorative: the header itself is announced as "LawBid".
           leading: ExcludeSemantics(
-            child: ScalesLogo(
-              size: attorney ? 44 : 40,
-              animated: true,
-              runFor: const Duration(seconds: 6),
-              semanticLabel: t.t('brand.name'),
-            ),
+            child: bare
+                // Owner 2026-10-12: scrolled — only two round discs
+                // (Instagram): white + dark icon on light content, dark +
+                // white icon on dark content.
+                ? ValueListenableBuilder<bool>(
+                    valueListenable: _leftDark,
+                    builder: (context, dark, _) => _FloatDisc(
+                      dark: dark,
+                      child: ColorFiltered(
+                        colorFilter: ColorFilter.mode(
+                          dark ? Colors.white : colors.navy,
+                          BlendMode.srcIn,
+                        ),
+                        child: ScalesLogo(
+                          size: 26,
+                          semanticLabel: t.t('brand.name'),
+                        ),
+                      ),
+                    ),
+                  )
+                : ScalesLogo(
+                    size: attorney ? 44 : 40,
+                    animated: true,
+                    runFor: const Duration(seconds: 6),
+                    semanticLabel: t.t('brand.name'),
+                  ),
           ),
           // The tabs leave with the filters on a scroll down; the logo and
           // the chats stay.
@@ -90,7 +202,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               }),
             ),
           ),
-          trailing: [ChatsIconButton(onDark: onDark)],
+          trailing: [
+            if (bare)
+              ValueListenableBuilder<bool>(
+                valueListenable: _rightDark,
+                builder: (context, dark, _) => _FloatDisc(
+                  dark: dark,
+                  child: ChatsIconButton(onDark: dark),
+                ),
+              )
+            else
+              ChatsIconButton(onDark: onDark),
+          ],
         );
 
     // Owner 2026-10-12: the Reels tab is the player over the whole screen;
@@ -141,8 +264,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               box.maxHeight - topInset - bottomInset,
             );
             return NotificationListener<ScrollNotification>(
-              onNotification: (n) =>
-                  _tab != _FeedTab.reels && _chrome.onScroll(n),
+              onNotification: _onScroll,
               child: AnimatedBuilder(
                 animation: _chrome,
                 builder: (context, _) {
@@ -163,7 +285,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           padding: EdgeInsets.only(
                             top: topInset + (shown ? AppSizes.feedHeader : 0),
                           ),
-                          child: content,
+                          child: RepaintBoundary(
+                            key: _contentKey,
+                            child: content,
+                          ),
                         ),
                       ),
                       Positioned(
@@ -421,4 +546,36 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
       ),
     );
   }
+}
+
+/// Owner 2026-10-12: the round disc under the logo and the chats icon of
+/// the scrolled header (Instagram's "+" and heart): white, slightly
+/// transparent over light content (dark icon); dark, slightly transparent
+/// over dark content (white icon).
+class _FloatDisc extends StatelessWidget {
+  const _FloatDisc({required this.dark, required this.child});
+
+  final bool dark;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              // Two states only, like Instagram's "+" and heart.
+              color: dark
+                  ? Colors.black.withValues(alpha: 0.55)
+                  : Colors.white.withValues(alpha: 0.9),
+            ),
+          ),
+          child,
+        ],
+      );
 }
