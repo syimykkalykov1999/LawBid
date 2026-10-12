@@ -107,7 +107,7 @@ class PostCard extends ConsumerWidget {
     final edge = (feedHeight != null && !inDetail) || inDetail || fromProfile;
     // Owner 2026-10-12: the practice card in a list has no side borders or
     // shadow, only a thin divider (a strip of the page background) below.
-    final flat = !insta && !inDetail;
+    final flat = !inDetail && !(insta && p.video == null && p.media.isEmpty);
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -148,7 +148,9 @@ class PostCard extends ConsumerWidget {
                 promotionId: post.promotionId,
                 fromProfile: fromProfile,
               )
-            : insta
+            // Owner 2026-10-12: one card for every post with a photo or a
+            // reel in a list — with a practice or without (no chips then).
+            : insta && inDetail
                 ? _InstagramPost(
                     post: p,
                     inDetail: inDetail,
@@ -2368,15 +2370,15 @@ class _PracticeChips extends ConsumerWidget {
             builder: (_) => PracticePostsScreen(practice: code),
           ),
         );
-    if (pr != null) {
-      final isSub = pr.code.contains('.');
-      final own = CaseFormat.practice(t, pr.i18nKey, pr.nameEn);
-      add(
-        isSub ? (kPracticeCategoryNamesEn[pr.categoryCode] ?? own) : own,
-        () => openPractice(pr.categoryCode),
-      );
-      if (isSub) add(own, () => openPractice(pr.code));
-    }
+    // A post without a practice has no chip row.
+    if (pr == null) return const SizedBox.shrink();
+    final isSub = pr.code.contains('.');
+    final own = CaseFormat.practice(t, pr.i18nKey, pr.nameEn);
+    add(
+      isSub ? (kPracticeCategoryNamesEn[pr.categoryCode] ?? own) : own,
+      () => openPractice(pr.categoryCode),
+    );
+    if (isSub) add(own, () => openPractice(pr.code));
     for (final tag in post.tags) {
       final cat = topicCategory(tag);
       if (cat != null) {
@@ -2384,8 +2386,6 @@ class _PracticeChips extends ConsumerWidget {
           kPracticeCategoryNamesEn[cat] ?? topicLabel(tag),
           () => context.push(SocialRoutes.tag(tag)),
         );
-      } else if (pr == null && chips.isEmpty) {
-        add(topicLabel(tag), () => context.push(SocialRoutes.tag(tag)));
       }
     }
     if (chips.isEmpty) return const SizedBox.shrink();

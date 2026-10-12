@@ -23,30 +23,43 @@ void main() {
   });
 
   test('first store version is 1.0.0', () {
-    final version = RegExp(r'^version: (\d+)\.(\d+)\.(\d+)\+(\d+)$', multiLine: true)
-        .firstMatch(read('pubspec.yaml'))!;
+    final version =
+        RegExp(r'^version: (\d+)\.(\d+)\.(\d+)\+(\d+)$', multiLine: true)
+            .firstMatch(read('pubspec.yaml'))!;
     expect(int.parse(version.group(1)!), greaterThanOrEqualTo(1));
   });
 
-  test('build number is automatic on every path (no manual bump, no repeats)', () {
+  test('build number is automatic on every path (no manual bump, no repeats)',
+      () {
     // pubspec keeps +1 = "automatic"; Android and iOS replace it with the
     // minutes since 2026-01-01 UTC, the same formula on both.
-    expect(read('pubspec.yaml'), contains(RegExp(r'^version: \d+\.\d+\.\d+\+1$', multiLine: true)));
+    expect(read('pubspec.yaml'),
+        contains(RegExp(r'^version: \d+\.\d+\.\d+\+1$', multiLine: true)));
     final gradle = read('android/app/build.gradle.kts');
-    expect(gradle, contains('versionCode = flutter.versionCode.takeIf { it != 1 } ?: autoBuildNumber()'));
-    expect(gradle, contains('System.currentTimeMillis() / 1000 - 1767225600L) / 60'));
+    expect(
+        gradle,
+        contains(
+            'versionCode = flutter.versionCode.takeIf { it != 1 } ?: autoBuildNumber()'));
+    expect(gradle,
+        contains('System.currentTimeMillis() / 1000 - 1767225600L) / 60'));
     final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
     expect(pbx, contains('/* Auto build number */,'));
-    expect(pbx, contains(r'Set :CFBundleVersion $(( ($(date -u +%s) - 1767225600) / 60 ))'));
+    expect(
+        pbx,
+        contains(
+            r'Set :CFBundleVersion $(( ($(date -u +%s) - 1767225600) / 60 ))'));
     // CI and fastlane must not pin a small counter that would sort below a
     // Mac build already uploaded.
-    expect(read('../../.github/workflows/mobile-release.yml'), isNot(contains('run_number')));
+    expect(read('../../.github/workflows/mobile-release.yml'),
+        isNot(contains('run_number')));
     for (final lane in ['ios/fastlane/Fastfile', 'android/fastlane/Fastfile']) {
-      expect(read(lane), isNot(contains("ENV.fetch('BUILD_NUMBER', '1')")), reason: lane);
+      expect(read(lane), isNot(contains("ENV.fetch('BUILD_NUMBER', '1')")),
+          reason: lane);
     }
   });
 
-  test('iOS: no plain-http exception in prod, export compliance, iPhone only', () {
+  test('iOS: no plain-http exception in prod, export compliance, iPhone only',
+      () {
     final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
     expect(pbx, contains('/* Strip dev-only ATS (prod) */,'));
     expect(pbx, contains('Delete :NSAppTransportSecurity'));
@@ -100,7 +113,9 @@ void main() {
     expect(AppConfig.googleSignInConfigured(TargetPlatform.android), isFalse);
   });
 
-  test('store listings: every language fits the store limits and keeps the disclaimer', () {
+  test(
+      'store listings: every language fits the store limits and keeps the disclaimer',
+      () {
     // ios/fastlane/metadata and android/fastlane/metadata/android are
     // uploaded by `fastlane ios metadata` / `fastlane android metadata`.
     // Limits: App Store name/subtitle 30, keywords 100, promo 170,
@@ -119,27 +134,36 @@ void main() {
     };
     var checked = 0;
     void checkDir(String root, Map<String, int> limits, int minLocales) {
-      final locales = Directory(root).listSync().whereType<Directory>().toList();
+      final locales =
+          Directory(root).listSync().whereType<Directory>().toList();
       expect(locales.length, greaterThanOrEqualTo(minLocales), reason: root);
       for (final dir in locales) {
         for (final entry in limits.entries) {
-          final text = File('${dir.path}/${entry.key}').readAsStringSync().trim();
+          final text =
+              File('${dir.path}/${entry.key}').readAsStringSync().trim();
           final length = text.runes.length;
-          expect(length, inInclusiveRange(1, entry.value), reason: '${dir.path}/${entry.key}');
+          expect(length, inInclusiveRange(1, entry.value),
+              reason: '${dir.path}/${entry.key}');
           checked++;
         }
-        final name = File('${dir.path}/${limits.keys.first}').readAsStringSync();
+        final name =
+            File('${dir.path}/${limits.keys.first}').readAsStringSync();
         expect(name, startsWith('LawBid'), reason: dir.path);
-        final description = File('${dir.path}/${limits.keys.last}').readAsStringSync();
-        expect(description, contains('https://lawbid.dev/privacy'), reason: dir.path);
+        final description =
+            File('${dir.path}/${limits.keys.last}').readAsStringSync();
+        expect(description, contains('https://lawbid.dev/privacy'),
+            reason: dir.path);
       }
     }
 
     checkDir('ios/fastlane/metadata', ios, 39);
     checkDir('android/fastlane/metadata/android', play, 80);
     expect(checked, greaterThan(0));
-    for (final dir in Directory('ios/fastlane/metadata').listSync().whereType<Directory>()) {
-      final keywords = File('${dir.path}/keywords.txt').readAsStringSync().trim();
+    for (final dir in Directory('ios/fastlane/metadata')
+        .listSync()
+        .whereType<Directory>()) {
+      final keywords =
+          File('${dir.path}/keywords.txt').readAsStringSync().trim();
       expect(keywords, isNot(contains(', ')), reason: dir.path);
     }
   });
