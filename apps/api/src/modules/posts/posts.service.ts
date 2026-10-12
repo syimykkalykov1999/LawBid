@@ -8,7 +8,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { ContentStatus, File, Prisma } from '@prisma/client';
+import type { ContentStatus, File, Post, Prisma } from '@prisma/client';
 import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -37,13 +37,18 @@ import {
   type UpdatePostDto,
   type PostDto,
   type PostPage,
+  type PostReposterDto,
 } from './dto/posts.dto';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { extractHashtags } from './hashtags';
-import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
+import {
+  BRIEF_POST_WHERE,
+  PostPresenter,
+  VISIBLE_POST_WHERE,
+} from './post-presenter.service';
 
 /** A display/download name without path parts or control characters. */
 export function safeFileName(name: string): string {
@@ -542,13 +547,69 @@ export class PostsService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
-    const page = rows.slice(0, limit);
+    // Owner 2026-10-12 (Threads): the profile's list also carries the
+    // briefs this person reposted, by the time of the repost.
+    const reposts =
+      query.kind === 'news'
+        ? []
+        : await this.prisma.postRepost.findMany({
+            where: {
+              user_id: attorneyId,
+              ...(c
+                ? {
+                    OR: [
+                      { created_at: { lt: c.createdAt } },
+                      { created_at: c.createdAt, id: { lt: c.id } },
+                    ],
+                  }
+                : {}),
+              post: {
+                AND: [VISIBLE_POST_WHERE, BRIEF_POST_WHERE],
+                author_id: { not: attorneyId },
+              },
+            },
+            include: { post: true },
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            take: limit + 1,
+          });
+    type Entry = { at: Date; id: string; post: Post; repost: boolean };
+    const entries: Entry[] = [
+      ...rows.map((p) => ({
+        at: p.created_at,
+        id: p.id,
+        post: p,
+        repost: false,
+      })),
+      ...reposts.map((r) => ({
+        at: r.created_at,
+        id: r.id,
+        post: r.post,
+        repost: true,
+      })),
+    ].sort(
+      (x, y) =>
+        y.at.getTime() - x.at.getTime() ||
+        (x.id < y.id ? 1 : x.id > y.id ? -1 : 0),
+    );
+    const page = entries.slice(0, limit);
     const last = page[page.length - 1];
+    const names = await this.presenter.reposterNames(
+      page.some((e) => e.repost) ? [attorneyId] : [],
+    );
+    const reposter = names.get(attorneyId);
+    const reposters = new Map<string, PostReposterDto>();
+    if (reposter) {
+      for (const e of page) if (e.repost) reposters.set(e.post.id, reposter);
+    }
     return {
-      items: await this.presenter.present(page, user.sub),
+      items: await this.presenter.present(
+        page.map((e) => e.post),
+        user.sub,
+        reposters,
+      ),
       nextCursor:
-        rows.length > limit && last
-          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+        entries.length > limit && last
+          ? encodeCursor({ createdAt: last.at, id: last.id })
           : null,
     };
   }

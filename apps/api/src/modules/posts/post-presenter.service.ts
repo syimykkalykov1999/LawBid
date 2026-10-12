@@ -6,7 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import { VideosService } from '../videos/videos.service';
-import type { PostDto } from './dto/posts.dto';
+import type { PostDto, PostReposterDto } from './dto/posts.dto';
 
 /** Where a viewer may see a post: published, not deleted, author active
  * and not suspended (docs/05 §2.2.4, §12.3). */
@@ -21,6 +21,14 @@ export const VISIBLE_POST_WHERE: Prisma.PostWhereInput = {
       { attorney_profile: { verification_status: { not: 'suspended' } } },
     ],
   },
+};
+
+/** A post without photo, video or documents (a "Brief"). */
+export const BRIEF_POST_WHERE: Prisma.PostWhereInput = {
+  kind: 'post',
+  video_asset_id: null,
+  media: { none: {} },
+  attachments: { none: {} },
 };
 
 /**
@@ -39,7 +47,40 @@ export class PostPresenter {
     private readonly videos: VideosService,
   ) {}
 
-  async present(posts: Post[], viewerId: string): Promise<PostDto[]> {
+  /** userId → {id, username} for the "reposted by" line. */
+  async reposterNames(
+    userIds: string[],
+  ): Promise<Map<string, PostReposterDto>> {
+    const out = new Map<string, PostReposterDto>();
+    if (userIds.length === 0) return out;
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: [...new Set(userIds)] } },
+      select: {
+        id: true,
+        role: true,
+        client_profile: { select: { username: true } },
+        attorney_profile: { select: { username: true } },
+      },
+    });
+    for (const u of users) {
+      out.set(u.id, {
+        id: u.id,
+        username:
+          (u.role === 'client'
+            ? u.client_profile?.username
+            : u.attorney_profile?.username) ?? '',
+        role: u.role === 'client' ? 'client' : 'attorney',
+      });
+    }
+    return out;
+  }
+
+  /** [reposters]: postId → who put it into this list (feed / profile). */
+  async present(
+    posts: Post[],
+    viewerId: string,
+    reposters?: Map<string, PostReposterDto>,
+  ): Promise<PostDto[]> {
     if (posts.length === 0) return [];
     const ids = posts.map((p) => p.id);
     const authorIds = [...new Set(posts.map((p) => p.author_id))];
@@ -284,6 +325,7 @@ export class PostPresenter {
         repostCount: repostCounts.get(p.id) ?? 0,
         likedByMe: liked.has(p.id),
         repostedByMe: reposted.has(p.id),
+        repostedBy: reposters?.get(p.id) ?? null,
         savedByMe: saved.has(p.id),
         isMine: p.author_id === viewerId,
         createdAt: p.created_at.toISOString(),

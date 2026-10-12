@@ -968,25 +968,35 @@ class _ThreadsPost extends ConsumerWidget {
 
     // Owner 2026-10-12 (Threads): above the card, the icon in the avatar
     // column and "name reposted" aligned with the name below.
-    Widget repostLine() => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 36,
-                child: Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: AppIcon(
-                    AppIcons.autoModeRounded,
-                    size: 14,
-                    color: colors.textSecondary,
-                  ),
+    Widget repostLine() {
+      final who = repostedBy!;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 36,
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: AppIcon(
+                  AppIcons.autoModeRounded,
+                  size: 14,
+                  color: colors.textSecondary,
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Flexible(
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Flexible(
+              child: GestureDetector(
+                onTap: () => openProfile(
+                  context,
+                  ref,
+                  id: who.id,
+                  username: who.username,
+                  isClient: who.isClient,
+                ),
                 child: Text(
-                  t.t('post.repostedBy', {'username': repostedBy!.username}),
+                  t.t('post.repostedBy', {'username': who.username}),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: type.caption.copyWith(
@@ -995,9 +1005,11 @@ class _ThreadsPost extends ConsumerWidget {
                   ),
                 ),
               ),
-            ],
-          ),
-        );
+            ),
+          ],
+        ),
+      );
+    }
 
     final avatar = GestureDetector(
       onTap: () => openAuthorProfile(context, ref, a),
@@ -1100,7 +1112,7 @@ class _ThreadsPost extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
           AppSpacing.md,
-          AppSpacing.xs,
+          AppSpacing.md,
           AppSpacing.xs,
         ),
         child: Column(
@@ -1130,7 +1142,7 @@ class _ThreadsPost extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
           AppSpacing.md,
-          AppSpacing.xs,
+          AppSpacing.md,
           AppSpacing.xs,
         ),
         child: Column(
