@@ -1155,7 +1155,7 @@ class _ThreadsPost extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
           AppSpacing.md,
-          AppSpacing.xs,
+          AppSpacing.md,
           AppSpacing.xs,
         ),
         child: Column(
@@ -1186,7 +1186,7 @@ class _ThreadsPost extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
           AppSpacing.md,
-          AppSpacing.xs,
+          AppSpacing.md,
           AppSpacing.xs,
         ),
         child: Column(
