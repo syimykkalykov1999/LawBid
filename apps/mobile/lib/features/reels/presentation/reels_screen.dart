@@ -319,6 +319,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final actions = ref.read(socialActionsProvider);
+    // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
+    // none the strip goes and the author, text and rail drop down.
+    final more = p.hasInner;
+    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.sm;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {
@@ -433,7 +437,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   end: AppSpacing.md,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: moreSpace +
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -510,7 +514,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 PositionedDirectional(
                   start: AppSpacing.lg,
                   end: 72,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: moreSpace +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -616,7 +620,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         // A short caption; the whole text is inside (the
                         // button below).
                         GestureDetector(
-                          onTap: widget.embedded ? () => _openInside(p) : null,
+                          onTap: widget.embedded && more
+                              ? () => _openInside(p)
+                              : null,
                           child: Text(
                             caption,
                             maxLines: 2,
@@ -653,16 +659,17 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
             ),
           ),
         ),
-        PositionedDirectional(
-          start: AppSpacing.lg,
-          end: AppSpacing.lg,
-          bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
-              MediaQuery.paddingOf(context).bottom,
-          child: ReelMoreButton(
-            label: t.t(reelMoreLabelKey(p)),
-            onTap: () => _openInside(p),
+        if (more)
+          PositionedDirectional(
+            start: AppSpacing.lg,
+            end: AppSpacing.lg,
+            bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
+                MediaQuery.paddingOf(context).bottom,
+            child: ReelMoreButton(
+              label: t.t(reelMoreLabelKey(p)),
+              onTap: () => _openInside(p),
+            ),
           ),
-        ),
       ],
     );
   }

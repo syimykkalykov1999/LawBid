@@ -34,6 +34,19 @@ final currentUserIdProvider = Provider<String?>((ref) {
   return acting ?? ref.watch(sessionControllerProvider.select((s) => s?.sub));
 });
 
+/// Owner 2026-10-13: may the viewer add attachments to a post / reel? The
+/// composer hides the clip and the extra photos without it; the server
+/// checks again (403).
+final postAttachmentsAllowedProvider = FutureProvider.autoDispose<bool>(
+  (ref) async {
+    try {
+      return await ref.watch(socialRepositoryProvider).attachmentsAllowed();
+    } on Object {
+      return false;
+    }
+  },
+);
+
 final socialRepositoryProvider = Provider<SocialRepository>(
   (ref) => ApiSocialRepository(
     apiDio: ref.watch(dioProvider),

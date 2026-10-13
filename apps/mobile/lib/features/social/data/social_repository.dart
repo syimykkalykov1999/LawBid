@@ -145,6 +145,10 @@ const Map<String, dynamic> _createsResource = {
 /// follows, suggestions, tag pages, reports. Throws [ApiException].
 /// Network access only through here (.cursorrules).
 abstract interface class SocialRepository {
+  /// Owner 2026-10-13: whether the viewer may add files, documents, extra
+  /// photos to a post or reel (server flag + plan).
+  Future<bool> attachmentsAllowed();
+
   Future<CursorPage<Post>> feed({String? cursor});
 
   /// The last first page seen online (docs/05 §2.2.6), for offline.
@@ -341,6 +345,10 @@ class ApiSocialRepository implements SocialRepository {
       return null;
     }
   }
+
+  @override
+  Future<bool> attachmentsAllowed() async =>
+      (await guardApiCall(_posts.attachmentsAllowed)).data.allowed;
 
   @override
   Future<Post> post(String id) async => SocialMappers.post(

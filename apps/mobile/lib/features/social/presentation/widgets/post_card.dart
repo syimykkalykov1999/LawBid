@@ -207,12 +207,16 @@ class PostCard extends ConsumerWidget {
     Future<void> Function(Future<Object?> Function()) run, {
     double? fillHeight,
   }) {
-    final (title, rest) = _titleAndRest(p);
-    final (text, hashtags) = _splitTrailingTags(rest);
+    final (title, rest) = titleAndRest(p);
+    final (text, hashtags) = splitTrailingTags(rest);
     // Owner 2026-10-05: a promoted post reports the open for the owner's
     // stats (reach / clicks), like Instagram.
     final promotionId = post.promotionId;
+    // Owner 2026-10-13: a post without attachments has no inner card — a
+    // tap on it opens nothing (like Instagram); comments via the sheet.
+    final hasInner = p.hasInner;
     void open() {
+      if (!hasInner) return;
       if (promotionId != null) {
         ProviderScope.containerOf(context)
             .read(promotionsRepositoryProvider)
@@ -234,19 +238,41 @@ class PostCard extends ConsumerWidget {
     // nav bar; the photo takes what the other blocks leave (the fullest
     // post has a smaller photo, a photo-only post a full-screen one).
     final width = MediaQuery.sizeOf(context).width;
-    Widget photoBox(Widget child, {required bool fill}) => fill
-        ? Expanded(child: child)
-        : SizedBox(height: width * 1.25, child: child);
-    Widget photoFor({required bool fill}) {
+    // Owner 2026-10-13: the photo takes what the text leaves but never less
+    // than 60% of the screen; when the text leaves less, the card grows
+    // (natural height) and the photo keeps that minimum.
+    final minPhoto = MediaQuery.sizeOf(context).height * 0.6;
+    final photoHeight = fillHeight != null || feedHeight != null
+        ? math.max(width * 1.25, minPhoto)
+        : width * 1.25;
+    Widget photoBox(Widget child, {required bool fill, VoidCallback? onShort}) {
+      if (!fill) return SizedBox(height: photoHeight, child: child);
+      return Expanded(
+        child: LayoutBuilder(
+          builder: (context, box) {
+            if (onShort != null && box.maxHeight < minPhoto - 1) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (context.mounted) onShort();
+              });
+            }
+            return child;
+          },
+        ),
+      );
+    }
+
+    Widget photoFor({required bool fill, VoidCallback? onShort}) {
       if (p.video == null && p.media.length > 1) {
         final carousel = _FeedCarousel(
           media: p.media,
           semanticLabel: t.t('post.media.label'),
           onDoubleTap: like,
           onTap: open,
-          fill: fill,
+          fill: true,
         );
-        return fill ? Expanded(child: carousel) : carousel;
+        return fill
+            ? photoBox(carousel, fill: true, onShort: onShort)
+            : SizedBox(height: photoHeight, child: carousel);
       }
       final picture = p.video != null
           ? Stack(
@@ -254,7 +280,7 @@ class PostCard extends ConsumerWidget {
               children: [
                 InlineReel(
                   post: p,
-                  onOpen: () => ReelsScreen.open(context, from: p),
+                  onOpen: open,
                   topInset: fromProfile ? 0 : 52,
                 ),
                 // The sound circle (reels play muted in the feed).
@@ -318,8 +344,11 @@ class PostCard extends ConsumerWidget {
                   practiceCode: p.practice?.code,
                   seed: p.id,
                 );
-      final tappable = AppPressable(onTap: open, child: picture);
-      return photoBox(tappable, fill: fill);
+      final tappable = AppPressable(
+        onTap: hasInner ? open : null,
+        child: picture,
+      );
+      return photoBox(tappable, fill: fill, onShort: onShort);
     }
 
     // Owner 2026-10-12: the height the compact header frees goes to the
@@ -340,9 +369,9 @@ class PostCard extends ConsumerWidget {
             )
           else if (fromProfile && p.isMine)
             _OwnMenuRow(post: p),
-          photoFor(fill: fill),
-          _ActionsBar(post: p, run: run, showTime: true),
-          _PracticeChips(post: p),
+          photoFor(fill: fill, onShort: onExpand),
+          PostActionsBar(post: p, run: run, showTime: true),
+          PostPracticeChips(post: p),
           if (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty)
             _FeedCaption(
               // A new text (translation) starts collapsed again.
@@ -352,6 +381,7 @@ class PostCard extends ConsumerWidget {
               hashtags: hashtags,
               onOpen: open,
               onExpand: onExpand,
+              inPlaceOnly: !hasInner,
             ),
           if (p.attachments.isNotEmpty)
             _DocChips(documents: p.attachments, onOpen: open),
@@ -368,7 +398,7 @@ class PostCard extends ConsumerWidget {
 
   /// The hashtags that close a text are shown apart, in grey, at the very
   /// bottom of the description (owner 2026-10-12).
-  static (String, List<String>) _splitTrailingTags(String text) {
+  static (String, List<String>) splitTrailingTags(String text) {
     final trimmed = text.trim();
     final m = _trailingTags.firstMatch(trimmed);
     if (m == null) return (trimmed, const []);
@@ -382,9 +412,9 @@ class PostCard extends ConsumerWidget {
 
   /// Owner 2026-09-30: the post's own title and its whole text; older
   /// posts split their text.
-  static (String, String) _titleAndRest(Post p) => _titleAndBody(p, p.body);
+  static (String, String) titleAndRest(Post p) => _titleAndBody(p, p.body);
 
-  /// [_titleAndRest] with [body] in place of the post's (a translation).
+  /// [titleAndRest] with [body] in place of the post's (a translation).
   static (String, String) _titleAndBody(Post p, String body) {
     final title = p.title;
     if (title != null && title.trim().isNotEmpty) {
@@ -534,7 +564,7 @@ class PostCard extends ConsumerWidget {
             ),
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
-        _ActionsBar(post: p, run: run, boost: false, reactions: false),
+        PostActionsBar(post: p, run: run, boost: false, reactions: false),
         if (p.likeCount > 0)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -736,7 +766,7 @@ class _InstagramPost extends ConsumerWidget {
                   )
                 : captionText(caption),
           ),
-        _ActionsBar(
+        PostActionsBar(
           post: p,
           run: run,
           showCounts: false,
@@ -1172,7 +1202,7 @@ class _ThreadsPost extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             textBlock,
-            _PracticeChips(post: p, inset: 0),
+            PostPracticeChips(post: p, inset: 0),
             const SizedBox(height: AppSpacing.xs),
             actionRow,
           ],
@@ -1205,7 +1235,7 @@ class _ThreadsPost extends ConsumerWidget {
                     children: [
                       nameRow(),
                       textBlock,
-                      _PracticeChips(post: p, inset: 0),
+                      PostPracticeChips(post: p, inset: 0),
                       actionRow,
                     ],
                   ),
@@ -1546,11 +1576,15 @@ class _AuthorRow extends ConsumerWidget {
             ),
           ),
           // Owner 2026-09-30: a working Follow on the card.
-          if (!post.isMine && !compact) ...[
+          // Owner 2026-10-13: Follow / Following on the outer card too,
+          // only on someone else's post.
+          if (!post.isMine) ...[
             // Capped so a long "Follow" can't squeeze the author's name.
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 136),
-              child: FollowButton(attorneyId: a.id, initial: a.isFollowing),
+              constraints: BoxConstraints(maxWidth: compact ? 120 : 136),
+              child: onDark
+                  ? ReelFollowButton(attorneyId: a.id, initial: a.isFollowing)
+                  : FollowButton(attorneyId: a.id, initial: a.isFollowing),
             ),
             const SizedBox(width: AppSpacing.xs),
           ],
@@ -2149,14 +2183,15 @@ class _Dots extends StatelessWidget {
   }
 }
 
-class _ActionsBar extends ConsumerWidget {
-  const _ActionsBar({
+class PostActionsBar extends ConsumerWidget {
+  const PostActionsBar({
     required this.post,
     required this.run,
     this.showTime = false,
     this.showCounts = true,
     this.boost = true,
     this.reactions = true,
+    super.key,
   });
 
   /// Owner 2026-10-12: inside an open post there are no like / comment /
@@ -2224,11 +2259,28 @@ class _ActionsBar extends ConsumerWidget {
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: showTime
+                // Owner 2026-10-13: Boost (own post only) sits next to the
+                // date, on the outer and the inner card alike.
                 ? Align(
                     alignment: AlignmentDirectional.centerEnd,
-                    child: _ShortDate(
-                      at: post.createdAt,
-                      views: post.video != null ? post.viewCount : 0,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (boost &&
+                            post.isMine &&
+                            !ref.watch(isAssistantProvider))
+                          Flexible(child: BoostButton(postId: post.id)),
+                        if (boost &&
+                            post.isMine &&
+                            !ref.watch(isAssistantProvider))
+                          const SizedBox(width: AppSpacing.sm),
+                        Flexible(
+                          child: _ShortDate(
+                            at: post.createdAt,
+                            views: post.video != null ? post.viewCount : 0,
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 // Owner 2026-10-07: «Продвигать» / «Boost» under my own
@@ -2607,8 +2659,12 @@ class _FeedCarouselState extends State<_FeedCarousel> {
 /// practice, its sub-practice and the other topics its hashtags name (no
 /// limit), all alike and light: no dot, radius 6, aligned with the text,
 /// one row that scrolls sideways when it does not fit.
-class _PracticeChips extends ConsumerWidget {
-  const _PracticeChips({required this.post, this.inset = AppSpacing.md});
+class PostPracticeChips extends ConsumerWidget {
+  const PostPracticeChips({
+    required this.post,
+    this.inset = AppSpacing.md,
+    super.key,
+  });
 
   final Post post;
 
@@ -2702,8 +2758,13 @@ class _FeedCaption extends ConsumerStatefulWidget {
     required this.hashtags,
     required this.onOpen,
     this.onExpand,
+    this.inPlaceOnly = false,
     super.key,
   });
+
+  /// Owner 2026-10-13: a post without an inner card — a long text opens in
+  /// place too, nothing else opens.
+  final bool inPlaceOnly;
 
   final String title;
   final String text;
@@ -2848,7 +2909,7 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
                 final lines = painter.computeLineMetrics().length;
                 final collapsed = (lines > 2 || hasTags) && !_expanded;
                 _more.onTap = () {
-                  if (lines > 4) {
+                  if (lines > 4 && !widget.inPlaceOnly) {
                     widget.onOpen();
                   } else {
                     widget.onExpand?.call();

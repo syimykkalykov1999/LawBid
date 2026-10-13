@@ -83,23 +83,21 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               ),
             ),
           ),
-          // The tabs leave with the filters on a scroll down; the logo and
-          // the chats stay.
-          center: ChromeFade(
-            child: PillTabs<_FeedTab>(
-              value: _tab,
-              padding: EdgeInsets.zero,
-              onDark: onDark,
-              tabs: [
-                (_FeedTab.posts, t.t('feed.tab.posts')),
-                (_FeedTab.reels, t.t('reels.title')),
-                if (attorney) (_FeedTab.cases, t.t('feed.tab.cases')),
-              ],
-              onChanged: (v) => setState(() {
-                _tab = v;
-                _chrome.show();
-              }),
-            ),
+          // Owner 2026-10-13: the header is fixed — logo, tabs and chats
+          // stay on a scroll; only the filters leave.
+          center: PillTabs<_FeedTab>(
+            value: _tab,
+            padding: EdgeInsets.zero,
+            onDark: onDark,
+            tabs: [
+              (_FeedTab.posts, t.t('feed.tab.posts')),
+              (_FeedTab.reels, t.t('reels.title')),
+              if (attorney) (_FeedTab.cases, t.t('feed.tab.cases')),
+            ],
+            onChanged: (v) => setState(() {
+              _tab = v;
+              _chrome.show();
+            }),
           ),
           trailing: [
             _FloatDisc(
@@ -154,7 +152,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             // Cards are sized for the scrolled state: the slim header only
             // floats over them; the floating nav bar is a bottom inset.
             _chrome.cardHeight = feedCardHeight(
-              box.maxHeight - topInset - bottomInset,
+              box.maxHeight - topInset - AppSizes.feedHeader - bottomInset,
             );
             return NotificationListener<ScrollNotification>(
               onNotification: (n) =>
@@ -162,7 +160,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               child: AnimatedBuilder(
                 animation: _chrome,
                 builder: (context, _) {
-                  final shown = _chrome.visible;
                   final reduce = MediaQuery.disableAnimationsOf(context);
                   final duration = reduce
                       ? Duration.zero
@@ -177,30 +174,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           duration: duration,
                           curve: Curves.easeOutCubic,
                           padding: EdgeInsets.only(
-                            top: topInset + (shown ? AppSizes.feedHeader : 0),
+                            top: topInset + AppSizes.feedHeader,
                           ),
                           child: content,
                         ),
                       ),
+                      // Owner 2026-10-13: a fixed blurred bar in the theme
+                      // colour (Glass = glass), on top of the feed.
                       Positioned(
                         top: 0,
                         left: 0,
                         right: 0,
-                        child: Column(
-                          children: [
-                            AnimatedContainer(
-                              duration: duration,
-                              color: shown ? colors.bg : Colors.transparent,
-                              height: topInset,
-                              width: double.infinity,
-                            ),
-                            MediaQuery.removePadding(
-                              context: context,
-                              removeTop: true,
-                              child: buildHeader(onDark: false, bare: !shown),
-                            ),
-                          ],
-                        ),
+                        child: buildHeader(onDark: false),
                       ),
                     ],
                   );

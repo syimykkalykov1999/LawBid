@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
@@ -58,7 +60,7 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final topInset = MediaQuery.paddingOf(context).top;
-    return Container(
+    final bar = Container(
       height: AppSizes.feedHeader + topInset,
       // Owner 2026-09-30: logo and chats closer to the screen edges.
       padding: EdgeInsetsDirectional.fromSTEB(
@@ -130,6 +132,14 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ],
             ),
+    );
+    // Owner 2026-10-13: the bar blurs what passes behind it (Glass = glass).
+    if (onDark || bare) return bar;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: bar,
+      ),
     );
   }
 }
