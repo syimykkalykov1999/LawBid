@@ -11,9 +11,14 @@ import '../models/case_detail_for_attorney_envelope.dart';
 import '../models/case_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
 import '../models/case_summary_list_envelope.dart';
+import '../models/case_tasks_envelope.dart';
+import '../models/case_update_list_envelope.dart';
+import '../models/case_workspace_envelope.dart';
 import '../models/client_contacts_envelope.dart';
 import '../models/contact_issue_report_envelope.dart';
 import '../models/create_case_dto.dart';
+import '../models/create_case_task_dto.dart';
+import '../models/create_case_update_dto.dart';
 import '../models/create_contact_issue_dto.dart';
 import '../models/dispute_case_dto.dart';
 import '../models/filter.dart';
@@ -22,8 +27,11 @@ import '../models/period.dart';
 import '../models/saved_item_dto.dart';
 import '../models/scope.dart';
 import '../models/sort.dart';
+import '../models/task_done_dto.dart';
+import '../models/task_submission_dto.dart';
 import '../models/update_case_dto.dart';
 import '../models/update_case_urgency_dto.dart';
+import '../models/workspace_file_list_envelope.dart';
 
 part 'cases_client.g.dart';
 
@@ -219,6 +227,84 @@ abstract class CasesClient {
   Future<CaseEnvelope> disputeCase({
     @Path('id') required String id,
     @Body() required DisputeCaseDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Files, open tasks and updates of an accepted case
+  @GET('/cases/{id}/workspace')
+  Future<CaseWorkspaceEnvelope> caseWorkspace({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Case files with notes and where they came from
+  @GET('/cases/{id}/files')
+  Future<WorkspaceFileListEnvelope> listCaseFiles({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Tasks of an accepted case (private ones: attorney only)
+  @GET('/cases/{id}/tasks')
+  Future<CaseTasksEnvelope> listCaseTasks({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: add a private, shared or for-client task
+  @POST('/cases/{id}/tasks')
+  Future<CaseTasksEnvelope> createCaseTask({
+    @Path('id') required String id,
+    @Body() required CreateCaseTaskDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark a task done / not done (same for both sides)
+  @POST('/cases/{id}/tasks/{taskId}/done')
+  Future<CaseTasksEnvelope> setCaseTaskDone({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Body() required TaskDoneDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: close a task for the client
+  @POST('/cases/{id}/tasks/{taskId}/close')
+  Future<CaseTasksEnvelope> closeCaseTask({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: reopen a closed task
+  @POST('/cases/{id}/tasks/{taskId}/reopen')
+  Future<CaseTasksEnvelope> reopenCaseTask({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Client: add a note and files to a task for the client
+  @POST('/cases/{id}/tasks/{taskId}/submissions')
+  Future<CaseTasksEnvelope> submitCaseTask({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Body() required TaskSubmissionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Updates feed of an accepted case
+  @GET('/cases/{id}/updates')
+  Future<CaseUpdateListEnvelope> listCaseUpdates({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add an update (text and files), either side
+  @POST('/cases/{id}/updates')
+  Future<CaseUpdateListEnvelope> addCaseUpdate({
+    @Path('id') required String id,
+    @Body() required CreateCaseUpdateDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

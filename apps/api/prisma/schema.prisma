@@ -971,17 +971,17 @@ model LegalDocument {
   // Owner 2026-10-05 (legal documents): `draft` (version = 'draft', one per
   // type + locale, edited freely), `published` (the current version) or
   // `archived` (a former version; never deleted — it is what users accepted).
-  status                String    @default("draft") @db.String(16)
+  status                String  @default("draft") @db.String(16)
   // The users accepted an older version → ask them again when this one is
   // published (material change). Stored on the version that was published.
-  requires_reacceptance Boolean   @default(true)
+  requires_reacceptance Boolean @default(true)
   // Admin ids (users.id of the admin) and the note shown in the history.
-  created_by            String?   @db.Uuid
-  changed_by            String?   @db.Uuid
-  change_note           String?   @db.String(1000)
+  created_by            String? @db.Uuid
+  changed_by            String? @db.Uuid
+  change_note           String? @db.String(1000)
   // Rollback = the old text published as a new version; points at the
   // version it was copied from.
-  rollback_of_id        String?   @db.Uuid
+  rollback_of_id        String? @db.Uuid
 
   consents UserConsent[]
 
@@ -1507,6 +1507,8 @@ model Case {
   // Owner 2026-09-30 (OQ-031): 0–9 photos; owner + accepted attorney only.
   photos              CasePhoto[]
   attorney_tasks      AttorneyTask[]
+  case_tasks          CaseTask[]
+  case_updates        CaseUpdate[]
   bid_drafts          BidDraft[]
   invites             CaseInvite[]
   bids                Bid[]                @relation("CaseBids")
@@ -1740,59 +1742,59 @@ model Review {
 // -----------------------------------------------------------------------
 
 model Post {
-  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Attorneys only (checked in the service, file 05).
-  author_id        String                   @db.Uuid
-  author           User                     @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
+  author_id            String                   @db.Uuid
+  author               User                     @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
   // ≤2200 chars (§6.1), CHECK in the migration.
-  body             String
+  body                 String
   // Owner 2026-09-30: card title (≤120, CHECK in the migration), the
   // qualification (category or subcategory) and Post / News.
-  title            String?
-  practice_area_id String?                  @db.Uuid
-  practice_area    PracticeArea?            @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
-  kind             PostKind                 @default(post)
+  title                String?
+  practice_area_id     String?                  @db.Uuid
+  practice_area        PracticeArea?            @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  kind                 PostKind                 @default(post)
   /// Owner 2026-10-01: the post's video (Bunny Stream), one per post.
-  video_asset_id   String?                  @unique @db.Uuid
-  video_asset      VideoAsset?              @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "posts_video_asset_fkey")
-  language         String?
+  video_asset_id       String?                  @unique @db.Uuid
+  video_asset          VideoAsset?              @relation(fields: [video_asset_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "posts_video_asset_fkey")
+  language             String?
   /// Owner 2026-10-02: "Added location" (reels/posts, like Instagram).
-  location_name    String?
-  location_lat     Float?
-  location_lng     Float?
+  location_name        String?
+  location_lat         Float?
+  location_lng         Float?
   /// Owner 2026-10-02: the author can turn comments off.
-  comments_enabled Boolean                  @default(true)
+  comments_enabled     Boolean                  @default(true)
   /// Owner 2026-10-05: 'legal' (a law topic, news, or marked by the author)
   /// or 'general' (personal, no law topic). Viewers can hide general posts.
-  content_class    String                   @default("general") @db.String(16)
+  content_class        String                   @default("general") @db.String(16)
   /// Set by moderation: the author's edits no longer change content_class.
-  content_class_locked Boolean              @default(false)
-  status           ContentStatus            @default(published)
-  like_count       Int                      @default(0)
-  comment_count    Int                      @default(0)
-  save_count       Int                      @default(0)
+  content_class_locked Boolean                  @default(false)
+  status               ContentStatus            @default(published)
+  like_count           Int                      @default(0)
+  comment_count        Int                      @default(0)
+  save_count           Int                      @default(0)
   // Owner 2026-09-30 (OQ-037): times shared (share sheet completed).
-  share_count      Int                      @default(0)
-  shares           PostShare[]
+  share_count          Int                      @default(0)
+  shares               PostShare[]
   // Owner 2026-10-12: views of a video post / reel (one per viewer).
-  view_count       Int                      @default(0)
-  views            PostView[]
+  view_count           Int                      @default(0)
+  views                PostView[]
   // Owner 2026-10-12: pinned to the top of the author's profile list, slot
   // 1..3 inside pin_group 'grid' (posts) or 'brief' (text-only). A partial
   // unique index (author, group, slot) is in the migration.
-  pin_slot         Int?                     @db.Int2
-  pin_group        String?
+  pin_slot             Int?                     @db.Int2
+  pin_group            String?
   // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
-  edited_at        DateTime?                @db.Timestamptz
-  deleted_at       DateTime?                @db.Timestamptz
+  edited_at            DateTime?                @db.Timestamptz
+  deleted_at           DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
-  search_tsv       Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, body)"))
-  created_at       DateTime                 @default(now()) @db.Timestamptz
+  search_tsv           Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, body)"))
+  created_at           DateTime                 @default(now()) @db.Timestamptz
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a
   // USING HASH index, which crashes Prisma's introspection. Read-only.
-  created_shard    Int                      @default(dbgenerated("mod(fnv32(id::STRING), 16)::INT2")) @db.Int2
-  updated_at       DateTime                 @updatedAt @db.Timestamptz
+  created_shard        Int                      @default(dbgenerated("mod(fnv32(id::STRING), 16)::INT2")) @db.Int2
+  updated_at           DateTime                 @updatedAt @db.Timestamptz
 
   media       PostMedia[]
   attachments PostAttachment[]
@@ -1814,17 +1816,83 @@ model Post {
 /// the private documents bucket; visible to the case owner and the
 /// attorney whose bid was accepted — never in the feed or to other bidders.
 model CasePhoto {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id    String   @db.Uuid
-  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  file_id    String   @db.Uuid
-  file       File     @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  position   Int      @db.Int2
-  created_at DateTime @default(now()) @db.Timestamptz
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id     String   @db.Uuid
+  case        Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  file_id     String   @db.Uuid
+  file        File     @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  position    Int      @db.Int2
+  /// Owner 2026-10-13: a short note on each file (≤500), who added it and
+  /// where it came from: the case itself, a task submission or an update.
+  description String?  @db.String(500)
+  source      String   @default("case")
+  source_id   String?  @db.Uuid
+  added_by    String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
 
   @@unique([case_id, position])
   @@index([file_id])
+  @@index([source, source_id])
   @@map("case_photos")
+}
+
+/// Owner 2026-10-13: a task of the case workspace. `shared` is the
+/// attorney's work the client sees (only the attorney ticks it);
+/// `for_client` asks the client for something (the client reads it,
+/// answers with a note and files and may add more after "Done" until the
+/// attorney closes it). Private tasks live in attorney_tasks (the planner).
+model CaseTask {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id     String          @db.Uuid
+  case        Case            @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  kind        String
+  title       String          @db.String(200)
+  description String?
+  created_by  String          @db.Uuid
+  /// open | done
+  status      String          @default("open")
+  done_at     DateTime?       @db.Timestamptz
+  done_by     String?         @db.Uuid
+  /// Closed by the attorney: the client can no longer add.
+  closed_at   DateTime?       @db.Timestamptz
+  created_at  DateTime        @default(now()) @db.Timestamptz
+  updated_at  DateTime        @default(now()) @updatedAt @db.Timestamptz
+  events      CaseTaskEvent[]
+
+  @@index([case_id, created_at])
+  @@map("case_tasks")
+}
+
+/// The activity of a task: created, files_added, done, undone, closed,
+/// reopened. `payload` carries the note and the number of files.
+model CaseTaskEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  task_id    String   @db.Uuid
+  task       CaseTask @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  case_id    String   @db.Uuid
+  actor_id   String   @db.Uuid
+  type       String
+  note       String?  @db.String(1000)
+  file_count Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([task_id, created_at])
+  @@index([case_id, created_at])
+  @@map("case_task_events")
+}
+
+/// Owner 2026-10-13: the case's Updates feed — a text and files from the
+/// client or the attorney after acceptance.
+model CaseUpdate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id    String   @db.Uuid
+  case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  author_id  String   @db.Uuid
+  body       String   @db.String(2000)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([case_id, created_at])
+  @@map("case_updates")
 }
 
 model PostMedia {
@@ -3569,29 +3637,29 @@ model PartnerCommission {
 /// status: new | working | contacted | replied | registered | paid | lost.
 /// source: csv | manual | ny_registry. kind: attorney | client.
 model OutreachLead {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kind              String    @default("attorney") @db.String(10)
-  first_name        String?   @db.String(80)
-  last_name         String?   @db.String(80)
-  company           String?   @db.String(160)
-  state_code        String?   @db.String(2)
-  city              String?   @db.String(80)
-  practice          String?   @db.String(80)
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind                  String    @default("attorney") @db.String(10)
+  first_name            String?   @db.String(80)
+  last_name             String?   @db.String(80)
+  company               String?   @db.String(160)
+  state_code            String?   @db.String(2)
+  city                  String?   @db.String(80)
+  practice              String?   @db.String(80)
   // Digits only (E.164 without "+"); unique when present.
-  phone             String?   @unique @db.String(20)
+  phone                 String?   @unique @db.String(20)
   // Lower-cased; unique when present.
-  email             String?   @unique @db.String(254)
-  source            String    @default("manual") @db.String(20)
-  source_ref        String?   @db.String(64)
-  status            String    @default("new") @db.String(16)
-  partner_id        String?   @db.Uuid
-  partner           Partner?  @relation(fields: [partner_id], references: [id], onDelete: SetNull)
-  converted_user_id String?   @db.Uuid
-  unsubscribe_token String    @unique @db.String(48)
-  unsubscribed_at   DateTime? @db.Timestamptz
-  last_activity_at  DateTime? @db.Timestamptz
-  next_action_at    DateTime? @db.Timestamptz
-  note              String?   @db.String(2000)
+  email                 String?   @unique @db.String(254)
+  source                String    @default("manual") @db.String(20)
+  source_ref            String?   @db.String(64)
+  status                String    @default("new") @db.String(16)
+  partner_id            String?   @db.Uuid
+  partner               Partner?  @relation(fields: [partner_id], references: [id], onDelete: SetNull)
+  converted_user_id     String?   @db.Uuid
+  unsubscribe_token     String    @unique @db.String(48)
+  unsubscribed_at       DateTime? @db.Timestamptz
+  last_activity_at      DateTime? @db.Timestamptz
+  next_action_at        DateTime? @db.Timestamptz
+  note                  String?   @db.String(2000)
   // Owner 2026-10-05 (legal): do-not-contact (TCPA / DNC). Reason:
   // manual | not_interested | wrong_number | unsubscribed | suppression |
   // retention. While set, phone and email are hidden and no call/email
@@ -3600,13 +3668,13 @@ model OutreachLead {
   do_not_contact_reason String?   @db.String(24)
   // Where the contact came from and on what basis we may reach out
   // (required for CSV imports and for client leads).
-  source_note       String?   @db.String(300)
+  source_note           String?   @db.String(300)
   // Cold emails sent to this lead (cap + cooldown in outreach settings).
-  emails_sent       Int       @default(0) @db.Int4
-  last_email_at     DateTime? @db.Timestamptz
-  created_by        String    @db.Uuid
-  created_at        DateTime  @default(now()) @db.Timestamptz
-  updated_at        DateTime  @updatedAt @db.Timestamptz
+  emails_sent           Int       @default(0) @db.Int4
+  last_email_at         DateTime? @db.Timestamptz
+  created_by            String    @db.Uuid
+  created_at            DateTime  @default(now()) @db.Timestamptz
+  updated_at            DateTime  @updatedAt @db.Timestamptz
 
   activities OutreachActivity[]
 

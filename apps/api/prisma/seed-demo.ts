@@ -13,6 +13,7 @@
 import { PrismaClient } from '@prisma/client';
 import { seedDemoWorld } from '../src/modules/demo/demo-seed';
 import { seedDemoContent } from './seed-demo/content';
+import { seedCaseWorkspace } from './seed-demo/workspace';
 
 for (const file of ['.env', 'apps/api/.env']) {
   try {
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
       videoStubs: process.env.DEMO_SEED_VIDEO_STUBS === '1',
     });
     console.log('content:', content);
+    console.log('workspace:', await seedCaseWorkspace(prisma));
     if (content.mediaSkipped) {
       console.warn(
         'S3_BUCKET_MEDIA / S3_BUCKET_DOCUMENTS are not set: pictures and documents were skipped.',

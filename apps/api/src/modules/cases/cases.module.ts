@@ -31,6 +31,8 @@ import { CaseDisputesAdminController } from './lifecycle/case-disputes-admin.con
 import { CaseLifecycleController } from './lifecycle/case-lifecycle.controller';
 import { CaseLifecycleModule } from './lifecycle/case-lifecycle.module';
 import { CaseAccessPolicy } from './policies/case-access.policy';
+import { CaseWorkspaceController } from './workspace/case-workspace.controller';
+import { CaseWorkspaceService } from './workspace/case-workspace.service';
 import { CaseViewTrackingService } from './services/case-view-tracking.service';
 import { CasesFeedService } from './services/cases-feed.service';
 
@@ -73,6 +75,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     // Owner 2026-10-05: client → attorney case invites.
     CaseInvitesController,
     CaseContactsController,
+    CaseWorkspaceController,
     ContactIssuesAdminController,
     CaseLifecycleController,
     CaseDisputesAdminController,
@@ -82,6 +85,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     CasesService,
     // OQ-031: case photos.
     CasePhotosService,
+    CaseWorkspaceService,
     CaseStateMachine,
     CaseAccessPolicy,
     CasesFeedService,
