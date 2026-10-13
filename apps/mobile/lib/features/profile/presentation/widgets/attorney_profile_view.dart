@@ -688,10 +688,6 @@ class _HeaderCard extends ConsumerWidget {
                 ),
               ),
             ),
-            if (profile.verifiedBadge) ...[
-              const SizedBox(width: AppSpacing.xs),
-              VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
-            ],
             // Owner 2026-10-05: trust level next to the badge; opens the
             // sheet with what was checked and the registry links.
             const SizedBox(width: AppSpacing.sm),

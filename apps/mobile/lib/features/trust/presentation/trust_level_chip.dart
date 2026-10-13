@@ -18,13 +18,18 @@ import 'package:lawbid/features/trust/presentation/trust_level_sheet.dart';
           fg: colors.textSecondary,
           border: colors.border
         ),
-      1 => (fill: colors.infoTint, fg: colors.info, border: colors.info),
-      2 => (
+      // Owner 2026-10-13: no blue and no gold for attorneys — grey until
+      // identity is confirmed, then green.
+      1 => (
+          fill: colors.surface,
+          fg: colors.textSecondary,
+          border: colors.border
+        ),
+      _ => (
           fill: colors.successTint,
           fg: colors.success,
           border: colors.success
         ),
-      _ => (fill: colors.goldTint, fg: colors.goldDark, border: colors.gold),
     };
 
 /// Owner 2026-10-05 — the small trust-level pill next to an attorney's

@@ -106,11 +106,13 @@ class VerifiedBadge extends StatelessWidget {
   final String semanticLabel;
   final double size;
 
-  /// Gold for a verified client, blue for an attorney (owner 2026-10-02).
+  /// Owner 2026-10-13: only the client's gold check exists; with `gold`
+  /// false nothing is drawn (attorneys wear no check).
   final bool gold;
 
   @override
   Widget build(BuildContext context) {
+    if (!gold) return const SizedBox.shrink();
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Semantics(
       label: semanticLabel,
@@ -118,7 +120,7 @@ class VerifiedBadge extends StatelessWidget {
       child: AppIcon(
         AppIcons.verifiedRounded,
         size: size,
-        color: gold ? colors.gold : colors.info,
+        color: colors.goldAccent,
       ),
     );
   }
