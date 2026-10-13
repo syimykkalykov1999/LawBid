@@ -62,6 +62,9 @@ enum ThemePref {
   system
   light
   dark
+  /// Owner 2026-10-13: Navy and Glass (light = Day, dark = Night).
+  navy
+  glass
 
   @@map("theme_pref")
 }

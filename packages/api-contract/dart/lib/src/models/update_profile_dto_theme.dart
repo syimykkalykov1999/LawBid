@@ -12,6 +12,10 @@ enum UpdateProfileDtoTheme {
   light('light'),
   @JsonValue('dark')
   dark('dark'),
+  @JsonValue('navy')
+  navy('navy'),
+  @JsonValue('glass')
+  glass('glass'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

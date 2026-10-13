@@ -620,7 +620,7 @@ class _PickedTile extends ConsumerWidget {
       margin: const EdgeInsets.only(top: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: colors.border.withValues(alpha: 0.35),
+        color: colors.chip,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
