@@ -1826,8 +1826,8 @@ class VerifiedCheck extends StatelessWidget {
   final String label;
   final double size;
 
-  /// Owner 2026-10-02: attorneys wear the blue check, clients the gold one
-  /// (a paid, document-checked client).
+  /// Owner 2026-10-13: there is no blue check — the verified check is gold
+  /// for everyone (kept for call sites; the colour no longer depends on it).
   final bool gold;
 
   @override
@@ -1838,7 +1838,7 @@ class VerifiedCheck extends StatelessWidget {
       child: AppIcon(
         AppIcons.verifiedRounded,
         size: size,
-        color: gold ? colors.goldAccent : colors.info,
+        color: colors.goldAccent,
       ),
     );
   }

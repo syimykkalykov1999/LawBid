@@ -746,7 +746,7 @@ class AttorneyLine extends StatelessWidget {
                     AppIcon(
                       AppIcons.verifiedRounded,
                       size: AppSpacing.lg,
-                      color: colors.info,
+                      color: colors.goldAccent,
                     ),
                   ],
                   // Owner 2026-10-05: trust level (docs/ATTORNEY_TRUST.md).

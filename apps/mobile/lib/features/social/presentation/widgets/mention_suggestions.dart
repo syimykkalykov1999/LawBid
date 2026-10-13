@@ -169,7 +169,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                                 AppIcon(
                                   AppIcons.verifiedRounded,
                                   size: 16,
-                                  color: colors.info,
+                                  color: colors.goldAccent,
                                 ),
                             ],
                           ),
