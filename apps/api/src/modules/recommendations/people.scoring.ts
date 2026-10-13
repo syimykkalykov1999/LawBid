@@ -15,24 +15,26 @@ import {
  * viewer does and who they already know, then quality and activity.
  */
 export const PEOPLE_WEIGHTS = {
+  /** In the viewer's address book (or has the viewer in theirs). */
+  contact: 0.2,
   /** Licensed (verified) in a state of the viewer. */
-  state: 0.18,
+  state: 0.144,
   /** The candidate's practices vs the viewer's interests. */
-  practice: 0.22,
+  practice: 0.176,
   /** Accounts the viewer follows who follow the candidate. */
-  mutual: 0.16,
+  mutual: 0.128,
   /** The candidate already follows the viewer (follow back). */
-  followsMe: 0.08,
+  followsMe: 0.064,
   /** Rating shrunk to a prior, with a confidence for the review count. */
-  quality: 0.14,
+  quality: 0.112,
   /** Posts in 30 days and how fresh the last one is. */
-  activity: 0.1,
+  activity: 0.08,
   /** The viewer liked / commented on / viewed their posts lately. */
-  affinity: 0.07,
+  affinity: 0.056,
   /** Trust level and the blue check (Identity). */
-  identity: 0.03,
+  identity: 0.024,
   /** Followers on a log scale. */
-  popularity: 0.02,
+  popularity: 0.016,
 } as const;
 
 /** ± this much, rotated daily per viewer: the list is not frozen. */
@@ -56,6 +58,8 @@ export interface PersonCandidate {
   followsViewer: boolean;
   /** Weighted viewer interactions with the candidate's posts (60 days). */
   engaged: number;
+  /** 1 = in my address book, 0.6 = I am in theirs, 0 = neither. */
+  contact: number;
 }
 
 export interface PeopleViewer {
@@ -78,6 +82,7 @@ export function personFeatures(
   const confidence = 0.6 + 0.4 * logScale(c.ratingCount, 20);
   const lastAge = c.lastPostAt ? now - c.lastPostAt.getTime() : Infinity;
   return {
+    contact: clamp01(c.contact),
     state: stateMatch,
     practice,
     mutual: saturate(c.mutual, 2),

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
+import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
@@ -51,6 +53,26 @@ class FakeProbe {
 
 /// Provider overrides for UX tests: English static strings (no drift),
 /// fake connectivity plumbing.
+class _NoContactsSync implements ContactsSyncRepository {
+  @override
+  Future<ContactsSyncStatus> status() async =>
+      const ContactsSyncStatus(enabled: false, matches: 0);
+
+  @override
+  Future<int> upload(Set<String> hashes) async => 0;
+
+  @override
+  Future<void> remove() async {}
+}
+
+/// "Asked already": the soft row shows, no system dialog in tests.
+class _AskedActions extends ContactsSyncActions {
+  _AskedActions(super.ref);
+
+  @override
+  bool get asked => true;
+}
+
 List<Override> uxOverrides({
   FakeNetworkMonitor? monitor,
   FakeProbe? probe,
@@ -68,6 +90,8 @@ List<Override> uxOverrides({
       ...casesOverrides(repo: cases),
       ...socialOverrides(social, search),
       ...legalOverrides(),
+      contactsSyncRepositoryProvider.overrideWithValue(_NoContactsSync()),
+      contactsSyncActionsProvider.overrideWith(_AskedActions.new),
       ...extra,
     ];
 

@@ -58,12 +58,19 @@ describe('people score', () => {
     mutual: 0,
     followsViewer: false,
     engaged: 0,
+    contact: 0,
   };
   const score = (c: Partial<PersonCandidate>) =>
     personScore({ ...base, ...c }, viewer, NOW);
   // The daily jitter is ±PEOPLE_JITTER, so compare with that margin.
   const bigger = (a: number, b: number) =>
     expect(a).toBeGreaterThan(b + 2 * PEOPLE_JITTER);
+
+  it('my address book weighs most; being in theirs counts less', () => {
+    bigger(score({ contact: 1 }), score({ states: ['NJ'] }));
+    bigger(score({ contact: 1 }), score({ contact: 0.6 }));
+    bigger(score({ contact: 0.6 }), score({}));
+  });
 
   it('same state beats another state', () => {
     bigger(score({ states: ['NJ'] }), score({}));

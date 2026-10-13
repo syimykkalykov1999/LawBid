@@ -168,12 +168,16 @@ class _FollowsClient implements FollowsClient {
 
   @override
   Future<AttorneyListItemListEnvelope> listSuggestedAttorneys({
+    int? limit = 20,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{r'cursor': cursor};
+    final queryParameters = <String, dynamic>{
+      r'limit': limit,
+      r'cursor': cursor,
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

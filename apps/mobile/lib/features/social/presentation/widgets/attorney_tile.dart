@@ -38,7 +38,9 @@ class AttorneyTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final me = ref.watch(currentUserIdProvider);
     return AppPressable(
       onTap: () =>
@@ -51,7 +53,7 @@ class AttorneyTile extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PersonAvatar(row: row, size: 52),
+            PersonAvatar(row: row, size: 40),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -61,6 +63,15 @@ class AttorneyTile extends ConsumerWidget {
                   const SizedBox(height: 2),
                   PersonRatingLine(row: row, color: colors.textSecondary),
                   PersonPracticesLine(row: row),
+                  if (row.reason == 'contacts')
+                    Text(
+                      t.t('phoneContacts.reason'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -501,7 +512,7 @@ class ClientTile extends ConsumerWidget {
             GoldRingAvatar(
               url: row.avatarUrl,
               initials: avatarInitials(row.displayName),
-              size: 52,
+              size: 40,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -699,7 +710,7 @@ class FollowButton extends ConsumerWidget {
                       t.t(following ? 'follow.following' : 'follow.follow'),
                       maxLines: 1,
                       style: type.button.copyWith(
-                        fontSize: small ? 13 : 14,
+                        fontSize: 14,
                         color: following
                             ? (outlined ? colors.textSecondary : colors.text)
                             : (outlined

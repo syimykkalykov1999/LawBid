@@ -156,6 +156,7 @@ class _InnerHeader extends ConsumerWidget {
             padding: const EdgeInsetsDirectional.only(start: AppSpacing.md),
             child: AuthorHeader(
               author: a,
+              avatarSize: 32,
               showFollow: !post.isMine,
               followMaxWidth: 124,
               subtitle: place.isEmpty ? role : '$role · $place',

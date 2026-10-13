@@ -706,6 +706,10 @@ model User {
   // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
   // trigram GIN-indexed. Read-only — never write it.
   full_name_lower         String?                 @default(dbgenerated("lower((COALESCE(first_name, ''::STRING) || ' '::STRING) || COALESCE(last_name, ''::STRING))"))
+  // Owner 2026-10-13 (contacts sync): STORED computed column, lowercase hex
+  // SHA-256 of phone_e164. Lets the app match its address book without
+  // sending a single raw number. Read-only — never write it.
+  phone_sha256            String?                 @default(dbgenerated("encode(sha256(phone_e164::BYTES), 'hex'::STRING)"))
   created_at              DateTime                @default(now()) @db.Timestamptz
   updated_at              DateTime                @updatedAt @db.Timestamptz
 
@@ -804,6 +808,10 @@ model User {
   /// (repeat-infringer policy, 17 U.S.C. §512(i)). A restore takes one back.
   copyright_strikes           Int                            @default(0)
   dmca_notices_submitted      DmcaNotice[]                   @relation("DmcaSubmitter")
+  // Owner 2026-10-13: address-book matches (see ContactMatch).
+  contact_matches             ContactMatch[]                 @relation("ContactOwner")
+  contact_matched_by          ContactMatch[]                 @relation("ContactMatched")
+  contact_sync                ContactSyncSetting?
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
   // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
@@ -4722,4 +4730,31 @@ model CountryPartnerSettlement {
   @@unique([partner_id, period, currency])
   @@index([status, period])
   @@map("country_partner_settlements")
+}
+
+/// Owner 2026-10-13 (contacts sync, like Instagram): "this person's phone
+/// number is in my address book". Written from SHA-256 hashes the app
+/// uploads; only matches with registered users are kept. The hashes of
+/// numbers nobody registered and the raw numbers are never stored.
+/// Deleted with the owner's DELETE /contacts/sync and on anonymization.
+model ContactMatch {
+  owner_id   String   @db.Uuid
+  owner      User     @relation("ContactOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  matched_id String   @db.Uuid
+  matched    User     @relation("ContactMatched", fields: [matched_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([owner_id, matched_id])
+  @@index([matched_id])
+  @@map("contact_matches")
+}
+
+/// Owner 2026-10-13: whether a user syncs contacts, and when last.
+model ContactSyncSetting {
+  user_id   String    @id @db.Uuid
+  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  enabled   Boolean   @default(true)
+  synced_at DateTime? @db.Timestamptz
+
+  @@map("contact_sync_settings")
 }

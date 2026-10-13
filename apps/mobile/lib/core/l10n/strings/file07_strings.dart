@@ -283,6 +283,11 @@ const file07Ru = <String, String>{
   'error.api.TASK_CLOSED': 'Задача отменена — её нельзя менять',
   'error.api.TASK_STEPS_LIMIT':
       'В одной задаче до 100 шагов — создайте ещё одну',
+  'phoneContacts.find': 'Найти знакомых из контактов',
+  'phoneContacts.reason': 'Из контактов',
+  'phoneContacts.disable': 'Отключить',
+  'phoneContacts.removed': 'Контакты отключены',
+  'phoneContacts.synced': 'Контакты синхронизированы',
   'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
       'Файлы к постам сейчас нельзя добавлять.',
   'error.api.FILES_COUNT_LIMIT':
@@ -861,6 +866,11 @@ const file07En = <String, String>{
   'error.api.TASK_CLOSED': 'This task was cancelled and can no longer change',
   'error.api.TASK_STEPS_LIMIT':
       'A task holds up to 100 steps — start another one',
+  'phoneContacts.find': 'Find people from your contacts',
+  'phoneContacts.reason': 'From contacts',
+  'phoneContacts.disable': 'Turn off',
+  'phoneContacts.removed': 'Contacts turned off',
+  'phoneContacts.synced': 'Contacts synced',
   'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
       'Files cannot be added to posts right now.',
   'error.api.FILES_COUNT_LIMIT':

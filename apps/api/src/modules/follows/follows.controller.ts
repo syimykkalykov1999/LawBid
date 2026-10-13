@@ -23,6 +23,7 @@ import {
   AttorneyIdParamDto,
   AttorneyListItemDto,
   FollowsQueryDto,
+  SuggestionsQueryDto,
   type AttorneyListPage,
   type PeoplePage,
   PersonItemDto,
@@ -105,8 +106,8 @@ export class FollowsController {
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
   listSuggestedAttorneys(
     @CurrentUser() user: RequestUser,
-    @Query() q: FollowsQueryDto,
+    @Query() q: SuggestionsQueryDto,
   ): Promise<AttorneyListPage> {
-    return this.follows.suggestions(user, q.cursor);
+    return this.follows.suggestions(user, q.cursor, q.limit);
   }
 }

@@ -79,6 +79,7 @@ interface PersonRow {
   mutual: number;
   follows_viewer: boolean;
   engaged: number;
+  contact: number;
 }
 
 const toPerson = (r: PersonRow): PersonCandidate => ({
@@ -95,6 +96,7 @@ const toPerson = (r: PersonRow): PersonCandidate => ({
   mutual: Number(r.mutual),
   followsViewer: !!r.follows_viewer,
   engaged: Number(r.engaged),
+  contact: Number(r.contact),
 });
 
 /**
@@ -298,7 +300,14 @@ export class RecommendationsService {
               AND cm.created_at > now() - INTERVAL '60 days')
          + 0.5 * (SELECT count(*) FROM post_views pv JOIN posts p ON p.id = pv.post_id
             WHERE pv.user_id = ${viewerId}::UUID AND p.author_id = a.user_id
-              AND pv.created_at > now() - INTERVAL '60 days'))::FLOAT8 AS engaged
+              AND pv.created_at > now() - INTERVAL '60 days'))::FLOAT8 AS engaged,
+        -- Owner 2026-10-13: address-book match, either direction.
+        (CASE
+           WHEN EXISTS (SELECT 1 FROM contact_matches m
+                WHERE m.owner_id = ${viewerId}::UUID AND m.matched_id = a.user_id) THEN 1.0
+           WHEN EXISTS (SELECT 1 FROM contact_matches m
+                WHERE m.owner_id = a.user_id AND m.matched_id = ${viewerId}::UUID) THEN 0.6
+           ELSE 0.0 END)::FLOAT8 AS contact
       FROM attorney_profiles a
       JOIN users u ON u.id = a.user_id AND u.status = 'active' AND u.deleted_at IS NULL
       WHERE a.user_id <> ${viewerId}::UUID

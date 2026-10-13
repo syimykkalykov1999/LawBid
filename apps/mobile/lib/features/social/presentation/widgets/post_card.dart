@@ -1520,7 +1520,7 @@ class _AuthorRow extends ConsumerWidget {
       child: AuthorHeader(
         author: a,
         onDark: onDark,
-        avatarSize: compact ? 34 : AppSizes.cardAvatar,
+        avatarSize: 32,
         gap: compact ? 10 : AppSpacing.md,
         followMaxWidth: compact ? 120 : 136,
         // Only on someone else's post.

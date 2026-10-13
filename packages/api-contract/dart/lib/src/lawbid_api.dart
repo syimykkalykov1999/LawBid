@@ -65,6 +65,7 @@ import 'clients/admin_review_appeals_client.dart';
 import 'clients/reports_client.dart';
 import 'clients/follows_client.dart';
 import 'clients/search_client.dart';
+import 'clients/contacts_sync_client.dart';
 import 'clients/presence_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
@@ -167,6 +168,7 @@ class LawbidApi {
   ReportsClient? _reports;
   FollowsClient? _follows;
   SearchClient? _search;
+  ContactsSyncClient? _contactsSync;
   PresenceClient? _presence;
   AdminIntegrationsClient? _adminIntegrations;
   AdminOpsClient? _adminOps;
@@ -368,6 +370,9 @@ class LawbidApi {
       _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
 
   SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
+
+  ContactsSyncClient get contactsSync =>
+      _contactsSync ??= ContactsSyncClient(_dio, baseUrl: _baseUrl);
 
   PresenceClient get presence =>
       _presence ??= PresenceClient(_dio, baseUrl: _baseUrl);
