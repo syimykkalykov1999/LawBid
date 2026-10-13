@@ -17,6 +17,8 @@ import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaff
 import 'package:lawbid/features/profile/presentation/screens/practices_screen.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
+import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_offer.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 
@@ -294,6 +296,7 @@ class _SubscriptionStage extends ConsumerStatefulWidget {
 
 class _SubscriptionStageState extends ConsumerState<_SubscriptionStage> {
   SubscriptionPlan? _plan;
+  SubscriptionPlan _tab = SubscriptionPlan.monthly;
 
   @override
   Widget build(BuildContext context) {
@@ -347,15 +350,8 @@ class _SubscriptionStageState extends ConsumerState<_SubscriptionStage> {
                 child: _PlanTab(
                   key: const ValueKey('plan-tab-monthly'),
                   title: t.t('subscription.tab.monthly'),
-                  price: t.t(
-                    'plans.monthly.price',
-                    {
-                      'price': formats
-                          .currencyFromCents(overview.prices.monthlyCents),
-                    },
-                  ),
-                  selected: _plan == SubscriptionPlan.monthly,
-                  onTap: () => setState(() => _plan = SubscriptionPlan.monthly),
+                  selected: _tab == SubscriptionPlan.monthly,
+                  onTap: () => setState(() => _tab = SubscriptionPlan.monthly),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -363,23 +359,69 @@ class _SubscriptionStageState extends ConsumerState<_SubscriptionStage> {
                 child: _PlanTab(
                   key: const ValueKey('plan-tab-yearly'),
                   title: t.t('subscription.tab.yearly'),
-                  price: t.t(
-                    'plans.yearly.price',
-                    {
-                      'price': formats
-                          .currencyFromCents(overview.prices.yearlyCents),
-                    },
-                  ),
-                  badge: t.t('plans.yearly.badge'),
-                  selected: _plan == SubscriptionPlan.yearly,
-                  onTap: () => setState(() => _plan = SubscriptionPlan.yearly),
+                  selected: _tab == SubscriptionPlan.yearly,
+                  onTap: () => setState(() => _tab = SubscriptionPlan.yearly),
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-        ],
-        const SubscriptionOfferBenefits(),
+          // Owner 2026-10-13: the same big plan card as in Settings → Plans
+          // (one widget, not a copy), one per tab.
+          if (_tab == SubscriptionPlan.monthly)
+            PlanTierCard(
+              key: const ValueKey('plan-monthly'),
+              title: t.t('plans.monthly'),
+              price: formats.currencyFromCents(overview.prices.monthlyCents),
+              period: t.t('plans.perMonth'),
+              discount: overview.prices.monthlyDiscount,
+              formatCents: formats.currencyFromCents,
+              translator: t,
+              features: monthlyFeatures(
+                t,
+                formats.currencyFromCents(overview.prices.seatCents),
+              ),
+              status: _plan == SubscriptionPlan.monthly
+                  ? t.t('plans.status.selected')
+                  : null,
+              highlighted: _plan == SubscriptionPlan.monthly,
+              onTap: () => setState(() => _plan = SubscriptionPlan.monthly),
+            )
+          else
+            PlanTierCard(
+              key: const ValueKey('plan-yearly'),
+              icon: AppIcons.diamondOutlined,
+              title: t.t('plans.yearly'),
+              price: formats.currencyFromCents(overview.prices.yearlyCents),
+              period: t.t('plans.perYear'),
+              discount: overview.prices.yearlyDiscount,
+              formatCents: formats.currencyFromCents,
+              translator: t,
+              yearly: true,
+              features: yearlyFeatures(
+                t,
+                formats.currencyFromCents(overview.prices.yearlySavingsCents),
+              ),
+              status: _plan == SubscriptionPlan.yearly
+                  ? t.t('plans.status.selected')
+                  : t.t('plans.yearly.badge'),
+              highlighted: _plan == SubscriptionPlan.yearly,
+              onTap: () => setState(() => _plan = SubscriptionPlan.yearly),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            t.t('subscription.offer.browseNote'),
+            style: Theme.of(context)
+                .extension<AppTypographyTokens>()!
+                .bodySmall
+                .copyWith(
+                  color: Theme.of(context)
+                      .extension<AppColorTokens>()!
+                      .textSecondary,
+                ),
+          ),
+        ] else
+          const SubscriptionOfferBenefits(),
       ],
     );
   }
@@ -389,16 +431,12 @@ class _SubscriptionStageState extends ConsumerState<_SubscriptionStage> {
 class _PlanTab extends StatelessWidget {
   const _PlanTab({
     required this.title,
-    required this.price,
     required this.selected,
     required this.onTap,
-    this.badge,
     super.key,
   });
 
   final String title;
-  final String price;
-  final String? badge;
   final bool selected;
   final VoidCallback onTap;
 
@@ -409,59 +447,30 @@ class _PlanTab extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: '$title, $price',
+      label: title,
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 72),
-          padding: const EdgeInsets.all(AppSpacing.md),
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           decoration: BoxDecoration(
-            color: selected ? colors.goldTint : colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.card),
+            color: selected ? colors.goldTint : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
             border: Border.all(
               color: selected ? colors.gold : colors.border,
-              width: selected ? 2 : 1,
+              width: selected ? 1.5 : 1,
             ),
           ),
           child: ExcludeSemantics(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: typography.body.copyWith(
-                          color: colors.text,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    if (badge != null) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        badge!,
-                        style: typography.caption.copyWith(
-                          color: colors.goldDark,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  price,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      typography.caption.copyWith(color: colors.textSecondary),
-                ),
-              ],
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.body.copyWith(
+                color: selected ? colors.goldDark : colors.text,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),

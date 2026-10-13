@@ -283,6 +283,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('plan-tab-monthly')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('plan-monthly')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Start 7 days free'));
     await tester.pumpAndSettle();
     expect(billing.calls, contains('checkout:monthly:0:'));
@@ -302,6 +304,8 @@ void main() {
     await pumpFlow(tester);
     expect(stage('subscription'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('plan-tab-yearly')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('plan-yearly')));
     await tester.pumpAndSettle();
     await expectLater(
       find.byType(MaterialApp),
