@@ -19,9 +19,9 @@ enum OnboardingStepId {
   static OnboardingStepId? tryParse(String? raw) =>
       raw == null ? null : OnboardingStepId.values.asNameMap()[raw];
 
-  /// Screen order for [role] (file 01 §11). Contacts precede profile
-  /// because the §11 guard table forces `/onboarding/contacts` straight
-  /// after the role step whenever required contacts are unverified.
+  /// Screen order for [role] (file 01 §11). Owner 2026-10-13: no contacts
+  /// step — the phone is verified by the sign-up code and the e-mail is a
+  /// field of the profile step (no code).
   /// Attorneys get the extra "Verification & subscription" checklist
   /// (Шаг 4B) before the tour. `role == null` (not chosen yet) uses the
   /// client order, which is what the progress bar shows until the role
@@ -34,7 +34,6 @@ enum OnboardingStepId {
   static List<OnboardingStepId> orderFor(UserRole? role) => [
         consents,
         OnboardingStepId.role,
-        if (role != UserRole.assistant) contacts,
         profile,
         // Owner 2026-10-11: no "Stay in the loop" and no tour — the system
         // asks for notifications after sign-in, and the last step here

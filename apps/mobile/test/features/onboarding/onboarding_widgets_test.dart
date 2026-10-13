@@ -93,7 +93,7 @@ void main() {
 
   group('contacts step (§11 Шаг 3A)', () {
     testWidgets(
-        'client missing email: shows what is missing and blocks Continue',
+        'owner 2026-10-13: the e-mail is not asked here any more (profile field)',
         (tester) async {
       final repo = FakeOnboardingRepository(clientPhoneOnly);
       final wrap = await onboardingWrapper(
@@ -105,13 +105,7 @@ void main() {
       await tester.pumpWidget(wrap(const ContactsStepScreen()));
       await _settle(tester);
 
-      expect(find.text('Verified'), findsOneWidget);
-      expect(find.text('Required'), findsOneWidget);
-      expect(find.text('Verify your email to continue.'), findsOneWidget);
-
-      await tester.tap(find.text('Continue'));
-      await _settle(tester);
-      expect(repo.calls, isEmpty);
+      expect(find.text('Verify your email to continue.'), findsNothing);
       await _tearDownDrift(tester);
     });
 
@@ -236,7 +230,7 @@ void main() {
           status: base.status,
           firstName: 'Ann',
           lastName: 'Lee',
-          email: base.email,
+          email: base.email ?? 'ann@example.com',
           emailVerified: base.emailVerified,
           phone: base.phone,
           phoneVerified: base.phoneVerified,
@@ -283,6 +277,7 @@ void main() {
         'languages': ['en', 'es'],
         'contactMethod': 'in_app_chat',
         'contactNote': 'Evenings',
+        'email': 'ann@example.com',
       });
       await _tearDownDrift(tester);
     });
@@ -322,6 +317,7 @@ void main() {
       expect(sent.toJson(), {
         'firstName': 'Ann',
         'lastName': 'Lee',
+        'email': 'ann@example.com',
         'bio': 'Immigration attorney',
         'firmName': 'Lee LLP',
         'languages': ['en'],

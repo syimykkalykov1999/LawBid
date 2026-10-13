@@ -18,14 +18,18 @@ import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.
 /// and the router guard moves on (feed, or the step onboarding still
 /// needs); this screen does not navigate.
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({this.initialIdentifier = '', super.key});
+
+  /// The number typed on the phone screen (the password is asked next).
+  final String initialIdentifier;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _identifier = TextEditingController();
+  late final _identifier =
+      TextEditingController(text: widget.initialIdentifier);
   final _password = TextEditingController();
   bool _busy = false;
   String? _error;
@@ -86,7 +90,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           semanticLabel: t.t('auth.login.identifier.hint'),
           keyboardType: TextInputType.emailAddress,
           minHeight: 44,
-          autofocus: true,
+          autofocus: widget.initialIdentifier.isEmpty,
           autofillHints: const [AutofillHints.username],
           textInputAction: TextInputAction.next,
           onChanged: (_) => setState(() => _error = null),
@@ -96,6 +100,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           controller: _password,
           hintText: t.t('auth.login.password.hint'),
           errorText: _error,
+          autofocus: widget.initialIdentifier.isNotEmpty,
           textInputAction: TextInputAction.go,
           onSubmitted: (_) => _filled && !_busy ? _submit() : null,
           onChanged: (_) => setState(() => _error = null),

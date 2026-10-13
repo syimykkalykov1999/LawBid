@@ -152,6 +152,17 @@ class RealAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<({bool registered, bool hasPassword})?> phoneStatus(
+    String phone,
+  ) async {
+    try {
+      return await _client.phoneStatus(phone);
+    } on ApiException {
+      return null;
+    }
+  }
+
+  @override
   Future<PasswordAuthResult> setPassword(
     String password, {
     String? currentPassword,

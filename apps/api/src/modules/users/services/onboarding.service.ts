@@ -55,6 +55,8 @@ export type MissingRequirement =
   | 'name'
   | 'phone_verified'
   | 'email_verified'
+  /** Owner 2026-10-13: the profile e-mail is required (format only). */
+  | 'email'
   /** client_profiles row (state of residence, §11 3A) not saved yet. */
   | 'state'
   /** attorney picked no licensed state (§11 3B "Юрисдикция"). */
@@ -159,7 +161,8 @@ export class OnboardingService {
     // client signs up with a phone only. Turning it on later asks the
     // e-mail only of clients still in onboarding — nobody who already
     // finished is sent back to the contacts step.
-    const clientEmailRequired = emailOn && !user.onboarding_state?.completed_at;
+    void emailOn;
+    const clientEmailRequired = !user.onboarding_state?.completed_at;
     return {
       id: user.id,
       role: user.role,
@@ -215,10 +218,23 @@ export class OnboardingService {
     await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.user.findUnique({
         where: { id: userId },
-        select: { first_name: true, last_name: true },
+        select: { first_name: true, last_name: true, email: true },
       });
       if (!before) {
         throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+      }
+      const email = dto.email?.trim().toLowerCase();
+      if (email !== undefined && email !== before.email) {
+        const taken = await tx.user.findFirst({
+          where: { email, NOT: { id: userId } },
+          select: { id: true },
+        });
+        if (taken) {
+          throw new ConflictException({
+            code: ErrorCode.CONTACT_ALREADY_EXISTS,
+            message: 'This e-mail is already in use on another account.',
+          });
+        }
       }
       const after = await tx.user.update({
         where: { id: userId },
@@ -228,6 +244,9 @@ export class OnboardingService {
           ui_language: dto.uiLanguage,
           theme: dto.theme,
           avatar_file_id: dto.avatarFileId,
+          ...(email !== undefined && email !== before.email
+            ? { email, email_verified_at: null }
+            : {}),
         },
         select: { first_name: true, last_name: true },
       });
@@ -386,6 +405,7 @@ export function missingRequirements(
     | 'last_name'
     | 'phone_verified_at'
     | 'email_verified_at'
+    | 'email'
   >,
   consentsGranted: boolean,
   profile?: Pick<ProfileFacts, 'clientHasState' | 'attorneyHasLicensedStates'>,
@@ -401,12 +421,14 @@ export function missingRequirements(
   if (user.role === 'client' || user.role === 'attorney') {
     if (user.phone_verified_at === null) missing.push('phone_verified');
   }
+  // Owner 2026-10-13: no code is sent to the e-mail — it is a required
+  // profile field (client and attorney), format checked, never verified.
   if (
     clientEmailRequired &&
-    user.role === 'client' &&
-    user.email_verified_at === null
+    (user.role === 'client' || user.role === 'attorney') &&
+    !user.email
   ) {
-    missing.push('email_verified');
+    missing.push('email');
   }
   if (profile && user.role === 'client' && !profile.clientHasState) {
     missing.push('state');

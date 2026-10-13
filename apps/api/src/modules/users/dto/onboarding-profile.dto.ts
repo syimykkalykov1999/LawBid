@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
+  IsEmail,
   IsEnum,
   IsIn,
   IsOptional,
@@ -71,6 +72,15 @@ export class OnboardingProfileDto {
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
   lastName?: string;
+
+  /** Owner 2026-10-13: e-mail, format only (no code, not verified). */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(254)
+  email?: string;
 
   /** Client: state of residence (50 + DC). */
   @IsOptional()

@@ -3,6 +3,7 @@ import {
   notAvailable,
 } from '../../countries/countries.service';
 import {
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -406,6 +407,28 @@ export class UserProfilesService {
     userId: string,
     dto: OnboardingProfileDto,
   ): Promise<{ first_name: string | null; last_name: string | null }> {
+    if (dto.email !== undefined) {
+      const current = await tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { email: true },
+      });
+      if (current.email !== dto.email) {
+        const taken = await tx.user.findFirst({
+          where: { email: dto.email, NOT: { id: userId } },
+          select: { id: true },
+        });
+        if (taken) {
+          throw new ConflictException({
+            code: ErrorCode.CONTACT_ALREADY_EXISTS,
+            message: 'This e-mail is already in use on another account.',
+          });
+        }
+        await tx.user.update({
+          where: { id: userId },
+          data: { email: dto.email, email_verified_at: null },
+        });
+      }
+    }
     if (dto.firstName === undefined && dto.lastName === undefined) {
       return tx.user.findUniqueOrThrow({
         where: { id: userId },

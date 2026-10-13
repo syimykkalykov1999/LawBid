@@ -83,8 +83,13 @@ List<RouteBase> authRoutes() => [
       ),
       GoRoute(
         path: AuthRoutes.login,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const LoginScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          LoginScreen(
+            initialIdentifier:
+                state.extra is String ? state.extra! as String : '',
+          ),
+        ),
       ),
       GoRoute(
         path: AuthRoutes.forgotPassword,

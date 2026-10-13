@@ -78,10 +78,11 @@ String trialDaysText(Translator t, int days) =>
 /// snack bar. True when the subscription (or trial) is now active.
 Future<bool> startSubscriptionFromOffer(
   BuildContext context,
-  WidgetRef ref,
-) async {
+  WidgetRef ref, {
+  SubscriptionPlan plan = SubscriptionPlan.monthly,
+}) async {
   final t = ref.read(translatorProvider);
-  final outcome = await payForPlan(context, ref);
+  final outcome = await payForPlan(context, ref, plan: plan);
   if (!context.mounted) return false;
   switch (outcome) {
     case SubscribeOutcome.trialStarted:

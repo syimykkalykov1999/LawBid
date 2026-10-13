@@ -124,6 +124,10 @@ abstract interface class AuthRepository {
     required String password,
   });
 
+  /// Owner 2026-10-13: one phone screen — null when the check failed (the
+  /// caller then falls back to the SMS code).
+  Future<({bool registered, bool hasPassword})?> phoneStatus(String phone);
+
   /// Sets the password of the signed-in account (after the sign-up code).
   Future<PasswordAuthResult> setPassword(
     String password, {

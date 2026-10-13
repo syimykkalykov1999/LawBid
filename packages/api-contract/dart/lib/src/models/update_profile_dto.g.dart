@@ -15,6 +15,7 @@ UpdateProfileDto _$UpdateProfileDtoFromJson(Map<String, dynamic> json) =>
       theme: json['theme'] == null
           ? null
           : UpdateProfileDtoTheme.fromJson(json['theme'] as String),
+      email: json['email'] as String?,
     );
 
 Map<String, dynamic> _$UpdateProfileDtoToJson(UpdateProfileDto instance) =>
@@ -24,4 +25,5 @@ Map<String, dynamic> _$UpdateProfileDtoToJson(UpdateProfileDto instance) =>
       'lastName': ?instance.lastName,
       'uiLanguage': ?instance.uiLanguage,
       'theme': ?instance.theme?.toJson(),
+      'email': ?instance.email,
     };

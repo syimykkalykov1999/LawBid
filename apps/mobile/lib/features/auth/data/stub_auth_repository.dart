@@ -46,6 +46,12 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<({bool registered, bool hasPassword})?> phoneStatus(
+    String phone,
+  ) async =>
+      (registered: false, hasPassword: false);
+
+  @override
   Future<PasswordAuthResult> setPassword(
     String password, {
     String? currentPassword,

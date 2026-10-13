@@ -254,7 +254,7 @@ void main() {
             phoneVerified: true,
           ),
         ),
-        '/onboarding/contacts',
+        '/onboarding/profile',
       ),
       _Case(
         'email only verified',
@@ -292,7 +292,7 @@ void main() {
             step: OnboardingStepId.tour,
           ),
         ),
-        '/onboarding/contacts',
+        '/onboarding/profile',
       ),
       _Case(
         'cannot be skipped even after completion',
@@ -305,7 +305,7 @@ void main() {
             completed: true,
           ),
         ),
-        '/onboarding/contacts',
+        null,
       ),
     ],
     'row 5: адвокат без подтверждённого телефона → /onboarding/contacts': [
@@ -358,7 +358,7 @@ void main() {
         'no saved step → contacts',
         '/feed',
         _signedIn(_readyClient()),
-        '/onboarding/contacts',
+        '/onboarding/profile',
       ),
       _Case(
         'attorney-only step saved for a client → the last step',
@@ -374,15 +374,15 @@ void main() {
       ),
       _Case(
         'back to an earlier step is allowed',
-        '/onboarding/contacts',
+        '/onboarding/role',
         _signedIn(_readyClient(step: OnboardingStepId.push)),
         null,
       ),
       _Case(
         'forward past the saved step is not',
         '/onboarding/push',
-        _signedIn(_readyClient(step: OnboardingStepId.contacts)),
-        '/onboarding/contacts',
+        _signedIn(_readyClient(step: OnboardingStepId.role)),
+        '/onboarding/profile',
       ),
       _Case(
         'attorney verification step',

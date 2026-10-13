@@ -20,6 +20,8 @@ import '../models/password_reset_confirm_dto.dart';
 import '../models/password_reset_request_dto.dart';
 import '../models/password_reset_sent_envelope.dart';
 import '../models/password_saved_envelope.dart';
+import '../models/phone_status_dto.dart';
+import '../models/phone_status_result_envelope.dart';
 import '../models/reauth_dto.dart';
 import '../models/reauth_token_envelope.dart';
 import '../models/refresh_token_dto.dart';
@@ -111,6 +113,12 @@ abstract class AuthClient {
   @POST('/auth/identifiers')
   Future<IdentifierLinkedEnvelope> linkIdentifier({
     @Body() required LinkIdentifierDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/phone/status')
+  Future<PhoneStatusResultEnvelope> phoneStatus({
+    @Body() required PhoneStatusDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

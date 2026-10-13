@@ -205,9 +205,7 @@ abstract final class AppRouterGuard {
     if (missing.contains(MissingRequirement.role) || user.role == null) {
       return OnboardingStepId.role;
     }
-    if (user.isClient &&
-        (missing.contains(MissingRequirement.phoneVerified) ||
-            missing.contains(MissingRequirement.emailVerified))) {
+    if (user.isClient && missing.contains(MissingRequirement.phoneVerified)) {
       return OnboardingStepId.contacts;
     }
     if (user.isAttorney && missing.contains(MissingRequirement.phoneVerified)) {

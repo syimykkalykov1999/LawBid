@@ -13,6 +13,9 @@ enum MissingRequirement {
   phoneVerified,
   emailVerified,
 
+  /// Owner 2026-10-13: the profile e-mail (format only, no code).
+  email,
+
   /// A profile-step field the server requires before completion: the
   /// client's state of residence (`state`) or the attorney's licensed
   /// states (`licensed_states`) — docs/01 §11 3A/3B.
@@ -28,6 +31,7 @@ enum MissingRequirement {
         'name' => name,
         'phone_verified' => phoneVerified,
         'email_verified' => emailVerified,
+        'email' => email,
         'state' || 'licensed_states' => profile,
         'photo' => photo,
         _ => null,

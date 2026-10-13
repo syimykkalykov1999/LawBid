@@ -271,9 +271,11 @@ class SubscriptionOfferSkipped extends Notifier<bool> {
 }
 
 /// "7 days free, a card at the start" — the same offer the bid button
-/// opens later (subscription_offer.dart). "Start 7 days free" pays on
-/// Stripe's page and moves on once active; "Later" moves on without it.
-class _SubscriptionStage extends ConsumerWidget {
+/// opens later (subscription_offer.dart). Owner 2026-10-13: Monthly /
+/// Yearly tabs; the trial button stays grey until a plan is picked, then
+/// pays on the card sheet and moves on once active; "Later" moves on
+/// without it.
+class _SubscriptionStage extends ConsumerStatefulWidget {
   const _SubscriptionStage({
     required this.overview,
     required this.progress,
@@ -287,7 +289,15 @@ class _SubscriptionStage extends ConsumerWidget {
   final VoidCallback onDone;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SubscriptionStage> createState() => _SubscriptionStageState();
+}
+
+class _SubscriptionStageState extends ConsumerState<_SubscriptionStage> {
+  SubscriptionPlan? _plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final overview = widget.overview;
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final action = ref.watch(onboardingActionsProvider);
@@ -299,15 +309,20 @@ class _SubscriptionStage extends ConsumerWidget {
     return OnboardingScaffold(
       key: const ValueKey('attorney-setup-subscription'),
       step: OnboardingStepId.verification,
-      progress: progress,
+      progress: widget.progress,
       title: texts.title,
       subtitle: texts.body,
-      onBack: onBack,
+      onBack: widget.onBack,
       error: action.error,
       primaryLabel: canPay ? texts.cta : null,
+      primaryEnabled: _plan != null,
       primaryLoading: subscribe.busy,
       onPrimary: () async {
-        if (await startSubscriptionFromOffer(context, ref)) onDone();
+        final plan = _plan;
+        if (plan == null) return;
+        if (await startSubscriptionFromOffer(context, ref, plan: plan)) {
+          widget.onDone();
+        }
       },
       footnote: waiting ? t.t('plans.waiting') : null,
       secondary: AppButton(
@@ -321,10 +336,136 @@ class _SubscriptionStage extends ConsumerWidget {
             ? () => ref.read(subscribeControllerProvider.notifier).stopWaiting()
             : () {
                 ref.read(subscriptionOfferSkippedProvider.notifier).skip();
-                onDone();
+                widget.onDone();
               },
       ),
-      children: const [SubscriptionOfferBenefits()],
+      children: [
+        if (canPay) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _PlanTab(
+                  key: const ValueKey('plan-tab-monthly'),
+                  title: t.t('subscription.tab.monthly'),
+                  price: t.t(
+                    'plans.monthly.price',
+                    {
+                      'price': formats
+                          .currencyFromCents(overview.prices.monthlyCents),
+                    },
+                  ),
+                  selected: _plan == SubscriptionPlan.monthly,
+                  onTap: () => setState(() => _plan = SubscriptionPlan.monthly),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _PlanTab(
+                  key: const ValueKey('plan-tab-yearly'),
+                  title: t.t('subscription.tab.yearly'),
+                  price: t.t(
+                    'plans.yearly.price',
+                    {
+                      'price': formats
+                          .currencyFromCents(overview.prices.yearlyCents),
+                    },
+                  ),
+                  badge: t.t('plans.yearly.badge'),
+                  selected: _plan == SubscriptionPlan.yearly,
+                  onTap: () => setState(() => _plan = SubscriptionPlan.yearly),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        const SubscriptionOfferBenefits(),
+      ],
+    );
+  }
+}
+
+/// One of the two plan tabs (Monthly / Yearly).
+class _PlanTab extends StatelessWidget {
+  const _PlanTab({
+    required this.title,
+    required this.price,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+    super.key,
+  });
+
+  final String title;
+  final String price;
+  final String? badge;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$title, $price',
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: selected ? colors.goldTint : colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.card),
+            border: Border.all(
+              color: selected ? colors.gold : colors.border,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: ExcludeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.body.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (badge != null) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        badge!,
+                        style: typography.caption.copyWith(
+                          color: colors.goldDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  price,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

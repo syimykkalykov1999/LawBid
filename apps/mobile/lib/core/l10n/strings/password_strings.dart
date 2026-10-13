@@ -5,6 +5,15 @@
 
 const passwordRu = <String, String>{
   'auth.login.entry': 'У меня уже есть аккаунт',
+  'onboarding.profile.email': 'Эл. почта',
+  'onboarding.profile.emailHint':
+      'Передаётся второй стороне при принятии кейса. Код не отправляется.',
+  'onboarding.profile.error.email': 'Введите корректный e-mail',
+  'subscription.tab.monthly': 'Месяц',
+  'subscription.tab.yearly': 'Год',
+  'auth.welcome.continue': 'Продолжить',
+  'auth.welcome.signIn': 'Войти',
+  'auth.welcome.assistant': 'Ассистент',
   'auth.login.title': 'Вход',
   'auth.login.subtitle': 'Введите номер телефона или email и пароль.',
   'auth.login.identifier.hint': 'Номер телефона или email',
@@ -40,6 +49,15 @@ const passwordRu = <String, String>{
 
 const passwordEn = <String, String>{
   'auth.login.entry': 'I already have an account',
+  'onboarding.profile.email': 'Email',
+  'onboarding.profile.emailHint':
+      'Shared with the other side when a case is accepted. No code is sent.',
+  'onboarding.profile.error.email': 'Enter a valid email',
+  'subscription.tab.monthly': 'Monthly',
+  'subscription.tab.yearly': 'Yearly',
+  'auth.welcome.continue': 'Continue',
+  'auth.welcome.signIn': 'Log in',
+  'auth.welcome.assistant': 'Assistant',
   'auth.login.title': 'Log in',
   'auth.login.subtitle': 'Enter your phone number or email and your password.',
   'auth.login.identifier.hint': 'Phone number or email',

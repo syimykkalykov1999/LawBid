@@ -24,6 +24,8 @@ import { SessionRevocationService } from './services/session-revocation.service'
 import type { AuthTokensResult } from './social/auth-result.types';
 import type {
   PasswordLoginDto,
+  PhoneStatusDto,
+  PhoneStatusResultDto,
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
   SetPasswordDto,
@@ -116,6 +118,27 @@ export class PasswordAuthService {
       deviceId: deviceInfo.deviceId,
     });
     return this.signIn(user, `password:${identifier}`, deviceInfo, meta);
+  }
+
+  // POST /auth/phone/status — "is this number registered?" (rate-limited
+  // per number and per IP).
+  async phoneStatus(
+    dto: PhoneStatusDto,
+    meta: RequestMeta,
+  ): Promise<PhoneStatusResultDto> {
+    const { channel, identifier } = this.parseIdentifier(dto.identifier);
+    await this.limit(
+      ['phone-status', 'id', this.rateLimit.hashIdentifier(identifier)],
+      LOGIN_PER_IDENTIFIER,
+    );
+    if (meta.ip) {
+      await this.limit(['phone-status', 'ip', meta.ip], LOGIN_PER_IP);
+    }
+    const user = await this.findUser(channel, identifier);
+    return {
+      registered: user != null,
+      hasPassword: user?.password_hash != null,
+    };
   }
 
   // POST /auth/password (signed in)

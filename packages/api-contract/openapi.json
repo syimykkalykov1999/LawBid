@@ -1661,6 +1661,77 @@
         ]
       }
     },
+    "/auth/phone/status": {
+      "post": {
+        "operationId": "phoneStatus",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneStatusResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/password/login": {
       "post": {
         "operationId": "passwordLogin",
@@ -79551,6 +79622,48 @@
           "data"
         ]
       },
+      "PhoneStatusResultDto": {
+        "type": "object",
+        "properties": {
+          "registered": {
+            "type": "boolean"
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "The account has a password (else: sign in with a code once)."
+          }
+        },
+        "required": [
+          "registered",
+          "hasPassword"
+        ]
+      },
+      "PhoneStatusDto": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "description": "E.164 phone number."
+          }
+        },
+        "required": [
+          "identifier"
+        ]
+      },
+      "PhoneStatusResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PhoneStatusResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "PasswordLoginDto": {
         "type": "object",
         "properties": {
@@ -93540,6 +93653,7 @@
           "name",
           "phone_verified",
           "email_verified",
+          "email",
           "state",
           "licensed_states",
           "photo"
@@ -93787,6 +93901,12 @@
               "navy",
               "glass"
             ]
+          },
+          "email": {
+            "type": "string",
+            "description": "Owner 2026-10-13: e-mail is a plain required profile field — format\nonly, no code is sent and it is not verified. Shared with the other\nparty when a case is accepted.",
+            "maxLength": 254,
+            "format": "email"
           }
         }
       },
@@ -93818,6 +93938,12 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 50
+          },
+          "email": {
+            "type": "string",
+            "description": "Owner 2026-10-13: e-mail, format only (no code, not verified).",
+            "maxLength": 254,
+            "format": "email"
           },
           "stateCode": {
             "type": "string",

@@ -24,6 +24,8 @@ import { AuthService } from './auth.service';
 import { PasswordAuthService } from './password-auth.service';
 import {
   PasswordLoginDto,
+  PhoneStatusDto,
+  PhoneStatusResultDto,
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
   SetPasswordDto,
@@ -349,6 +351,18 @@ export class AuthController {
   ): Promise<IdentifierLinkedDto> {
     await this.auth.linkIdentifier(dto, user);
     return { linked: true };
+  }
+
+  @Public()
+  @Post('phone/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiEnvelopeResponse(PhoneStatusResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 429: [E.RATE_LIMITED] })
+  async phoneStatus(
+    @Body() dto: PhoneStatusDto,
+    @Req() req: Request,
+  ): Promise<PhoneStatusResultDto> {
+    return this.passwordAuth.phoneStatus(dto, this.meta(req));
   }
 
   /** Owner 2026-10-13: sign in with a phone number or e-mail and the

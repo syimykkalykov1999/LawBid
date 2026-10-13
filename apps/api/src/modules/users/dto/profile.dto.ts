@@ -1,7 +1,9 @@
 import { PERSON_NAME_MAX_LENGTH } from './onboarding-profile.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsEmail,
   IsEnum,
+  MaxLength,
   IsUUID,
   ValidateIf,
   IsIn,
@@ -40,6 +42,14 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsEnum(ThemePref)
   theme?: ThemePref;
+
+  /** Owner 2026-10-13: e-mail is a plain required profile field — format
+   * only, no code is sent and it is not verified. Shared with the other
+   * party when a case is accepted. */
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(254)
+  email?: string;
 
   /** docs/03 §4.1 photo (OQ-012 attorney onboarding photo step): a clean
    * `avatar` file from POST /files/presign + confirm; null removes it. */

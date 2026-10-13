@@ -14,6 +14,7 @@ class OnboardingProfileDto {
   const OnboardingProfileDto({
     this.firstName,
     this.lastName,
+    this.email,
     this.stateCode,
     this.languages,
     this.contactMethod,
@@ -28,6 +29,9 @@ class OnboardingProfileDto {
 
   final String? firstName;
   final String? lastName;
+
+  /// Owner 2026-10-13: e-mail, format only (no code, not verified).
+  final String? email;
 
   /// Client: state of residence (50 + DC).
   final String? stateCode;

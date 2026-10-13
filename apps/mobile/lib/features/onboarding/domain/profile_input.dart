@@ -6,10 +6,17 @@ import 'package:flutter/foundation.dart';
 /// the names and the step position (apps/api `OnboardingProfileDto`).
 @immutable
 sealed class ProfileInput {
-  const ProfileInput({required this.firstName, required this.lastName});
+  const ProfileInput({
+    required this.firstName,
+    required this.lastName,
+    this.email = '',
+  });
 
   final String firstName;
   final String lastName;
+
+  /// Owner 2026-10-13: required, format only (no code).
+  final String email;
 
   Map<String, dynamic> toJson();
 }
@@ -20,6 +27,7 @@ final class ClientProfileInput extends ProfileInput {
   const ClientProfileInput({
     required super.firstName,
     required super.lastName,
+    super.email,
     required this.stateCode,
     this.languages = const [],
     this.contactMethod,
@@ -37,6 +45,7 @@ final class ClientProfileInput extends ProfileInput {
   Map<String, dynamic> toJson() => {
         'firstName': firstName.trim(),
         'lastName': lastName.trim(),
+        if (email.trim().isNotEmpty) 'email': email.trim(),
         'stateCode': stateCode,
         'languages': [...languages]..sort(),
         'contactMethod': contactMethod,
@@ -49,6 +58,7 @@ final class AttorneyProfileInput extends ProfileInput {
   const AttorneyProfileInput({
     required super.firstName,
     required super.lastName,
+    super.email,
     this.bio = '',
     this.firmName = '',
     this.languages = const [],
@@ -64,6 +74,7 @@ final class AttorneyProfileInput extends ProfileInput {
   Map<String, dynamic> toJson() => {
         'firstName': firstName.trim(),
         'lastName': lastName.trim(),
+        if (email.trim().isNotEmpty) 'email': email.trim(),
         'bio': bio.trim(),
         'firmName': firmName.trim(),
         'languages': [...languages]..sort(),

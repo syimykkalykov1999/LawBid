@@ -54,8 +54,11 @@ CurrentUser meFixture({
       if ((role == UserRole.client || role == UserRole.attorney) &&
           !phoneVerified)
         MissingRequirement.phoneVerified,
-      if (clientEmailRequired && role == UserRole.client && !emailVerified)
-        MissingRequirement.emailVerified,
+      // Owner 2026-10-13: the e-mail is a profile field, never verified.
+      if (clientEmailRequired &&
+          (role == UserRole.client || role == UserRole.attorney) &&
+          email == null)
+        MissingRequirement.email,
     },
   );
 }

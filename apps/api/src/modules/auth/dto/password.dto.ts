@@ -34,6 +34,25 @@ export class SetPasswordDto {
 }
 
 /** Sign in with a phone number or e-mail and the password — no SMS. */
+/** Owner 2026-10-13: one phone screen — a registered number goes straight to
+ * the password, a new one gets an SMS. */
+export class PhoneStatusDto {
+  @ApiProperty({ description: 'E.164 phone number.' })
+  @IsString()
+  @IsPhoneOrEmailIdentifier()
+  identifier!: string;
+}
+
+export class PhoneStatusResultDto {
+  @ApiProperty()
+  registered!: boolean;
+
+  @ApiProperty({
+    description: 'The account has a password (else: sign in with a code once).',
+  })
+  hasPassword!: boolean;
+}
+
 export class PasswordLoginDto {
   @ApiProperty({ description: 'E.164 phone number or e-mail address.' })
   @IsString()

@@ -275,6 +275,14 @@ void main() {
     expect(find.text('7 days free'), findsOneWidget);
     expect(find.byKey(const ValueKey('offer-later')), findsOneWidget);
     billing.onComplete = () => makeOverview(subscription: makeInfo());
+    // Owner 2026-10-13: the trial button is grey until a plan is picked.
+    await tester.tap(find.text('Start 7 days free'));
+    await tester.pumpAndSettle();
+    expect(billing.calls.where((c) => c.startsWith('checkout')), isEmpty);
+    await tester.tap(find.byKey(const ValueKey('plan-tab-yearly')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('plan-tab-monthly')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Start 7 days free'));
     await tester.pumpAndSettle();
     expect(billing.calls, contains('checkout:monthly:0:'));

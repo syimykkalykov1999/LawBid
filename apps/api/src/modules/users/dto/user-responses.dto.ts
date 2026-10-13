@@ -24,6 +24,7 @@ export const MISSING_REQUIREMENTS = [
   'name',
   'phone_verified',
   'email_verified',
+  'email',
   'state',
   'licensed_states',
   'photo',

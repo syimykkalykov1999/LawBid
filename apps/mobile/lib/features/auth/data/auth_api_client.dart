@@ -109,6 +109,23 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// `POST /auth/phone/status` — is this number registered, and does the
+  /// account have a password.
+  Future<({bool registered, bool hasPassword})> phoneStatus(
+    String identifier,
+  ) async {
+    final envelope = await guardApiCall(
+      () => _auth.phoneStatus(
+        body: api.PhoneStatusDto(identifier: identifier),
+        extras: _skipAuth,
+      ),
+    );
+    return (
+      registered: envelope.data.registered,
+      hasPassword: envelope.data.hasPassword,
+    );
+  }
+
   /// Owner 2026-10-13: `POST /auth/password/login` — sign in with a phone
   /// number or e-mail and the password (no SMS); issues tokens.
   Future<AuthTokensResult> passwordLogin({

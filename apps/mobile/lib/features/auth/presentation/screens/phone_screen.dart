@@ -7,6 +7,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
@@ -49,6 +50,15 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     }
     setState(() => _localError = null);
     final e164 = UsPhone.toE164(_controller.text, callingCode: callingCode);
+    // A registered number with a password goes straight to the password —
+    // no SMS (owner 2026-10-13).
+    final status = await ref.read(authRepositoryProvider).phoneStatus(e164);
+    if (!context.mounted) return;
+    if (status != null && status.registered && status.hasPassword) {
+      // ignore: unawaited_futures
+      context.push(AuthRoutes.login, extra: e164);
+      return;
+    }
     final ok =
         await ref.read(onboardingFlowProvider.notifier).submitPhoneNumber(e164);
     // ignore: unawaited_futures
