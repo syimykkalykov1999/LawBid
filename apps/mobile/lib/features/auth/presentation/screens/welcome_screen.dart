@@ -209,7 +209,10 @@ class WelcomeScreen extends ConsumerWidget {
                     child: ConstrainedBox(
                       constraints:
                           BoxConstraints(minHeight: constraints.maxHeight),
-                      child: IntrinsicHeight(
+                      child: SizedBox(
+                        height: constraints.maxHeight < 480
+                            ? 480
+                            : constraints.maxHeight,
                         child: Column(
                           children: [
                             const SizedBox(height: 20),
@@ -220,19 +223,23 @@ class WelcomeScreen extends ConsumerWidget {
                                   .copyWith(color: colors.text),
                             ),
                             const SizedBox(height: 16),
-                            const ScalesLogo(
-                              size: 190,
-                              animated: true,
-                              standExtension: 86,
+                            // The logo takes all the room the bottom block leaves
+                            // (so a missing demo link never leaves a hole); it
+                            // scales as a whole, proportions kept.
+                            Expanded(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.only(top: 6, bottom: 24),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: ScalesLogo(
+                                    size: 190,
+                                    animated: true,
+                                    standExtension: 44,
+                                  ),
+                                ),
+                              ),
                             ),
-                            // At least 32dp between the logo and the buttons.
-                            const SizedBox(height: 20),
-                            // Flexible, not fixed (owner request, 2026-09-22:
-                            // center the phone/social buttons between the logo
-                            // and the legal text) -- paired with the second
-                            // Spacer further down, so this block sits mid-way in
-                            // whatever room is left, on both themes.
-                            const Spacer(),
                             if (phoneLoginEnabled) ...[
                               GavelStrikeButton(
                                 label: t.t('auth.welcome.phone'),
@@ -258,6 +265,9 @@ class WelcomeScreen extends ConsumerWidget {
                             // телефоном" — GavelStrikeIconButton (added in stage 1.7,
                             // docs/CHANGELOG.md, see gavel_strike_icon_button.dart).
                             socialLoginRow,
+                            // The links below belong to the bottom block,
+                            // not to the buttons.
+                            const SizedBox(height: 18),
                             // Owner 2026-10-13: signing in again needs no SMS —
                             // phone number or e-mail + password.
                             TextButton(
@@ -350,7 +360,6 @@ class WelcomeScreen extends ConsumerWidget {
                               },
                               style: typography.legalFine,
                             ),
-                            const Spacer(),
                             const SizedBox(height: AppSpacing.lg),
                           ],
                         ),
