@@ -15,6 +15,7 @@ import '../models/case_summary_list_envelope.dart';
 import '../models/case_tasks_envelope.dart';
 import '../models/case_update_list_envelope.dart';
 import '../models/case_workspace_envelope.dart';
+import '../models/cases_feed_sort.dart';
 import '../models/client_contacts_envelope.dart';
 import '../models/contact_issue_report_envelope.dart';
 import '../models/create_case_dto.dart';
@@ -57,6 +58,8 @@ abstract class CasesClient {
   ///
   /// [states] - Owner 2026-10-06: several states at once (comma-separated) — cases in any of them; joins `state` when both are sent.
   ///
+  /// [sort] - Owner 2026-10-13: for_you = ranked for this attorney (practice, states, freshness, budget, few offers, no offer yet); the cursor is then a position in the ranked list.
+  ///
   /// [scope] - Owner 2026-10-04: "licensed" = cases in states with a verified licence (default); "all" = browse open cases of own practices in every state (view only).
   ///
   /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
@@ -83,6 +86,7 @@ abstract class CasesClient {
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('state') String? state,
     @Query('states') String? states,
+    @Query('sort') CasesFeedSort? sort,
     @Query('practiceCategory') String? practiceCategory,
     @Query('practice') String? practice,
     @Query('budgetMin') num? budgetMin,

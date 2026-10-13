@@ -10,6 +10,8 @@ enum FeedContentMode {
   all('all'),
   @JsonValue('legal_only')
   legalOnly('legal_only'),
+  @JsonValue('briefs_only')
+  briefsOnly('briefs_only'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

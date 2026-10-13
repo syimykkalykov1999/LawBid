@@ -58,6 +58,8 @@
 	<string>LawBid uses the camera to take your profile photo, photograph your license and ID document, take a verification selfie, record reels and for video calls in the app.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>LawBid uses the microphone to record voice messages and for calls in the app.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>LawBid compares your contacts with registered people on this device to suggest people you know. Only anonymous hashes of phone numbers are sent, never names or numbers, and you can turn it off and delete them at any time.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>LawBid uses your photo library so you can choose a profile photo, add photos and videos to posts, cases and chats, and upload license and ID document images.</string>
 	<key>NSFaceIDUsageDescription</key>

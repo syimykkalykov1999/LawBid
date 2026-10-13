@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,35 +69,36 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             // scrolled alike), so nothing morphs while scrolling.
             child: _FloatDisc(
               forceDark: onDark,
+              // The logo takes the theme's own text colour (white on the
+              // dark discs, dark on the light ones), so it shows in all
+              // four themes.
               icon: ({required dark}) => ColorFiltered(
                 colorFilter: ColorFilter.mode(
-                  dark ? Colors.white : colors.navy,
+                  dark ? Colors.white : colors.text,
                   BlendMode.srcIn,
                 ),
                 child: ScalesLogo(
-                  size: 26,
+                  size: 28,
                   semanticLabel: t.t('brand.name'),
                 ),
               ),
             ),
           ),
-          // The tabs leave with the filters on a scroll down; the logo and
-          // the chats stay.
-          center: ChromeFade(
-            child: PillTabs<_FeedTab>(
-              value: _tab,
-              padding: EdgeInsets.zero,
-              onDark: onDark,
-              tabs: [
-                (_FeedTab.posts, t.t('feed.tab.posts')),
-                (_FeedTab.reels, t.t('reels.title')),
-                if (attorney) (_FeedTab.cases, t.t('feed.tab.cases')),
-              ],
-              onChanged: (v) => setState(() {
-                _tab = v;
-                _chrome.show();
-              }),
-            ),
+          // Owner 2026-10-13: the header is fixed — logo, tabs and chats
+          // stay on a scroll; only the filters leave.
+          center: PillTabs<_FeedTab>(
+            value: _tab,
+            padding: EdgeInsets.zero,
+            onDark: onDark,
+            tabs: [
+              (_FeedTab.posts, t.t('feed.tab.posts')),
+              (_FeedTab.reels, t.t('reels.title')),
+              if (attorney) (_FeedTab.cases, t.t('feed.tab.cases')),
+            ],
+            onChanged: (v) => setState(() {
+              _tab = v;
+              _chrome.show();
+            }),
           ),
           trailing: [
             _FloatDisc(
@@ -154,7 +153,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             // Cards are sized for the scrolled state: the slim header only
             // floats over them; the floating nav bar is a bottom inset.
             _chrome.cardHeight = feedCardHeight(
-              box.maxHeight - topInset - bottomInset,
+              box.maxHeight - topInset - AppSizes.feedHeader - bottomInset,
             );
             return NotificationListener<ScrollNotification>(
               onNotification: (n) =>
@@ -162,7 +161,6 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
               child: AnimatedBuilder(
                 animation: _chrome,
                 builder: (context, _) {
-                  final shown = _chrome.visible;
                   final reduce = MediaQuery.disableAnimationsOf(context);
                   final duration = reduce
                       ? Duration.zero
@@ -177,30 +175,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                           duration: duration,
                           curve: Curves.easeOutCubic,
                           padding: EdgeInsets.only(
-                            top: topInset + (shown ? AppSizes.feedHeader : 0),
+                            top: topInset + AppSizes.feedHeader,
                           ),
                           child: content,
                         ),
                       ),
+                      // Owner 2026-10-13: a fixed blurred bar in the theme
+                      // colour (Glass = glass), on top of the feed.
                       Positioned(
                         top: 0,
                         left: 0,
                         right: 0,
-                        child: Column(
-                          children: [
-                            AnimatedContainer(
-                              duration: duration,
-                              color: shown ? colors.bg : Colors.transparent,
-                              height: topInset,
-                              width: double.infinity,
-                            ),
-                            MediaQuery.removePadding(
-                              context: context,
-                              removeTop: true,
-                              child: buildHeader(onDark: false, bare: !shown),
-                            ),
-                          ],
-                        ),
+                        child: buildHeader(onDark: false),
                       ),
                     ],
                   );
@@ -440,9 +426,10 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
 }
 
 /// Owner 2026-10-12: the round disc under the logo and the chats icon of
-/// the scrolled header. Its look follows the APP THEME only (never the
-/// content under it): light theme — light frosted disc, dark icon; dark theme
-/// — dark frosted disc, white icon.
+/// the header. Owner 2026-10-13: no blur — the disc is the plain surface
+/// colour of the current theme (over the Reels video: a dark translucent
+/// disc, also without blur); the icon follows the theme: dark theme — white
+/// icon, light theme — dark icon.
 class _FloatDisc extends StatelessWidget {
   const _FloatDisc({required this.icon, this.forceDark = false});
 
@@ -453,28 +440,24 @@ class _FloatDisc extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final dark = forceDark || Theme.of(context).brightness == Brightness.dark;
     return Stack(
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        ClipOval(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: dark
-                    ? Colors.black.withValues(alpha: 0.5)
-                    : const Color(0xFFEDEFF3).withValues(alpha: 0.85),
-                border: Border.all(
-                  color: dark
-                      ? Colors.white.withValues(alpha: 0.18)
-                      : Colors.black.withValues(alpha: 0.08),
-                ),
-              ),
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: forceDark
+                ? Colors.black.withValues(alpha: 0.5)
+                : colors.surface,
+            border: Border.all(
+              color: forceDark
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : colors.border,
             ),
           ),
         ),

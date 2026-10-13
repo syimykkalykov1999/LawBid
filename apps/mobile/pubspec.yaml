@@ -50,6 +50,7 @@ dependencies:
   sign_in_with_apple: ^6.1.4
   google_sign_in: ^7.2.0
   crypto: ^3.0.6
+  flutter_contacts: ^1.1.9+2
 
   # Biometric reauth (Phase 4 of the auth networking work, docs/CHANGELOG.md):
   # local Face ID/Touch ID/fingerprint gate (file 01 §10.1) used as a local

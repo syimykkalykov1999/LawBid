@@ -17,6 +17,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
@@ -319,6 +320,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final actions = ref.read(socialActionsProvider);
+    // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
+    // none the strip goes and the author, text and rail drop down.
+    final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
+    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {
@@ -345,29 +350,34 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       Color? color,
     }) =>
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-          child: Semantics(
-            button: true,
-            label: label,
-            excludeSemantics: true,
-            child: GestureDetector(
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                children: [
-                  AppIcon(icon, size: 30, color: color ?? Colors.white),
-                  if (count != null && count > 0) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      SocialFormat.count(f, count),
-                      style: type.caption.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        shadows: shadow,
+          // Owner 2026-10-13: small, Instagram-like rail — a 26 icon, the
+          // count in 12, a tight step, whatever the system text size.
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: MediaQuery.withNoTextScaling(
+            child: Semantics(
+              button: true,
+              label: label,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  children: [
+                    AppIcon(icon, size: 26, color: color ?? Colors.white),
+                    if (count != null && count > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        SocialFormat.count(f, count),
+                        style: type.caption.copyWith(
+                          fontSize: 12,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          shadows: shadow,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -433,7 +443,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   end: AppSpacing.md,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: moreSpace +
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -510,7 +520,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 PositionedDirectional(
                   start: AppSpacing.lg,
                   end: 72,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: moreSpace +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -614,19 +624,32 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         // A short caption; the whole text is inside (the
-                        // button below).
-                        GestureDetector(
-                          onTap: widget.embedded ? () => _openInside(p) : null,
-                          child: Text(
-                            caption,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                        // button below) — or, with no attachments, opens in
+                        // place over the video (owner 2026-10-13).
+                        if (more)
+                          GestureDetector(
+                            onTap:
+                                widget.embedded ? () => _openInside(p) : null,
+                            child: Text(
+                              caption,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.body.copyWith(
+                                color: Colors.white,
+                                shadows: shadow,
+                              ),
+                            ),
+                          )
+                        else
+                          _ReelCaption(
+                            text: caption,
+                            moreLabel: t.t('post.more'),
                             style: type.body.copyWith(
                               color: Colors.white,
                               shadows: shadow,
                             ),
+                            onMore: () => showPostTextSheet(context, p),
                           ),
-                        ),
                       ],
                     ],
                   ),
@@ -653,16 +676,17 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
             ),
           ),
         ),
-        PositionedDirectional(
-          start: AppSpacing.lg,
-          end: AppSpacing.lg,
-          bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
-              MediaQuery.paddingOf(context).bottom,
-          child: ReelMoreButton(
-            label: t.t(reelMoreLabelKey(p)),
-            onTap: () => _openInside(p),
+        if (more)
+          PositionedDirectional(
+            start: AppSpacing.lg,
+            end: AppSpacing.lg,
+            bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
+                MediaQuery.paddingOf(context).bottom,
+            child: ReelMoreButton(
+              label: t.t(reelMoreLabelKey(p)),
+              onTap: () => _openInside(p),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -814,6 +838,59 @@ class ReelMoreButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-13: a reel without attachments — two lines and a grey
+/// «ещё» that opens the description sheet.
+class _ReelCaption extends StatelessWidget {
+  const _ReelCaption({
+    required this.text,
+    required this.moreLabel,
+    required this.style,
+    required this.onMore,
+  });
+
+  final String text;
+  final String moreLabel;
+  final TextStyle style;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: 2,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: box.maxWidth);
+        if (!painter.didExceedMaxLines) return Text(text, style: style);
+        return GestureDetector(
+          onTap: onMore,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+              Text(
+                moreLabel,
+                style: style.copyWith(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

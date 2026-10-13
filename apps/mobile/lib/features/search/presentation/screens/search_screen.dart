@@ -11,7 +11,9 @@ import 'package:lawbid/features/cases/data/cases_repository.dart'
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
 import 'package:lawbid/features/search/application/search_providers.dart';
@@ -45,6 +47,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   final _controller = TextEditingController();
   final _focus = FocusNode();
+
+  /// Owner 2026-10-13: the field leaves on a scroll down and returns on a
+  /// scroll up, like the feed's filters; the section tabs stay.
+  final _chrome = FeedChromeController();
   Timer? _timer;
   String _query = '';
   SearchTab _tab = SearchTab.attorneys;
@@ -62,6 +68,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _chrome.dispose();
     _controller.dispose();
     _focus.dispose();
     super.dispose();
@@ -93,6 +100,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// Leaving the field with a real query counts as "searched" (§7.2).
   void _onFocus() {
+    if (_focus.hasFocus) _chrome.show();
     if (!_focus.hasFocus && _query.isNotEmpty) {
       ref.read(recentSearchesProvider.notifier).remember(_query);
     }
@@ -169,6 +177,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       cancelLabel: t.t('common.cancel'),
       clearLabel: t.t('search.clear'),
       showCancel: false,
+      height: 40,
       leading: filterButton,
       trailing: AppIconButton(
         icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
@@ -186,49 +195,62 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return Scaffold(
       backgroundColor: colors.bg,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Owner 2026-09-30: the sections on top, the field under them.
-            tabsRow,
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.xs,
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-              ),
-              child: field,
-            ),
-            Expanded(
-              child: TabSwipe<SearchTab>(
-                value: _tab,
-                values: [for (final (v, _) in tabs) v],
-                onChanged: (v) => setState(() => _tab = v),
-                child: AnimatedSwitcher(
-                  duration: context.reduceMotion
-                      ? Duration.zero
-                      : AppMotion.stateChange,
-                  child: _query.isEmpty
-                      ? _BeforeTyping(
-                          key: ValueKey('idle:$_tab:${filters.hashCode}'),
-                          tab: _tab,
-                          filters: filters,
-                          onRecent: _useRecent,
-                        )
-                      : KeyedSubtree(
-                          key: ValueKey('$_tab:$_query:${filters.hashCode}'),
-                          child: _Results(
-                            tab: _tab,
-                            query: _query,
-                            filters: filters,
-                          ),
-                        ),
+      body: FeedChrome(
+        controller: _chrome,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // Owner 2026-09-30: the sections on top, the field under them.
+              tabsRow,
+              ChromeCollapse(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.xs,
+                    AppSpacing.screenSide,
+                    AppSpacing.xs,
+                  ),
+                  child: field,
                 ),
               ),
-            ),
-          ],
+              Expanded(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _chrome.onScroll,
+                  child: TabSwipe<SearchTab>(
+                    value: _tab,
+                    values: [for (final (v, _) in tabs) v],
+                    onChanged: (v) => setState(() => _tab = v),
+                    child: AnimatedSwitcher(
+                      duration: context.reduceMotion
+                          ? Duration.zero
+                          : AppMotion.stateChange,
+                      child: _query.isEmpty
+                          ? _BeforeTyping(
+                              key: ValueKey('idle:$_tab:${filters.hashCode}'),
+                              tab: _tab,
+                              filters: filters,
+                              onFilters: (f) =>
+                                  setState(() => _filters[_tab] = f),
+                              onRecent: _useRecent,
+                            )
+                          : KeyedSubtree(
+                              key:
+                                  ValueKey('$_tab:$_query:${filters.hashCode}'),
+                              child: _Results(
+                                tab: _tab,
+                                query: _query,
+                                filters: filters,
+                                onFilters: (f) =>
+                                    setState(() => _filters[_tab] = f),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -240,11 +262,13 @@ class _Results extends ConsumerWidget {
     required this.tab,
     required this.query,
     required this.filters,
+    required this.onFilters,
   });
 
   final SearchTab tab;
   final String query;
   final SearchFilters filters;
+  final ValueChanged<SearchFilters> onFilters;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -264,6 +288,8 @@ class _Results extends ConsumerWidget {
           t: t,
           itemKey: (r) => r.id,
           itemBuilder: (context, r, _) => PersonTile(row: r),
+          // The row carries its own side padding (same as Suggested).
+          edgeToEdge: true,
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
@@ -289,6 +315,7 @@ class _Results extends ConsumerWidget {
             post: p,
             feed: ref.read(postSearchProvider(key)).value?.items,
           ),
+          header: _PostsFilterRow(filters: filters, onChanged: onFilters),
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
@@ -377,9 +404,12 @@ class _BeforeTyping extends ConsumerWidget {
   const _BeforeTyping({
     required this.tab,
     required this.filters,
+    required this.onFilters,
     required this.onRecent,
     super.key,
   });
+
+  final ValueChanged<SearchFilters> onFilters;
 
   final SearchTab tab;
 
@@ -392,7 +422,12 @@ class _BeforeTyping extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final recent = ref.watch(recentSearchesProvider).value ?? const [];
+    // Owner 2026-10-13: the Posts tab is only the grid — no recent searches,
+    // no "based on" rows, no section titles.
+    final postsTab = tab == SearchTab.posts;
+    final recent = postsTab
+        ? const <String>[]
+        : ref.watch(recentSearchesProvider).value ?? const [];
     final last = recent.isEmpty ? null : recent.first;
     final attorney = ref.watch(actsAsAttorneyProvider);
 
@@ -424,7 +459,7 @@ class _BeforeTyping extends ConsumerWidget {
     // compact rows.
     Widget grid<T>(List<T> items, Widget Function(T) build) =>
         SliverGrid.builder(
-          gridDelegate: kPostGridDelegate,
+          gridDelegate: kSearchPostGridDelegate,
           itemCount: items.length,
           itemBuilder: (context, i) => build(items[i]),
         );
@@ -488,7 +523,9 @@ class _BeforeTyping extends ConsumerWidget {
     // ignore: omit_local_variable_types
     final List<Widget> explore = switch (tab) {
       SearchTab.attorneys => [
-          const SliverToBoxAdapter(child: SuggestedAttorneys(limit: 8)),
+          const SliverToBoxAdapter(child: ContactsSection()),
+          const SliverToBoxAdapter(child: SuggestedAttorneys()),
+          const SliverToBoxAdapter(child: RecommendedAttorneys()),
         ],
       SearchTab.cases when !attorney => [
           SliverToBoxAdapter(child: title(t.t('search.tab.myCases'))),
@@ -518,7 +555,9 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         ],
       SearchTab.posts => [
-          SliverToBoxAdapter(child: title(t.t('search.section.posts'))),
+          SliverToBoxAdapter(
+            child: _PostsFilterRow(filters: filters, onChanged: onFilters),
+          ),
           grid<Post>(
             ref.watch(explorePostsProvider(_postsKey(filters))).value?.items ??
                 const <Post>[],
@@ -708,6 +747,8 @@ ExploreCasesKey _casesKey(SearchFilters f) => (
         noBids: f.noBids,
         minUrgency: f.minUrgency,
         hasDeadline: f.hasDeadline,
+        // Owner 2026-10-13: cases ranked for this attorney.
+        forYou: true,
       ),
     );
 
@@ -717,7 +758,10 @@ ExplorePostsKey _postsKey(SearchFilters f) => (
       practice: f.practiceCategory,
       period: _periodWire(f.period),
       withPhotos: f.withPhotos,
+      briefsOnly: f.briefsOnly,
       popular: f.postSort == PostSort.popular,
+      // Owner 2026-10-13: the grid is ranked for me unless a sort is picked.
+      forYou: f.postSort == PostSort.relevance,
     );
 
 /// "Show more" under an explore grid.
@@ -778,6 +822,39 @@ class _MyCasesGrid extends ConsumerWidget {
       itemCount: items.length,
       separatorBuilder: (_, __) => const SizedBox(height: kSearchRowGap),
       itemBuilder: (context, i) => SearchMyCaseTile(item: items[i]),
+    );
+  }
+}
+
+/// Owner 2026-10-13: the Posts tab's own row of filters — "Briefs" shows
+/// only text-only posts.
+class _PostsFilterRow extends ConsumerWidget {
+  const _PostsFilterRow({required this.filters, required this.onChanged});
+
+  final SearchFilters filters;
+  final ValueChanged<SearchFilters> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.xs,
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+      ),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: AppChip(
+          key: const ValueKey('search-posts-briefs'),
+          label: t.t('feed.briefs'),
+          selected: filters.briefsOnly,
+          onTap: () => onChanged(
+            filters.withBriefsOnly(value: !filters.briefsOnly),
+          ),
+        ),
+      ),
     );
   }
 }

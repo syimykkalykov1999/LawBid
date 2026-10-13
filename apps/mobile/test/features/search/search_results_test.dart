@@ -45,10 +45,11 @@ void main() {
 
     final tiles = find.byType(PostGridTile);
     expect(tiles, findsNWidgets(4));
-    // Three squares per row, as on the profile.
+    // Three tiles per row, all 3:4 (Instagram Explore).
     final first = tester.getRect(tiles.at(0));
     final fourth = tester.getRect(tiles.at(3));
-    expect(first.width, closeTo(first.height, 0.5));
+    expect(first.height, closeTo(first.width / 0.75, 0.5));
+    expect(fourth.size, first.size);
     final screen = tester.getSize(find.byType(SearchScreen)).width;
     expect(first.width, lessThanOrEqualTo(screen / 3));
     expect(fourth.top, greaterThan(first.bottom));

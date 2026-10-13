@@ -160,6 +160,7 @@ export class SearchController {
       kind: q.kind,
       period: q.period,
       withPhotos: q.withPhotos,
+      briefsOnly: q.briefsOnly,
       sort: q.sort,
       contentClass: q.contentClass,
     });

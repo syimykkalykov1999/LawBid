@@ -13,7 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 export const POST_CONTENT_CLASSES = ['legal', 'general'] as const;
 export type PostContentClass = (typeof POST_CONTENT_CLASSES)[number];
 
-export const FEED_CONTENT_MODES = ['all', 'legal_only'] as const;
+export const FEED_CONTENT_MODES = ['all', 'legal_only', 'briefs_only'] as const;
 export type FeedContentMode = (typeof FEED_CONTENT_MODES)[number];
 
 export const DEFAULT_CONTENT_MODE_KEY = 'feed.default_content_mode';
@@ -39,7 +39,18 @@ export function classifyPost(input: {
 
 /** Extra WHERE for a viewer's mode (empty for "all"). */
 export function contentModeWhere(mode: FeedContentMode): Prisma.PostWhereInput {
-  return mode === 'legal_only' ? { content_class: 'legal' } : {};
+  if (mode === 'legal_only') return { content_class: 'legal' };
+  // Owner 2026-10-13: "Briefs" — text-only posts (no photo, video or file;
+  // the same rule as BRIEF_POST_WHERE).
+  if (mode === 'briefs_only') {
+    return {
+      kind: 'post',
+      video_asset_id: null,
+      media: { none: {} },
+      attachments: { none: {} },
+    };
+  }
+  return {};
 }
 
 @Injectable()

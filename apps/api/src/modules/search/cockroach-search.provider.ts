@@ -12,6 +12,7 @@ import type {
   PostSearchFilters,
   CaseSearchParams,
   PersonRole,
+  PersonTier,
   SearchProvider,
 } from './search.provider';
 
@@ -49,7 +50,7 @@ export class CockroachSearchProvider implements SearchProvider {
     q: string,
     f: AttorneySearchFilters,
     max: number,
-  ): Promise<{ id: string; role: PersonRole }[]> {
+  ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
     // Attorney-only filters leave clients out; state also fits clients.
     const attorneyOnly =
       f.practiceAreaId !== undefined ||
@@ -70,7 +71,7 @@ export class CockroachSearchProvider implements SearchProvider {
     f: AttorneySearchFilters,
     max: number,
     withClients: boolean,
-  ): Promise<{ id: string; role: PersonRole }[]> {
+  ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
     const filters = Prisma.sql`
@@ -123,7 +124,7 @@ export class CockroachSearchProvider implements SearchProvider {
         WHERE TRUE ${clientFilters}`
       : Prisma.empty;
     const rows = await this.prisma.$queryRaw<
-      { id: string; role: PersonRole }[]
+      { id: string; role: PersonRole; tier: number }[]
     >`
       WITH cand AS (
         (SELECT user_id AS id FROM attorney_profiles
@@ -139,6 +140,15 @@ export class CockroachSearchProvider implements SearchProvider {
         (SELECT ap.attorney_id FROM practice_areas pa
           JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
           WHERE lower(pa.name_en) LIKE ${contains}
+          LIMIT ${BRANCH_CAP})
+        UNION
+        -- Owner 2026-10-13: a practice by its name in ANY language
+        -- ("развод", "तलाक"): the translations of its i18n key.
+        (SELECT ap.attorney_id FROM practice_areas pa
+          JOIN i18n_keys k ON k.key = pa.i18n_key
+          JOIN i18n_translations tr ON tr.key_id = k.id
+          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
+          WHERE lower(tr.value) LIKE ${contains}
           LIMIT ${BRANCH_CAP})
         UNION
         (SELECT l.attorney_id FROM states s
@@ -162,7 +172,9 @@ export class CockroachSearchProvider implements SearchProvider {
         WHERE TRUE ${filters}
         ${clients}
       )
-      SELECT id::TEXT AS id, role
+      SELECT id::TEXT AS id, role,
+             (CASE WHEN uname = ${q} THEN 0
+                   WHEN uname LIKE ${prefix} THEN 1 ELSE 2 END)::INT AS tier
       FROM people
       ORDER BY
         (uname = ${q}) DESC,
@@ -175,7 +187,11 @@ export class CockroachSearchProvider implements SearchProvider {
         rating DESC,
         id
       LIMIT ${max}`;
-    return rows;
+    return rows.map((r) => ({
+      id: r.id,
+      role: r.role,
+      tier: r.tier as PersonTier,
+    }));
   }
 
   searchCases(
@@ -240,6 +256,7 @@ export class CockroachSearchProvider implements SearchProvider {
       }
       ${f.state ? Prisma.sql`AND EXISTS (SELECT 1 FROM attorney_licenses l WHERE l.attorney_id = p.author_id AND l.state_code = ${f.state} AND l.license_status = 'verified')` : Prisma.empty}
       ${f.since ? Prisma.sql`AND p.created_at >= ${f.since}` : Prisma.empty}
+      ${f.briefsOnly ? Prisma.sql`AND p.kind = 'post' AND p.video_asset_id IS NULL AND NOT EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id) AND NOT EXISTS (SELECT 1 FROM post_attachments pa WHERE pa.post_id = p.id)` : Prisma.empty}
       ${f.withPhotos ? Prisma.sql`AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)` : Prisma.empty}
       ${f.contentClass ? Prisma.sql`AND p.content_class = ${f.contentClass}` : Prisma.empty}`;
     const order =
@@ -247,12 +264,14 @@ export class CockroachSearchProvider implements SearchProvider {
         ? Prisma.sql`m.created_at DESC, m.id DESC`
         : f.sort === 'popular'
           ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
-          : Prisma.sql`ts_rank(m.search_tsv, plainto_tsquery('english', ${q})) DESC,
+          : Prisma.sql`GREATEST(ts_rank(m.search_tsv, plainto_tsquery('english', ${q})),
+                 ts_rank(m.search_tsv_simple, plainto_tsquery('simple', ${q}))) DESC,
                m.created_at DESC, m.id DESC`;
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH m AS (
-        SELECT p.id, p.created_at, p.search_tsv FROM posts p
-        WHERE p.search_tsv @@ plainto_tsquery('english', ${q})
+        SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
+        WHERE (p.search_tsv @@ plainto_tsquery('english', ${q})
+            OR p.search_tsv_simple @@ plainto_tsquery('simple', ${q}))
           AND p.status = 'published' AND p.deleted_at IS NULL
           ${where}
         ORDER BY p.created_at DESC

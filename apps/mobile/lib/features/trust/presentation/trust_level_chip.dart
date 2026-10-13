@@ -119,6 +119,9 @@ class TrustLevelChip extends ConsumerWidget {
       };
 }
 
+/// The icon of a trust level (chip and avatar badge).
+IconData trustLevelIcon(int level) => TrustLevelChip._iconFor(level);
+
 /// The level name for tests and plain-text places (snackbars, errors).
 String trustLevelName(Translator t, int level) =>
     t.t(TrustLevels.nameKey(level));

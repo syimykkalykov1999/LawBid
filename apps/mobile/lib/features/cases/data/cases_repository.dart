@@ -43,6 +43,7 @@ class CaseFeedExtras {
     this.noBids = false,
     this.minUrgency,
     this.hasDeadline = false,
+    this.forYou = false,
   });
 
   /// `24h` · `7d` · `30d` · null = all.
@@ -57,11 +58,15 @@ class CaseFeedExtras {
   final String? minUrgency;
   final bool hasDeadline;
 
+  /// Owner 2026-10-13: ranked for this attorney instead of newest first.
+  final bool forYou;
+
   @override
   bool operator ==(Object other) =>
       other is CaseFeedExtras &&
       other.minUrgency == minUrgency &&
       other.hasDeadline == hasDeadline &&
+      other.forYou == forYou &&
       other.period == period &&
       other.budgetMin == budgetMin &&
       other.budgetMax == budgetMax &&
@@ -77,6 +82,7 @@ class CaseFeedExtras {
         noBids,
         minUrgency,
         hasDeadline,
+        forYou,
       );
 }
 
@@ -479,6 +485,7 @@ class ApiCasesRepository implements CasesRepository {
             ? null
             : api.MinUrgency.fromJson(extras.minUrgency!),
         hasDeadline: extras.hasDeadline ? true : null,
+        sort: extras.forYou ? api.CasesFeedSort.forYou : null,
       ),
     );
     return CursorPage(

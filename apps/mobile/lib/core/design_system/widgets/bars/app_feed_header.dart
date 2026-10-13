@@ -58,7 +58,7 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final topInset = MediaQuery.paddingOf(context).top;
-    return Container(
+    final bar = Container(
       height: AppSizes.feedHeader + topInset,
       // Owner 2026-09-30: logo and chats closer to the screen edges.
       padding: EdgeInsetsDirectional.fromSTEB(
@@ -131,5 +131,8 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
               ],
             ),
     );
+    // Owner 2026-10-13: no blur behind the header — the plain background
+    // of the current theme.
+    return bar;
   }
 }

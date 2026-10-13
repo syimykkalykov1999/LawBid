@@ -10,11 +10,26 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+/// What a cached file needs: its id (the name on disk), type and link.
+/// Owner 2026-10-13: a post's document uses the same cache as a case file.
+class FileRef {
+  const FileRef({required this.fileId, required this.mime, required this.url});
+
+  FileRef.of(api.WorkspaceFileDto f)
+      : fileId = f.fileId,
+        mime = f.mime,
+        url = f.url;
+
+  final String fileId;
+  final String mime;
+  final String url;
+}
+
 /// Owner 2026-10-13: a case file is downloaded once and kept on the device;
 /// "Open" then never downloads it again. A photo opens in the gallery, a
 /// document in the system's "open with" sheet.
 class CaseFileCache {
-  static Future<File> _target(api.WorkspaceFileDto f) async {
+  static Future<File> _target(FileRef f) async {
     final dir = Directory(
       '${(await getApplicationSupportDirectory()).path}/case_files',
     );
@@ -37,10 +52,10 @@ class CaseFileCache {
         _ => 'bin',
       };
 
-  static Future<bool> isDownloaded(api.WorkspaceFileDto f) async =>
+  static Future<bool> isDownloaded(FileRef f) async =>
       (await _target(f)).existsSync();
 
-  static Future<File> download(api.WorkspaceFileDto f) async {
+  static Future<File> download(FileRef f) async {
     final file = await _target(f);
     if (file.existsSync()) return file;
     final tmp = File('${file.path}.part');
@@ -51,7 +66,7 @@ class CaseFileCache {
 
   static Future<void> open(
     BuildContext context,
-    api.WorkspaceFileDto f, {
+    FileRef f, {
     required String closeLabel,
   }) async {
     if (f.mime.startsWith('image/')) {
@@ -67,9 +82,12 @@ class CaseFileCache {
 
 /// "Download" → "Open" on a file row.
 class FileOpenButton extends ConsumerStatefulWidget {
-  const FileOpenButton({required this.file, super.key});
+  FileOpenButton({required api.WorkspaceFileDto file, super.key})
+      : file = FileRef.of(file);
 
-  final api.WorkspaceFileDto file;
+  const FileOpenButton.ref({required this.file, super.key});
+
+  final FileRef file;
 
   @override
   ConsumerState<FileOpenButton> createState() => _FileOpenButtonState();

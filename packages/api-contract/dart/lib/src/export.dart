@@ -941,6 +941,7 @@ export 'models/attorney_list_item_list_envelope.dart';
 export 'models/tag_dto.dart';
 export 'models/tag_list_envelope.dart';
 export 'models/latest_posts_sort.dart';
+export 'models/cases_feed_sort.dart';
 export 'models/activity_status_dto.dart';
 export 'models/activity_status_envelope.dart';
 export 'models/integration_field_dto.dart';

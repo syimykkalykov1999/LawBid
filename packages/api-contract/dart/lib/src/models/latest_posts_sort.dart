@@ -10,6 +10,8 @@ enum LatestPostsSort {
   newest('newest'),
   @JsonValue('popular')
   popular('popular'),
+  @JsonValue('for_you')
+  forYou('for_you'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

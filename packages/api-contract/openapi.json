@@ -21856,6 +21856,15 @@
             }
           },
           {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-13: for_you = ranked for this attorney (practice, states, freshness, budget, few offers, no offer yet); the cursor is then a position in the ranked list.",
+            "schema": {
+              "$ref": "#/components/schemas/CasesFeedSort"
+            }
+          },
+          {
             "name": "scope",
             "required": false,
             "in": "query",
@@ -47643,6 +47652,18 @@
               "maxLength": 300,
               "type": "string"
             }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -48295,6 +48316,15 @@
             }
           },
           {
+            "name": "briefsOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only text-only posts (Briefs).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "sort",
             "required": false,
             "in": "query",
@@ -48774,10 +48804,19 @@
             }
           },
           {
+            "name": "briefsOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only text-only posts (Briefs).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "sort",
             "required": false,
             "in": "query",
-            "description": "popular = likes + comments, then newest (offset cursor).",
+            "description": "popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).",
             "schema": {
               "$ref": "#/components/schemas/LatestPostsSort"
             }
@@ -77894,6 +77933,216 @@
           "admin-billing"
         ]
       }
+    },
+    "/contacts/sync": {
+      "get": {
+        "operationId": "status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactSyncStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Contacts sync: on/off, matches, last sync",
+        "tags": [
+          "contacts-sync"
+        ]
+      },
+      "post": {
+        "operationId": "upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadContactHashesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactUploadResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload SHA-256 hashes of address-book numbers (E.164); only matches with LawBid users are kept",
+        "tags": [
+          "contacts-sync"
+        ]
+      },
+      "delete": {
+        "operationId": "remove",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Turn contacts sync off and delete every match (idempotent)",
+        "tags": [
+          "contacts-sync"
+        ]
+      }
     }
   },
   "info": {
@@ -103294,7 +103543,8 @@
         "type": "string",
         "enum": [
           "all",
-          "legal_only"
+          "legal_only",
+          "briefs_only"
         ]
       },
       "FeedPreferencesDto": {
@@ -103943,6 +104193,13 @@
           "isFollowing": {
             "type": "boolean",
             "description": "The viewer follows this attorney."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "contacts"
+            ],
+            "description": "Why this person is suggested, when worth a caption: \"contacts\" = in my address book."
           }
         },
         "required": [
@@ -104102,7 +104359,15 @@
         "type": "string",
         "enum": [
           "newest",
-          "popular"
+          "popular",
+          "for_you"
+        ]
+      },
+      "CasesFeedSort": {
+        "type": "string",
+        "enum": [
+          "newest",
+          "for_you"
         ]
       },
       "ActivityStatusDto": {
@@ -120223,6 +120488,91 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PostAttachmentsModeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ContactSyncStatusDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The user has contacts sync turned on."
+          },
+          "matches": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "People from the address book found on LawBid."
+          },
+          "syncedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "enabled",
+          "matches"
+        ]
+      },
+      "ContactSyncStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContactSyncStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ContactUploadResultDto": {
+        "type": "object",
+        "properties": {
+          "matched": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Hashes of this upload that belong to LawBid users."
+          }
+        },
+        "required": [
+          "matched"
+        ]
+      },
+      "UploadContactHashesDto": {
+        "type": "object",
+        "properties": {
+          "hashes": {
+            "minItems": 1,
+            "maxItems": 2000,
+            "description": "Lowercase hex SHA-256 of each normalized E.164 number (\"+14155552680\"). Never raw numbers.",
+            "example": [
+              "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "required": [
+          "hashes"
+        ]
+      },
+      "ContactUploadResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContactUploadResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

@@ -99,6 +99,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   /// Owner 2026-10-07 (bug 17): counts, MB and formats from the admin.
   late final _limits = ref.read(uploadLimitsProvider)[UploadPlace.post];
+
+  /// Owner 2026-10-13: without the right to attach, a post carries one
+  /// photo (or one video) and no documents.
+  bool get _canAttach =>
+      ref.read(postAttachmentsAllowedProvider).value ?? false;
+
+  int get _maxMedia => _canAttach ? _limits.maxPhotos : 1;
   late String? _practice = widget.editing?.practice?.code;
   late bool _pickedNews = widget.editing?.isNews ?? widget.news;
 
@@ -147,7 +154,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   Future<void> _pick() async {
-    final left = _limits.maxPhotos - _photos.length;
+    final left = _maxMedia - _photos.length;
     if (left <= 0) return;
     final limits = postPhotoLimits(ref);
     final List<XFile> picked;
@@ -484,7 +491,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         Text(
-                          '${_photos.length} / ${_limits.maxPhotos}',
+                          '${_photos.length} / $_maxMedia',
                           style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
@@ -503,7 +510,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                           final p = _photos.removeAt(from);
                           _photos.insert(to > from ? to - 1 : to, p);
                         }),
-                        footer: _photos.length < _limits.maxPhotos
+                        footer: _photos.length < _maxMedia
                             ? _AddPhotoTile(
                                 label: t.t(
                                   video
@@ -543,11 +550,14 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       ),
                       style: type.caption.copyWith(color: colors.textSecondary),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    PostDocumentsEditor(
-                      controller: _docs,
-                      enabled: !_publishing,
-                    ),
+                    if (ref.watch(postAttachmentsAllowedProvider).value ??
+                        false) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      PostDocumentsEditor(
+                        controller: _docs,
+                        enabled: !_publishing,
+                      ),
+                    ],
                   ],
                   const SizedBox(height: AppSpacing.xl),
                   const PostDisclaimer(),

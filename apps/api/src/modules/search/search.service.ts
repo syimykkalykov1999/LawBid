@@ -26,6 +26,7 @@ import type { AttorneyListPage } from '../follows/follows.dto';
 import { FollowsService } from '../follows/follows.service';
 import {
   ContentFilterService,
+  contentModeWhere,
   type PostContentClass,
 } from '../posts/content-filter.service';
 import type { PostDto, PostPage } from '../posts/dto/posts.dto';
@@ -35,6 +36,8 @@ import {
 } from '../posts/post-presenter.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
+import { RecommendationsService } from '../recommendations/recommendations.service';
+import { reorderWithinTiers } from '../recommendations/ranking.math';
 import type {
   PeoplePage,
   PersonItemDto,
@@ -139,6 +142,8 @@ export class SearchService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly contentFilter?: ContentFilterService,
+    // Owner 2026-10-13: personal ranking (tie-break in People, "for you").
+    @Optional() private readonly recommendations?: RecommendationsService,
   ) {}
 
   /** Owner 2026-10-05: a "Legal only" viewer never sees general posts. */
@@ -168,16 +173,24 @@ export class SearchService {
       role: dto.role,
       verifiedOnly: dto.verifiedOnly,
     };
-    const tokens = await this.ranked('pp', { q, ...filters }, async () =>
+    const shared = await this.ranked('pp', { q, ...filters }, async () =>
       (await this.provider.searchPeople(q, filters, RANKED_MAX)).map(
-        (r) => `${r.role}:${r.id}`,
+        (r) => `${r.role}:${r.id}:${r.tier}`,
       ),
+    );
+    // Owner 2026-10-13: text relevance stays first; inside one tier of
+    // matches the viewer's affinity orders close neighbours. Kept per
+    // viewer for the same few minutes as the shared list.
+    const tokens = await this.ranked(
+      'pp-me',
+      { q, ...filters, viewer: user.sub },
+      () => this.personalPeople(user.sub, shared),
     );
     const { slice: rawSlice, next } = this.pageOf(tokens, dto.cursor);
     // OQ-028: the shared ranked list is viewer-agnostic; blocks (either
     // direction) are applied per viewer when presenting.
     const hidden = await this.blocks.hiddenIds(user.sub);
-    const slice = rawSlice.filter((t) => !hidden.has(t.split(':', 2)[1]));
+    const slice = rawSlice.filter((t) => !hidden.has(t.split(':')[1]));
     const attorneyIds = slice
       .filter((t) => t.startsWith('attorney:'))
       .map((t) => t.slice('attorney:'.length));
@@ -192,7 +205,7 @@ export class SearchService {
     const byClient = new Map(clients.map((c) => [c.id, c]));
     const items: PersonItemDto[] = [];
     for (const token of slice) {
-      const [role, id] = token.split(':', 2) as ['attorney' | 'client', string];
+      const [role, id] = token.split(':') as ['attorney' | 'client', string];
       if (role === 'attorney') {
         const a = byAttorney.get(id);
         if (a) items.push({ role, attorney: a, client: null });
@@ -202,6 +215,31 @@ export class SearchService {
       }
     }
     return { items, nextCursor: next };
+  }
+
+  /** Shared "role:id:tier" tokens reordered by the viewer's affinity. */
+  private async personalPeople(
+    viewerId: string,
+    shared: string[],
+  ): Promise<string[]> {
+    if (!this.recommendations || shared.length < 2) return shared;
+    try {
+      const attorneyIds = shared
+        .filter((t) => t.startsWith('attorney:'))
+        .map((t) => t.split(':')[1]);
+      const affinity = await this.recommendations.peopleAffinity(
+        viewerId,
+        attorneyIds,
+      );
+      return reorderWithinTiers(
+        shared,
+        (t) => Number(t.split(':')[2]),
+        (t) => affinity.get(t.split(':')[1]) ?? 0,
+      );
+    } catch {
+      // Ranking is a bonus: text order is always a valid answer.
+      return shared;
+    }
   }
 
   async attorneys(
@@ -296,6 +334,7 @@ export class SearchService {
       state: dto?.state?.toUpperCase(),
       since: span ? new Date(Date.now() - span) : undefined,
       withPhotos: dto?.withPhotos,
+      briefsOnly: dto?.briefsOnly,
       sort: dto?.sort,
       contentClass: await this.viewerOnly(user.sub),
     };
@@ -359,76 +398,91 @@ export class SearchService {
       kind?: 'post' | 'news';
       period?: SearchPeriod;
       withPhotos?: boolean;
-      sort?: 'newest' | 'popular';
+      briefsOnly?: boolean;
+      sort?: 'newest' | 'popular' | 'for_you';
       contentClass?: PostContentClass;
     } = {},
   ): Promise<PostPage> {
     const contentClass =
       filter.contentClass ?? (await this.viewerOnly(user.sub));
     const popular = filter.sort === 'popular';
-    // Popular pages by offset; newest keeps the keyset cursor.
-    const offset = popular && cursor ? Number(cursor) || 0 : 0;
-    const c = !popular && cursor ? decodeCursor(cursor) : undefined;
+    // Owner 2026-10-13: for_you = ranked for this viewer (same candidates
+    // and filters, paged by position like popular).
+    const forYou = filter.sort === 'for_you' && !!this.recommendations;
+    // Popular and for_you page by offset; newest keeps the keyset cursor.
+    const offset = (popular || forYou) && cursor ? Number(cursor) || 0 : 0;
+    const c = !popular && !forYou && cursor ? decodeCursor(cursor) : undefined;
     const span = PERIOD_MS[filter.period ?? 'all'];
     const practice = filter.practice?.trim().toLowerCase();
     const tag = filter.tag ? normalizeQuery(filter.tag) : '';
+    const base: Prisma.PostWhereInput[] = [
+      // Audit 2026-10-01: every condition AND-composed — the state filter
+      // used to overwrite VISIBLE_POST_WHERE's `author` (active, not
+      // suspended) and the practice clause shared the `AND` key.
+      VISIBLE_POST_WHERE,
+      authorStateWhere([...(state ? [state] : []), ...(filter.states ?? [])]),
+      // Owner 2026-10-06: «Только мои темы» — any of the picked
+      // qualifications, each with its subcategories.
+      ...(filter.practices?.length
+        ? [
+            {
+              OR: filter.practices.flatMap((p) => [
+                { practice_area: { code: p } },
+                { practice_area: { code: { startsWith: `${p}.` } } },
+              ]),
+            },
+          ]
+        : []),
+      // Audit 2026-10-01: nothing of people blocked either way.
+      {
+        author_id: { notIn: [...(await this.blocks.hiddenIds(user.sub))] },
+      },
+      ...(filter.kind ? [{ kind: filter.kind }] : []),
+      ...(contentClass ? [{ content_class: contentClass }] : []),
+      ...(span ? [{ created_at: { gte: new Date(Date.now() - span) } }] : []),
+      ...(filter.withPhotos ? [{ media: { some: {} } }] : []),
+      // Owner 2026-10-13: Briefs = text-only posts.
+      ...(filter.briefsOnly ? [contentModeWhere('briefs_only')] : []),
+      // Owner 2026-09-30: the qualification and its subcategories;
+      // older posts (no qualification) by their topic hashtag.
+      ...(practice
+        ? [
+            {
+              OR: [
+                { practice_area: { code: practice } },
+                {
+                  practice_area: {
+                    code: { startsWith: `${practice}.` },
+                  },
+                },
+                ...(tag
+                  ? [
+                      {
+                        practice_area_id: null,
+                        tags: { some: { tag: { tag_lower: tag } } },
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ]
+        : []),
+    ];
+    if (forYou && this.recommendations) {
+      const ids = await this.recommendations.postsFor(
+        user.sub,
+        { AND: base },
+        { state, filter: { ...filter, contentClass } },
+      );
+      const slice = ids.slice(offset, offset + PAGE);
+      return {
+        items: await this.presentPosts(slice, user.sub, contentClass),
+        nextCursor: offset + PAGE < ids.length ? String(offset + PAGE) : null,
+      };
+    }
     const rows = await this.prisma.post.findMany({
       where: {
-        // Audit 2026-10-01: every condition AND-composed — the state filter
-        // used to overwrite VISIBLE_POST_WHERE's `author` (active, not
-        // suspended) and the practice clause shared the `AND` key.
         AND: [
-          VISIBLE_POST_WHERE,
-          authorStateWhere([
-            ...(state ? [state] : []),
-            ...(filter.states ?? []),
-          ]),
-          // Owner 2026-10-06: «Только мои темы» — any of the picked
-          // qualifications, each with its subcategories.
-          ...(filter.practices?.length
-            ? [
-                {
-                  OR: filter.practices.flatMap((p) => [
-                    { practice_area: { code: p } },
-                    { practice_area: { code: { startsWith: `${p}.` } } },
-                  ]),
-                },
-              ]
-            : []),
-          // Audit 2026-10-01: nothing of people blocked either way.
-          {
-            author_id: { notIn: [...(await this.blocks.hiddenIds(user.sub))] },
-          },
-          ...(filter.kind ? [{ kind: filter.kind }] : []),
-          ...(contentClass ? [{ content_class: contentClass }] : []),
-          ...(span
-            ? [{ created_at: { gte: new Date(Date.now() - span) } }]
-            : []),
-          ...(filter.withPhotos ? [{ media: { some: {} } }] : []),
-          // Owner 2026-09-30: the qualification and its subcategories;
-          // older posts (no qualification) by their topic hashtag.
-          ...(practice
-            ? [
-                {
-                  OR: [
-                    { practice_area: { code: practice } },
-                    {
-                      practice_area: {
-                        code: { startsWith: `${practice}.` },
-                      },
-                    },
-                    ...(tag
-                      ? [
-                          {
-                            practice_area_id: null,
-                            tags: { some: { tag: { tag_lower: tag } } },
-                          },
-                        ]
-                      : []),
-                  ],
-                },
-              ]
-            : []),
           ...(c
             ? [
                 {

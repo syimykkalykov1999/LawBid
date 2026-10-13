@@ -223,6 +223,10 @@ export class AccountAnonymizationService {
       });
       await tx.userIdentifier.deleteMany({ where: { user_id: userId } });
       await tx.pushToken.deleteMany({ where: { user_id: userId } });
+      // Owner 2026-10-13: address-book matches, both directions.
+      await tx.contactMatch.deleteMany({
+        where: { OR: [{ owner_id: userId }, { matched_id: userId }] },
+      });
       const active = await tx.session.findMany({
         where: { user_id: userId, revoked_at: null },
         select: { session_chain_id: true },
