@@ -489,7 +489,11 @@ void main() {
         find.byType(ListView).last,
         const Offset(0, -200),
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('role-paralegal')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('role-paralegal')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('liability-check')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('liability-check')));
       await tester.pump();

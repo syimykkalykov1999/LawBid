@@ -525,7 +525,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                 Text(
                   task.title,
                   style: type.titleMedium.copyWith(
-                    fontSize: 21,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: colors.text,
                   ),
@@ -540,7 +540,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                     padding: const EdgeInsets.only(top: AppSpacing.md),
                     child: Text(
                       task.description!,
-                      style: type.body.copyWith(fontSize: 15.5, height: 1.5),
+                      style: type.body.copyWith(fontSize: 14, height: 1.5),
                     ),
                   ),
                 if (task.files.isNotEmpty) ...[

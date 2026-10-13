@@ -51,7 +51,7 @@ class AppButton extends StatefulWidget {
     this.icon,
     this.isLoading = false,
     this.isEnabled = true,
-    this.height = 50,
+    this.height = 44,
     this.onTapDown,
     this.dimWhenDisabled = true,
     this.disabledHint,

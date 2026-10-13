@@ -120,7 +120,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                   style: type.titleMedium.copyWith(
                     color: colors.text,
                     fontWeight: FontWeight.w600,
-                    fontSize: 22,
+                    fontSize: 18,
                     height: 1.22,
                   ),
                 ),
@@ -594,7 +594,7 @@ class UpdateEntry extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       u.body,
-                      style: type.body.copyWith(fontSize: 15, height: 1.45),
+                      style: type.body.copyWith(fontSize: 14, height: 1.45),
                     ),
                   ),
                 for (final f in u.files)

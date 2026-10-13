@@ -16,8 +16,8 @@ abstract final class AppSizes {
 
   /// Icon sizes.
   static const double iconSm = 20;
-  static const double iconMd = 24;
-  static const double iconLg = 28;
+  static const double iconMd = 22;
+  static const double iconLg = 24;
 
   /// Circular icon badge in list rows (settings, device cards).
   static const double rowMedallion = 40;
@@ -27,7 +27,7 @@ abstract final class AppSizes {
   static const double stateIcon = 36;
 
   /// Top bar height.
-  static const double topBar = 56;
+  static const double topBar = 48;
 
   /// Bottom-sheet drag handle.
   static const double sheetHandleWidth = 36;

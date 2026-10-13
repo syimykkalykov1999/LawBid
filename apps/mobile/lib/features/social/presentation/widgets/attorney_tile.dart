@@ -588,6 +588,8 @@ class PersonTile extends StatelessWidget {
       : ClientTile(row: row.client!);
 }
 
+const Color _followBlue = Color(0xFF0095F6);
+
 /// "Подписаться" ⇄ "Вы подписаны": a gold pill that morphs into an
 /// outlined one; optimistic with rollback (docs/05 §6).
 class FollowButton extends ConsumerWidget {
@@ -661,18 +663,14 @@ class FollowButton extends ConsumerWidget {
           ),
           alignment: compact ? null : Alignment.center,
           decoration: BoxDecoration(
-            color: following || outlined
-                ? Colors.transparent
-                : (expanded ? colors.goldAccent : colors.ctaBright),
+            // Owner 2026-10-13: like Instagram — Follow is a blue fill with
+            // white text, Following a grey one with the normal text colour.
+            color: following ? colors.surface : _followBlue,
             borderRadius: BorderRadius.circular(
               expanded ? AppRadii.field : AppRadii.pill,
             ),
             border: Border.all(
-              color: following
-                  ? colors.border
-                  : (outlined
-                      ? colors.gold
-                      : (expanded ? colors.goldAccent : colors.ctaBright)),
+              color: following ? colors.border : _followBlue,
             ),
           ),
           child: AnimatedSwitcher(
@@ -694,11 +692,7 @@ class FollowButton extends ConsumerWidget {
                         ? AppIcons.checkRounded
                         : AppIcons.personAddAlt1Rounded,
                     size: AppSizes.iconSm,
-                    color: following
-                        ? colors.textSecondary
-                        : (outlined
-                            ? colors.gold
-                            : (expanded ? colors.navy : colors.onCtaBright)),
+                    color: following ? colors.textSecondary : Colors.white,
                   ),
                   const SizedBox(width: AppSpacing.xs),
                 ],
@@ -711,13 +705,7 @@ class FollowButton extends ConsumerWidget {
                       maxLines: 1,
                       style: type.button.copyWith(
                         fontSize: 14,
-                        color: following
-                            ? (outlined ? colors.textSecondary : colors.text)
-                            : (outlined
-                                ? colors.gold
-                                : (expanded
-                                    ? colors.navy
-                                    : colors.onCtaBright)),
+                        color: following ? colors.text : Colors.white,
                       ),
                     ),
                   ),

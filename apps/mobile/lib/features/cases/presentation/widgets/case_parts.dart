@@ -145,7 +145,7 @@ class CaseFigures extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: type.body.copyWith(
                   fontWeight: FontWeight.w600,
-                  fontSize: 16,
+                  fontSize: 14,
                   height: 1.2,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -198,7 +198,7 @@ class CaseText extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final style = type.body.copyWith(
-      fontSize: 15,
+      fontSize: 14,
       height: 1.45,
       color: colors.text.withValues(alpha: 0.88),
     );

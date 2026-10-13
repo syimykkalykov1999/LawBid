@@ -661,7 +661,7 @@ class PickerField extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: typography.body
-                            .copyWith(color: colors.text, fontSize: 16),
+                            .copyWith(color: colors.text, fontSize: 14),
                       ),
                     ),
                     AppIcon(

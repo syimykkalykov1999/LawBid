@@ -396,7 +396,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                       onChanged: (_) => setState(() {}),
                       style: type.body.copyWith(
                         fontWeight: FontWeight.w700,
-                        fontSize: 18,
+                        fontSize: 16,
                       ),
                       decoration: InputDecoration(
                         hintText: t.t('cases.compose.titleHint'),
@@ -442,7 +442,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                 setState(() {});
                               },
                               style:
-                                  type.body.copyWith(fontSize: 16, height: 1.4),
+                                  type.body.copyWith(fontSize: 14, height: 1.4),
                               decoration: InputDecoration(
                                 hintText: i == 0
                                     ? t.t(

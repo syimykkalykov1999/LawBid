@@ -234,7 +234,7 @@ class _Overview extends ConsumerWidget {
                   mentions: p.mentions,
                   style: type.titleLarge.copyWith(
                     fontFamily: type.body.fontFamily,
-                    fontSize: 20,
+                    fontSize: 17,
                     height: 1.25,
                     color: colors.text,
                     fontWeight: FontWeight.w700,

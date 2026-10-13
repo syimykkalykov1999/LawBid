@@ -261,7 +261,7 @@ class _BodyState extends ConsumerState<_Body> {
             style: typography.titleMedium.copyWith(
               color: colors.text,
               fontWeight: FontWeight.w600,
-              fontSize: 22,
+              fontSize: 18,
               height: 1.22,
             ),
           ),

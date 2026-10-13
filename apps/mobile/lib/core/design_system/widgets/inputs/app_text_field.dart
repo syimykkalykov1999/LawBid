@@ -164,7 +164,7 @@ class _AppTextFieldState extends State<AppTextField> {
                     enabled: widget.enabled,
                     cursorColor: colors.gold,
                     cursorWidth: 1.5,
-                    style: const TextStyle(fontSize: 16)
+                    style: const TextStyle(fontSize: 14)
                         .copyWith(color: colors.text),
                     decoration: InputDecoration(
                       hintText: widget.hintText,
@@ -172,8 +172,8 @@ class _AppTextFieldState extends State<AppTextField> {
                           typography.body.copyWith(color: colors.textSecondary),
                       border: InputBorder.none,
                       isDense: true,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.lg + 1),
                     ),
                   ),
                 ),

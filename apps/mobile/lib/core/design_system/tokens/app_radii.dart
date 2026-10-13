@@ -2,7 +2,7 @@
 // Corner radii (file 07 §4). Plain const class — see app_spacing.dart for rationale.
 abstract final class AppRadii {
   static const double button = 14;
-  static const double field = 12;
+  static const double field = 10;
   static const double roleCard = 16;
   static const double otpCell = 12;
   static const double proBadge = 6;
@@ -11,7 +11,7 @@ abstract final class AppRadii {
 
   /// Content cards (settings groups, device rows) — same 16 as [roleCard]
   /// so every card-shaped surface in the app shares one corner language.
-  static const double card = 16;
+  static const double card = 12;
 
   /// Top corners of modal bottom sheets.
   static const double sheet = 24;

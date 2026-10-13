@@ -35,13 +35,13 @@ final class AppTypographyTokens extends ThemeExtension<AppTypographyTokens> {
         titleLarge: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 22,
+          fontSize: 18,
           height: 1.2,
         ),
         titleMedium: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 17,
+          fontSize: 15,
           height: 1.2,
         ),
         titleWelcome: TextStyle(
@@ -53,24 +53,24 @@ final class AppTypographyTokens extends ThemeExtension<AppTypographyTokens> {
         roleTitle: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 17,
+          fontSize: 16,
         ),
         otpDigit: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 22,
+          fontSize: 20,
         ),
         body: TextStyle(
           fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w400,
-          fontSize: 13,
-          height: 1.5,
+          fontSize: 14,
+          height: 1.35,
         ),
         bodySmall: TextStyle(
           fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w400,
-          fontSize: 12,
-          height: 1.45,
+          fontSize: 13,
+          height: 1.35,
         ),
         button: TextStyle(
           fontFamily: AppFontFamilies.sans,
@@ -81,7 +81,7 @@ final class AppTypographyTokens extends ThemeExtension<AppTypographyTokens> {
           fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w400,
           fontSize: 12,
-          height: 1.5,
+          height: 1.3,
         ),
         legalFine: TextStyle(
           fontFamily: AppFontFamilies.sans,

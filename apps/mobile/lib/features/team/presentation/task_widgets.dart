@@ -278,7 +278,7 @@ class TaskRow extends StatelessWidget {
                           formats.time(due),
                           style: typography.titleLarge.copyWith(
                             color: overdue ? colors.dangerText : colors.text,
-                            fontSize: 22,
+                            fontSize: 18,
                             height: 1.1,
                           ),
                         ),

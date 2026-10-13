@@ -242,7 +242,7 @@ class FeedCaseCard extends StatelessWidget {
                   style: typography.titleMedium.copyWith(
                     color: colors.text,
                     fontWeight: FontWeight.w600,
-                    fontSize: 19,
+                    fontSize: 16,
                     height: 1.25,
                   ),
                 ),
@@ -339,7 +339,7 @@ class _CaseCardRow extends StatelessWidget {
                   style: typography.body.copyWith(
                     color: colors.navy,
                     fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                    fontSize: 14,
                   ),
                 ),
               ),
@@ -591,7 +591,7 @@ class _MineCardFrame extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: typography.body.copyWith(
               color: colors.text,
-              fontSize: 17,
+              fontSize: 15,
               fontWeight: FontWeight.w700,
               height: 1.3,
             ),

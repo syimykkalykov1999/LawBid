@@ -2966,7 +2966,7 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final titleStyle = type.titleMedium.copyWith(
       color: colors.text,
-      fontSize: 16,
+      fontSize: 14,
       fontWeight: FontWeight.w600,
       height: 1.25,
     );
