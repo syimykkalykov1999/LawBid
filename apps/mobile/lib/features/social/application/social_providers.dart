@@ -316,6 +316,8 @@ typedef ExplorePostsKey = ({
   bool withPhotos,
   bool briefsOnly,
   bool popular,
+  // Owner 2026-10-13: ranked for me (default sort of the grid).
+  bool forYou,
 });
 
 class ExplorePostsNotifier extends PagedNotifier<Post> {
@@ -335,6 +337,7 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
           withPhotos: key.withPhotos,
           briefsOnly: key.briefsOnly,
           popular: key.popular,
+          forYou: key.forYou,
         );
   }
 

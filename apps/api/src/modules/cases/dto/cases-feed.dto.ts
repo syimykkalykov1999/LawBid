@@ -102,6 +102,16 @@ export class ListCasesFeedQueryDto {
   scope?: 'licensed' | 'all';
 
   @ApiPropertyOptional({
+    enum: ['newest', 'for_you'],
+    enumName: 'CasesFeedSort',
+    description:
+      'Owner 2026-10-13: for_you = ranked for this attorney (practice, states, freshness, budget, few offers, no offer yet); the cursor is then a position in the ranked list.',
+  })
+  @IsOptional()
+  @IsIn(['newest', 'for_you'])
+  sort?: 'newest' | 'for_you';
+
+  @ApiPropertyOptional({
     example: 'family_law',
     description:
       'Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).',

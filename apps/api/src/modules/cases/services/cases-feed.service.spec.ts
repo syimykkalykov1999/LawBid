@@ -157,6 +157,67 @@ describe('CasesFeedService', () => {
       expect(page.nextCursor).toBeNull();
     });
 
+    describe('sort=for_you (owner 2026-10-13)', () => {
+      function withRanking(rankedIds: string[]) {
+        const rows = ['c1', 'c2', 'c3'].map((id) => caseRow({ id }));
+        const deps = fakeDeps({ cases: rows });
+        // Only the candidate scan (LIMIT 300, or the page query) returns rows: no promoted or
+        // priority cases here.
+        deps.prisma.$queryRaw.mockImplementation((q: { values?: unknown[] }) =>
+          Promise.resolve(
+            q.values?.includes(300) || q.values?.includes(21)
+              ? rows.map((r) => ({ id: r.id, created_at: r.created_at }))
+              : [],
+          ),
+        );
+        const recommendations = {
+          casesFor: jest.fn().mockResolvedValue(rankedIds),
+        };
+        const service = new CasesFeedService(
+          deps.prisma as never,
+          deps.access as never,
+          deps.viewTracking as never,
+          deps.posts as never,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          recommendations as never,
+        );
+        return { ...deps, service, recommendations };
+      }
+
+      it('serves the ranked order and pages by position', async () => {
+        const { service, recommendations } = withRanking(['c3', 'c1', 'c2']);
+        const first = await service.listFeed(attorney, {
+          sort: 'for_you',
+          limit: 2,
+        });
+        expect(recommendations.casesFor).toHaveBeenCalledWith(
+          'att-1',
+          ['c1', 'c2', 'c3'],
+          expect.any(Object),
+        );
+        expect(first.items.map((i) => i.id)).toEqual(['c3', 'c1']);
+        expect(first.nextCursor).not.toBeNull();
+        const second = await service.listFeed(attorney, {
+          sort: 'for_you',
+          limit: 2,
+          cursor: first.nextCursor!,
+        });
+        expect(second.items.map((i) => i.id)).toEqual(['c2']);
+        expect(second.nextCursor).toBeNull();
+      });
+
+      it('without the sort the newest order is untouched', async () => {
+        const { service, recommendations } = withRanking(['c3']);
+        const page = await service.listFeed(attorney, {});
+        expect(recommendations.casesFor).not.toHaveBeenCalled();
+        expect(page.items.map((i) => i.id)).toEqual(['c1', 'c2', 'c3']);
+      });
+    });
+
     it('never includes any client field on a feed item', async () => {
       const row = caseRow();
       const { service, prisma } = fakeDeps({ cases: [row] });

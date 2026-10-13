@@ -392,14 +392,15 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   briefsOnly?: boolean;
 
   @ApiPropertyOptional({
-    enum: ['newest', 'popular'],
+    enum: ['newest', 'popular', 'for_you'],
     enumName: 'LatestPostsSort',
     default: 'newest',
-    description: 'popular = likes + comments, then newest (offset cursor).',
+    description:
+      'popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).',
   })
   @IsOptional()
-  @IsIn(['newest', 'popular'])
-  sort?: 'newest' | 'popular';
+  @IsIn(['newest', 'popular', 'for_you'])
+  sort?: 'newest' | 'popular' | 'for_you';
 
   /** Owner 2026-10-05: only legal or only general (personal) posts — the
    * "Posts" topic lists general ones. Absent = the viewer's feed setting. */
