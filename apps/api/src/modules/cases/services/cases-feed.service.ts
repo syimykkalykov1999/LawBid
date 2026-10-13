@@ -71,7 +71,7 @@ function forbidden(message: string): ForbiddenException {
  * (§3.5, `GET /users/me/cases`) is stage 4.2 (CasesController).
  */
 /** Feed card description preview length (owner 2026-09-30). */
-const FEED_EXCERPT_MAX = 180;
+const FEED_EXCERPT_MAX = 400;
 
 @Injectable()
 export class CasesFeedService {
