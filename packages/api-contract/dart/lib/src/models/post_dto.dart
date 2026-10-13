@@ -49,8 +49,8 @@ class PostDto {
     this.video,
     this.repostedBy,
     this.editedAt,
-    this.promotionId,
     this.pinSlot,
+    this.promotionId,
   });
 
   factory PostDto.fromJson(Map<String, Object?> json) =>
@@ -98,7 +98,8 @@ class PostDto {
   final bool likedByMe;
   final bool repostedByMe;
 
-  /// Set when the post reaches this list as someone's repost (a followed account in the feed, or the profile's own list).
+  /// Set when the post reaches this list as someone's repost (a followed.
+  /// account in the feed, or the profile's own list).
   final PostReposterDto? repostedBy;
   final bool savedByMe;
   final bool isMine;
@@ -107,12 +108,12 @@ class PostDto {
   /// "Изменено" (§3.3).
   final String? editedAt;
 
+  /// Owner 2026-10-12: 1..3 when pinned to the top of the author's list.
+  final int? pinSlot;
+
   /// Owner 2026-10-05: set on a paid promoted post in the feed — the app.
   /// shows «Реклама» and reports the open to POST /promotions/:id/click.
   final String? promotionId;
-
-  /// Owner 2026-10-12: 1..3 when pinned to the top of the author's list.
-  final int? pinSlot;
 
   Map<String, Object?> toJson() => _$PostDtoToJson(this);
 }

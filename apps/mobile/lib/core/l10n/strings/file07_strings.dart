@@ -283,6 +283,8 @@ const file07Ru = <String, String>{
   'error.api.TASK_CLOSED': 'Задача отменена — её нельзя менять',
   'error.api.TASK_STEPS_LIMIT':
       'В одной задаче до 100 шагов — создайте ещё одну',
+  'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
+      'Файлы к постам сейчас нельзя добавлять.',
   'error.api.FILES_COUNT_LIMIT':
       'Здесь уже максимум файлов. Уберите лишние и попробуйте снова.',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
@@ -859,6 +861,8 @@ const file07En = <String, String>{
   'error.api.TASK_CLOSED': 'This task was cancelled and can no longer change',
   'error.api.TASK_STEPS_LIMIT':
       'A task holds up to 100 steps — start another one',
+  'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
+      'Files cannot be added to posts right now.',
   'error.api.FILES_COUNT_LIMIT':
       'This already has the most files allowed. Remove some and try again.',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':

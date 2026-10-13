@@ -89,6 +89,7 @@ abstract final class ApiErrorCodes {
   static const taskClosed = 'TASK_CLOSED';
   static const taskStepsLimit = 'TASK_STEPS_LIMIT';
   static const filesCountLimit = 'FILES_COUNT_LIMIT';
+  static const postAttachmentsNotAllowed = 'POST_ATTACHMENTS_NOT_ALLOWED';
   static const reviewEditWindowExpired = 'REVIEW_EDIT_WINDOW_EXPIRED';
   static const reviewNotEditable = 'REVIEW_NOT_EDITABLE';
   // Practices and profiles (docs/03 §3–§4, stages 3.5–3.6)
@@ -313,6 +314,7 @@ abstract final class ApiErrorCodes {
     taskClosed,
     taskStepsLimit,
     filesCountLimit,
+    postAttachmentsNotAllowed,
     reviewEditWindowExpired,
     reviewNotEditable,
     attorneyNotVerified,

@@ -99,6 +99,8 @@ const _keys = <String, String>{
   ApiErrorCodes.taskClosed: 'error.api.TASK_CLOSED',
   ApiErrorCodes.taskStepsLimit: 'error.api.TASK_STEPS_LIMIT',
   ApiErrorCodes.filesCountLimit: 'error.api.FILES_COUNT_LIMIT',
+  ApiErrorCodes.postAttachmentsNotAllowed:
+      'error.api.POST_ATTACHMENTS_NOT_ALLOWED',
   ApiErrorCodes.reviewEditWindowExpired: 'error.api.REVIEW_EDIT_WINDOW_EXPIRED',
   ApiErrorCodes.reviewNotEditable: 'error.api.REVIEW_NOT_EDITABLE',
   // Uploads (docs/03 §2.2). A checksum mismatch or a missing upload means

@@ -260,6 +260,8 @@ enum ErrorCode {
   postNotFound('POST_NOT_FOUND'),
   @JsonValue('POST_NOT_ALLOWED')
   postNotAllowed('POST_NOT_ALLOWED'),
+  @JsonValue('POST_ATTACHMENTS_NOT_ALLOWED')
+  postAttachmentsNotAllowed('POST_ATTACHMENTS_NOT_ALLOWED'),
   @JsonValue('REPOST_OWN_POST')
   repostOwnPost('REPOST_OWN_POST'),
   @JsonValue('COMMENT_NOT_FOUND')

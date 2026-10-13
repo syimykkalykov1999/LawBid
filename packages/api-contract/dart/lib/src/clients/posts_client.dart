@@ -21,6 +21,12 @@ part 'posts_client.g.dart';
 abstract class PostsClient {
   factory PostsClient(Dio dio, {String? baseUrl}) = _PostsClient;
 
+  /// May this account add documents / extra photos to a post or a reel
+  @GET('/posts/attachments-allowed')
+  Future<PostAttachmentsAllowedEnvelope> attachmentsAllowed({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Publish a post (verified attorney, docs/05 §3.1)
   @POST('/posts')
   Future<PostEnvelope> createPost({
@@ -50,20 +56,6 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// An attorney's posts, newest first (docs/05 §15).
-  ///
-  /// [cursor] - meta.nextCursor of the previous page.
-  ///
-  /// [kind] - Owner 2026-09-30: only News / only regular posts (profile tabs).
-  @GET('/attorneys/{id}/posts')
-  Future<PostListEnvelope> listAttorneyPosts({
-    @Path('id') required String id,
-    @Query('limit') num? limit = 20,
-    @Query('cursor') String? cursor,
-    @Query('kind') PostKind? kind,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
   /// Pin an own post to slot 1, 2 or 3
   @POST('/posts/{id}/pin')
   Future<PostEnvelope> pinPost({
@@ -76,6 +68,20 @@ abstract class PostsClient {
   @DELETE('/posts/{id}/pin')
   Future<PostEnvelope> unpinPost({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// An attorney's posts, newest first (docs/05 §15).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [kind] - Owner 2026-09-30: only News / only regular posts (profile tabs).
+  @GET('/attorneys/{id}/posts')
+  Future<PostListEnvelope> listAttorneyPosts({
+    @Path('id') required String id,
+    @Query('limit') num? limit = 20,
+    @Query('cursor') String? cursor,
+    @Query('kind') PostKind? kind,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -127,12 +133,6 @@ abstract class PostsClient {
   @GET('/saved-items/posts')
   Future<SavedPostItemListEnvelope> listSavedPosts({
     @Query('cursor') String? cursor,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// May this account add documents / extra photos to a post or a reel
-  @GET('/posts/attachments-allowed')
-  Future<PostAttachmentsAllowedEnvelope> attachmentsAllowed({
     @Extras() Map<String, dynamic>? extras,
   });
 }
