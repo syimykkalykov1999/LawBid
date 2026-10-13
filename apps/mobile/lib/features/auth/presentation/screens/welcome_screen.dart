@@ -212,18 +212,18 @@ class WelcomeScreen extends ConsumerWidget {
                       child: IntrinsicHeight(
                         child: Column(
                           children: [
-                            const SizedBox(height: 54),
+                            const SizedBox(height: 36),
                             Text(
                               t.t('auth.welcome.title'),
                               textAlign: TextAlign.center,
                               style: typography.titleWelcome
                                   .copyWith(color: colors.text),
                             ),
-                            const SizedBox(height: 35),
+                            const SizedBox(height: 24),
                             const ScalesLogo(
-                              size: 236,
+                              size: 170,
                               animated: true,
-                              standExtension: 50,
+                              standExtension: 36,
                             ),
                             // Flexible, not fixed (owner request, 2026-09-22:
                             // center the phone/social buttons between the logo
@@ -235,7 +235,7 @@ class WelcomeScreen extends ConsumerWidget {
                               GavelStrikeButton(
                                 label: t.t('auth.welcome.phone'),
                                 icon: AppIcons.call,
-                                height: 48,
+                                height: 40,
                                 // Brighter in dark theme only (owner follow-up,
                                 // 2026-09-22): gold read too dull here. Every
                                 // other primary button keeps the default variant.

@@ -107,7 +107,7 @@ class _AppOtpFieldState extends State<AppOtpField> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                height: 54,
+                height: 46,
                 child: Stack(
                   children: [
                     // The one real input: invisible (opacity 0, which stays
@@ -153,7 +153,7 @@ class _AppOtpFieldState extends State<AppOtpField> {
                                 end: index == _kOtpLength - 1 ? 0 : 8,
                               ),
                               child: Container(
-                                height: 54,
+                                height: 46,
                                 decoration: BoxDecoration(
                                   color: colors.surface,
                                   borderRadius:

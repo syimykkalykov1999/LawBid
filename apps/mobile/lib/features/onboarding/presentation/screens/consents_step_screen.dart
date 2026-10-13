@@ -115,8 +115,7 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
           showError: missing(ConsentType.disclaimer),
           onChanged: (v) => _set(ConsentType.disclaimer, v),
         ),
-        const SizedBox(height: AppSpacing.xl),
-        StepSectionLabel(t.t('onboarding.consents.docs')),
+        const SizedBox(height: AppSpacing.md),
         // Terms and Privacy side by side (same height, wrapping by words),
         // the disclaimer below them across the full width.
         IntrinsicHeight(

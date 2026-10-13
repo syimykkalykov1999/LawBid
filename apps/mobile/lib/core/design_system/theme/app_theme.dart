@@ -89,8 +89,21 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadii.sheet),
           side: BorderSide(color: colors.border),
         ),
-        titleTextStyle: typography.roleTitle.copyWith(color: colors.text),
+        titleTextStyle:
+            typography.roleTitle.copyWith(color: colors.text, fontSize: 16),
         contentTextStyle: typography.body.copyWith(color: colors.textSecondary),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          textStyle: typography.button,
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.button),
+          ),
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: colors.sheet,
@@ -105,7 +118,8 @@ abstract final class AppTheme {
         style: TextButton.styleFrom(
           foregroundColor: colors.text,
           textStyle: typography.button,
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
         ),
       ),
     );

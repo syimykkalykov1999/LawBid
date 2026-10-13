@@ -1,7 +1,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 // Corner radii (file 07 §4). Plain const class — see app_spacing.dart for rationale.
 abstract final class AppRadii {
-  static const double button = 14;
+  static const double button = 8;
   static const double field = 10;
   static const double roleCard = 16;
   static const double otpCell = 12;

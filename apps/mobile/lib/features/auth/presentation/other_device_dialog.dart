@@ -33,15 +33,20 @@ Future<bool> showOtherDeviceDialog(
       ),
       title: Text(t.t('otherDevice.title')),
       content: Text(t.t('otherDevice.body', {'device': device, 'when': when})),
+      actionsAlignment: MainAxisAlignment.spaceBetween,
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),
-          child: Text(t.t('common.cancel')),
+          child: Text(t.t('common.cancel'), maxLines: 1),
         ),
+        // One line on every language: the label shrinks, never wraps.
         FilledButton(
           key: const ValueKey('other-device-continue'),
           onPressed: () => Navigator.of(ctx).pop(true),
-          child: Text(t.t('otherDevice.continue')),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(t.t('otherDevice.continue'), maxLines: 1),
+          ),
         ),
       ],
     ),

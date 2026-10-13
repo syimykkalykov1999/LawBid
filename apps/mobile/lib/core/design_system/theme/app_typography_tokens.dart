@@ -51,9 +51,9 @@ final class AppTypographyTokens extends ThemeExtension<AppTypographyTokens> {
           height: 1.28,
         ),
         roleTitle: TextStyle(
-          fontFamily: AppFontFamilies.serif,
+          fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w600,
-          fontSize: 16,
+          fontSize: 14,
         ),
         otpDigit: TextStyle(
           fontFamily: AppFontFamilies.serif,

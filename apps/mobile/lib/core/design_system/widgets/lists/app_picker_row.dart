@@ -55,7 +55,7 @@ class AppPickerRow extends StatelessWidget {
               context.reduceMotion ? Duration.zero : AppMotion.stateChange,
           curve: AppMotion.enterCurve,
           constraints: const BoxConstraints(
-            minHeight: AppSizes.touchTarget + AppSpacing.md,
+            minHeight: AppSizes.touchTarget,
           ),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,

@@ -116,7 +116,7 @@ class _AppTextFieldState extends State<AppTextField> {
             const SizedBox(height: AppSpacing.sm),
           ],
           Container(
-            constraints: const BoxConstraints(minHeight: 52),
+            constraints: const BoxConstraints(minHeight: 44),
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(AppRadii.field),

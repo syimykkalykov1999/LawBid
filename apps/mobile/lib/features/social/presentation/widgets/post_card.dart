@@ -1008,19 +1008,6 @@ class _ThreadsPost extends ConsumerWidget {
                 ],
               ),
             ),
-            // Threads: the time at the right of the name row, grey 13sp.
-            if (promotionId == null)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
-                child: Text(
-                  SocialFormat.ago(t, f, p.createdAt),
-                  maxLines: 1,
-                  style: type.caption.copyWith(
-                    color: colors.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
             // With a "reposted" line under the name the row is only as tall
             // as the name, so that line sits right under it.
             if (compact)
@@ -1189,6 +1176,23 @@ class _ThreadsPost extends ConsumerWidget {
         if (!inDetail && p.isMine && !ref.watch(isAssistantProvider)) ...[
           const SizedBox(width: AppSpacing.sm),
           BoostButton(postId: p.id),
+        ],
+        // Owner 2026-10-13: the time sits left of Save, grey, in every role
+        // and place; Save (the bookmark) is the right-most button.
+        if (promotionId == null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 96),
+            child: Text(
+              SocialFormat.ago(t, f, p.createdAt),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(
+                color: colors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ),
         ],
         BounceIcon(
           active: p.savedByMe,
