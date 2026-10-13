@@ -24,8 +24,7 @@ async function read(file: string): Promise<Map<string, Map<string, string>>> {
 }
 
 describe('case screen strings', () => {
-  const root = join(__dirname, '..', '..', '..', '..', '..');
-  it('the seed has en and ru for the workspace and card keys', async () => {
+  it('the seed file has the case keys in every language', async () => {
     const seed = await read(
       join(
         __dirname,
@@ -37,27 +36,17 @@ describe('case screen strings', () => {
         'translations_seed.xlsx',
       ),
     );
-    for (const key of [
+    const keys = [
       'cases.tab.tasks',
       'cases.tasks.forClient',
       'cases.compose.remind',
       'cases.facts.state',
       'invites.title',
       'mine.tab.activeCases',
-    ]) {
-      expect(seed.get(key)?.get('en')).toBeTruthy();
-      expect(seed.get(key)?.get('ru')).toBeTruthy();
-    }
-  }, 60_000);
-
-  it('the import files give every language the workspace keys', async () => {
-    const a = await read(
-      join(root, 'tmp-import', 'cases-workspace-keys-update.xlsx'),
-    );
-    const b = await read(
-      join(root, 'tmp-import', 'cases-audit-keys-update.xlsx'),
-    );
+    ];
     const langs = [
+      'en',
+      'ru',
       'ne',
       'ar',
       'zh',
@@ -68,16 +57,12 @@ describe('case screen strings', () => {
       'ko',
       'th',
       'zh-tw',
+      'es',
+      'fr',
     ];
-    for (const key of [
-      'cases.tab.tasks',
-      'cases.tasks.forClient',
-      'cases.facts.state',
-      'invites.title',
-    ]) {
+    for (const key of keys) {
       for (const lang of langs) {
-        const value = b.get(key)?.get(lang) ?? a.get(key)?.get(lang);
-        expect(value).toBeTruthy();
+        expect(seed.get(key)?.get(lang)).toBeTruthy();
       }
     }
   }, 60_000);

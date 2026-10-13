@@ -93,22 +93,17 @@ async function seedPracticeAreas(): Promise<void> {
 
 // docs/01_FOUNDATION_AUTH.md §3.3 / §3.3: en is default+active, ru active.
 async function seedI18nLanguages(): Promise<void> {
-  const languages = [
-    {
-      code: 'en',
-      name_native: 'English',
-      is_active: true,
-      is_rtl: false,
-      sort: 0,
-    },
-    {
-      code: 'ru',
-      name_native: 'Русский',
-      is_active: true,
-      is_rtl: false,
-      sort: 1,
-    },
-  ];
+  // Owner 2026-10-13: all 85 languages (the columns of translations_seed.xlsx)
+  // come from languages.seed.json; en and ru stay the active defaults.
+  const languages = JSON.parse(
+    readFileSync(join(__dirname, 'seed', 'languages.seed.json'), 'utf8'),
+  ) as {
+    code: string;
+    name_native: string;
+    is_active: boolean;
+    is_rtl: boolean;
+    sort: number;
+  }[];
   for (const lang of languages) {
     await prisma.i18nLanguage.upsert({
       where: { code: lang.code },
@@ -116,7 +111,7 @@ async function seedI18nLanguages(): Promise<void> {
       update: lang,
     });
   }
-  console.log(`  i18n_languages: ${languages.length} upserted (en, ru)`);
+  console.log(`  i18n_languages: ${languages.length} upserted`);
 }
 
 // docs/02_DATABASE.md §3.3: privaterelay.appleid.com (apple_relay) + a
