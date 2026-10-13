@@ -168,8 +168,10 @@ class _AppTextFieldState extends State<AppTextField> {
                         .copyWith(color: colors.text),
                     decoration: InputDecoration(
                       hintText: widget.hintText,
-                      hintStyle:
-                          typography.body.copyWith(color: colors.textSecondary),
+                      hintStyle: typography.body.copyWith(
+                        color: colors.textSecondary,
+                        fontSize: 14,
+                      ),
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(

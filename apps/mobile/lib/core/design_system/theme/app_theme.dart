@@ -71,6 +71,17 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.surface,
+        hintStyle: typography.body
+            .copyWith(color: colors.textSecondary, fontSize: 14),
+        labelStyle: typography.bodySmall
+            .copyWith(color: colors.textSecondary, fontSize: 13),
+        floatingLabelStyle: typography.bodySmall
+            .copyWith(color: colors.textSecondary, fontSize: 13),
+        helperStyle: typography.caption.copyWith(color: colors.textSecondary),
+        errorStyle: typography.caption.copyWith(color: colors.danger),
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.field),
           borderSide: BorderSide(color: colors.border),
