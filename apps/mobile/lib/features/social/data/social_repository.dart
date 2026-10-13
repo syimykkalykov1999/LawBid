@@ -920,6 +920,7 @@ abstract final class SocialMappers {
           verified: d.author.verifiedBadge,
           isFollowing: d.author.isFollowing,
           isClient: d.author.role == api.PostAuthorDtoRole.client,
+          location: d.author.location,
         ),
         body: d.body,
         media: [

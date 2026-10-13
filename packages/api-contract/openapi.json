@@ -88360,6 +88360,11 @@
           "isFollowing": {
             "type": "boolean",
             "description": "Owner 2026-09-30: the viewer follows this author (card Follow)."
+          },
+          "location": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-13: attorney: licensed states (\"NY, CA\"); client: state."
           }
         },
         "required": [

@@ -109,7 +109,7 @@ export class PostPresenter {
           last_name: true,
           avatar_file_id: true,
           phone_verified_at: true,
-          client_profile: { select: { username: true } },
+          client_profile: { select: { username: true, state_code: true } },
           attorney_profile: {
             select: {
               username: true,
@@ -118,8 +118,9 @@ export class PostPresenter {
               trust_badge: true,
               licenses: {
                 where: { license_status: 'verified' },
-                select: { id: true },
-                take: 1,
+                select: { id: true, state_code: true },
+                orderBy: { state_code: 'asc' },
+                take: 2,
               },
             },
           },
@@ -265,6 +266,12 @@ export class PostPresenter {
             ? goldClients.has(p.author_id)
             : (prof?.trust_badge ?? false),
           isFollowing: followed.has(p.author_id),
+          // Owner 2026-10-13: "role · place" in the inner card's header —
+          // an attorney's licensed states (up to two), a client's state.
+          location: isClient
+            ? (a?.client_profile?.state_code ?? null)
+            : (prof?.licenses ?? []).map((l) => l.state_code).join(', ') ||
+              null,
         },
         title: p.title ?? null,
         kind: p.kind,
