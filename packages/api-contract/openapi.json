@@ -119331,6 +119331,9 @@
             "nullable": true,
             "format": "uuid"
           },
+          "sample": {
+            "type": "boolean"
+          },
           "addedByRole": {
             "enum": [
               "client",
@@ -119349,6 +119352,7 @@
           "mime",
           "sizeBytes",
           "source",
+          "sample",
           "addedByRole",
           "addedAt"
         ]
@@ -119375,6 +119379,16 @@
           "updatesCount": {
             "type": "integer"
           },
+          "publishedAt": {
+            "type": "string"
+          },
+          "acceptedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "bidsCount": {
+            "type": "integer"
+          },
           "newUpdates": {
             "type": "integer",
             "description": "The other side's updates since this side last opened Updates."
@@ -119385,6 +119399,8 @@
           "files",
           "openTasks",
           "updatesCount",
+          "publishedAt",
+          "bidsCount",
           "newUpdates"
         ]
       },
@@ -119498,6 +119514,10 @@
           },
           "closed": {
             "type": "boolean"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true
           },
           "createdAt": {
             "type": "string"
@@ -119656,6 +119676,10 @@
           "fileId": {
             "type": "string",
             "format": "uuid"
+          },
+          "sample": {
+            "type": "boolean",
+            "description": "A sample / form, not the answer itself."
           },
           "description": {
             "type": "string",

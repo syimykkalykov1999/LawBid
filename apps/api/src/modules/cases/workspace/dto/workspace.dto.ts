@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsArray,
   IsIn,
   IsOptional,
@@ -27,6 +28,13 @@ export class CaseFileInputDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   fileId!: string;
+
+  @ApiPropertyOptional({
+    description: 'A sample / form, not the answer itself.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  sample?: boolean;
 
   @ApiPropertyOptional({ maxLength: FILE_NOTE_MAX })
   @IsOptional()
@@ -173,6 +181,8 @@ export class WorkspaceFileDto {
   sourceId!: string | null;
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   sourceItemId!: string | null;
+  @ApiProperty()
+  sample!: boolean;
   @ApiProperty({ enum: ['client', 'attorney'] })
   addedByRole!: 'client' | 'attorney';
   @ApiProperty()
@@ -224,6 +234,8 @@ export class CaseTaskDto {
   doneAt!: string | null;
   @ApiProperty()
   closed!: boolean;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  closedAt!: string | null;
   @ApiProperty()
   createdAt!: string;
   @ApiProperty({ type: 'integer' })
@@ -292,6 +304,12 @@ export class CaseWorkspaceDto {
   openTasks!: number;
   @ApiProperty({ type: 'integer' })
   updatesCount!: number;
+  @ApiProperty()
+  publishedAt!: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  acceptedAt!: string | null;
+  @ApiProperty({ type: 'integer' })
+  bidsCount!: number;
   @ApiProperty({
     type: 'integer',
     description:

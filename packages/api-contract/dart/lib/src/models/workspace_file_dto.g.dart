@@ -14,6 +14,7 @@ WorkspaceFileDto _$WorkspaceFileDtoFromJson(Map<String, dynamic> json) =>
       mime: json['mime'] as String,
       sizeBytes: (json['sizeBytes'] as num).toInt(),
       source: WorkspaceFileDtoSource.fromJson(json['source'] as String),
+      sample: json['sample'] as bool,
       addedByRole: WorkspaceFileDtoAddedByRole.fromJson(
         json['addedByRole'] as String,
       ),
@@ -36,6 +37,7 @@ Map<String, dynamic> _$WorkspaceFileDtoToJson(WorkspaceFileDto instance) =>
       'sourceTitle': ?instance.sourceTitle,
       'sourceId': ?instance.sourceId,
       'sourceItemId': ?instance.sourceItemId,
+      'sample': instance.sample,
       'addedByRole': instance.addedByRole.toJson(),
       'addedAt': instance.addedAt,
     };

@@ -16,7 +16,10 @@ class CaseWorkspaceDto {
     required this.files,
     required this.openTasks,
     required this.updatesCount,
+    required this.publishedAt,
+    required this.bidsCount,
     required this.newUpdates,
+    this.acceptedAt,
   });
 
   factory CaseWorkspaceDto.fromJson(Map<String, Object?> json) =>
@@ -26,6 +29,9 @@ class CaseWorkspaceDto {
   final List<WorkspaceFileDto> files;
   final int openTasks;
   final int updatesCount;
+  final String publishedAt;
+  final String? acceptedAt;
+  final int bidsCount;
 
   /// The other side's updates since this side last opened Updates.
   final int newUpdates;

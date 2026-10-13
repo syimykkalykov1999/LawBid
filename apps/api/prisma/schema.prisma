@@ -1829,6 +1829,8 @@ model CasePhoto {
   source_id      String?  @db.Uuid
   /// The checklist line of a for-client task this file answers.
   source_item_id String?  @db.Uuid
+  /// A "Sample": a form to fill / an example of what to send.
+  is_sample      Boolean  @default(false)
   added_by       String?  @db.Uuid
   created_at     DateTime @default(now()) @db.Timestamptz
 

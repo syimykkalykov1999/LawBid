@@ -133,6 +133,7 @@ export class CaseWorkspaceService {
         sourceTitle: r.source_id ? (titles.get(r.source_id) ?? null) : null,
         sourceId: r.source_id,
         sourceItemId: r.source_item_id,
+        sample: r.is_sample,
         addedByRole: this.roleOf(r.added_by, s),
         addedAt: r.created_at.toISOString(),
       });
@@ -180,6 +181,7 @@ export class CaseWorkspaceService {
         source,
         source_id: sourceId,
         source_item_id: sourceItemId,
+        is_sample: i.sample === true,
         added_by: userId,
       })),
     });
@@ -214,6 +216,7 @@ export class CaseWorkspaceService {
             status: p.status === 'done' ? 'done' : 'open',
             doneAt: p.done_at?.toISOString() ?? null,
             closed: false,
+            closedAt: null,
             createdAt: p.created_at.toISOString(),
             fileCount: 0,
             files: [],
@@ -252,6 +255,7 @@ export class CaseWorkspaceService {
       status: t.status as 'open' | 'done',
       doneAt: t.done_at?.toISOString() ?? null,
       closed: t.closed_at !== null,
+      closedAt: t.closed_at?.toISOString() ?? null,
       createdAt: t.created_at.toISOString(),
       fileCount: files.length,
       // Files of the task itself; those of a line are under that line.
@@ -703,6 +707,23 @@ export class CaseWorkspaceService {
         },
       }),
     ]);
-    return { role: s.role, files, openTasks, updatesCount, newUpdates };
+    const k = await this.prisma.case.findUniqueOrThrow({
+      where: { id: caseId },
+      select: {
+        created_at: true,
+        bids_count: true,
+        accepted_bid: { select: { decided_at: true } },
+      },
+    });
+    return {
+      role: s.role,
+      files,
+      openTasks,
+      updatesCount,
+      newUpdates,
+      publishedAt: k.created_at.toISOString(),
+      acceptedAt: k.accepted_bid?.decided_at?.toISOString() ?? null,
+      bidsCount: k.bids_count,
+    };
   }
 }

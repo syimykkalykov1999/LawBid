@@ -9,11 +9,13 @@ part of 'case_file_input_dto.dart';
 CaseFileInputDto _$CaseFileInputDtoFromJson(Map<String, dynamic> json) =>
     CaseFileInputDto(
       fileId: json['fileId'] as String,
+      sample: json['sample'] as bool?,
       description: json['description'] as String?,
     );
 
 Map<String, dynamic> _$CaseFileInputDtoToJson(CaseFileInputDto instance) =>
     <String, dynamic>{
       'fileId': instance.fileId,
+      'sample': ?instance.sample,
       'description': ?instance.description,
     };
