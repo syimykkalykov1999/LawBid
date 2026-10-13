@@ -488,7 +488,8 @@ class _BeforeTyping extends ConsumerWidget {
     // ignore: omit_local_variable_types
     final List<Widget> explore = switch (tab) {
       SearchTab.attorneys => [
-          const SliverToBoxAdapter(child: SuggestedAttorneys(limit: 8)),
+          const SliverToBoxAdapter(child: SuggestedAttorneys()),
+          const SliverToBoxAdapter(child: RecommendedAttorneys()),
         ],
       SearchTab.cases when !attorney => [
           SliverToBoxAdapter(child: title(t.t('search.tab.myCases'))),

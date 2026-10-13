@@ -961,7 +961,16 @@ class _ThreadsPost extends ConsumerWidget {
         );
 
     final repostedBy = p.repostedBy;
-    Widget nameRow() => Row(
+    final menuButton = AppIconButton(
+      icon: AppIcon(
+        AppIcons.moreHorizRounded,
+        size: 20,
+        color: colors.textSecondary,
+      ),
+      semanticLabel: t.t('post.menu'),
+      onPressed: () => showPostMenu(context, ref, p),
+    );
+    Widget nameRow({bool compact = false}) => Row(
           children: [
             Expanded(
               child: Row(
@@ -988,73 +997,61 @@ class _ThreadsPost extends ConsumerWidget {
                       gold: a.isClient,
                     ),
                   ],
-                  const SizedBox(width: AppSpacing.sm),
-                  Flexible(
-                    child: Text(
-                      promotionId != null
-                          ? t.t('promote.sponsored')
-                          : SocialFormat.ago(t, f, p.createdAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: colors.textSecondary),
+                  // Owner 2026-10-13: the time moved down, next to Save.
+                  if (promotionId != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    Flexible(
+                      child: Text(
+                        t.t('promote.sponsored'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
-            AppIconButton(
-              icon: AppIcon(
-                AppIcons.moreHorizRounded,
-                size: 20,
-                color: colors.textSecondary,
-              ),
-              semanticLabel: t.t('post.menu'),
-              onPressed: () => showPostMenu(context, ref, p),
-            ),
+            // With a "reposted" line under the name the row is only as tall
+            // as the name, so that line sits right under it.
+            if (compact)
+              SizedBox(
+                width: 48,
+                height: 28,
+                child: OverflowBox(
+                  maxHeight: 48,
+                  child: menuButton,
+                ),
+              )
+            else
+              menuButton,
           ],
         );
 
-    // Owner 2026-10-12 (Threads): above the card, the icon in the avatar
-    // column and "name reposted" aligned with the name below.
+    // Owner 2026-10-13: "name reposted" in small grey under the author's
+    // name, before the text; no icon.
     Widget repostLine() {
       final who = repostedBy!;
       return Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 36,
-              child: Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: AppIcon(
-                  AppIcons.autoModeRounded,
-                  size: 14,
-                  color: colors.textSecondary,
-                ),
-              ),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: GestureDetector(
+            onTap: () => openProfile(
+              context,
+              ref,
+              id: who.id,
+              username: who.username,
+              isClient: who.isClient,
             ),
-            const SizedBox(width: AppSpacing.md),
-            Flexible(
-              child: GestureDetector(
-                onTap: () => openProfile(
-                  context,
-                  ref,
-                  id: who.id,
-                  username: who.username,
-                  isClient: who.isClient,
-                ),
-                child: Text(
-                  t.t('post.repostedBy', {'username': who.username}),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+            child: Text(
+              t.t('post.repostedBy', {'username': who.username}),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
             ),
-          ],
+          ),
         ),
       );
     }
@@ -1113,63 +1110,69 @@ class _ThreadsPost extends ConsumerWidget {
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: AlignmentDirectional.centerStart,
-            child: Row(
-              children: [
-                action(
-                  BounceIcon(
-                    active: p.likedByMe,
-                    activeIcon: AppIcons.favoriteRounded,
-                    icon: AppIcons.favoriteBorderRounded,
-                    activeColor: colors.danger,
-                    size: 20,
-                    extent: 34,
-                    label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-                    onTap: () => run(() => actions.toggleLike(p)),
+            // The first icon's edge on the avatar's edge (the icon sits 7 in
+            // its 34-wide touch area).
+            child: Transform.translate(
+              offset: const Offset(-7, 0),
+              child: Row(
+                children: [
+                  action(
+                    BounceIcon(
+                      active: p.likedByMe,
+                      activeIcon: AppIcons.favoriteRounded,
+                      icon: AppIcons.favoriteBorderRounded,
+                      activeColor: colors.danger,
+                      size: 20,
+                      extent: 34,
+                      label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
+                      onTap: () => run(() => actions.toggleLike(p)),
+                    ),
+                    p.likeCount,
                   ),
-                  p.likeCount,
-                ),
-                action(
-                  BounceIcon(
-                    active: false,
-                    activeIcon: AppIcons.modeCommentOutlined,
-                    icon: AppIcons.modeCommentOutlined,
-                    size: 20,
-                    extent: 34,
-                    label: t.t('post.comments'),
-                    // In the open thread the replies are right below: no sheet.
-                    onTap: () => inDetail
-                        ? onReply?.call()
-                        : context.push(SocialRoutes.post(p.id)),
+                  action(
+                    BounceIcon(
+                      active: false,
+                      activeIcon: AppIcons.modeCommentOutlined,
+                      icon: AppIcons.modeCommentOutlined,
+                      size: 20,
+                      extent: 34,
+                      label: t.t('post.comments'),
+                      // In the open thread the replies are right below:
+                      // no sheet.
+                      onTap: () => inDetail
+                          ? onReply?.call()
+                          : context.push(SocialRoutes.post(p.id)),
+                    ),
+                    p.commentCount,
                   ),
-                  p.commentCount,
-                ),
-                action(
-                  BounceIcon(
-                    active: p.repostedByMe,
-                    activeIcon: AppIcons.autoModeRounded,
-                    icon: AppIcons.autoModeRounded,
-                    activeColor: colors.success,
-                    size: 20,
-                    extent: 34,
-                    label:
-                        t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
-                    onTap: () => run(() => actions.toggleRepost(p)),
+                  action(
+                    BounceIcon(
+                      active: p.repostedByMe,
+                      activeIcon: AppIcons.autoModeRounded,
+                      icon: AppIcons.autoModeRounded,
+                      activeColor: colors.success,
+                      size: 20,
+                      extent: 34,
+                      label:
+                          t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
+                      onTap: () => run(() => actions.toggleRepost(p)),
+                    ),
+                    p.repostCount,
                   ),
-                  p.repostCount,
-                ),
-                action(
-                  BounceIcon(
-                    active: false,
-                    activeIcon: AppIcons.sendOutlined,
-                    icon: AppIcons.sendOutlined,
-                    size: 20,
-                    extent: 34,
-                    label: t.t('post.share'),
-                    onTap: () => sharePost(context, ref, p),
+                  action(
+                    BounceIcon(
+                      active: false,
+                      activeIcon: AppIcons.sendOutlined,
+                      icon: AppIcons.sendOutlined,
+                      size: 20,
+                      extent: 34,
+                      label: t.t('post.share'),
+                      onTap: () => sharePost(context, ref, p),
+                    ),
+                    p.shareCount,
                   ),
-                  p.shareCount,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1177,6 +1180,30 @@ class _ThreadsPost extends ConsumerWidget {
           const SizedBox(width: AppSpacing.sm),
           BoostButton(postId: p.id),
         ],
+        // Owner 2026-10-13: the time sits left of Save, grey; Save (the
+        // bookmark) is the right-most button of the row.
+        if (promotionId == null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 96),
+            child: Text(
+              SocialFormat.ago(t, f, p.createdAt),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
+        BounceIcon(
+          active: p.savedByMe,
+          activeIcon: AppIcons.bookmarkRounded,
+          icon: AppIcons.bookmarkBorderRounded,
+          activeColor: colors.gold,
+          size: 20,
+          extent: 34,
+          label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
+          onTap: () => run(() => actions.toggleSave(p)),
+        ),
       ],
     );
 
@@ -1193,7 +1220,6 @@ class _ThreadsPost extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (repostedBy != null) repostLine(),
             if (showPin && p.pinSlot != null) pinLine(),
             Row(
               children: [
@@ -1202,6 +1228,7 @@ class _ThreadsPost extends ConsumerWidget {
                 Expanded(child: nameRow()),
               ],
             ),
+            if (repostedBy != null) repostLine(),
             const SizedBox(height: AppSpacing.sm),
             textBlock,
             PostPracticeChips(post: p, inset: 0),
@@ -1224,7 +1251,6 @@ class _ThreadsPost extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (repostedBy != null) repostLine(),
             if (showPin && p.pinSlot != null) pinLine(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1235,15 +1261,18 @@ class _ThreadsPost extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      nameRow(),
+                      nameRow(compact: repostedBy != null),
+                      if (repostedBy != null) repostLine(),
                       textBlock,
                       PostPracticeChips(post: p, inset: 0),
-                      actionRow,
                     ],
                   ),
                 ),
               ],
             ),
+            // Owner 2026-10-13: the actions start on the avatar's line, so
+            // big counts still fit before the time and Save.
+            actionRow,
           ],
         ),
       ),

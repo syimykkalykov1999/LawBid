@@ -141,6 +141,15 @@ export class CockroachSearchProvider implements SearchProvider {
           WHERE lower(pa.name_en) LIKE ${contains}
           LIMIT ${BRANCH_CAP})
         UNION
+        -- Owner 2026-10-13: a practice by its name in ANY language
+        -- ("развод", "तलाक"): the translations of its i18n key.
+        (SELECT ap.attorney_id FROM practice_areas pa
+          JOIN i18n_keys k ON k.key = pa.i18n_key
+          JOIN i18n_translations tr ON tr.key_id = k.id
+          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
+          WHERE lower(tr.value) LIKE ${contains}
+          LIMIT ${BRANCH_CAP})
+        UNION
         (SELECT l.attorney_id FROM states s
           JOIN attorney_licenses l ON l.state_code = s.code
             AND l.license_status = 'verified'
@@ -247,12 +256,14 @@ export class CockroachSearchProvider implements SearchProvider {
         ? Prisma.sql`m.created_at DESC, m.id DESC`
         : f.sort === 'popular'
           ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
-          : Prisma.sql`ts_rank(m.search_tsv, plainto_tsquery('english', ${q})) DESC,
+          : Prisma.sql`GREATEST(ts_rank(m.search_tsv, plainto_tsquery('english', ${q})),
+                 ts_rank(m.search_tsv_simple, plainto_tsquery('simple', ${q}))) DESC,
                m.created_at DESC, m.id DESC`;
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH m AS (
-        SELECT p.id, p.created_at, p.search_tsv FROM posts p
-        WHERE p.search_tsv @@ plainto_tsquery('english', ${q})
+        SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
+        WHERE (p.search_tsv @@ plainto_tsquery('english', ${q})
+            OR p.search_tsv_simple @@ plainto_tsquery('simple', ${q}))
           AND p.status = 'published' AND p.deleted_at IS NULL
           ${where}
         ORDER BY p.created_at DESC
