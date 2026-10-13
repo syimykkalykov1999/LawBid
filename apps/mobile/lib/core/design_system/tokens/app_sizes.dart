@@ -5,6 +5,10 @@ abstract final class AppSizes {
   /// Minimum touch target (file 07 §9 / WCAG 2.5.8): 44x44.
   static const double touchTarget = 44;
 
+  /// Owner 2026-10-13: every filled / outlined button is this tall (the
+  /// invisible hit area stays 48, see AppTapTarget).
+  static const double buttonHeight = 36;
+
   /// Opacity of a control shown but not available (e.g. the role card
   /// that can no longer be picked, docs/01 §11 Шаг 2).
   static const double disabledOpacity = 0.4;

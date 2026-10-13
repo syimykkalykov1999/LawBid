@@ -195,8 +195,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
                     (ref.watch(canDoProvider(AssistantDuty.bids)) ||
                         ref.watch(canDoProvider(AssistantDuty.bidDrafts))))
                   AppButton(
+                    key: const ValueKey('case-bid-cta'),
                     label: t.t('cases.bidForm.cta'),
-                    icon: AppIcons.gavelRounded,
                     onPressed: () => _bid(c),
                   ),
                 if (c.bidAllowed &&

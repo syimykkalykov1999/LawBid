@@ -95,7 +95,7 @@ void main() {
   }
 
   Future<void> tapBid(WidgetTester tester) async {
-    final bid = find.byIcon(AppIcons.gavelRounded);
+    final bid = find.byKey(const ValueKey('case-bid-cta'));
     expect(bid, findsOneWidget);
     await tester.tap(bid);
     await tester.pumpAndSettle();
