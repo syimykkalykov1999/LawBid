@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
@@ -93,6 +94,8 @@ class _Reels extends ReelsRepository {
 }
 
 void main() {
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
   setUpAll(initializeDateFormatting);
 
   group('ReelCut (trim + cover)', () {

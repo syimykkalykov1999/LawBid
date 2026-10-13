@@ -9,7 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
-import 'package:lawbid/features/reels/presentation/reels_screen.dart';
+import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
@@ -17,6 +17,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 /// Owner 2026-10-13: the inner card of a post and of a reel — modelled on
 /// the opened case. Header ("< Post", author, Follow, "…"), text tabs
@@ -347,15 +348,25 @@ class _Overview extends ConsumerWidget {
   }
 }
 
-/// The reel's player on the inner card: cover, play, views and duration.
-class _ReelPlayer extends ConsumerWidget {
+/// The reel's player on the inner card (owner 2026-10-13, like Instagram):
+/// it starts by itself while on screen, loops muted, one tap pauses and the
+/// next continues; views and duration sit on it.
+class _ReelPlayer extends ConsumerStatefulWidget {
   const _ReelPlayer({required this.post});
 
   final Post post;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
+  ConsumerState<_ReelPlayer> createState() => _ReelPlayerState();
+}
+
+class _ReelPlayerState extends ConsumerState<_ReelPlayer> {
+  bool _visible = false;
+  bool _paused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final post = widget.post;
     final f = ref.watch(l10nFormatsProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final v = post.video!;
@@ -384,11 +395,14 @@ class _ReelPlayer extends ConsumerWidget {
             ],
           ),
         );
-    return Semantics(
-      button: true,
-      label: t.t('postInner.play'),
-      child: AppPressable(
-        onTap: () => ReelsScreen.open(context, from: post),
+    return VisibilityDetector(
+      key: ValueKey('inner-reel-${post.id}'),
+      onVisibilityChanged: (i) {
+        final on = i.visibleFraction > 0.6;
+        if (on != _visible && mounted) setState(() => _visible = on);
+      },
+      child: GestureDetector(
+        onTap: () => setState(() => _paused = !_paused),
         child: AspectRatio(
           aspectRatio: 1,
           child: Stack(
@@ -404,13 +418,12 @@ class _ReelPlayer extends ConsumerWidget {
                         errorWidget: (_, __, ___) => const SizedBox.shrink(),
                       ),
               ),
-              const Center(
-                child: AppIcon(
-                  AppIcons.playArrowRounded,
-                  size: 64,
-                  color: Colors.white,
+              if (v.status == 'ready' && v.playbackUrl != null)
+                ReelVideo(
+                  video: v,
+                  active: _visible,
+                  paused: _paused,
                 ),
-              ),
               PositionedDirectional(
                 start: AppSpacing.md,
                 bottom: AppSpacing.md,

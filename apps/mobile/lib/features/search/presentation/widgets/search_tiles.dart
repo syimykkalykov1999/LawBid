@@ -53,6 +53,8 @@ class SearchPostTile extends ConsumerWidget {
     return PostGridTile(
       post: post,
       semanticLabel: '$kindLabel. $title. ${post.author.displayName}',
+      showPin: false,
+      autoplay: true,
       onTap: open,
     );
   }
@@ -121,8 +123,11 @@ class PagedTileGrid<T> extends StatelessWidget {
     required this.onRefresh,
     this.rows = false,
     this.header,
+    this.gridDelegate = kSearchPostGridDelegate,
     super.key,
   });
+
+  final SliverGridDelegate gridDelegate;
 
   final AsyncValue<PaginatedList<T>> value;
   final Widget Function(T item) itemBuilder;
@@ -165,7 +170,7 @@ class PagedTileGrid<T> extends StatelessWidget {
                   )
                 else
                   SliverGrid.builder(
-                    gridDelegate: kPostGridDelegate,
+                    gridDelegate: gridDelegate,
                     itemCount: value.items.length,
                     itemBuilder: (context, i) => itemBuilder(value.items[i]),
                   ),

@@ -94,6 +94,31 @@ class SearchFilters {
   final TopicKind topicKind;
   final TopicSort topicSort;
 
+  /// The same filters with only "Briefs" changed.
+  SearchFilters withBriefsOnly({required bool value}) => SearchFilters(
+        practiceAreaId: practiceAreaId,
+        practiceLabel: practiceLabel,
+        state: state,
+        minRating: minRating,
+        language: language,
+        period: period,
+        role: role,
+        verifiedOnly: verifiedOnly,
+        practiceCategory: practiceCategory,
+        budgetMin: budgetMin,
+        budgetMax: budgetMax,
+        budgetUnknown: budgetUnknown,
+        noBids: noBids,
+        minUrgency: minUrgency,
+        hasDeadline: hasDeadline,
+        caseStatus: caseStatus,
+        withPhotos: withPhotos,
+        briefsOnly: value,
+        postSort: postSort,
+        topicKind: topicKind,
+        topicSort: topicSort,
+      );
+
   int get activeCount => [
         practiceAreaId,
         state,
