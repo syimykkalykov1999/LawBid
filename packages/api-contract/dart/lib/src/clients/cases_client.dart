@@ -5,15 +5,22 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/case_activity_list_envelope.dart';
 import '../models/case_bid_item_list_envelope.dart';
 import '../models/case_deleted_envelope.dart';
 import '../models/case_detail_for_attorney_envelope.dart';
 import '../models/case_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
 import '../models/case_summary_list_envelope.dart';
+import '../models/case_tasks_envelope.dart';
+import '../models/case_update_list_envelope.dart';
+import '../models/case_workspace_envelope.dart';
+import '../models/cases_feed_sort.dart';
 import '../models/client_contacts_envelope.dart';
 import '../models/contact_issue_report_envelope.dart';
 import '../models/create_case_dto.dart';
+import '../models/create_case_task_dto.dart';
+import '../models/create_case_update_dto.dart';
 import '../models/create_contact_issue_dto.dart';
 import '../models/dispute_case_dto.dart';
 import '../models/filter.dart';
@@ -22,8 +29,11 @@ import '../models/period.dart';
 import '../models/saved_item_dto.dart';
 import '../models/scope.dart';
 import '../models/sort.dart';
+import '../models/task_done_dto.dart';
+import '../models/task_submission_dto.dart';
 import '../models/update_case_dto.dart';
 import '../models/update_case_urgency_dto.dart';
+import '../models/workspace_file_list_envelope.dart';
 
 part 'cases_client.g.dart';
 
@@ -50,6 +60,8 @@ abstract class CasesClient {
   ///
   /// [scope] - Owner 2026-10-04: "licensed" = cases in states with a verified licence (default); "all" = browse open cases of own practices in every state (view only).
   ///
+  /// [sort] - Owner 2026-10-13: for_you = ranked for this attorney (practice, states, freshness, budget, few offers, no offer yet); the cursor is then a position in the ranked list.
+  ///
   /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
   ///
   /// [practice] - Owner 2026-09-30: any qualification (category with its subcategories, or one subcategory) — every open case of it in the attorney's licensed states, own practices or not.
@@ -74,6 +86,7 @@ abstract class CasesClient {
     @Query('practiceAreaId') String? practiceAreaId,
     @Query('state') String? state,
     @Query('states') String? states,
+    @Query('sort') CasesFeedSort? sort,
     @Query('practiceCategory') String? practiceCategory,
     @Query('practice') String? practice,
     @Query('budgetMin') num? budgetMin,
@@ -197,6 +210,108 @@ abstract class CasesClient {
   Future<ContactIssueReportEnvelope> reportContactIssue({
     @Path('id') required String id,
     @Body() required CreateContactIssueDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Files, open tasks and updates of an accepted case
+  @GET('/cases/{id}/workspace')
+  Future<CaseWorkspaceEnvelope> caseWorkspace({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Case files with notes and where they came from
+  @GET('/cases/{id}/files')
+  Future<WorkspaceFileListEnvelope> listCaseFiles({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Tasks of an accepted case (private ones: attorney only)
+  @GET('/cases/{id}/tasks')
+  Future<CaseTasksEnvelope> listCaseTasks({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: add a private, shared or for-client task
+  @POST('/cases/{id}/tasks')
+  Future<CaseTasksEnvelope> createCaseTask({
+    @Path('id') required String id,
+    @Body() required CreateCaseTaskDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark a task done / not done (same for both sides)
+  @POST('/cases/{id}/tasks/{taskId}/done')
+  Future<CaseTasksEnvelope> setCaseTaskDone({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Body() required TaskDoneDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: close a task for the client
+  @POST('/cases/{id}/tasks/{taskId}/close')
+  Future<CaseTasksEnvelope> closeCaseTask({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: reopen a closed task
+  @POST('/cases/{id}/tasks/{taskId}/reopen')
+  Future<CaseTasksEnvelope> reopenCaseTask({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Client: add a note and files to a task for the client
+  @POST('/cases/{id}/tasks/{taskId}/submissions')
+  Future<CaseTasksEnvelope> submitCaseTask({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Body() required TaskSubmissionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Tick / untick one checklist line of a task
+  @POST('/cases/{id}/tasks/{taskId}/items/{itemId}/done')
+  Future<CaseTasksEnvelope> setCaseTaskItemDone({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Path('itemId') required String itemId,
+    @Body() required TaskDoneDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Everything that happened in the case
+  @GET('/cases/{id}/activity')
+  Future<CaseActivityListEnvelope> listCaseActivity({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark the Updates tab as read
+  @POST('/cases/{id}/updates/seen')
+  Future<void> markCaseUpdatesSeen({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Updates feed of an accepted case
+  @GET('/cases/{id}/updates')
+  Future<CaseUpdateListEnvelope> listCaseUpdates({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add an update (text and files), either side
+  @POST('/cases/{id}/updates')
+  Future<CaseUpdateListEnvelope> addCaseUpdate({
+    @Path('id') required String id,
+    @Body() required CreateCaseUpdateDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

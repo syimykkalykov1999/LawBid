@@ -1,8 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -13,10 +13,11 @@ import 'package:lawbid/features/reels/presentation/reel_detail_screen.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
 /// for the next one, the current reel plays with sound and loops; tap
@@ -29,8 +30,17 @@ class ReelsScreen extends ConsumerStatefulWidget {
   const ReelsScreen({
     this.initial = const [],
     this.initialIndex = 0,
+    this.embedded = false,
+    this.filter,
     super.key,
   });
+
+  /// Owner 2026-10-12: the Reels tab of the feed — the player without its
+  /// own back row, under the feed's filter row.
+  final bool embedded;
+
+  /// Keeps only the reels it accepts (the tab's topic filter).
+  final bool Function(Post)? filter;
 
   /// Opened from a feed card: that reel first, then the reels feed.
   final List<Post> initial;
@@ -99,8 +109,44 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     final deleted = ref.watch(deletedPostsProvider);
     final items = [
       for (final p in _items)
-        if (!deleted.contains(p.id)) p,
+        if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
     ];
+    if (widget.embedded) {
+      return ColoredBox(
+        color: Colors.black,
+        child: Padding(
+          padding: EdgeInsets.zero,
+          child: items.isEmpty
+              ? Center(
+                  child: _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          _error != null
+                              ? errorText(t, _error!)
+                              : t.t('reels.empty'),
+                          textAlign: TextAlign.center,
+                          style: type.body.copyWith(color: Colors.white70),
+                        ),
+                )
+              : PageView.builder(
+                  controller: _pages,
+                  scrollDirection: Axis.vertical,
+                  itemCount: items.length,
+                  onPageChanged: (i) {
+                    setState(() => _index = i);
+                    if (i >= items.length - 3) _load();
+                  },
+                  itemBuilder: (_, i) => _ReelPage(
+                    key: ValueKey(items[i].id),
+                    post: items[i],
+                    active: i == _index,
+                    muted: muted,
+                    embedded: true,
+                  ),
+                ),
+        ),
+      );
+    }
     return SystemNavBandColor(
       color: Colors.black,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -206,12 +252,16 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.post,
     required this.active,
     required this.muted,
+    this.embedded = false,
     super.key,
   });
 
   final Post post;
   final bool active;
   final bool muted;
+
+  /// The Reels tab: the compact «Watch» strip sits right above the nav bar.
+  final bool embedded;
 
   @override
   ConsumerState<_ReelPage> createState() => _ReelPageState();
@@ -220,16 +270,36 @@ class _ReelPage extends ConsumerStatefulWidget {
 class _ReelPageState extends ConsumerState<_ReelPage> {
   bool _paused = false;
   final _progress = ValueNotifier<double>(0);
+  Timer? _viewTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _trackView();
+  }
+
+  /// Owner 2026-10-12: a reel counts as viewed after a few seconds as the
+  /// current one (once per viewer; the server dedups).
+  void _trackView() {
+    _viewTimer?.cancel();
+    if (!widget.active) return;
+    _viewTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || !widget.active) return;
+      ref.read(socialActionsProvider).recordView(widget.post);
+    });
+  }
 
   @override
   void didUpdateWidget(_ReelPage old) {
     super.didUpdateWidget(old);
     // Coming back to a reel resumes it.
     if (widget.active && !old.active) _paused = false;
+    if (widget.active != old.active) _trackView();
   }
 
   @override
   void dispose() {
+    _viewTimer?.cancel();
     _progress.dispose();
     super.dispose();
   }
@@ -249,6 +319,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final actions = ref.read(socialActionsProvider);
+    // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
+    // none the strip goes and the author, text and rail drop down.
+    final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
+    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {
@@ -275,29 +349,34 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       Color? color,
     }) =>
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-          child: Semantics(
-            button: true,
-            label: label,
-            excludeSemantics: true,
-            child: GestureDetector(
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                children: [
-                  AppIcon(icon, size: 30, color: color ?? Colors.white),
-                  if (count != null && count > 0) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      SocialFormat.count(f, count),
-                      style: type.caption.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        shadows: shadow,
+          // Owner 2026-10-13: small, Instagram-like rail — a 26 icon, the
+          // count in 12, a tight step, whatever the system text size.
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: MediaQuery.withNoTextScaling(
+            child: Semantics(
+              button: true,
+              label: label,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  children: [
+                    AppIcon(icon, size: 26, color: color ?? Colors.white),
+                    if (count != null && count > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        SocialFormat.count(f, count),
+                        style: type.caption.copyWith(
+                          fontSize: 12,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          shadows: shadow,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -363,11 +442,34 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   end: AppSpacing.md,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: moreSpace +
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
                     children: [
+                      // Owner 2026-10-12: the view counter above the actions.
+                      if (p.viewCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                          child: Column(
+                            children: [
+                              const AppIcon(
+                                AppIcons.visibilityOutlined,
+                                size: 26,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                SocialFormat.count(f, p.viewCount),
+                                style: type.caption.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  shadows: shadow,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       rail(
                         p.likedByMe
                             ? AppIcons.favoriteRounded
@@ -384,7 +486,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           AppIcons.modeCommentOutlined,
                           t.t('post.comments'),
                           p.commentCount,
-                          () => context.push(SocialRoutes.post(p.id)),
+                          () => showCommentsSheet(
+                            context,
+                            postId: p.id,
+                            commentsEnabled: p.commentsEnabled,
+                          ),
                         ),
                       rail(
                         AppIcons.sendOutlined,
@@ -413,120 +519,60 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 PositionedDirectional(
                   start: AppSpacing.lg,
                   end: 72,
-                  bottom: kReelMoreButtonSpace +
+                  bottom: moreSpace +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Owner 2026-10-05: «Подписаться» right after the
-                      // author's name, like the feed card.
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Semantics(
-                              button: true,
-                              label: t.t(
-                                'post.author.open',
-                                {'name': p.author.displayName},
-                              ),
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () =>
-                                    openAuthorProfile(context, ref, p.author),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Initials under the photo.
-                                    AppAvatar(
-                                      size: 32,
-                                      initials: p.author.initials,
-                                      imageProvider: p.author.avatarUrl == null
-                                          ? null
-                                          : CachedNetworkImageProvider(
-                                              p.author.avatarUrl!,
-                                            ),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Flexible(
-                                      child: Text(
-                                        p.author.displayName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: type.body.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          shadows: shadow,
-                                        ),
-                                      ),
-                                    ),
-                                    // Attorneys blue, clients gold — as on
-                                    // the feed card.
-                                    if (p.author.verified) ...[
-                                      const SizedBox(width: 4),
-                                      VerifiedCheck(
-                                        label: t.t('post.verified'),
-                                        gold: p.author.isClient,
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (!p.isMine) ...[
-                            const SizedBox(width: AppSpacing.sm),
-                            // Capped so a long translation can't squeeze
-                            // the name away.
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 140),
-                              child: ReelFollowButton(
-                                attorneyId: p.author.id,
-                                initial: p.author.isFollowing,
-                              ),
-                            ),
-                          ],
-                        ],
+                      // The shared author row: Follow at its right edge.
+                      AuthorHeader(
+                        author: p.author,
+                        onDark: true,
+                        shadows: shadow,
+                        avatarSize: 32,
+                        gap: AppSpacing.sm,
+                        followMaxWidth: 140,
+                        showFollow: !p.isMine,
+                        preferPractices: p.locationName == null,
+                        subtitle: p.locationName ??
+                            (p.author.isClient
+                                ? '@${p.author.username} · '
+                                    '${t.t('person.client')}'
+                                : p.author.verified
+                                    ? t.t('post.licensedAttorney')
+                                    : '@${p.author.username}'),
                       ),
-                      if (p.locationName != null) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AppIcon(
-                              AppIcons.locationOnOutlined,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                p.locationName!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.caption.copyWith(
-                                  color: Colors.white,
-                                  shadows: shadow,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         // A short caption; the whole text is inside (the
-                        // button below).
-                        Text(
-                          caption,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.body.copyWith(
-                            color: Colors.white,
-                            shadows: shadow,
+                        // button below) — or, with no attachments, opens in
+                        // place over the video (owner 2026-10-13).
+                        if (more)
+                          GestureDetector(
+                            onTap:
+                                widget.embedded ? () => _openInside(p) : null,
+                            child: Text(
+                              caption,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.body.copyWith(
+                                color: Colors.white,
+                                shadows: shadow,
+                              ),
+                            ),
+                          )
+                        else
+                          _ReelCaption(
+                            text: caption,
+                            moreLabel: t.t('post.more'),
+                            style: type.body.copyWith(
+                              color: Colors.white,
+                              shadows: shadow,
+                            ),
+                            onMore: () => showPostTextSheet(context, p),
                           ),
-                        ),
                       ],
                     ],
                   ),
@@ -534,7 +580,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: MediaQuery.paddingOf(context).bottom,
+                  // In the Reels tab the nav bar floats over the video's
+                  // bottom edge: the thin line sits at the very bottom.
+                  bottom: widget.embedded
+                      ? 0
+                      : MediaQuery.paddingOf(context).bottom,
                   child: ValueListenableBuilder<double>(
                     valueListenable: _progress,
                     builder: (_, v, __) => LinearProgressIndicator(
@@ -549,15 +599,17 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
             ),
           ),
         ),
-        PositionedDirectional(
-          start: AppSpacing.lg,
-          end: AppSpacing.lg,
-          bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
-          child: ReelMoreButton(
-            label: t.t(reelMoreLabelKey(p)),
-            onTap: () => _openInside(p),
+        if (more)
+          PositionedDirectional(
+            start: AppSpacing.lg,
+            end: AppSpacing.lg,
+            bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
+                MediaQuery.paddingOf(context).bottom,
+            child: ReelMoreButton(
+              label: t.t(reelMoreLabelKey(p)),
+              onTap: () => _openInside(p),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -609,7 +661,7 @@ class ReelFollowButton extends ConsumerWidget {
               color: following
                   ? Colors.white.withValues(alpha: 0.18)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Colors.white70),
             ),
             child: Row(
@@ -630,6 +682,7 @@ class ReelFollowButton extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(
                       color: Colors.white,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -709,6 +762,88 @@ class ReelMoreButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-13: a reel without attachments — two lines and a grey
+/// «ещё» that opens the description sheet.
+class _ReelCaption extends StatelessWidget {
+  const _ReelCaption({
+    required this.text,
+    required this.moreLabel,
+    required this.style,
+    required this.onMore,
+  });
+
+  final String text;
+  final String moreLabel;
+  final TextStyle style;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: 2,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: box.maxWidth);
+        if (!painter.didExceedMaxLines) return Text(text, style: style);
+        // "… more" ends the second line, never a third one.
+        final base = DefaultTextStyle.of(context).style.merge(style);
+        bool fits(int n) {
+          final shown =
+              n >= text.length ? text : '${text.substring(0, n).trimRight()}…';
+          final p = TextPainter(
+            text: TextSpan(
+              style: base,
+              children: [
+                TextSpan(text: '$shown '),
+                TextSpan(
+                  text: moreLabel,
+                  style: base.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            maxLines: 2,
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout(maxWidth: box.maxWidth);
+          return !p.didExceedMaxLines;
+        }
+
+        var lo = 0;
+        var hi = text.length;
+        while (lo < hi) {
+          final mid = (lo + hi + 1) ~/ 2;
+          if (fits(mid)) {
+            lo = mid;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        return GestureDetector(
+          onTap: onMore,
+          child: Text.rich(
+            TextSpan(
+              style: style,
+              children: [
+                TextSpan(text: '${text.substring(0, lo).trimRight()}… '),
+                TextSpan(
+                  text: moreLabel,
+                  style: style.copyWith(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

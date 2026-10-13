@@ -137,9 +137,8 @@ class RoleScreen extends ConsumerWidget {
                               .copyWith(color: colors.textSecondary),
                         ),
                       ],
-                      const Spacer(),
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 22),
+                        padding: const EdgeInsets.only(top: 16, bottom: 22),
                         child: Column(
                           children: [
                             GavelStrikeButton(

@@ -31,9 +31,13 @@ export class SubscriptionAlertsService {
   ) {}
 
   /** A published post / news of [authorId]. */
-  async followersOfPost(authorId: string, postId: string): Promise<number> {
+  async followersOfPost(
+    authorId: string,
+    postId: string,
+    brief = false,
+  ): Promise<number> {
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT f.follower_id::STRING AS id
+      SELECT f.follower_id::TEXT AS id
       FROM follows f
       JOIN notification_settings s
         ON s.user_id = f.follower_id AND s.category = 'following'
@@ -50,7 +54,11 @@ export class SubscriptionAlertsService {
       await this.notifications.emit({
         type: 'followed_post',
         recipientId: r.id,
-        payload: { postId, actorId: authorId },
+        payload: {
+          postId,
+          actorId: authorId,
+          ...(brief ? { kind: 'brief' } : {}),
+        },
       });
     }
     return rows.length;
@@ -94,7 +102,7 @@ export class SubscriptionAlertsService {
         JOIN attorney_profiles p ON p.user_id = n.attorney_id
          AND p.new_case_alerts_custom
       )
-      SELECT DISTINCT ch.attorney_id::STRING AS id
+      SELECT DISTINCT ch.attorney_id::TEXT AS id
       FROM c
       JOIN chosen ch ON ch.practice_area_id = c.practice_area_id
                      OR ch.practice_area_id = c.parent_id

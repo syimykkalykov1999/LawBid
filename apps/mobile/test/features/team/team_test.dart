@@ -156,6 +156,7 @@ void main() {
     );
     await tester.ensureVisible(save);
     await tester.pumpAndSettle();
+    // Owner 2026-10-11: Save is grey and inert until the title is in.
     await tester.tap(save);
     await tester.pump();
     await tester.scrollUntilVisible(
@@ -163,7 +164,6 @@ void main() {
       -300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Fill in this field'), findsOneWidget);
     await tester.enterText(
       find.byKey(const ValueKey('task-title')),
       'Hearing at 10',
@@ -489,7 +489,11 @@ void main() {
         find.byType(ListView).last,
         const Offset(0, -200),
       );
+      await tester.ensureVisible(find.byKey(const ValueKey('role-paralegal')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('role-paralegal')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('liability-check')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('liability-check')));
       await tester.pump();

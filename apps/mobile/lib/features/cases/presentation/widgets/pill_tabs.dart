@@ -21,6 +21,7 @@ class PillTabs<T> extends StatelessWidget {
     required this.tabs,
     required this.onChanged,
     super.key,
+    this.onDark = false,
     this.padding = const EdgeInsets.fromLTRB(
       AppSpacing.screenSide,
       AppSpacing.sm,
@@ -36,6 +37,10 @@ class PillTabs<T> extends StatelessWidget {
   /// Outer padding around the container.
   final EdgeInsets padding;
 
+  /// Owner 2026-10-12: over the Reels video — same size and place, white
+  /// text, no frame, fill or dividers.
+  final bool onDark;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -47,9 +52,11 @@ class PillTabs<T> extends StatelessWidget {
       padding: padding,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.surface,
+          color: onDark ? Colors.transparent : colors.surface,
           borderRadius: radius,
-          border: Border.all(color: colors.border),
+          border: Border.all(
+            color: onDark ? Colors.transparent : colors.border,
+          ),
         ),
         child: ClipRRect(
           borderRadius: radius,
@@ -62,7 +69,7 @@ class PillTabs<T> extends StatelessWidget {
                     VerticalDivider(
                       width: 1,
                       thickness: 1,
-                      color: colors.border,
+                      color: onDark ? Colors.transparent : colors.border,
                     ),
                   Expanded(
                     child: _Segment(
@@ -71,6 +78,7 @@ class PillTabs<T> extends StatelessWidget {
                       motion: motion,
                       colors: colors,
                       typography: typography,
+                      onDark: onDark,
                       onTap: () {
                         if (tabs[i].$1 == value) return;
                         HapticFeedback.selectionClick();
@@ -96,7 +104,10 @@ class _Segment extends StatelessWidget {
     required this.colors,
     required this.typography,
     required this.onTap,
+    this.onDark = false,
   });
+
+  final bool onDark;
 
   final String label;
   final bool selected;
@@ -127,7 +138,11 @@ class _Segment extends StatelessWidget {
                 child: AnimatedDefaultTextStyle(
                   duration: motion,
                   style: typography.button.copyWith(
-                    color: selected ? colors.text : colors.textSecondary,
+                    color: onDark
+                        ? (selected
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.7))
+                        : (selected ? colors.text : colors.textSecondary),
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,

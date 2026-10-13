@@ -13,6 +13,7 @@ import 'post_kind.dart';
 import 'post_location_dto.dart';
 import 'post_media_dto.dart';
 import 'post_practice_dto.dart';
+import 'post_reposter_dto.dart';
 import 'post_video_dto.dart';
 
 part 'post_dto.g.dart';
@@ -34,6 +35,7 @@ class PostDto {
     required this.commentCount,
     required this.saveCount,
     required this.shareCount,
+    required this.viewCount,
     required this.repostCount,
     required this.likedByMe,
     required this.repostedByMe,
@@ -45,7 +47,9 @@ class PostDto {
     this.title,
     this.practice,
     this.video,
+    this.repostedBy,
     this.editedAt,
+    this.pinSlot,
     this.promotionId,
   });
 
@@ -86,16 +90,26 @@ class PostDto {
   /// OQ-037.
   final int shareCount;
 
+  /// Owner 2026-10-12: views of a video post / reel.
+  final int viewCount;
+
   /// Owner 2026-10-07: Threads-style reposts.
   final int repostCount;
   final bool likedByMe;
   final bool repostedByMe;
+
+  /// Set when the post reaches this list as someone's repost (a followed.
+  /// account in the feed, or the profile's own list).
+  final PostReposterDto? repostedBy;
   final bool savedByMe;
   final bool isMine;
   final String createdAt;
 
   /// "Изменено" (§3.3).
   final String? editedAt;
+
+  /// Owner 2026-10-12: 1..3 when pinned to the top of the author's list.
+  final int? pinSlot;
 
   /// Owner 2026-10-05: set on a paid promoted post in the feed — the app.
   /// shows «Реклама» and reports the open to POST /promotions/:id/click.

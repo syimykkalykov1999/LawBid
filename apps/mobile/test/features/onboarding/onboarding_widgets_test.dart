@@ -10,9 +10,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/attorney_verific
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../helpers/email_flows_overrides.dart';
@@ -37,6 +35,10 @@ Future<void> _tearDownDrift(WidgetTester tester) async {
   await tester.pump(Duration.zero);
 }
 
+/// Owner 2026-10-11: a form's button is grey and inert until it is ready.
+bool _buttonEnabled(WidgetTester tester, String label) =>
+    tester.widget<AppButton>(find.widgetWithText(AppButton, label)).isEnabled;
+
 void main() {
   final clientPhoneOnly = meFixture(
     role: UserRole.client,
@@ -48,7 +50,7 @@ void main() {
 
   group('consents step (§10.2 H)', () {
     testWidgets(
-        'Continue with required boxes unchecked explains instead of submitting',
+        'Continue is grey with required boxes unchecked and does nothing',
         (tester) async {
       tester.view.physicalSize = const Size(390, 1400);
       tester.view.devicePixelRatio = 1;
@@ -60,12 +62,9 @@ void main() {
       await tester.pumpWidget(wrap(const ConsentsStepScreen()));
       await _settle(tester);
 
+      expect(_buttonEnabled(tester, 'Continue'), isFalse);
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(
-        find.text('Please accept the required items above to continue.'),
-        findsOneWidget,
-      );
       expect(repo.calls, isEmpty);
 
       // Owner decision 2026-09-27: required consents are role-style cards;
@@ -94,7 +93,7 @@ void main() {
 
   group('contacts step (§11 Шаг 3A)', () {
     testWidgets(
-        'client missing email: shows what is missing and blocks Continue',
+        'owner 2026-10-13: the e-mail is not asked here any more (profile field)',
         (tester) async {
       final repo = FakeOnboardingRepository(clientPhoneOnly);
       final wrap = await onboardingWrapper(
@@ -106,13 +105,7 @@ void main() {
       await tester.pumpWidget(wrap(const ContactsStepScreen()));
       await _settle(tester);
 
-      expect(find.text('Verified'), findsOneWidget);
-      expect(find.text('Required'), findsOneWidget);
-      expect(find.text('Verify your email to continue.'), findsOneWidget);
-
-      await tester.tap(find.text('Continue'));
-      await _settle(tester);
-      expect(repo.calls, isEmpty);
+      expect(find.text('Verify your email to continue.'), findsNothing);
       await _tearDownDrift(tester);
     });
 
@@ -204,7 +197,7 @@ void main() {
   });
 
   group('profile step (§11 Шаг 3A/3B)', () {
-    testWidgets('required fields are flagged next to the field',
+    testWidgets('Continue is grey until the required fields are filled',
         (tester) async {
       final repo = FakeOnboardingRepository(clientPhoneOnly);
       final wrap = await onboardingWrapper(
@@ -214,9 +207,9 @@ void main() {
       );
       await tester.pumpWidget(wrap(const ProfileStepScreen()));
       await _settle(tester);
+      expect(_buttonEnabled(tester, 'Continue'), isFalse);
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(find.text('Required'), findsWidgets);
       expect(repo.calls, isEmpty);
       await _tearDownDrift(tester);
     });
@@ -237,7 +230,7 @@ void main() {
           status: base.status,
           firstName: 'Ann',
           lastName: 'Lee',
-          email: base.email,
+          email: base.email ?? 'ann@example.com',
           emailVerified: base.emailVerified,
           phone: base.phone,
           phoneVerified: base.phoneVerified,
@@ -275,7 +268,7 @@ void main() {
       await tester.tap(find.text('Continue'));
       await _settle(tester);
 
-      expect(repo.calls, ['saveProfileStep:push']);
+      expect(repo.calls, ['saveProfileStep:profile', 'complete']);
       final sent = repo.lastProfile! as ClientProfileInput;
       expect(sent.toJson(), {
         'firstName': 'Ann',
@@ -284,6 +277,7 @@ void main() {
         'languages': ['en', 'es'],
         'contactMethod': 'in_app_chat',
         'contactNote': 'Evenings',
+        'email': 'ann@example.com',
       });
       await _tearDownDrift(tester);
     });
@@ -323,6 +317,7 @@ void main() {
       expect(sent.toJson(), {
         'firstName': 'Ann',
         'lastName': 'Lee',
+        'email': 'ann@example.com',
         'bio': 'Immigration attorney',
         'firmName': 'Lee LLP',
         'languages': ['en'],
@@ -333,8 +328,7 @@ void main() {
   });
 
   group('attorney photo is mandatory (docs/03 §4.1, OQ-012)', () {
-    testWidgets('no photo: Continue flags the photo row, nothing is sent',
-        (tester) async {
+    testWidgets('no photo: Continue is grey, nothing is sent', (tester) async {
       tester.view.physicalSize = const Size(390, 1600);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -373,18 +367,9 @@ void main() {
           await onboardingWrapper(AppTheme.light(), user: me, repo: repo);
       await tester.pumpWidget(wrap(const ProfileStepScreen()));
       await _settle(tester);
-      // Before an attempt: the neutral hint, no error.
-      expect(
-        find.text('Add a photo — it is required for attorneys.'),
-        findsNothing,
-      );
-
+      expect(_buttonEnabled(tester, 'Continue'), isFalse);
       await tester.tap(find.text('Continue'));
       await _settle(tester);
-      expect(
-        find.text('Add a photo — it is required for attorneys.'),
-        findsOneWidget,
-      );
       expect(repo.calls, isEmpty);
       await _tearDownDrift(tester);
     });
@@ -406,9 +391,7 @@ void main() {
       'consents': () => const ConsentsStepScreen(),
       'contacts': () => const ContactsStepScreen(),
       'profile': () => const ProfileStepScreen(),
-      'push': () => const PushStepScreen(),
       'verification': () => const AttorneyVerificationStepScreen(),
-      'tour': () => const TourStepScreen(),
     };
     for (final entry in screens.entries) {
       testWidgets(entry.key, (tester) async {

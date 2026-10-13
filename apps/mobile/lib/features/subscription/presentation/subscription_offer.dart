@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/pay_for_plan.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 
 /// Owner 2026-10-04: the ONE subscription offer an attorney sees — as the
@@ -77,12 +78,11 @@ String trialDaysText(Translator t, int days) =>
 /// snack bar. True when the subscription (or trial) is now active.
 Future<bool> startSubscriptionFromOffer(
   BuildContext context,
-  WidgetRef ref,
-) async {
+  WidgetRef ref, {
+  SubscriptionPlan plan = SubscriptionPlan.monthly,
+}) async {
   final t = ref.read(translatorProvider);
-  final outcome = await ref
-      .read(subscribeControllerProvider.notifier)
-      .subscribeWeb(plan: SubscriptionPlan.monthly);
+  final outcome = await payForPlan(context, ref, plan: plan);
   if (!context.mounted) return false;
   switch (outcome) {
     case SubscribeOutcome.trialStarted:

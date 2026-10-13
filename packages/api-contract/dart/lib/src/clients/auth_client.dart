@@ -15,11 +15,19 @@ import '../models/otp_request_dto.dart';
 import '../models/otp_sent_envelope.dart';
 import '../models/otp_verify_dto.dart';
 import '../models/otp_verify_link_dto.dart';
+import '../models/password_login_dto.dart';
+import '../models/password_reset_confirm_dto.dart';
+import '../models/password_reset_request_dto.dart';
+import '../models/password_reset_sent_envelope.dart';
+import '../models/password_saved_envelope.dart';
+import '../models/phone_status_dto.dart';
+import '../models/phone_status_result_envelope.dart';
 import '../models/reauth_dto.dart';
 import '../models/reauth_token_envelope.dart';
 import '../models/refresh_token_dto.dart';
 import '../models/session_ended_envelope.dart';
 import '../models/session_list_envelope.dart';
+import '../models/set_password_dto.dart';
 import '../models/social_login_dto.dart';
 
 part 'auth_client.g.dart';
@@ -105,6 +113,45 @@ abstract class AuthClient {
   @POST('/auth/identifiers')
   Future<IdentifierLinkedEnvelope> linkIdentifier({
     @Body() required LinkIdentifierDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @POST('/auth/phone/status')
+  Future<PhoneStatusResultEnvelope> phoneStatus({
+    @Body() required PhoneStatusDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-13: sign in with a phone number or e-mail and the.
+  /// password — no SMS (the code is only for sign-up and a forgotten.
+  /// password).
+  @POST('/auth/password/login')
+  Future<AuthTokensEnvelope> passwordLogin({
+    @Body() required PasswordLoginDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Sets the password of the signed-in account (right after the sign-up.
+  /// code); changing an existing one needs `currentPassword`.
+  @POST('/auth/password')
+  Future<PasswordSavedEnvelope> setPassword({
+    @Body() required SetPasswordDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Forgot password: a code to the verified e-mail, else an SMS. The.
+  /// answer is the same for an unknown account.
+  @POST('/auth/password/reset/request')
+  Future<PasswordResetSentEnvelope> passwordResetRequest({
+    @Body() required PasswordResetRequestDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Forgot password: the code + a new password; ends every session and.
+  /// signs this device in.
+  @POST('/auth/password/reset/confirm')
+  Future<AuthTokensEnvelope> passwordResetConfirm({
+    @Body() required PasswordResetConfirmDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -93,22 +93,17 @@ async function seedPracticeAreas(): Promise<void> {
 
 // docs/01_FOUNDATION_AUTH.md §3.3 / §3.3: en is default+active, ru active.
 async function seedI18nLanguages(): Promise<void> {
-  const languages = [
-    {
-      code: 'en',
-      name_native: 'English',
-      is_active: true,
-      is_rtl: false,
-      sort: 0,
-    },
-    {
-      code: 'ru',
-      name_native: 'Русский',
-      is_active: true,
-      is_rtl: false,
-      sort: 1,
-    },
-  ];
+  // Owner 2026-10-13: all 85 languages (the columns of translations_seed.xlsx)
+  // come from languages.seed.json; en and ru stay the active defaults.
+  const languages = JSON.parse(
+    readFileSync(join(__dirname, 'seed', 'languages.seed.json'), 'utf8'),
+  ) as {
+    code: string;
+    name_native: string;
+    is_active: boolean;
+    is_rtl: boolean;
+    sort: number;
+  }[];
   for (const lang of languages) {
     await prisma.i18nLanguage.upsert({
       where: { code: lang.code },
@@ -116,7 +111,7 @@ async function seedI18nLanguages(): Promise<void> {
       update: lang,
     });
   }
-  console.log(`  i18n_languages: ${languages.length} upserted (en, ru)`);
+  console.log(`  i18n_languages: ${languages.length} upserted`);
 }
 
 // docs/02_DATABASE.md §3.3: privaterelay.appleid.com (apple_relay) + a
@@ -309,6 +304,19 @@ async function seedFeatureFlags(): Promise<void> {
         'News: the News topic, the Post/News switch and the profile News tab',
     },
     { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
+    {
+      // Owner 2026-10-13: the «I have a demo code» link on Welcome.
+      key: 'demo_code_login',
+      enabled: true,
+      description: 'The «I have a demo code» link on the Welcome screen',
+    },
+    {
+      // Owner 2026-10-13: sign in with a password, no SMS each time.
+      key: 'password_login',
+      enabled: true,
+      description:
+        'Sign in with a phone number or e-mail and a password (no SMS)',
+    },
     {
       // Owner 2026-10-07: Admin «Вход и письма по почте» — every e-mail
       // flow in the app (sign-in, adding an e-mail, the client's e-mail

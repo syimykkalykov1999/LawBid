@@ -75,6 +75,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
     bool? hasDeadline,
     Object? caseStatus = _keep,
     bool? withPhotos,
+    bool? briefsOnly,
     PostSort? postSort,
     TopicKind? topicKind,
     TopicSort? topicSort,
@@ -98,6 +99,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       hasDeadline: hasDeadline ?? _f.hasDeadline,
       caseStatus: pick(caseStatus, _f.caseStatus),
       withPhotos: withPhotos ?? _f.withPhotos,
+      briefsOnly: briefsOnly ?? _f.briefsOnly,
       postSort: postSort ?? _f.postSort,
       topicKind: topicKind ?? _f.topicKind,
       topicSort: topicSort ?? _f.topicSort,
@@ -443,6 +445,11 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             t.t('search.filter.withPhotos'),
             _f.withPhotos,
             (v) => _set((_) => _with(withPhotos: v)),
+          ),
+          toggle(
+            t.t('feed.briefs'),
+            _f.briefsOnly,
+            (v) => _set((_) => _with(briefsOnly: v)),
           ),
         ],
       SearchFilterKind.topics => [

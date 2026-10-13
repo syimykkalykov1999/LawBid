@@ -71,7 +71,7 @@ export class AdminModerationService {
       SELECT target_type, target_id,
              count(*)::INT8 AS reports,
              count(DISTINCT reporter_id)::INT8 AS reporters,
-             array_agg(DISTINCT reason::STRING) AS reasons,
+             array_agg(DISTINCT reason::TEXT) AS reasons,
              min(created_at) AS first_at,
              max(created_at) AS last_at
       FROM reports
@@ -81,7 +81,7 @@ export class AdminModerationService {
           // Owner 2026-10-05: moderators of one country see reports
           // made by people of that country.
           countries
-            ? Prisma.sql`AND reporter_id IN (SELECT id FROM users WHERE country_code::STRING = ANY(${countries}::STRING[]))`
+            ? Prisma.sql`AND reporter_id IN (SELECT id FROM users WHERE country_code::TEXT = ANY(${countries}::TEXT[]))`
             : Prisma.empty
         }
       GROUP BY target_type, target_id

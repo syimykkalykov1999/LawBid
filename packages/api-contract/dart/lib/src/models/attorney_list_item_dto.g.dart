@@ -23,6 +23,9 @@ AttorneyListItemDto _$AttorneyListItemDtoFromJson(Map<String, dynamic> json) =>
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      reason: json['reason'] == null
+          ? null
+          : AttorneyListItemDtoReason.fromJson(json['reason'] as String),
     );
 
 Map<String, dynamic> _$AttorneyListItemDtoToJson(
@@ -39,4 +42,5 @@ Map<String, dynamic> _$AttorneyListItemDtoToJson(
   'states': instance.states,
   'practiceI18nKeys': instance.practiceI18nKeys,
   'isFollowing': instance.isFollowing,
+  'reason': ?instance.reason?.toJson(),
 };

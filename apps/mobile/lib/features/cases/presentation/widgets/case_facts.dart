@@ -37,14 +37,14 @@ class CaseKeyFacts extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final big = typography.roleTitle.copyWith(
-      fontSize: 21,
+      fontSize: 17,
       fontWeight: FontWeight.w700,
       color: colors.text,
       height: 1.15,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
     final small = typography.body.copyWith(
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: FontWeight.w700,
       height: 1.15,
     );

@@ -104,9 +104,7 @@ class _SuspendedScreen extends ConsumerWidget {
           backgroundColor: colors.bg,
           body: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenSide,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               // Scrollable so a long reason / translation on a small
               // screen never overflows the column.
               child: Center(
@@ -118,7 +116,7 @@ class _SuspendedScreen extends ConsumerWidget {
                       Center(
                         child: AppIcon(
                           AppIcons.shieldRounded,
-                          size: 56,
+                          size: 48,
                           color: colors.dangerText,
                         ),
                       ),
@@ -128,7 +126,8 @@ class _SuspendedScreen extends ConsumerWidget {
                         child: Text(
                           t.t('account.suspended.title'),
                           textAlign: TextAlign.center,
-                          style: type.titleLarge.copyWith(color: colors.text),
+                          style: type.titleLarge
+                              .copyWith(color: colors.text, fontSize: 18),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -162,22 +161,27 @@ class _SuspendedScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.xl),
                       AppButton(
                         label: t.t('account.suspended.contact'),
-                        icon: AppIcons.supportAgentRounded,
                         onPressed: () => launchUrl(
                           Uri.parse(kWebsiteUrl),
                           mode: LaunchMode.externalApplication,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      AppButton(
-                        label: t.t('account.suspended.leave'),
-                        variant: AppButtonVariant.secondary,
+                      const SizedBox(height: 8),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size.fromHeight(36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
                         onPressed: () async {
                           await ref
                               .read(sessionControllerProvider.notifier)
                               .clear();
                           ref.read(suspensionProvider.notifier).clear();
                         },
+                        child: Text(
+                          t.t('account.suspended.leave'),
+                          style: type.button.copyWith(color: colors.text),
+                        ),
                       ),
                     ],
                   ),

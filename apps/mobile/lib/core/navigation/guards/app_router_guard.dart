@@ -7,6 +7,7 @@ import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/profile/domain/verification_gate.dart';
+import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// OQ-048: where an assistant stands — still loading, joined an
@@ -51,6 +52,7 @@ class GuardSnapshot {
 ///
 /// ```text
 /// нет токена                      → /welcome
+/// токен есть, пароль не задан     → /auth/set-password (Owner 2026-10-13)
 /// токен есть, нет согласий/18+    → /onboarding/consents
 /// нет роли                        → /onboarding/role
 /// клиент без подтверждённых
@@ -82,6 +84,8 @@ abstract final class AppRouterGuard {
     AuthRoutes.email,
     AuthRoutes.otp,
     AuthRoutes.assistant,
+    AuthRoutes.login,
+    AuthRoutes.forgotPassword,
   };
 
   static String? redirect(String location, GuardSnapshot s) {
@@ -112,6 +116,13 @@ abstract final class AppRouterGuard {
 
     if (isLegal) return null;
 
+    // Owner 2026-10-13: the account signed in with an SMS code and has no
+    // password yet — set it first; from then on the person signs in with
+    // the password, no SMS (like Instagram).
+    if (user.passwordRequired) {
+      return location == AuthRoutes.setPassword ? null : AuthRoutes.setPassword;
+    }
+
     final required = requiredStep(user);
     if (required == null) {
       // Owner 2026-10-05 (legal documents): a new or materially changed
@@ -127,6 +138,7 @@ abstract final class AppRouterGuard {
       // app route (incl. the verification screens) stays reachable.
       final onEntryRoute = location == AppRoutes.splash ||
           publicAuthRoutes.contains(location) ||
+          location == AuthRoutes.setPassword ||
           OnboardingRoutes.stepOf(location) != null;
       // OQ-048: an assistant works only inside an attorney's account.
       if (user.role == UserRole.assistant) {
@@ -193,9 +205,7 @@ abstract final class AppRouterGuard {
     if (missing.contains(MissingRequirement.role) || user.role == null) {
       return OnboardingStepId.role;
     }
-    if (user.isClient &&
-        (missing.contains(MissingRequirement.phoneVerified) ||
-            missing.contains(MissingRequirement.emailVerified))) {
+    if (user.isClient && missing.contains(MissingRequirement.phoneVerified)) {
       return OnboardingStepId.contacts;
     }
     if (user.isAttorney && missing.contains(MissingRequirement.phoneVerified)) {
@@ -239,6 +249,11 @@ abstract final class AppRouterGuard {
   ) {
     if (location == AppRoutes.verification ||
         location == AppRoutes.verificationWizard) {
+      return required == OnboardingStepId.verification;
+    }
+    // Owner 2026-10-11: "All plans" on the subscription offer opens the
+    // plans screen from the verification step.
+    if (location == SubscriptionRoutes.subscription) {
       return required == OnboardingStepId.verification;
     }
     // Owner 2026-10-04: practice areas and the subscription offer are

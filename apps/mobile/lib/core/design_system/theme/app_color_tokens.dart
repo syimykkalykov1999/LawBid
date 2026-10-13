@@ -20,6 +20,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.goldStroke,
     required this.goldLight,
     required this.goldDark,
+    required this.goldAccent,
     required this.navy,
     required this.panFill,
     required this.panText,
@@ -39,6 +40,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.onDanger,
     required this.dangerText,
     required this.dangerFill,
+    required this.chip,
+    required this.sheet,
+    required this.inverseText,
+    required this.barFill,
+    required this.successText,
+    this.panelBlur = 0,
+    this.bgGradient,
+    this.bgSpots = const [],
   });
 
   factory AppColorTokens.light() => const AppColorTokens(
@@ -55,6 +64,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsLight.goldStroke,
         goldLight: AppColorsLight.goldLight,
         goldDark: AppColorsLight.goldDark,
+        goldAccent: Color(0xFFA9821F),
         navy: AppColorsLight.navy,
         panFill: AppColorsLight.panFill,
         panText: AppColorsLight.panText,
@@ -74,6 +84,11 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         onDanger: AppColorsLight.onDanger,
         dangerText: AppColorsLight.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsLight.skeletonBase,
+        sheet: AppColorsLight.surface,
+        inverseText: AppColorsLight.bg,
+        barFill: AppColorsLight.bg,
+        successText: AppColorsStatus.success,
       );
 
   factory AppColorTokens.dark() => const AppColorTokens(
@@ -90,6 +105,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsDark.goldStroke,
         goldLight: AppColorsDark.goldLight,
         goldDark: AppColorsDark.goldDark,
+        goldAccent: Color(0xFFE4C46E),
         navy: AppColorsDark.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -109,6 +125,102 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         onDanger: AppColorsDark.onDanger,
         dangerText: AppColorsDark.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsDark.skeletonBase,
+        sheet: AppColorsDark.surface,
+        inverseText: AppColorsDark.bg,
+        barFill: AppColorsDark.bg,
+        successText: AppColorsStatus.success,
+      );
+
+  /// Navy: the dark blue theme (owner 2026-10-13).
+  factory AppColorTokens.navy() => const AppColorTokens(
+        bg: AppColorsNavy.bg,
+        surface: AppColorsNavy.surface,
+        text: AppColorsNavy.text,
+        textSecondary: AppColorsNavy.textSecondary,
+        border: AppColorsNavy.border,
+        accent: AppColorsNavy.gold,
+        onAccent: AppColorsNavy.bg,
+        ctaBright: AppColorsNavy.gold,
+        onCtaBright: AppColorsNavy.bg,
+        gold: AppColorsNavy.gold,
+        goldStroke: AppColorsNavy.goldStroke,
+        goldLight: AppColorsNavy.goldLight,
+        goldDark: AppColorsNavy.goldDark,
+        goldAccent: Color(0xFFD6B05A),
+        navy: AppColorsNavy.navy,
+        panFill: AppColorsDark.panFill,
+        panText: AppColorsDark.panText,
+        watermarkOpacity: AppColorsNavy.watermarkOpacity,
+        focusRingGlow: AppColorsDark.focusRingGlow,
+        danger: AppColorsStatus.danger,
+        success: AppColorsStatus.success,
+        warning: AppColorsStatus.warning,
+        info: AppColorsStatus.info,
+        shadow: AppColorsNavy.shadow,
+        goldTint: AppColorsNavy.goldTint,
+        dangerTint: AppColorsNavy.dangerTint,
+        successTint: AppColorsNavy.successTint,
+        infoTint: AppColorsNavy.infoTint,
+        skeletonBase: AppColorsNavy.skeletonBase,
+        skeletonHighlight: AppColorsNavy.skeletonHighlight,
+        onDanger: AppColorsDark.onDanger,
+        dangerText: AppColorsNavy.dangerText,
+        dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsNavy.chip,
+        sheet: AppColorsNavy.surface,
+        inverseText: AppColorsNavy.bg,
+        barFill: AppColorsNavy.bg,
+        successText: AppColorsStatus.success,
+      );
+
+  /// Glass: "wet glass", translucent blurred panels over a gradient.
+  factory AppColorTokens.glass() => const AppColorTokens(
+        bg: AppColorsGlass.bg,
+        surface: AppColorsGlass.surface,
+        text: AppColorsGlass.text,
+        textSecondary: AppColorsGlass.textSecondary,
+        border: AppColorsGlass.border,
+        accent: AppColorsGlass.gold,
+        onAccent: AppColorsGlass.onCta,
+        ctaBright: AppColorsGlass.cta,
+        onCtaBright: AppColorsGlass.onCta,
+        gold: AppColorsGlass.gold,
+        goldStroke: AppColorsGlass.goldStroke,
+        goldLight: AppColorsGlass.goldLight,
+        goldDark: AppColorsGlass.goldDark,
+        goldAccent: Color(0xFFD4A93F),
+        navy: AppColorsGlass.navy,
+        panFill: AppColorsDark.panFill,
+        panText: AppColorsDark.panText,
+        watermarkOpacity: AppColorsGlass.watermarkOpacity,
+        focusRingGlow: AppColorsDark.focusRingGlow,
+        danger: AppColorsStatus.danger,
+        success: AppColorsStatus.success,
+        warning: AppColorsStatus.warning,
+        info: AppColorsStatus.info,
+        shadow: AppColorsGlass.shadow,
+        goldTint: AppColorsGlass.goldTint,
+        dangerTint: AppColorsGlass.dangerTint,
+        successTint: AppColorsGlass.successTint,
+        infoTint: AppColorsGlass.infoTint,
+        skeletonBase: AppColorsGlass.skeletonBase,
+        skeletonHighlight: AppColorsGlass.skeletonHighlight,
+        onDanger: AppColorsDark.onDanger,
+        dangerText: AppColorsGlass.dangerText,
+        dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsGlass.chip,
+        sheet: AppColorsGlass.sheet,
+        inverseText: AppColorsGlass.onCta,
+        barFill: AppColorsGlass.bar,
+        successText: AppColorsGlass.successText,
+        panelBlur: AppColorsGlass.blur,
+        bgGradient: AppColorsGlass.gradient,
+        bgSpots: [
+          AppColorsGlass.spotBlue,
+          AppColorsGlass.spotIndigo,
+          AppColorsGlass.spotTeal,
+        ],
       );
 
   final Color bg;
@@ -124,6 +236,10 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color goldStroke;
   final Color goldLight;
   final Color goldDark;
+
+  /// The gold of selected icons and the gold check: a shade per theme so
+  /// it stays visible on that theme's bars (contrast ≥ 3:1).
+  final Color goldAccent;
   final Color navy;
   final Color panFill;
   final Color panText;
@@ -152,6 +268,34 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// AA fill behind [onDanger] text (see AppColorsStatus.dangerFill).
   final Color dangerFill;
 
+  /// Small chip / tag fill (tags, counters, segmented backgrounds).
+  final Color chip;
+
+  /// Background of a bottom sheet / dialog (an opaque-ish glass for Glass).
+  final Color sheet;
+
+  /// Text / icon on a fill made of [text] (snackbar, banners).
+  final Color inverseText;
+
+  /// Fill of the top bar / bottom action bar (the page colour; a faint
+  /// glass over the gradient in Glass).
+  final Color barFill;
+
+  /// Readable green for TEXT on a success tint (lighter on Glass).
+  final Color successText;
+
+  /// Blur radius behind a panel; 0 = none (only the Glass theme blurs).
+  final double panelBlur;
+
+  /// Gradient painted behind every screen (Glass); null = plain [bg].
+  final List<Color>? bgGradient;
+
+  /// Soft light spots drawn over [bgGradient] (top-left, right, bottom-left).
+  final List<Color> bgSpots;
+
+  /// True when panels are translucent and blurred (the Glass theme).
+  bool get isGlass => panelBlur > 0;
+
   @override
   AppColorTokens copyWith({
     Color? bg,
@@ -167,6 +311,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? goldStroke,
     Color? goldLight,
     Color? goldDark,
+    Color? goldAccent,
     Color? navy,
     Color? panFill,
     Color? panText,
@@ -186,6 +331,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? onDanger,
     Color? dangerText,
     Color? dangerFill,
+    Color? chip,
+    Color? sheet,
+    Color? inverseText,
+    Color? barFill,
+    Color? successText,
+    double? panelBlur,
+    List<Color>? bgGradient,
+    List<Color>? bgSpots,
   }) {
     return AppColorTokens(
       bg: bg ?? this.bg,
@@ -201,6 +354,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       goldStroke: goldStroke ?? this.goldStroke,
       goldLight: goldLight ?? this.goldLight,
       goldDark: goldDark ?? this.goldDark,
+      goldAccent: goldAccent ?? this.goldAccent,
       navy: navy ?? this.navy,
       panFill: panFill ?? this.panFill,
       panText: panText ?? this.panText,
@@ -220,6 +374,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       onDanger: onDanger ?? this.onDanger,
       dangerText: dangerText ?? this.dangerText,
       dangerFill: dangerFill ?? this.dangerFill,
+      chip: chip ?? this.chip,
+      sheet: sheet ?? this.sheet,
+      inverseText: inverseText ?? this.inverseText,
+      barFill: barFill ?? this.barFill,
+      successText: successText ?? this.successText,
+      panelBlur: panelBlur ?? this.panelBlur,
+      bgGradient: bgGradient ?? this.bgGradient,
+      bgSpots: bgSpots ?? this.bgSpots,
     );
   }
 
@@ -240,6 +402,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       goldStroke: Color.lerp(goldStroke, other.goldStroke, t)!,
       goldLight: Color.lerp(goldLight, other.goldLight, t)!,
       goldDark: Color.lerp(goldDark, other.goldDark, t)!,
+      goldAccent: Color.lerp(goldAccent, other.goldAccent, t)!,
       navy: Color.lerp(navy, other.navy, t)!,
       panFill: Color.lerp(panFill, other.panFill, t)!,
       panText: Color.lerp(panText, other.panText, t)!,
@@ -261,6 +424,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       onDanger: Color.lerp(onDanger, other.onDanger, t)!,
       dangerText: Color.lerp(dangerText, other.dangerText, t)!,
       dangerFill: Color.lerp(dangerFill, other.dangerFill, t)!,
+      chip: Color.lerp(chip, other.chip, t)!,
+      sheet: Color.lerp(sheet, other.sheet, t)!,
+      inverseText: Color.lerp(inverseText, other.inverseText, t)!,
+      barFill: Color.lerp(barFill, other.barFill, t)!,
+      successText: Color.lerp(successText, other.successText, t)!,
+      panelBlur: panelBlur + (other.panelBlur - panelBlur) * t,
+      bgGradient: t < 0.5 ? bgGradient : other.bgGradient,
+      bgSpots: t < 0.5 ? bgSpots : other.bgSpots,
     );
   }
 }

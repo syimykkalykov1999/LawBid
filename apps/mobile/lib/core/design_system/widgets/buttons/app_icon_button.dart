@@ -72,7 +72,10 @@ class _AppIconButtonState extends State<AppIconButton> {
             scale: _pressed ? AppMotion.pressScaleFactor : 1.0,
             duration: AppMotion.pressScale,
             child: Container(
-              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              constraints: BoxConstraints(
+                minWidth: widget.plain ? 44 : 38,
+                minHeight: widget.plain ? 44 : 38,
+              ),
               decoration: widget.plain
                   ? null
                   : BoxDecoration(
@@ -91,7 +94,7 @@ class _AppIconButtonState extends State<AppIconButton> {
                       ),
                     )
                   : IconTheme(
-                      data: IconThemeData(size: 20, color: colors.text),
+                      data: IconThemeData(size: 22, color: colors.text),
                       child: widget.icon,
                     ),
             ),

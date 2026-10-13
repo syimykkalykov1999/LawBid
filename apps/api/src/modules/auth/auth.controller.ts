@@ -21,6 +21,15 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { AuthService } from './auth.service';
+import { PasswordAuthService } from './password-auth.service';
+import {
+  PasswordLoginDto,
+  PhoneStatusDto,
+  PhoneStatusResultDto,
+  PasswordResetConfirmDto,
+  PasswordResetRequestDto,
+  SetPasswordDto,
+} from './dto/password.dto';
 import { SocialAuthService } from './social/social-auth.service';
 import { Public } from './decorators/public.decorator';
 import {
@@ -42,6 +51,8 @@ import {
   IdentifierLinkedDto,
   LoggedOutDto,
   OtpSentDto,
+  PasswordResetSentDto,
+  PasswordSavedDto,
   ReauthTokenDto,
   SessionDto,
   SessionEndedDto,
@@ -96,6 +107,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly socialAuth: SocialAuthService,
+    private readonly passwordAuth: PasswordAuthService,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -339,6 +351,107 @@ export class AuthController {
   ): Promise<IdentifierLinkedDto> {
     await this.auth.linkIdentifier(dto, user);
     return { linked: true };
+  }
+
+  @Public()
+  @Post('phone/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiEnvelopeResponse(PhoneStatusResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 429: [E.RATE_LIMITED] })
+  async phoneStatus(
+    @Body() dto: PhoneStatusDto,
+    @Req() req: Request,
+  ): Promise<PhoneStatusResultDto> {
+    return this.passwordAuth.phoneStatus(dto, this.meta(req));
+  }
+
+  /** Owner 2026-10-13: sign in with a phone number or e-mail and the
+   * password — no SMS (the code is only for sign-up and a forgotten
+   * password). */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.AUTH_INVALID_CREDENTIALS],
+    403: [
+      E.AUTH_PROVIDER_DISABLED,
+      E.FEATURE_DISABLED,
+      E.ACCOUNT_SUSPENDED,
+      E.ACCOUNT_DELETED,
+    ],
+    429: [E.RATE_LIMITED],
+  })
+  @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
+  @Public()
+  @Post('password/login')
+  async passwordLogin(
+    @Body() dto: PasswordLoginDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.passwordAuth.login(dto, this.meta(req));
+  }
+
+  /** Sets the password of the signed-in account (right after the sign-up
+   * code); changing an existing one needs `currentPassword`. */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(PasswordSavedDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [...BEARER_401, E.AUTH_INVALID_CREDENTIALS],
+    403: [E.AUTH_PROVIDER_DISABLED],
+    429: [E.RATE_LIMITED],
+  })
+  @Post('password')
+  @HttpCode(HttpStatus.OK)
+  async setPassword(
+    @Body() dto: SetPasswordDto,
+    @CurrentUser() user: RequestUser,
+  ): Promise<PasswordSavedDto> {
+    await this.passwordAuth.setPassword(dto, user);
+    return { saved: true };
+  }
+
+  /** Forgot password: a code to the verified e-mail, else an SMS. The
+   * answer is the same for an unknown account. */
+  @ApiEnvelopeResponse(PasswordResetSentDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.AUTH_PROVIDER_DISABLED, E.ACCOUNT_SUSPENDED],
+    429: [E.RATE_LIMITED],
+    503: [E.PROVIDER_BUDGET_EXCEEDED],
+  })
+  @Public()
+  @Post('password/reset/request')
+  @HttpCode(HttpStatus.OK)
+  async passwordResetRequest(
+    @Body() dto: PasswordResetRequestDto,
+    @Req() req: Request,
+  ): Promise<PasswordResetSentDto> {
+    return this.passwordAuth.requestReset(dto, this.meta(req));
+  }
+
+  /** Forgot password: the code + a new password; ends every session and
+   * signs this device in. */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.AUTH_OTP_INVALID, E.AUTH_OTP_EXPIRED],
+    403: [
+      E.AUTH_PROVIDER_DISABLED,
+      E.FEATURE_DISABLED,
+      E.ACCOUNT_SUSPENDED,
+      E.ACCOUNT_DELETED,
+    ],
+    423: [E.AUTH_OTP_LOCKED],
+    429: [E.RATE_LIMITED],
+  })
+  @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
+  @Public()
+  @Post('password/reset/confirm')
+  async passwordResetConfirm(
+    @Body() dto: PasswordResetConfirmDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.passwordAuth.confirmReset(dto, this.meta(req));
   }
 
   private meta(req: Request): RequestMeta {

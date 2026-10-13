@@ -38,6 +38,7 @@ import {
 } from '../../legal-documents/legal-acceptance.service';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
+import { demoContext } from '../../../common/demo/demo-context';
 
 /** docs/01_FOUNDATION_AUTH.md §10.2 H: consents that must be granted
  * before anything else in onboarding. */
@@ -54,6 +55,8 @@ export type MissingRequirement =
   | 'name'
   | 'phone_verified'
   | 'email_verified'
+  /** Owner 2026-10-13: the profile e-mail is required (format only). */
+  | 'email'
   /** client_profiles row (state of residence, §11 3A) not saved yet. */
   | 'state'
   /** attorney picked no licensed state (§11 3B "Юрисдикция"). */
@@ -61,6 +64,14 @@ export type MissingRequirement =
   /** attorney has no clean avatar: the photo is mandatory (docs/03 §4.1,
    * OQ-012). */
   | 'photo';
+
+/** Owner 2026-10-13: a verified phone / e-mail account without a password
+ * (the demo world and assistants, who sign in with a code, are exempt). */
+function passwordMissing(user: User): boolean {
+  if (demoContext.isDemo()) return false;
+  if (user.password_hash !== null || user.role === 'assistant') return false;
+  return user.phone_verified_at !== null || user.email_verified_at !== null;
+}
 
 export interface MeView {
   id: string;
@@ -82,6 +93,11 @@ export interface MeView {
    * have not accepted at the current version (the app shows the
    * acceptance screen; empty = nothing to accept). */
   pendingLegalDocuments: PendingLegalDocument[];
+  /** Owner 2026-10-13: the account has a sign-in password. */
+  passwordSet: boolean;
+  /** Owner 2026-10-13: the account still signs in only with an SMS code
+   * and must set a password first (the app shows «Задайте пароль»). */
+  passwordRequired: boolean;
   onboarding: {
     currentStep: string | null;
     completedAt: string | null;
@@ -120,24 +136,33 @@ export class OnboardingService {
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
-    const [consentsOk, facts, avatarUrl, avatarClean, pendingLegal, emailOn] =
-      await Promise.all([
-        this.requiredConsentsGranted(userId, user.ui_language),
-        this.profiles.facts(userId, user.role, user.onboarding_state?.data),
-        this.files.mediaUrl(user.avatar_file_id),
-        this.files.isCleanAvatar(user.avatar_file_id, userId),
-        this.legalAcceptance.pendingFor(
-          userId,
-          requiredDocTypes(user.role),
-          docLocaleOf(user.ui_language),
-        ),
-        emailFlowsOn(this.flags),
-      ]);
+    const [
+      consentsOk,
+      facts,
+      avatarUrl,
+      avatarClean,
+      pendingLegal,
+      emailOn,
+      passwordOn,
+    ] = await Promise.all([
+      this.requiredConsentsGranted(userId, user.ui_language),
+      this.profiles.facts(userId, user.role, user.onboarding_state?.data),
+      this.files.mediaUrl(user.avatar_file_id),
+      this.files.isCleanAvatar(user.avatar_file_id, userId),
+      this.legalAcceptance.pendingFor(
+        userId,
+        requiredDocTypes(user.role),
+        docLocaleOf(user.ui_language),
+      ),
+      emailFlowsOn(this.flags),
+      this.flags ? this.flags.isEnabled('password_login', true) : true,
+    ]);
     // Admin «Вход и письма по почте» (owner 2026-10-07): while it is off a
     // client signs up with a phone only. Turning it on later asks the
     // e-mail only of clients still in onboarding — nobody who already
     // finished is sent back to the contacts step.
-    const clientEmailRequired = emailOn && !user.onboarding_state?.completed_at;
+    void emailOn;
+    const clientEmailRequired = !user.onboarding_state?.completed_at;
     return {
       id: user.id,
       role: user.role,
@@ -154,6 +179,8 @@ export class OnboardingService {
       avatarUrl,
       requiredConsentsGranted: consentsOk,
       pendingLegalDocuments: pendingLegal,
+      passwordSet: user.password_hash !== null,
+      passwordRequired: passwordOn && passwordMissing(user),
       onboarding: {
         currentStep: user.onboarding_state?.current_step ?? null,
         completedAt: user.onboarding_state?.completed_at?.toISOString() ?? null,
@@ -191,10 +218,23 @@ export class OnboardingService {
     await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.user.findUnique({
         where: { id: userId },
-        select: { first_name: true, last_name: true },
+        select: { first_name: true, last_name: true, email: true },
       });
       if (!before) {
         throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+      }
+      const email = dto.email?.trim().toLowerCase();
+      if (email !== undefined && email !== before.email) {
+        const taken = await tx.user.findFirst({
+          where: { email, NOT: { id: userId } },
+          select: { id: true },
+        });
+        if (taken) {
+          throw new ConflictException({
+            code: ErrorCode.CONTACT_ALREADY_EXISTS,
+            message: 'This e-mail is already in use on another account.',
+          });
+        }
       }
       const after = await tx.user.update({
         where: { id: userId },
@@ -204,6 +244,9 @@ export class OnboardingService {
           ui_language: dto.uiLanguage,
           theme: dto.theme,
           avatar_file_id: dto.avatarFileId,
+          ...(email !== undefined && email !== before.email
+            ? { email, email_verified_at: null }
+            : {}),
         },
         select: { first_name: true, last_name: true },
       });
@@ -362,6 +405,7 @@ export function missingRequirements(
     | 'last_name'
     | 'phone_verified_at'
     | 'email_verified_at'
+    | 'email'
   >,
   consentsGranted: boolean,
   profile?: Pick<ProfileFacts, 'clientHasState' | 'attorneyHasLicensedStates'>,
@@ -377,12 +421,14 @@ export function missingRequirements(
   if (user.role === 'client' || user.role === 'attorney') {
     if (user.phone_verified_at === null) missing.push('phone_verified');
   }
+  // Owner 2026-10-13: no code is sent to the e-mail — it is a required
+  // profile field (client and attorney), format checked, never verified.
   if (
     clientEmailRequired &&
-    user.role === 'client' &&
-    user.email_verified_at === null
+    (user.role === 'client' || user.role === 'attorney') &&
+    !user.email
   ) {
-    missing.push('email_verified');
+    missing.push('email');
   }
   if (profile && user.role === 'client' && !profile.clientHasState) {
     missing.push('state');

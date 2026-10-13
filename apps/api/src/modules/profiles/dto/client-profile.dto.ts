@@ -100,6 +100,10 @@ export class ClientListItemDto {
   /** OQ-029 final: blue check = the client confirmed a phone number. */
   @ApiProperty()
   verifiedBadge!: boolean;
+
+  /** Does the viewer follow this client (false when not known). */
+  @ApiProperty()
+  isFollowing!: boolean;
 }
 
 /** GET /clients/:username — the public client mini-profile (OQ-026). */

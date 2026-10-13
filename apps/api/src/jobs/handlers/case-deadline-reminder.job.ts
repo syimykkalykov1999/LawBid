@@ -102,13 +102,13 @@ export class CaseDeadlineReminderJob {
     let after = ZERO_UUID;
     for (;;) {
       const rows = await this.prisma.$queryRaw<DueRow[]>(Prisma.sql`
-        SELECT c.id::STRING AS id, c.client_id::STRING AS client_id,
-               b.attorney_id::STRING AS attorney_id
+        SELECT c.id::TEXT AS id, c.client_id::TEXT AS client_id,
+               b.attorney_id::TEXT AS attorney_id
         FROM cases AS c
         LEFT JOIN bids AS b ON b.id = c.accepted_bid_id
         WHERE c.deadline_at = ${day}::DATE
           AND c.deleted_at IS NULL
-          AND c.status::STRING = ANY(${statuses}::STRING[])
+          AND c.status::TEXT = ANY(${statuses}::TEXT[])
           AND c.id > ${after}::UUID
         ORDER BY c.id
         LIMIT ${CASE_JOB_BATCH}`);

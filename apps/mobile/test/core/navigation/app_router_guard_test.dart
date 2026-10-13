@@ -254,7 +254,7 @@ void main() {
             phoneVerified: true,
           ),
         ),
-        '/onboarding/contacts',
+        '/onboarding/profile',
       ),
       _Case(
         'email only verified',
@@ -292,7 +292,7 @@ void main() {
             step: OnboardingStepId.tour,
           ),
         ),
-        '/onboarding/contacts',
+        '/onboarding/profile',
       ),
       _Case(
         'cannot be skipped even after completion',
@@ -305,7 +305,7 @@ void main() {
             completed: true,
           ),
         ),
-        '/onboarding/contacts',
+        null,
       ),
     ],
     'row 5: адвокат без подтверждённого телефона → /onboarding/contacts': [
@@ -326,7 +326,7 @@ void main() {
         'attorney with a verified phone and no email is NOT held on contacts',
         '/feed',
         _signedIn(_readyAttorney(step: OnboardingStepId.push)),
-        '/onboarding/push',
+        '/onboarding/verification',
       ),
     ],
     'row 6: онбординг не завершён → /onboarding/{текущий шаг}': [
@@ -337,16 +337,16 @@ void main() {
         '/onboarding/profile',
       ),
       _Case(
-        'saved push',
+        'saved push (a removed step) → the last step',
         '/welcome',
         _signedIn(_readyClient(step: OnboardingStepId.push)),
-        '/onboarding/push',
+        '/onboarding/profile',
       ),
       _Case(
-        'saved tour',
+        'saved tour (a removed step) → the last step',
         '/splash',
         _signedIn(_readyClient(step: OnboardingStepId.tour)),
-        '/onboarding/tour',
+        '/onboarding/profile',
       ),
       _Case(
         'saved step still "role" (role just set) → first step after role',
@@ -358,13 +358,13 @@ void main() {
         'no saved step → contacts',
         '/feed',
         _signedIn(_readyClient()),
-        '/onboarding/contacts',
+        '/onboarding/profile',
       ),
       _Case(
-        'attorney-only step saved for a client → tour',
+        'attorney-only step saved for a client → the last step',
         '/feed',
         _signedIn(_readyClient(step: OnboardingStepId.verification)),
-        '/onboarding/tour',
+        '/onboarding/profile',
       ),
       _Case(
         'name missing but saved past profile → profile',
@@ -374,15 +374,15 @@ void main() {
       ),
       _Case(
         'back to an earlier step is allowed',
-        '/onboarding/contacts',
+        '/onboarding/role',
         _signedIn(_readyClient(step: OnboardingStepId.push)),
         null,
       ),
       _Case(
         'forward past the saved step is not',
-        '/onboarding/tour',
-        _signedIn(_readyClient(step: OnboardingStepId.push)),
         '/onboarding/push',
+        _signedIn(_readyClient(step: OnboardingStepId.role)),
+        '/onboarding/profile',
       ),
       _Case(
         'attorney verification step',
@@ -410,16 +410,10 @@ void main() {
         '/onboarding/verification',
       ),
       _Case(
-        '…but not from the push step',
-        '/profile/practices',
-        _signedIn(_readyAttorney(step: OnboardingStepId.push)),
-        '/onboarding/push',
-      ),
-      _Case(
         '…but not from other steps',
         '/verification',
         _signedIn(_readyClient(step: OnboardingStepId.push)),
-        '/onboarding/push',
+        '/onboarding/profile',
       ),
       _Case(
         'legal docs open from onboarding',
@@ -479,6 +473,68 @@ void main() {
         '/legal-accept',
         _signedIn(meFixture(pendingLegal: [_doc])),
         '/onboarding/consents',
+      ),
+    ],
+    'Owner 2026-10-13: no password yet → /auth/set-password first': [
+      _Case(
+        'feed is held back',
+        '/feed',
+        _signedIn(meFixture(passwordRequired: true)),
+        '/auth/set-password',
+      ),
+      _Case(
+        'onboarding is held back',
+        '/onboarding/consents',
+        _signedIn(meFixture(passwordRequired: true)),
+        '/auth/set-password',
+      ),
+      _Case(
+        'the screen itself stays',
+        '/auth/set-password',
+        _signedIn(meFixture(passwordRequired: true)),
+        null,
+      ),
+      _Case(
+        'password saved, onboarding left → its next step',
+        '/auth/set-password',
+        _signedIn(meFixture()),
+        '/onboarding/consents',
+      ),
+      _Case(
+        'password saved, all done → feed',
+        '/auth/set-password',
+        _signedIn(_readyClient(completed: true)),
+        '/feed',
+      ),
+      const _Case(
+        'signed out: the log-in and forgot-password screens are open',
+        '/auth/login',
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
+        null,
+      ),
+      const _Case(
+        'signed out: forgot password',
+        '/auth/forgot-password',
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
+        null,
+      ),
+      const _Case(
+        'signed out: the set-password screen is not reachable',
+        '/auth/set-password',
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
+        '/welcome',
       ),
     ],
     'row 8: клиент/адвокат ok → /feed': [

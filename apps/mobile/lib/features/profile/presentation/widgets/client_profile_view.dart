@@ -182,9 +182,8 @@ class _ClientBody extends ConsumerWidget {
       ),
       AppButton(
         label: t.t('profile.action.edit'),
-        icon: AppIcons.editOutlined,
         variant: AppButtonVariant.secondary,
-        height: AppSizes.touchTarget,
+        height: 34,
         onPressed: () => context.push(AppRoutes.profileEdit),
       ),
       Row(

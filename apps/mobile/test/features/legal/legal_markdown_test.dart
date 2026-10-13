@@ -25,8 +25,10 @@ Last paragraph.
 void main() {
   test('parses headings, paragraphs and nested lists', () {
     final b = parseLegalMarkdown(_md);
-    expect(b.map((x) => x.kind).toList(),
-        ['h', 'p', 'p', 'h', 'li', 'li', 'li', 'p'],);
+    expect(
+      b.map((x) => x.kind).toList(),
+      ['h', 'p', 'p', 'h', 'li', 'li', 'li', 'p'],
+    );
     expect(b[0].level, 1);
     expect(b[2].text, 'First line of a paragraph continues here.');
     expect(b[3].level, 2);
@@ -46,13 +48,16 @@ void main() {
       MaterialApp(
         theme: AppTheme.light(),
         home: const Scaffold(
-            body: SingleChildScrollView(child: LegalMarkdown(_md)),),
+          body: SingleChildScrollView(child: LegalMarkdown(_md)),
+        ),
       ),
     );
     expect(find.text('Terms of Service'), findsOneWidget);
     expect(find.textContaining('accurate', findRichText: true), findsOneWidget);
-    expect(find.textContaining('Privacy Policy', findRichText: true),
-        findsOneWidget,);
+    expect(
+      find.textContaining('Privacy Policy', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.textContaining('**', findRichText: true), findsNothing);
     expect(find.textContaining('](', findRichText: true), findsNothing);
     expect(find.text('• '), findsNWidgets(3));

@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { RatingDto } from '../profiles/dto/attorney-profile.dto';
 import { ClientListItemDto } from '../profiles/dto/client-profile.dto';
 
@@ -15,6 +24,24 @@ export class FollowsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+}
+
+/** Owner 2026-10-13: "More" sheet of Recommended — page size on top of the
+ * cursor. */
+export class SuggestionsQueryDto extends FollowsQueryDto {
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 50,
+    default: 20,
+    description: 'Page size.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }
 
 /** An attorney row in follower/following/suggestion lists (docs/05 §6). */
@@ -59,6 +86,13 @@ export class AttorneyListItemDto {
 
   @ApiProperty({ description: 'The viewer follows this attorney.' })
   isFollowing!: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['contacts'],
+    description:
+      'Why this person is suggested, when worth a caption: "contacts" = in my address book.',
+  })
+  reason?: 'contacts';
 }
 
 export interface AttorneyListPage {

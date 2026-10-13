@@ -9,9 +9,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/attorney_verific
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../../helpers/email_flows_overrides.dart';
@@ -50,13 +48,11 @@ void main() {
     'contacts_client': (() => const ContactsStepScreen(), client, false),
     'profile_client': (() => const ProfileStepScreen(), client, false),
     'profile_attorney': (() => const ProfileStepScreen(), attorney, false),
-    'push': (() => const PushStepScreen(), client, false),
     'verification_attorney': (
       () => const AttorneyVerificationStepScreen(),
       attorney,
       false
     ),
-    'tour_client': (() => const TourStepScreen(), client, false),
     'mine_attorney_unverified': (() => const MineScreen(), attorney, false),
   };
 

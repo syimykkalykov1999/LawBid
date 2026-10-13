@@ -1,14 +1,12 @@
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/attorney_verification_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
+import 'package:lawbid/features/onboarding/presentation/screens/finish_onboarding_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 
 /// `/onboarding/<step>` paths (docs/01_FOUNDATION_AUTH.md §11 guard table:
 /// "/onboarding/{текущий шаг}"). One route per [OnboardingStepId]; the role
@@ -38,10 +36,12 @@ List<RouteBase> onboardingRoutes() => [
               OnboardingStepId.role => const RoleScreen(),
               OnboardingStepId.contacts => const ContactsStepScreen(),
               OnboardingStepId.profile => const ProfileStepScreen(),
-              OnboardingStepId.push => const PushStepScreen(),
               OnboardingStepId.verification =>
                 const AttorneyVerificationStepScreen(),
-              OnboardingStepId.tour => const TourStepScreen(),
+              // No screens any more: finish onboarding.
+              OnboardingStepId.push ||
+              OnboardingStepId.tour =>
+                const FinishOnboardingScreen(),
             },
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
@@ -17,6 +18,14 @@ abstract final class AppTheme {
 
   static ThemeData dark() => _build(Brightness.dark, AppColorTokens.dark());
 
+  /// The theme the user picked (owner 2026-10-13: Day, Night, Navy, Glass).
+  static ThemeData of(AppThemeId id) => _cache.putIfAbsent(id, () {
+        final spec = AppThemes.of(id);
+        return _build(spec.brightness, spec.tokens());
+      });
+
+  static final Map<AppThemeId, ThemeData> _cache = {};
+
   static ThemeData _build(Brightness brightness, AppColorTokens colors) {
     final typography = AppTypographyTokens.standard();
 
@@ -32,7 +41,9 @@ abstract final class AppTheme {
       ),
       brightness: brightness,
       useMaterial3: true,
-      scaffoldBackgroundColor: colors.bg,
+      // Glass paints its gradient behind the whole app (AppBackdrop), so
+      // screens are transparent over it.
+      scaffoldBackgroundColor: colors.isGlass ? Colors.transparent : colors.bg,
       fontFamily: AppFontFamilies.sans,
       colorScheme: ColorScheme(
         brightness: brightness,
@@ -60,6 +71,14 @@ abstract final class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.surface,
+        hintStyle:
+            typography.body.copyWith(color: colors.textSecondary, fontSize: 14),
+        labelStyle: typography.bodySmall
+            .copyWith(color: colors.textSecondary, fontSize: 13),
+        floatingLabelStyle: typography.bodySmall
+            .copyWith(color: colors.textSecondary, fontSize: 13),
+        helperStyle: typography.caption.copyWith(color: colors.textSecondary),
+        errorStyle: typography.caption.copyWith(color: colors.danger),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.field),
           borderSide: BorderSide(color: colors.border),
@@ -72,17 +91,30 @@ abstract final class AppTheme {
       // "not built yet" SnackBar is left on Material defaults on purpose —
       // non-welcome screens use `showAppSnackBar` instead).
       dialogTheme: DialogThemeData(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.sheet),
           side: BorderSide(color: colors.border),
         ),
-        titleTextStyle: typography.roleTitle.copyWith(color: colors.text),
+        titleTextStyle:
+            typography.roleTitle.copyWith(color: colors.text, fontSize: 16),
         contentTextStyle: typography.body.copyWith(color: colors.textSecondary),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          textStyle: typography.button,
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.button),
+          ),
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
@@ -94,7 +126,8 @@ abstract final class AppTheme {
         style: TextButton.styleFrom(
           foregroundColor: colors.text,
           textStyle: typography.button,
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
         ),
       ),
     );

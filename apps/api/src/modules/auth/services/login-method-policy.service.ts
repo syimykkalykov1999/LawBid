@@ -3,13 +3,15 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { EMAIL_FLOWS_FLAG } from '../../feature-flags/email-flows';
 
-export type LoginMethod = 'phone' | 'email' | 'apple' | 'google';
+export type LoginMethod = 'phone' | 'email' | 'apple' | 'google' | 'password';
 
 /** feature_flags keys seeded by prisma/seed.ts (docs/02 §4.B). */
 export const LOGIN_METHOD_FLAGS: Record<LoginMethod, string> = {
   phone: 'phone_login',
   // Admin «Вход и письма по почте» — every e-mail flow, not only sign-in.
   email: EMAIL_FLOWS_FLAG,
+  // Owner 2026-10-13: sign in with a password, no SMS (admin flag).
+  password: 'password_login',
   apple: 'apple_login',
   google: 'google_login',
 };
@@ -28,6 +30,11 @@ export const WEB_CLIENT_FLAG = 'web_client';
 @Injectable()
 export class LoginMethodPolicy {
   constructor(private readonly flags: FeatureFlagsService) {}
+
+  /** Same flag as [assertEnabled], as a plain answer. */
+  isEnabled(method: LoginMethod): Promise<boolean> {
+    return this.flags.isEnabled(LOGIN_METHOD_FLAGS[method], true);
+  }
 
   async assertEnabled(method: LoginMethod): Promise<void> {
     const enabled = await this.flags.isEnabled(

@@ -4,6 +4,7 @@ import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ProfilesModule } from '../profiles/profiles.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { FollowsController } from './follows.controller';
 import { FollowsService } from './follows.service';
 
@@ -17,6 +18,8 @@ import { FollowsService } from './follows.service';
     ProfilesModule,
     // OQ-028: no follows across a block.
     BlocksModule,
+    // Owner 2026-10-13: personal ranking of suggestions.
+    RecommendationsModule,
   ],
   controllers: [FollowsController],
   providers: [FollowsService],

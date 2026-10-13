@@ -158,7 +158,7 @@ class PlanTierCard extends StatelessWidget {
                 yearly: yearly,
                 priceStyle: typography.titleLarge.copyWith(
                   color: colors.text,
-                  fontSize: 30,
+                  fontSize: 22,
                   height: 1.1,
                 ),
                 periodStyle:

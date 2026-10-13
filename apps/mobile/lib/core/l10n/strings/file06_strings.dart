@@ -28,8 +28,7 @@ const file06Ru = <String, String>{
   'post.create.bodyField': 'Описание',
   'post.create.required': 'Заполните это поле',
   'post.create.oneFieldHint': 'Что нового?',
-  'post.create.photosHint':
-      'До 9 фото. Без фото карточка получит нашу картинку по квалификации.',
+  'post.create.photosHint': 'До 9 фото или одно видео.',
   'post.create.defaultCover': 'Так будет выглядеть карточка без фото:',
   'post.kind.post': 'Пост',
   'post.kind.news': 'Новость',
@@ -457,8 +456,7 @@ const file06En = <String, String>{
   'post.create.bodyField': 'Description',
   'post.create.required': 'Fill in this field',
   'post.create.oneFieldHint': "What's new?",
-  'post.create.photosHint':
-      'Up to 9 photos. Without photos the card gets our art for the qualification.',
+  'post.create.photosHint': 'Up to 9 photos or one video.',
   'post.create.defaultCover': 'This is how the card looks without photos:',
   'post.kind.post': 'Post',
   'post.kind.news': 'News',

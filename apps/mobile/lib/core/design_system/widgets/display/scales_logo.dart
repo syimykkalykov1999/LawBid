@@ -61,6 +61,11 @@ class _ScalesLogoState extends State<ScalesLogo>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver, RouteAware {
   AnimationController? _controller;
   bool _routeCurrent = true;
+
+  /// The last frame time painted while running. A route push / app pause
+  /// holds the pose instead of snapping to rest (owner 2026-10-13: the
+  /// scales "froze" for a moment as the next screen opened behind them).
+  double _lastT = 0;
   bool _subscribedToRoute = false;
 
   @override
@@ -158,6 +163,14 @@ class _ScalesLogoState extends State<ScalesLogo>
     final height = widget.size * (212 + widget.standExtension) / 300;
 
     Widget paint(double tSeconds) {
+      if (_shouldRun) {
+        _lastT = tSeconds;
+      } else if (!_reduceMotion && _lastT > 0) {
+        // Paused (another route on top / app in background): keep the pose.
+        // ignore: parameter_assignments
+        tSeconds = _lastT;
+      }
+      final running = _shouldRun || (!_reduceMotion && _lastT > 0);
       // A finite run fades the swing out over its last 1.5 s.
       final run = widget.runFor;
       final amplitude = run == null
@@ -168,8 +181,8 @@ class _ScalesLogoState extends State<ScalesLogo>
       return CustomPaint(
         size: Size(widget.size, height),
         painter: _ScalesPainter(
-          tSeconds: _shouldRun ? tSeconds : 0,
-          amplitude: _shouldRun ? amplitude : 1,
+          tSeconds: running ? tSeconds : 0,
+          amplitude: running ? amplitude : 1,
           scale: widget.size / 300,
           colors: colors,
           strokeColorOverride: widget.strokeColor,
@@ -192,7 +205,9 @@ class _ScalesLogoState extends State<ScalesLogo>
     return Semantics(
       label: widget.semanticLabel,
       image: true,
-      child: ExcludeSemantics(child: painted),
+      // Own layer: the swing repaints every frame and must not drag the
+      // whole screen (gradient backdrop, blurred panels) along with it.
+      child: ExcludeSemantics(child: RepaintBoundary(child: painted)),
     );
   }
 }

@@ -6,7 +6,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import { VideosService } from '../videos/videos.service';
-import type { PostDto } from './dto/posts.dto';
+import type { PostDto, PostReposterDto } from './dto/posts.dto';
 
 /** Where a viewer may see a post: published, not deleted, author active
  * and not suspended (docs/05 §2.2.4, §12.3). */
@@ -21,6 +21,14 @@ export const VISIBLE_POST_WHERE: Prisma.PostWhereInput = {
       { attorney_profile: { verification_status: { not: 'suspended' } } },
     ],
   },
+};
+
+/** A post without photo, video or documents (a "Brief"). */
+export const BRIEF_POST_WHERE: Prisma.PostWhereInput = {
+  kind: 'post',
+  video_asset_id: null,
+  media: { none: {} },
+  attachments: { none: {} },
 };
 
 /**
@@ -39,7 +47,40 @@ export class PostPresenter {
     private readonly videos: VideosService,
   ) {}
 
-  async present(posts: Post[], viewerId: string): Promise<PostDto[]> {
+  /** userId → {id, username} for the "reposted by" line. */
+  async reposterNames(
+    userIds: string[],
+  ): Promise<Map<string, PostReposterDto>> {
+    const out = new Map<string, PostReposterDto>();
+    if (userIds.length === 0) return out;
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: [...new Set(userIds)] } },
+      select: {
+        id: true,
+        role: true,
+        client_profile: { select: { username: true } },
+        attorney_profile: { select: { username: true } },
+      },
+    });
+    for (const u of users) {
+      out.set(u.id, {
+        id: u.id,
+        username:
+          (u.role === 'client'
+            ? u.client_profile?.username
+            : u.attorney_profile?.username) ?? '',
+        role: u.role === 'client' ? 'client' : 'attorney',
+      });
+    }
+    return out;
+  }
+
+  /** [reposters]: postId → who put it into this list (feed / profile). */
+  async present(
+    posts: Post[],
+    viewerId: string,
+    reposters?: Map<string, PostReposterDto>,
+  ): Promise<PostDto[]> {
     if (posts.length === 0) return [];
     const ids = posts.map((p) => p.id);
     const authorIds = [...new Set(posts.map((p) => p.author_id))];
@@ -53,6 +94,7 @@ export class PostPresenter {
       pComment,
       pSave,
       pShare,
+      pView,
       follows,
       docs,
       reposts,
@@ -67,17 +109,24 @@ export class PostPresenter {
           last_name: true,
           avatar_file_id: true,
           phone_verified_at: true,
-          client_profile: { select: { username: true } },
+          client_profile: { select: { username: true, state_code: true } },
           attorney_profile: {
             select: {
               username: true,
               verification_status: true,
               name_mismatch: true,
               trust_badge: true,
+              trust_level: true,
+              practice_areas: {
+                select: { practice_area: { select: { i18n_key: true } } },
+                orderBy: { practice_area: { sort: 'asc' } },
+                take: 3,
+              },
               licenses: {
                 where: { license_status: 'verified' },
-                select: { id: true },
-                take: 1,
+                select: { id: true, state_code: true },
+                orderBy: { state_code: 'asc' },
+                take: 2,
               },
             },
           },
@@ -103,6 +152,7 @@ export class PostPresenter {
       this.counters.pending('post', 'comment_count', ids),
       this.counters.pending('post', 'save_count', ids),
       this.counters.pending('post', 'share_count', ids),
+      this.counters.pending('post', 'view_count', ids),
       // Owner 2026-09-30: the card's Follow button needs the state.
       this.prisma.follow.findMany({
         where: { follower_id: viewerId, followee_id: { in: authorIds } },
@@ -222,6 +272,18 @@ export class PostPresenter {
             ? goldClients.has(p.author_id)
             : (prof?.trust_badge ?? false),
           isFollowing: followed.has(p.author_id),
+          // Owner 2026-10-13: the Identity circle on the avatar and the
+          // practices under the name (attorneys only).
+          trustLevel: isClient ? 0 : (prof?.trust_level ?? 0),
+          practiceI18nKeys: isClient
+            ? []
+            : (prof?.practice_areas ?? []).map((x) => x.practice_area.i18n_key),
+          // Owner 2026-10-13: "role · place" in the inner card's header —
+          // an attorney's licensed states (up to two), a client's state.
+          location: isClient
+            ? (a?.client_profile?.state_code ?? null)
+            : (prof?.licenses ?? []).map((l) => l.state_code).join(', ') ||
+              null,
         },
         title: p.title ?? null,
         kind: p.kind,
@@ -278,13 +340,16 @@ export class PostPresenter {
         commentCount: clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
         saveCount: clamp(p.save_count + (pSave.get(p.id) ?? 0)),
         shareCount: clamp(p.share_count + (pShare.get(p.id) ?? 0)),
+        viewCount: clamp(p.view_count + (pView.get(p.id) ?? 0)),
         repostCount: repostCounts.get(p.id) ?? 0,
         likedByMe: liked.has(p.id),
         repostedByMe: reposted.has(p.id),
+        repostedBy: reposters?.get(p.id) ?? null,
         savedByMe: saved.has(p.id),
         isMine: p.author_id === viewerId,
         createdAt: p.created_at.toISOString(),
         editedAt: p.edited_at?.toISOString() ?? null,
+        pinSlot: p.pin_slot ?? null,
       };
     });
   }

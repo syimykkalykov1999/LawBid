@@ -12,12 +12,9 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -198,8 +195,8 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
                     (ref.watch(canDoProvider(AssistantDuty.bids)) ||
                         ref.watch(canDoProvider(AssistantDuty.bidDrafts))))
                   AppButton(
+                    key: const ValueKey('case-bid-cta'),
                     label: t.t('cases.bidForm.cta'),
-                    icon: AppIcons.gavelRounded,
                     onPressed: () => _bid(c),
                   ),
                 if (c.bidAllowed &&
@@ -217,7 +214,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   }
 }
 
-class _Body extends ConsumerWidget {
+class _Body extends ConsumerStatefulWidget {
   const _Body({required this.kase, required this.t, required this.formats});
 
   final FeedCase kase;
@@ -225,149 +222,306 @@ class _Body extends ConsumerWidget {
   final L10nFormats formats;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Body> createState() => _BodyState();
+}
+
+class _BodyState extends ConsumerState<_Body> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final formats = widget.formats;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final c = kase;
+    final c = widget.kase;
     final category = CaseFormat.practice(
       t,
       c.practice.categoryI18nKey ?? c.practice.i18nKey,
       c.practice.categoryNameEn ?? c.practice.nameEn,
     );
     final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
-    final states = [c.primaryStateCode, ...c.additionalStateCodes]
-        .map(stateName)
-        .join(', ');
+    final filesCount = c.dossier.documentsCount + c.dossier.imagesCount;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: kDetailPadding,
+      padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
       children: [
-        CaseHeader(
-          practice: category == leaf ? leaf : '$category · $leaf',
-          title: c.title,
-          status: c.status,
-          meta: t
-              .t('cases.detail.published', {'date': formats.date(c.createdAt)}),
-          t: t,
-          extra: c.isNew
-              ? StatusPill(label: t.t('cases.card.new'), tone: StatusTone.gold)
-              : null,
+        CaseChipsRow(
+          labels: [category, if (leaf != category) leaf],
         ),
-        // Owner 2026-10-04: a case in a state without the attorney's
-        // licence is still biddable; the client is told on the bid.
-        if (!c.inMyLicensedStates && c.ownBidId == null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: OutsideStatesNote(t: t, forClient: false),
-          ),
-        // Owner 2026-09-30: another practice — bidding is allowed and the
-        // client is told.
-        if (!c.inMyPractice && c.ownBidId == null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: OutsidePracticeNote(t: t, forClient: false),
-          ),
-        if (c.ownBidId != null)
-          DetailSection(
-            title: t.t('cases.detail.yourBid'),
-            child: _OwnBidCard(bidId: c.ownBidId!, t: t, formats: formats),
-          ),
-        // Owner 2026-10-05: how complete the case is, and that its files
-        // and the client's contacts open once the bid is accepted.
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: CaseDossierPanel(
-            score: CaseDossierScore.of(c),
-            status: c.status,
-            t: t,
-            unlocked: c.photos.isNotEmpty,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
           ),
-        ),
-        DetailSection(
-          title: t.t('cases.detail.description'),
-          // Owner 2026-10-05: «Перевести» (cases zone).
-          child: TranslatableText(
-            kind: TranslatableKind.caseDescription,
-            id: c.id,
-            text: c.description ?? '',
-            builder: (context, text) => Text(
-              text,
-              style: typography.body.copyWith(color: colors.text),
+          child: Text(
+            c.title,
+            style: typography.titleMedium.copyWith(
+              color: colors.text,
+              fontWeight: FontWeight.w600,
+              fontSize: 18,
+              height: 1.22,
             ),
           ),
         ),
-        // OQ-031: photos once this attorney's bid is accepted; before
-        // that only a note that the case has photos.
-        if (c.photosCount > 0)
-          DetailSection(
-            title: t.t('cases.photos.title'),
-            child: CasePhotosStrip(
-              photos: c.photos,
-              hiddenCount: c.photosCount,
+        CaseFigures(
+          t: t,
+          formats: formats,
+          states: [c.primaryStateCode, ...c.additionalStateCodes],
+          budget: c.budget,
+          urgency: c.urgencyInfo,
+        ),
+        const SizedBox(height: AppSpacing.md),
+        CaseTextTabs(
+          items: [
+            CaseTabItem(t.t('cases.tab.overview')),
+            CaseTabItem(
+              t.t('cases.tab.files'),
+              count: filesCount,
+              locked: filesCount > 0 && c.photos.isEmpty,
             ),
-          ),
-        // OQ-034: questions and answers under the case.
-        AppListRow(
-          icon: AppIcons.modeCommentOutlined,
-          label: t.t('cases.comments.title'),
-          flush: true,
-          trailingText: c.commentCount > 0
-              ? SocialFormat.count(formats, c.commentCount)
-              : null,
-          onTap: () => context.push(AppRoutes.caseComments(c.id)),
+          ],
+          index: _tab,
+          onChanged: (i) => setState(() => _tab = i),
         ),
-        DetailSection(
-          title: t.t('cases.detail.details'),
-          child: FactsCard(
-            rows: [
-              CaseUrgencyRow(caseId: c.id, info: c.urgencyInfo, canEdit: false),
-              InfoRow(
-                icon: AppIcons.paymentsOutlined,
-                label: t.t('cases.card.budget'),
-                value: CaseFormat.budget(t, formats, c.budget),
-              ),
-              InfoRow(
-                icon: AppIcons.mapOutlined,
-                label: t.t('cases.field.states'),
-                value: states,
-              ),
-              if (c.city != null && c.city!.trim().isNotEmpty)
-                InfoRow(
-                  icon: AppIcons.placeOutlined,
-                  label: t.t('cases.field.city'),
-                  value: c.city!,
-                ),
-              InfoRow(
-                icon: AppIcons.insightsOutlined,
-                label: t.t('cases.detail.activity'),
-                value: t.t('cases.detail.activityValue', {
-                  'views': SocialFormat.count(formats, c.viewCount),
-                  'bids': SocialFormat.count(formats, c.bidsCount),
-                }),
-              ),
-            ],
+        if (_tab == 0)
+          ..._overview(context, c, t, formats)
+        else
+          ..._files(context, c, t),
+      ],
+    );
+  }
+
+  List<Widget> _overview(
+    BuildContext context,
+    FeedCase c,
+    Translator t,
+    L10nFormats formats,
+  ) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final type = typography;
+    return [
+      // Owner 2026-10-04: a case in a state without the attorney's
+      // licence is still biddable; the client is told on the bid.
+      if (!c.inMyLicensedStates && c.ownBidId == null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
           ),
+          child: OutsideStatesNote(t: t, forClient: false),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Row(
+      // Owner 2026-09-30: another practice — bidding is allowed and the
+      // client is told.
+      if (!c.inMyPractice && c.ownBidId == null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
+          child: OutsidePracticeNote(t: t, forClient: false),
+        ),
+      if (c.ownBidId != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            0,
+          ),
+          child: _OwnBidCard(bidId: c.ownBidId!, t: t, formats: formats),
+        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          0,
+        ),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(
-              AppIcons.lockOutlineRounded,
-              size: AppSpacing.lg,
-              color: colors.textSecondary,
+            Text(
+              t.t('cases.detail.where'),
+              style: type.caption.copyWith(color: colors.textSecondary),
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                t.t('cases.detail.privacyNote'),
-                style: typography.caption.copyWith(color: colors.textSecondary),
-              ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final code in [
+                  c.primaryStateCode,
+                  ...c.additionalStateCodes,
+                ])
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.chip,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      stateName(code),
+                      style:
+                          type.bodySmall.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                if (c.city != null && c.city!.trim().isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.chip,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      c.city!,
+                      style:
+                          type.bodySmall.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
-      ],
-    );
+      ),
+      // Owner 2026-10-05: «Перевести» (cases zone).
+      Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.xs),
+        child: TranslatableText(
+          kind: TranslatableKind.caseDescription,
+          id: c.id,
+          text: c.description ?? '',
+          builder: (context, text) => CaseText(
+            text: text,
+            moreLabel: t.t('post.more'),
+          ),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.lg,
+          AppSpacing.lg,
+          0,
+        ),
+        child: Text(
+          [
+            t.t('cases.detail.published', {
+              'date': formats.date(c.createdAt),
+            }),
+            t.t('cases.detail.activityValue', {
+              'views': SocialFormat.count(formats, c.viewCount),
+              'bids': SocialFormat.count(formats, c.bidsCount),
+            }),
+          ].join(' · '),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+      ),
+      // OQ-034: questions and answers under the case.
+      AppListRow(
+        icon: AppIcons.modeCommentOutlined,
+        label: t.t('cases.comments.title'),
+        trailingText: c.commentCount > 0
+            ? SocialFormat.count(formats, c.commentCount)
+            : null,
+        onTap: () => context.push(AppRoutes.caseComments(c.id)),
+      ),
+    ];
+  }
+
+  List<Widget> _files(BuildContext context, FeedCase c, Translator t) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    Widget row(IconData icon, String title, String sub) => Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: colors.chip,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: AppIcon(icon, color: colors.goldDark),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: type.body.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      sub,
+                      style:
+                          type.bodySmall.copyWith(color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              AppIcon(
+                AppIcons.lockOutlineRounded,
+                size: 18,
+                color: colors.textSecondary,
+              ),
+            ],
+          ),
+        );
+    final docs = c.dossier.documentsCount;
+    final imgs = c.dossier.imagesCount;
+    return [
+      if (docs + imgs == 0)
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Text(
+            t.t('cases.dossier.noFiles'),
+            style: type.body.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      if (docs > 0)
+        row(
+          AppIcons.descriptionOutlined,
+          t.t('cases.files.documents'),
+          t.plural('cases.dossier.docs', docs),
+        ),
+      if (imgs > 0)
+        row(
+          AppIcons.imageOutlined,
+          t.t('cases.files.photos'),
+          t.plural('cases.dossier.photos', imgs),
+        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.sm,
+          AppSpacing.lg,
+          0,
+        ),
+        child: Text(
+          t.t('cases.detail.privacyNote'),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+      ),
+    ];
   }
 }
 

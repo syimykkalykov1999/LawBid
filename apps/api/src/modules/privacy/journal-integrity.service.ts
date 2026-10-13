@@ -44,7 +44,7 @@ export class JournalIntegrityService {
     });
     // A random UUID range instead of ORDER BY random() (no full sort).
     const sample = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id::STRING AS id FROM cases
+      SELECT id::TEXT AS id FROM cases
       WHERE id >= gen_random_uuid() ORDER BY id LIMIT ${SAMPLE}`;
     const ids = new Set<string>([
       ...changed.map((r) => r.case_id),

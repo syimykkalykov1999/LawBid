@@ -117,7 +117,7 @@ class _ContactVerificationCardState
       status = _StatusPill(
         label: t.t('onboarding.contacts.status.recommended'),
         color: colors.textSecondary,
-        background: colors.border.withValues(alpha: 0.5),
+        background: colors.chip,
       );
     }
 

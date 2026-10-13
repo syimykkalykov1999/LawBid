@@ -1,7 +1,9 @@
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
@@ -22,6 +24,7 @@ import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
+import { RecommendationsService } from '../recommendations/recommendations.service';
 import type {
   AttorneyListItemDto,
   AttorneyListPage,
@@ -51,6 +54,8 @@ const LISTABLE_ATTORNEY = {
  */
 @Injectable()
 export class FollowsService {
+  private readonly log = new Logger(FollowsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly limits: UsageLimitsService,
@@ -60,6 +65,8 @@ export class FollowsService {
     private readonly clients: ClientProfilesService,
     private readonly blocks: BlocksService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-13: personal ranking of the suggestions.
+    @Optional() private readonly recommendations?: RecommendationsService,
   ) {}
 
   async follow(user: RequestUser, attorneyId: string): Promise<void> {
@@ -212,7 +219,7 @@ export class FollowsService {
     const clientIds = page.filter((r) => r.role === 'client').map((r) => r.id);
     const [attorneys, clients] = await Promise.all([
       this.present(attorneyIds, viewerId),
-      this.clients.presentMany(clientIds),
+      this.clients.presentMany(clientIds, viewerId),
     ]);
     const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
     const byClient = new Map(clients.map((x) => [x.id, x]));
@@ -275,13 +282,15 @@ export class FollowsService {
 
   /**
    * GET /suggestions/attorneys (§6.3): verified attorneys the user does not
-   * follow, by rating and activity (posts in 30 days), a client's own state
-   * first. The ranked pool is cached per state for 10 minutes; the cursor is
-   * a position in it.
+   * follow. Owner 2026-10-13: ranked per viewer by RecommendationsService
+   * (state, practices, mutual follows, rating, activity, Identity…); the
+   * old rating/activity pool per state stays as the fallback. The pool is
+   * cached for 10 minutes; the cursor is a position in it.
    */
   async suggestions(
     user: RequestUser,
     cursor?: string,
+    limit = PAGE,
   ): Promise<AttorneyListPage> {
     const state =
       user.role === 'client'
@@ -292,7 +301,7 @@ export class FollowsService {
             })
           )?.state_code ?? null)
         : null;
-    const pool = await this.suggestionPool(state);
+    const pool = await this.suggestionIds(user.sub, state);
     const followed = new Set(
       (
         await this.prisma.follow.findMany({
@@ -311,7 +320,7 @@ export class FollowsService {
     const hidden = await this.blocks.hiddenIds(user.sub);
     const picked: string[] = [];
     let i = start;
-    for (; i < pool.length && picked.length < PAGE; i++) {
+    for (; i < pool.length && picked.length < limit; i++) {
       if (
         pool[i] !== user.sub &&
         !followed.has(pool[i]) &&
@@ -320,11 +329,39 @@ export class FollowsService {
         picked.push(pool[i]);
       }
     }
+    const items = await this.present(picked, user.sub);
+    // Owner 2026-10-13: people from my address book get a small caption.
+    const inContacts = new Set(
+      (
+        await this.prisma.contactMatch.findMany({
+          where: { owner_id: user.sub, matched_id: { in: picked } },
+          select: { matched_id: true },
+        })
+      ).map((m) => m.matched_id),
+    );
+    for (const item of items) {
+      if (inContacts.has(item.id)) item.reason = 'contacts';
+    }
     return {
-      items: await this.present(picked, user.sub),
+      items,
       nextCursor:
         i < pool.length ? Buffer.from(String(i)).toString('base64url') : null,
     };
+  }
+
+  /** The viewer's personal ranking, else the generic pool. */
+  private async suggestionIds(
+    viewerId: string,
+    state: string | null,
+  ): Promise<string[]> {
+    if (this.recommendations) {
+      try {
+        return await this.recommendations.peopleFor(viewerId);
+      } catch (err) {
+        this.log.warn(`personal suggestions failed: ${String(err)}`);
+      }
+    }
+    return this.suggestionPool(state);
   }
 
   private async suggestionPool(state: string | null): Promise<string[]> {
@@ -333,14 +370,14 @@ export class FollowsService {
     if (cached) return JSON.parse(cached) as string[];
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT a.user_id::STRING AS id
+      SELECT a.user_id::TEXT AS id
       FROM attorney_profiles AS a
       JOIN users AS u ON u.id = a.user_id AND u.status = 'active' AND u.deleted_at IS NULL
       WHERE a.verification_status = 'verified'
       ORDER BY
-        (${state}::STRING IS NOT NULL AND EXISTS (
+        (${state}::TEXT IS NOT NULL AND EXISTS (
           SELECT 1 FROM attorney_licenses l
-          WHERE l.attorney_id = a.user_id AND l.state_code = ${state}::STRING
+          WHERE l.attorney_id = a.user_id AND l.state_code = ${state}::TEXT
             AND l.license_status = 'verified')) DESC,
         a.rating_avg DESC,
         (SELECT count(*) FROM posts p

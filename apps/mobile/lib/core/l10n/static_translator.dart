@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/strings/case_cover_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_dossier_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_payments_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
+import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
@@ -23,12 +24,15 @@ import 'package:lawbid/core/l10n/strings/legal_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_strings.dart';
 import 'package:lawbid/core/l10n/strings/news_off_strings.dart';
 import 'package:lawbid/core/l10n/strings/partner_strings.dart';
+import 'package:lawbid/core/l10n/strings/password_strings.dart';
 import 'package:lawbid/core/l10n/strings/plan_strings.dart';
+import 'package:lawbid/core/l10n/strings/post_inner_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
 import 'package:lawbid/core/l10n/strings/tasks_planner_strings.dart';
 import 'package:lawbid/core/l10n/strings/templates_strings.dart';
+import 'package:lawbid/core/l10n/strings/theme_strings.dart';
 import 'package:lawbid/core/l10n/strings/trust_strings.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
@@ -1142,6 +1146,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...planRu,
         ...attorneySetupRu,
         ...assistantCodeRu,
+        ...passwordRu,
         ...inviteRu,
         ...caseDossierRu,
         ...trustRu,
@@ -1151,6 +1156,9 @@ class StaticTranslatorRu extends _MapTranslator {
         ...boostRu,
         ...feedContentRu,
         ...newsOffRu,
+        ...caseWorkspaceRu,
+        ...themeRu,
+        ...postInnerRu,
         ...emailFlowsRu,
       };
 }
@@ -2543,6 +2551,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...planEn,
         ...attorneySetupEn,
         ...assistantCodeEn,
+        ...passwordEn,
         ...inviteEn,
         ...caseDossierEn,
         ...trustEn,
@@ -2552,6 +2561,9 @@ class StaticTranslatorEn extends _MapTranslator {
         ...boostEn,
         ...feedContentEn,
         ...newsOffEn,
+        ...caseWorkspaceEn,
+        ...themeEn,
+        ...postInnerEn,
         ...emailFlowsEn,
       };
 }

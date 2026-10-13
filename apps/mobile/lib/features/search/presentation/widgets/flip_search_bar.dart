@@ -24,6 +24,8 @@ class FlipSearchBar extends StatefulWidget {
     this.leading,
     this.trailing,
     this.showCancel = true,
+    this.keepCancel = false,
+    this.onCancel,
     this.height = 44,
     super.key,
   });
@@ -49,6 +51,11 @@ class FlipSearchBar extends StatefulWidget {
   /// Whether the "Cancel" text button slides in next to the field while
   /// focused. `false` when the caller has its own way to close.
   final bool showCancel;
+
+  /// Keep «Cancel» visible after the keyboard was dismissed (the history
+  /// list is still open).
+  final bool keepCancel;
+  final VoidCallback? onCancel;
 
   /// Field height (owner 2026-10-01: 44 visible — the old 51 looked huge; the tap area stays 48).
   final double height;
@@ -271,7 +278,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
         AnimatedSize(
           duration: d,
           curve: AppMotion.enterCurve,
-          child: focused
+          child: focused || widget.keepCancel
               // Capped so a long translated "Cancel" can't squeeze the field.
               ? ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 120),
@@ -279,6 +286,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                     onPressed: () {
                       widget.controller.clear();
                       widget.focusNode.unfocus();
+                      widget.onCancel?.call();
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: colors.text,

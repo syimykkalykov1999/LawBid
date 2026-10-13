@@ -136,7 +136,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         // layout, none on reduce-
                         // motion.
                         children: staggeredEntrance([
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 8),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () => _returnToEntry(
@@ -145,7 +145,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   .changeIdentifier(),
                             ),
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 14),
                           Text(
                             t.t('auth.otp.title'),
                             style: typography.titleLarge
@@ -157,13 +157,36 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             style: typography.body
                                 .copyWith(color: colors.textSecondary),
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
                           AppOtpField(
                             semanticLabel: t.t('auth.otp.fieldLabel'),
                             controller: _codeController,
                             errorText: flowState.errorMessage,
-                            onChanged: (value) => _currentCode = value,
+                            onChanged: (value) =>
+                                setState(() => _currentCode = value),
                             onCompleted: _handleCompleted,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 14, bottom: 8),
+                            child: GavelStrikeButton(
+                              label: t.t('auth.otp.submit'),
+                              isLoading: flowState.isSubmitting,
+                              isEnabled: _currentCode.length == 6,
+                              // AppOtpField.onCompleted already auto-submits
+                              // the instant the 6th digit lands (unchanged
+                              // stage-1.5 contract). This button — required
+                              // by file 07 §6.3's layout and §7.4's
+                              // gavel-button list — is the manual fallback:
+                              // it re-submits whatever `_currentCode` the
+                              // field's onChanged last reported, so it still
+                              // works if autofill/paste didn't trigger
+                              // onCompleted for some reason.
+                              onPressed: () {
+                                if (_currentCode.length == 6) {
+                                  _handleCompleted(_currentCode);
+                                }
+                              },
+                            ),
                           ),
                           const SizedBox(height: 14),
                           _ResendCountdown(
@@ -182,28 +205,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                               ref
                                   .read(onboardingFlowProvider.notifier)
                                   .changeIdentifier(),
-                            ),
-                          ),
-                          const Spacer(),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 22),
-                            child: GavelStrikeButton(
-                              label: t.t('auth.otp.submit'),
-                              isLoading: flowState.isSubmitting,
-                              // AppOtpField.onCompleted already auto-submits
-                              // the instant the 6th digit lands (unchanged
-                              // stage-1.5 contract). This button — required
-                              // by file 07 §6.3's layout and §7.4's
-                              // gavel-button list — is the manual fallback:
-                              // it re-submits whatever `_currentCode` the
-                              // field's onChanged last reported, so it still
-                              // works if autofill/paste didn't trigger
-                              // onCompleted for some reason.
-                              onPressed: () {
-                                if (_currentCode.length == 6) {
-                                  _handleCompleted(_currentCode);
-                                }
-                              },
                             ),
                           ),
                         ]),

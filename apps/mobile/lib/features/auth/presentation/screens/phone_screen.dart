@@ -7,6 +7,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
@@ -49,6 +50,15 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
     }
     setState(() => _localError = null);
     final e164 = UsPhone.toE164(_controller.text, callingCode: callingCode);
+    // A registered number with a password goes straight to the password —
+    // no SMS (owner 2026-10-13).
+    final status = await ref.read(authRepositoryProvider).phoneStatus(e164);
+    if (!context.mounted) return;
+    if (status != null && status.registered && status.hasPassword) {
+      // ignore: unawaited_futures
+      context.push(AuthRoutes.login, extra: e164);
+      return;
+    }
     final ok =
         await ref.read(onboardingFlowProvider.notifier).submitPhoneNumber(e164);
     // ignore: unawaited_futures
@@ -96,7 +106,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                         // layout, none on reduce-
                         // motion.
                         children: staggeredEntrance([
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 8),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () {
@@ -112,7 +122,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                               }
                             },
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 14),
                           Text(
                             t.t('auth.phone.title'),
                             style: typography.titleLarge
@@ -124,7 +134,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                             style: typography.body
                                 .copyWith(color: colors.textSecondary),
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
                           AppTextField(
                             controller: _controller,
                             leading: CountryCodeChip(
@@ -150,50 +160,55 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                               AutofillHints.telephoneNumberNational,
                             ],
                             onChanged: (_) {
-                              if (_localError != null) {
-                                setState(() => _localError = null);
-                              }
+                              setState(() => _localError = null);
                               ref
                                   .read(onboardingFlowProvider.notifier)
                                   .clearError();
                             },
                           ),
-                          // The waiting list leaves an e-mail: hidden with
-                          // admin «Вход и письма по почте» (owner 2026-10-07).
-                          if (flowState.closedCountry != null &&
-                              emailEnabled) ...[
-                            const SizedBox(height: AppSpacing.sm),
-                            SwitchChannelLink(
-                              label: t.t('auth.phone.waitlist.cta'),
-                              onTap: () => showCountryWaitlistSheet(
-                                context,
-                                countryCode: flowState.closedCountry!,
-                              ),
-                            ),
-                          ],
-                          if (emailEnabled) ...[
-                            const SizedBox(height: AppSpacing.md),
-                            SwitchChannelLink(
-                              label: t.t('auth.phone.useEmail'),
-                              onTap: () {
-                                ref
-                                    .read(onboardingFlowProvider.notifier)
-                                    .goToEmailStep();
-                                context.pushReplacement(AuthRoutes.email);
-                              },
-                            ),
-                          ],
-                          const Spacer(),
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 22),
+                            padding: const EdgeInsets.only(top: 14),
                             child: Column(
                               children: [
                                 GavelStrikeButton(
                                   label: t.t('auth.phone.submit'),
                                   isLoading: flowState.isSubmitting,
+                                  // Grey until the number is complete.
+                                  isEnabled: UsPhone.isValid(
+                                    _controller.text,
+                                    callingCode: UsPhone.callingCodeFor(
+                                      ref.watch(phoneCountryProvider),
+                                    ),
+                                  ),
                                   onPressed: () => _submit(context, ref, t),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
+                                // The waiting list leaves an e-mail: hidden with
+                                // admin «Вход и письма по почте» (owner 2026-10-07).
+                                if (flowState.closedCountry != null &&
+                                    emailEnabled) ...[
+                                  const SizedBox(height: AppSpacing.sm),
+                                  SwitchChannelLink(
+                                    label: t.t('auth.phone.waitlist.cta'),
+                                    onTap: () => showCountryWaitlistSheet(
+                                      context,
+                                      countryCode: flowState.closedCountry!,
+                                    ),
+                                  ),
+                                ],
+                                if (emailEnabled) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  SwitchChannelLink(
+                                    label: t.t('auth.phone.useEmail'),
+                                    onTap: () {
+                                      ref
+                                          .read(onboardingFlowProvider.notifier)
+                                          .goToEmailStep();
+                                      context.pushReplacement(AuthRoutes.email);
+                                    },
+                                  ),
+                                ],
+                                const SizedBox(height: AppSpacing.md),
                                 // Twilio A2P 10DLC: the opt-in wording the
                                 // campaign was registered with.
                                 Text(
@@ -218,6 +233,7 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(height: 24),
                         ]),
                       ),
                     ),

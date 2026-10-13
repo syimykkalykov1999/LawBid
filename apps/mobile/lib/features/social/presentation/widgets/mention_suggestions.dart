@@ -165,11 +165,11 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                                   ],
                                 ),
                               ),
-                              if (_verified(p))
+                              if (p.client?.verified ?? false)
                                 AppIcon(
                                   AppIcons.verifiedRounded,
                                   size: 16,
-                                  color: colors.info,
+                                  color: colors.goldAccent,
                                 ),
                             ],
                           ),
@@ -184,9 +184,6 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
 
   static String? _avatar(PersonRow p) =>
       p.attorney?.avatarUrl ?? p.client?.avatarUrl;
-
-  static bool _verified(PersonRow p) =>
-      p.attorney?.verified ?? p.client?.verified ?? false;
 
   static String _name(PersonRow p) => [
         p.attorney?.firstName ?? p.client?.firstName,

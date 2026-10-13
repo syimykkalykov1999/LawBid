@@ -656,7 +656,7 @@ export class CaseLifecycleService {
         last_activity_at: Date;
         auto_close_at: Date | null;
       }[]
-    >`SELECT client_id::STRING AS client_id, status, stale_prompt_sent_at,
+    >`SELECT client_id::TEXT AS client_id, status, stale_prompt_sent_at,
              last_activity_at, auto_close_at
       FROM cases WHERE id = ${caseId}::UUID AND deleted_at IS NULL
       FOR UPDATE`;

@@ -78,7 +78,8 @@ final _client = meFixture(
 
 List<Override> _overrides(_FakeLegalRepository repo, Translator t) => [
       currentUserControllerProvider.overrideWith(
-          () => FixedUserController(CurrentUserState.ready(_client)),),
+        () => FixedUserController(CurrentUserState.ready(_client)),
+      ),
       legalRepositoryProvider.overrideWithValue(repo),
     ];
 
@@ -131,9 +132,13 @@ void main() {
     ];
     expect(ys, [...ys]..sort());
     expect(
-        find.text('I have read and accept: Terms of Service'), findsOneWidget,);
+      find.text('I have read and accept: Terms of Service'),
+      findsOneWidget,
+    );
     expect(
-        find.text('I have read and accept: Client Agreement'), findsOneWidget,);
+      find.text('I have read and accept: Client Agreement'),
+      findsOneWidget,
+    );
     expect(
       find.text('I have read and accept: End User License Agreement'),
       findsOneWidget,
@@ -159,8 +164,10 @@ void main() {
     await tester.tap(_button);
     await tester.pumpAndSettle();
     expect(repo.accepted, hasLength(1));
-    expect(repo.accepted.single,
-        unorderedEquals(['id-eula', 'id-client', 'id-terms']),);
+    expect(
+      repo.accepted.single,
+      unorderedEquals(['id-eula', 'id-client', 'id-terms']),
+    );
   });
 
   testWidgets('unticking a document disables the button again', (tester) async {

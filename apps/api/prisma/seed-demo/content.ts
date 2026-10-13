@@ -302,7 +302,9 @@ export async function seedDemoContent(
     if (spec.style === 'video' && !opts.videoStubs) continue;
     const postId = det(`post:${spec.key}`);
     const at = new Date(
-      now.getTime() - (1 + ((i * 5) % 38)) * DAY - i * 17 * MIN,
+      spec.minutesAgo !== undefined
+        ? now.getTime() - spec.minutesAgo * MIN
+        : now.getTime() - (1 + ((i * 5) % 38)) * DAY - i * 17 * MIN,
     );
     let videoId: string | null = null;
     if (spec.style === 'video') {
@@ -370,6 +372,30 @@ export async function seedDemoContent(
         file_id: fileId,
         file_name: `${spec.key}.pdf`,
         position: 0,
+        created_at: at,
+      });
+    }
+    for (const [n, name] of (spec.docs ?? []).entries()) {
+      if (!storage) break;
+      const pdf = name.toLowerCase().endsWith('.pdf');
+      const fileId = await addFile({
+        key: `post-doc:${spec.key}:${n}`,
+        owner: author.id,
+        purpose: 'post_attachment',
+        bucket: 'documents',
+        s3Key: `demo/post_attachment/${author.id}/${det(`file:post-doc:${spec.key}:${n}`)}`,
+        mime: pdf
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        body: samplePdf(name),
+        createdAt: at,
+      });
+      attachRows.push({
+        id: det(`attach:${spec.key}:${n}`),
+        post_id: postId,
+        file_id: fileId,
+        file_name: name,
+        position: n,
         created_at: at,
       });
     }
@@ -642,6 +668,11 @@ export async function seedDemoContent(
       reply_count = (SELECT count(*) FROM comments r WHERE r.parent_comment_id = c.id),
       like_count  = (SELECT count(*) FROM comment_likes l WHERE l.comment_id = c.id)
   `);
+  // Owner 2026-10-12: demo view counts on the video posts (reels), 150–9000.
+  await prisma.$executeRawUnsafe(`
+    UPDATE posts SET view_count = 150 + (abs(hashtext(id::text)) % 8850)
+    WHERE video_asset_id IS NOT NULL AND view_count = 0
+  `);
   await prisma.$executeRawUnsafe(`
     UPDATE attorney_profiles a SET
       posts_count = (SELECT count(*) FROM posts p WHERE p.author_id = a.user_id AND p.deleted_at IS NULL)
@@ -673,7 +704,7 @@ function postRow(
     id,
     author_id: authorId,
     title: spec.title ? spec.title.slice(0, 120) : null,
-    body: spec.body.slice(0, 2200),
+    body: spec.body.slice(0, 5000),
     practice_area_id: spec.practice
       ? (practiceByCode.get(spec.practice) ?? null)
       : null,

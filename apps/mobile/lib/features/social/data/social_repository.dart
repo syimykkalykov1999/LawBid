@@ -20,6 +20,9 @@ const kPostMaxPhotos = 9;
 /// docs/05 §3.1: post text limit (server-enforced too).
 const kPostMaxChars = 2200;
 
+/// Owner 2026-10-12: a text-only post (a thread) is up to 5000 characters.
+const kThreadMaxChars = 5000;
+
 /// Owner 2026-09-30: the card title limit (server-enforced too).
 const kPostTitleMaxChars = 120;
 
@@ -142,6 +145,10 @@ const Map<String, dynamic> _createsResource = {
 /// follows, suggestions, tag pages, reports. Throws [ApiException].
 /// Network access only through here (.cursorrules).
 abstract interface class SocialRepository {
+  /// Owner 2026-10-13: whether the viewer may add files, documents, extra
+  /// photos to a post or reel (server flag + plan).
+  Future<bool> attachmentsAllowed();
+
   Future<CursorPage<Post>> feed({String? cursor});
 
   /// The last first page seen online (docs/05 §2.2.6), for offline.
@@ -173,7 +180,10 @@ abstract interface class SocialRepository {
     // Audit 2026-10-01: Search-tab filters on the server.
     String? period,
     bool withPhotos = false,
+    bool briefsOnly = false,
     bool popular = false,
+    // Owner 2026-10-13: ranked for the viewer (the Search grid's default).
+    bool forYou = false,
     // Owner 2026-10-05: the "Posts" topic — general (personal) posts only.
     bool generalOnly = false,
     // Owner 2026-10-06: several states at once, and «Юр. посты» →
@@ -191,10 +201,14 @@ abstract interface class SocialRepository {
   });
   Future<void> deletePost(String id);
 
+  /// Owner 2026-10-12: pin an own post to slot 1..3 / take it off.
+  Future<Post> pinPost(String id, int slot);
+  Future<Post> unpinPost(String id);
+
   /// Owner 2026-10-05: the feed shows legal posts only (general, personal
   /// posts hidden in the feed, topics, search and recommendations).
-  Future<bool> legalOnlyFeed();
-  Future<void> setLegalOnlyFeed({required bool legalOnly});
+  Future<String> feedContentMode();
+  Future<void> setFeedContentMode(String mode);
   Future<void> setLiked(String postId, {required bool liked});
 
   /// Owner 2026-10-07: Threads-style repost / undo (idempotent).
@@ -202,6 +216,9 @@ abstract interface class SocialRepository {
 
   /// OQ-037: count a completed share of a post / a case.
   Future<void> recordPostShare(String postId);
+
+  /// Owner 2026-10-12: a video post / reel was watched (once per viewer).
+  Future<void> recordPostView(String postId);
   Future<void> recordCaseShare(String caseId);
   Future<void> setSaved(String postId, {required bool saved});
   Future<CursorPage<SavedPost>> savedPosts({String? cursor});
@@ -300,17 +317,14 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<bool> legalOnlyFeed() async =>
-      (await guardApiCall(_feed.getPreferences)).data.contentMode ==
-      api.FeedContentMode.legalOnly;
+  Future<String> feedContentMode() async =>
+      (await guardApiCall(_feed.getPreferences)).data.contentMode.json ?? 'all';
 
   @override
-  Future<void> setLegalOnlyFeed({required bool legalOnly}) => guardApiCall(
+  Future<void> setFeedContentMode(String mode) => guardApiCall(
         () => _feed.setPreferences(
           body: api.FeedPreferencesDto(
-            contentMode: legalOnly
-                ? api.FeedContentMode.legalOnly
-                : api.FeedContentMode.all,
+            contentMode: api.FeedContentMode.fromJson(mode),
           ),
         ),
       );
@@ -331,6 +345,10 @@ class ApiSocialRepository implements SocialRepository {
       return null;
     }
   }
+
+  @override
+  Future<bool> attachmentsAllowed() async =>
+      (await guardApiCall(_posts.attachmentsAllowed)).data.allowed;
 
   @override
   Future<Post> post(String id) async => SocialMappers.post(
@@ -388,7 +406,9 @@ class ApiSocialRepository implements SocialRepository {
     bool newsOnly = false,
     String? period,
     bool withPhotos = false,
+    bool briefsOnly = false,
     bool popular = false,
+    bool forYou = false,
     bool generalOnly = false,
     List<String> states = const [],
     List<String> practices = const [],
@@ -404,7 +424,12 @@ class ApiSocialRepository implements SocialRepository {
         kind: newsOnly ? api.PostKind.news : null,
         period: period == null ? null : api.Period.fromJson(period),
         withPhotos: withPhotos ? true : null,
-        sort: popular ? api.LatestPostsSort.popular : null,
+        briefsOnly: briefsOnly ? true : null,
+        sort: forYou
+            ? api.LatestPostsSort.forYou
+            : popular
+                ? api.LatestPostsSort.popular
+                : null,
         contentClass: generalOnly ? api.PostContentClass.general : null,
       ),
     );
@@ -480,8 +505,25 @@ class ApiSocialRepository implements SocialRepository {
       guardApiCall(() => _posts.deletePost(id: id));
 
   @override
+  Future<Post> pinPost(String id, int slot) async => SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.pinPost(id: id, body: api.PinPostDto(slot: slot)),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> unpinPost(String id) async => SocialMappers.post(
+        (await guardApiCall(() => _posts.unpinPost(id: id))).data,
+      );
+
+  @override
   Future<void> recordPostShare(String postId) =>
       guardApiCall(() => _posts.sharePost(id: postId));
+
+  @override
+  Future<void> recordPostView(String postId) =>
+      guardApiCall(() => _posts.viewPost(id: postId));
 
   @override
   Future<void> recordCaseShare(String caseId) =>
@@ -893,6 +935,9 @@ abstract final class SocialMappers {
           verified: d.author.verifiedBadge,
           isFollowing: d.author.isFollowing,
           isClient: d.author.role == api.PostAuthorDtoRole.client,
+          location: d.author.location,
+          trustLevel: d.author.trustLevel.toInt(),
+          practiceKeys: d.author.practiceI18nKeys,
         ),
         body: d.body,
         media: [
@@ -926,8 +971,17 @@ abstract final class SocialMappers {
         likeCount: d.likeCount,
         commentCount: d.commentCount,
         shareCount: d.shareCount,
+        viewCount: d.viewCount,
         repostCount: d.repostCount,
         repostedByMe: d.repostedByMe,
+        pinSlot: d.pinSlot,
+        repostedBy: d.repostedBy == null
+            ? null
+            : PostReposter(
+                id: d.repostedBy!.id,
+                username: d.repostedBy!.username,
+                isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
+              ),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,
@@ -1022,6 +1076,7 @@ abstract final class SocialMappers {
         avatarUrl: d.avatarUrl,
         stateCode: d.stateCode,
         verified: d.verifiedBadge,
+        isFollowing: d.isFollowing,
       );
 
   /// null for a row of an unknown role (a newer server).
@@ -1044,5 +1099,8 @@ abstract final class SocialMappers {
         states: d.states,
         practiceKeys: d.practiceI18nKeys,
         isFollowing: d.isFollowing,
+        reason: d.reason?.toString().endsWith('contacts') == true
+            ? 'contacts'
+            : null,
       );
 }

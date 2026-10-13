@@ -99,6 +99,8 @@ const _keys = <String, String>{
   ApiErrorCodes.taskClosed: 'error.api.TASK_CLOSED',
   ApiErrorCodes.taskStepsLimit: 'error.api.TASK_STEPS_LIMIT',
   ApiErrorCodes.filesCountLimit: 'error.api.FILES_COUNT_LIMIT',
+  ApiErrorCodes.postAttachmentsNotAllowed:
+      'error.api.POST_ATTACHMENTS_NOT_ALLOWED',
   ApiErrorCodes.reviewEditWindowExpired: 'error.api.REVIEW_EDIT_WINDOW_EXPIRED',
   ApiErrorCodes.reviewNotEditable: 'error.api.REVIEW_NOT_EDITABLE',
   // Uploads (docs/03 §2.2). A checksum mismatch or a missing upload means
@@ -216,6 +218,7 @@ const _keys = <String, String>{
   ApiErrorCodes.accountRestricted: 'error.api.ACCOUNT_RESTRICTED',
   ApiErrorCodes.accountDeleted: 'error.api.ACCOUNT_DELETED',
   ApiErrorCodes.authProviderDisabled: 'error.api.AUTH_PROVIDER_DISABLED',
+  ApiErrorCodes.authInvalidCredentials: 'error.api.AUTH_INVALID_CREDENTIALS',
   ApiErrorCodes.deviceAttestationRequired:
       'error.api.DEVICE_ATTESTATION_REQUIRED',
   // Refresh-token theft signal (docs/01 §10.4): every session was revoked.

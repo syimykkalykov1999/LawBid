@@ -6,12 +6,13 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
-import 'package:lawbid/features/client_plan/client_plan_routes.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_settings_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -54,14 +55,9 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
-    final themeMode =
-        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
-
-    String themeLabel(ThemeMode mode) => switch (mode) {
-          ThemeMode.system => t.t('settings.theme.system'),
-          ThemeMode.light => t.t('settings.theme.light'),
-          ThemeMode.dark => t.t('settings.theme.dark'),
-        };
+    final chosenTheme = ref.watch(appThemeControllerProvider) ??
+        AppThemes.autoFor(MediaQuery.platformBrightnessOf(context));
+    final themeLabel = t.t(AppThemes.of(chosenTheme).nameKey);
 
     // UI modernization pass (2026-09-27): the flat §3.6 list is grouped
     // into captioned, elevated sections (same rows, same order, same
@@ -91,6 +87,13 @@ class SettingsScreen extends ConsumerWidget {
             icon: AppIcons.shieldOutlined,
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
+          ),
+          // Owner 2026-10-13: change the sign-in password.
+          AppListRow(
+            key: const ValueKey('settings-change-password'),
+            icon: AppIcons.lockOutlineRounded,
+            label: t.t('auth.change.title'),
+            onTap: () => context.push(AuthRoutes.changePassword),
           ),
           // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney)
@@ -151,18 +154,7 @@ class SettingsScreen extends ConsumerWidget {
               key: const ValueKey('settings-client-badge'),
               icon: AppIcons.verifiedRounded,
               label: t.t('cbadge.title'),
-              subtitle: t.t('cbadge.hint'),
               onTap: () => context.push(AppRoutes.clientBadge),
-            ),
-          // Owner 2026-10-05 (plan builder): the client's plan (badge
-          // included, priority in the feed, case limits).
-          if (ref.watch(currentUserRoleProvider) == UserRole.client)
-            AppListRow(
-              key: const ValueKey('settings-client-plan'),
-              icon: AppIcons.workspacePremiumOutlined,
-              label: t.t('plan.client.title'),
-              subtitle: t.t('plan.client.hint'),
-              onTap: () => context.push(ClientPlanRoutes.clientPlan),
             ),
           // Owner 2026-10-05: promoted posts / cases (reach, clicks, stop) —
           // once there is one; the first starts from «Продвигать».
@@ -222,8 +214,8 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: AppIcons.contrastRounded,
             label: t.t('settings.theme'),
-            trailingText: themeLabel(themeMode),
-            onTap: () => _ThemePickerSheet.show(context),
+            trailingText: themeLabel,
+            onTap: () => ThemePickerSheet.show(context),
           ),
           AppListRow(
             icon: AppIcons.notificationsNoneRounded,
@@ -329,89 +321,6 @@ class SettingsScreen extends ConsumerWidget {
             for (var i = 0; i < sections.length; i++) ...[
               if (i > 0) const SizedBox(height: AppSpacing.section),
               AppEntrance(index: i, child: sections[i]),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Theme picker (file 01 §8.1: "Системная / Светлая / Тёмная") — a small
-/// bottom sheet rather than the welcome screen's single quick-toggle icon
-/// button, since here all 3 [ThemeMode] values need a home, not just a
-/// light<->dark shortcut.
-class _ThemePickerSheet extends ConsumerWidget {
-  const _ThemePickerSheet();
-
-  static Future<void> show(BuildContext context) {
-    return showAppBottomSheet<void>(
-      context: context,
-      builder: (_) => const _ThemePickerSheet(),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final t = ref.watch(translatorProvider);
-    final current =
-        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
-
-    final options = <(ThemeMode, String, IconData)>[
-      (
-        ThemeMode.system,
-        t.t('settings.theme.system'),
-        AppIcons.smartphoneRounded
-      ),
-      (
-        ThemeMode.light,
-        t.t('settings.theme.light'),
-        AppIcons.lightModeOutlined
-      ),
-      (ThemeMode.dark, t.t('settings.theme.dark'), AppIcons.darkModeOutlined),
-    ];
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.md,
-          AppSpacing.screenSide,
-          AppSpacing.lg,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const AppSheetHandle(),
-            Semantics(
-              header: true,
-              child: Text(
-                t.t('settings.theme'),
-                style: typography.titleMedium.copyWith(color: colors.text),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            for (var i = 0; i < options.length; i++) ...[
-              if (i > 0) const SizedBox(height: AppSpacing.xs),
-              AppEntrance(
-                index: i,
-                child: AppListRow(
-                  icon: options[i].$3,
-                  label: options[i].$2,
-                  selected: options[i].$1 == current,
-                  showChevron: false,
-                  onTap: () {
-                    ref
-                        .read(themeModeControllerProvider.notifier)
-                        .setThemeMode(options[i].$1);
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ),
             ],
           ],
         ),

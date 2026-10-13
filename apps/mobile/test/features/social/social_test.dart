@@ -168,25 +168,17 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Saul Goodman'), findsOneWidget);
-    // No count beside the heart: the likes have their own line.
-    expect(find.text('2'), findsNothing);
-    expect(find.text('2 likes'), findsOneWidget);
-    // "saul Know your rights #dui": the name in bold, then the caption.
-    expect(
-      find.textContaining('saul Know your rights #dui', findRichText: true),
-      findsOneWidget,
-    );
-    expect(find.text('View all comments (3)'), findsOneWidget);
-    // No "Read more" and no qualification chips (LawBid card only).
+    // The same card as a practice post (owner 2026-10-12): counts beside
+    // the icons, the caption below the actions, no chip row.
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.textContaining('Know your rights'), findsOneWidget);
     expect(find.text('Read more'), findsNothing);
     // Order: photo above the actions, the caption below them.
     final photo = tester.getTopLeft(find.byType(PostMediaCarousel)).dy;
     final heart = tester.getTopLeft(find.bySemanticsLabel('Like')).dy;
-    final caption = tester
-        .getTopLeft(
-          find.textContaining('Know your rights', findRichText: true),
-        )
-        .dy;
+    final caption =
+        tester.getTopLeft(find.textContaining('Know your rights')).dy;
     expect(photo, lessThan(heart));
     expect(heart, lessThan(caption));
     // Full width photo (edge to edge).

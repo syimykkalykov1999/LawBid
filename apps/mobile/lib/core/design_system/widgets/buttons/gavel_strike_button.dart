@@ -42,7 +42,7 @@ class GavelStrikeButton extends StatefulWidget {
     this.isEnabled = true,
     this.dimWhenDisabled = true,
     this.disabledHint,
-    this.height = 50,
+    this.height = 40,
   });
 
   final String label;

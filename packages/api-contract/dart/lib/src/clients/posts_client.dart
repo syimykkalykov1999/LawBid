@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/create_post_dto.dart';
+import '../models/pin_post_dto.dart';
+import '../models/post_attachments_allowed_envelope.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
 import '../models/post_kind.dart';
@@ -18,6 +20,12 @@ part 'posts_client.g.dart';
 @RestApi()
 abstract class PostsClient {
   factory PostsClient(Dio dio, {String? baseUrl}) = _PostsClient;
+
+  /// May this account add documents / extra photos to a post or a reel
+  @GET('/posts/attachments-allowed')
+  Future<PostAttachmentsAllowedEnvelope> attachmentsAllowed({
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// Publish a post (verified attorney, docs/05 §3.1)
   @POST('/posts')
@@ -44,6 +52,21 @@ abstract class PostsClient {
   /// Delete an own post (soft, docs/05 §3.3)
   @DELETE('/posts/{id}')
   Future<PostDeletedEnvelope> deletePost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pin an own post to slot 1, 2 or 3
+  @POST('/posts/{id}/pin')
+  Future<PostEnvelope> pinPost({
+    @Path('id') required String id,
+    @Body() required PinPostDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Unpin an own post
+  @DELETE('/posts/{id}/pin')
+  Future<PostEnvelope> unpinPost({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -79,6 +102,13 @@ abstract class PostsClient {
   /// Count a completed share (OQ-037)
   @POST('/posts/{id}/share')
   Future<void> sharePost({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Count a view of a video post / reel (idempotent, one per viewer)
+  @POST('/posts/{id}/view')
+  Future<void> viewPost({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

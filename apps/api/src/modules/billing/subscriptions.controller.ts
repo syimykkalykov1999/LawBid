@@ -125,8 +125,9 @@ export class SubscriptionsController {
   @ApiErrors({ ...ATTORNEY_ERRORS, 409: [E.SUBSCRIPTION_ALREADY_ACTIVE] })
   startSubscription(
     @CurrentUser() user: RequestUser,
+    @Body() dto: CheckoutRequestDto,
   ): Promise<StartSubscriptionResultDto> {
-    return this.subscriptions.start(user);
+    return this.subscriptions.start(user, dto);
   }
 
   @Post('confirm')

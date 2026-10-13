@@ -50,7 +50,7 @@ class ConsentCard extends StatelessWidget {
                     ? Duration.zero
                     : AppMotion.stateChange,
                 curve: AppMotion.enterCurve,
-                padding: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.sm + 2),
                 decoration: BoxDecoration(
                   color: colors.surface,
                   borderRadius: BorderRadius.circular(AppRadii.roleCard),

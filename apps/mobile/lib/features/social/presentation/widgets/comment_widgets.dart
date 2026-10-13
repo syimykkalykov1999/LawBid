@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -33,12 +34,17 @@ class CommentTile extends ConsumerStatefulWidget {
     required this.comment,
     required this.onReply,
     this.isReply = false,
+    this.threads = false,
     super.key,
   });
 
   final Comment comment;
   final void Function(ReplyTarget target) onReply;
   final bool isReply;
+
+  /// Owner 2026-10-12 (Threads): the reply as a Threads one — avatar with a
+  /// thread line, name row with "…", like and reply under the text.
+  final bool threads;
 
   @override
   ConsumerState<CommentTile> createState() => _CommentTileState();
@@ -151,6 +157,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = _c.author;
+    if (widget.threads) return _threadsTile(context, t, f, colors, type);
     final avatarSize = widget.isReply ? 28.0 : 36.0;
     return Padding(
       padding: EdgeInsetsDirectional.only(
@@ -213,6 +220,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                             VerifiedCheck(
                               label: t.t('post.verified'),
                               size: 13,
+                              gold: !a.isAttorney,
                             ),
                           ],
                           const SizedBox(width: AppSpacing.sm),
@@ -323,13 +331,230 @@ class _CommentTileState extends ConsumerState<CommentTile> {
       ),
     );
   }
+
+  void _replyToThis() {
+    final a = _c.author;
+    widget.onReply(
+      (parentId: _c.parentId ?? _c.id, name: a.username ?? a.displayName),
+    );
+  }
+
+  Widget _threadsTile(
+    BuildContext context,
+    Translator t,
+    L10nFormats f,
+    AppColorTokens colors,
+    AppTypographyTokens type,
+  ) {
+    final a = _c.author;
+    final name = a.isCaseOwner
+        ? t.t('cases.comments.owner')
+        : a.isAttorney
+            ? a.displayName
+            : (isCaseRef(_c.id) ? t.t('person.client') : a.displayName);
+    final hasReplies = !widget.isReply && _c.replyCount > 0;
+    final line = _showReplies && hasReplies;
+    Widget action(Widget icon, int count) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            if (count > 0)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+                child: Text(
+                  SocialFormat.count(f, count),
+                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                ),
+              ),
+          ],
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: AppSpacing.screenSide,
+            end: AppSpacing.sm,
+            top: AppSpacing.md,
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Column(
+                    children: [
+                      AppPressable(
+                        onTap: a.isAttorney && a.username != null
+                            ? () => context.push(AppRoutes.lawyer(a.username!))
+                            : () {},
+                        child: GoldRingAvatar(
+                          url: a.avatarUrl,
+                          initials: a.displayName.isEmpty
+                              ? '?'
+                              : avatarInitials(a.displayName),
+                          size: 36,
+                          ring: a.verified,
+                        ),
+                      ),
+                      if (line)
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            margin: const EdgeInsets.only(top: AppSpacing.xs),
+                            decoration: BoxDecoration(
+                              color: colors.border,
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: type.bodySmall.copyWith(
+                                      color: colors.text,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (a.verified) ...[
+                                  const SizedBox(width: 3),
+                                  VerifiedCheck(
+                                    label: t.t('post.verified'),
+                                    size: 13,
+                                    gold: !a.isAttorney,
+                                  ),
+                                ],
+                                const SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  SocialFormat.ago(t, f, _c.createdAt),
+                                  maxLines: 1,
+                                  style: type.caption
+                                      .copyWith(color: colors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          AppIconButton(
+                            icon: const AppIcon(
+                              AppIcons.moreHorizRounded,
+                              size: 18,
+                            ),
+                            semanticLabel: t.t('post.menu'),
+                            onPressed: _menu,
+                          ),
+                        ],
+                      ),
+                      TranslatableText(
+                        kind: TranslatableKind.comment,
+                        id: _c.id,
+                        text: _c.body,
+                        enabled: !_c.isMine,
+                        builder: (context, body) => PostBodyText(
+                          body: body,
+                          expanded: true,
+                          mentions: _c.mentions,
+                          height: 1.4,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          action(
+                            BounceIcon(
+                              active: _c.likedByMe,
+                              icon: AppIcons.favoriteBorderRounded,
+                              activeIcon: AppIcons.favoriteRounded,
+                              activeColor: colors.danger,
+                              size: 20,
+                              label: t.t(
+                                _c.likedByMe ? 'post.unlike' : 'post.like',
+                              ),
+                              onTap: _toggleLike,
+                            ),
+                            _c.likeCount,
+                          ),
+                          action(
+                            BounceIcon(
+                              active: false,
+                              icon: AppIcons.modeCommentOutlined,
+                              activeIcon: AppIcons.modeCommentOutlined,
+                              size: 20,
+                              label: t.t('comment.reply'),
+                              onTap: _replyToThis,
+                            ),
+                            0,
+                          ),
+                        ],
+                      ),
+                      if (hasReplies)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton(
+                            onPressed: () =>
+                                setState(() => _showReplies = !_showReplies),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, AppSizes.touchTarget),
+                              textStyle: type.bodySmall,
+                              foregroundColor: colors.textSecondary,
+                            ),
+                            child: FitText(
+                              t.t(
+                                _showReplies
+                                    ? 'comment.hideReplies'
+                                    : 'comment.showReplies',
+                                {'count': SocialFormat.count(f, _c.replyCount)},
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_showReplies)
+          _Replies(
+            commentId: _c.id,
+            onReply: widget.onReply,
+            threads: true,
+          ),
+        Divider(height: 1, color: colors.border),
+      ],
+    );
+  }
 }
 
 class _Replies extends ConsumerWidget {
-  const _Replies({required this.commentId, required this.onReply});
+  const _Replies({
+    required this.commentId,
+    required this.onReply,
+    this.threads = false,
+  });
 
   final String commentId;
   final void Function(ReplyTarget target) onReply;
+  final bool threads;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -360,6 +585,7 @@ class _Replies extends ConsumerWidget {
               key: ValueKey(r.id),
               comment: r,
               isReply: true,
+              threads: threads,
               onReply: onReply,
             ),
           if (page.canLoadMore)
@@ -586,6 +812,28 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
+                    // Owner 2026-10-12: a live "n/1000" next to the send
+                    // button while typing.
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _text,
+                      builder: (context, v, _) {
+                        final n = v.text.characters.length;
+                        if (n == 0) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            end: AppSpacing.xs,
+                          ),
+                          child: Text(
+                            '$n/$kCommentMaxChars',
+                            style: type.caption.copyWith(
+                              color: n > kCommentMaxChars * 0.9
+                                  ? colors.warning
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                     ValueListenableBuilder<TextEditingValue>(
                       valueListenable: _text,
                       builder: (context, v, _) {

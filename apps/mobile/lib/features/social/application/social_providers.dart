@@ -34,6 +34,26 @@ final currentUserIdProvider = Provider<String?>((ref) {
   return acting ?? ref.watch(sessionControllerProvider.select((s) => s?.sub));
 });
 
+/// Owner 2026-10-13: may the viewer add attachments to a post / reel? The
+/// composer hides the clip and the extra photos without it; the server
+/// checks again (403).
+final postAttachmentsAllowedProvider = FutureProvider.autoDispose<bool>(
+  (ref) async {
+    try {
+      return await ref.watch(socialRepositoryProvider).attachmentsAllowed();
+    } on Object {
+      return false;
+    }
+  },
+);
+
+/// Owner 2026-10-13: inner cards (the page behind a post / reel with
+/// attachments, the «Watch» strip) are off until the admin switches
+/// attachments on (`attachments_in_posts`, default off for all).
+final innerCardsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(postAttachmentsAllowedProvider).value ?? false,
+);
+
 final socialRepositoryProvider = Provider<SocialRepository>(
   (ref) => ApiSocialRepository(
     apiDio: ref.watch(dioProvider),
@@ -294,7 +314,10 @@ typedef ExplorePostsKey = ({
   String? practice,
   String? period,
   bool withPhotos,
+  bool briefsOnly,
   bool popular,
+  // Owner 2026-10-13: ranked for me (default sort of the grid).
+  bool forYou,
 });
 
 class ExplorePostsNotifier extends PagedNotifier<Post> {
@@ -312,7 +335,9 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
           tag: practice == null ? null : topicTagFor(practice.split('.').first),
           period: key.period,
           withPhotos: key.withPhotos,
+          briefsOnly: key.briefsOnly,
           popular: key.popular,
+          forYou: key.forYou,
         );
   }
 
@@ -562,6 +587,25 @@ class SocialActions {
     }
   }
 
+  /// Owner 2026-10-12: a reel / video was watched; the counter moves at
+  /// once and the server counts it once per viewer.
+  Future<void> recordView(Post post) async {
+    if (!_viewed.add(post.id)) return;
+    final before = _latest(post);
+    _ref
+        .read(postOverridesProvider.notifier)
+        .put(before.copyWith(viewCount: before.viewCount + 1));
+    try {
+      await _repo.recordPostView(post.id);
+    } on Object {
+      _viewed.remove(post.id);
+      _ref.read(postOverridesProvider.notifier).put(before);
+    }
+  }
+
+  /// Posts already counted in this session (one view per post).
+  static final _viewed = <String>{};
+
   Future<Object?> toggleSave(Post post) => _guard('save:${post.id}', () async {
         final before = _latest(post);
         final saved = !before.savedByMe;
@@ -586,6 +630,27 @@ class SocialActions {
           ..invalidate(publicAttorneyProfileProvider)
           ..invalidate(publicClientProfileProvider);
       });
+
+  /// Owner 2026-10-12: pin to slot 1..3 / unpin; the profile lists reload
+  /// (pinned posts lead them).
+  Future<Object?> pinPost(Post post, int slot) =>
+      _guard('pin:${post.id}', () async {
+        final updated = await _repo.pinPost(post.id, slot);
+        _ref.read(postOverridesProvider.notifier).put(updated);
+        _refreshProfileLists(post);
+      });
+
+  Future<Object?> unpinPost(Post post) => _guard('pin:${post.id}', () async {
+        final updated = await _repo.unpinPost(post.id);
+        _ref.read(postOverridesProvider.notifier).put(updated);
+        _refreshProfileLists(post);
+      });
+
+  void _refreshProfileLists(Post post) {
+    _ref
+      ..invalidate(attorneyPostsProvider(post.author.id))
+      ..invalidate(attorneyNewsProvider(post.author.id));
+  }
 
   /// Owner 2026-09-30: title, text and qualification.
   Future<Object?> editPost(

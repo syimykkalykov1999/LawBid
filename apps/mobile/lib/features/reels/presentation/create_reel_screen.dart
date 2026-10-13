@@ -753,8 +753,13 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                       style: type.body.copyWith(color: colors.text),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  ..._insideSection(t, colors, type),
+                  // Owner 2026-10-13: photos and documents inside the reel
+                  // only with the right to attach.
+                  if (ref.watch(postAttachmentsAllowedProvider).value ??
+                      false) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    ..._insideSection(t, colors, type),
+                  ],
                   if (_progress != null) ...[
                     const SizedBox(height: AppSpacing.lg),
                     Text(

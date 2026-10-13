@@ -344,6 +344,9 @@ void main() {
 /// Every call fails as "no connection": enough for route tests.
 class _OfflineSocialRepository implements SocialRepository {
   @override
+  Future<bool> attachmentsAllowed() async => true;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => Future<Never>.error(
         const ApiException(
           code: ApiException.networkErrorCode,

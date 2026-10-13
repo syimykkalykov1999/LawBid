@@ -714,7 +714,7 @@ class ConversationRow extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.md),
             ],
-            CounterpartAvatar(counterpart: c.counterpart, size: 52),
+            CounterpartAvatar(counterpart: c.counterpart, size: 44),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(

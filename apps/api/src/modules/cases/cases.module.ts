@@ -1,3 +1,4 @@
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { CasePhotosService } from './services/case-photos.service';
 import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
@@ -31,6 +32,8 @@ import { CaseDisputesAdminController } from './lifecycle/case-disputes-admin.con
 import { CaseLifecycleController } from './lifecycle/case-lifecycle.controller';
 import { CaseLifecycleModule } from './lifecycle/case-lifecycle.module';
 import { CaseAccessPolicy } from './policies/case-access.policy';
+import { CaseWorkspaceController } from './workspace/case-workspace.controller';
+import { CaseWorkspaceService } from './workspace/case-workspace.service';
 import { CaseViewTrackingService } from './services/case-view-tracking.service';
 import { CasesFeedService } from './services/cases-feed.service';
 
@@ -64,6 +67,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     ReferralsCoreModule,
     // Owner 2026-10-05: promoted cases in the feed (budget, reach, cap).
     PromotionsCoreModule,
+    // Owner 2026-10-13: "for you" ranking in Search.
+    RecommendationsModule,
   ],
   controllers: [
     CasesController,
@@ -73,6 +78,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     // Owner 2026-10-05: client → attorney case invites.
     CaseInvitesController,
     CaseContactsController,
+    CaseWorkspaceController,
     ContactIssuesAdminController,
     CaseLifecycleController,
     CaseDisputesAdminController,
@@ -82,6 +88,7 @@ import { CasesFeedService } from './services/cases-feed.service';
     CasesService,
     // OQ-031: case photos.
     CasePhotosService,
+    CaseWorkspaceService,
     CaseStateMachine,
     CaseAccessPolicy,
     CasesFeedService,

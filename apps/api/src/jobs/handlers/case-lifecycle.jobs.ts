@@ -97,8 +97,8 @@ export class CaseStalePromptJob {
         walk(
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
-              SELECT id::STRING AS id, last_activity_at AS at
-              FROM cases@cases_open_unprompted_idx
+              SELECT id::TEXT AS id, last_activity_at AS at
+              FROM cases
               WHERE status = 'open' AND deleted_at IS NULL
                 AND stale_prompt_sent_at IS NULL
                 AND last_activity_at < ${inactiveBefore}
@@ -138,8 +138,8 @@ export class CaseAutoArchiveJob {
         walk(
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
-              SELECT id::STRING AS id, stale_prompt_sent_at AS at
-              FROM cases@cases_open_prompted_idx
+              SELECT id::TEXT AS id, stale_prompt_sent_at AS at
+              FROM cases
               WHERE status = 'open' AND deleted_at IS NULL
                 AND stale_prompt_sent_at IS NOT NULL
                 AND stale_prompt_sent_at < ${promptedBefore}
@@ -177,7 +177,7 @@ export class CaseAutoCloseJob {
         walk(
           (after) =>
             this.prisma.$queryRaw<KeyRow[]>(Prisma.sql`
-              SELECT id::STRING AS id, auto_close_at AS at FROM cases
+              SELECT id::TEXT AS id, auto_close_at AS at FROM cases
               WHERE status = 'pending_completion' AND deleted_at IS NULL
                 AND auto_close_at <= ${now}
                 AND (auto_close_at, id) > (${after.at}, ${after.id}::UUID)
@@ -228,11 +228,11 @@ export class CaseCompletionReminderJob {
         let cursor: KeyRow = { id: ZERO_UUID, at: new Date(0) };
         for (;;) {
           const rows = await this.prisma.$queryRaw<ReminderRow[]>(Prisma.sql`
-            SELECT c.id::STRING AS id, c.auto_close_at AS at,
+            SELECT c.id::TEXT AS id, c.auto_close_at AS at,
                    (CASE WHEN c.attorney_confirmed_at IS NOT NULL
                               AND c.client_completed_at IS NULL
                          THEN c.client_id ELSE b.attorney_id END
-                   )::STRING AS recipient_id
+                   )::TEXT AS recipient_id
             FROM cases AS c
             JOIN bids AS b ON b.id = c.accepted_bid_id
             WHERE c.status = 'pending_completion' AND c.deleted_at IS NULL

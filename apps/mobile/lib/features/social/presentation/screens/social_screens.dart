@@ -7,6 +7,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
@@ -17,6 +18,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_inner.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Post skeletons for list loading states.
@@ -58,7 +60,8 @@ class PostsFeedView extends ConsumerWidget {
     final notifier = ref.read(feedProvider.notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: value,
           t: t,
@@ -104,7 +107,8 @@ class LatestPostsView extends ConsumerWidget {
     final notifier = ref.read(latestPostsProvider(stateCode).notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: _withoutDeleted(
             ref.watch(latestPostsProvider(stateCode)),
@@ -166,7 +170,8 @@ class FilteredPostsView extends ConsumerWidget {
     final notifier = ref.read(filteredPostsProvider(key).notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: _withoutDeleted(
             ref.watch(filteredPostsProvider(key)),
@@ -237,7 +242,8 @@ class TopicPostsView extends ConsumerWidget {
     final notifier = ref.read(tagPostsProvider(key).notifier);
     return LayoutBuilder(
       builder: (context, box) {
-        final height = feedCardHeight(box.maxHeight);
+        final height =
+            feedChromeCardHeight(context) ?? feedCardHeight(box.maxHeight);
         return PagedListBody<Post>(
           value: _withoutDeleted(
             ref.watch(tagPostsProvider(key)),
@@ -291,43 +297,64 @@ class PostScreen extends ConsumerWidget {
     final post = ref.watch(postProvider(postId));
     final deleted =
         ref.watch(deletedPostsProvider.select((d) => d.contains(postId)));
+    // Owner 2026-10-13: a photo / reel post opens as the inner card (own
+    // header, tabs); a text thread and News keep their screen.
+    final loaded = post.value;
+    final inner = !deleted &&
+        loaded != null &&
+        !PostCard.isThreadsStyle(loaded) &&
+        !loaded.isNews;
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => _leave(context),
-        ),
-      ),
-      body: deleted
-          ? AppEmptyState(
-              icon: AppIcons.hideSourceRounded,
-              message: t.t('post.unavailable'),
-            )
-          : AsyncDetailBody<Post>(
-              value: post,
-              t: t,
-              onRetry: () => ref.invalidate(postProvider(postId)),
-              builder: (p) => RefreshIndicator(
-                color: colors.gold,
-                onRefresh: () async => ref.invalidate(postProvider(postId)),
-                child: ListView(
-                  padding: EdgeInsets.only(
-                    bottom:
-                        MediaQuery.paddingOf(context).bottom + AppSpacing.xl,
-                  ),
-                  children: [
-                    PostCard(post: p, inDetail: true, fromProfile: fromProfile),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenSide,
-                      ),
-                      child: PostDisclaimer(),
-                    ),
-                  ],
-                ),
+      appBar: inner
+          ? null
+          : AppTopBar(
+              leading: AppBackButton(
+                semanticLabel: t.t('common.back'),
+                onPressed: () => _leave(context),
               ),
             ),
+      body: inner
+          ? SafeArea(
+              bottom: false,
+              child: PostInnerCard(post: loaded, onBack: () => _leave(context)),
+            )
+          : deleted
+              ? AppEmptyState(
+                  icon: AppIcons.hideSourceRounded,
+                  message: t.t('post.unavailable'),
+                )
+              : AsyncDetailBody<Post>(
+                  value: post,
+                  t: t,
+                  onRetry: () => ref.invalidate(postProvider(postId)),
+                  builder: (p) => PostCard.isThreadsStyle(p)
+                      ? _ThreadDetail(post: p, fromProfile: fromProfile)
+                      : RefreshIndicator(
+                          color: colors.gold,
+                          onRefresh: () async =>
+                              ref.invalidate(postProvider(postId)),
+                          child: ListView(
+                            padding: EdgeInsets.only(
+                              bottom: MediaQuery.paddingOf(context).bottom +
+                                  AppSpacing.xl,
+                            ),
+                            children: [
+                              PostCard(
+                                post: p,
+                                inDetail: true,
+                                fromProfile: fromProfile,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.screenSide,
+                                ),
+                                child: PostDisclaimer(),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
     );
   }
 }
@@ -339,8 +366,9 @@ List<Widget> commentThreadSlivers(
   WidgetRef ref,
   String threadId,
   AsyncValue<PaginatedList<Comment>> value,
-  void Function(ReplyTarget) onReply,
-) {
+  void Function(ReplyTarget) onReply, {
+  bool threads = false,
+}) {
   final t = ref.read(translatorProvider);
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -389,6 +417,7 @@ List<Widget> commentThreadSlivers(
             return CommentTile(
               key: ValueKey(c.id),
               comment: c,
+              threads: threads,
               onReply: onReply,
             );
           },
@@ -626,11 +655,16 @@ class ProfilePostsGrid extends ConsumerWidget {
     required this.emptyTitle,
     required this.emptyMessage,
     this.newsOnly = false,
+    this.threadsOnly = false,
     super.key,
   });
 
   /// Owner 2026-09-30: the profile's News tab.
   final bool newsOnly;
+
+  /// Owner 2026-10-12 (Threads): the profile's threads tab — text posts as
+  /// cards in a list; the grid tab keeps the posts with a photo or video.
+  final bool threadsOnly;
 
   final String attorneyId;
   final String emptyTitle;
@@ -666,7 +700,13 @@ class ProfilePostsGrid extends ConsumerWidget {
         ),
       ),
       data: (page) {
-        final posts = page.items.where((p) => !deleted.contains(p.id)).toList();
+        final posts = page.items
+            .where(
+              (p) =>
+                  !deleted.contains(p.id) &&
+                  (newsOnly || PostCard.isThreadsStyle(p) == threadsOnly),
+            )
+            .toList();
         if (posts.isEmpty) {
           // The grid sits in the profile's scroll view: a bounded height.
           return SizedBox(
@@ -676,6 +716,19 @@ class ProfilePostsGrid extends ConsumerWidget {
               title: emptyTitle,
               message: emptyMessage,
             ),
+          );
+        }
+        if (threadsOnly) {
+          return Column(
+            children: [
+              for (final p in posts)
+                PostCard(key: ValueKey(p.id), post: p, showPin: true),
+              if (page.canLoadMore)
+                TextButton(
+                  onPressed: () => ref.read(_provider.notifier).loadMore(),
+                  child: Text(t.t('pagination.loadingMore')),
+                ),
+            ],
           );
         }
         return Column(
@@ -691,6 +744,8 @@ class ProfilePostsGrid extends ConsumerWidget {
                 return PostGridTile(
                   post: p,
                   semanticLabel: t.t('post.open'),
+                  // Owner 2026-10-13: every video in the app starts by itself.
+                  autoplay: true,
                   // Owner 2026-10-07: their posts as a feed from here.
                   onTap: () => PostsFeedScreen.open(
                     context,
@@ -709,6 +764,108 @@ class ProfilePostsGrid extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Owner 2026-10-12 (Threads): an opened text post — the post on top, the
+/// replies right under it on the same screen, the reply field pinned at the
+/// bottom.
+class _ThreadDetail extends ConsumerStatefulWidget {
+  const _ThreadDetail({required this.post, required this.fromProfile});
+
+  final Post post;
+  final bool fromProfile;
+
+  @override
+  ConsumerState<_ThreadDetail> createState() => _ThreadDetailState();
+}
+
+class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
+  ReplyTarget? _replyTo;
+  final _focus = FocusNode();
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _reply(ReplyTarget target) {
+    setState(() => _replyTo = target);
+    _focus.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final p = widget.post;
+    final comments = ref.watch(commentsProvider(p.id));
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            color: colors.gold,
+            onRefresh: () async {
+              ref
+                ..invalidate(postProvider(p.id))
+                ..invalidate(commentsProvider(p.id));
+            },
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: PostCard(
+                    post: p,
+                    inDetail: true,
+                    fromProfile: widget.fromProfile,
+                    onReply: _focus.requestFocus,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Divider(height: 1, color: colors.border),
+                ),
+                ...commentThreadSlivers(
+                  context,
+                  ref,
+                  p.id,
+                  comments,
+                  _reply,
+                  threads: true,
+                ),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screenSide,
+                    ),
+                    child: PostDisclaimer(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (p.commentsEnabled)
+          CommentComposer(
+            postId: p.id,
+            replyTo: _replyTo,
+            focusNode: _focus,
+            onClearReply: () => setState(() => _replyTo = null),
+          )
+        else
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                t.t('reels.commentsOff'),
+                textAlign: TextAlign.center,
+                style: type.bodySmall.copyWith(color: colors.textSecondary),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

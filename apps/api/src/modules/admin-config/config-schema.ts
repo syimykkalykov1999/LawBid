@@ -52,6 +52,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       };
     }
   }
+  // Owner 2026-10-13: who may add files to posts and reels.
+  out['attachments_in_posts'] = {
+    ...out['attachments_in_posts'],
+    description:
+      'Who may add documents and extra photos to a post or a reel: by_subscription, off_for_all or on_for_all.',
+    pattern: /^(by_subscription|off_for_all|on_for_all)$/,
+  };
   // Owner 2026-10-05: assistants per attorney, set in the admin.
   out['billing.max_assistant_seats'] = {
     ...out['billing.max_assistant_seats'],

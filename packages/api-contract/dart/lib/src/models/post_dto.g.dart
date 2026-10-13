@@ -27,6 +27,7 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   commentCount: (json['commentCount'] as num).toInt(),
   saveCount: (json['saveCount'] as num).toInt(),
   shareCount: (json['shareCount'] as num).toInt(),
+  viewCount: (json['viewCount'] as num).toInt(),
   repostCount: (json['repostCount'] as num).toInt(),
   likedByMe: json['likedByMe'] as bool,
   repostedByMe: json['repostedByMe'] as bool,
@@ -44,7 +45,11 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   video: json['video'] == null
       ? null
       : PostVideoDto.fromJson(json['video'] as Map<String, dynamic>),
+  repostedBy: json['repostedBy'] == null
+      ? null
+      : PostReposterDto.fromJson(json['repostedBy'] as Map<String, dynamic>),
   editedAt: json['editedAt'] as String?,
+  pinSlot: (json['pinSlot'] as num?)?.toInt(),
   promotionId: json['promotionId'] as String?,
 );
 
@@ -68,12 +73,15 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'commentCount': instance.commentCount,
   'saveCount': instance.saveCount,
   'shareCount': instance.shareCount,
+  'viewCount': instance.viewCount,
   'repostCount': instance.repostCount,
   'likedByMe': instance.likedByMe,
   'repostedByMe': instance.repostedByMe,
+  'repostedBy': ?instance.repostedBy?.toJson(),
   'savedByMe': instance.savedByMe,
   'isMine': instance.isMine,
   'createdAt': instance.createdAt,
   'editedAt': ?instance.editedAt,
+  'pinSlot': ?instance.pinSlot,
   'promotionId': ?instance.promotionId,
 };

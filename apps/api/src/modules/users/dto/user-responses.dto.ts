@@ -24,6 +24,7 @@ export const MISSING_REQUIREMENTS = [
   'name',
   'phone_verified',
   'email_verified',
+  'email',
   'state',
   'licensed_states',
   'photo',
@@ -192,6 +193,15 @@ export class MeDto {
       'Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.',
   })
   pendingLegalDocuments!: PendingLegalDocumentDto[];
+
+  @ApiProperty({ description: 'The account has a sign-in password.' })
+  passwordSet!: boolean;
+
+  @ApiProperty({
+    description:
+      'The account still signs in only with an SMS code and must set a password first (the app shows the set-password screen; POST /auth/password).',
+  })
+  passwordRequired!: boolean;
 
   @ApiProperty({ type: OnboardingStateDto })
   onboarding!: OnboardingStateDto;

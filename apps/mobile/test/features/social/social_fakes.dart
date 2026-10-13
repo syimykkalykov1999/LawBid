@@ -72,6 +72,9 @@ class FakeSocialRepository implements SocialRepository {
   int attorneyPostsCalls = 0;
 
   @override
+  Future<bool> attachmentsAllowed() async => true;
+
+  @override
   Future<CursorPage<Post>> feed({String? cursor}) async {
     if (offline) throw _offline;
     return CursorPage(items: posts);

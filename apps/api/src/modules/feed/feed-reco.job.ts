@@ -30,7 +30,7 @@ export class FeedRecoJob {
   ): Promise<{ posts: number; version: string }> {
     const since = new Date(now.getTime() - 14 * 24 * 3600 * 1000);
     const rows = await this.prisma.$queryRaw<{ id: string; score: number }[]>`
-      SELECT p.id::STRING AS id,
+      SELECT p.id::TEXT AS id,
              (p.like_count + 2 * p.comment_count + 2 * p.save_count)::FLOAT8
                / power(GREATEST(EXTRACT(EPOCH FROM (${now}::TIMESTAMPTZ - p.created_at)) / 3600, 0) + 2, 1.5)
                AS score

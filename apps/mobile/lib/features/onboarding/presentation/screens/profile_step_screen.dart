@@ -63,6 +63,7 @@ class ProfileStepScreen extends ConsumerStatefulWidget {
 class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
   final _first = TextEditingController();
   final _last = TextEditingController();
+  final _email = TextEditingController();
   final _bio = TextEditingController();
   final _firm = TextEditingController();
   final _contactTime = TextEditingController();
@@ -74,7 +75,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
 
   @override
   void dispose() {
-    for (final c in [_first, _last, _bio, _firm, _contactTime]) {
+    for (final c in [_first, _last, _email, _bio, _firm, _contactTime]) {
       c.dispose();
     }
     super.dispose();
@@ -85,6 +86,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     _prefilled = true;
     _first.text = user.firstName ?? '';
     _last.text = user.lastName ?? '';
+    _email.text = user.email ?? '';
     final client = user.clientProfile;
     final attorney = user.attorneyProfile;
     if (client != null) {
@@ -136,6 +138,24 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
       user.missing.contains(MissingRequirement.photo) &&
       ref.read(avatarUploadControllerProvider).stage != AvatarUploadStage.done;
 
+  /// Owner 2026-10-11: Continue is grey until the required data is in.
+  bool _ready(CurrentUser user) {
+    if (_first.text.trim().isEmpty || _last.text.trim().isEmpty) return false;
+    if (user.role == UserRole.assistant) return true;
+    if (!_emailOk) return false;
+    return (user.isAttorney || _states.isNotEmpty) && !_photoMissing(user);
+  }
+
+  /// Owner 2026-10-13: format check only — no code is sent.
+  bool get _emailOk =>
+      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$').hasMatch(_email.text.trim());
+
+  String? _emailError(Translator t) {
+    if (_email.text.trim().isEmpty) return _required(_email, t);
+    if (!_emailOk) return t.t('onboarding.profile.error.email');
+    return null;
+  }
+
   Future<void> _submit(CurrentUser user) async {
     setState(() => _attempted = true);
     // OQ-048: an assistant needs only a name (no states, no profile).
@@ -150,6 +170,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     if (_first.text.trim().isEmpty ||
         _last.text.trim().isEmpty ||
         !statesOk ||
+        !_emailOk ||
         _photoMissing(user)) {
       return;
     }
@@ -157,6 +178,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         ? AttorneyProfileInput(
             firstName: _first.text,
             lastName: _last.text,
+            email: _email.text,
             bio: _bio.text,
             firmName: _firm.text,
             languages: _languages.toList(),
@@ -165,6 +187,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         : ClientProfileInput(
             firstName: _first.text,
             lastName: _last.text,
+            email: _email.text,
             stateCode: _states.first,
             languages: _languages.toList(),
             contactMethod: contactMethodToWire(_contactMethod),
@@ -181,6 +204,8 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
     ref.watch(onboardingBlockerProvider);
     if (user == null) return const SizedBox.shrink();
     _prefill(user);
+    // The photo upload finishing re-evaluates the Continue button.
+    ref.watch(avatarUploadControllerProvider);
     final attorney = user.isAttorney;
     final assistant = user.role == UserRole.assistant;
 
@@ -248,23 +273,26 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
                 ? 'onboarding.role.assistant.title'
                 : 'onboarding.profile.title.client',
       ),
-      subtitle: t.t(
-        attorney
-            ? 'onboarding.profile.subtitle.attorney'
-            : assistant
-                ? 'onboarding.role.assistant.body'
-                : 'onboarding.profile.subtitle.client',
-      ),
+      // Owner 2026-10-13: no «license details come with verification»
+      // line for attorneys.
+      subtitle: attorney
+          ? null
+          : t.t(
+              assistant
+                  ? 'onboarding.role.assistant.body'
+                  : 'onboarding.profile.subtitle.client',
+            ),
       // Owner 2026-10-04: an assistant has no contacts step (code sign-in)
       // and their role is fixed — back is the consents.
       onBack: () => context.go(
         OnboardingRoutes.forStep(
-          assistant ? OnboardingStepId.consents : OnboardingStepId.contacts,
+          OnboardingStepId.consents,
         ),
       ),
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,
+      primaryEnabled: _ready(user),
       onPrimary: () => _submit(user),
       children: [
         if (attorney) ...[
@@ -284,7 +312,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.givenName],
           inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
-          onChanged: (_) => _attempted ? setState(() {}) : null,
+          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: AppSpacing.lg),
         AppTextField(
@@ -295,7 +323,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.familyName],
           inputFormatters: [LengthLimitingTextInputFormatter(kNameMaxLength)],
-          onChanged: (_) => _attempted ? setState(() {}) : null,
+          onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
@@ -313,6 +341,30 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
                     .textSecondary,
               ),
         ),
+        const SizedBox(height: AppSpacing.lg),
+        if (!assistant) ...[
+          AppTextField(
+            controller: _email,
+            label: t.t('onboarding.profile.email'),
+            errorText: _flagRequired ? _emailError(t) : null,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('onboarding.profile.emailHint'),
+            style: Theme.of(context)
+                .extension<AppTypographyTokens>()!
+                .caption
+                .copyWith(
+                  color: Theme.of(context)
+                      .extension<AppColorTokens>()!
+                      .textSecondary,
+                ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         if (attorney) ...[
           AppTextField(

@@ -166,7 +166,7 @@ class _Header extends StatelessWidget {
               AppIcon(
                 AppIcons.verifiedRounded,
                 size: AppSizes.iconSm,
-                color: me.public.badge ? colors.info : colors.textSecondary,
+                color: me.public.badge ? colors.success : colors.textSecondary,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

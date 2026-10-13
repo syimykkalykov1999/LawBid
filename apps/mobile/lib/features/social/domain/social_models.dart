@@ -13,7 +13,19 @@ class PostAuthor {
     this.avatarUrl,
     this.isFollowing = false,
     this.isClient = false,
+    this.location,
+    this.trustLevel = 0,
+    this.practiceKeys = const [],
   });
+
+  /// Owner 2026-10-13: Identity level 0..3 (the circle on the avatar).
+  final int trustLevel;
+
+  /// Up to three practice keys shown under the name.
+  final List<String> practiceKeys;
+
+  /// Owner 2026-10-13: an attorney's licensed states / a client's state.
+  final String? location;
 
   /// OQ-038: clients publish posts too (their profile is /client/:username).
   final bool isClient;
@@ -168,10 +180,15 @@ class PostAttachment {
 /// (Threads-style «{username} сделал(а) репост»).
 @immutable
 class PostReposter {
-  const PostReposter({required this.id, required this.username});
+  const PostReposter({
+    required this.id,
+    required this.username,
+    this.isClient = false,
+  });
 
   final String id;
   final String username;
+  final bool isClient;
 }
 
 class Post {
@@ -190,6 +207,7 @@ class Post {
     this.editedAt,
     this.status = 'published',
     this.shareCount = 0,
+    this.viewCount = 0,
     this.mentions = const [],
     this.title,
     this.isNews = false,
@@ -203,6 +221,7 @@ class Post {
     this.repostCount = 0,
     this.repostedByMe = false,
     this.repostedBy,
+    this.pinSlot,
   });
 
   /// Owner 2026-10-07: Threads-style reposts — how many people reposted
@@ -213,6 +232,10 @@ class Post {
   /// Owner 2026-10-07: set when the post reached the feed as someone's
   /// repost; null otherwise (and while the API does not send it).
   final PostReposter? repostedBy;
+
+  /// Owner 2026-10-12: 1..3 when the author pinned it to the top of their
+  /// profile list.
+  final int? pinSlot;
 
   /// Owner 2026-10-05: a general (personal) post rather than a legal one.
   final bool isGeneral;
@@ -246,6 +269,9 @@ class Post {
   /// OQ-037: completed shares.
   final int shareCount;
 
+  /// Owner 2026-10-12: views of a video post / reel.
+  final int viewCount;
+
   /// OQ-042: people @mentioned in [body] (links to their profiles).
   final List<Mention> mentions;
 
@@ -268,6 +294,13 @@ class Post {
 
   bool get pendingReview => isMine && status == 'hidden';
 
+  /// Owner 2026-10-13: the inside of a post (tabs: Overview, Documents,
+  /// Photos, Info) exists only when it has something to show — documents,
+  /// or photos beyond the first of a post. A reel's video is the reel
+  /// itself. Without it a tap on the card opens nothing (like Instagram).
+  bool get hasInner =>
+      attachments.isNotEmpty || (video == null && media.length > 1);
+
   Post copyWith({
     String? title,
     PostPractice? practice,
@@ -279,8 +312,11 @@ class Post {
     bool? savedByMe,
     DateTime? editedAt,
     int? shareCount,
+    int? viewCount,
     int? repostCount,
     bool? repostedByMe,
+    int? pinSlot,
+    bool unpin = false,
   }) =>
       Post(
         id: id,
@@ -297,6 +333,7 @@ class Post {
         editedAt: editedAt ?? this.editedAt,
         status: status,
         shareCount: shareCount ?? this.shareCount,
+        viewCount: viewCount ?? this.viewCount,
         mentions: mentions,
         title: title ?? this.title,
         isNews: isNews,
@@ -310,6 +347,7 @@ class Post {
         repostCount: repostCount ?? this.repostCount,
         repostedByMe: repostedByMe ?? this.repostedByMe,
         repostedBy: repostedBy,
+        pinSlot: unpin ? null : (pinSlot ?? this.pinSlot),
       );
 }
 
@@ -403,6 +441,7 @@ class AttorneyRow {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.reason,
   });
 
   final String id;
@@ -411,6 +450,10 @@ class AttorneyRow {
   final String? lastName;
   final String? avatarUrl;
   final bool verified;
+
+  /// Why it is suggested, shown as a small caption: 'contacts' = in my
+  /// address book.
+  final String? reason;
 
   /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
   final int trustLevel;
@@ -437,6 +480,8 @@ class AttorneyRow {
         states: states,
         practiceKeys: practiceKeys,
         isFollowing: isFollowing ?? this.isFollowing,
+        trustLevel: trustLevel,
+        reason: reason,
       );
 }
 
@@ -493,6 +538,7 @@ class ClientRow {
     this.lastName,
     this.avatarUrl,
     this.verified = false,
+    this.isFollowing = false,
   });
 
   final String id;
@@ -501,6 +547,9 @@ class ClientRow {
   final String? lastName;
   final String? avatarUrl;
   final String stateCode;
+
+  /// Does the viewer follow this client.
+  final bool isFollowing;
 
   /// OQ-029 final: blue check for a confirmed phone number.
   final bool verified;

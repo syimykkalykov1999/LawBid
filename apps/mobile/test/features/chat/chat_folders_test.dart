@@ -154,7 +154,7 @@ void main() {
     expect(find.text('2'), findsOneWidget);
     // The note is visible without opening the chat; time bottom-right.
     expect(find.text('Send him the retainer documents'), findsOneWidget);
-    expect(find.text('10 h ago'), findsNWidgets(2));
+    expect(find.text('10h'), findsNWidgets(2));
     // Owner 2026-10-01: gold ✓✓ = read, ✓ = sent.
     expect(find.byKey(const ValueKey('chat-read-p')), findsOneWidget);
     expect(find.byKey(const ValueKey('chat-sent-w')), findsOneWidget);

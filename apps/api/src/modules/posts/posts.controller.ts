@@ -34,6 +34,7 @@ import {
   CreatePostDto,
   PostDeletedDto,
   PostDto,
+  PinPostDto,
   PostIdParamDto,
   PostsPageQueryDto,
   SavedPostItemDto,
@@ -42,7 +43,9 @@ import {
   type PostPage,
 } from './dto/posts.dto';
 import { PostEngagementService } from './post-engagement.service';
+import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostsService } from './posts.service';
+import { PostAttachmentsAllowedDto } from './dto/posts.dto';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -56,7 +59,23 @@ export class PostsController {
   constructor(
     private readonly posts: PostsService,
     private readonly engagement: PostEngagementService,
+    private readonly attachmentsPolicy: PostAttachmentsPolicy,
   ) {}
+
+  @Get('posts/attachments-allowed')
+  @ApiOperation({
+    summary:
+      'May this account add documents / extra photos to a post or a reel',
+  })
+  @ApiEnvelopeResponse(PostAttachmentsAllowedDto)
+  async attachmentsAllowed(
+    @CurrentUser() user: RequestUser,
+  ): Promise<PostAttachmentsAllowedDto> {
+    return {
+      allowed: await this.attachmentsPolicy.canAttach(user.sub),
+      mode: await this.attachmentsPolicy.mode(),
+    };
+  }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('publish')
@@ -125,6 +144,32 @@ export class PostsController {
     return this.posts.remove(user, p.id);
   }
 
+  // Owner 2026-10-12: pin an own post (slot 1..3) to the top of the profile.
+  @AttorneyOnly('publish')
+  @Post('posts/:id/pin')
+  @ApiOperation({ summary: 'Pin an own post to slot 1, 2 or 3' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.POST_NOT_FOUND] })
+  pinPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Body() dto: PinPostDto,
+  ): Promise<PostDto> {
+    return this.posts.pin(user, p.id, dto.slot);
+  }
+
+  @AttorneyOnly('publish')
+  @Delete('posts/:id/pin')
+  @ApiOperation({ summary: 'Unpin an own post' })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  unpinPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<PostDto> {
+    return this.posts.unpin(user, p.id);
+  }
+
   @Get('attorneys/:id/posts')
   @ApiOperation({ summary: "An attorney's posts, newest first (docs/05 §15)" })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
@@ -157,6 +202,19 @@ export class PostsController {
     @Param() p: PostIdParamDto,
   ): Promise<void> {
     return this.engagement.share(user.sub, p.id);
+  }
+
+  @Post('posts/:id/view')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Count a view of a video post / reel (idempotent, one per viewer)',
+  })
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  viewPost(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+  ): Promise<void> {
+    return this.engagement.view(user.sub, p.id);
   }
 
   @Delete('posts/:id/like')

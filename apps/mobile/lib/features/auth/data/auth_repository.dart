@@ -1,6 +1,7 @@
 import 'package:lawbid/features/auth/data/auth_dtos.dart' show DeviceSession;
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 import 'package:lawbid/features/auth/domain/social_login_result.dart';
 
@@ -114,4 +115,34 @@ abstract interface class AuthRepository {
   /// caller must clear local session state and route to Welcome, it will
   /// NOT get a chance to make another authenticated call first.
   Future<AccountDeletionResult> deleteAccount({required String reauthToken});
+
+  /// Owner 2026-10-13: signs in with a phone number or e-mail ([identifier],
+  /// E.164 / lower-case) and the password — no SMS. Applies the session on
+  /// success.
+  Future<PasswordAuthResult> signInWithPassword({
+    required String identifier,
+    required String password,
+  });
+
+  /// Owner 2026-10-13: one phone screen — null when the check failed (the
+  /// caller then falls back to the SMS code).
+  Future<({bool registered, bool hasPassword})?> phoneStatus(String phone);
+
+  /// Sets the password of the signed-in account (after the sign-up code).
+  Future<PasswordAuthResult> setPassword(
+    String password, {
+    String? currentPassword,
+  });
+
+  /// Forgot password: sends a code to the account's verified e-mail, else
+  /// an SMS. [PasswordAuthResult.channel] says which.
+  Future<PasswordAuthResult> requestPasswordReset(String identifier);
+
+  /// Forgot password: the code + a new password; ends every other session
+  /// and applies the new session on success.
+  Future<PasswordAuthResult> resetPassword({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  });
 }

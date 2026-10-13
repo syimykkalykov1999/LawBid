@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart'
     show GavelStrikeButton;
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.dart'
     show GavelStrikeButton;
@@ -51,7 +51,7 @@ class AppButton extends StatefulWidget {
     this.icon,
     this.isLoading = false,
     this.isEnabled = true,
-    this.height = 50,
+    this.height = AppSizes.buttonHeight,
     this.onTapDown,
     this.dimWhenDisabled = true,
     this.disabledHint,
@@ -135,10 +135,7 @@ class _AppButtonState extends State<AppButton> {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (widget.icon != null) ...[
-                AppIcon(widget.icon, size: 20, color: foreground),
-                const SizedBox(width: AppSpacing.sm),
-              ],
+              // Owner 2026-10-13: no icon inside buttons — text only.
               Flexible(
                 child: Text(
                   widget.label,
@@ -175,13 +172,17 @@ class _AppButtonState extends State<AppButton> {
                   : 1.0,
               duration: AppMotion.pressScale,
               child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: widget.height),
+                constraints: BoxConstraints(
+                  minHeight: widget.height <= AppSizes.hitTarget
+                      ? AppSizes.buttonHeight
+                      : widget.height,
+                ),
                 child: Container(
                   width: double.infinity,
                   // Horizontal inset keeps long (translated) labels off the
                   // rounded edges when they wrap.
                   padding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.md,
+                    vertical: 6,
                     horizontal: AppSpacing.md,
                   ),
                   decoration: BoxDecoration(

@@ -25,6 +25,10 @@ export interface DemoPostSpec {
   legal?: boolean;
   /** Attach a PDF document. */
   pdf?: boolean;
+  /** Attach several documents by file name (.pdf or .docx). */
+  docs?: string[];
+  /** Publish this long ago instead of the spread-out default (newest). */
+  minutesAgo?: number;
 }
 
 const PAD_EN =
@@ -52,6 +56,50 @@ export const MAX_TITLE_RU =
   ) + '!';
 
 export const DEMO_POSTS: readonly DemoPostSpec[] = [
+  // ---- LawBid card, everything at once: the owner's «full stuffing» ------
+  {
+    key: 'lb-full',
+    author: 'sofia.hernandez',
+    style: 'lawbid',
+    lang: 'en',
+    title:
+      'Marriage green card, step by step: the evidence file, the interview and what to do when an officer asks for more',
+    body: 'A marriage green card is won on paper before the interview. Build one folder: joint lease or mortgage, shared bank statements, insurance policies naming each other, photos across several years and messages that show daily life. Bring originals and one clean set of copies, answer short and honest, and ask the officer to repeat anything unclear. If you get a request for evidence, answer every point inside the deadline and add a short cover letter. #greencard #familylaw #dui #realestate',
+    practice: 'immigration.green_card',
+    photos: 5,
+    ratio: 'square',
+    legal: true,
+    docs: [
+      'Green_card_evidence_checklist.pdf',
+      'Marriage_evidence_list.pdf',
+      'Affidavit_of_support_sample.docx',
+    ],
+    minutesAgo: 20,
+  },
+  // ---- LawBid card, almost empty: no title and no text / short -----------
+  {
+    key: 'lb-photo-only',
+    author: 'sofia.hernandez',
+    style: 'lawbid',
+    lang: 'en',
+    body: '',
+    practice: 'immigration.green_card',
+    photos: 1,
+    ratio: 'square',
+    legal: true,
+  },
+  {
+    key: 'lb-short-title',
+    author: 'sofia.hernandez',
+    style: 'lawbid',
+    lang: 'en',
+    title: 'Bring originals',
+    body: 'Copies are never enough at the interview.',
+    practice: 'immigration.green_card',
+    photos: 1,
+    ratio: 'portrait',
+    legal: true,
+  },
   // ---- LawBid card: practice + photo -------------------------------------
   {
     key: 'lb-divorce-checklist',
@@ -185,6 +233,66 @@ export const DEMO_POSTS: readonly DemoPostSpec[] = [
   },
 
   // ---- Threads card: text only -------------------------------------------
+  // ---- Threads cards for the card review (owner 2026-10-12) ---------------
+  {
+    key: 'th-sofia-paragraphs',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'What to do the week before a green card interview.\n\nFirst, rebuild the folder. Put the newest documents on top: lease or mortgage, bank statements, insurance, utility bills. One page per fact, no duplicates.\n\nSecond, sit down together and tell the story of the relationship out loud, from the first meeting to today. Do not memorise answers. Just remember the dates and the places.\n\nThird, plan the day. Arrive early, bring originals and one clean set of copies, and keep your phone in your pocket.\n\nIf anything in the file changed this year, a new address, a new job, a baby, bring the proof of that too. Officers like to see that the folder is alive.\n\n#greencard #interview',
+    legal: true,
+    minutesAgo: 3,
+  },
+  {
+    key: 'th-sofia-one-line',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'Bring originals. Always.',
+    legal: true,
+    minutesAgo: 8,
+  },
+  {
+    key: 'th-sofia-medium',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'Three things I tell every family-based green card client before the interview:\n\n1. Read your own file again the night before.\n2. Answer only the question asked.\n3. If you do not know, say so. A guess is worse than a pause.',
+    legal: true,
+    minutesAgo: 9,
+  },
+  {
+    key: 'th-sofia-long',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'A request for evidence is not a denial. It is the officer telling you exactly what is missing, and you usually get 87 days to answer. Read every line of the notice, make a checklist, gather one document per point, add a short cover letter that maps each document to the point it answers, and send it as a single package with the notice on top. Do not send more than they asked for, and do not wait for the last day. Officers who see a clean, organised response approve far more often than officers who see a pile of paper. If you are unsure which point a document answers, ask your attorney before you send it, not after. #greencard #immigration #rfe',
+    legal: true,
+    minutesAgo: 10,
+  },
+  {
+    key: 'th-sofia-essay-long',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: fill(
+      'How a marriage green card case really runs, start to finish. First comes the petition: the citizen spouse files the I-130 and the foreign spouse files the I-485, usually together. Then biometrics, then a long quiet period, then an interview notice. Use the quiet period well: rebuild the evidence folder every month, because the interview is decided by what is in it. Joint lease or mortgage, shared bank statements, insurance naming each other, photos across years, messages that show daily life, and two or three short letters from people who know the couple. On the day, arrive early, bring originals and one clean set of copies, answer only the question asked and ask to repeat anything unclear.',
+      ' If the officer issues a request for evidence, treat it as a checklist and not as a warning: answer every point inside the deadline, label every exhibit, and add a one-page cover letter that maps documents to points. Keep a copy of everything you send and a delivery receipt.',
+      3000,
+    ),
+    legal: true,
+    minutesAgo: 12,
+  },
+  {
+    key: 'th-sofia-practice',
+    author: 'sofia.hernandez',
+    style: 'text',
+    lang: 'en',
+    body: 'Marriage green card: the evidence folder matters more than the interview. Joint lease, shared accounts, photos across the years. #greencard #marriage',
+    practice: 'immigration.green_card',
+    legal: true,
+    minutesAgo: 11,
+  },
   {
     key: 'th-short',
     author: 'daniel.okafor',
@@ -317,6 +425,45 @@ export const DEMO_POSTS: readonly DemoPostSpec[] = [
     title: 'Рабочая виза за минуту',
     body: 'Какие визы бывают для работы в США и с чего начать. #immigration #виза',
     legal: true,
+  },
+  // Three reels for the card review (owner 2026-10-12): everything, a little,
+  // nothing but the video. Newest in the feed.
+  {
+    key: 'video-full',
+    author: 'sofia.hernandez',
+    style: 'video',
+    lang: 'en',
+    title:
+      'Marriage green card interview in two minutes: what to bring, what to say and what to do if the officer asks for more evidence',
+    body: 'A short walk through the day of the interview. Originals and one clean set of copies, joint lease or mortgage, shared bank statements, photos across several years. Answer short and honest, ask to repeat anything unclear. If you get a request for evidence, answer every point inside the deadline with a cover letter. #greencard #familylaw #dui #realestate',
+    practice: 'immigration.green_card',
+    legal: true,
+    docs: [
+      'Interview_day_checklist.pdf',
+      'Evidence_cover_letter.docx',
+      'Joint_account_statement_sample.pdf',
+    ],
+    minutesAgo: 5,
+  },
+  {
+    key: 'video-short',
+    author: 'sofia.hernandez',
+    style: 'video',
+    lang: 'en',
+    title: 'Keep copies',
+    body: 'Never hand over your only original.',
+    practice: 'immigration.green_card',
+    legal: true,
+    minutesAgo: 6,
+  },
+  {
+    key: 'video-bare',
+    author: 'sofia.hernandez',
+    style: 'video',
+    lang: 'en',
+    body: '',
+    legal: false,
+    minutesAgo: 7,
   },
   {
     key: 'video-office-tour',

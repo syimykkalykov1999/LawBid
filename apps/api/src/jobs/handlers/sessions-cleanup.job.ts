@@ -88,7 +88,7 @@ export class SessionsCleanupJob {
           )
           RETURNING id
         )
-        SELECT (SELECT max(id) FROM batch)::STRING AS last_id,
+        SELECT (SELECT max(id) FROM batch)::TEXT AS last_id,
                (SELECT count(*) FROM batch) AS scanned,
                (SELECT count(*) FROM doomed) AS deleted`);
 

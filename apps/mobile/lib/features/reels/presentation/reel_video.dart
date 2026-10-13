@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -227,10 +232,18 @@ class _ReelVideoState extends State<ReelVideo> {
 /// A reel inside a feed card: plays muted while most of it is on screen,
 /// with the reel mark and the length in the corner.
 class InlineReel extends StatefulWidget {
-  const InlineReel({required this.post, required this.onOpen, super.key});
+  const InlineReel({
+    required this.post,
+    required this.onOpen,
+    this.topInset = 0,
+    super.key,
+  });
 
   final Post post;
   final VoidCallback onOpen;
+
+  /// Space kept free at the top (an author row lies over the video).
+  final double topInset;
 
   @override
   State<InlineReel> createState() => _InlineReelState();
@@ -238,24 +251,55 @@ class InlineReel extends StatefulWidget {
 
 class _InlineReelState extends State<InlineReel> {
   bool _visible = false;
+  int _flash = 0;
+
+  Timer? _viewTimer;
+
+  /// Owner 2026-10-12: a reel counts as viewed after a few seconds on
+  /// screen (once per viewer; the server dedups).
+  void _trackView() {
+    _viewTimer?.cancel();
+    if (!_visible) return;
+    _viewTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || !_visible) return;
+      ProviderScope.containerOf(context)
+          .read(socialActionsProvider)
+          .recordView(widget.post);
+    });
+  }
+
+  @override
+  void dispose() {
+    _viewTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final video = widget.post.video!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final d = video.durationSec;
     return VisibilityDetector(
       key: ValueKey('reel-${widget.post.id}'),
       onVisibilityChanged: (info) {
         final v = info.visibleFraction > 0.6;
-        if (v != _visible && mounted) setState(() => _visible = v);
+        if (v != _visible && mounted) {
+          setState(() => _visible = v);
+          _trackView();
+        }
       },
       child: GestureDetector(
+        // Owner 2026-10-13: in the feed a tap on the playing video opens the
+        // full-screen player; pause / resume live in the player.
         onTap: widget.onOpen,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ReelVideo(video: video, active: _visible && video.ready),
+            Consumer(
+              builder: (context, ref, _) => ReelVideo(
+                video: video,
+                active: _visible && video.ready,
+                muted: ref.watch(reelsMutedProvider),
+              ),
+            ),
             if (!video.ready)
               const Center(
                 child: AppIcon(
@@ -264,37 +308,72 @@ class _InlineReelState extends State<InlineReel> {
                   color: Colors.white70,
                 ),
               ),
+            // Instagram: a small speaker in the corner toggles the sound
+            // for the whole session; a tap flashes the icon in the middle.
             PositionedDirectional(
-              top: AppSpacing.md,
               end: AppSpacing.md,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const AppIcon(
-                      AppIcons.filmReelRounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                    if (d != null) ...[
-                      const SizedBox(width: 4),
-                      Text(
-                        formatReelDuration(d),
-                        style: type.caption.copyWith(color: Colors.white),
+              bottom: AppSpacing.md,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final muted = ref.watch(reelsMutedProvider);
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      ref.read(reelsMutedProvider.notifier).toggle();
+                      setState(() => _flash++);
+                    },
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
                       ),
-                    ],
-                  ],
-                ),
+                      child: Icon(
+                        muted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
+            if (_flash > 0)
+              Center(
+                child: IgnorePointer(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final muted = ref.watch(reelsMutedProvider);
+                      return TweenAnimationBuilder<double>(
+                        key: ValueKey(_flash),
+                        tween: Tween(begin: 1, end: 0),
+                        duration: const Duration(milliseconds: 900),
+                        curve: Curves.easeIn,
+                        builder: (_, v, child) =>
+                            Opacity(opacity: v, child: child),
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            muted
+                                ? Icons.volume_off_rounded
+                                : Icons.volume_up_rounded,
+                            size: 28,
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
           ],
         ),
       ),

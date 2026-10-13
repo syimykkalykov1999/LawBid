@@ -108,6 +108,8 @@ abstract class SearchClient {
   /// [state] - Only posts of attorneys licensed in this state.
   ///
   /// [withPhotos] - Only posts with photos.
+  ///
+  /// [briefsOnly] - Only text-only posts (Briefs).
   @GET('/search/posts')
   Future<PostListEnvelope> posts({
     @Query('q') required String q,
@@ -118,6 +120,7 @@ abstract class SearchClient {
     @Query('tag') String? tag,
     @Query('state') String? state,
     @Query('withPhotos') bool? withPhotos,
+    @Query('briefsOnly') bool? briefsOnly,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -171,7 +174,9 @@ abstract class SearchClient {
   ///
   /// [withPhotos] - Only posts with photos.
   ///
-  /// [sort] - popular = likes + comments, then newest (offset cursor).
+  /// [briefsOnly] - Only text-only posts (Briefs).
+  ///
+  /// [sort] - popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).
   ///
   /// [contentClass] - Owner 2026-10-05: only legal or only general (personal) posts — the.
   /// "Posts" topic lists general ones. Absent = the viewer's feed setting.
@@ -186,6 +191,7 @@ abstract class SearchClient {
     @Query('tag') String? tag,
     @Query('kind') PostKind? kind,
     @Query('withPhotos') bool? withPhotos,
+    @Query('briefsOnly') bool? briefsOnly,
     @Query('sort') LatestPostsSort? sort,
     @Query('contentClass') PostContentClass? contentClass,
     @Extras() Map<String, dynamic>? extras,

@@ -13,7 +13,6 @@ import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/attorney_verification_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/data/profile_repositories.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
@@ -114,7 +113,7 @@ class _Onboarding extends FakeOnboardingRepository {
   @override
   Future<CurrentUser> completeOnboarding() async {
     await super.completeOnboarding();
-    return me = _attorney(step: OnboardingStepId.tour, completed: true);
+    return me = _attorney(completed: true);
   }
 }
 
@@ -158,16 +157,12 @@ GoRouter _router(_Server server) => GoRouter(
       initialLocation: OnboardingRoutes.forStep(OnboardingStepId.verification),
       routes: [
         GoRoute(
-          path: OnboardingRoutes.forStep(OnboardingStepId.push),
-          builder: (_, __) => const Scaffold(body: Text('push step')),
+          path: OnboardingRoutes.forStep(OnboardingStepId.profile),
+          builder: (_, __) => const Scaffold(body: Text('profile step')),
         ),
         GoRoute(
           path: OnboardingRoutes.forStep(OnboardingStepId.verification),
           builder: (_, __) => const AttorneyVerificationStepScreen(),
-        ),
-        GoRoute(
-          path: OnboardingRoutes.forStep(OnboardingStepId.tour),
-          builder: (_, __) => const TourStepScreen(),
         ),
         GoRoute(
           path: AppRoutes.verificationWizard,
@@ -280,25 +275,46 @@ void main() {
     expect(find.text('7 days free'), findsOneWidget);
     expect(find.byKey(const ValueKey('offer-later')), findsOneWidget);
     billing.onComplete = () => makeOverview(subscription: makeInfo());
+    // Owner 2026-10-13: the trial button is grey until a plan is picked.
+    await tester.tap(find.text('Start 7 days free'));
+    await tester.pumpAndSettle();
+    expect(billing.calls.where((c) => c.startsWith('checkout')), isEmpty);
+    await tester.tap(find.byKey(const ValueKey('plan-tab-yearly')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('plan-tab-monthly')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('plan-monthly')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Start 7 days free'));
     await tester.pumpAndSettle();
     expect(billing.calls, contains('checkout:monthly:0:'));
     expect(launched, hasLength(1));
 
-    // 4. Trial active → tour (the step saved on the server).
-    expect(onboarding.calls, contains('saveStep:tour'));
-    expect(_location(router), OnboardingRoutes.forStep(OnboardingStepId.tour));
-    expect(find.byType(TourStepScreen), findsOneWidget);
-
-    // 5. Tour → feed.
-    await tester.tap(find.text('Skip'));
-    await tester.pumpAndSettle();
+    // 4. Trial active → onboarding is complete → feed (no tour any more).
     expect(onboarding.calls, contains('complete'));
     expect(_location(router), AppRoutes.feed);
     await tearDownTree(tester);
   });
 
-  testWidgets('"Later" skips the subscription and goes on to the tour',
+  testWidgets('subscription offer: Monthly / Yearly tabs, golden',
+      (tester) async {
+    server
+      ..verification = VerificationStatus.verified
+      ..practiceIds = ['leaf-1'];
+    await pumpFlow(tester);
+    expect(stage('subscription'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('plan-tab-yearly')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('plan-yearly')));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/subscription_tabs.png'),
+    );
+    await tearDownTree(tester);
+  });
+
+  testWidgets('"Later" skips the subscription and finishes onboarding',
       (tester) async {
     server
       ..verification = VerificationStatus.verified
@@ -308,39 +324,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('offer-later')));
     await tester.pumpAndSettle();
     expect(billing.calls.where((c) => c.startsWith('checkout')), isEmpty);
-    expect(_location(router), OnboardingRoutes.forStep(OnboardingStepId.tour));
-    await tearDownTree(tester);
-  });
-
-  testWidgets(
-      'Back never loops: from the tour the attorney sees the stage the server requires, never practices again',
-      (tester) async {
-    server
-      ..verification = VerificationStatus.verified
-      ..practiceIds = ['leaf-1'];
-    final router = await pumpFlow(tester);
-    await tester.tap(find.byKey(const ValueKey('offer-later')));
-    await tester.pumpAndSettle();
-    expect(find.byType(TourStepScreen), findsOneWidget);
-
-    final back = find.byType(AppBackButton);
-    expect(back, findsOneWidget);
-    await tester.tap(back);
-    await tester.pumpAndSettle();
-    expect(
-      _location(router),
-      OnboardingRoutes.forStep(OnboardingStepId.verification),
-    );
-    // Owner 2026-10-05 (audit): "Later" is remembered — no offer again.
-    expect(stage('done'), findsOneWidget);
-    expect(stage('subscription'), findsNothing);
-    expect(stage('practices'), findsNothing);
-    expect(stage('license'), findsNothing);
-
-    // Back again: the previous onboarding step, not this one.
-    await tester.tap(find.byType(AppBackButton));
-    await tester.pumpAndSettle();
-    expect(_location(router), OnboardingRoutes.forStep(OnboardingStepId.push));
+    expect(_location(router), AppRoutes.feed);
     await tearDownTree(tester);
   });
 
@@ -355,7 +339,7 @@ void main() {
     expect(find.text('7 days free'), findsNothing);
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(find.byType(TourStepScreen), findsOneWidget);
+    expect(find.text('FEED'), findsOneWidget);
     await tearDownTree(tester);
   });
 
@@ -425,7 +409,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.byKey(const ValueKey('offer-later')));
       await tester.pumpAndSettle();
-      expect(find.byType(TourStepScreen), findsOneWidget);
+      expect(find.text('FEED'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tearDownTree(tester);
     });

@@ -34,13 +34,13 @@ abstract final class AppPageTransitions {
       return CupertinoPage<void>(
         key: state.pageKey,
         name: state.name,
-        child: child,
+        child: AppBackdrop(child: child),
       );
     }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: child,
+      child: AppBackdrop(child: child),
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
       transitionsBuilder: _sharedAxisX,
@@ -59,13 +59,13 @@ abstract final class AppPageTransitions {
         key: state.pageKey,
         name: state.name,
         fullscreenDialog: true,
-        child: child,
+        child: AppBackdrop(child: child),
       );
     }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: child,
+      child: AppBackdrop(child: child),
       fullscreenDialog: true,
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
@@ -78,7 +78,7 @@ abstract final class AppPageTransitions {
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: child,
+      child: AppBackdrop(child: child),
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -112,21 +112,20 @@ abstract final class AppPageTransitions {
       curve: AppMotion.enterCurve,
       reverseCurve: AppMotion.exitCurve,
     );
-    return FadeTransition(
-      opacity: enter,
+    // Owner 2026-10-13: slide only, no fade — a fading page lets the
+    // previous screen show through ("hanging" text and scales).
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(AppMotion.pageSlideFraction, 0),
+        end: Offset.zero,
+      ).animate(enter),
+      // The page underneath drifts left a little as the new one arrives.
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(AppMotion.pageSlideFraction, 0),
-          end: Offset.zero,
-        ).animate(enter),
-        // The page underneath drifts left a little as the new one arrives.
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: Offset.zero,
-            end: const Offset(-AppMotion.pageSlideFraction / 2, 0),
-          ).animate(behind),
-          child: child,
-        ),
+          begin: Offset.zero,
+          end: const Offset(-AppMotion.pageSlideFraction / 2, 0),
+        ).animate(behind),
+        child: child,
       ),
     );
   }
@@ -143,15 +142,12 @@ abstract final class AppPageTransitions {
       curve: AppMotion.enterCurve,
       reverseCurve: AppMotion.exitCurve,
     );
-    return FadeTransition(
-      opacity: enter,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, AppMotion.modalSlideFraction),
-          end: Offset.zero,
-        ).animate(enter),
-        child: child,
-      ),
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, AppMotion.modalSlideFraction),
+        end: Offset.zero,
+      ).animate(enter),
+      child: child,
     );
   }
 }

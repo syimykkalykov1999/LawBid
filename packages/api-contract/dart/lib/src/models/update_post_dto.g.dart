@@ -14,6 +14,7 @@ UpdatePostDto _$UpdatePostDtoFromJson(Map<String, dynamic> json) =>
       contentClass: json['contentClass'] == null
           ? null
           : PostContentClass.fromJson(json['contentClass'] as String),
+      commentsEnabled: json['commentsEnabled'] as bool?,
     );
 
 Map<String, dynamic> _$UpdatePostDtoToJson(UpdatePostDto instance) =>
@@ -22,4 +23,5 @@ Map<String, dynamic> _$UpdatePostDtoToJson(UpdatePostDto instance) =>
       'practiceCode': ?instance.practiceCode,
       'contentClass': ?instance.contentClass?.toJson(),
       'body': instance.body,
+      'commentsEnabled': ?instance.commentsEnabled,
     };

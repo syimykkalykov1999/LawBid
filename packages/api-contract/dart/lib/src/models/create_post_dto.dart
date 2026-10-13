@@ -42,12 +42,14 @@ class CreatePostDto {
   /// Owner 2026-10-05: 'legal' or 'general'. A post with a law topic or.
   /// News is always legal; without one the author picks (default general).
   final PostContentClass? contentClass;
+
+  /// Owner 2026-10-07: the description is optional ('' is fine).
   final String body;
 
   /// Clean post_image file ids, in display order.
   final List<String>? mediaFileIds;
 
-  /// Owner 2026-10-05: up to 9 documents (PDF, Word, text).
+  /// Owner 2026-10-05: documents (count and formats: admin, bug 17).
   final List<PostAttachmentInputDto>? attachments;
 
   /// Owner 2026-10-01: a reel — the uploaded video (POST /videos/uploads).

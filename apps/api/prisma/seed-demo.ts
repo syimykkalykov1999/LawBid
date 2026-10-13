@@ -13,6 +13,8 @@
 import { PrismaClient } from '@prisma/client';
 import { seedDemoWorld } from '../src/modules/demo/demo-seed';
 import { seedDemoContent } from './seed-demo/content';
+import { seedCaseWorkspace } from './seed-demo/workspace';
+import { PasswordService } from '../src/modules/auth/services/password.service';
 
 for (const file of ['.env', 'apps/api/.env']) {
   try {
@@ -37,6 +39,15 @@ async function main(): Promise<void> {
       videoStubs: process.env.DEMO_SEED_VIDEO_STUBS === '1',
     });
     console.log('content:', content);
+    console.log('workspace:', await seedCaseWorkspace(prisma));
+    // Owner 2026-10-13: the demo phones sign in with a password too, so the
+    // device check does not need an SMS code (Demo1234!).
+    const demoHash = await new PasswordService().hash('Demo1234!');
+    const withPassword = await prisma.user.updateMany({
+      where: { phone_e164: { in: ['+14155552680', '+14155552681'] } },
+      data: { password_hash: demoHash, password_set_at: new Date() },
+    });
+    console.log('passwords:', withPassword.count);
     if (content.mediaSkipped) {
       console.warn(
         'S3_BUCKET_MEDIA / S3_BUCKET_DOCUMENTS are not set: pictures and documents were skipped.',

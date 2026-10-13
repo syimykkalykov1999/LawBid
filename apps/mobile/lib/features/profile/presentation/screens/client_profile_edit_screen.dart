@@ -339,6 +339,13 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
         ProfileSaveBar(
           label: t.t('profile.edit.save'),
           loading: _saving,
+          enabled: _first.text.trim().isNotEmpty &&
+              _last.text.trim().isNotEmpty &&
+              !const {
+                UsernameStatus.invalid,
+                UsernameStatus.taken,
+                UsernameStatus.reserved,
+              }.contains(_usernameStatus),
           onPressed: () => _save(t),
         ),
       ],

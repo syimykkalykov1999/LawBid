@@ -219,6 +219,7 @@ void main() {
       expect(find.text('Custody'), findsOneWidget);
       expect(find.byKey(const ValueKey('task-chat')), findsOneWidget);
       await tester.enterText(find.byKey(const ValueKey('task-title')), 'Call');
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const ValueKey('task-save')));
       await tester.tap(find.byKey(const ValueKey('task-save')));
       await tester.pumpAndSettle();

@@ -90,6 +90,20 @@ class AvatarPickerField extends ConsumerWidget {
                 onTap: () =>
                     Navigator.of(sheetContext).pop(AvatarSource.gallery),
               ),
+              // The format / size note lives here, not on the screen.
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('profile.photo.hint'),
+                textAlign: TextAlign.center,
+                style: Theme.of(sheetContext)
+                    .extension<AppTypographyTokens>()!
+                    .caption
+                    .copyWith(
+                      color: Theme.of(sheetContext)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+              ),
             ],
           ),
         ),
@@ -142,10 +156,12 @@ class AvatarPickerField extends ConsumerWidget {
         ),
       AvatarUploadStage.idle => requiredError != null
           ? (requiredError!, colors.dangerText)
-          : (t.t('profile.photo.hint'), colors.textSecondary),
+          // Owner 2026-10-13: no file-format hint under the photo.
+          : ('', colors.textSecondary),
     };
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         ProfileAvatar(
           size: AppSizes.stateMedallion - AppSpacing.xl,
@@ -159,6 +175,7 @@ class AvatarPickerField extends ConsumerWidget {
         const SizedBox(width: AppSpacing.lg),
         Expanded(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -168,14 +185,16 @@ class AvatarPickerField extends ConsumerWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  status,
-                  style: typography.caption.copyWith(color: statusColor),
+              if (status.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    status,
+                    style: typography.caption.copyWith(color: statusColor),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: AppSpacing.xs),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -237,8 +256,8 @@ class _TextAction extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppIcon(icon, size: AppSpacing.lg + 2, color: color),
-              const SizedBox(width: AppSpacing.xs),
+              // Owner 2026-10-13: no icon — the label starts on the same left
+              // edge as the title above it.
               Flexible(
                 child: FitText(
                   label,

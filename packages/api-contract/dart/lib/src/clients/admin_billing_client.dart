@@ -31,6 +31,8 @@ import '../models/payment_status.dart';
 import '../models/plan.dart';
 import '../models/plan_fields_dto.dart';
 import '../models/plan_kind.dart';
+import '../models/post_attachments_mode_dto.dart';
+import '../models/post_attachments_mode_envelope.dart';
 import '../models/promo_code_envelope.dart';
 import '../models/promo_code_filter.dart';
 import '../models/promo_code_list_envelope.dart';
@@ -287,6 +289,19 @@ abstract class AdminBillingClient {
   Future<ApplyPlanResultEnvelope> adminApplyPlanToSubscribers({
     @Path('id') required String id,
     @Body() required ApplyPlanDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The attachments-in-posts mode
+  @GET('/admin/billing/post-attachments')
+  Future<PostAttachmentsModeEnvelope> getPostAttachmentsMode({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the attachments-in-posts mode
+  @PUT('/admin/billing/post-attachments')
+  Future<PostAttachmentsModeEnvelope> setPostAttachmentsMode({
+    @Body() required PostAttachmentsModeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

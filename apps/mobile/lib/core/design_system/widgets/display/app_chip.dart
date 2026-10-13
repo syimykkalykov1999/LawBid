@@ -19,7 +19,7 @@ class AppChip extends StatelessWidget {
     this.trailing,
     this.onTap,
     this.selected = false,
-    this.height = 36,
+    this.height = 32,
     this.expand = false,
     this.fitLabel = false,
   });

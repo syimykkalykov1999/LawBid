@@ -75,9 +75,9 @@ export class ReviewReminderJob {
 
     for (;;) {
       const due = await this.prisma.$queryRaw<DueRow[]>(Prisma.sql`
-        SELECT c.id::STRING AS case_id,
-               c.client_id::STRING AS client_id,
-               b.attorney_id::STRING AS attorney_id
+        SELECT c.id::TEXT AS case_id,
+               c.client_id::TEXT AS client_id,
+               b.attorney_id::TEXT AS attorney_id
         FROM cases AS c
         JOIN bids AS b ON b.id = c.accepted_bid_id AND b.status = 'accepted'
         JOIN users AS u ON u.id = c.client_id
@@ -92,7 +92,7 @@ export class ReviewReminderJob {
             SELECT 1 FROM notifications AS n
             WHERE n.user_id = c.client_id
               AND n.type = 'review_requested'
-              AND n.payload->>'caseId' = c.id::STRING
+              AND n.payload->>'caseId' = c.id::TEXT
               AND n.payload->>'reminder' = 'true')
         ORDER BY c.id
         LIMIT ${batchSize}`);

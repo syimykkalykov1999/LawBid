@@ -31,6 +31,8 @@ import { createEmailProvider } from './providers/email/email-provider.factory';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PasswordAuthService } from './password-auth.service';
+import { PasswordService } from './services/password.service';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
 import { EmailLoginNotificationChannel } from './notifications/email-login-notification.channel';
@@ -94,6 +96,8 @@ import { demoNoop } from '../../common/demo/demo-guards';
   controllers: [AuthController],
   providers: [
     AuthService,
+    PasswordAuthService,
+    PasswordService,
     SocialAuthService,
     GoogleTokenVerifier,
     AppleTokenVerifier,
@@ -183,6 +187,9 @@ import { demoNoop } from '../../common/demo/demo-guards';
     OtpService,
     IdentityService,
     AuthEventService,
+    // Owner 2026-10-13: admin «Сбросить пароль».
+    PasswordAuthService,
+    PasswordService,
     // ContactsService: per-user/per-identifier limits on contact OTPs.
     RateLimitService,
     // OQ-048: the assistant module drops the cache on team changes.

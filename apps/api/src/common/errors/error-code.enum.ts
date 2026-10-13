@@ -44,6 +44,8 @@ export enum ErrorCode {
   AUTH_SOCIAL_TOKEN_INVALID = 'AUTH_SOCIAL_TOKEN_INVALID',
   AUTH_SOCIAL_PROVIDER_UNAVAILABLE = 'AUTH_SOCIAL_PROVIDER_UNAVAILABLE',
   AUTH_PROVIDER_DISABLED = 'AUTH_PROVIDER_DISABLED',
+  // Owner 2026-10-13: wrong phone / e-mail or password (one generic answer).
+  AUTH_INVALID_CREDENTIALS = 'AUTH_INVALID_CREDENTIALS',
   ACCOUNT_EXISTS_USE_OTHER_METHOD = 'ACCOUNT_EXISTS_USE_OTHER_METHOD',
   IDENTIFIER_ALREADY_LINKED = 'IDENTIFIER_ALREADY_LINKED',
   CONTACT_DOMAIN_BLOCKED = 'CONTACT_DOMAIN_BLOCKED',
@@ -300,6 +302,8 @@ export enum ErrorCode {
   POST_NOT_FOUND = 'POST_NOT_FOUND',
   // 403: posting needs a verified, active attorney (§3.1).
   POST_NOT_ALLOWED = 'POST_NOT_ALLOWED',
+  /** Owner 2026-10-13: the account may not add files to a post. */
+  POST_ATTACHMENTS_NOT_ALLOWED = 'POST_ATTACHMENTS_NOT_ALLOWED',
   // 409: reposting one's own post (owner 2026-10-07, Threads-style).
   REPOST_OWN_POST = 'REPOST_OWN_POST',
   // 404: no such comment (or deleted).

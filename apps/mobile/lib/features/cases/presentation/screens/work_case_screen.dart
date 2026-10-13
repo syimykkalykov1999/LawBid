@@ -17,17 +17,14 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
-import 'package:lawbid/features/translation/data/content_translation_repository.dart';
-import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// docs/04 §8 + §11.2 "В работе": the case, the client's contacts (locked
@@ -174,6 +171,107 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
             _TextSheet(title: title, label: label, submit: submit, min: min),
       );
 
+  Widget _workspace(
+    BuildContext context,
+    FeedCase c,
+    Translator t,
+    L10nFormats formats,
+    AppColorTokens colors,
+    bool pending,
+  ) {
+    final category = CaseFormat.practice(
+      t,
+      c.practice.categoryI18nKey ?? c.practice.i18nKey,
+      c.practice.categoryNameEn ?? c.practice.nameEn,
+    );
+    final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
+    EdgeInsets side(double top) => EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          top,
+          AppSpacing.lg,
+          0,
+        );
+    return CaseWorkspaceBody(
+      caseId: c.id,
+      isAttorney: true,
+      chips: [category, if (leaf != category) leaf],
+      statusLabel: c.status == CaseStatus.inProgress
+          ? t.t('cases.status.acceptedByBoth')
+          : caseStatusLabel(t, c.status),
+      title: c.title,
+      states: [c.primaryStateCode, ...c.additionalStateCodes],
+      budget: c.budget,
+      urgency: c.urgencyInfo,
+      onRefresh: _refresh,
+      overview: [
+        if (pending)
+          Padding(
+            padding: side(AppSpacing.md),
+            child: NoticeCard(
+              icon: AppIcons.hourglassTopRounded,
+              message: t.t(
+                c.completionRequestedBy == 'attorney'
+                    ? 'cases.work.waitingClientNotice'
+                    : 'cases.work.pendingNotice',
+              ),
+            ),
+          ),
+        if (c.status == CaseStatus.disputed)
+          Padding(
+            padding: side(AppSpacing.md),
+            child: NoticeCard(
+              icon: AppIcons.policyOutlined,
+              tone: StatusTone.danger,
+              message: t.t('cases.work.disputedNotice'),
+            ),
+          ),
+        Padding(
+          padding: side(AppSpacing.lg),
+          child: _ContactsBlock(
+            caseId: c.id,
+            t: t,
+            formats: formats,
+            onOpenChat: () => _openChat(t),
+          ),
+        ),
+        CaseText(
+          text: c.description ?? '',
+          moreLabel: t.t('post.more'),
+        ),
+        if (c.ownBidId != null)
+          Padding(
+            padding: side(AppSpacing.lg),
+            child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
+          ),
+        Padding(
+          padding: side(AppSpacing.lg),
+          child: CasePaymentsCard(caseId: c.id, asAttorney: true),
+        ),
+        // OQ-038: the hired attorney reviews the client (audit 2026-10-02:
+        // in person — not an assistant in their name).
+        if (!ref.watch(isAssistantProvider))
+          Padding(
+            padding: side(AppSpacing.md),
+            child: ClientReviewAction(caseId: c.id),
+          ),
+        Padding(
+          padding: side(AppSpacing.lg),
+          child: Text(
+            t.t('cases.overview.meta', {
+              'published': formats.date(c.createdAt),
+              'accepted': formats.date(c.createdAt),
+              'bids': '${c.bidsCount}',
+            }),
+            style: Theme.of(context)
+                .extension<AppTypographyTokens>()!
+                .caption
+                .copyWith(color: colors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -196,6 +294,14 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
               context.canPop() ? context.pop() : context.go(AppRoutes.mine),
         ),
         title: Text(t.t('cases.work.title')),
+        actions: [
+          if (active)
+            TopBarIcon(
+              icon: AppIcons.moreHorizRounded,
+              label: t.t('cases.owner.actions'),
+              onTap: () => _menu(c, t),
+            ),
+        ],
       ),
       body: AsyncDetailBody<FeedCase>(
         value: value,
@@ -205,153 +311,55 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           color: colors.gold,
           backgroundColor: colors.surface,
           onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: kDetailPadding,
-            children: [
-              CaseHeader(
-                practice: CaseFormat.practice(
-                  t,
-                  c.practice.i18nKey,
-                  c.practice.nameEn,
-                ),
-                title: c.title,
-                status: c.status,
-                meta: CaseFormat.place(
-                  c.city,
-                  c.primaryStateCode,
-                  c.additionalStateCodes.length,
-                ),
-                t: t,
-              ),
-              if (pending) ...[
-                const SizedBox(height: AppSpacing.lg),
-                NoticeCard(
-                  icon: AppIcons.hourglassTopRounded,
-                  message: t.t(
-                    c.completionRequestedBy == 'attorney'
-                        ? 'cases.work.waitingClientNotice'
-                        : 'cases.work.pendingNotice',
-                  ),
-                ),
-              ],
-              if (c.status == CaseStatus.disputed) ...[
-                const SizedBox(height: AppSpacing.lg),
-                NoticeCard(
-                  icon: AppIcons.policyOutlined,
-                  tone: StatusTone.danger,
-                  message: t.t('cases.work.disputedNotice'),
-                ),
-              ],
-              DetailSection(
-                title: t.t('cases.contacts.title'),
-                child: _ContactsBlock(
-                  caseId: c.id,
-                  t: t,
-                  formats: formats,
-                  onOpenChat: () => _openChat(t),
-                ),
-              ),
-              // Owner 2026-10-05: the planner's tasks on this case.
-              CaseTasksSection(caseId: c.id, caseTitle: c.title),
-              if (c.ownBidId != null)
-                DetailSection(
-                  title: t.t('cases.work.terms'),
-                  child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
-                ),
-              // Owner 2026-10-05: the hired attorney may move the date too
-              // (a court reschedules); the client is told.
-              DetailSection(
-                title: t.t('cases.facts.urgency'),
-                child: FactsCard(
-                  rows: [
-                    CaseUrgencyRow(
-                      caseId: c.id,
-                      info: c.urgencyInfo,
-                      canEdit: !ref.watch(isAssistantProvider) &&
-                          (c.status == CaseStatus.inProgress ||
-                              c.status == CaseStatus.pendingCompletion),
-                      hired: true,
-                      onSaved: () => ref.invalidate(attorneyCaseProvider(c.id)),
-                    ),
-                  ],
-                ),
-              ),
-              // Owner 2026-10-05: what the client paid through the platform.
-              CasePaymentsCard(caseId: c.id, asAttorney: true),
-              // OQ-038: the hired attorney reviews the client (audit
-              // 2026-10-02: in person — not an assistant in their name).
-              if (!ref.watch(isAssistantProvider))
-                ClientReviewAction(caseId: c.id),
-              DetailSection(
-                title: t.t('cases.detail.description'),
-                // Owner 2026-10-05: «Перевести» (cases zone).
-                child: TranslatableText(
-                  kind: TranslatableKind.caseDescription,
-                  id: c.id,
-                  text: c.description ?? '',
-                  builder: (context, text) => Text(
-                    text,
-                    style: Theme.of(context)
-                        .extension<AppTypographyTokens>()!
-                        .body
-                        .copyWith(color: colors.text),
-                  ),
-                ),
-              ),
-              // OQ-031: the accepted attorney sees the case photos.
-              if (c.photosCount > 0)
-                DetailSection(
-                  title: t.t('cases.photos.title'),
-                  child: CasePhotosStrip(
-                    photos: c.photos,
-                    hiddenCount: c.photosCount,
-                  ),
-                ),
-            ],
-          ),
+          child: _workspace(context, c, t, formats, colors, pending),
         ),
       ),
       bottomNavigationBar: !active
           ? null
           : BottomActionBar(
               children: [
-                // Audit 2026-10-02: an assistant confirms or disputes only with \"bids\".
-                // Owner 2026-10-02: either side may mark "Done" first.
-                if (c.status == CaseStatus.inProgress &&
-                    ref.watch(canDoProvider(AssistantDuty.bids)))
-                  AppButton(
-                    label: t.t('cases.work.complete'),
-                    icon: AppIcons.taskAltRounded,
-                    isLoading: _busy,
-                    onPressed: _complete,
-                  ),
-                if (pending &&
-                    c.completionRequestedBy == 'client' &&
-                    ref.watch(canDoProvider(AssistantDuty.bids)))
-                  AppButton(
-                    label: t.t('cases.work.confirm'),
-                    icon: AppIcons.taskAltRounded,
-                    isLoading: _busy,
-                    onPressed: _confirm,
-                  ),
-                if (pending &&
-                    c.completionRequestedBy == 'client' &&
-                    ref.watch(canDoProvider(AssistantDuty.bids)))
-                  AppButton(
-                    label: t.t('cases.work.dispute'),
-                    variant: AppButtonVariant.secondary,
-                    onPressed: _busy ? null : _dispute,
-                  ),
                 AppButton(
-                  label: t.t('cases.issue.button'),
-                  icon: AppIcons.phoneDisabledOutlined,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: _busy ? null : _cantReach,
+                  label: t.t('cases.work.chatWithClient'),
+                  icon: AppIcons.chatBubbleOutlineRounded,
+                  isLoading: _opening,
+                  onPressed: () => _openChat(t),
                 ),
               ],
             ),
     );
+  }
+
+  /// "…": marking the case done and the rare actions.
+  void _menu(FeedCase c, Translator t) {
+    final pending = c.status == CaseStatus.pendingCompletion;
+    final canBids = ref.read(canDoProvider(AssistantDuty.bids));
+    showActionSheet(context, [
+      // Audit 2026-10-02: an assistant confirms or disputes only with
+      // "bids". Owner 2026-10-02: either side may mark "Done" first.
+      if (c.status == CaseStatus.inProgress && canBids)
+        ActionSheetItem(
+          icon: AppIcons.taskAltRounded,
+          label: t.t('cases.work.complete'),
+          onTap: _complete,
+        ),
+      if (pending && c.completionRequestedBy == 'client' && canBids) ...[
+        ActionSheetItem(
+          icon: AppIcons.taskAltRounded,
+          label: t.t('cases.work.confirm'),
+          onTap: _confirm,
+        ),
+        ActionSheetItem(
+          icon: AppIcons.policyOutlined,
+          label: t.t('cases.work.dispute'),
+          onTap: _dispute,
+        ),
+      ],
+      ActionSheetItem(
+        icon: AppIcons.phoneDisabledOutlined,
+        label: t.t('cases.issue.button'),
+        onTap: _cantReach,
+      ),
+    ]);
   }
 }
 
@@ -523,10 +531,20 @@ class _ContactsBlock extends ConsumerWidget {
                 context.push(AppRoutes.subscriptionRequiredFor('contacts')),
           ),
         ),
-      AsyncError(:final error) => CasesErrorView(
-          error: error,
-          t: t,
-          onRetry: () => ref.invalidate(clientContactsProvider(caseId)),
+      // Owner 2026-10-13: never a blank block — say why the contacts are
+      // not here and let the attorney retry.
+      AsyncError(:final error) => NoticeCard(
+          icon: AppIcons.lockOutlineRounded,
+          message: error is ApiException &&
+                  error.code == ApiErrorCodes.contactsLocked
+              ? t.t('cases.contacts.notShared')
+              : errorText(t, error),
+          action: AppButton(
+            label: t.t('error.retry'),
+            height: AppSizes.touchTarget,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => ref.invalidate(clientContactsProvider(caseId)),
+          ),
         ),
       _ => const AppContentCardSkeleton(),
     };

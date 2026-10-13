@@ -83,9 +83,9 @@ void main() {
     await tapText(tester, 'Start');
     expect(find.text('Your licenses'), findsOneWidget);
 
-    // Continue is refused until a license with its document exists.
+    // Continue is grey and inert until a license with its document exists.
     await tapText(tester, 'Continue');
-    expect(find.text('Add at least one state license.'), findsOneWidget);
+    expect(find.text('Your licenses'), findsOneWidget);
 
     await addLicense(tester, 'Add a state', 'Alabama', 'al123');
     await addLicense(tester, 'Add another state', 'Alaska', 'AK-77');
@@ -119,7 +119,6 @@ void main() {
     await tester.enterText(find.byType(TextField).last, 'Maiden name on ID');
     // Owner 2026-10-04: no submission without the sworn statement.
     await tapText(tester, 'Submit for review');
-    expect(find.text('Tick the sworn statement to submit.'), findsOneWidget);
     expect(backend.submitCalls, 0);
     await tickAttestation(tester);
     await tapText(tester, 'Submit for review');
@@ -318,21 +317,14 @@ void main() {
     await tapText(tester, 'Continue');
     await tapText(tester, 'Continue');
     await tapText(tester, 'Continue');
+    // Submit is grey and inert while a file is still uploading.
     await tapText(tester, 'Submit for review');
-    expect(
-      find.text('Wait until all files finish uploading and checking.'),
-      findsOneWidget,
-    );
     expect(backend.submitCalls, 0);
 
     // The upload finishes but the antivirus flags it.
     gate.complete();
     await tester.pumpAndSettle();
     await tapText(tester, 'Submit for review');
-    expect(
-      find.textContaining("didn't pass the security check"),
-      findsWidgets,
-    );
     expect(backend.submitCalls, 0);
 
     // Removing the infected file unblocks submission.

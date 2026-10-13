@@ -9,9 +9,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/persistence/local_kv_store.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
-import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
-import 'package:lawbid/features/referrals/presentation/referral_ask_code_sheet.dart';
 
 const _kPendingCodeKey = 'referral.pending_code';
 const _kReferrerCheckedKey = 'referral.install_referrer_checked';
@@ -134,20 +132,9 @@ class ReferralOnboardingHook {
         return;
       }
 
-      if (!store.askPending || store.askDone) return;
-      var enabled = false;
-      try {
-        final me = await _ref.read(referralMeProvider.future);
-        enabled = me.enabled && me.canApply;
-      } catch (_) {}
-      if (!enabled) {
-        try {
-          enabled = (await _ref.read(partnerMeProvider.future)).enabled;
-        } catch (_) {}
-      }
+      // Owner 2026-10-11: no "Have an invite code?" sheet — a code can be
+      // entered in Settings → Invite & earn.
       await store.markAskDone();
-      if (!enabled || !context.mounted) return;
-      await ReferralAskCodeSheet.show(context);
     } catch (_) {
       // Never let a referral nicety break the main shell.
     }

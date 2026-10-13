@@ -35,6 +35,7 @@ import {
 } from '../queries/cases-visible.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
 import { PromotionDeliveryService } from '../../promotions/promotion-delivery.service';
+import { RecommendationsService } from '../../recommendations/recommendations.service';
 import {
   clientsWithEntitlementSql,
   EntitlementsService,
@@ -45,6 +46,8 @@ const PROMOTED_FEED_SLOTS = 3;
 /** Owner 2026-10-05 (plan builder): cases of clients whose plan includes
  * "cases shown first" come right after the promoted ones on page one. */
 const PRIORITY_FEED_SLOTS = 5;
+/** Candidates ranked by the "for you" order: the newest this many. */
+const CASES_RANK_CANDIDATES = 300;
 const PRIORITY_CLIENT_SQL = clientsWithEntitlementSql(
   'priority_feed',
   Prisma.sql`c.client_id`,
@@ -71,7 +74,7 @@ function forbidden(message: string): ForbiddenException {
  * (§3.5, `GET /users/me/cases`) is stage 4.2 (CasesController).
  */
 /** Feed card description preview length (owner 2026-09-30). */
-const FEED_EXCERPT_MAX = 180;
+const FEED_EXCERPT_MAX = 400;
 
 @Injectable()
 export class CasesFeedService {
@@ -86,6 +89,8 @@ export class CasesFeedService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-05: budget, audience, frequency cap and reach.
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
+    // Owner 2026-10-13: "for you" ranking of the Search Cases grid.
+    @Optional() private readonly recommendations?: RecommendationsService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -106,7 +111,9 @@ export class CasesFeedService {
       return { items: [], nextCursor: null };
     }
     const limit = query.limit ?? CASES_FEED_PAGE_DEFAULT;
-    const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+    const ranked = query.sort === 'for_you' && !!this.recommendations;
+    const cursor =
+      query.cursor && !ranked ? decodeCursor(query.cursor) : undefined;
 
     // Audit 2026-10-01: the Search tab's filters on the server.
     const spanMs =
@@ -204,31 +211,43 @@ export class CasesFeedService {
           )
         ).map((r) => r.id);
     const onTop = [...slot, ...priority];
-    const rows = await run(
-      onTop.length
-        ? Prisma.sql`${extra} AND c.id <> ALL(${onTop}::UUID[])`
-        : extra,
-      cursor,
-      limit + 1,
-    );
+    const rest = onTop.length
+      ? Prisma.sql`${extra} AND c.id <> ALL(${onTop}::UUID[])`
+      : extra;
+    // Owner 2026-10-13: "for you" — the newest candidates ranked for this
+    // attorney, paged by position; promoted and priority cases stay on top
+    // of page one as before (and out of the ranked list on every page).
+    if (ranked && this.recommendations) {
+      const start = rankedOffset(query.cursor);
+      const candidates = (
+        await run(rest, undefined, CASES_RANK_CANDIDATES)
+      ).map((r) => r.id);
+      const ids = await this.recommendations.casesFor(
+        viewer.userId,
+        candidates,
+        { ...query, sort: undefined, cursor: undefined, limit: undefined },
+      );
+      const end = start + limit;
+      const shownPromoted = start === 0 ? slot : [];
+      const top = start === 0 ? onTop : [];
+      const items = await this.hydrate(
+        [...new Set([...top, ...ids.slice(start, end)])],
+        viewer.userId,
+      );
+      this.recordPromotedImpressions(viewer.userId, live, shownPromoted);
+      return {
+        items,
+        nextCursor: end < ids.length ? encodeRankedOffset(end) : null,
+      };
+    }
+    const rows = await run(rest, cursor, limit + 1);
     const page = rows.slice(0, limit);
     const shownPromoted = cursor ? [] : slot;
     const items = await this.hydrate(
       [...new Set([...shownPromoted, ...priority, ...page.map((r) => r.id)])],
       viewer.userId,
     );
-    if (shownPromoted.length) {
-      if (live && this.promoDelivery) {
-        this.promoDelivery.recordImpressions(
-          viewer.userId,
-          live
-            .filter((p) => p.caseId && shownPromoted.includes(p.caseId))
-            .map((p) => p.id),
-        );
-      } else {
-        this.countImpressions(shownPromoted);
-      }
-    }
+    this.recordPromotedImpressions(viewer.userId, live, shownPromoted);
     const last = page[page.length - 1];
     return {
       items,
@@ -237,6 +256,25 @@ export class CasesFeedService {
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /** Promoted cases shown on page one count as impressions. */
+  private recordPromotedImpressions(
+    viewerId: string,
+    live: Awaited<ReturnType<PromotionDeliveryService['eligible']>> | null,
+    shownPromoted: string[],
+  ): void {
+    if (shownPromoted.length === 0) return;
+    if (live && this.promoDelivery) {
+      this.promoDelivery.recordImpressions(
+        viewerId,
+        live
+          .filter((p) => p.caseId && shownPromoted.includes(p.caseId))
+          .map((p) => p.id),
+      );
+    } else {
+      this.countImpressions(shownPromoted);
+    }
   }
 
   /** GET /cases/:id for an attorney (docs/04 §4.3): CASE_NOT_AVAILABLE,
@@ -522,4 +560,24 @@ export class CasesFeedService {
       )
       .catch(() => undefined);
   }
+}
+
+/** "for you" cursor: a position in the ranked list. */
+function encodeRankedOffset(i: number): string {
+  return Buffer.from(JSON.stringify({ i })).toString('base64url');
+}
+
+function rankedOffset(raw: string | undefined): number {
+  if (!raw) return 0;
+  try {
+    const { i } = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    ) as {
+      i?: unknown;
+    };
+    if (typeof i === 'number' && Number.isInteger(i) && i >= 0) return i;
+  } catch {
+    // fall through to the first page
+  }
+  return 0;
 }

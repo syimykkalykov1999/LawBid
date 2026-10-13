@@ -6,7 +6,6 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -91,8 +90,6 @@ Future<void> showLawbidIncoming({
   }
 }
 
-const _kAskedCallPermission = 'calls.asked_notification_permission';
-
 /// FCM in the background / killed app (Android data-only push): ring.
 @pragma('vm:entry-point')
 Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
@@ -113,26 +110,9 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
 final callkitEventsProvider = Provider<void>((ref) {
   // Web: no system call UI; calls ring in the open tab only.
   if (kIsWeb) return;
-  // Audit 2026-10-02: Android 13+ shows (and rings) the incoming-call
-  // screen only with the notifications permission — ask for it once.
-  final prefs = ref.read(sharedPreferencesProvider);
-  if (defaultTargetPlatform == TargetPlatform.android &&
-      !(prefs.getBool(_kAskedCallPermission) ?? false)) {
-    unawaited(() async {
-      await prefs.setBool(_kAskedCallPermission, true);
-      try {
-        await FlutterCallkitIncoming.requestNotificationPermission({
-          'title': 'LawBid',
-          'rationaleMessagePermission':
-              'Allow notifications so incoming calls can ring.',
-          'postNotificationMessageRequired':
-              'Allow notifications in Settings so incoming calls can ring.',
-        });
-      } on Object {
-        // No plugin (tests) / denied: the in-app ringtone still works.
-      }
-    }());
-  }
+  // Owner 2026-10-11: no own permission dialog at app start — the system's
+  // notification request comes once after sign-in (PushService), and it
+  // also lets incoming calls ring.
   StreamSubscription<CallEvent?>? sub;
   try {
     sub = FlutterCallkitIncoming.onEvent.listen(

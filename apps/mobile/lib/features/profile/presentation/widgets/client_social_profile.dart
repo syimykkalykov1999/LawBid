@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -31,6 +33,7 @@ import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 enum _Tab { posts, reviews }
 
@@ -59,6 +62,16 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
   _Tab _tab = _Tab.posts;
 
   PublicClientProfile get p => widget.profile;
+
+  Future<void> _share(Translator t) async {
+    final host = ref.read(appEnvironmentProvider).deepLinkHost;
+    await showShareSheet(
+      context,
+      t: t,
+      link: 'https://$host/client/${p.username}',
+      text: '@${p.username}',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -245,12 +258,26 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           ],
           const SizedBox(height: AppSpacing.md),
           if (p.isSelf)
-            AppButton(
-              label: t.t('profile.action.edit'),
-              icon: AppIcons.editOutlined,
-              variant: AppButtonVariant.secondary,
-              height: AppSizes.touchTarget,
-              onPressed: () => context.push(AppRoutes.profileEdit),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: t.t('profile.action.edit'),
+                    variant: AppButtonVariant.secondary,
+                    height: 34,
+                    onPressed: () => context.push(AppRoutes.profileEdit),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: AppButton(
+                    label: t.t('profile.action.shareProfile'),
+                    variant: AppButtonVariant.secondary,
+                    height: 34,
+                    onPressed: () => _share(t),
+                  ),
+                ),
+              ],
             )
           else if (!blocked)
             Row(
