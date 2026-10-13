@@ -288,6 +288,7 @@ const file07Ru = <String, String>{
   'phoneContacts.disable': 'Отключить',
   'phoneContacts.removed': 'Контакты отключены',
   'phoneContacts.synced': 'Контакты синхронизированы',
+  'profile.action.shareProfile': 'Поделиться профилем',
   'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
       'Файлы к постам сейчас нельзя добавлять.',
   'error.api.FILES_COUNT_LIMIT':
@@ -871,6 +872,7 @@ const file07En = <String, String>{
   'phoneContacts.disable': 'Turn off',
   'phoneContacts.removed': 'Contacts turned off',
   'phoneContacts.synced': 'Contacts synced',
+  'profile.action.shareProfile': 'Share profile',
   'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
       'Files cannot be added to posts right now.',
   'error.api.FILES_COUNT_LIMIT':

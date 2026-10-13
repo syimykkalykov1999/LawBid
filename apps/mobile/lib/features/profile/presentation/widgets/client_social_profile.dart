@@ -245,12 +245,17 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           ],
           const SizedBox(height: AppSpacing.md),
           if (p.isSelf)
-            AppButton(
-              label: t.t('profile.action.edit'),
-              icon: AppIcons.editOutlined,
-              variant: AppButtonVariant.secondary,
-              height: AppSizes.touchTarget,
-              onPressed: () => context.push(AppRoutes.profileEdit),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: t.t('profile.action.edit'),
+                    variant: AppButtonVariant.secondary,
+                    height: 34,
+                    onPressed: () => context.push(AppRoutes.profileEdit),
+                  ),
+                ),
+              ],
             )
           else if (!blocked)
             Row(

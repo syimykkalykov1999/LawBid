@@ -14,7 +14,15 @@ class PostAuthor {
     this.isFollowing = false,
     this.isClient = false,
     this.location,
+    this.trustLevel = 0,
+    this.practiceKeys = const [],
   });
+
+  /// Owner 2026-10-13: Identity level 0..3 (the circle on the avatar).
+  final int trustLevel;
+
+  /// Up to three practice keys shown under the name.
+  final List<String> practiceKeys;
 
   /// Owner 2026-10-13: an attorney's licensed states / a client's state.
   final String? location;

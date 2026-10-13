@@ -158,6 +158,7 @@ class _InnerHeader extends ConsumerWidget {
               author: a,
               avatarSize: 32,
               showFollow: !post.isMine,
+              preferPractices: true,
               followMaxWidth: 124,
               subtitle: place.isEmpty ? role : '$role · $place',
               trailing: AppIconButton(

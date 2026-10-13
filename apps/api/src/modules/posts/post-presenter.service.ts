@@ -116,6 +116,12 @@ export class PostPresenter {
               verification_status: true,
               name_mismatch: true,
               trust_badge: true,
+              trust_level: true,
+              practice_areas: {
+                select: { practice_area: { select: { i18n_key: true } } },
+                orderBy: { practice_area: { sort: 'asc' } },
+                take: 3,
+              },
               licenses: {
                 where: { license_status: 'verified' },
                 select: { id: true, state_code: true },
@@ -266,6 +272,12 @@ export class PostPresenter {
             ? goldClients.has(p.author_id)
             : (prof?.trust_badge ?? false),
           isFollowing: followed.has(p.author_id),
+          // Owner 2026-10-13: the Identity circle on the avatar and the
+          // practices under the name (attorneys only).
+          trustLevel: isClient ? 0 : (prof?.trust_level ?? 0),
+          practiceI18nKeys: isClient
+            ? []
+            : (prof?.practice_areas ?? []).map((x) => x.practice_area.i18n_key),
           // Owner 2026-10-13: "role · place" in the inner card's header —
           // an attorney's licensed states (up to two), a client's state.
           location: isClient

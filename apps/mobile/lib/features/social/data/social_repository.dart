@@ -936,6 +936,8 @@ abstract final class SocialMappers {
           isFollowing: d.author.isFollowing,
           isClient: d.author.role == api.PostAuthorDtoRole.client,
           location: d.author.location,
+          trustLevel: d.author.trustLevel.toInt(),
+          practiceKeys: d.author.practiceI18nKeys,
         ),
         body: d.body,
         media: [

@@ -1168,6 +1168,26 @@ class _Actions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
+    if (isSelf) {
+      // Instagram: two equal buttons, "Edit profile" and "Share profile".
+      return Row(
+        children: [
+          Expanded(
+            child: _QuietButton(
+              label: t.t('profile.action.edit'),
+              onTap: () => context.push(AppRoutes.profileEdit),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: _QuietButton(
+              label: t.t('profile.action.shareProfile'),
+              onTap: onShare,
+            ),
+          ),
+        ],
+      );
+    }
     return Row(
       children: [
         if (!blocked)
@@ -1251,7 +1271,7 @@ class _QuietButton extends StatelessWidget {
   });
 
   // Owner 2026-10-13: Follow, Message and Offer a case share one height.
-  static const double height = 40;
+  static const double height = 34;
 
   final String label;
   final VoidCallback onTap;

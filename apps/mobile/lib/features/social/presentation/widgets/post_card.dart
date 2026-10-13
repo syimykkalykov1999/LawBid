@@ -27,8 +27,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show PracticePostsScreen;
-import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
-    show FollowButton;
+import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
@@ -955,43 +954,54 @@ class _ThreadsPost extends ConsumerWidget {
     Widget nameRow({bool compact = false}) => Row(
           children: [
             Expanded(
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Flexible(
-                    child: GestureDetector(
-                      onTap: () => openAuthorProfile(context, ref, a),
-                      child: Text(
-                        a.username,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.bodySmall.copyWith(
-                          color: colors.text,
-                          fontWeight: FontWeight.w700,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: GestureDetector(
+                          onTap: () => openAuthorProfile(context, ref, a),
+                          child: Text(
+                            a.username,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.bodySmall.copyWith(
+                              color: colors.text,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      if (a.verified) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        VerifiedCheck(
+                          label: t.t('post.verified'),
+                          size: 14,
+                          gold: a.isClient,
+                        ),
+                      ],
+                      // Owner 2026-10-13: the time moved down, next to Save.
+                      if (promotionId != null) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        Flexible(
+                          child: Text(
+                            t.t('promote.sponsored'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption
+                                .copyWith(color: colors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  if (a.verified) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    VerifiedCheck(
-                      label: t.t('post.verified'),
-                      size: 14,
-                      gold: a.isClient,
+                  if (!a.isClient && a.practiceKeys.isNotEmpty)
+                    _AuthorPractices(
+                      keys: a.practiceKeys,
+                      color: colors.textSecondary,
                     ),
-                  ],
-                  // Owner 2026-10-13: the time moved down, next to Save.
-                  if (promotionId != null) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Flexible(
-                      child: Text(
-                        t.t('promote.sponsored'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -1067,11 +1077,13 @@ class _ThreadsPost extends ConsumerWidget {
 
     final avatar = GestureDetector(
       onTap: () => openAuthorProfile(context, ref, a),
-      child: GoldRingAvatar(
+      child: IdentityAvatar(
+        id: a.id,
         url: a.avatarUrl,
         initials: a.initials,
         size: 36,
         ring: a.verified,
+        trustLevel: a.isClient ? 0 : a.trustLevel,
       ),
     );
 
@@ -1525,6 +1537,7 @@ class _AuthorRow extends ConsumerWidget {
         followMaxWidth: compact ? 120 : 136,
         // Only on someone else's post.
         showFollow: !post.isMine,
+        preferPractices: !sponsored && post.locationName == null,
         subtitle: sponsored
             ? t.t('promote.sponsored')
             : post.locationName ??
@@ -1605,8 +1618,13 @@ class AuthorHeader extends ConsumerWidget {
     this.trailing,
     this.followMaxWidth = 136,
     this.gap = AppSpacing.md,
+    this.preferPractices = false,
     super.key,
   });
+
+  /// Under the name: the attorney's practices ("A · B +1") when there
+  /// are any, instead of [subtitle].
+  final bool preferPractices;
 
   final PostAuthor author;
   final String subtitle;
@@ -1636,11 +1654,13 @@ class AuthorHeader extends ConsumerWidget {
               onTap: () => openAuthorProfile(context, ref, a),
               child: Row(
                 children: [
-                  GoldRingAvatar(
+                  IdentityAvatar(
+                    id: a.id,
                     url: a.avatarUrl,
                     initials: a.initials,
                     size: avatarSize,
                     ring: a.verified,
+                    trustLevel: a.isClient ? 0 : a.trustLevel,
                   ),
                   SizedBox(width: gap),
                   Expanded(
@@ -1658,17 +1678,28 @@ class AuthorHeader extends ConsumerWidget {
                             shadows: shadows,
                           ),
                         ),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption.copyWith(
+                        if (preferPractices &&
+                            !a.isClient &&
+                            a.practiceKeys.isNotEmpty)
+                          _AuthorPractices(
+                            keys: a.practiceKeys,
                             color: onDark
                                 ? Colors.white.withValues(alpha: 0.9)
                                 : colors.textSecondary,
                             shadows: shadows,
+                          )
+                        else
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: onDark
+                                  ? Colors.white.withValues(alpha: 0.9)
+                                  : colors.textSecondary,
+                              shadows: shadows,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -1695,6 +1726,43 @@ class AuthorHeader extends ConsumerWidget {
         ],
         if (trailing != null) trailing!,
       ],
+    );
+  }
+}
+
+/// "Divorce · Family +1" under an author's name, on one line.
+class _AuthorPractices extends ConsumerWidget {
+  const _AuthorPractices({
+    required this.keys,
+    required this.color,
+    this.shadows,
+  });
+
+  final List<String> keys;
+  final Color color;
+  final List<Shadow>? shadows;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final style = DefaultTextStyle.of(context)
+        .style
+        .merge(type.caption.copyWith(color: color, shadows: shadows));
+    return LayoutBuilder(
+      builder: (context, box) => Text(
+        fitPracticeList(
+          [for (final k in keys) practiceLabel(t, k)],
+          style: style,
+          maxWidth: box.maxWidth,
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      ),
     );
   }
 }

@@ -535,6 +535,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         gap: AppSpacing.sm,
                         followMaxWidth: 140,
                         showFollow: !p.isMine,
+                        preferPractices: p.locationName == null,
                         subtitle: p.locationName ??
                             (p.author.isClient
                                 ? '@${p.author.username} · '

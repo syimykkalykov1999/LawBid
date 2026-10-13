@@ -88656,6 +88656,19 @@
             "type": "boolean",
             "description": "Owner 2026-09-30: the viewer follows this author (card Follow)."
           },
+          "trustLevel": {
+            "type": "number",
+            "description": "Owner 2026-10-13: Identity level 0..3 (attorneys; 0 for clients).",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "practiceI18nKeys": {
+            "description": "Owner 2026-10-13: up to three practice keys under the name.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "location": {
             "type": "string",
             "nullable": true,
@@ -88667,7 +88680,9 @@
           "role",
           "username",
           "verifiedBadge",
-          "isFollowing"
+          "isFollowing",
+          "trustLevel",
+          "practiceI18nKeys"
         ]
       },
       "PostMediaDto": {

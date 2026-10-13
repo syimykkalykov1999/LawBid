@@ -100,26 +100,38 @@ class AttorneyTile extends ConsumerWidget {
 /// The attorney's avatar and, on its bottom-end corner, the trust-level
 /// badge: a small filled circle ringed in the background colour (like
 /// Instagram's). Tapping the badge opens the level's sheet.
-class PersonAvatar extends ConsumerWidget {
-  const PersonAvatar({required this.row, required this.size, super.key});
+class IdentityAvatar extends ConsumerWidget {
+  const IdentityAvatar({
+    required this.id,
+    required this.url,
+    required this.initials,
+    required this.size,
+    required this.ring,
+    required this.trustLevel,
+    super.key,
+  });
 
-  final AttorneyRow row;
+  final String id;
+  final String? url;
+  final String initials;
   final double size;
+  final bool ring;
+  final int trustLevel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final avatar = GoldRingAvatar(
-      url: row.avatarUrl,
-      initials: avatarInitials(row.displayName),
+      url: url,
+      initials: initials,
       size: size,
-      ring: row.verified,
+      ring: ring,
     );
-    if (row.trustLevel < 1) return avatar;
-    final c = trustLevelColors(colors, row.trustLevel);
+    if (trustLevel < 1) return avatar;
+    final c = trustLevelColors(colors, trustLevel);
     final badge = size * 0.4;
-    final label = t.t(TrustLevels.nameKey(row.trustLevel));
+    final label = t.t(TrustLevels.nameKey(trustLevel));
     return SizedBox(
       width: size,
       height: size,
@@ -138,8 +150,8 @@ class PersonAvatar extends ConsumerWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: () => showTrustLevelSheet(
                   context,
-                  attorneyId: row.id,
-                  level: row.trustLevel,
+                  attorneyId: id,
+                  level: trustLevel,
                 ),
                 child: Container(
                   width: badge,
@@ -151,7 +163,7 @@ class PersonAvatar extends ConsumerWidget {
                   ),
                   child: Center(
                     child: AppIcon(
-                      trustLevelIcon(row.trustLevel),
+                      trustLevelIcon(trustLevel),
                       size: badge * 0.55,
                       color: Colors.white,
                     ),
@@ -164,6 +176,23 @@ class PersonAvatar extends ConsumerWidget {
       ),
     );
   }
+}
+
+class PersonAvatar extends StatelessWidget {
+  const PersonAvatar({required this.row, required this.size, super.key});
+
+  final AttorneyRow row;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => IdentityAvatar(
+        id: row.id,
+        url: row.avatarUrl,
+        initials: avatarInitials(row.displayName),
+        size: size,
+        ring: row.verified,
+        trustLevel: row.trustLevel,
+      );
 }
 
 /// A name in full with the blue check glued to its last word: the word and

@@ -2,19 +2,12 @@
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
-/// Relative time for posts, comments and notifications ("2 ч назад"):
-/// minutes and hours for today, days for a week, then the date.
+/// Relative time for posts, comments, chats and notifications: "12m",
+/// "15h", "3d" (no "ago"), the date after ten days. One helper for all.
 abstract final class SocialFormat {
-  static String ago(Translator t, L10nFormats f, DateTime at, {DateTime? now}) {
-    final diff = (now ?? DateTime.now()).difference(at);
-    if (diff.inMinutes < 1) return t.t('time.justNow');
-    if (diff.inHours < 1) {
-      return t.plural('time.minutesAgo', diff.inMinutes);
-    }
-    if (diff.inDays < 1) return t.plural('time.hoursAgo', diff.inHours);
-    if (diff.inDays < 7) return t.plural('time.daysAgo', diff.inDays);
-    return f.date(at);
-  }
+  static String ago(Translator t, L10nFormats f, DateTime at,
+          {DateTime? now}) =>
+      shortDate(t, f, at, now: now);
 
   /// Owner 2026-10-12: the slim date by Save — "now", "5m", "3h", "2d" for
   /// the first week, then "Mar 14", and with the year for another year.
@@ -33,7 +26,9 @@ abstract final class SocialFormat {
     if (diff.inDays < 1) {
       return t.t('time.short.h', {'count': '${diff.inHours}'});
     }
-    if (diff.inDays < 7) {
+    // Owner 2026-10-13: "5m", "15h", "3d" — no "ago" — up to 10 days, then
+    // the date ("Oct 12", with the year for another year).
+    if (diff.inDays <= 10) {
       return t.t('time.short.d', {'count': '${diff.inDays}'});
     }
     return at.year == n.year ? f.dayMonth(at) : f.date(at);
