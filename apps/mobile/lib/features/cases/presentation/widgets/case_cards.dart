@@ -5,11 +5,9 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_actions_bar.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_facts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
@@ -133,34 +131,6 @@ class CategoryBand extends StatelessWidget {
   }
 }
 
-class _IconStat extends StatelessWidget {
-  const _IconStat({required this.icon, required this.value});
-
-  final IconData icon;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AppIcon(icon, size: AppSpacing.lg, color: colors.textSecondary),
-        const SizedBox(width: AppSpacing.xs),
-        Flexible(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: typography.bodySmall.copyWith(color: colors.textSecondary),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// Money in the brand serif — the number the user scans for.
 class MoneyText extends StatelessWidget {
   const MoneyText(this.text, {this.large = false, super.key});
@@ -187,8 +157,10 @@ class MoneyText extends StatelessWidget {
   }
 }
 
-/// Attorney "Кейсы" card (docs/04 §4.2): category band + NEW, title,
-/// "city, state +N", Open, views, bids, budget, "Вы сделали бид".
+/// Attorney "Кейсы" card. Owner 2026-10-13: a clear card without a photo —
+/// practice chips, the title, State · Budget · Deadline in one line, the
+/// description in three lines with its paragraphs, how many files wait
+/// behind the lock, and the row: Bid, counters, the time and Save.
 class FeedCaseCard extends StatelessWidget {
   const FeedCaseCard({
     required this.item,
@@ -205,9 +177,7 @@ class FeedCaseCard extends StatelessWidget {
   final L10nFormats formats;
   final VoidCallback onTap;
 
-  /// Owner 2026-09-30: in the attorney's case feed a card fills the
-  /// visible area down to the nav bar, like a post: text on top, our
-  /// practice photo full-bleed below. Null = the compact card.
+  /// Kept for the list's call sites; the card is as tall as its content.
   final double? feedHeight;
 
   @override
@@ -219,538 +189,81 @@ class FeedCaseCard extends StatelessWidget {
       item.practice.categoryI18nKey ?? item.practice.i18nKey,
       item.practice.categoryNameEn ?? item.practice.nameEn,
     );
-    final place = CaseFormat.place(
-      item.city,
-      item.primaryStateCode,
-      item.additionalStateCodes.length,
+    final leaf = CaseFormat.practice(
+      t,
+      item.practice.i18nKey,
+      item.practice.nameEn,
     );
-    final budget = CaseFormat.budget(t, formats, item.budget);
-    final radius = BorderRadius.circular(AppRadii.card + 2);
-    // Owner 2026-10-04: state, urgency and budget, large.
-    final extraStates = item.additionalStateCodes.length;
-    final facts = CaseKeyFacts(
-      t: t,
-      formats: formats,
-      stateCode: item.primaryStateCode,
-      stateSub: [
-        if (item.city != null && item.city!.trim().isNotEmpty)
-          item.city!.trim(),
-        if (extraStates > 0) '+$extraStates',
-      ].join(' · '),
-      urgency: item.urgencyInfo,
-      budget: item.budget.isClarifyLater
-          ? null
-          : CaseFormat.money(formats, item.budget.amountCents!),
-    );
-    final urgency = CaseUrgencyText.label(t, formats, item.urgencyInfo);
-    final urgencyFull = CaseUrgencyText.full(t, formats, item.urgencyInfo);
-    final dossier = CaseDossierScore.of(item);
-    final dossierLabel = [
-      '${t.t('cases.dossier.title')} ${dossier.score(t)}',
-      dossier.files(t),
-      if (item.status == CaseStatus.open) t.t('cases.dossier.ruleShort'),
-    ].join(', ');
-    Widget stats() => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _IconStat(
-              icon: AppIcons.visibilityOutlined,
-              value: SocialFormat.count(formats, item.viewCount),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            _IconStat(
-              icon: AppIcons.gavelRounded,
-              value: SocialFormat.count(formats, item.bidsCount),
-            ),
-          ],
-        );
-
+    final chips = [category, if (leaf != category) leaf];
     final semantics = [
       category,
-      if (item.promoted) t.t('cases.card.promoted'),
-      if (item.priorityClient && !item.promoted) t.t('plan.feed.priority'),
-      if (item.isNew) t.t('cases.card.new'),
       item.title,
-      place,
-      urgencyFull,
-      budget,
-      dossierLabel,
+      CaseFormat.place(
+        item.city,
+        item.primaryStateCode,
+        item.additionalStateCodes.length,
+      ),
+      CaseFormat.budget(t, formats, item.budget),
       t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
       if (item.hasOwnBid) t.t('cases.card.youBid'),
     ].join(', ');
-    final fill =
-        feedHeight != null && MediaQuery.textScalerOf(context).scale(10) <= 13;
-    if (fill) {
-      return Semantics(
-        button: true,
-        label: semantics,
-        excludeSemantics: true,
-        child: AppPressable(
-          onTap: onTap,
-          child: Container(
-            height: feedHeight,
-            clipBehavior: Clip.antiAlias,
-            // Owner 2026-09-30: edge to edge like the post feed.
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border.symmetric(
-                horizontal: BorderSide(
-                  color: item.isNew
-                      ? colors.gold.withValues(alpha: 0.55)
-                      : colors.border,
-                ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.shadow,
-                  blurRadius: AppSizes.cardShadowBlur,
-                  offset: const Offset(0, AppSizes.cardShadowOffsetY),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.lg,
-                    AppSpacing.md,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          // Owner 2026-09-30: the chips on the left,
-                          // "NEW" flush with the right edge (in line with
-                          // the Save button below).
-                          Expanded(
-                            child: Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: _GoldChip(
-                                icon: practiceGlyph(item.practice.artCode),
-                                label: category,
-                              ),
-                            ),
-                          ),
-                          if (item.promoted ||
-                              item.priorityClient ||
-                              item.isNew) ...[
-                            const SizedBox(width: AppSpacing.sm),
-                            // Capped so a long translation can't squeeze
-                            // the chips away.
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 120),
-                              child: Text(
-                                // Owner 2026-10-02: a paid promotion leads;
-                                // owner 2026-10-05: then the plan's priority.
-                                t.t(
-                                  item.promoted
-                                      ? 'cases.card.promoted'
-                                      : item.priorityClient
-                                          ? 'plan.feed.priority'
-                                          : 'cases.card.new',
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: typography.caption.copyWith(
-                                  color: colors.goldDark,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        item.title,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        // Owner 2026-10-04: smaller type, more of the story.
-                        style: typography.titleMedium.copyWith(
-                          fontFamily: typography.body.fontFamily,
-                          color: colors.text,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                          height: 1.25,
-                        ),
-                      ),
-                      if (item.excerpt.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          item.excerpt,
-                          maxLines: 6,
-                          overflow: TextOverflow.ellipsis,
-                          style: typography.body.copyWith(
-                            color: colors.text,
-                            fontSize: 15,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.md),
-                      facts,
-                      // Owner 2026-10-05: how complete the case is and
-                      // when its files open.
-                      const SizedBox(height: AppSpacing.md),
-                      CaseDossierStrip(kase: item, t: t),
-                      const SizedBox(height: AppSpacing.sm),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Wrap(
-                              spacing: AppSpacing.sm,
-                              runSpacing: AppSpacing.sm,
-                              children: [
-                                if (item.status != CaseStatus.open)
-                                  CaseStatusPill(status: item.status, t: t),
-                                if (item.hasOwnBid)
-                                  StatusPill(
-                                    label: t.t('cases.card.youBid'),
-                                    tone: StatusTone.gold,
-                                  ),
-                              ],
-                            ),
-                          ),
-                          stats(),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Our photo for the practice; the client's own case
-                // photos are private until a bid is accepted (OQ-031).
-                Expanded(
-                  child: CaseCover(
-                    categoryCode: item.practice.artCode,
-                    practiceCode: item.practice.code,
-                    coverKey: item.coverKey,
-                    seed: item.id,
-                  ),
-                ),
-                // OQ-034: comments, share, time, Save — like a post.
-                CaseActionsBar(item: item),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    final light = Theme.of(context).brightness == Brightness.light;
-    final champagneLo = Color.lerp(colors.surface, colors.gold, 0.12)!;
-    final badge = item.promoted || item.priorityClient || item.isNew
-        ? t.t(
-            item.promoted
-                ? 'cases.card.promoted'
-                : item.priorityClient
-                    ? 'plan.feed.priority'
-                    : 'cases.card.new',
-          )
-        : null;
-    // Facts in one line with gold hairlines.
-    final urgencyColor =
-        CaseUrgencyText.tone(colors, item.urgencyInfo, light: light);
-    final money = item.budget.isClarifyLater
-        ? t.t('cases.facts.negotiable')
-        : CaseFormat.money(formats, item.budget.amountCents!);
-    final serif = typography.titleMedium.fontFamily;
-    Widget inlineFacts() {
-      Widget col(
-        String label,
-        String value, {
-        String? sub,
-        Color? tone,
-        bool wrap = false,
-      }) =>
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.caption.copyWith(
-                    color: light ? colors.goldDark : colors.gold,
-                    fontSize: 10,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if (wrap)
-                  Text(
-                    value,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: typography.titleMedium.copyWith(
-                      fontFamily: serif,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: tone ?? colors.text,
-                      height: 1.15,
-                    ),
-                  )
-                else
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      value,
-                      maxLines: 1,
-                      style: typography.titleMedium.copyWith(
-                        fontFamily: serif,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                        color: tone ?? colors.text,
-                        height: 1.1,
-                      ),
-                    ),
-                  ),
-                if (sub != null && sub.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    sub,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                ],
-              ],
-            ),
-          );
-      final line = Container(
-        width: 1,
-        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        color: colors.gold.withValues(alpha: 0.4),
-      );
-      return IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            col(
-              t.t('cases.facts.state'),
-              item.primaryStateCode,
-              sub: item.city?.trim(),
-            ),
-            line,
-            col(
-              t.t('cases.facts.urgency'),
-              urgency,
-              sub: CaseUrgencyText.sub(t, item.urgencyInfo),
-              tone: urgencyColor,
-              wrap: true,
-            ),
-            line,
-            col(
-              t.t('cases.facts.budget'),
-              money,
-              tone: light ? colors.goldDark : colors.goldLight,
-            ),
-          ],
-        ),
-      );
-    }
-
-    Widget smallCaps(String text) => Text(
-          text.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: typography.caption.copyWith(
-            color: light ? colors.goldDark : colors.gold,
-            fontSize: 11,
-            letterSpacing: 1.6,
-            fontWeight: FontWeight.w700,
-          ),
-        );
-    Widget serifTitle({Color? color, double size = 20}) => Text(
-          item.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: typography.titleMedium.copyWith(
-            fontFamily: serif,
-            fontSize: size,
-            fontWeight: FontWeight.w700,
-            color: color ?? colors.text,
-            height: 1.22,
-          ),
-        );
-    Widget excerpt({int lines = 3}) => item.excerpt.isEmpty
-        ? const SizedBox.shrink()
-        : Text(
-            item.excerpt,
-            maxLines: lines,
-            overflow: TextOverflow.ellipsis,
-            style: typography.bodySmall.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
-            ),
-          );
-    Widget medallion({double size = 44}) => Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: RadialGradient(
-              colors: [
-                colors.gold.withValues(alpha: 0.22),
-                colors.gold.withValues(alpha: 0.04),
-              ],
-            ),
-            border: Border.all(color: colors.gold, width: 1.2),
-          ),
-          child: AppIcon(
-            practiceGlyph(item.practice.artCode),
-            size: size * 0.48,
-            color: light ? colors.goldDark : colors.goldLight,
-          ),
-        );
-    Widget newMark() => badge == null
-        ? const SizedBox.shrink()
-        : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: colors.gold,
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-            ),
-            constraints: const BoxConstraints(maxWidth: 120),
-            child: Text(
-              badge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: typography.caption.copyWith(
-                color: colors.navy,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-              ),
-            ),
-          );
-    final ink = Color.lerp(colors.navy, Colors.black, 0.72)!;
-    final ivory = Color.lerp(colors.surface, colors.gold, 0.07)!;
-
-    // Owner 2026-09-30 design: chips, bold title and a short excerpt on the
-    // left, the practice artwork dissolving into the card on the right.
+    final text = (item.description ?? item.excerpt).trim();
     return Semantics(
       button: true,
-      label: [
-        category,
-        if (item.isNew) t.t('cases.card.new'),
-        item.title,
-        place,
-        urgencyFull,
-        budget,
-        dossierLabel,
-        t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
-        if (item.hasOwnBid) t.t('cases.card.youBid'),
-      ].join(', '),
+      label: semantics,
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: radius,
-            border: Border.all(
-              color: item.isNew
-                  ? colors.gold.withValues(alpha: 0.55)
-                  : colors.border,
+            border: Border(
+              bottom: BorderSide(
+                color: colors.textSecondary.withValues(alpha: 0.14),
+                width: 8,
+              ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: colors.shadow,
-                blurRadius: AppSizes.cardShadowBlur,
-                offset: const Offset(0, AppSizes.cardShadowOffsetY),
-              ),
-            ],
           ),
-          child: ClipRRect(
-            borderRadius: radius,
-            // Owner 2026-10-04 picked the framed dossier: a double gold
-            // frame, serif type, facts in one line with gold hairlines.
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: light ? [ivory, champagneLo] : [colors.navy, ink],
-                ),
-              ),
-              child: Container(
-                margin: const EdgeInsets.all(6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CaseChipsRow(labels: chips),
+              Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg - 2,
-                  AppSpacing.md + 2,
-                  AppSpacing.lg - 2,
+                  AppSpacing.lg,
                   AppSpacing.md,
+                  AppSpacing.lg,
+                  0,
                 ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadii.card - 4),
-                  border: Border.all(
-                    color: colors.gold.withValues(alpha: 0.35),
+                child: Text(
+                  item.title,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.titleMedium.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 19,
+                    height: 1.25,
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        medallion(size: 40),
-                        const SizedBox(width: AppSpacing.sm + 2),
-                        Expanded(child: smallCaps(category)),
-                        newMark(),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    serifTitle(),
-                    const SizedBox(height: AppSpacing.xs + 2),
-                    excerpt(),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            color: colors.gold.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm,
-                          ),
-                          child: Transform.rotate(
-                            angle: 0.785,
-                            child: Container(
-                              width: 6,
-                              height: 6,
-                              color: colors.gold,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            color: colors.gold.withValues(alpha: 0.4),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    inlineFacts(),
-                    const SizedBox(height: AppSpacing.md),
-                    CaseDossierStrip(kase: item, t: t),
-                    const SizedBox(height: AppSpacing.sm),
-                    Align(alignment: Alignment.centerRight, child: stats()),
-                  ],
-                ),
               ),
-            ),
+              CaseFigures(
+                t: t,
+                formats: formats,
+                states: [item.primaryStateCode, ...item.additionalStateCodes],
+                budget: item.budget,
+                urgency: item.urgencyInfo,
+              ),
+              if (text.isNotEmpty)
+                CaseText(
+                  text: text,
+                  lines: 3,
+                  moreLabel: t.t('post.more'),
+                  onMore: onTap,
+                ),
+              CaseFileLine(t: t, dossier: item.dossier),
+              _CaseCardRow(item: item, t: t, formats: formats),
+            ],
           ),
         ),
       ),
@@ -758,43 +271,94 @@ class FeedCaseCard extends StatelessWidget {
   }
 }
 
-/// Gold-outlined chip with an icon (practice area).
-class _GoldChip extends StatelessWidget {
-  const _GoldChip({required this.icon, required this.label});
+/// Bid first (a little larger), then bids / comments / shares, and on the
+/// right the time with Save.
+class _CaseCardRow extends StatelessWidget {
+  const _CaseCardRow({
+    required this.item,
+    required this.t,
+    required this.formats,
+  });
 
-  final IconData icon;
-  final String label;
+  final FeedCase item;
+  final Translator t;
+  final L10nFormats formats;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm + 2,
-        vertical: AppSpacing.xs + 1,
-      ),
-      decoration: BoxDecoration(
-        color: colors.goldTint,
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        border: Border.all(color: colors.gold.withValues(alpha: 0.7)),
+    Widget stat(IconData icon, int n) => Padding(
+          padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(icon, size: 20, color: colors.text),
+              const SizedBox(width: 4),
+              Text(
+                SocialFormat.count(formats, n),
+                style: typography.bodySmall.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.sm,
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(icon, size: 15, color: colors.goldDark),
-          const SizedBox(width: AppSpacing.xs),
+          if (item.hasOwnBid)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+              child: StatusPill(
+                label: t.t('cases.card.youBid'),
+                tone: StatusTone.gold,
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.gold,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Text(
+                  t.t('cases.card.bid'),
+                  style: typography.body.copyWith(
+                    color: colors.navy,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          stat(AppIcons.gavelRounded, item.bidsCount),
+          stat(AppIcons.modeCommentOutlined, item.commentCount),
+          stat(AppIcons.sendOutlined, item.shareCount),
+          const Spacer(),
           Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: typography.caption.copyWith(
-                color: colors.text,
-                fontWeight: FontWeight.w600,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                SocialFormat.ago(t, formats, item.createdAt),
+                maxLines: 1,
+                style: typography.caption.copyWith(color: colors.textSecondary),
               ),
             ),
           ),
+          CaseSaveButton(item: item),
         ],
       ),
     );
