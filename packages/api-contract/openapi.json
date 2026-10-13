@@ -21856,6 +21856,15 @@
             }
           },
           {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-13: for_you = ranked for this attorney (practice, states, freshness, budget, few offers, no offer yet); the cursor is then a position in the ranked list.",
+            "schema": {
+              "$ref": "#/components/schemas/CasesFeedSort"
+            }
+          },
+          {
             "name": "scope",
             "required": false,
             "in": "query",
@@ -48795,7 +48804,7 @@
             "name": "sort",
             "required": false,
             "in": "query",
-            "description": "popular = likes + comments, then newest (offset cursor).",
+            "description": "popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).",
             "schema": {
               "$ref": "#/components/schemas/LatestPostsSort"
             }
@@ -104121,7 +104130,15 @@
         "type": "string",
         "enum": [
           "newest",
-          "popular"
+          "popular",
+          "for_you"
+        ]
+      },
+      "CasesFeedSort": {
+        "type": "string",
+        "enum": [
+          "newest",
+          "for_you"
         ]
       },
       "ActivityStatusDto": {

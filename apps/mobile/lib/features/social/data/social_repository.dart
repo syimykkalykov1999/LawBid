@@ -182,6 +182,8 @@ abstract interface class SocialRepository {
     bool withPhotos = false,
     bool briefsOnly = false,
     bool popular = false,
+    // Owner 2026-10-13: ranked for the viewer (the Search grid's default).
+    bool forYou = false,
     // Owner 2026-10-05: the "Posts" topic — general (personal) posts only.
     bool generalOnly = false,
     // Owner 2026-10-06: several states at once, and «Юр. посты» →
@@ -406,6 +408,7 @@ class ApiSocialRepository implements SocialRepository {
     bool withPhotos = false,
     bool briefsOnly = false,
     bool popular = false,
+    bool forYou = false,
     bool generalOnly = false,
     List<String> states = const [],
     List<String> practices = const [],
@@ -422,7 +425,11 @@ class ApiSocialRepository implements SocialRepository {
         period: period == null ? null : api.Period.fromJson(period),
         withPhotos: withPhotos ? true : null,
         briefsOnly: briefsOnly ? true : null,
-        sort: popular ? api.LatestPostsSort.popular : null,
+        sort: forYou
+            ? api.LatestPostsSort.forYou
+            : popular
+                ? api.LatestPostsSort.popular
+                : null,
         contentClass: generalOnly ? api.PostContentClass.general : null,
       ),
     );

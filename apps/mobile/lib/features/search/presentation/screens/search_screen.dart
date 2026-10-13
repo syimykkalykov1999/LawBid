@@ -745,6 +745,8 @@ ExploreCasesKey _casesKey(SearchFilters f) => (
         noBids: f.noBids,
         minUrgency: f.minUrgency,
         hasDeadline: f.hasDeadline,
+        // Owner 2026-10-13: cases ranked for this attorney.
+        forYou: true,
       ),
     );
 
@@ -756,6 +758,8 @@ ExplorePostsKey _postsKey(SearchFilters f) => (
       withPhotos: f.withPhotos,
       briefsOnly: f.briefsOnly,
       popular: f.postSort == PostSort.popular,
+      // Owner 2026-10-13: the grid is ranked for me unless a sort is picked.
+      forYou: f.postSort == PostSort.relevance,
     );
 
 /// "Show more" under an explore grid.
