@@ -1579,6 +1579,12 @@ export 'models/admin_team_row_dto_plan.dart';
 export 'models/admin_team_dto_plan.dart';
 export 'models/admin_member_duties_dto_duties.dart';
 export 'models/post_author_dto_role.dart';
+export 'models/post_attachments_allowed_dto.dart';
+export 'models/post_attachments_allowed_dto_mode.dart';
+export 'models/post_attachments_allowed_envelope.dart';
+export 'models/post_attachments_mode_dto.dart';
+export 'models/post_attachments_mode_dto_mode.dart';
+export 'models/post_attachments_mode_envelope.dart';
 export 'models/comment_author_dto_kind.dart';
 export 'models/case_detail_for_attorney_dto_completion_requested_by.dart';
 export 'models/resolve_contact_issue_dto_decision.dart';
@@ -1800,4 +1806,3 @@ export 'models/case_activity_dto.dart';
 export 'models/case_activity_list_envelope.dart';
 export 'models/case_activity_dto_kind.dart';
 export 'models/case_activity_dto_actor_role.dart';
-

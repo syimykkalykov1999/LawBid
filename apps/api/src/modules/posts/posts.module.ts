@@ -6,6 +6,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { VideosModule } from '../videos/videos.module';
 import { BunnyWebhookController } from './bunny-webhook.controller';
 import { ContentFilterService } from './content-filter.service';
+import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostEngagementService } from './post-engagement.service';
 import { PostVideosController } from './post-videos.controller';
 import { PostVideosService } from './post-videos.service';
@@ -30,6 +31,7 @@ import { PostsService } from './posts.service';
     PostEngagementService,
     PostVideosService,
     ContentFilterService,
+    PostAttachmentsPolicy,
   ],
   exports: [
     PostsService,
@@ -37,6 +39,7 @@ import { PostsService } from './posts.service';
     PostEngagementService,
     PostVideosService,
     ContentFilterService,
+    PostAttachmentsPolicy,
   ],
 })
 export class PostsModule {}

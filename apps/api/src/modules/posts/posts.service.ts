@@ -44,6 +44,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { extractHashtags } from './hashtags';
+import { PostAttachmentsPolicy } from './post-attachments.policy';
 import {
   BRIEF_POST_WHERE,
   PostPresenter,
@@ -85,6 +86,7 @@ export class PostsService {
     private readonly moderation: ContentModerationHook,
     private readonly videos: VideosService,
     private readonly notifications: NotificationsService,
+    private readonly attachmentsPolicy: PostAttachmentsPolicy,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
@@ -125,6 +127,15 @@ export class PostsService {
         message: `A post with files is up to ${POST_BODY_MAX_WITH_FILES} characters.`,
         details: { field: 'body' },
       });
+    }
+    // Owner 2026-10-13: documents and extra photos need the right to
+    // attach (the admin's setting + plan); the post's own photo and a
+    // reel's video do not.
+    if (
+      (dto.attachments?.length ?? 0) > 0 ||
+      (dto.mediaFileIds?.length ?? 0) > 1
+    ) {
+      await this.attachmentsPolicy.assertCanAttach(user.sub);
     }
     const video = dto.videoAssetId
       ? await this.attachableVideo(user.sub, dto.videoAssetId)

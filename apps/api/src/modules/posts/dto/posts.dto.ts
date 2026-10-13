@@ -518,3 +518,12 @@ export class SavedPostsQueryDto {
   @MaxLength(300)
   cursor?: string;
 }
+
+/** Owner 2026-10-13: can the caller attach files to a new post / reel. */
+export class PostAttachmentsAllowedDto {
+  @ApiProperty()
+  allowed!: boolean;
+
+  @ApiProperty({ enum: ['by_subscription', 'off_for_all', 'on_for_all'] })
+  mode!: 'by_subscription' | 'off_for_all' | 'on_for_all';
+}

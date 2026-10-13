@@ -430,6 +430,13 @@ export const OWNER_FEED_SETTINGS = {
   'feed.default_content_mode': 'all',
 };
 
+// Owner 2026-10-13: who may ADD files, documents and extra photos to a post
+// or a reel: 'by_subscription' | 'off_for_all' | 'on_for_all'. Everyone
+// always sees them. Off by default.
+export const OWNER_POST_ATTACHMENT_SETTINGS = {
+  attachments_in_posts: 'off_for_all',
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -458,6 +465,7 @@ export const APP_SETTINGS = {
   ...OWNER_OPS_SETTINGS,
   ...OWNER_TREASURY_SETTINGS,
   ...OWNER_FEED_SETTINGS,
+  ...OWNER_POST_ATTACHMENT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
