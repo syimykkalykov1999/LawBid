@@ -531,7 +531,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       // author's name, like the feed card.
                       Row(
                         children: [
-                          Flexible(
+                          // The name takes all the room; Follow sits at the
+                          // right edge of the row, not right after the name.
+                          Expanded(
                             child: Semantics(
                               button: true,
                               label: t.t(
@@ -583,7 +585,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                             ),
                           ),
                           if (!p.isMine) ...[
-                            const SizedBox(width: AppSpacing.sm),
+                            const SizedBox(width: 12),
                             // Capped so a long translation can't squeeze
                             // the name away.
                             ConstrainedBox(
@@ -759,6 +761,7 @@ class ReelFollowButton extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: type.caption.copyWith(
                       color: Colors.white,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

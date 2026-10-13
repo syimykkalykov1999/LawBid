@@ -1124,7 +1124,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.favoriteRounded,
                       icon: AppIcons.favoriteBorderRounded,
                       activeColor: colors.danger,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
@@ -1136,7 +1136,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
                       icon: AppIcons.modeCommentOutlined,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label: t.t('post.comments'),
                       // In the open thread the replies are right below:
@@ -1153,7 +1153,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.autoModeRounded,
                       icon: AppIcons.autoModeRounded,
                       activeColor: colors.success,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label:
                           t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
@@ -1166,7 +1166,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
                       icon: AppIcons.sendOutlined,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
@@ -1201,7 +1201,7 @@ class _ThreadsPost extends ConsumerWidget {
           activeIcon: AppIcons.bookmarkRounded,
           icon: AppIcons.bookmarkBorderRounded,
           activeColor: colors.gold,
-          size: 20,
+          size: 22,
           extent: 34,
           label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
           onTap: () => run(() => actions.toggleSave(p)),
@@ -1612,7 +1612,9 @@ class _AuthorRow extends ConsumerWidget {
           // Owner 2026-10-13: Follow / Following on the outer card too,
           // only on someone else's post.
           if (!post.isMine) ...[
-            // Capped so a long "Follow" can't squeeze the author's name.
+            // Capped so a long "Follow" can't squeeze the author's name;
+            // at least 12dp from whatever is on its left.
+            const SizedBox(width: 12),
             ConstrainedBox(
               constraints: BoxConstraints(maxWidth: compact ? 120 : 136),
               child: onDark

@@ -577,6 +577,11 @@ class FollowButton extends ConsumerWidget {
             initial;
     final duration =
         context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    // Owner 2026-10-13: every Follow in a feed, card or list is the same
+    // small outlined pill (Instagram-like): 28dp, 13sp, no icon.
+    final small = outlined && !expanded;
+    final compact = this.compact || small;
+    final showIcon = this.showIcon && !small;
     return Semantics(
       button: true,
       toggled: following,
@@ -594,10 +599,14 @@ class FollowButton extends ConsumerWidget {
         child: AnimatedContainer(
           duration: duration,
           curve: AppMotion.enterCurve,
-          height: expanded ? AppSizes.touchTarget : (outlined ? 30 : 36),
+          height: expanded
+              ? AppSizes.touchTarget
+              : (small ? 28 : (outlined ? 30 : 36)),
           width: expanded ? double.infinity : null,
           padding: EdgeInsets.symmetric(
-            horizontal: compact ? AppSpacing.md : AppSpacing.lg,
+            horizontal: small
+                ? AppSpacing.sm + 2
+                : (compact ? AppSpacing.md : AppSpacing.lg),
           ),
           alignment: compact ? null : Alignment.center,
           decoration: BoxDecoration(
@@ -645,7 +654,7 @@ class FollowButton extends ConsumerWidget {
                       t.t(following ? 'follow.following' : 'follow.follow'),
                       maxLines: 1,
                       style: type.button.copyWith(
-                        fontSize: 14,
+                        fontSize: small ? 13 : 14,
                         color: following
                             ? (outlined ? colors.textSecondary : colors.text)
                             : (outlined ? colors.gold : colors.onCtaBright),
