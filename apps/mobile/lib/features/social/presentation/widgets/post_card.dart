@@ -283,7 +283,7 @@ class PostCard extends ConsumerWidget {
               children: [
                 InlineReel(
                   post: p,
-                  onOpen: open,
+                  onOpen: () => ReelsScreen.open(context, from: p),
                   topInset: fromProfile ? 0 : 52,
                 ),
                 // The sound circle (reels play muted in the feed).
@@ -382,7 +382,9 @@ class PostCard extends ConsumerWidget {
               hashtags: hashtags,
               onOpen: open,
               onExpand: onExpand,
-              inPlaceOnly: !hasInner,
+              // Owner 2026-10-13: «ещё» always opens the text sheet; the
+              // inner card opens from the attached files.
+              inPlaceOnly: true,
               onMore: () => showPostTextSheet(context, p),
             ),
           if (p.attachments.isNotEmpty)

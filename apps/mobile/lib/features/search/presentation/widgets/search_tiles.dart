@@ -12,6 +12,7 @@ import 'package:lawbid/features/cases/presentation/widgets/compact_case_row.dart
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
+import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
@@ -41,6 +42,11 @@ class SearchPostTile extends ConsumerWidget {
           : 'search.kind.post',
     );
     void open() {
+      // Owner 2026-10-13: a video tile opens the Reels player.
+      if (post.video != null) {
+        ReelsScreen.open(context, from: post);
+        return;
+      }
       final list = feed;
       final i = list?.indexWhere((p) => p.id == post.id) ?? -1;
       if (list == null || i < 0) {

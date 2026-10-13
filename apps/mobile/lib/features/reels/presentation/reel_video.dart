@@ -251,9 +251,6 @@ class InlineReel extends StatefulWidget {
 class _InlineReelState extends State<InlineReel> {
   bool _visible = false;
 
-  /// Owner 2026-10-13 (Instagram): one tap on the video pauses it, the next
-  /// continues; no play / stop buttons.
-  bool _paused = false;
   Timer? _viewTimer;
 
   /// Owner 2026-10-12: a reel counts as viewed after a few seconds on
@@ -290,14 +287,15 @@ class _InlineReelState extends State<InlineReel> {
         }
       },
       child: GestureDetector(
-        onTap: () => setState(() => _paused = !_paused),
+        // Owner 2026-10-13: in the feed a tap on the playing video opens the
+        // full-screen player; pause / resume live in the player.
+        onTap: widget.onOpen,
         child: Stack(
           fit: StackFit.expand,
           children: [
             ReelVideo(
               video: video,
               active: _visible && video.ready,
-              paused: _paused,
             ),
             if (!video.ready)
               const Center(
