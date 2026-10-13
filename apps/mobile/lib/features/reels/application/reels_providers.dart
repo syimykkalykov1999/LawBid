@@ -18,11 +18,12 @@ final reelsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('video_posts'),
 );
 
-/// The reels' sound: one switch for every reel, like Instagram. Feed
-/// previews always play muted.
+/// The reels' sound: one switch for every video of the session, like
+/// Instagram — videos start muted; turn the sound on once and the next
+/// ones play with it.
 class ReelsMuted extends Notifier<bool> {
   @override
-  bool build() => false;
+  bool build() => true;
 
   void toggle() => state = !state;
 }

@@ -35,19 +35,19 @@ final class AppTypographyTokens extends ThemeExtension<AppTypographyTokens> {
         titleLarge: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 26,
+          fontSize: 22,
           height: 1.2,
         ),
         titleMedium: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 24,
+          fontSize: 18,
           height: 1.2,
         ),
         titleWelcome: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 21,
+          fontSize: 20,
           height: 1.28,
         ),
         roleTitle: TextStyle(
@@ -75,24 +75,24 @@ final class AppTypographyTokens extends ThemeExtension<AppTypographyTokens> {
         button: TextStyle(
           fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w600,
-          fontSize: 15,
+          fontSize: 14,
         ),
         caption: TextStyle(
           fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w400,
-          fontSize: 11,
+          fontSize: 12,
           height: 1.5,
         ),
         legalFine: TextStyle(
           fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w400,
-          fontSize: 10,
+          fontSize: 11,
           height: 1.45,
         ),
         badge: TextStyle(
           fontFamily: AppFontFamilies.sans,
           fontWeight: FontWeight.w600,
-          fontSize: 10.5,
+          fontSize: 11,
         ),
       );
 

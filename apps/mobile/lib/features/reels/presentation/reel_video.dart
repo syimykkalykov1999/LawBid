@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:video_player/video_player.dart';
@@ -250,6 +251,7 @@ class InlineReel extends StatefulWidget {
 
 class _InlineReelState extends State<InlineReel> {
   bool _visible = false;
+  int _flash = 0;
 
   Timer? _viewTimer;
 
@@ -275,8 +277,6 @@ class _InlineReelState extends State<InlineReel> {
   @override
   Widget build(BuildContext context) {
     final video = widget.post.video!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final d = video.durationSec;
     return VisibilityDetector(
       key: ValueKey('reel-${widget.post.id}'),
       onVisibilityChanged: (info) {
@@ -293,9 +293,12 @@ class _InlineReelState extends State<InlineReel> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ReelVideo(
-              video: video,
-              active: _visible && video.ready,
+            Consumer(
+              builder: (context, ref, _) => ReelVideo(
+                video: video,
+                active: _visible && video.ready,
+                muted: ref.watch(reelsMutedProvider),
+              ),
             ),
             if (!video.ready)
               const Center(
@@ -305,37 +308,72 @@ class _InlineReelState extends State<InlineReel> {
                   color: Colors.white70,
                 ),
               ),
+            // Instagram: a small speaker in the corner toggles the sound
+            // for the whole session; a tap flashes the icon in the middle.
             PositionedDirectional(
-              top: AppSpacing.md + widget.topInset,
               end: AppSpacing.md,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const AppIcon(
-                      AppIcons.filmReelRounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                    if (d != null) ...[
-                      const SizedBox(width: 4),
-                      Text(
-                        formatReelDuration(d),
-                        style: type.caption.copyWith(color: Colors.white),
+              bottom: AppSpacing.md,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final muted = ref.watch(reelsMutedProvider);
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      ref.read(reelsMutedProvider.notifier).toggle();
+                      setState(() => _flash++);
+                    },
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
                       ),
-                    ],
-                  ],
-                ),
+                      child: Icon(
+                        muted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
+            if (_flash > 0)
+              Center(
+                child: IgnorePointer(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final muted = ref.watch(reelsMutedProvider);
+                      return TweenAnimationBuilder<double>(
+                        key: ValueKey(_flash),
+                        tween: Tween(begin: 1, end: 0),
+                        duration: const Duration(milliseconds: 900),
+                        curve: Curves.easeIn,
+                        builder: (_, v, child) =>
+                            Opacity(opacity: v, child: child),
+                        child: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            muted
+                                ? Icons.volume_off_rounded
+                                : Icons.volume_up_rounded,
+                            size: 28,
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
           ],
         ),
       ),

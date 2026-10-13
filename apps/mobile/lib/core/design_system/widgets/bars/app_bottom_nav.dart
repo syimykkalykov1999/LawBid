@@ -79,7 +79,9 @@ class AppBottomNav extends StatelessWidget {
       final selected = index == currentIndex;
       // Label contrast (WCAG 4.5:1) on the tinted block: the selected
       // label uses the text colour, the icon carries the gold accent.
-      final iconColor = selected ? colors.goldDark : colors.textSecondary;
+      // Owner 2026-10-13: no tinted block under the selected tab; the icon
+      // itself turns gold (the gold of the client check).
+      final iconColor = selected ? colors.gold : colors.textSecondary;
       return Expanded(
         child: Semantics(
           button: true,
@@ -101,9 +103,7 @@ class AppBottomNav extends StatelessWidget {
                 width: 52,
                 margin: const EdgeInsets.symmetric(vertical: 3),
                 decoration: BoxDecoration(
-                  color: selected
-                      ? colors.goldTint
-                      : colors.goldTint.withValues(alpha: 0),
+                  color: Colors.transparent,
                   borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
                 child: Column(

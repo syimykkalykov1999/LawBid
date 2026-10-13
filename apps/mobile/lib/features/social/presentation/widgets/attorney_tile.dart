@@ -242,7 +242,11 @@ class _NameWithCheckFitted extends StatelessWidget {
     required this.style,
     required this.maxLines,
     required this.textAlign,
+    this.gold = false,
   });
+
+  /// Clients wear the gold check, attorneys the blue one.
+  final bool gold;
 
   final String name;
   final String checkLabel;
@@ -263,7 +267,11 @@ class _NameWithCheckFitted extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.only(left: _gap),
               child: real
-                  ? VerifiedCheck(label: checkLabel, size: _checkSize)
+                  ? VerifiedCheck(
+                      label: checkLabel,
+                      size: _checkSize,
+                      gold: gold,
+                    )
                   : const SizedBox(width: _checkSize + 8, height: _checkSize),
             ),
           ),
@@ -486,21 +494,28 @@ class ClientTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text.rich(
-                    nameWithCheck(
-                      row.displayName,
-                      verified: row.verified,
+                  if (row.verified)
+                    _NameWithCheckFitted(
+                      name: row.displayName,
                       checkLabel: t.t('post.verified'),
+                      gold: true,
+                      maxLines: 2,
+                      textAlign: TextAlign.start,
+                      style: type.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else
+                    Text(
+                      row.displayName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: type.body.copyWith(
                         color: colors.text,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    style: type.body.copyWith(
-                      color: colors.text,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                   Text(
                     '@${row.username}',
                     maxLines: 1,
@@ -818,16 +833,16 @@ class RecommendedTile extends ConsumerWidget {
               children: [
                 PersonAvatar(row: row, size: 44),
                 const SizedBox(height: AppSpacing.xs),
-                // Room for two lines of name in every tile, so the rating
+                // One line of name (with the check on it) in every tile, so the rating
                 // and Follow sit at the same height in all of them.
                 SizedBox(
-                  height: 2 * _bodyLineHeight(context),
+                  height: _bodyLineHeight(context),
                   child: Align(
                     alignment: Alignment.topCenter,
                     child: PersonNameBadges(
                       row: row,
                       textAlign: TextAlign.center,
-                      maxLines: 2,
+                      maxLines: 1,
                     ),
                   ),
                 ),
@@ -836,6 +851,14 @@ class RecommendedTile extends ConsumerWidget {
                   row: row,
                   color: colors.textSecondary,
                   center: true,
+                ),
+                // Same height in every tile: one line, "+N" for the rest.
+                SizedBox(
+                  height: 18,
+                  child: PersonPracticesLine(
+                    row: row,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 FollowButton(

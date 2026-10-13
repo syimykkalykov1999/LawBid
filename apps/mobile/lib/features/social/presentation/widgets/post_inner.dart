@@ -176,27 +176,15 @@ class _InnerHeader extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        a.displayName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: type.body.copyWith(
-                                          color: colors.text,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    if (a.verified) ...[
-                                      const SizedBox(width: AppSpacing.xs),
-                                      VerifiedCheck(
-                                        label: t.t('post.verified'),
-                                        gold: a.isClient,
-                                      ),
-                                    ],
-                                  ],
+                                AuthorNameLine(
+                                  name: a.displayName,
+                                  verified: a.verified,
+                                  gold: a.isClient,
+                                  checkLabel: t.t('post.verified'),
+                                  style: type.body.copyWith(
+                                    color: colors.text,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                                 Text(
                                   place.isEmpty ? role : '$role · $place',

@@ -286,26 +286,6 @@ class PostCard extends ConsumerWidget {
                   onOpen: () => ReelsScreen.open(context, from: p),
                   topInset: fromProfile ? 0 : 52,
                 ),
-                // The sound circle (reels play muted in the feed).
-                PositionedDirectional(
-                  end: AppSpacing.md,
-                  bottom: AppSpacing.md,
-                  child: IgnorePointer(
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.volume_off_rounded,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
                 if (!fromProfile)
                   Positioned(
                     top: 0,
@@ -1560,27 +1540,15 @@ class _AuthorRow extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  a.displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.body.copyWith(
-                                    color: onDark ? Colors.white : colors.text,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              if (a.verified) ...[
-                                const SizedBox(width: AppSpacing.xs),
-                                VerifiedCheck(
-                                  label: t.t('post.verified'),
-                                  gold: a.isClient,
-                                ),
-                              ],
-                            ],
+                          AuthorNameLine(
+                            name: a.displayName,
+                            verified: a.verified,
+                            gold: a.isClient,
+                            checkLabel: t.t('post.verified'),
+                            style: type.body.copyWith(
+                              color: onDark ? Colors.white : colors.text,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           Text(
                             sponsored
@@ -1687,6 +1655,48 @@ class _OwnMenuRow extends ConsumerWidget {
 }
 
 /// docs/05 §2.4 "синяя галочка" next to verified attorneys.
+/// The one author-name line used by every card and the Reels player: the
+/// name on a single line ending in "…" when it is long, the check right
+/// after it on the same line and never cut. (Follow sits at the row's
+/// right edge, outside this widget.)
+class AuthorNameLine extends StatelessWidget {
+  const AuthorNameLine({
+    required this.name,
+    required this.verified,
+    required this.checkLabel,
+    required this.style,
+    this.gold = false,
+    this.checkSize = 16,
+    super.key,
+  });
+
+  final String name;
+  final bool verified;
+  final String checkLabel;
+  final TextStyle style;
+  final bool gold;
+  final double checkSize;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+          if (verified) ...[
+            const SizedBox(width: AppSpacing.xs),
+            VerifiedCheck(label: checkLabel, size: checkSize, gold: gold),
+          ],
+        ],
+      );
+}
+
 class VerifiedCheck extends StatelessWidget {
   const VerifiedCheck({
     required this.label,

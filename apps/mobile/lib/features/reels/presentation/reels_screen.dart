@@ -559,10 +559,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                                     ),
                                     const SizedBox(width: AppSpacing.sm),
                                     Flexible(
-                                      child: Text(
-                                        p.author.displayName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      child: AuthorNameLine(
+                                        name: p.author.displayName,
+                                        verified: p.author.verified,
+                                        gold: p.author.isClient,
+                                        checkLabel: t.t('post.verified'),
                                         style: type.body.copyWith(
                                           color: Colors.white,
                                           fontWeight: FontWeight.w700,
@@ -570,15 +571,6 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                                         ),
                                       ),
                                     ),
-                                    // Attorneys blue, clients gold — as on
-                                    // the feed card.
-                                    if (p.author.verified) ...[
-                                      const SizedBox(width: 4),
-                                      VerifiedCheck(
-                                        label: t.t('post.verified'),
-                                        gold: p.author.isClient,
-                                      ),
-                                    ],
                                   ],
                                 ),
                               ),
