@@ -186,6 +186,7 @@ class PostCard extends ConsumerWidget {
                         t,
                         colors,
                         run,
+                        innerOn: ref.watch(innerCardsEnabledProvider),
                         fillHeight: feedHeight != null &&
                                 !inDetail &&
                                 MediaQuery.textScalerOf(context).scale(10) <= 13
@@ -207,6 +208,7 @@ class PostCard extends ConsumerWidget {
     AppColorTokens colors,
     Future<void> Function(Future<Object?> Function()) run, {
     double? fillHeight,
+    bool innerOn = true,
   }) {
     final (title, rest) = titleAndRest(p);
     final (text, hashtags) = splitTrailingTags(rest);
@@ -215,7 +217,7 @@ class PostCard extends ConsumerWidget {
     final promotionId = post.promotionId;
     // Owner 2026-10-13: a post without attachments has no inner card — a
     // tap on it opens nothing (like Instagram); comments via the sheet.
-    final hasInner = p.hasInner;
+    final hasInner = p.hasInner && innerOn;
     void open() {
       if (!hasInner) return;
       if (promotionId != null) {
@@ -281,7 +283,7 @@ class PostCard extends ConsumerWidget {
               children: [
                 InlineReel(
                   post: p,
-                  onOpen: open,
+                  onOpen: () => ReelsScreen.open(context, from: p),
                   topInset: fromProfile ? 0 : 52,
                 ),
                 // The sound circle (reels play muted in the feed).
@@ -345,11 +347,9 @@ class PostCard extends ConsumerWidget {
                   practiceCode: p.practice?.code,
                   seed: p.id,
                 );
-      final tappable = AppPressable(
-        onTap: hasInner ? open : null,
-        child: picture,
-      );
-      return photoBox(tappable, fill: fill, onShort: onShort);
+      // Owner 2026-10-13: the inner card opens only by «ещё» and the
+      // attached files, never by a tap on the picture.
+      return photoBox(picture, fill: fill, onShort: onShort);
     }
 
     // Owner 2026-10-12: the height the compact header frees goes to the
@@ -382,7 +382,9 @@ class PostCard extends ConsumerWidget {
               hashtags: hashtags,
               onOpen: open,
               onExpand: onExpand,
-              inPlaceOnly: !hasInner,
+              // Owner 2026-10-13: «ещё» always opens the text sheet; the
+              // inner card opens from the attached files.
+              inPlaceOnly: true,
               onMore: () => showPostTextSheet(context, p),
             ),
           if (p.attachments.isNotEmpty)

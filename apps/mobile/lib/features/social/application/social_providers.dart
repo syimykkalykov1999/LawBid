@@ -47,6 +47,13 @@ final postAttachmentsAllowedProvider = FutureProvider.autoDispose<bool>(
   },
 );
 
+/// Owner 2026-10-13: inner cards (the page behind a post / reel with
+/// attachments, the «Watch» strip) are off until the admin switches
+/// attachments on (`attachments_in_posts`, default off for all).
+final innerCardsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(postAttachmentsAllowedProvider).value ?? false,
+);
+
 final socialRepositoryProvider = Provider<SocialRepository>(
   (ref) => ApiSocialRepository(
     apiDio: ref.watch(dioProvider),
@@ -307,6 +314,7 @@ typedef ExplorePostsKey = ({
   String? practice,
   String? period,
   bool withPhotos,
+  bool briefsOnly,
   bool popular,
 });
 
@@ -325,6 +333,7 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
           tag: practice == null ? null : topicTagFor(practice.split('.').first),
           period: key.period,
           withPhotos: key.withPhotos,
+          briefsOnly: key.briefsOnly,
           popular: key.popular,
         );
   }

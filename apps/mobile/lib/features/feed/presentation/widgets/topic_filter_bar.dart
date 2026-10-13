@@ -285,6 +285,8 @@ class TopicFilterBar extends ConsumerWidget {
     final topics = ref.watch(feedTopicsProvider);
     final legalOnly = showNews &&
         ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
+    final briefsOnly = showNews &&
+        ref.watch(feedContentModeProvider) == FeedContentMode.briefsOnly;
     final newsOn = ref.watch(newsEnabledProvider);
 
     Widget pill({
@@ -388,10 +390,12 @@ class TopicFilterBar extends ConsumerWidget {
             pill(
               key: const ValueKey('feed-all'),
               label: t.t('feed.topics.all'),
-              selected: category == null && !legalOnly,
+              selected: category == null && !legalOnly && !briefsOnly,
               onTap: () {
                 onCategory(null);
-                if (legalOnly) _setContent(context, ref, FeedContentMode.all);
+                if (legalOnly || briefsOnly) {
+                  _setContent(context, ref, FeedContentMode.all);
+                }
               },
             ),
             if (showNews) ...[
@@ -403,6 +407,17 @@ class TopicFilterBar extends ConsumerWidget {
                   context,
                   ref,
                   legalOnly ? FeedContentMode.all : FeedContentMode.legalOnly,
+                ),
+              ),
+              // Owner 2026-10-13: "Briefs" — only text-only posts.
+              pill(
+                key: const ValueKey('feed-briefs'),
+                label: t.t('feed.briefs'),
+                selected: briefsOnly,
+                onTap: () => _setContent(
+                  context,
+                  ref,
+                  briefsOnly ? FeedContentMode.all : FeedContentMode.briefsOnly,
                 ),
               ),
             ],

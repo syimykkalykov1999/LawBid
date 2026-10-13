@@ -250,6 +250,7 @@ class InlineReel extends StatefulWidget {
 
 class _InlineReelState extends State<InlineReel> {
   bool _visible = false;
+
   Timer? _viewTimer;
 
   /// Owner 2026-10-12: a reel counts as viewed after a few seconds on
@@ -286,11 +287,16 @@ class _InlineReelState extends State<InlineReel> {
         }
       },
       child: GestureDetector(
+        // Owner 2026-10-13: in the feed a tap on the playing video opens the
+        // full-screen player; pause / resume live in the player.
         onTap: widget.onOpen,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ReelVideo(video: video, active: _visible && video.ready),
+            ReelVideo(
+              video: video,
+              active: _visible && video.ready,
+            ),
             if (!video.ready)
               const Center(
                 child: AppIcon(

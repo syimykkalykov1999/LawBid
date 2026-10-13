@@ -180,6 +180,7 @@ abstract interface class SocialRepository {
     // Audit 2026-10-01: Search-tab filters on the server.
     String? period,
     bool withPhotos = false,
+    bool briefsOnly = false,
     bool popular = false,
     // Owner 2026-10-05: the "Posts" topic — general (personal) posts only.
     bool generalOnly = false,
@@ -204,8 +205,8 @@ abstract interface class SocialRepository {
 
   /// Owner 2026-10-05: the feed shows legal posts only (general, personal
   /// posts hidden in the feed, topics, search and recommendations).
-  Future<bool> legalOnlyFeed();
-  Future<void> setLegalOnlyFeed({required bool legalOnly});
+  Future<String> feedContentMode();
+  Future<void> setFeedContentMode(String mode);
   Future<void> setLiked(String postId, {required bool liked});
 
   /// Owner 2026-10-07: Threads-style repost / undo (idempotent).
@@ -314,17 +315,14 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<bool> legalOnlyFeed() async =>
-      (await guardApiCall(_feed.getPreferences)).data.contentMode ==
-      api.FeedContentMode.legalOnly;
+  Future<String> feedContentMode() async =>
+      (await guardApiCall(_feed.getPreferences)).data.contentMode.json ?? 'all';
 
   @override
-  Future<void> setLegalOnlyFeed({required bool legalOnly}) => guardApiCall(
+  Future<void> setFeedContentMode(String mode) => guardApiCall(
         () => _feed.setPreferences(
           body: api.FeedPreferencesDto(
-            contentMode: legalOnly
-                ? api.FeedContentMode.legalOnly
-                : api.FeedContentMode.all,
+            contentMode: api.FeedContentMode.fromJson(mode),
           ),
         ),
       );
@@ -406,6 +404,7 @@ class ApiSocialRepository implements SocialRepository {
     bool newsOnly = false,
     String? period,
     bool withPhotos = false,
+    bool briefsOnly = false,
     bool popular = false,
     bool generalOnly = false,
     List<String> states = const [],
@@ -422,6 +421,7 @@ class ApiSocialRepository implements SocialRepository {
         kind: newsOnly ? api.PostKind.news : null,
         period: period == null ? null : api.Period.fromJson(period),
         withPhotos: withPhotos ? true : null,
+        briefsOnly: briefsOnly ? true : null,
         sort: popular ? api.LatestPostsSort.popular : null,
         contentClass: generalOnly ? api.PostContentClass.general : null,
       ),

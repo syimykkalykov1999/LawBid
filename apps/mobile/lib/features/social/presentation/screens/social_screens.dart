@@ -744,6 +744,8 @@ class ProfilePostsGrid extends ConsumerWidget {
                 return PostGridTile(
                   post: p,
                   semanticLabel: t.t('post.open'),
+                  // Owner 2026-10-13: every video in the app starts by itself.
+                  autoplay: true,
                   // Owner 2026-10-07: their posts as a feed from here.
                   onTap: () => PostsFeedScreen.open(
                     context,

@@ -178,6 +178,7 @@ class _SearchClient implements SearchClient {
     String? tag,
     String? state,
     bool? withPhotos,
+    bool? briefsOnly,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -191,6 +192,7 @@ class _SearchClient implements SearchClient {
       r'tag': tag,
       r'state': state,
       r'withPhotos': withPhotos,
+      r'briefsOnly': briefsOnly,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -329,6 +331,7 @@ class _SearchClient implements SearchClient {
     String? tag,
     PostKind? kind,
     bool? withPhotos,
+    bool? briefsOnly,
     LatestPostsSort? sort,
     PostContentClass? contentClass,
     Map<String, dynamic>? extras,
@@ -345,6 +348,7 @@ class _SearchClient implements SearchClient {
       r'tag': tag,
       r'kind': kind?.toJson(),
       r'withPhotos': withPhotos,
+      r'briefsOnly': briefsOnly,
       r'sort': sort?.toJson(),
       r'contentClass': contentClass?.toJson(),
     };

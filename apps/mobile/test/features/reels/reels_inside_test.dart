@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
@@ -93,6 +94,8 @@ class _Reels extends ReelsRepository {
 }
 
 void main() {
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
+
   setUpAll(initializeDateFormatting);
 
   group('ReelCut (trim + cover)', () {
@@ -302,13 +305,17 @@ void main() {
     expect(box.height, lessThanOrEqualTo(48));
     expect(box.bottom, greaterThan(narrowPhone.height - 80));
 
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-    expect(find.byType(ReelDetailScreen), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the inner card: header, tabs, documents (no Info tab)',
+      (tester) async {
+    await pump(tester, ReelDetailScreen(post: _reel()));
     // Owner 2026-10-13: the inner card — header, tabs, documents tab.
     expect(find.byType(PostInnerCard), findsOneWidget);
     expect(find.text('Рилс'), findsOneWidget);
     expect(find.text('Обзор'), findsOneWidget);
+    expect(find.text('Инфо'), findsNothing);
     await tester.tap(find.text('Документы'));
     await tester.pumpAndSettle();
     expect(find.text('Notes.docx'), findsOneWidget);
@@ -482,7 +489,7 @@ void main() {
         await tester.drag(find.byType(ListView), const Offset(0, -600));
         await tester.pump();
         expect(tester.takeException(), isNull);
-        for (final tab in ['documents', 'info']) {
+        for (final tab in ['documents']) {
           await tester.tap(find.textContaining(t.t('postInner.tab.$tab')));
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);

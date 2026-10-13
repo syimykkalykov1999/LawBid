@@ -7,7 +7,23 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 /// every post, or only legal ones (general posts such as food or travel
 /// hidden). Kept on the server (it filters there); the last value is also
 /// kept on the device so the slider shows it before the network answers.
-enum FeedContentMode { all, legalOnly }
+enum FeedContentMode {
+  all('all'),
+  legalOnly('legal_only'),
+
+  /// Owner 2026-10-13: only text-only posts ("Briefs").
+  briefsOnly('briefs_only');
+
+  const FeedContentMode(this.wire);
+
+  /// The value the server knows it by.
+  final String wire;
+
+  static FeedContentMode fromName(String? v) => values.firstWhere(
+        (m) => m.name == v || m.wire == v,
+        orElse: () => all,
+      );
+}
 
 const _prefsKey = 'feed.contentMode.v1';
 
@@ -16,9 +32,7 @@ class FeedContentModeNotifier extends Notifier<FeedContentMode> {
   FeedContentMode build() {
     try {
       final saved = ref.read(sharedPreferencesProvider).getString(_prefsKey);
-      if (saved == FeedContentMode.legalOnly.name) {
-        return FeedContentMode.legalOnly;
-      }
+      return FeedContentMode.fromName(saved);
     } on Object {
       // Tests / previews without preferences: the default.
     }
@@ -28,9 +42,9 @@ class FeedContentModeNotifier extends Notifier<FeedContentMode> {
   /// The server's value (the admin default until the person picks one).
   Future<void> sync() async {
     try {
-      final legalOnly =
-          await ref.read(socialRepositoryProvider).legalOnlyFeed();
-      final mode = legalOnly ? FeedContentMode.legalOnly : FeedContentMode.all;
+      final mode = FeedContentMode.fromName(
+        await ref.read(socialRepositoryProvider).feedContentMode(),
+      );
       if (_apply(mode)) _reloadLists();
     } on Object {
       // Offline: keep the value on the device.
@@ -41,9 +55,7 @@ class FeedContentModeNotifier extends Notifier<FeedContentMode> {
     final before = state;
     if (!_apply(mode)) return;
     try {
-      await ref
-          .read(socialRepositoryProvider)
-          .setLegalOnlyFeed(legalOnly: mode == FeedContentMode.legalOnly);
+      await ref.read(socialRepositoryProvider).setFeedContentMode(mode.wire);
       // The server filters: reload the lists with the new rule.
       _reloadLists();
     } on Object {
