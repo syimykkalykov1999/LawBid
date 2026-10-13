@@ -1832,6 +1832,10 @@ class VerifiedCheck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Owner 2026-10-13: the only check is the client's gold one (active
+    // subscription). Attorneys have none — their sign is the green Identity
+    // badge on the avatar.
+    if (!gold) return const SizedBox.shrink();
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return Semantics(
       label: label,

@@ -741,14 +741,6 @@ class AttorneyLine extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (attorney.verifiedBadge) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    AppIcon(
-                      AppIcons.verifiedRounded,
-                      size: AppSpacing.lg,
-                      color: colors.goldAccent,
-                    ),
-                  ],
                   // Owner 2026-10-05: trust level (docs/ATTORNEY_TRUST.md).
                   const SizedBox(width: AppSpacing.sm),
                   Flexible(

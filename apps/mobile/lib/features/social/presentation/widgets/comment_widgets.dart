@@ -220,6 +220,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                             VerifiedCheck(
                               label: t.t('post.verified'),
                               size: 13,
+                              gold: !a.isAttorney,
                             ),
                           ],
                           const SizedBox(width: AppSpacing.sm),
@@ -437,6 +438,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                                   VerifiedCheck(
                                     label: t.t('post.verified'),
                                     size: 13,
+                                    gold: !a.isAttorney,
                                   ),
                                 ],
                                 const SizedBox(width: AppSpacing.sm),

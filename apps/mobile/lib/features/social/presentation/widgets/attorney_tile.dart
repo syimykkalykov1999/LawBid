@@ -128,8 +128,10 @@ class IdentityAvatar extends ConsumerWidget {
       size: size,
       ring: ring,
     );
-    if (trustLevel < 1) return avatar;
-    final c = trustLevelColors(colors, trustLevel);
+    // Owner 2026-10-13: one attorney sign — the green Identity badge, only
+    // once the profile is confirmed (identity level and above).
+    if (trustLevel < 2) return avatar;
+    final c = trustLevelColors(colors, 2);
     final badge = size * 0.4;
     final label = t.t(TrustLevels.nameKey(trustLevel));
     return SizedBox(

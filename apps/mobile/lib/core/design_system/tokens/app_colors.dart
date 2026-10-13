@@ -175,7 +175,7 @@ abstract final class AppColorsGlass {
   static const Color surface = Color(0x1AFFFFFF);
 
   /// A sheet / dialog over the glass (artifact `--shb`).
-  static const Color sheet = Color(0xD1142C3C);
+  static const Color sheet = Color(0xFF142C3C);
   static const Color text = Color(0xFFF4F8FB);
   static const Color textSecondary = Color(0xADE2ECF4);
   static const Color border = Color(0x2EFFFFFF);
