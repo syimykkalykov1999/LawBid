@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/login_identifier.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
+import 'package:lawbid/features/auth/presentation/screens/change_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/set_password_screen.dart';
@@ -24,6 +25,7 @@ class PasswordRepo extends RecordingAuthRepository {
   PasswordAuthResult resetResult = const PasswordAuthResult.success();
   final List<({String identifier, String password})> logins = [];
   final List<String> passwordsSet = [];
+  final List<String?> currentPasswords = [];
   final List<String> resetRequests = [];
   final List<({String identifier, String code, String password})> resets = [];
 
@@ -37,8 +39,12 @@ class PasswordRepo extends RecordingAuthRepository {
   }
 
   @override
-  Future<PasswordAuthResult> setPassword(String password) async {
+  Future<PasswordAuthResult> setPassword(
+    String password, {
+    String? currentPassword,
+  }) async {
     passwordsSet.add(password);
+    currentPasswords.add(currentPassword);
     return setResult;
   }
 
@@ -268,6 +274,25 @@ void main() {
       expect(repo.passwordsSet, ['12345678']);
     });
 
+    testWidgets('change password sends the current and the new one',
+        (tester) async {
+      await open(tester, AuthRoutes.changePassword);
+      expect(find.byType(ChangePasswordScreen), findsOneWidget);
+      await tester.enterText(find.byType(TextField).first, 'Old-pass-1');
+      await tester.enterText(find.byType(TextField).last, 'short');
+      await tester.pump();
+      await tester.tap(button('Save'), warnIfMissed: false);
+      await tester.pump();
+      expect(repo.passwordsSet, isEmpty);
+
+      await tester.enterText(find.byType(TextField).last, 'New-pass-22');
+      await tester.pump();
+      await tester.tap(button('Save'));
+      await tester.pump();
+      expect(repo.passwordsSet, ['New-pass-22']);
+      expect(repo.currentPasswords, ['Old-pass-1']);
+    });
+
     testWidgets(
         'forgot password: code to the phone, then code + new '
         'password', (tester) async {
@@ -309,6 +334,7 @@ void main() {
       for (final location in [
         AuthRoutes.login,
         AuthRoutes.setPassword,
+        AuthRoutes.changePassword,
         AuthRoutes.forgotPassword,
       ]) {
         testWidgets('$location fits 360 dp without overflow ($name, x1.3)',

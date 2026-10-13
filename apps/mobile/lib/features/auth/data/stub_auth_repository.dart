@@ -46,7 +46,10 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<PasswordAuthResult> setPassword(String password) async {
+  Future<PasswordAuthResult> setPassword(
+    String password, {
+    String? currentPassword,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return const PasswordAuthResult.success();
   }

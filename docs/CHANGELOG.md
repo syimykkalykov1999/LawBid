@@ -9,6 +9,7 @@ branch cursor/stage-X-Y-description).
 
 Owner: "like Instagram", so signing out and in does not cost an SMS each time.
 
+- **Settings → Change password** (`/auth/change-password`): current + new password; the server checks the current one and ends the other sessions.
 - Sign-up is unchanged (phone + one SMS code). Right after it the router guard shows **Create a password** (`/auth/set-password`, 8+ characters, show/hide) while `GET /users/me` says `passwordRequired`; accounts that signed in with a code before get it once too. Demo-world and assistant accounts are exempt.
 - **Log in** (`/auth/login`, link on Welcome): one field for a phone number or e-mail + password, no SMS; a wrong answer is always the same `AUTH_INVALID_CREDENTIALS` (unknown account costs the same time as a wrong password). The existing "signed in on another phone" question and all suspended/deleted/ban/fraud checks apply as for the SMS code.
 - **Forgot password** (`/auth/forgot-password`): a code to the verified e-mail (only while the admin's e-mail flows are on), else an SMS (the only paid path; nothing is sent for an unknown account); then code + new password, which ends every session and signs this device in.

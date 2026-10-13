@@ -152,9 +152,12 @@ class RealAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<PasswordAuthResult> setPassword(String password) async {
+  Future<PasswordAuthResult> setPassword(
+    String password, {
+    String? currentPassword,
+  }) async {
     try {
-      await _client.setPassword(password);
+      await _client.setPassword(password, currentPassword: currentPassword);
       return const PasswordAuthResult.success();
     } on ApiException catch (e) {
       return _passwordFailure(e);

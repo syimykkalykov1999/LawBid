@@ -130,8 +130,14 @@ class AuthApiClient {
   }
 
   /// `POST /auth/password` — sets the password of the signed-in account.
-  Future<void> setPassword(String password) => guardApiCall(
-        () => _auth.setPassword(body: api.SetPasswordDto(password: password)),
+  Future<void> setPassword(String password, {String? currentPassword}) =>
+      guardApiCall(
+        () => _auth.setPassword(
+          body: api.SetPasswordDto(
+            password: password,
+            currentPassword: currentPassword,
+          ),
+        ),
       );
 
   /// `POST /auth/password/reset/request` — a code to the account's verified

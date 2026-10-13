@@ -125,7 +125,10 @@ abstract interface class AuthRepository {
   });
 
   /// Sets the password of the signed-in account (after the sign-up code).
-  Future<PasswordAuthResult> setPassword(String password);
+  Future<PasswordAuthResult> setPassword(
+    String password, {
+    String? currentPassword,
+  });
 
   /// Forgot password: sends a code to the account's verified e-mail, else
   /// an SMS. [PasswordAuthResult.channel] says which.

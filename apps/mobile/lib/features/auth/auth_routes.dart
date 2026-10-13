@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 
 import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/change_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
@@ -36,6 +37,9 @@ abstract final class AuthRoutes {
   static const login = '/auth/login';
   static const forgotPassword = '/auth/forgot-password';
   static const setPassword = '/auth/set-password';
+
+  /// Settings → Change password (signed in).
+  static const changePassword = '/auth/change-password';
 
   /// Same path as `OnboardingRoutes.forStep(OnboardingStepId.role)`; the
   /// route itself is registered by onboardingRoutes().
@@ -91,6 +95,11 @@ List<RouteBase> authRoutes() => [
                 state.extra is String ? state.extra! as String : '',
           ),
         ),
+      ),
+      GoRoute(
+        path: AuthRoutes.changePassword,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ChangePasswordScreen()),
       ),
       GoRoute(
         path: AuthRoutes.setPassword,

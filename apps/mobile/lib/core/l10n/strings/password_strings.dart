@@ -30,6 +30,12 @@ const passwordRu = <String, String>{
   'auth.forgot.submit': 'Сохранить и войти',
   'auth.forgot.resend': 'Отправить код ещё раз',
   'error.api.AUTH_INVALID_CREDENTIALS': 'Неверный номер, email или пароль.',
+  'auth.change.title': 'Сменить пароль',
+  'auth.change.body': 'Введите текущий пароль и придумайте новый.',
+  'auth.change.current.hint': 'Текущий пароль',
+  'auth.change.new.hint': 'Новый пароль',
+  'auth.change.submit': 'Сохранить',
+  'auth.change.done': 'Пароль изменён',
 };
 
 const passwordEn = <String, String>{
@@ -61,4 +67,10 @@ const passwordEn = <String, String>{
   'auth.forgot.resend': 'Send the code again',
   'error.api.AUTH_INVALID_CREDENTIALS':
       'Incorrect phone number, email or password.',
+  'auth.change.title': 'Change password',
+  'auth.change.body': 'Enter your current password and choose a new one.',
+  'auth.change.current.hint': 'Current password',
+  'auth.change.new.hint': 'New password',
+  'auth.change.submit': 'Save',
+  'auth.change.done': 'Password changed',
 };
