@@ -225,6 +225,7 @@ class _InnerHeader extends ConsumerWidget {
                     child: FollowButton(
                       attorneyId: a.id,
                       initial: a.isFollowing,
+                      outlined: true,
                     ),
                   ),
                 ],
@@ -401,7 +402,11 @@ class _ReelPlayer extends ConsumerWidget {
                 color: Colors.black,
                 child: cover == null
                     ? null
-                    : CachedNetworkImage(imageUrl: cover, fit: BoxFit.cover),
+                    : CachedNetworkImage(
+                        imageUrl: cover,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                      ),
               ),
               const Center(
                 child: AppIcon(
@@ -552,6 +557,9 @@ class _Photos extends ConsumerWidget {
                   child: CachedNetworkImage(
                     imageUrl: m.previewUrl,
                     fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => const ColoredBox(
+                      color: Colors.black26,
+                    ),
                   ),
                 ),
               ),

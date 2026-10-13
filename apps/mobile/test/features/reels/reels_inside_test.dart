@@ -25,6 +25,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_inner.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -304,19 +305,27 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
     expect(find.byType(ReelDetailScreen), findsOneWidget);
-    expect(find.text('Внутри рилса'), findsOneWidget);
-    // Owner 2026-10-07: one «Посмотреть · N» button opens the files.
-    final view = find.descendant(
-      of: find.byType(PostAttachmentsButton),
-      matching: find.byType(AppPressable),
-    );
-    await tester.ensureVisible(view);
+    // Owner 2026-10-13: the inner card — header, tabs, documents tab.
+    expect(find.byType(PostInnerCard), findsOneWidget);
+    expect(find.text('Рилс'), findsOneWidget);
+    expect(find.text('Обзор'), findsOneWidget);
+    await tester.tap(find.text('Документы'));
     await tester.pumpAndSettle();
-    await tester.tap(view);
-    await tester.pumpAndSettle();
-    expect(find.byType(PostDocumentsList), findsOneWidget);
     expect(find.text('Notes.docx'), findsOneWidget);
+    expect(find.text('Скачать'), findsWidgets);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('owner 2026-10-13: a reel without attachments has no «Смотреть»',
+      (tester) async {
+    await pump(
+      tester,
+      ReelsScreen(initial: [_reel(photos: false, docs: false)]),
+      extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
+    );
+    expect(find.byType(ReelMoreButton), findsNothing);
+    expect(find.text('Смотреть'), findsNothing);
+    expect(find.text('Читать'), findsNothing);
   });
 
   testWidgets(
@@ -473,6 +482,11 @@ void main() {
         await tester.drag(find.byType(ListView), const Offset(0, -600));
         await tester.pump();
         expect(tester.takeException(), isNull);
+        for (final tab in ['documents', 'info']) {
+          await tester.tap(find.textContaining(t.t('postInner.tab.$tab')));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+        }
       });
 
       testWidgets('the documents editor', (tester) async {

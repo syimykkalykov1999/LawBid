@@ -322,7 +322,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
     // none the strip goes and the author, text and rail drop down.
     final more = p.hasInner;
-    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.sm;
+    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {

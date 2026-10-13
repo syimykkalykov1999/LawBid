@@ -243,11 +243,16 @@ class FollowButton extends ConsumerWidget {
     required this.attorneyId,
     required this.initial,
     this.expanded = false,
+    this.outlined = false,
     super.key,
   });
 
   final String attorneyId;
   final bool initial;
+
+  /// Owner 2026-10-13: on post / reel cards Follow is a gold outline and
+  /// Following a grey one, small, next to the author's name.
+  final bool outlined;
 
   /// Full-width (profile) instead of a compact pill (lists).
   final bool expanded;
@@ -279,17 +284,20 @@ class FollowButton extends ConsumerWidget {
         child: AnimatedContainer(
           duration: duration,
           curve: AppMotion.enterCurve,
-          height: expanded ? AppSizes.touchTarget : 36,
+          height: expanded ? AppSizes.touchTarget : (outlined ? 30 : 36),
           width: expanded ? double.infinity : null,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: following ? Colors.transparent : colors.ctaBright,
+            color:
+                following || outlined ? Colors.transparent : colors.ctaBright,
             borderRadius: BorderRadius.circular(
               expanded ? AppRadii.field : AppRadii.pill,
             ),
             border: Border.all(
-              color: following ? colors.border : colors.ctaBright,
+              color: following
+                  ? colors.border
+                  : (outlined ? colors.gold : colors.ctaBright),
             ),
           ),
           child: AnimatedSwitcher(
@@ -310,7 +318,9 @@ class FollowButton extends ConsumerWidget {
                       ? AppIcons.checkRounded
                       : AppIcons.personAddAlt1Rounded,
                   size: AppSizes.iconSm,
-                  color: following ? colors.text : colors.onCtaBright,
+                  color: following
+                      ? colors.textSecondary
+                      : (outlined ? colors.gold : colors.onCtaBright),
                 ),
                 const SizedBox(width: AppSpacing.xs),
                 // Shrinks at 200% text scale instead of overflowing.
@@ -322,7 +332,9 @@ class FollowButton extends ConsumerWidget {
                       maxLines: 1,
                       style: type.button.copyWith(
                         fontSize: 14,
-                        color: following ? colors.text : colors.onCtaBright,
+                        color: following
+                            ? (outlined ? colors.textSecondary : colors.text)
+                            : (outlined ? colors.gold : colors.onCtaBright),
                       ),
                     ),
                   ),

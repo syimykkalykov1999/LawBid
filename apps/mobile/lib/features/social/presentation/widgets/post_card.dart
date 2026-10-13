@@ -1583,8 +1583,15 @@ class _AuthorRow extends ConsumerWidget {
             ConstrainedBox(
               constraints: BoxConstraints(maxWidth: compact ? 120 : 136),
               child: onDark
-                  ? ReelFollowButton(attorneyId: a.id, initial: a.isFollowing)
-                  : FollowButton(attorneyId: a.id, initial: a.isFollowing),
+                  ? ReelFollowButton(
+                      attorneyId: a.id,
+                      initial: a.isFollowing,
+                    )
+                  : FollowButton(
+                      attorneyId: a.id,
+                      initial: a.isFollowing,
+                      outlined: true,
+                    ),
             ),
             const SizedBox(width: AppSpacing.xs),
           ],
@@ -2518,7 +2525,7 @@ class _ShortDate extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
-      padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: AppSpacing.xs),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
