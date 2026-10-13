@@ -186,6 +186,7 @@ class PostCard extends ConsumerWidget {
                         t,
                         colors,
                         run,
+                        innerOn: ref.watch(innerCardsEnabledProvider),
                         fillHeight: feedHeight != null &&
                                 !inDetail &&
                                 MediaQuery.textScalerOf(context).scale(10) <= 13
@@ -207,6 +208,7 @@ class PostCard extends ConsumerWidget {
     AppColorTokens colors,
     Future<void> Function(Future<Object?> Function()) run, {
     double? fillHeight,
+    bool innerOn = true,
   }) {
     final (title, rest) = titleAndRest(p);
     final (text, hashtags) = splitTrailingTags(rest);
@@ -215,7 +217,7 @@ class PostCard extends ConsumerWidget {
     final promotionId = post.promotionId;
     // Owner 2026-10-13: a post without attachments has no inner card — a
     // tap on it opens nothing (like Instagram); comments via the sheet.
-    final hasInner = p.hasInner;
+    final hasInner = p.hasInner && innerOn;
     void open() {
       if (!hasInner) return;
       if (promotionId != null) {

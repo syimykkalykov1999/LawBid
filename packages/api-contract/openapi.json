@@ -103294,7 +103294,8 @@
         "type": "string",
         "enum": [
           "all",
-          "legal_only"
+          "legal_only",
+          "briefs_only"
         ]
       },
       "FeedPreferencesDto": {

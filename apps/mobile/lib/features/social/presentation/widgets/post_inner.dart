@@ -7,7 +7,6 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
@@ -21,7 +20,7 @@ import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-10-13: the inner card of a post and of a reel — modelled on
 /// the opened case. Header ("< Post", author, Follow, "…"), text tabs
-/// Overview | Documents | Photos | Info, comments only through the sheet.
+/// Overview | Documents | Photos, comments only through the sheet.
 /// The same card opens from Posts and (for a reel) from the Reels player.
 class PostInnerCard extends ConsumerStatefulWidget {
   const PostInnerCard({required this.post, this.onBack, super.key});
@@ -35,7 +34,7 @@ class PostInnerCard extends ConsumerStatefulWidget {
   ConsumerState<PostInnerCard> createState() => _PostInnerCardState();
 }
 
-enum _Tab { overview, documents, photos, info }
+enum _Tab { overview, documents, photos }
 
 class _PostInnerCardState extends ConsumerState<PostInnerCard> {
   _Tab _tab = _Tab.overview;
@@ -52,14 +51,12 @@ class _PostInnerCardState extends ConsumerState<PostInnerCard> {
       _Tab.overview,
       if (p.attachments.isNotEmpty) _Tab.documents,
       if (!isReel && p.media.isNotEmpty) _Tab.photos,
-      _Tab.info,
     ];
     final current = tabs.contains(_tab) ? _tab : _Tab.overview;
     String label(_Tab x) => switch (x) {
           _Tab.overview => t.t('postInner.tab.overview'),
           _Tab.documents => t.t('postInner.tab.documents'),
           _Tab.photos => t.t('postInner.tab.photos'),
-          _Tab.info => t.t('postInner.tab.info'),
         };
     int? count(_Tab x) => switch (x) {
           _Tab.documents => p.attachments.length,
@@ -91,7 +88,6 @@ class _PostInnerCardState extends ConsumerState<PostInnerCard> {
                     _Tab.overview => _Overview(post: p),
                     _Tab.documents => _Documents(post: p),
                     _Tab.photos => _Photos(post: p),
-                    _Tab.info => _Info(post: p),
                   },
                 ],
               ),
@@ -562,94 +558,6 @@ class _Photos extends ConsumerWidget {
                     ),
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Info extends ConsumerWidget {
-  const _Info({required this.post});
-
-  final Post post;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final f = ref.watch(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final p = post;
-    final pr = p.practice;
-    final place = (p.author.location ?? '').trim();
-    final rows = <(String, String)>[
-      (t.t('postInner.info.author'), p.author.displayName),
-      (
-        t.t('postInner.info.type'),
-        t.t(
-          p.video != null
-              ? 'postInner.info.type.reel'
-              : 'postInner.info.type.post',
-        ),
-      ),
-      (t.t('postInner.info.published'), f.date(p.createdAt)),
-      if (pr != null)
-        (
-          t.t('postInner.info.practice'),
-          CaseFormat.practice(t, pr.i18nKey, pr.nameEn),
-        ),
-      if (place.isNotEmpty) (t.t('postInner.info.place'), place),
-      if (p.video != null) ...[
-        (t.t('postInner.info.views'), SocialFormat.count(f, p.viewCount)),
-        if ((p.video!.durationSec ?? 0) > 0)
-          (t.t('postInner.info.duration'), _clock(p.video!.durationSec!)),
-      ],
-      if (p.attachments.isNotEmpty)
-        (t.t('postInner.info.documents'), '${p.attachments.length}'),
-      if (p.video == null && p.media.isNotEmpty)
-        (t.t('postInner.info.photos'), '${p.media.length}'),
-      (t.t('postInner.info.likes'), SocialFormat.count(f, p.likeCount)),
-      if (p.commentsEnabled)
-        (
-          t.t('postInner.info.comments'),
-          SocialFormat.count(f, p.commentCount),
-        ),
-    ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      child: Column(
-        children: [
-          for (final r in rows)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: Text(
-                      r.$1,
-                      style: type.body.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    flex: 6,
-                    child: Text(
-                      r.$2,
-                      textAlign: TextAlign.end,
-                      style: type.body.copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
         ],

@@ -6,6 +6,7 @@
 
 const newsOffRu = <String, String>{
   'feed.legalPosts': 'Юр. посты',
+  'feed.briefs': 'Briefs',
   'feed.legal.all': 'Все юр. посты',
   'feed.legal.mine': 'Только мои темы',
   'feed.legal.mineEmpty':
@@ -33,6 +34,7 @@ const newsOffRu = <String, String>{
 
 const newsOffEn = <String, String>{
   'feed.legalPosts': 'Legal posts',
+  'feed.briefs': 'Briefs',
   'feed.legal.all': 'All legal posts',
   'feed.legal.mine': 'Only my topics',
   'feed.legal.mineEmpty':

@@ -322,7 +322,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     final actions = ref.read(socialActionsProvider);
     // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
     // none the strip goes and the author, text and rail drop down.
-    final more = p.hasInner;
+    final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
     final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
@@ -350,29 +350,34 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       Color? color,
     }) =>
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-          child: Semantics(
-            button: true,
-            label: label,
-            excludeSemantics: true,
-            child: GestureDetector(
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                children: [
-                  AppIcon(icon, size: 30, color: color ?? Colors.white),
-                  if (count != null && count > 0) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      SocialFormat.count(f, count),
-                      style: type.caption.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        shadows: shadow,
+          // Owner 2026-10-13: small, Instagram-like rail — a 26 icon, the
+          // count in 12, a tight step, whatever the system text size.
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: MediaQuery.withNoTextScaling(
+            child: Semantics(
+              button: true,
+              label: label,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  children: [
+                    AppIcon(icon, size: 26, color: color ?? Colors.white),
+                    if (count != null && count > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        SocialFormat.count(f, count),
+                        style: type.caption.copyWith(
+                          fontSize: 12,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          shadows: shadow,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
