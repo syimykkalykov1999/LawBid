@@ -695,13 +695,17 @@ class SuggestedAttorneys extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
-            AppSpacing.lg,
+            AppSpacing.md,
             AppSpacing.screenSide,
             AppSpacing.xs,
           ),
           child: Text(
             t.t('suggestions.title'),
-            style: type.titleMedium.copyWith(color: colors.text),
+            style: type.body.copyWith(
+              color: colors.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         ...staggeredEntrance([
@@ -741,13 +745,17 @@ class RecommendedAttorneys extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
-            AppSpacing.lg,
+            AppSpacing.md,
             AppSpacing.screenSide,
-            AppSpacing.sm,
+            AppSpacing.xs,
           ),
           child: Text(
             t.t('search.recommended'),
-            style: type.titleMedium.copyWith(color: colors.text),
+            style: type.body.copyWith(
+              color: colors.text,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         SingleChildScrollView(
@@ -785,7 +793,7 @@ class RecommendedTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return SizedBox(
-      width: 156,
+      width: 132,
       child: AppPressable(
         onTap: () =>
             openProfile(context, ref, id: row.id, username: row.username),
@@ -796,11 +804,11 @@ class RecommendedTile extends ConsumerWidget {
             border: Border.all(color: colors.border),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppSpacing.sm),
             child: Column(
               children: [
-                PersonAvatar(row: row, size: 56),
-                const SizedBox(height: AppSpacing.sm),
+                PersonAvatar(row: row, size: 44),
+                const SizedBox(height: AppSpacing.xs),
                 // Room for two lines of name in every tile, so the rating
                 // and Follow sit at the same height in all of them.
                 SizedBox(

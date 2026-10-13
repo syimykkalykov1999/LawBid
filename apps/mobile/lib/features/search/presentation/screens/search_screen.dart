@@ -430,19 +430,28 @@ class _BeforeTyping extends ConsumerWidget {
     final last = recent.isEmpty ? null : recent.first;
     final attorney = ref.watch(actsAsAttorneyProvider);
 
-    Widget title(String text, {Widget? trailing}) => Padding(
-          padding: const EdgeInsets.fromLTRB(
+    Widget title(String text, {Widget? trailing, bool small = false}) =>
+        Padding(
+          padding: EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
-            AppSpacing.lg,
+            small ? AppSpacing.md : AppSpacing.lg,
             AppSpacing.sm,
-            AppSpacing.sm,
+            small ? AppSpacing.xs : AppSpacing.sm,
           ),
           child: Row(
             children: [
               Expanded(
                 child: Text(
                   text,
-                  style: type.titleMedium.copyWith(color: colors.text),
+                  maxLines: small ? 1 : null,
+                  overflow: small ? TextOverflow.ellipsis : null,
+                  style: small
+                      ? type.body.copyWith(
+                          color: colors.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        )
+                      : type.titleMedium.copyWith(color: colors.text),
                 ),
               ),
               if (trailing != null)
@@ -647,39 +656,75 @@ class _BeforeTyping extends ConsumerWidget {
             SliverToBoxAdapter(
               child: title(
                 t.t('search.recent'),
-                trailing: TextButton(
-                  onPressed: () =>
+                small: true,
+                trailing: GestureDetector(
+                  onTap: () =>
                       ref.read(recentSearchesProvider.notifier).clear(),
-                  child: Text(
-                    t.t('search.recent.clear'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Text(
+                      t.t('search.recent.clear'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(
+                        color: colors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
             SliverToBoxAdapter(
               child: SizedBox(
-                height: 44,
+                height: 30,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.screenSide,
                   ),
                   itemCount: recent.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(width: AppSpacing.sm),
-                  // Bounded width: the chip's label is Flexible, which needs
-                  // a finite max width inside a horizontal list.
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, i) => ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 220),
-                    child: AppChip(
-                      label: recent[i],
-                      leading: const AppIcon(
-                        AppIcons.historyRounded,
-                        size: AppSpacing.lg,
-                      ),
+                    constraints: const BoxConstraints(maxWidth: 200),
+                    child: GestureDetector(
                       onTap: () => onRecent(recent[i]),
+                      behavior: HitTestBehavior.opaque,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppIcon(
+                                AppIcons.historyRounded,
+                                size: 14,
+                                color: colors.textSecondary,
+                              ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  recent[i],
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.body.copyWith(
+                                    color: colors.text,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -688,7 +733,10 @@ class _BeforeTyping extends ConsumerWidget {
           ],
           if (basedOn.isNotEmpty) ...[
             SliverToBoxAdapter(
-              child: title(t.t('search.section.basedOn', {'q': last!})),
+              child: title(
+                t.t('search.section.basedOn', {'q': last!}),
+                small: true,
+              ),
             ),
             ...basedOn,
           ],
