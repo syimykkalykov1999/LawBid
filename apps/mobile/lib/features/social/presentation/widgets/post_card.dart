@@ -2944,7 +2944,13 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
                     Padding(
                       padding: const EdgeInsets.only(top: 3),
                       child: GestureDetector(
-                        onTap: widget.onOpen,
+                        // Owner 2026-10-13: without an inner card a tap on the
+                        // opened text folds it back.
+                        onTap: widget.inPlaceOnly
+                            ? (_expanded
+                                ? () => setState(() => _expanded = false)
+                                : null)
+                            : widget.onOpen,
                         child: Text.rich(
                           TextSpan(
                             style: bodyStyle,

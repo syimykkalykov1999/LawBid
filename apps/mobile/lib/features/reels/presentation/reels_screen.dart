@@ -268,6 +268,7 @@ class _ReelPage extends ConsumerStatefulWidget {
 }
 
 class _ReelPageState extends ConsumerState<_ReelPage> {
+  bool _captionOpen = false;
   bool _paused = false;
   final _progress = ValueNotifier<double>(0);
   Timer? _viewTimer;
@@ -415,6 +416,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       AppIcons.playArrowRounded,
                       size: 72,
                       color: Colors.white70,
+                    ),
+                  ),
+                // Owner 2026-10-13: the opened caption dims the video.
+                if (_captionOpen && !more)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _captionOpen = false),
+                      child: const ColoredBox(color: Colors.black54),
                     ),
                   ),
                 // Bottom shade so the caption reads on any video.
@@ -618,21 +628,35 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         // A short caption; the whole text is inside (the
-                        // button below).
-                        GestureDetector(
-                          onTap: widget.embedded && more
-                              ? () => _openInside(p)
-                              : null,
-                          child: Text(
-                            caption,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                        // button below) — or, with no attachments, opens in
+                        // place over the video (owner 2026-10-13).
+                        if (more)
+                          GestureDetector(
+                            onTap:
+                                widget.embedded ? () => _openInside(p) : null,
+                            child: Text(
+                              caption,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.body.copyWith(
+                                color: Colors.white,
+                                shadows: shadow,
+                              ),
+                            ),
+                          )
+                        else
+                          _ReelCaption(
+                            text: caption,
+                            expanded: _captionOpen,
+                            moreLabel: t.t('post.more'),
                             style: type.body.copyWith(
                               color: Colors.white,
                               shadows: shadow,
                             ),
+                            maxExpandedHeight:
+                                MediaQuery.sizeOf(context).height * 0.45,
+                            onToggle: (v) => setState(() => _captionOpen = v),
                           ),
-                        ),
                       ],
                     ],
                   ),
@@ -821,6 +845,73 @@ class ReelMoreButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-13: a reel without attachments — two lines and a grey
+/// «ещё»; a tap opens the whole text in place (scrolls when long), a tap
+/// on the text or the dimmed video folds it back.
+class _ReelCaption extends StatelessWidget {
+  const _ReelCaption({
+    required this.text,
+    required this.expanded,
+    required this.moreLabel,
+    required this.style,
+    required this.maxExpandedHeight,
+    required this.onToggle,
+  });
+
+  final String text;
+  final bool expanded;
+  final String moreLabel;
+  final TextStyle style;
+  final double maxExpandedHeight;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (expanded) {
+      return GestureDetector(
+        onTap: () => onToggle(false),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxExpandedHeight),
+          child: SingleChildScrollView(child: Text(text, style: style)),
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, box) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: 2,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: box.maxWidth);
+        if (!painter.didExceedMaxLines) return Text(text, style: style);
+        return GestureDetector(
+          onTap: () => onToggle(true),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+              Text(
+                moreLabel,
+                style: style.copyWith(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
