@@ -32,6 +32,7 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart'
@@ -382,6 +383,7 @@ class PostCard extends ConsumerWidget {
               onOpen: open,
               onExpand: onExpand,
               inPlaceOnly: !hasInner,
+              onMore: () => showPostTextSheet(context, p),
             ),
           if (p.attachments.isNotEmpty)
             _DocChips(documents: p.attachments, onOpen: open),
@@ -2766,8 +2768,12 @@ class _FeedCaption extends ConsumerStatefulWidget {
     required this.onOpen,
     this.onExpand,
     this.inPlaceOnly = false,
+    this.onMore,
     super.key,
   });
+
+  /// With [inPlaceOnly]: opens the description sheet.
+  final VoidCallback? onMore;
 
   /// Owner 2026-10-13: a post without an inner card — a long text opens in
   /// place too, nothing else opens.
@@ -2916,7 +2922,11 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
                 final lines = painter.computeLineMetrics().length;
                 final collapsed = (lines > 2 || hasTags) && !_expanded;
                 _more.onTap = () {
-                  if (lines > 4 && !widget.inPlaceOnly) {
+                  if (widget.inPlaceOnly) {
+                    // Owner 2026-10-13: no inner card — «ещё» always opens
+                    // the text sheet; the card keeps its height.
+                    widget.onMore?.call();
+                  } else if (lines > 4) {
                     widget.onOpen();
                   } else {
                     widget.onExpand?.call();
@@ -2944,13 +2954,7 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
                     Padding(
                       padding: const EdgeInsets.only(top: 3),
                       child: GestureDetector(
-                        // Owner 2026-10-13: without an inner card a tap on the
-                        // opened text folds it back.
-                        onTap: widget.inPlaceOnly
-                            ? (_expanded
-                                ? () => setState(() => _expanded = false)
-                                : null)
-                            : widget.onOpen,
+                        onTap: widget.onOpen,
                         child: Text.rich(
                           TextSpan(
                             style: bodyStyle,

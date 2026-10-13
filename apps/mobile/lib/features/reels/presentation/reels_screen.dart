@@ -17,6 +17,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
@@ -268,7 +269,6 @@ class _ReelPage extends ConsumerStatefulWidget {
 }
 
 class _ReelPageState extends ConsumerState<_ReelPage> {
-  bool _captionOpen = false;
   bool _paused = false;
   final _progress = ValueNotifier<double>(0);
   Timer? _viewTimer;
@@ -416,15 +416,6 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       AppIcons.playArrowRounded,
                       size: 72,
                       color: Colors.white70,
-                    ),
-                  ),
-                // Owner 2026-10-13: the opened caption dims the video.
-                if (_captionOpen && !more)
-                  Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() => _captionOpen = false),
-                      child: const ColoredBox(color: Colors.black54),
                     ),
                   ),
                 // Bottom shade so the caption reads on any video.
@@ -647,15 +638,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         else
                           _ReelCaption(
                             text: caption,
-                            expanded: _captionOpen,
                             moreLabel: t.t('post.more'),
                             style: type.body.copyWith(
                               color: Colors.white,
                               shadows: shadow,
                             ),
-                            maxExpandedHeight:
-                                MediaQuery.sizeOf(context).height * 0.45,
-                            onToggle: (v) => setState(() => _captionOpen = v),
+                            onMore: () => showPostTextSheet(context, p),
                           ),
                       ],
                     ],
@@ -850,36 +838,22 @@ class ReelMoreButton extends StatelessWidget {
 }
 
 /// Owner 2026-10-13: a reel without attachments — two lines and a grey
-/// «ещё»; a tap opens the whole text in place (scrolls when long), a tap
-/// on the text or the dimmed video folds it back.
+/// «ещё» that opens the description sheet.
 class _ReelCaption extends StatelessWidget {
   const _ReelCaption({
     required this.text,
-    required this.expanded,
     required this.moreLabel,
     required this.style,
-    required this.maxExpandedHeight,
-    required this.onToggle,
+    required this.onMore,
   });
 
   final String text;
-  final bool expanded;
   final String moreLabel;
   final TextStyle style;
-  final double maxExpandedHeight;
-  final ValueChanged<bool> onToggle;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
-    if (expanded) {
-      return GestureDetector(
-        onTap: () => onToggle(false),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxExpandedHeight),
-          child: SingleChildScrollView(child: Text(text, style: style)),
-        ),
-      );
-    }
     return LayoutBuilder(
       builder: (context, box) {
         final painter = TextPainter(
@@ -890,7 +864,7 @@ class _ReelCaption extends StatelessWidget {
         )..layout(maxWidth: box.maxWidth);
         if (!painter.didExceedMaxLines) return Text(text, style: style);
         return GestureDetector(
-          onTap: () => onToggle(true),
+          onTap: onMore,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
