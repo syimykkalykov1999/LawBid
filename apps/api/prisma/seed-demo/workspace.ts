@@ -44,6 +44,9 @@ export async function seedCaseWorkspace(
     where: { id: bidId },
     data: { attorney_id: sofia.id },
   });
+  await prisma.$executeRaw`INSERT INTO contact_disclosures (id, case_id, bid_id, client_id, attorney_id, fields, disclosed_at)
+    SELECT md5('ws:disclosure:' || ${caseId})::uuid, ${caseId}::UUID, ${bidId}::UUID, ${amelia.id}::UUID, ${sofia.id}::UUID, ARRAY['name','phone','email'], now()
+    WHERE NOT EXISTS (SELECT 1 FROM contact_disclosures WHERE case_id = ${caseId}::UUID)`;
   await prisma.$executeRaw`UPDATE contact_disclosures SET client_id = ${amelia.id}::UUID, attorney_id = ${sofia.id}::UUID WHERE case_id = ${caseId}::UUID`;
   await prisma.$executeRaw`UPDATE conversations SET client_id = ${amelia.id}::UUID, attorney_id = ${sofia.id}::UUID WHERE case_id = ${caseId}::UUID`;
 
