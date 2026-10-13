@@ -256,7 +256,7 @@ class TaskRow extends ConsumerWidget {
               behavior: HitTestBehavior.opaque,
               onTap: _canTick ? () => _tick(context, ref) : null,
               child: Padding(
-                padding: const EdgeInsets.only(right: 12, top: 2),
+                padding: const EdgeInsetsDirectional.only(end: 12, top: 2),
                 child: _Tick(done: done, dim: !_canTick),
               ),
             ),
@@ -293,7 +293,7 @@ class TaskRow extends ConsumerWidget {
                         children: [
                           for (final f in sampleFiles)
                             Container(
-                              margin: const EdgeInsets.only(right: 6),
+                              margin: const EdgeInsetsDirectional.only(end: 6),
                               width: 28,
                               height: 28,
                               decoration: BoxDecoration(
@@ -319,10 +319,14 @@ class TaskRow extends ConsumerWidget {
                 ],
               ),
             ),
-            AppIcon(
-              AppIcons.chevronRightRounded,
-              size: 18,
-              color: colors.textSecondary,
+            // The arrow points the way the text goes (mirrored in RTL).
+            Transform.flip(
+              flipX: Directionality.of(context) == TextDirection.rtl,
+              child: AppIcon(
+                AppIcons.chevronRightRounded,
+                size: 18,
+                color: colors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -578,7 +582,8 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                                         )
                                     : null,
                                 child: Padding(
-                                  padding: const EdgeInsets.only(right: 12),
+                                  padding:
+                                      const EdgeInsetsDirectional.only(end: 12),
                                   child: _Tick(done: item.done),
                                 ),
                               ),
@@ -594,12 +599,16 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                           ),
                           for (final f in item.files)
                             Padding(
-                              padding: const EdgeInsets.only(left: 34),
+                              padding:
+                                  const EdgeInsetsDirectional.only(start: 34),
                               child: fileTile(f),
                             ),
                           if (!task.closed && !isAttorney)
                             Padding(
-                              padding: const EdgeInsets.only(left: 34, top: 6),
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 34,
+                                top: 6,
+                              ),
                               child: GestureDetector(
                                 onTap: () => _addFiles(
                                   isAttorney: isAttorney,
@@ -686,7 +695,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                 if (isAttorney && forClient) ...[
                   if (done)
                     Padding(
-                      padding: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsetsDirectional.only(end: 10),
                       child: AppButton(
                         label: t.t('cases.tasks.undo'),
                         variant: AppButtonVariant.secondary,
