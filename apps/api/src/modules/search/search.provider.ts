@@ -60,6 +60,9 @@ export interface PostSearchFilters {
  * SearchService (cases always go through CaseAccessPolicy there).
  */
 export type PersonRole = 'attorney' | 'client';
+/** How the name matched: 0 exact @username, 1 username prefix, 2 other.
+ * Personal ranking only reorders inside a tier (owner 2026-10-13). */
+export type PersonTier = 0 | 1 | 2;
 
 export interface SearchProvider {
   /** Ranked attorney ids (§7.3), at most [max]. */
@@ -75,7 +78,7 @@ export interface SearchProvider {
     q: string,
     filters: AttorneySearchFilters,
     max: number,
-  ): Promise<{ id: string; role: PersonRole }[]>;
+  ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]>;
   /** Case ids visible to the attorney by the §4.1 rules, newest first,
    * limit + 1 rows (the extra one signals a next page). */
   searchCases(

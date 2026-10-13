@@ -1,7 +1,9 @@
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
@@ -22,6 +24,7 @@ import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
+import { RecommendationsService } from '../recommendations/recommendations.service';
 import type {
   AttorneyListItemDto,
   AttorneyListPage,
@@ -51,6 +54,8 @@ const LISTABLE_ATTORNEY = {
  */
 @Injectable()
 export class FollowsService {
+  private readonly log = new Logger(FollowsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly limits: UsageLimitsService,
@@ -60,6 +65,8 @@ export class FollowsService {
     private readonly clients: ClientProfilesService,
     private readonly blocks: BlocksService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-13: personal ranking of the suggestions.
+    @Optional() private readonly recommendations?: RecommendationsService,
   ) {}
 
   async follow(user: RequestUser, attorneyId: string): Promise<void> {
@@ -275,9 +282,10 @@ export class FollowsService {
 
   /**
    * GET /suggestions/attorneys (§6.3): verified attorneys the user does not
-   * follow, by rating and activity (posts in 30 days), a client's own state
-   * first. The ranked pool is cached per state for 10 minutes; the cursor is
-   * a position in it.
+   * follow. Owner 2026-10-13: ranked per viewer by RecommendationsService
+   * (state, practices, mutual follows, rating, activity, Identity…); the
+   * old rating/activity pool per state stays as the fallback. The pool is
+   * cached for 10 minutes; the cursor is a position in it.
    */
   async suggestions(
     user: RequestUser,
@@ -292,7 +300,7 @@ export class FollowsService {
             })
           )?.state_code ?? null)
         : null;
-    const pool = await this.suggestionPool(state);
+    const pool = await this.suggestionIds(user.sub, state);
     const followed = new Set(
       (
         await this.prisma.follow.findMany({
@@ -325,6 +333,21 @@ export class FollowsService {
       nextCursor:
         i < pool.length ? Buffer.from(String(i)).toString('base64url') : null,
     };
+  }
+
+  /** The viewer's personal ranking, else the generic pool. */
+  private async suggestionIds(
+    viewerId: string,
+    state: string | null,
+  ): Promise<string[]> {
+    if (this.recommendations) {
+      try {
+        return await this.recommendations.peopleFor(viewerId);
+      } catch (err) {
+        this.log.warn(`personal suggestions failed: ${String(err)}`);
+      }
+    }
+    return this.suggestionPool(state);
   }
 
   private async suggestionPool(state: string | null): Promise<string[]> {

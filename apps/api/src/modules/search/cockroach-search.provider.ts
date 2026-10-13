@@ -12,6 +12,7 @@ import type {
   PostSearchFilters,
   CaseSearchParams,
   PersonRole,
+  PersonTier,
   SearchProvider,
 } from './search.provider';
 
@@ -49,7 +50,7 @@ export class CockroachSearchProvider implements SearchProvider {
     q: string,
     f: AttorneySearchFilters,
     max: number,
-  ): Promise<{ id: string; role: PersonRole }[]> {
+  ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
     // Attorney-only filters leave clients out; state also fits clients.
     const attorneyOnly =
       f.practiceAreaId !== undefined ||
@@ -70,7 +71,7 @@ export class CockroachSearchProvider implements SearchProvider {
     f: AttorneySearchFilters,
     max: number,
     withClients: boolean,
-  ): Promise<{ id: string; role: PersonRole }[]> {
+  ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
     const filters = Prisma.sql`
@@ -123,7 +124,7 @@ export class CockroachSearchProvider implements SearchProvider {
         WHERE TRUE ${clientFilters}`
       : Prisma.empty;
     const rows = await this.prisma.$queryRaw<
-      { id: string; role: PersonRole }[]
+      { id: string; role: PersonRole; tier: number }[]
     >`
       WITH cand AS (
         (SELECT user_id AS id FROM attorney_profiles
@@ -171,7 +172,9 @@ export class CockroachSearchProvider implements SearchProvider {
         WHERE TRUE ${filters}
         ${clients}
       )
-      SELECT id::TEXT AS id, role
+      SELECT id::TEXT AS id, role,
+             (CASE WHEN uname = ${q} THEN 0
+                   WHEN uname LIKE ${prefix} THEN 1 ELSE 2 END)::INT AS tier
       FROM people
       ORDER BY
         (uname = ${q}) DESC,
@@ -184,7 +187,11 @@ export class CockroachSearchProvider implements SearchProvider {
         rating DESC,
         id
       LIMIT ${max}`;
-    return rows;
+    return rows.map((r) => ({
+      id: r.id,
+      role: r.role,
+      tier: r.tier as PersonTier,
+    }));
   }
 
   searchCases(

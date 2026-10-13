@@ -1,3 +1,4 @@
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { CasePhotosService } from './services/case-photos.service';
 import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
@@ -66,6 +67,8 @@ import { CasesFeedService } from './services/cases-feed.service';
     ReferralsCoreModule,
     // Owner 2026-10-05: promoted cases in the feed (budget, reach, cap).
     PromotionsCoreModule,
+    // Owner 2026-10-13: "for you" ranking in Search.
+    RecommendationsModule,
   ],
   controllers: [
     CasesController,

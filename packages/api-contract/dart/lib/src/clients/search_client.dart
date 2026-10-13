@@ -176,7 +176,7 @@ abstract class SearchClient {
   ///
   /// [briefsOnly] - Only text-only posts (Briefs).
   ///
-  /// [sort] - popular = likes + comments, then newest (offset cursor).
+  /// [sort] - popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).
   ///
   /// [contentClass] - Owner 2026-10-05: only legal or only general (personal) posts — the.
   /// "Posts" topic lists general ones. Absent = the viewer's feed setting.
