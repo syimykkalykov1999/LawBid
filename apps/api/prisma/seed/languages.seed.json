@@ -1,0 +1,597 @@
+[
+ {
+  "code": "en",
+  "name_native": "English",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 0
+ },
+ {
+  "code": "ru",
+  "name_native": "Русский",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 1
+ },
+ {
+  "code": "es",
+  "name_native": "Español",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 2
+ },
+ {
+  "code": "fr",
+  "name_native": "Français",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 3
+ },
+ {
+  "code": "de",
+  "name_native": "Deutsch",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 4
+ },
+ {
+  "code": "it",
+  "name_native": "Italiano",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 5
+ },
+ {
+  "code": "pt",
+  "name_native": "Português",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 6
+ },
+ {
+  "code": "nl",
+  "name_native": "Nederlands",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 7
+ },
+ {
+  "code": "pl",
+  "name_native": "Polski",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 8
+ },
+ {
+  "code": "uk",
+  "name_native": "Українська",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 9
+ },
+ {
+  "code": "tr",
+  "name_native": "Türkçe",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 10
+ },
+ {
+  "code": "el",
+  "name_native": "Ελληνικά",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 11
+ },
+ {
+  "code": "cs",
+  "name_native": "Čeština",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 12
+ },
+ {
+  "code": "sk",
+  "name_native": "Slovenčina",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 13
+ },
+ {
+  "code": "hu",
+  "name_native": "Magyar",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 14
+ },
+ {
+  "code": "ro",
+  "name_native": "Română",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 15
+ },
+ {
+  "code": "bg",
+  "name_native": "Български",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 16
+ },
+ {
+  "code": "hr",
+  "name_native": "Hrvatski",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 17
+ },
+ {
+  "code": "sr",
+  "name_native": "Српски",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 18
+ },
+ {
+  "code": "sl",
+  "name_native": "Slovenščina",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 19
+ },
+ {
+  "code": "da",
+  "name_native": "Dansk",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 20
+ },
+ {
+  "code": "sv",
+  "name_native": "Svenska",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 21
+ },
+ {
+  "code": "nb",
+  "name_native": "Norsk bokmål",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 22
+ },
+ {
+  "code": "fi",
+  "name_native": "Suomi",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 23
+ },
+ {
+  "code": "ca",
+  "name_native": "Català",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 24
+ },
+ {
+  "code": "zh",
+  "name_native": "简体中文",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 25
+ },
+ {
+  "code": "ja",
+  "name_native": "日本語",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 26
+ },
+ {
+  "code": "ko",
+  "name_native": "한국어",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 27
+ },
+ {
+  "code": "vi",
+  "name_native": "Tiếng Việt",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 28
+ },
+ {
+  "code": "th",
+  "name_native": "ไทย",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 29
+ },
+ {
+  "code": "id",
+  "name_native": "Bahasa Indonesia",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 30
+ },
+ {
+  "code": "ms",
+  "name_native": "Bahasa Melayu",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 31
+ },
+ {
+  "code": "tl",
+  "name_native": "Filipino",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 32
+ },
+ {
+  "code": "hi",
+  "name_native": "हिन्दी",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 33
+ },
+ {
+  "code": "bn",
+  "name_native": "বাংলা",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 34
+ },
+ {
+  "code": "ur",
+  "name_native": "اردو",
+  "is_active": true,
+  "is_rtl": true,
+  "sort": 35
+ },
+ {
+  "code": "ta",
+  "name_native": "தமிழ்",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 36
+ },
+ {
+  "code": "te",
+  "name_native": "తెలుగు",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 37
+ },
+ {
+  "code": "mr",
+  "name_native": "मराठी",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 38
+ },
+ {
+  "code": "gu",
+  "name_native": "ગુજરાતી",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 39
+ },
+ {
+  "code": "kn",
+  "name_native": "ಕನ್ನಡ",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 40
+ },
+ {
+  "code": "ml",
+  "name_native": "മലയാളം",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 41
+ },
+ {
+  "code": "pa",
+  "name_native": "ਪੰਜਾਬੀ",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 42
+ },
+ {
+  "code": "ar",
+  "name_native": "العربية",
+  "is_active": true,
+  "is_rtl": true,
+  "sort": 43
+ },
+ {
+  "code": "he",
+  "name_native": "עברית",
+  "is_active": true,
+  "is_rtl": true,
+  "sort": 44
+ },
+ {
+  "code": "fa",
+  "name_native": "فارسی",
+  "is_active": true,
+  "is_rtl": true,
+  "sort": 45
+ },
+ {
+  "code": "ky",
+  "name_native": "Кыргызча",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 46
+ },
+ {
+  "code": "kk",
+  "name_native": "Қазақ тілі",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 47
+ },
+ {
+  "code": "uz",
+  "name_native": "O‘zbekcha",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 48
+ },
+ {
+  "code": "ht",
+  "name_native": "Kreyòl ayisyen",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 49
+ },
+ {
+  "code": "hy",
+  "name_native": "Հայերեն",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 50
+ },
+ {
+  "code": "am",
+  "name_native": "አማርኛ",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 51
+ },
+ {
+  "code": "so",
+  "name_native": "Soomaali",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 52
+ },
+ {
+  "code": "ne",
+  "name_native": "नेपाली",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 53
+ },
+ {
+  "code": "km",
+  "name_native": "ខ្មែរ",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 54
+ },
+ {
+  "code": "sq",
+  "name_native": "Shqip",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 55
+ },
+ {
+  "code": "az",
+  "name_native": "Azərbaycanca",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 56
+ },
+ {
+  "code": "ka",
+  "name_native": "ქართული",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 57
+ },
+ {
+  "code": "tg",
+  "name_native": "Тоҷикӣ",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 58
+ },
+ {
+  "code": "tk",
+  "name_native": "Türkmençe",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 59
+ },
+ {
+  "code": "mn",
+  "name_native": "Монгол",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 60
+ },
+ {
+  "code": "be",
+  "name_native": "Беларуская",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 61
+ },
+ {
+  "code": "lt",
+  "name_native": "Lietuvių",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 62
+ },
+ {
+  "code": "lv",
+  "name_native": "Latviešu",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 63
+ },
+ {
+  "code": "et",
+  "name_native": "Eesti",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 64
+ },
+ {
+  "code": "mk",
+  "name_native": "Македонски",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 65
+ },
+ {
+  "code": "bs",
+  "name_native": "Bosanski",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 66
+ },
+ {
+  "code": "sw",
+  "name_native": "Kiswahili",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 67
+ },
+ {
+  "code": "af",
+  "name_native": "Afrikaans",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 68
+ },
+ {
+  "code": "zu",
+  "name_native": "isiZulu",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 69
+ },
+ {
+  "code": "yo",
+  "name_native": "Yorùbá",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 70
+ },
+ {
+  "code": "ig",
+  "name_native": "Igbo",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 71
+ },
+ {
+  "code": "ha",
+  "name_native": "Hausa",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 72
+ },
+ {
+  "code": "ps",
+  "name_native": "پښتو",
+  "is_active": true,
+  "is_rtl": true,
+  "sort": 73
+ },
+ {
+  "code": "ku",
+  "name_native": "Kurdî",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 74
+ },
+ {
+  "code": "my",
+  "name_native": "မြန်မာ",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 75
+ },
+ {
+  "code": "lo",
+  "name_native": "ລາວ",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 76
+ },
+ {
+  "code": "si",
+  "name_native": "සිංහල",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 77
+ },
+ {
+  "code": "eu",
+  "name_native": "Euskara",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 78
+ },
+ {
+  "code": "gl",
+  "name_native": "Galego",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 79
+ },
+ {
+  "code": "is",
+  "name_native": "Íslenska",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 80
+ },
+ {
+  "code": "ga",
+  "name_native": "Gaeilge",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 81
+ },
+ {
+  "code": "cy",
+  "name_native": "Cymraeg",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 82
+ },
+ {
+  "code": "mt",
+  "name_native": "Malti",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 83
+ },
+ {
+  "code": "zh-tw",
+  "name_native": "繁體中文",
+  "is_active": true,
+  "is_rtl": false,
+  "sort": 84
+ }
+]

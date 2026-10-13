@@ -51,7 +51,7 @@ const caseWorkspaceRu = <String, String>{
   'cases.activity.taskUndone': '{name} снял(а) отметку «{title}»',
   'cases.activity.taskClosed': '{name} закрыл(а) «{title}»',
   'cases.activity.taskReopened': '{name} открыл(а) заново «{title}»',
-  'cases.activity.filesAdded': '{name} добавил(а) файлов: {count} в «{title}»',
+  'cases.activity.filesAdded': '{name} добавил(а) в «{title}» файлы: {count}',
   'cases.tasks.forClient': 'Для клиента',
   'cases.tasks.shared': 'Общие',
   'cases.tasks.private': 'Личные',
