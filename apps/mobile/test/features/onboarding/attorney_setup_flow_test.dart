@@ -294,6 +294,22 @@ void main() {
     await tearDownTree(tester);
   });
 
+  testWidgets('subscription offer: Monthly / Yearly tabs, golden',
+      (tester) async {
+    server
+      ..verification = VerificationStatus.verified
+      ..practiceIds = ['leaf-1'];
+    await pumpFlow(tester);
+    expect(stage('subscription'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('plan-tab-yearly')));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/subscription_tabs.png'),
+    );
+    await tearDownTree(tester);
+  });
+
   testWidgets('"Later" skips the subscription and finishes onboarding',
       (tester) async {
     server
