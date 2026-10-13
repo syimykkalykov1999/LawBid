@@ -18,11 +18,13 @@ class WorkspaceFileDto {
     required this.mime,
     required this.sizeBytes,
     required this.source,
+    required this.sample,
     required this.addedByRole,
     required this.addedAt,
     this.description,
     this.sourceTitle,
     this.sourceId,
+    this.sourceItemId,
   });
 
   factory WorkspaceFileDto.fromJson(Map<String, Object?> json) =>
@@ -37,6 +39,8 @@ class WorkspaceFileDto {
   final WorkspaceFileDtoSource source;
   final String? sourceTitle;
   final String? sourceId;
+  final String? sourceItemId;
+  final bool sample;
   final WorkspaceFileDtoAddedByRole addedByRole;
   final String addedAt;
 

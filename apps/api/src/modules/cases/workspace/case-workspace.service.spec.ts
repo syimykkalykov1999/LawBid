@@ -43,7 +43,7 @@ describe('CaseWorkspaceService', () => {
   });
 
   it('the client cannot tick a shared task, the attorney can', async () => {
-    const task = { id: 't', kind: 'shared', closed_at: null };
+    const task = { id: 't', kind: 'shared', closed_at: null, items: [] };
     await expect(
       make({ accepted: true, task }).svc.setDone(as(CLIENT), 'k', 't', true),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -53,7 +53,7 @@ describe('CaseWorkspaceService', () => {
   });
 
   it('a for-client task: the client marks it done, only until it is closed', async () => {
-    const open = { id: 't', kind: 'for_client', closed_at: null };
+    const open = { id: 't', kind: 'for_client', closed_at: null, items: [] };
     const m = make({ accepted: true, task: open });
     await m.svc.setDone(as(CLIENT), 'k', 't', true);
     expect(m.prisma.caseTask.update).toHaveBeenCalled();
@@ -77,19 +77,43 @@ describe('CaseWorkspaceService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('the client cannot add to a closed task; the attorney cannot answer it', async () => {
-    const closed = { id: 't', kind: 'for_client', closed_at: new Date() };
+  it('the client cannot add to a closed task', async () => {
+    const closed = {
+      id: 't',
+      kind: 'for_client',
+      closed_at: new Date(),
+      items: [],
+    };
     await expect(
       make({ accepted: true, task: closed }).svc.submit(as(CLIENT), 'k', 't', {
         note: 'x',
         files: [],
       }),
     ).rejects.toThrow('closed');
+  });
+
+  it('a task with a checklist is done only when every line is ticked', async () => {
+    const task = {
+      id: 't',
+      kind: 'for_client',
+      closed_at: null,
+      items: [
+        { id: 'i1', done_at: new Date() },
+        { id: 'i2', done_at: null },
+      ],
+    };
     await expect(
-      make({
-        accepted: true,
-        task: { ...closed, closed_at: null },
-      }).svc.submit(as(ATTORNEY), 'k', 't', { note: 'x', files: [] }),
+      make({ accepted: true, task }).svc.setDone(as(CLIENT), 'k', 't', true),
+    ).rejects.toThrow('Tick every line');
+  });
+
+  it('the attorney can attach materials to a shared task, the client cannot', async () => {
+    const task = { id: 't', kind: 'shared', closed_at: null, items: [] };
+    await expect(
+      make({ accepted: true, task }).svc.submit(as(CLIENT), 'k', 't', {
+        note: 'x',
+        files: [],
+      }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 

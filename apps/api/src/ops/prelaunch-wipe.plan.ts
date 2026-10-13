@@ -133,6 +133,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   case_tasks: 'case tasks',
   case_task_events: 'case task activity',
   case_updates: 'case updates',
+  case_task_items: 'case task checklist lines',
+  case_reads: 'case read marks',
   post_shares: 'shares',
   comments: 'comments',
   comment_likes: 'comment likes',

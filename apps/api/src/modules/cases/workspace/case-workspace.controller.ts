@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -13,6 +13,7 @@ import {
 import { CaseIdParamDto } from '../dto/case-requests.dto';
 import { CaseWorkspaceService } from './case-workspace.service';
 import {
+  CaseActivityDto,
   CaseTaskIdParamDto,
   CaseTasksDto,
   CaseUpdateDto,
@@ -20,6 +21,7 @@ import {
   CreateCaseTaskDto,
   CreateCaseUpdateDto,
   TaskDoneDto,
+  TaskItemIdParamDto,
   TaskSubmissionDto,
   WorkspaceFileDto,
 } from './dto/workspace.dto';
@@ -126,6 +128,37 @@ export class CaseWorkspaceController {
     @Body() dto: TaskSubmissionDto,
   ) {
     return this.ws.submit(u, p.id, p.taskId, dto);
+  }
+
+  @Post('cases/:id/tasks/:taskId/items/:itemId/done')
+  @ApiOperation({ summary: 'Tick / untick one checklist line of a task' })
+  @ApiEnvelopeResponse(CaseTasksDto)
+  @ApiErrors(ERR)
+  setCaseTaskItemDone(
+    @CurrentUser() u: RequestUser,
+    @Param() p: TaskItemIdParamDto,
+    @Body() dto: TaskDoneDto,
+  ) {
+    return this.ws.setItemDone(u, p.id, p.taskId, p.itemId, dto.done);
+  }
+
+  @Get('cases/:id/activity')
+  @ApiOperation({ summary: 'Everything that happened in the case' })
+  @ApiEnvelopeResponse(CaseActivityDto, { isArray: true })
+  @ApiErrors(ERR)
+  listCaseActivity(@CurrentUser() u: RequestUser, @Param() p: CaseIdParamDto) {
+    return this.ws.activity(u, p.id);
+  }
+
+  @Post('cases/:id/updates/seen')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Mark the Updates tab as read' })
+  @ApiErrors(ERR)
+  async markCaseUpdatesSeen(
+    @CurrentUser() u: RequestUser,
+    @Param() p: CaseIdParamDto,
+  ): Promise<void> {
+    await this.ws.markUpdatesSeen(u, p.id);
   }
 
   @Get('cases/:id/updates')

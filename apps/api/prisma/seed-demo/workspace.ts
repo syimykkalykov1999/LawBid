@@ -87,15 +87,33 @@ export async function seedCaseWorkspace(
     data: {
       case_id: caseId,
       kind: 'for_client',
-      title: 'Scan of your passport and translations',
+      title: 'Documents for the application',
       description:
-        'Please send:\n\n1. A scan of your passport, all pages with stamps.\n2. A certified English translation of the marriage certificate.\n3. Two recent utility bills with your address.\n\nIf a translation takes longer, send the rest now and add the translation later in this same task.',
+        'Please send, one by one:\n\nA scan of your passport with every stamped page, a certified English translation of the marriage certificate, and two recent utility bills with your address.\n\nIf the translation takes longer, send the rest now and add the translation later in this same task.',
       created_by: sofia.id,
-      status: 'done',
-      done_at: ago(30),
-      done_by: amelia.id,
       created_at: ago(72),
+      items: {
+        create: [
+          {
+            position: 0,
+            title: 'Passport, all pages',
+            done_at: ago(31),
+            done_by: amelia.id,
+          },
+          {
+            position: 1,
+            title: 'Certified translation of the marriage certificate',
+          },
+          {
+            position: 2,
+            title: 'Two utility bills',
+            done_at: ago(30),
+            done_by: amelia.id,
+          },
+        ],
+      },
     },
+    include: { items: { orderBy: { position: 'asc' } } },
   });
   await prisma.caseTask.create({
     data: {
@@ -153,38 +171,68 @@ export async function seedCaseWorkspace(
       {
         task_id: passport.id,
         case_id: caseId,
+        actor_id: sofia.id,
+        type: 'files_added',
+        note: 'The form to sign is attached, page 3.',
+        file_count: 1,
+        created_at: ago(71),
+      },
+      {
+        task_id: passport.id,
+        case_id: caseId,
         actor_id: amelia.id,
         type: 'files_added',
         note: 'Passport and two bills attached, the translation is in progress.',
         file_count: 3,
         created_at: ago(31),
       },
-      {
-        task_id: passport.id,
-        case_id: caseId,
-        actor_id: amelia.id,
-        type: 'done',
-        created_at: ago(30),
-      },
     ],
   });
   let pos = 100;
-  const passportFiles = docs.slice(0, 3);
-  for (const [i, d] of passportFiles.entries()) {
+  const forms = [
+    {
+      i: 0,
+      d: 'Passport, all pages',
+      who: amelia.id,
+      item: passport.items[0].id,
+      h: 31,
+    },
+    {
+      i: 1,
+      d: 'Utility bill, March',
+      who: amelia.id,
+      item: passport.items[2].id,
+      h: 31,
+    },
+    {
+      i: 2,
+      d: 'Utility bill, April',
+      who: amelia.id,
+      item: passport.items[2].id,
+      h: 31,
+    },
+    {
+      i: 4,
+      d: 'Authorization form, sign page 3 and send a photo of it',
+      who: sofia.id,
+      item: null,
+      h: 71,
+    },
+  ];
+  for (const f of forms) {
+    const file = docs[f.i];
+    if (!file) continue;
     await prisma.casePhoto.create({
       data: {
         case_id: caseId,
-        file_id: d.id,
+        file_id: file.id,
         position: pos++,
-        description: [
-          'Passport, all pages',
-          'Utility bill, March',
-          'Utility bill, April',
-        ][i],
+        description: f.d,
         source: 'task',
         source_id: passport.id,
-        added_by: amelia.id,
-        created_at: ago(31),
+        source_item_id: f.item,
+        added_by: f.who,
+        created_at: ago(f.h),
       },
     });
   }

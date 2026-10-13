@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'case_task_dto_kind.dart';
 import 'case_task_dto_status.dart';
 import 'case_task_event_dto.dart';
+import 'case_task_item_dto.dart';
 import 'workspace_file_dto.dart';
 
 part 'case_task_dto.g.dart';
@@ -23,8 +24,12 @@ class CaseTaskDto {
     required this.fileCount,
     required this.files,
     required this.events,
+    required this.items,
+    required this.itemsDone,
+    required this.itemsTotal,
     this.description,
     this.doneAt,
+    this.closedAt,
   });
 
   factory CaseTaskDto.fromJson(Map<String, Object?> json) =>
@@ -37,10 +42,14 @@ class CaseTaskDto {
   final CaseTaskDtoStatus status;
   final String? doneAt;
   final bool closed;
+  final String? closedAt;
   final String createdAt;
   final int fileCount;
   final List<WorkspaceFileDto> files;
   final List<CaseTaskEventDto> events;
+  final List<CaseTaskItemDto> items;
+  final int itemsDone;
+  final int itemsTotal;
 
   Map<String, Object?> toJson() => _$CaseTaskDtoToJson(this);
 }

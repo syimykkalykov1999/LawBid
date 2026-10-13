@@ -14,6 +14,10 @@ CaseWorkspaceDto _$CaseWorkspaceDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       openTasks: (json['openTasks'] as num).toInt(),
       updatesCount: (json['updatesCount'] as num).toInt(),
+      publishedAt: json['publishedAt'] as String,
+      bidsCount: (json['bidsCount'] as num).toInt(),
+      newUpdates: (json['newUpdates'] as num).toInt(),
+      acceptedAt: json['acceptedAt'] as String?,
     );
 
 Map<String, dynamic> _$CaseWorkspaceDtoToJson(CaseWorkspaceDto instance) =>
@@ -22,4 +26,8 @@ Map<String, dynamic> _$CaseWorkspaceDtoToJson(CaseWorkspaceDto instance) =>
       'files': instance.files.map((e) => e.toJson()).toList(),
       'openTasks': instance.openTasks,
       'updatesCount': instance.updatesCount,
+      'publishedAt': instance.publishedAt,
+      'acceptedAt': ?instance.acceptedAt,
+      'bidsCount': instance.bidsCount,
+      'newUpdates': instance.newUpdates,
     };
