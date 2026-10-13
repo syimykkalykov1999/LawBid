@@ -70,7 +70,13 @@ class AppAvatar extends StatelessWidget {
               if (imageProvider != null)
                 ClipOval(
                   child: Image(
-                    image: imageProvider!,
+                    // Decode at the size it is drawn, not at full resolution
+                    // (a 2000px photo for a 40dp circle froze the list).
+                    image: ResizeImage.resizeIfNeeded(
+                      (size * MediaQuery.devicePixelRatioOf(context)).round(),
+                      null,
+                      imageProvider!,
+                    ),
                     fit: BoxFit.cover,
                     gaplessPlayback: true,
                     errorBuilder: (_, __, ___) => const SizedBox.shrink(),

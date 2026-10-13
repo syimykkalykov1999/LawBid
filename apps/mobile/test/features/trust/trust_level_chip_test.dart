@@ -88,7 +88,7 @@ void main() {
       expect(find.text('Self-declared'), findsOneWidget);
     });
 
-    testWidgets('level 0 is neutral (no tint), level 3 is gold',
+    testWidgets('level 0 is neutral (no tint), level 3 is green',
         (tester) async {
       await tester.pumpWidget(_app(const TrustLevelChip(level: 0)));
       final colors = AppTheme.light().extension<AppColorTokens>()!;
@@ -104,7 +104,7 @@ void main() {
 
       await tester.pumpWidget(_app(const TrustLevelChip(level: 3)));
       deco = pill().decoration! as BoxDecoration;
-      expect(deco.color, colors.goldTint);
+      expect(deco.color, colors.successTint);
     });
 
     testWidgets('without an attorney id the chip is not a button',

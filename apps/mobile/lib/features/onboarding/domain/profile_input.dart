@@ -27,8 +27,8 @@ final class ClientProfileInput extends ProfileInput {
   const ClientProfileInput({
     required super.firstName,
     required super.lastName,
-    super.email,
     required this.stateCode,
+    super.email,
     this.languages = const [],
     this.contactMethod,
     this.contactNote = '',

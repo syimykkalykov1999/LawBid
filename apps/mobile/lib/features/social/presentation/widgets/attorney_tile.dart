@@ -128,10 +128,10 @@ class IdentityAvatar extends ConsumerWidget {
       size: size,
       ring: ring,
     );
-    // Owner 2026-10-13: one attorney sign — the green Identity badge, only
-    // once the profile is confirmed (identity level and above).
-    if (trustLevel < 2) return avatar;
-    final c = trustLevelColors(colors, 2);
+    // Owner 2026-10-13: green Identity badge once the profile is confirmed
+    // (identity level and above); grey while it is not; nothing at level 0.
+    if (trustLevel < 1) return avatar;
+    final c = trustLevelColors(colors, trustLevel);
     final badge = size * 0.4;
     final label = t.t(TrustLevels.nameKey(trustLevel));
     return SizedBox(
@@ -665,7 +665,7 @@ class FollowButton extends ConsumerWidget {
     // small outlined pill (Instagram-like): 28dp, 13sp, no icon.
     final small = outlined && !expanded;
     final compact = this.compact || small;
-    final showIcon = this.showIcon && !small;
+    final showIcon = this.showIcon && !small && !expanded;
     return Semantics(
       button: true,
       toggled: following,
@@ -683,9 +683,9 @@ class FollowButton extends ConsumerWidget {
         child: AnimatedContainer(
           duration: duration,
           curve: AppMotion.enterCurve,
-          height: expanded
-              ? AppSizes.touchTarget
-              : (small ? 28 : (outlined ? 30 : 36)),
+          // Owner 2026-10-13: in a profile Follow and Message are the same
+          // 32dp (Instagram), the hit area stays 48.
+          height: expanded ? 32 : (small ? 28 : (outlined ? 30 : 36)),
           width: expanded ? double.infinity : null,
           padding: EdgeInsets.symmetric(
             horizontal: small

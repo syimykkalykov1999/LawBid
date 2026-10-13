@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -134,7 +135,9 @@ void main() {
     test('a bare US number gets +1, punctuation is dropped', () {
       expect(LoginIdentifier.tryParse('(415) 555-2680')!.value, '+14155552680');
       expect(
-          LoginIdentifier.tryParse('+1 415 555 2680')!.value, '+14155552680');
+        LoginIdentifier.tryParse('+1 415 555 2680')!.value,
+        '+14155552680',
+      );
       expect(LoginIdentifier.tryParse('(415) 555-2680')!.isEmail, isFalse);
     });
 
@@ -227,7 +230,9 @@ void main() {
       await tester.tap(button('Log in'));
       await tester.pump();
       expect(
-          repo.logins, [(identifier: '+14155552680', password: 'Demo1234!')]);
+        repo.logins,
+        [(identifier: '+14155552680', password: 'Demo1234!')],
+      );
       expect(repo.requested, isEmpty, reason: 'no SMS on a password sign-in');
     });
 

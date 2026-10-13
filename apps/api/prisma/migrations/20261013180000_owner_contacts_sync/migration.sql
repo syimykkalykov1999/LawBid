@@ -1,8 +1,10 @@
 -- Owner 2026-10-13: contacts sync (like Instagram). The app sends SHA-256
 -- hashes of normalized E.164 numbers; the server matches them against a
--- computed hash of users.phone_e164 and keeps only the matches.
+-- computed hash of users.phone_e164 and keeps only the matches. On
+-- CockroachDB sha256(bytes) already returns the lowercase hex string (there
+-- is no encode(string, string)); checked against hashlib.sha256 in Python.
 ALTER TABLE "users" ADD COLUMN "phone_sha256" STRING
-  AS (encode(sha256("phone_e164"::BYTES), 'hex')) STORED;
+  AS (sha256("phone_e164"::BYTES)) STORED;
 CREATE INDEX "users_phone_sha256_idx" ON "users" ("phone_sha256")
   WHERE "phone_sha256" IS NOT NULL;
 

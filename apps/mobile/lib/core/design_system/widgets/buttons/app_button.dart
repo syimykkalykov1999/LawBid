@@ -173,9 +173,13 @@ class _AppButtonState extends State<AppButton> {
               duration: AppMotion.pressScale,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: widget.height <= AppSizes.hitTarget
-                      ? AppSizes.buttonHeight
-                      : widget.height,
+                  // An explicit smaller height (profile rows: 32) is kept;
+                  // the legacy 40-48 values collapse to the 36 token.
+                  minHeight: widget.height < AppSizes.buttonHeight
+                      ? widget.height
+                      : (widget.height <= AppSizes.hitTarget
+                          ? AppSizes.buttonHeight
+                          : widget.height),
                 ),
                 child: Container(
                   width: double.infinity,

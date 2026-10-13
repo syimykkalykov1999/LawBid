@@ -182,7 +182,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           Row(
             children: [
               ProfileAvatar(
-                size: 88,
+                size: 86,
                 url: p.avatarUrl,
                 initials:
                     initialsOf(p.firstName, p.lastName, fallback: p.username),
@@ -264,7 +264,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   child: AppButton(
                     label: t.t('profile.action.edit'),
                     variant: AppButtonVariant.secondary,
-                    height: 34,
+                    height: 32,
                     onPressed: () => context.push(AppRoutes.profileEdit),
                   ),
                 ),
@@ -273,7 +273,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   child: AppButton(
                     label: t.t('profile.action.shareProfile'),
                     variant: AppButtonVariant.secondary,
-                    height: 34,
+                    height: 32,
                     onPressed: () => _share(t),
                   ),
                 ),

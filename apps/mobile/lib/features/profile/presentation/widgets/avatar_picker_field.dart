@@ -161,7 +161,6 @@ class AvatarPickerField extends ConsumerWidget {
     };
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         ProfileAvatar(
           size: AppSizes.stateMedallion - AppSpacing.xl,

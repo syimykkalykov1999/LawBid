@@ -84,6 +84,7 @@ class PostGridTile extends StatelessWidget {
                       ? '${p.media.first.fileId}:320'
                       : p.video!.thumbnailUrl,
                   fit: BoxFit.cover,
+                  memCacheWidth: 400,
                   placeholder: (_, __) =>
                       ColoredBox(color: colors.skeletonBase),
                   errorWidget: (_, __, ___) => cover(),

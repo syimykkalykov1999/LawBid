@@ -45,7 +45,7 @@ Future<void> main() async {
                       formats: L10nFormats(AppLanguage.en),
                       states: const ['CA', 'NY', 'TX', 'FL'],
                       budget: const CaseBudget(mode: BudgetMode.clarifyLater),
-                      urgency: const CaseUrgencyInfo(),
+                      urgency: CaseUrgencyInfo.none,
                     ),
                     CaseTextTabs(
                       items: [
@@ -86,7 +86,7 @@ Future<void> main() async {
                   mode: BudgetMode.amount,
                   amountCents: 300000,
                 ),
-                urgency: const CaseUrgencyInfo(),
+                urgency: CaseUrgencyInfo.none,
               ),
             ],
           ),

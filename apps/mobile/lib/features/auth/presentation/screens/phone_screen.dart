@@ -183,8 +183,8 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
                                   onPressed: () => _submit(context, ref, t),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
-                                // The waiting list leaves an e-mail: hidden with
-                                // admin «Вход и письма по почте» (owner 2026-10-07).
+                                // The waiting list leaves an e-mail: hidden
+                                // with admin «Вход и письма по почте».
                                 if (flowState.closedCountry != null &&
                                     emailEnabled) ...[
                                   const SizedBox(height: AppSpacing.sm),

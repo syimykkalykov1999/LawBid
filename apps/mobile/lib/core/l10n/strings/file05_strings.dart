@@ -258,7 +258,7 @@ const file05Ru = <String, String>{
       'Поддержка сменила номер телефона по вашему запросу',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'Новый',
-  'profile.action.message': 'Написать',
+  'profile.action.message': 'Сообщение',
   'chat.direct': 'Чат',
   'chat.hiddenClient.direct': 'Клиент',
   'reviews.sort.label': 'Порядок отзывов',

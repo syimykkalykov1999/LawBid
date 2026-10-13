@@ -5,8 +5,12 @@ import 'package:lawbid/core/l10n/translator.dart';
 /// Relative time for posts, comments, chats and notifications: "12m",
 /// "15h", "3d" (no "ago"), the date after ten days. One helper for all.
 abstract final class SocialFormat {
-  static String ago(Translator t, L10nFormats f, DateTime at,
-          {DateTime? now}) =>
+  static String ago(
+    Translator t,
+    L10nFormats f,
+    DateTime at, {
+    DateTime? now,
+  }) =>
       shortDate(t, f, at, now: now);
 
   /// Owner 2026-10-12: the slim date by Save — "now", "5m", "3h", "2d" for
@@ -20,8 +24,10 @@ abstract final class SocialFormat {
     final n = now ?? DateTime.now();
     final diff = n.difference(at);
     if (diff.inMinutes < 1) {
-      return t.t('time.short.s',
-          {'count': '${diff.inSeconds < 1 ? 1 : diff.inSeconds}'});
+      return t.t(
+        'time.short.s',
+        {'count': '${diff.inSeconds < 1 ? 1 : diff.inSeconds}'},
+      );
     }
     if (diff.inHours < 1) {
       return t.t('time.short.m', {'count': '${diff.inMinutes}'});

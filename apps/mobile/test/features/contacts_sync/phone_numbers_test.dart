@@ -17,8 +17,10 @@ void main() {
   });
 
   test('hashes are 64 lowercase hex and exclude the own number', () {
-    final h = contactHashes(['+14155552680', '415-555-2681', '(415) 555-2680'],
-        ownNumber: '+14155552681');
+    final h = contactHashes(
+      ['+14155552680', '415-555-2681', '(415) 555-2680'],
+      ownNumber: '+14155552681',
+    );
     expect(h.length, 1);
     expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(h.first), isTrue);
   });

@@ -57,7 +57,6 @@ class ChatPaymentBar extends ConsumerWidget {
           AppButton(
             label: t.t('cpay.chat.request'),
             variant: AppButtonVariant.secondary,
-            height: 36,
             onPressed: () => PaymentRequestSheet.show(
               context,
               caseId,
@@ -96,7 +95,6 @@ class ChatPaymentBar extends ConsumerWidget {
           AppButton(
             label: t.t('cpay.req.payShort'),
             icon: AppIcons.lockOutlineRounded,
-            height: 36,
             onPressed: () async {
               try {
                 final start = await ref

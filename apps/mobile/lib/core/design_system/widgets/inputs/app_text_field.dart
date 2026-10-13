@@ -190,7 +190,8 @@ class _AppTextFieldState extends State<AppTextField> {
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.lg + 1),
+                        vertical: AppSpacing.lg + 1,
+                      ),
                     ),
                   ),
                 ),

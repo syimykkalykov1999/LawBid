@@ -41,7 +41,8 @@ void main() {
         await t.pumpWidget(
           uxApp(
             Scaffold(
-                body: SingleChildScrollView(child: PostCard(post: repost()))),
+              body: SingleChildScrollView(child: PostCard(post: repost())),
+            ),
             theme: AppTheme.dark(),
             size: size,
             textScale: scale,

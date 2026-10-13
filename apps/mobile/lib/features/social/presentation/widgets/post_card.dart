@@ -2208,6 +2208,8 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                   CachedNetworkImage(
                     imageUrl: url,
                     cacheKey: key,
+                    // Screen width is enough; never decode the original.
+                    memCacheWidth: fit == BoxFit.cover ? 96 : 1080,
                     fit: fit,
                     fadeInDuration: context.reduceMotion
                         ? Duration.zero

@@ -39,7 +39,9 @@ Future<void> main() async {
       // the kinds (For client · Shared · Private) are for a case only
       expect(find.text('Shared'), planner ? findsNothing : findsOneWidget);
       expect(
-          find.byTooltip('Details'), planner ? findsOneWidget : findsNothing);
+        find.byTooltip('Details'),
+        planner ? findsOneWidget : findsNothing,
+      );
       expect(tester.takeException(), isNull);
     });
   }

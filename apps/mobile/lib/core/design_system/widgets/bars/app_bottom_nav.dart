@@ -145,14 +145,17 @@ class AppBottomNav extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.pill),
+          // Owner 2026-10-13 (speed): the blur costs a full-width pass every
+          // frame over the scrolling feed; only the Glass theme needs it.
           child: BackdropFilter(
+            enabled: colors.isGlass,
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 // Owner 2026-10-12: see-through, the feed shows under it.
                 color: colors.isGlass
                     ? colors.sheet
-                    : colors.surface.withValues(alpha: 0.86),
+                    : colors.surface.withValues(alpha: 0.96),
                 borderRadius: BorderRadius.circular(AppRadii.pill),
                 border: Border.all(color: colors.border),
               ),

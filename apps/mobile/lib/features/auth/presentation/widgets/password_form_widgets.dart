@@ -138,7 +138,6 @@ class _PasswordFieldState extends ConsumerState<PasswordField> {
       errorText: widget.errorText,
       helperText: widget.helperText,
       autofocus: widget.autofocus,
-      minHeight: 44,
       obscureText: !_visible,
       keyboardType: TextInputType.visiblePassword,
       semanticLabel: widget.hintText,
