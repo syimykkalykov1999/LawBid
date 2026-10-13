@@ -1250,7 +1250,8 @@ class _QuietButton extends StatelessWidget {
     this.loading = false,
   });
 
-  static const double height = AppSizes.touchTarget;
+  // Owner 2026-10-13: Follow, Message and Offer a case share one height.
+  static const double height = 40;
 
   final String label;
   final VoidCallback onTap;

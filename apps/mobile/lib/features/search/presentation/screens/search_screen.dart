@@ -208,7 +208,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     _focus.unfocus();
                     setState(() => _focused = false);
                   }
-                : _onMagnifier,
+                : (value.text.isEmpty ? _focus.requestFocus : _onMagnifier),
           );
         },
       ),
@@ -538,7 +538,7 @@ class _BeforeTyping extends ConsumerWidget {
           for (final r
               in (ref.watch(peopleSearchProvider(lastKey!)).value?.items ??
                       const <PersonRow>[])
-                  .take(3))
+                  .take(10))
             SliverToBoxAdapter(child: PersonTile(row: r)),
         ],
       SearchTab.cases when !attorney => [
@@ -699,6 +699,7 @@ class _BeforeTyping extends ConsumerWidget {
       },
       child: CustomScrollView(
         slivers: [
+          ...explore,
           if (basedOn.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: title(
@@ -708,7 +709,6 @@ class _BeforeTyping extends ConsumerWidget {
             ),
             ...basedOn,
           ],
-          ...explore,
           const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
         ],
       ),
