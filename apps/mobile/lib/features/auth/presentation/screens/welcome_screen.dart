@@ -221,9 +221,9 @@ class WelcomeScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 16),
                             const ScalesLogo(
-                              size: 160,
+                              size: 190,
                               animated: true,
-                              standExtension: 30,
+                              standExtension: 34,
                             ),
                             // At least 32dp between the logo and the buttons.
                             const SizedBox(height: 32),
@@ -263,7 +263,8 @@ class WelcomeScreen extends ConsumerWidget {
                             TextButton(
                               key: const ValueKey('welcome-login'),
                               style: TextButton.styleFrom(
-                                minimumSize: const Size(0, 32),
+                                minimumSize: const Size(0, 28),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 4,
@@ -286,7 +287,8 @@ class WelcomeScreen extends ConsumerWidget {
                             TextButton(
                               key: const ValueKey('welcome-assistant'),
                               style: TextButton.styleFrom(
-                                minimumSize: const Size(0, 32),
+                                minimumSize: const Size(0, 28),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 4,
@@ -310,7 +312,8 @@ class WelcomeScreen extends ConsumerWidget {
                             TextButton(
                               key: const ValueKey('welcome-demo-code'),
                               style: TextButton.styleFrom(
-                                minimumSize: const Size(0, 32),
+                                minimumSize: const Size(0, 28),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 4,
