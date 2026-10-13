@@ -44,7 +44,9 @@ class _ContactsSectionState extends ConsumerState<ContactsSection> {
       final ok = await ref.read(contactsSyncActionsProvider).sync();
       if (ok && mounted) {
         showAppSnackBar(
-            context, ref.read(translatorProvider).t('phoneContacts.synced'));
+          context,
+          ref.read(translatorProvider).t('phoneContacts.synced'),
+        );
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -53,7 +55,9 @@ class _ContactsSectionState extends ConsumerState<ContactsSection> {
     } on Object {
       if (mounted) {
         showAppSnackBar(
-            context, ref.read(translatorProvider).t('error.default.message'));
+          context,
+          ref.read(translatorProvider).t('error.default.message'),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -67,7 +71,9 @@ class _ContactsSectionState extends ConsumerState<ContactsSection> {
       await ref.read(contactsSyncActionsProvider).remove();
       if (mounted) {
         showAppSnackBar(
-            context, ref.read(translatorProvider).t('phoneContacts.removed'));
+          context,
+          ref.read(translatorProvider).t('phoneContacts.removed'),
+        );
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -76,7 +82,9 @@ class _ContactsSectionState extends ConsumerState<ContactsSection> {
     } on Object {
       if (mounted) {
         showAppSnackBar(
-            context, ref.read(translatorProvider).t('error.default.message'));
+          context,
+          ref.read(translatorProvider).t('error.default.message'),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -104,8 +112,11 @@ class _ContactsSectionState extends ConsumerState<ContactsSection> {
             constraints: const BoxConstraints(minHeight: 48),
             child: Row(
               children: [
-                Icon(Icons.contacts_outlined,
-                    size: 22, color: colors.textSecondary),
+                Icon(
+                  Icons.contacts_outlined,
+                  size: 22,
+                  color: colors.textSecondary,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(

@@ -1099,7 +1099,7 @@ abstract final class SocialMappers {
         states: d.states,
         practiceKeys: d.practiceI18nKeys,
         isFollowing: d.isFollowing,
-        reason: d.reason?.toString().endsWith('contacts') == true
+        reason: d.reason?.toString().endsWith('contacts') ?? false
             ? 'contacts'
             : null,
       );

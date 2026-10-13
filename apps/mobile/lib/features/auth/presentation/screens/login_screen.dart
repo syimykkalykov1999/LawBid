@@ -89,7 +89,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           hintText: t.t('auth.login.identifier.hint'),
           semanticLabel: t.t('auth.login.identifier.hint'),
           keyboardType: TextInputType.emailAddress,
-          minHeight: 44,
           autofocus: widget.initialIdentifier.isEmpty,
           autofillHints: const [AutofillHints.username],
           textInputAction: TextInputAction.next,

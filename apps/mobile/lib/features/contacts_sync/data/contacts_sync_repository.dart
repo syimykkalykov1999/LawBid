@@ -33,9 +33,11 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
 
   @override
   Future<ContactsSyncStatus> status() async {
-    final res = await guardApiCall(() => _dio.get<Map<String, Object?>>(
-          '/contacts/sync',
-        ));
+    final res = await guardApiCall(
+      () => _dio.get<Map<String, Object?>>(
+        '/contacts/sync',
+      ),
+    );
     final data = (res.data?['data'] as Map?)?.cast<String, Object?>();
     return ContactsSyncStatus(
       enabled: data?['enabled'] == true,
@@ -52,10 +54,12 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
         i,
         i + chunkSize > all.length ? all.length : i + chunkSize,
       );
-      final res = await guardApiCall(() => _dio.post<Map<String, Object?>>(
-            '/contacts/sync',
-            data: {'hashes': chunk},
-          ));
+      final res = await guardApiCall(
+        () => _dio.post<Map<String, Object?>>(
+          '/contacts/sync',
+          data: {'hashes': chunk},
+        ),
+      );
       final data = (res.data?['data'] as Map?)?.cast<String, Object?>();
       matched += (data?['matched'] as num?)?.toInt() ?? 0;
     }

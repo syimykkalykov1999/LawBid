@@ -63,7 +63,7 @@ void main() {
 
   group('attorney profile (docs/03 §4.2)', () {
     testWidgets(
-        "someone else's profile: header, blue check, rating counter, chips, Follow + Share",
+        "someone else's profile: header, no check, rating counter, chips, Follow + Share",
         (tester) async {
       await _pumpScreen(
         tester,
@@ -72,7 +72,8 @@ void main() {
         overrides: profileOverrides(),
       );
       expect(find.textContaining('@jane.doe'), findsOneWidget);
-      expect(find.byType(VerifiedBadge), findsOneWidget);
+      // Owner 2026-10-13: attorneys have no check, only the avatar badge.
+      expect(find.byType(VerifiedBadge), findsNothing);
       expect(find.text('Jane Doe'), findsOneWidget);
       // Owner 2026-09-30: the "★ 4.5 · 12 reviews" line under the avatar is
       // gone; the rating lives on the Reviews tab.

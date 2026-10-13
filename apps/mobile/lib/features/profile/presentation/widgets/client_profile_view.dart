@@ -130,7 +130,7 @@ class _ClientBody extends ConsumerWidget {
       Row(
         children: [
           ProfileAvatar(
-            size: 88,
+            size: 86,
             url: avatarUrl,
             initials: initialsOf(
               profile.firstName,
@@ -183,7 +183,7 @@ class _ClientBody extends ConsumerWidget {
       AppButton(
         label: t.t('profile.action.edit'),
         variant: AppButtonVariant.secondary,
-        height: 34,
+        height: 32,
         onPressed: () => context.push(AppRoutes.profileEdit),
       ),
       Row(
@@ -376,7 +376,6 @@ class _ClientSkeleton extends StatelessWidget {
           SizedBox(height: AppSpacing.lg),
           AppSkeleton(
             height: AppSizes.touchTarget,
-            borderRadius: AppRadii.button,
           ),
           SizedBox(height: AppSpacing.lg),
           AppSkeleton(height: 160, borderRadius: AppRadii.card),

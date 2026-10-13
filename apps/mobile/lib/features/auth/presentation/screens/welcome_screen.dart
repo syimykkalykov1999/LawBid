@@ -134,10 +134,9 @@ class WelcomeScreen extends ConsumerWidget {
                             // The logo takes all the room the bottom block leaves
                             // (so a missing demo link never leaves a hole); it
                             // scales as a whole, proportions kept.
-                            Expanded(
+                            const Expanded(
                               child: Padding(
-                                padding:
-                                    const EdgeInsets.only(top: 6, bottom: 24),
+                                padding: EdgeInsets.only(top: 6, bottom: 24),
                                 child: FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: ScalesLogo(
@@ -151,7 +150,6 @@ class WelcomeScreen extends ConsumerWidget {
                             if (phoneLoginEnabled) ...[
                               GavelStrikeButton(
                                 label: t.t('auth.welcome.continue'),
-                                height: 40,
                                 // Brighter in dark theme only (owner follow-up,
                                 // 2026-09-22): gold read too dull here. Every
                                 // other primary button keeps the default variant.
@@ -175,7 +173,6 @@ class WelcomeScreen extends ConsumerWidget {
                                   child: GavelStrikeButton(
                                     key: const ValueKey('welcome-login'),
                                     label: t.t('auth.welcome.signIn'),
-                                    height: 40,
                                     variant: AppButtonVariant.secondary,
                                     onPressed: () =>
                                         context.push(AuthRoutes.login),
@@ -186,7 +183,6 @@ class WelcomeScreen extends ConsumerWidget {
                                   child: GavelStrikeButton(
                                     key: const ValueKey('welcome-assistant'),
                                     label: t.t('auth.welcome.assistant'),
-                                    height: 40,
                                     variant: AppButtonVariant.secondary,
                                     onPressed: () =>
                                         context.push(AuthRoutes.assistant),

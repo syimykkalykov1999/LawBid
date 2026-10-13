@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
-import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
@@ -10,6 +8,9 @@ import 'package:lawbid/core/connectivity/network_interface_monitor.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
+import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
+
 import '../features/cases/cases_fakes.dart';
 import '../features/social/social_fakes.dart';
 import 'legal_overrides.dart';

@@ -10,8 +10,8 @@ import 'package:crypto/crypto.dart';
 /// - any other number without a country code is skipped, not guessed;
 /// - extensions ("x123", ";", ",", "#") are cut off.
 String? normalizeToE164(String raw) {
-  final head = raw.trim().split(RegExp(r'[xX;,#]')).first.trim();
-  var digits = head.replaceAll(RegExp(r'[^0-9]'), '');
+  final head = raw.trim().split(RegExp('[xX;,#]')).first.trim();
+  var digits = head.replaceAll(RegExp('[^0-9]'), '');
   if (digits.isEmpty) return null;
   if (head.startsWith('+')) {
     // already international

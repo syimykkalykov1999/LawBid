@@ -154,7 +154,6 @@ class _PostAttachmentsSheetState extends ConsumerState<PostAttachmentsSheet> {
                   ])
                     AppChip(
                       label: label,
-                      height: 32,
                       selected: _show == s,
                       onTap: () => setState(() => _show = s),
                     ),

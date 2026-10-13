@@ -593,7 +593,7 @@ class _HeaderCard extends ConsumerWidget {
 
   final PublicAttorneyProfile profile;
 
-  static const _avatar = 88.0;
+  static const _avatar = 76.0; // + ring and gap = 86 like Instagram
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1267,7 +1267,7 @@ class _QuietButton extends StatelessWidget {
   });
 
   // Owner 2026-10-13: Follow, Message and Offer a case share one height.
-  static const double height = 34;
+  static const double height = 32;
 
   final String label;
   final VoidCallback onTap;
@@ -1528,7 +1528,6 @@ class AttorneyProfileSkeleton extends StatelessWidget {
         SizedBox(height: AppSpacing.xl),
         AppSkeleton(
           height: AppSizes.touchTarget + AppSpacing.sm,
-          borderRadius: AppRadii.button,
         ),
       ],
     );
