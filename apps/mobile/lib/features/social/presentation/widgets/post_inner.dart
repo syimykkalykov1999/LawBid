@@ -394,7 +394,7 @@ class _ReelPlayer extends ConsumerWidget {
       child: AppPressable(
         onTap: () => ReelsScreen.open(context, from: post),
         child: AspectRatio(
-          aspectRatio: 4 / 5,
+          aspectRatio: 1,
           child: Stack(
             fit: StackFit.expand,
             children: [
