@@ -1822,7 +1822,8 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     super.dispose();
   }
 
-  List<InlineSpan> _spans(AppColorTokens colors) {
+  List<InlineSpan> _spans(AppColorTokens colors, [String? override]) {
+    final body = override ?? _body;
     for (final r in _recognizers) {
       r.dispose();
     }
@@ -1847,9 +1848,9 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         ..add(const TextSpan(text: ' '));
     }
     var last = 0;
-    for (final m in _token.allMatches(_body)) {
+    for (final m in _token.allMatches(body)) {
       if (m.start > last) {
-        spans.add(TextSpan(text: _body.substring(last, m.start)));
+        spans.add(TextSpan(text: body.substring(last, m.start)));
       }
       final token = m.group(0)!;
       if (token.startsWith('#')) {
@@ -1902,8 +1903,8 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
       }
       last = m.end;
     }
-    if (last < _body.length) {
-      spans.add(TextSpan(text: _body.substring(last)));
+    if (last < body.length) {
+      spans.add(TextSpan(text: body.substring(last)));
     }
     return spans;
   }
@@ -1935,24 +1936,53 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         )..layout(maxWidth: box.maxWidth);
         if (!painter.didExceedMaxLines) return text;
         final more = widget.onMore ?? () => setState(() => _expanded = true);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.onMore == null)
-              text
-            else
-              GestureDetector(onTap: more, child: text),
-            AppPressable(
-              onTap: more,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                child: Text(
-                  t.t('post.more'),
-                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+        // "… more" ends the last allowed line (Instagram-like), never a
+        // line of its own.
+        final moreLabel = t.t('post.more');
+        final lead = widget.leading == null ? '' : '${widget.leading} ';
+        final bodyText = _body;
+        bool fits(int n) {
+          final shown = n >= bodyText.length
+              ? bodyText
+              : '${bodyText.substring(0, n).trimRight()}…';
+          final p = TextPainter(
+            text: TextSpan(text: '$lead$shown $moreLabel', style: style),
+            maxLines: widget.collapsedLines,
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout(maxWidth: box.maxWidth);
+          return !p.didExceedMaxLines;
+        }
+
+        var lo = 0;
+        var hi = bodyText.length;
+        while (lo < hi) {
+          final mid = (lo + hi + 1) ~/ 2;
+          if (fits(mid)) {
+            lo = mid;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        final cutText = '${bodyText.substring(0, lo).trimRight()}…';
+        final moreRecognizer = TapGestureRecognizer()..onTap = more;
+        _recognizers.add(moreRecognizer);
+        return GestureDetector(
+          onTap: widget.onMore == null ? null : more,
+          child: Text.rich(
+            TextSpan(
+              style: style,
+              children: [
+                ..._spans(colors, cutText),
+                const TextSpan(text: ' '),
+                TextSpan(
+                  text: moreLabel,
+                  style: style.copyWith(color: colors.textSecondary),
+                  recognizer: moreRecognizer,
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );

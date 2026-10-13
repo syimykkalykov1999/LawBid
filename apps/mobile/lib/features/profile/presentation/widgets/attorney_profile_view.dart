@@ -1171,18 +1171,20 @@ class _Actions extends ConsumerWidget {
     return Row(
       children: [
         if (!blocked)
-          Expanded(
-            child: isSelf
-                ? _QuietButton(
-                    label: t.t('profile.action.edit'),
-                    onTap: () => context.push(AppRoutes.profileEdit),
-                  )
-                : FollowButton(
-                    attorneyId: attorneyId,
-                    initial: isFollowing,
-                    expanded: true,
-                  ),
-          ),
+          if (isSelf)
+            Expanded(
+              child: _QuietButton(
+                label: t.t('profile.action.edit'),
+                onTap: () => context.push(AppRoutes.profileEdit),
+              ),
+            )
+          else
+            // The same small outlined pill as everywhere else.
+            FollowButton(
+              attorneyId: attorneyId,
+              initial: isFollowing,
+              outlined: true,
+            ),
         if (!isSelf && !blocked && canMessage) ...[
           const SizedBox(width: AppSpacing.sm),
           Expanded(

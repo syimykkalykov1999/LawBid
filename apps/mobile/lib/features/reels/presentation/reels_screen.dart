@@ -740,7 +740,7 @@ class ReelFollowButton extends ConsumerWidget {
               color: following
                   ? Colors.white.withValues(alpha: 0.18)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Colors.white70),
             ),
             child: Row(
@@ -871,26 +871,55 @@ class _ReelCaption extends StatelessWidget {
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(maxWidth: box.maxWidth);
         if (!painter.didExceedMaxLines) return Text(text, style: style);
+        // "… more" ends the second line, never a third one.
+        final base = DefaultTextStyle.of(context).style.merge(style);
+        bool fits(int n) {
+          final shown =
+              n >= text.length ? text : '${text.substring(0, n).trimRight()}…';
+          final p = TextPainter(
+            text: TextSpan(
+              style: base,
+              children: [
+                TextSpan(text: '$shown '),
+                TextSpan(
+                  text: moreLabel,
+                  style: base.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            maxLines: 2,
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout(maxWidth: box.maxWidth);
+          return !p.didExceedMaxLines;
+        }
+
+        var lo = 0;
+        var hi = text.length;
+        while (lo < hi) {
+          final mid = (lo + hi + 1) ~/ 2;
+          if (fits(mid)) {
+            lo = mid;
+          } else {
+            hi = mid - 1;
+          }
+        }
         return GestureDetector(
           onTap: onMore,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                text,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: style,
-              ),
-              Text(
-                moreLabel,
-                style: style.copyWith(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w600,
+          child: Text.rich(
+            TextSpan(
+              style: style,
+              children: [
+                TextSpan(text: '${text.substring(0, lo).trimRight()}… '),
+                TextSpan(
+                  text: moreLabel,
+                  style: style.copyWith(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
