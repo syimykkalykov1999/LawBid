@@ -223,10 +223,10 @@ class WelcomeScreen extends ConsumerWidget {
                             const ScalesLogo(
                               size: 190,
                               animated: true,
-                              standExtension: 34,
+                              standExtension: 86,
                             ),
                             // At least 32dp between the logo and the buttons.
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 20),
                             // Flexible, not fixed (owner request, 2026-09-22:
                             // center the phone/social buttons between the logo
                             // and the legal text) -- paired with the second
@@ -339,7 +339,7 @@ class WelcomeScreen extends ConsumerWidget {
                             // LayoutBuilder/ConstrainedBox/IntrinsicHeight setup above,
                             // the standard Flutter idiom for pinning to the bottom of a
                             // Column that must also remain scrollable.
-                            const Spacer(),
+                            const SizedBox(height: 8),
                             LegalText(
                               text: t.t('auth.welcome.legal'),
                               links: {
@@ -350,6 +350,7 @@ class WelcomeScreen extends ConsumerWidget {
                               },
                               style: typography.legalFine,
                             ),
+                            const Spacer(),
                             const SizedBox(height: AppSpacing.lg),
                           ],
                         ),
