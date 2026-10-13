@@ -26,6 +26,7 @@ import type { AttorneyListPage } from '../follows/follows.dto';
 import { FollowsService } from '../follows/follows.service';
 import {
   ContentFilterService,
+  contentModeWhere,
   type PostContentClass,
 } from '../posts/content-filter.service';
 import type { PostDto, PostPage } from '../posts/dto/posts.dto';
@@ -296,6 +297,7 @@ export class SearchService {
       state: dto?.state?.toUpperCase(),
       since: span ? new Date(Date.now() - span) : undefined,
       withPhotos: dto?.withPhotos,
+      briefsOnly: dto?.briefsOnly,
       sort: dto?.sort,
       contentClass: await this.viewerOnly(user.sub),
     };
@@ -359,6 +361,7 @@ export class SearchService {
       kind?: 'post' | 'news';
       period?: SearchPeriod;
       withPhotos?: boolean;
+      briefsOnly?: boolean;
       sort?: 'newest' | 'popular';
       contentClass?: PostContentClass;
     } = {},
@@ -405,6 +408,8 @@ export class SearchService {
             ? [{ created_at: { gte: new Date(Date.now() - span) } }]
             : []),
           ...(filter.withPhotos ? [{ media: { some: {} } }] : []),
+          // Owner 2026-10-13: Briefs = text-only posts.
+          ...(filter.briefsOnly ? [contentModeWhere('briefs_only')] : []),
           // Owner 2026-09-30: the qualification and its subcategories;
           // older posts (no qualification) by their topic hashtag.
           ...(practice

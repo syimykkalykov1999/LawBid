@@ -45,6 +45,8 @@ export interface PostSearchFilters {
   state?: string;
   since?: Date;
   withPhotos?: boolean;
+  /** Owner 2026-10-13: only text-only posts (Briefs). */
+  briefsOnly?: boolean;
   sort?: 'relevance' | 'newest' | 'popular';
   /** Owner 2026-10-05: only legal posts ("Legal only" viewers). */
   contentClass?: 'legal' | 'general';

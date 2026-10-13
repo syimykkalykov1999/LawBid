@@ -48295,6 +48295,15 @@
             }
           },
           {
+            "name": "briefsOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only text-only posts (Briefs).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "sort",
             "required": false,
             "in": "query",
@@ -48769,6 +48778,15 @@
             "required": false,
             "in": "query",
             "description": "Only posts with photos.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "briefsOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only text-only posts (Briefs).",
             "schema": {
               "type": "boolean"
             }

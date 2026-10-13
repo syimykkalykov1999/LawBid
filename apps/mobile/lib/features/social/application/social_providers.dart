@@ -314,6 +314,7 @@ typedef ExplorePostsKey = ({
   String? practice,
   String? period,
   bool withPhotos,
+  bool briefsOnly,
   bool popular,
 });
 
@@ -332,6 +333,7 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
           tag: practice == null ? null : topicTagFor(practice.split('.').first),
           period: key.period,
           withPhotos: key.withPhotos,
+          briefsOnly: key.briefsOnly,
           popular: key.popular,
         );
   }

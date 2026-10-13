@@ -718,6 +718,7 @@ ExplorePostsKey _postsKey(SearchFilters f) => (
       practice: f.practiceCategory,
       period: _periodWire(f.period),
       withPhotos: f.withPhotos,
+      briefsOnly: f.briefsOnly,
       popular: f.postSort == PostSort.popular,
     );
 

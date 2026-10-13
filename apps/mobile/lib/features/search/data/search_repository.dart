@@ -47,6 +47,7 @@ class SearchFilters {
     this.hasDeadline = false,
     this.caseStatus,
     this.withPhotos = false,
+    this.briefsOnly = false,
     this.postSort = PostSort.relevance,
     this.topicKind = TopicKind.all,
     this.topicSort = TopicSort.popular,
@@ -84,6 +85,9 @@ class SearchFilters {
 
   /// Posts.
   final bool withPhotos;
+
+  /// Owner 2026-10-13: only text-only posts (Briefs).
+  final bool briefsOnly;
   final PostSort postSort;
 
   /// Topics.
@@ -106,6 +110,7 @@ class SearchFilters {
         if (hasDeadline) true,
         caseStatus,
         if (withPhotos) true,
+        if (briefsOnly) true,
         if (postSort != PostSort.relevance) postSort,
         if (topicKind != TopicKind.all) topicKind,
         if (topicSort != TopicSort.popular) topicSort,
@@ -128,6 +133,7 @@ class SearchFilters {
         hasDeadline,
         caseStatus,
         withPhotos,
+        briefsOnly,
         postSort,
         topicKind,
         topicSort,
@@ -281,6 +287,7 @@ class ApiSearchRepository implements SearchRepository {
             : topicTagFor(f.practiceCategory!.split('.').first),
         state: f.state,
         withPhotos: f.withPhotos ? true : null,
+        briefsOnly: f.briefsOnly ? true : null,
         period: switch (f.period) {
           SearchPeriod.day => api.Period.value24h,
           SearchPeriod.week => api.Period.value7d,
