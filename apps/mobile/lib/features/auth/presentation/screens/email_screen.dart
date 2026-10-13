@@ -90,7 +90,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: staggeredEntrance([
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 8),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () {
@@ -106,7 +106,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                               }
                             },
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 14),
                           Semantics(
                             header: true,
                             child: Text(
@@ -121,7 +121,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             style: typography.body
                                 .copyWith(color: colors.textSecondary),
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
                           AppTextField(
                             controller: _controller,
                             hintText: t.t('auth.email.hint'),
@@ -139,21 +139,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                                   .clearError();
                             },
                           ),
-                          if (phoneEnabled) ...[
-                            const SizedBox(height: AppSpacing.md),
-                            SwitchChannelLink(
-                              label: t.t('auth.email.usePhone'),
-                              onTap: () {
-                                ref
-                                    .read(onboardingFlowProvider.notifier)
-                                    .goToPhoneStep();
-                                context.pushReplacement(AuthRoutes.phone);
-                              },
-                            ),
-                          ],
-                          const Spacer(),
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 22),
+                            padding: const EdgeInsets.only(top: 14),
                             child: Column(
                               children: [
                                 AppButton(
@@ -163,6 +150,19 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                                   onPressed: () => _submit(t),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
+                                if (phoneEnabled) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  SwitchChannelLink(
+                                    label: t.t('auth.email.usePhone'),
+                                    onTap: () {
+                                      ref
+                                          .read(onboardingFlowProvider.notifier)
+                                          .goToPhoneStep();
+                                      context.pushReplacement(AuthRoutes.phone);
+                                    },
+                                  ),
+                                ],
+                                const SizedBox(height: AppSpacing.md),
                                 LegalText(
                                   text: t.t('auth.phone.terms'),
                                   links: {

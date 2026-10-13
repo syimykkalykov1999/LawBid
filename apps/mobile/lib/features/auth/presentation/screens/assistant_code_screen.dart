@@ -91,7 +91,7 @@ class _AssistantCodeScreenState extends ConsumerState<AssistantCodeScreen> {
                     : context.go(AuthRoutes.welcome),
               ),
             ),
-            const SizedBox(height: 34),
+            const SizedBox(height: 14),
             Semantics(
               header: true,
               child: Text(
@@ -104,7 +104,7 @@ class _AssistantCodeScreenState extends ConsumerState<AssistantCodeScreen> {
               t.t('assistant.code.body'),
               style: typography.body.copyWith(color: colors.textSecondary),
             ),
-            const SizedBox(height: 26),
+            const SizedBox(height: 18),
             AppTextField(
               key: const ValueKey('assistant-code-field'),
               controller: _code,

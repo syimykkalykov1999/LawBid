@@ -136,7 +136,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         // layout, none on reduce-
                         // motion.
                         children: staggeredEntrance([
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 8),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () => _returnToEntry(
@@ -145,7 +145,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   .changeIdentifier(),
                             ),
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 14),
                           Text(
                             t.t('auth.otp.title'),
                             style: typography.titleLarge
@@ -157,7 +157,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             style: typography.body
                                 .copyWith(color: colors.textSecondary),
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
                           AppOtpField(
                             semanticLabel: t.t('auth.otp.fieldLabel'),
                             controller: _codeController,
@@ -166,28 +166,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                 setState(() => _currentCode = value),
                             onCompleted: _handleCompleted,
                           ),
-                          const SizedBox(height: 14),
-                          _ResendCountdown(
-                            t: t,
-                            onResend: _resend,
-                          ),
-                          // «Изменить номер» (docs/01_FOUNDATION_AUTH.md
-                          // §10.2 D) — same caption link style as "Resend".
-                          _ChangeIdentifierLink(
-                            label: t.t(
-                              flowState.channel == AuthChannel.email
-                                  ? 'auth.otp.changeEmail'
-                                  : 'auth.otp.changeNumber',
-                            ),
-                            onTap: () => _returnToEntry(
-                              ref
-                                  .read(onboardingFlowProvider.notifier)
-                                  .changeIdentifier(),
-                            ),
-                          ),
-                          const Spacer(),
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 22),
+                            padding: const EdgeInsets.only(top: 14, bottom: 8),
                             child: GavelStrikeButton(
                               label: t.t('auth.otp.submit'),
                               isLoading: flowState.isSubmitting,
@@ -206,6 +186,25 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   _handleCompleted(_currentCode);
                                 }
                               },
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _ResendCountdown(
+                            t: t,
+                            onResend: _resend,
+                          ),
+                          // «Изменить номер» (docs/01_FOUNDATION_AUTH.md
+                          // §10.2 D) — same caption link style as "Resend".
+                          _ChangeIdentifierLink(
+                            label: t.t(
+                              flowState.channel == AuthChannel.email
+                                  ? 'auth.otp.changeEmail'
+                                  : 'auth.otp.changeNumber',
+                            ),
+                            onTap: () => _returnToEntry(
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .changeIdentifier(),
                             ),
                           ),
                         ]),
