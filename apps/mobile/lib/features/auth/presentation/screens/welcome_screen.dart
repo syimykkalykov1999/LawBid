@@ -212,19 +212,21 @@ class WelcomeScreen extends ConsumerWidget {
                       child: IntrinsicHeight(
                         child: Column(
                           children: [
-                            const SizedBox(height: 36),
+                            const SizedBox(height: 20),
                             Text(
                               t.t('auth.welcome.title'),
                               textAlign: TextAlign.center,
                               style: typography.titleWelcome
                                   .copyWith(color: colors.text),
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 16),
                             const ScalesLogo(
-                              size: 170,
+                              size: 160,
                               animated: true,
-                              standExtension: 36,
+                              standExtension: 30,
                             ),
+                            // At least 32dp between the logo and the buttons.
+                            const SizedBox(height: 32),
                             // Flexible, not fixed (owner request, 2026-09-22:
                             // center the phone/social buttons between the logo
                             // and the legal text) -- paired with the second
@@ -260,6 +262,13 @@ class WelcomeScreen extends ConsumerWidget {
                             // phone number or e-mail + password.
                             TextButton(
                               key: const ValueKey('welcome-login'),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                              ),
                               onPressed: () => context.push(AuthRoutes.login),
                               child: Text(
                                 t.t('auth.login.entry'),
@@ -274,9 +283,15 @@ class WelcomeScreen extends ConsumerWidget {
                             ),
                             // Owner 2026-10-04: assistants come in with the
                             // attorney's one-time code (no SMS).
-                            const SizedBox(height: 4),
                             TextButton(
                               key: const ValueKey('welcome-assistant'),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                              ),
                               onPressed: () =>
                                   context.push(AuthRoutes.assistant),
                               child: Text(
@@ -294,6 +309,13 @@ class WelcomeScreen extends ConsumerWidget {
                             // enters the demo with the admin's 8-character code.
                             TextButton(
                               key: const ValueKey('welcome-demo-code'),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                              ),
                               onPressed: () => DemoCodeSheet.show(context),
                               child: Text(
                                 t.t('demo.code.entry'),
