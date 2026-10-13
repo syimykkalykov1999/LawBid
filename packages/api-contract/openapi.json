@@ -119519,6 +119519,10 @@
             "type": "string",
             "nullable": true
           },
+          "dueAt": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string"
           },
@@ -119635,6 +119639,15 @@
           "description": {
             "type": "string",
             "maxLength": 5000
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "remindBeforeMin": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 20160
           },
           "items": {
             "maxItems": 30,

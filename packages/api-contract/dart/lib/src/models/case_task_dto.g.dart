@@ -28,6 +28,7 @@ CaseTaskDto _$CaseTaskDtoFromJson(Map<String, dynamic> json) => CaseTaskDto(
   description: json['description'] as String?,
   doneAt: json['doneAt'] as String?,
   closedAt: json['closedAt'] as String?,
+  dueAt: json['dueAt'] as String?,
 );
 
 Map<String, dynamic> _$CaseTaskDtoToJson(CaseTaskDto instance) =>
@@ -40,6 +41,7 @@ Map<String, dynamic> _$CaseTaskDtoToJson(CaseTaskDto instance) =>
       'doneAt': ?instance.doneAt,
       'closed': instance.closed,
       'closedAt': ?instance.closedAt,
+      'dueAt': ?instance.dueAt,
       'createdAt': instance.createdAt,
       'fileCount': instance.fileCount,
       'files': instance.files.map((e) => e.toJson()).toList(),

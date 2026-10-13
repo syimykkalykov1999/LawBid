@@ -149,6 +149,8 @@ class CaseWorkspaceActions {
     String? description,
     List<String> items = const [],
     List<PickedCaseFile> files = const [],
+    DateTime? dueAt,
+    int? remindBeforeMin,
   }) async {
     final uploaded = await _upload(files);
     await guardApiCall(
@@ -158,6 +160,8 @@ class CaseWorkspaceActions {
           kind: kind,
           title: title,
           description: description,
+          dueAt: dueAt?.toUtc(),
+          remindBeforeMin: remindBeforeMin,
           items: items.isEmpty ? null : items,
           files: uploaded.isEmpty ? null : uploaded,
         ),

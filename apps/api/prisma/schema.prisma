@@ -1859,6 +1859,8 @@ model CaseTask {
   done_by     String?         @db.Uuid
   /// Closed by the attorney: the client can no longer add.
   closed_at   DateTime?       @db.Timestamptz
+  /// Owner 2026-10-13: the day the task is due (both sides see it).
+  due_at      DateTime?       @db.Timestamptz
   created_at  DateTime        @default(now()) @db.Timestamptz
   updated_at  DateTime        @default(now()) @updatedAt @db.Timestamptz
   events      CaseTaskEvent[]
@@ -2972,6 +2974,9 @@ model AttorneyTask {
   /// Owner 2026-10-05: the chat the task came from (bare uuid: a chat is
   /// never deleted, and the link is only a shortcut).
   conversation_id          String?              @db.Uuid
+  /// Owner 2026-10-13: the case task this entry mirrors (a due date or a
+  /// reminder set from the case); it is not a Private task of the case.
+  case_task_id             String?              @db.Uuid
   file_ids                 String[]             @default([]) @db.Uuid
   status                   AttorneyTaskStatus   @default(open)
   priority                 AttorneyTaskPriority @default(normal)

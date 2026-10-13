@@ -205,7 +205,11 @@ export class CaseWorkspaceService {
       s.role === 'attorney'
         ? (
             await this.prisma.attorneyTask.findMany({
-              where: { case_id: caseId, attorney_id: s.attorneyId },
+              where: {
+                case_id: caseId,
+                attorney_id: s.attorneyId,
+                case_task_id: null,
+              },
               orderBy: { created_at: 'desc' },
             })
           ).map((p): CaseTaskDto => ({
@@ -217,6 +221,7 @@ export class CaseWorkspaceService {
             doneAt: p.done_at?.toISOString() ?? null,
             closed: false,
             closedAt: null,
+            dueAt: p.due_at?.toISOString() ?? null,
             createdAt: p.created_at.toISOString(),
             fileCount: 0,
             files: [],
@@ -256,6 +261,7 @@ export class CaseWorkspaceService {
       doneAt: t.done_at?.toISOString() ?? null,
       closed: t.closed_at !== null,
       closedAt: t.closed_at?.toISOString() ?? null,
+      dueAt: t.due_at?.toISOString() ?? null,
       createdAt: t.created_at.toISOString(),
       fileCount: files.length,
       // Files of the task itself; those of a line are under that line.
@@ -281,18 +287,28 @@ export class CaseWorkspaceService {
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId);
     if (s.role !== 'attorney') throw this.denied('Only the attorney.');
+    const due = dto.dueAt ? new Date(dto.dueAt) : null;
+    // Owner 2026-10-13: the bell needs a day; the reminder is the planner's
+    // own (a push at remind_at), so it lands in Planner like any task.
+    const before = due ? (dto.remindBeforeMin ?? null) : null;
+    const planner = {
+      attorney_id: s.attorneyId,
+      kind: 'other' as const,
+      title: dto.title.slice(0, 160),
+      notes: dto.description ?? null,
+      case_id: caseId,
+      due_at: due,
+      remind_before_min: before,
+      remind_at:
+        due && before !== null
+          ? new Date(due.getTime() - before * 60_000)
+          : null,
+    };
     if (dto.kind === 'private') {
-      await this.prisma.attorneyTask.create({
-        data: {
-          attorney_id: s.attorneyId,
-          kind: 'other',
-          title: dto.title.slice(0, 160),
-          notes: dto.description ?? null,
-          case_id: caseId,
-        },
-      });
+      await this.prisma.attorneyTask.create({ data: planner });
       return this.listTasks(user, caseId);
     }
+
     const lines = (dto.items ?? []).map((l) => l.trim()).filter(Boolean);
     if (lines.length > 0 && dto.kind !== 'for_client') {
       throw new ConflictException({
@@ -307,6 +323,7 @@ export class CaseWorkspaceService {
           kind: dto.kind,
           title: dto.title,
           description: dto.description ?? null,
+          due_at: due,
           created_by: user.sub,
           events: {
             create: { case_id: caseId, actor_id: user.sub, type: 'created' },
@@ -316,6 +333,11 @@ export class CaseWorkspaceService {
           },
         },
       });
+      if (before !== null) {
+        await tx.attorneyTask.create({
+          data: { ...planner, case_task_id: task.id },
+        });
+      }
       const files = dto.files ?? [];
       if (files.length > 0) {
         await this.attach(tx, user.sub, caseId, files, 'task', task.id);
@@ -379,6 +401,14 @@ export class CaseWorkspaceService {
             type: done ? 'done' : 'undone',
           },
         },
+      },
+    });
+    // The planner entry of its reminder follows the task.
+    await this.prisma.attorneyTask.updateMany({
+      where: { case_task_id: taskId },
+      data: {
+        status: done ? 'done' : 'open',
+        done_at: done ? new Date() : null,
       },
     });
     return this.listTasks(user, caseId);
@@ -693,20 +723,32 @@ export class CaseWorkspaceService {
       select: { updates_seen_at: true },
     });
     const other = s.role === 'client' ? s.attorneyId : s.clientId;
-    const [files, openTasks, updatesCount, newUpdates] = await Promise.all([
-      this.filesOf(caseId, s),
-      this.prisma.caseTask.count({
-        where: { case_id: caseId, status: 'open' },
-      }),
-      this.prisma.caseUpdate.count({ where: { case_id: caseId } }),
-      this.prisma.caseUpdate.count({
-        where: {
-          case_id: caseId,
-          author_id: other,
-          ...(read ? { created_at: { gt: read.updates_seen_at } } : {}),
-        },
-      }),
-    ]);
+    const [files, sharedTasks, privateTasks, updatesCount, newUpdates] =
+      await Promise.all([
+        this.filesOf(caseId, s),
+        this.prisma.caseTask.count({
+          where: { case_id: caseId, status: 'open' },
+        }),
+        // The attorney's own tasks count for the attorney only.
+        s.role === 'attorney'
+          ? this.prisma.attorneyTask.count({
+              where: {
+                case_id: caseId,
+                attorney_id: s.attorneyId,
+                case_task_id: null,
+                status: { in: ['open', 'taken'] },
+              },
+            })
+          : Promise.resolve(0),
+        this.prisma.caseUpdate.count({ where: { case_id: caseId } }),
+        this.prisma.caseUpdate.count({
+          where: {
+            case_id: caseId,
+            author_id: other,
+            ...(read ? { created_at: { gt: read.updates_seen_at } } : {}),
+          },
+        }),
+      ]);
     const k = await this.prisma.case.findUniqueOrThrow({
       where: { id: caseId },
       select: {
@@ -718,7 +760,7 @@ export class CaseWorkspaceService {
     return {
       role: s.role,
       files,
-      openTasks,
+      openTasks: sharedTasks + privateTasks,
       updatesCount,
       newUpdates,
       publishedAt: k.created_at.toISOString(),

@@ -19,14 +19,14 @@ import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
 // Owner 2026-10-02: three tabs on top — Planner · Cases (Open · In progress ·
 // Completed · Archive inside) · Saved.
-enum _ClientTab { planner, cases, saved }
+enum _ClientTab { active, planner, cases, saved }
 
 enum _CaseSection { open, inProgress, completed, archived }
 
 // Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
 // Completed · Finished · Saved inside) and the Planner (tasks calendar).
 // Owner 2026-10-01: Planner first, My bids second.
-enum _AttorneyTab { planner, bids }
+enum _AttorneyTab { active, planner, bids }
 
 enum _BidsSection { active, invites, work, completed, finished, saved }
 
@@ -43,7 +43,7 @@ class ClientMineView extends ConsumerStatefulWidget {
 }
 
 class _ClientMineViewState extends ConsumerState<ClientMineView> {
-  _ClientTab _tab = _ClientTab.planner;
+  _ClientTab _tab = _ClientTab.active;
   _CaseSection _section = _CaseSection.open;
   MineSearch _search = const MineSearch();
 
@@ -58,6 +58,12 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       _CaseSection.archived => MyCasesFilter.archived,
     };
     final body = switch (_tab) {
+      // Owner 2026-10-13: the accepted cases come first, one tap to work.
+      _ClientTab.active => const _ClientCasesGrid(
+          key: ValueKey('active'),
+          filter: MyCasesFilter.inProgress,
+          search: MineSearch(),
+        ),
       // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
       _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
       _ClientTab.saved => const SavedPostsList(key: ValueKey('saved')),
@@ -94,6 +100,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
         PillTabs<_ClientTab>(
           value: _tab,
           tabs: [
+            (_ClientTab.active, t.t('mine.tab.activeCases')),
             (_ClientTab.planner, t.t('mine.tab.tasks')),
             (_ClientTab.cases, t.t('mine.tab.cases')),
             (_ClientTab.saved, t.t('mine.tab.saved')),
@@ -118,7 +125,11 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
 }
 
 class _ClientCasesGrid extends ConsumerWidget {
-  const _ClientCasesGrid({required this.filter, required this.search});
+  const _ClientCasesGrid({
+    required this.filter,
+    required this.search,
+    super.key,
+  });
 
   final MyCasesFilter filter;
   final MineSearch search;
@@ -173,7 +184,7 @@ class AttorneyMineView extends ConsumerStatefulWidget {
 }
 
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
-  _AttorneyTab _tab = _AttorneyTab.planner;
+  _AttorneyTab _tab = _AttorneyTab.active;
   _BidsSection _section = _BidsSection.active;
   MineSearch _search = const MineSearch();
 
@@ -255,12 +266,18 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           ],
         ),
       _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
+      _AttorneyTab.active => const _WorkGrid(
+          key: ValueKey('active'),
+          filter: WorkFilter.active,
+          search: MineSearch(),
+        ),
     };
     return Column(
       children: [
         PillTabs<_AttorneyTab>(
           value: _tab,
           tabs: [
+            (_AttorneyTab.active, t.t('mine.tab.activeCases')),
             (_AttorneyTab.planner, t.t('mine.tab.tasks')),
             (_AttorneyTab.bids, t.t('mine.tab.myBids')),
           ],

@@ -43,6 +43,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
             description: r.text.isEmpty ? null : r.text,
             items: r.items,
             files: r.files,
+            dueAt: r.dueAt,
+            remindBeforeMin: r.remindBeforeMin,
           );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
@@ -171,17 +173,21 @@ String taskSubtitle(
           'date': f.date(DateTime.parse(k.doneAt ?? k.createdAt)),
         })}$files';
   }
+  final dueAt = k.dueAt == null ? null : DateTime.parse(k.dueAt!);
+  final due = dueAt == null
+      ? ''
+      : ' · ${t.t('cases.tasks.dueOn', {'date': f.date(dueAt)})}';
   if (k.itemsTotal > 0) {
     return '${t.t('cases.tasks.progress', {
           'done': '${k.itemsDone}',
           'total': '${k.itemsTotal}',
-        })}$files';
+        })}$due$files';
   }
   if (k.kind == api.CaseTaskDtoKind.forClient) {
     final key = isAttorney ? 'cases.tasks.waitingClient' : 'cases.tasks.toDo';
-    return '${t.t(key)}$files';
+    return '${t.t(key)}$due$files';
   }
-  return '${f.date(DateTime.parse(k.createdAt))}$files';
+  return '${f.date(DateTime.parse(k.createdAt))}$due$files';
 }
 
 class TaskRow extends ConsumerWidget {

@@ -30,6 +30,7 @@ class CaseTaskDto {
     this.description,
     this.doneAt,
     this.closedAt,
+    this.dueAt,
   });
 
   factory CaseTaskDto.fromJson(Map<String, Object?> json) =>
@@ -43,6 +44,7 @@ class CaseTaskDto {
   final String? doneAt;
   final bool closed;
   final String? closedAt;
+  final String? dueAt;
   final String createdAt;
   final int fileCount;
   final List<WorkspaceFileDto> files;

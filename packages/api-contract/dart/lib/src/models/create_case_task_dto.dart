@@ -15,6 +15,8 @@ class CreateCaseTaskDto {
     required this.kind,
     required this.title,
     this.description,
+    this.dueAt,
+    this.remindBeforeMin,
     this.items,
     this.files,
   });
@@ -25,6 +27,8 @@ class CreateCaseTaskDto {
   final CreateCaseTaskDtoKind kind;
   final String title;
   final String? description;
+  final DateTime? dueAt;
+  final num? remindBeforeMin;
 
   /// Checklist lines of a for-client task, each up to 200.
   final List<String>? items;
