@@ -7,6 +7,8 @@
 const file05Ru = <String, String>{
   // --- relative time ---
   'time.justNow': 'только что',
+  'time.short.s': '{count}с',
+  'time.short.w': '{count}н',
   'time.short.m': '{count} мин',
   'time.short.h': '{count} ч',
   'time.short.d': '{count} д',
@@ -270,6 +272,8 @@ const file05Ru = <String, String>{
 const file05En = <String, String>{
   // --- relative time ---
   'time.justNow': 'just now',
+  'time.short.s': '{count}s',
+  'time.short.w': '{count}w',
   'time.short.m': '{count}m',
   'time.short.h': '{count}h',
   'time.short.d': '{count}d',

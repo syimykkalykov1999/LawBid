@@ -19,7 +19,10 @@ abstract final class SocialFormat {
   }) {
     final n = now ?? DateTime.now();
     final diff = n.difference(at);
-    if (diff.inMinutes < 1) return t.t('time.justNow');
+    if (diff.inMinutes < 1) {
+      return t.t('time.short.s',
+          {'count': '${diff.inSeconds < 1 ? 1 : diff.inSeconds}'});
+    }
     if (diff.inHours < 1) {
       return t.t('time.short.m', {'count': '${diff.inMinutes}'});
     }
@@ -28,8 +31,11 @@ abstract final class SocialFormat {
     }
     // Owner 2026-10-13: "5m", "15h", "3d" — no "ago" — up to 10 days, then
     // the date ("Oct 12", with the year for another year).
-    if (diff.inDays <= 10) {
+    if (diff.inDays < 7) {
       return t.t('time.short.d', {'count': '${diff.inDays}'});
+    }
+    if (diff.inDays <= 10) {
+      return t.t('time.short.w', {'count': '${diff.inDays ~/ 7}'});
     }
     return at.year == n.year ? f.dayMonth(at) : f.date(at);
   }

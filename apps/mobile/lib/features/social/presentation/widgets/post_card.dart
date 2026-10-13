@@ -935,7 +935,10 @@ class _ThreadsPost extends ConsumerWidget {
                 padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                 child: Text(
                   SocialFormat.count(f, count),
-                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                  style: type.bodySmall.copyWith(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
               ),
           ],
@@ -1005,6 +1008,19 @@ class _ThreadsPost extends ConsumerWidget {
                 ],
               ),
             ),
+            // Threads: the time at the right of the name row, grey 13sp.
+            if (promotionId == null)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+                child: Text(
+                  SocialFormat.ago(t, f, p.createdAt),
+                  maxLines: 1,
+                  style: type.caption.copyWith(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
             // With a "reposted" line under the name the row is only as tall
             // as the name, so that line sits right under it.
             if (compact)
@@ -1116,7 +1132,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.favoriteRounded,
                       icon: AppIcons.favoriteBorderRounded,
                       activeColor: colors.danger,
-                      size: 22,
+                      size: 20,
                       extent: 34,
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
@@ -1128,7 +1144,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
                       icon: AppIcons.modeCommentOutlined,
-                      size: 22,
+                      size: 20,
                       extent: 34,
                       label: t.t('post.comments'),
                       // In the open thread the replies are right below:
@@ -1145,7 +1161,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.autoModeRounded,
                       icon: AppIcons.autoModeRounded,
                       activeColor: colors.success,
-                      size: 22,
+                      size: 20,
                       extent: 34,
                       label:
                           t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
@@ -1158,7 +1174,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
                       icon: AppIcons.sendOutlined,
-                      size: 22,
+                      size: 20,
                       extent: 34,
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
@@ -1174,26 +1190,12 @@ class _ThreadsPost extends ConsumerWidget {
           const SizedBox(width: AppSpacing.sm),
           BoostButton(postId: p.id),
         ],
-        // Owner 2026-10-13: the time sits left of Save, grey; Save (the
-        // bookmark) is the right-most button of the row.
-        if (promotionId == null) ...[
-          const SizedBox(width: AppSpacing.sm),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 96),
-            child: Text(
-              SocialFormat.ago(t, f, p.createdAt),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.caption.copyWith(color: colors.textSecondary),
-            ),
-          ),
-        ],
         BounceIcon(
           active: p.savedByMe,
           activeIcon: AppIcons.bookmarkRounded,
           icon: AppIcons.bookmarkBorderRounded,
           activeColor: colors.gold,
-          size: 22,
+          size: 20,
           extent: 34,
           label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
           onTap: () => run(() => actions.toggleSave(p)),
