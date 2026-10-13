@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -425,9 +423,10 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
 }
 
 /// Owner 2026-10-12: the round disc under the logo and the chats icon of
-/// the scrolled header. Its look follows the APP THEME only (never the
-/// content under it): light theme — light frosted disc, dark icon; dark theme
-/// — dark frosted disc, white icon.
+/// the header. Owner 2026-10-13: no blur — the disc is the plain surface
+/// colour of the current theme (over the Reels video: a dark translucent
+/// disc, also without blur); the icon follows the theme: dark theme — white
+/// icon, light theme — dark icon.
 class _FloatDisc extends StatelessWidget {
   const _FloatDisc({required this.icon, this.forceDark = false});
 
@@ -438,28 +437,24 @@ class _FloatDisc extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final dark = forceDark || Theme.of(context).brightness == Brightness.dark;
     return Stack(
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        ClipOval(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: dark
-                    ? Colors.black.withValues(alpha: 0.5)
-                    : const Color(0xFFEDEFF3).withValues(alpha: 0.85),
-                border: Border.all(
-                  color: dark
-                      ? Colors.white.withValues(alpha: 0.18)
-                      : Colors.black.withValues(alpha: 0.08),
-                ),
-              ),
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: forceDark
+                ? Colors.black.withValues(alpha: 0.5)
+                : colors.surface,
+            border: Border.all(
+              color: forceDark
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : colors.border,
             ),
           ),
         ),

@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
@@ -133,13 +131,8 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
               ],
             ),
     );
-    // Owner 2026-10-13: the bar blurs what passes behind it (Glass = glass).
-    if (onDark || bare) return bar;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: bar,
-      ),
-    );
+    // Owner 2026-10-13: no blur behind the header — the plain background
+    // of the current theme.
+    return bar;
   }
 }
