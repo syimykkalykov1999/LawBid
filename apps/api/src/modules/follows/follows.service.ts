@@ -212,7 +212,7 @@ export class FollowsService {
     const clientIds = page.filter((r) => r.role === 'client').map((r) => r.id);
     const [attorneys, clients] = await Promise.all([
       this.present(attorneyIds, viewerId),
-      this.clients.presentMany(clientIds),
+      this.clients.presentMany(clientIds, viewerId),
     ]);
     const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
     const byClient = new Map(clients.map((x) => [x.id, x]));

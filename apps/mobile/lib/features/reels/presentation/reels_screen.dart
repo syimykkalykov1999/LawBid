@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -527,94 +526,23 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Owner 2026-10-05: «Подписаться» right after the
-                      // author's name, like the feed card.
-                      Row(
-                        children: [
-                          // The name takes all the room; Follow sits at the
-                          // right edge of the row, not right after the name.
-                          Expanded(
-                            child: Semantics(
-                              button: true,
-                              label: t.t(
-                                'post.author.open',
-                                {'name': p.author.displayName},
-                              ),
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () =>
-                                    openAuthorProfile(context, ref, p.author),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // Initials under the photo.
-                                    AppAvatar(
-                                      size: 32,
-                                      initials: p.author.initials,
-                                      imageProvider: p.author.avatarUrl == null
-                                          ? null
-                                          : CachedNetworkImageProvider(
-                                              p.author.avatarUrl!,
-                                            ),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Flexible(
-                                      child: AuthorNameLine(
-                                        name: p.author.displayName,
-                                        verified: p.author.verified,
-                                        gold: p.author.isClient,
-                                        checkLabel: t.t('post.verified'),
-                                        style: type.body.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          shadows: shadow,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (!p.isMine) ...[
-                            const SizedBox(width: 12),
-                            // Capped so a long translation can't squeeze
-                            // the name away.
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 140),
-                              child: ReelFollowButton(
-                                attorneyId: p.author.id,
-                                initial: p.author.isFollowing,
-                              ),
-                            ),
-                          ],
-                        ],
+                      // The shared author row: Follow at its right edge.
+                      AuthorHeader(
+                        author: p.author,
+                        onDark: true,
+                        shadows: shadow,
+                        avatarSize: 32,
+                        gap: AppSpacing.sm,
+                        followMaxWidth: 140,
+                        showFollow: !p.isMine,
+                        subtitle: p.locationName ??
+                            (p.author.isClient
+                                ? '@${p.author.username} · '
+                                    '${t.t('person.client')}'
+                                : p.author.verified
+                                    ? t.t('post.licensedAttorney')
+                                    : '@${p.author.username}'),
                       ),
-                      if (p.locationName != null) ...[
-                        const SizedBox(height: AppSpacing.xs),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AppIcon(
-                              AppIcons.locationOnOutlined,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                p.locationName!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.caption.copyWith(
-                                  color: Colors.white,
-                                  shadows: shadow,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         // A short caption; the whole text is inside (the

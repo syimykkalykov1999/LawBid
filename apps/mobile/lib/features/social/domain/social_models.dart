@@ -523,6 +523,7 @@ class ClientRow {
     this.lastName,
     this.avatarUrl,
     this.verified = false,
+    this.isFollowing = false,
   });
 
   final String id;
@@ -531,6 +532,9 @@ class ClientRow {
   final String? lastName;
   final String? avatarUrl;
   final String stateCode;
+
+  /// Does the viewer follow this client.
+  final bool isFollowing;
 
   /// OQ-029 final: blue check for a confirmed phone number.
   final bool verified;

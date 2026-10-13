@@ -52,6 +52,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _chrome = FeedChromeController();
   Timer? _timer;
   String _query = '';
+  bool _focused = false;
   SearchTab _tab = SearchTab.attorneys;
 
   /// OQ-036: every tab keeps its own filters.
@@ -81,6 +82,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       setState(() => _query = next);
       ref.read(recentSearchesProvider.notifier).remember(next);
     }
+    if (_focused) setState(() => _focused = false);
     _focus.unfocus();
   }
 
@@ -99,6 +101,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   /// Leaving the field with a real query counts as "searched" (§7.2).
   void _onFocus() {
+    // The history stays open after the keyboard is dragged away; it
+    // closes on a pick, a search or a tab change.
+    if (_focus.hasFocus && !_focused) setState(() => _focused = true);
     if (_focus.hasFocus) _chrome.show();
     if (!_focus.hasFocus && _query.isNotEmpty) {
       ref.read(recentSearchesProvider.notifier).remember(_query);
@@ -110,7 +115,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ..text = q
       ..selection = TextSelection.collapsed(offset: q.length);
     _timer?.cancel();
-    setState(() => _query = normalizeSearch(q));
+    setState(() {
+      _query = normalizeSearch(q);
+      _focused = false;
+    });
   }
 
   Future<void> _openFilters(SearchFilterKind kind) async {
@@ -150,7 +158,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final tabsRow = PillTabs<SearchTab>(
       value: _tab,
       tabs: tabs,
-      onChanged: (v) => setState(() => _tab = v),
+      onChanged: (v) => setState(() {
+        _tab = v;
+        _focused = false;
+      }),
     );
 
     // Filters button inside the field at the left edge (owner
@@ -178,10 +189,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       showCancel: false,
       height: 40,
       leading: filterButton,
-      trailing: AppIconButton(
-        icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-        semanticLabel: t.t('search.open'),
-        onPressed: _onMagnifier,
+      // Owner 2026-10-13: the field never shrinks. While the history is
+      // open and nothing is typed, the icon at its end is a × = cancel
+      // (hides the keyboard and the history); once there is text it is the
+      // magnifier that searches.
+      trailing: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: _controller,
+        builder: (context, value, _) {
+          final cancel = _focused && value.text.isEmpty;
+          return AppIconButton(
+            icon: AppIcon(
+              cancel ? AppIcons.closeRounded : AppIcons.searchRounded,
+              color: cancel ? colors.textSecondary : colors.goldDark,
+            ),
+            semanticLabel: cancel ? t.t('common.cancel') : t.t('search.open'),
+            onPressed: cancel
+                ? () {
+                    _focus.unfocus();
+                    setState(() => _focused = false);
+                  }
+                : _onMagnifier,
+          );
+        },
       ),
       hints: [
         t.t(attorney ? 'search.hint.attorney' : 'search.hint.client'),
@@ -192,63 +221,82 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       onSubmitted: (v) => ref.read(recentSearchesProvider.notifier).remember(v),
     );
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: FeedChrome(
-        controller: _chrome,
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              // Owner 2026-09-30: the sections on top, the field under them.
-              tabsRow,
-              ChromeCollapse(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenSide,
-                    AppSpacing.xs,
-                    AppSpacing.screenSide,
-                    AppSpacing.xs,
+    return PopScope(
+      canPop: !_focused,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _focused) {
+          _focus.unfocus();
+          setState(() => _focused = false);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        body: FeedChrome(
+          controller: _chrome,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                // Owner 2026-09-30: the sections on top, the field under them.
+                tabsRow,
+                ChromeCollapse(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenSide,
+                      AppSpacing.xs,
+                      AppSpacing.screenSide,
+                      AppSpacing.xs,
+                    ),
+                    child: field,
                   ),
-                  child: field,
                 ),
-              ),
-              Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: _chrome.onScroll,
-                  child: TabSwipe<SearchTab>(
-                    value: _tab,
-                    values: [for (final (v, _) in tabs) v],
-                    onChanged: (v) => setState(() => _tab = v),
-                    child: AnimatedSwitcher(
-                      duration: context.reduceMotion
-                          ? Duration.zero
-                          : AppMotion.stateChange,
-                      child: _query.isEmpty
-                          ? _BeforeTyping(
-                              key: ValueKey('idle:$_tab:${filters.hashCode}'),
-                              tab: _tab,
-                              filters: filters,
-                              onFilters: (f) =>
-                                  setState(() => _filters[_tab] = f),
-                              onRecent: _useRecent,
-                            )
-                          : KeyedSubtree(
-                              key:
-                                  ValueKey('$_tab:$_query:${filters.hashCode}'),
-                              child: _Results(
-                                tab: _tab,
-                                query: _query,
-                                filters: filters,
-                                onFilters: (f) =>
-                                    setState(() => _filters[_tab] = f),
-                              ),
-                            ),
+                Expanded(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _chrome.onScroll,
+                    child: TabSwipe<SearchTab>(
+                      value: _tab,
+                      values: [for (final (v, _) in tabs) v],
+                      onChanged: (v) => setState(() => _tab = v),
+                      child: AnimatedSwitcher(
+                        duration: context.reduceMotion
+                            ? Duration.zero
+                            : AppMotion.stateChange,
+                        child: _query.isEmpty && _focused
+                            // Instagram: tapping the field shows the history
+                            // right under it, each line with a × and "Clear".
+                            ? _RecentHistory(
+                                key: const ValueKey('history'),
+                                onPick: _useRecent,
+                              )
+                            : _query.isEmpty
+                                ? _BeforeTyping(
+                                    key: ValueKey(
+                                      'idle:$_tab:${filters.hashCode}',
+                                    ),
+                                    tab: _tab,
+                                    filters: filters,
+                                    onFilters: (f) =>
+                                        setState(() => _filters[_tab] = f),
+                                    onRecent: _useRecent,
+                                  )
+                                : KeyedSubtree(
+                                    key: ValueKey(
+                                      '$_tab:$_query:${filters.hashCode}',
+                                    ),
+                                    child: _Results(
+                                      tab: _tab,
+                                      query: _query,
+                                      filters: filters,
+                                      onFilters: (f) =>
+                                          setState(() => _filters[_tab] = f),
+                                    ),
+                                  ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -652,85 +700,6 @@ class _BeforeTyping extends ConsumerWidget {
       },
       child: CustomScrollView(
         slivers: [
-          if (recent.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: title(
-                t.t('search.recent'),
-                small: true,
-                trailing: GestureDetector(
-                  onTap: () =>
-                      ref.read(recentSearchesProvider.notifier).clear(),
-                  behavior: HitTestBehavior.opaque,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xs,
-                    ),
-                    child: Text(
-                      t.t('search.recent.clear'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.body.copyWith(
-                        color: colors.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 30,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.screenSide,
-                  ),
-                  itemCount: recent.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, i) => ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 200),
-                    child: GestureDetector(
-                      onTap: () => onRecent(recent[i]),
-                      behavior: HitTestBehavior.opaque,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AppIcon(
-                                AppIcons.historyRounded,
-                                size: 14,
-                                color: colors.textSecondary,
-                              ),
-                              const SizedBox(width: 5),
-                              Flexible(
-                                child: Text(
-                                  recent[i],
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.body.copyWith(
-                                    color: colors.text,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
           if (basedOn.isNotEmpty) ...[
             SliverToBoxAdapter(
               child: title(
@@ -897,6 +866,108 @@ class _PostsFilterRow extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The search history inside the field's own list (shown while the field
+/// has focus and is empty): "Recent" with "Clear", and a × on every line.
+class _RecentHistory extends ConsumerWidget {
+  const _RecentHistory({required this.onPick, super.key});
+
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final recent = ref.watch(recentSearchesProvider).value ?? const <String>[];
+    if (recent.isEmpty) return const SizedBox.shrink();
+    return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  t.t('search.recent'),
+                  style: type.body.copyWith(
+                    color: colors.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => ref.read(recentSearchesProvider.notifier).clear(),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Text(
+                    t.t('search.recent.clear'),
+                    style: type.body.copyWith(
+                      color: colors.gold,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final q in recent)
+          InkWell(
+            onTap: () => onPick(q),
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.screenSide,
+                right: AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.historyRounded,
+                    size: 18,
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      q,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(color: colors.text),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: t.t('search.recent.clear'),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () =>
+                        ref.read(recentSearchesProvider.notifier).forget(q),
+                    icon: AppIcon(
+                      AppIcons.closeRounded,
+                      size: 18,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

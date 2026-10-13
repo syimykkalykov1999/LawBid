@@ -469,6 +469,7 @@ class ClientTile extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final me = ref.watch(currentUserIdProvider);
     return AppPressable(
       onTap: () => openProfile(
         context,
@@ -532,6 +533,17 @@ class ClientTile extends ConsumerWidget {
                 ],
               ),
             ),
+            if (row.id != me) ...[
+              const SizedBox(width: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 120),
+                child: FollowButton(
+                  attorneyId: row.id,
+                  initial: row.isFollowing,
+                  outlined: true,
+                ),
+              ),
+            ],
           ],
         ),
       ),

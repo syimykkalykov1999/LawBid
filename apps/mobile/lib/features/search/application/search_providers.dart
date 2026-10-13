@@ -134,6 +134,13 @@ class RecentSearches extends AsyncNotifier<List<String>> {
     ref.invalidateSelf();
   }
 
+  Future<void> forget(String query) async {
+    final owner = ref.read(currentUserIdProvider);
+    if (owner == null) return;
+    await ref.read(socialLocalDatabaseProvider).forgetRecent(owner, query);
+    ref.invalidateSelf();
+  }
+
   Future<void> clear() async {
     final owner = ref.read(currentUserIdProvider);
     if (owner == null) return;

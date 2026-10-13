@@ -20,6 +20,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.goldStroke,
     required this.goldLight,
     required this.goldDark,
+    required this.goldAccent,
     required this.navy,
     required this.panFill,
     required this.panText,
@@ -63,6 +64,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsLight.goldStroke,
         goldLight: AppColorsLight.goldLight,
         goldDark: AppColorsLight.goldDark,
+        goldAccent: Color(0xFFA9821F),
         navy: AppColorsLight.navy,
         panFill: AppColorsLight.panFill,
         panText: AppColorsLight.panText,
@@ -103,6 +105,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsDark.goldStroke,
         goldLight: AppColorsDark.goldLight,
         goldDark: AppColorsDark.goldDark,
+        goldAccent: Color(0xFFE4C46E),
         navy: AppColorsDark.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -144,6 +147,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsNavy.goldStroke,
         goldLight: AppColorsNavy.goldLight,
         goldDark: AppColorsNavy.goldDark,
+        goldAccent: Color(0xFFD6B05A),
         navy: AppColorsNavy.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -185,6 +189,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsGlass.goldStroke,
         goldLight: AppColorsGlass.goldLight,
         goldDark: AppColorsGlass.goldDark,
+        goldAccent: Color(0xFFD4A93F),
         navy: AppColorsGlass.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -231,6 +236,10 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color goldStroke;
   final Color goldLight;
   final Color goldDark;
+
+  /// The gold of selected icons and the gold check: a shade per theme so
+  /// it stays visible on that theme's bars (contrast ≥ 3:1).
+  final Color goldAccent;
   final Color navy;
   final Color panFill;
   final Color panText;
@@ -302,6 +311,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? goldStroke,
     Color? goldLight,
     Color? goldDark,
+    Color? goldAccent,
     Color? navy,
     Color? panFill,
     Color? panText,
@@ -344,6 +354,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       goldStroke: goldStroke ?? this.goldStroke,
       goldLight: goldLight ?? this.goldLight,
       goldDark: goldDark ?? this.goldDark,
+      goldAccent: goldAccent ?? this.goldAccent,
       navy: navy ?? this.navy,
       panFill: panFill ?? this.panFill,
       panText: panText ?? this.panText,
@@ -391,6 +402,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       goldStroke: Color.lerp(goldStroke, other.goldStroke, t)!,
       goldLight: Color.lerp(goldLight, other.goldLight, t)!,
       goldDark: Color.lerp(goldDark, other.goldDark, t)!,
+      goldAccent: Color.lerp(goldAccent, other.goldAccent, t)!,
       navy: Color.lerp(navy, other.navy, t)!,
       panFill: Color.lerp(panFill, other.panFill, t)!,
       panText: Color.lerp(panText, other.panText, t)!,

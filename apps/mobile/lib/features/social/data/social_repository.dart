@@ -1067,6 +1067,7 @@ abstract final class SocialMappers {
         avatarUrl: d.avatarUrl,
         stateCode: d.stateCode,
         verified: d.verifiedBadge,
+        isFollowing: d.isFollowing,
       );
 
   /// null for a row of an unknown role (a newer server).

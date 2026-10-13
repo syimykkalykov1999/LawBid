@@ -202,8 +202,21 @@ export class ClientProfilesService {
 
   /** People-search rows in [ids] order; clients gone since caching drop
    * out. */
-  async presentMany(ids: string[]): Promise<ClientListItemDto[]> {
+  async presentMany(
+    ids: string[],
+    viewerId?: string,
+  ): Promise<ClientListItemDto[]> {
     if (ids.length === 0) return [];
+    const followed = new Set(
+      viewerId
+        ? (
+            await this.prisma.follow.findMany({
+              where: { follower_id: viewerId, followee_id: { in: ids } },
+              select: { followee_id: true },
+            })
+          ).map((f) => f.followee_id)
+        : [],
+    );
     const users = await this.prisma.user.findMany({
       where: { id: { in: ids }, ...LISTABLE_CLIENT },
       select: {
@@ -235,6 +248,7 @@ export class ClientProfilesService {
           : null,
         stateCode: p.state_code,
         verifiedBadge: gold.has(id),
+        isFollowing: followed.has(id),
       });
     }
     return out;

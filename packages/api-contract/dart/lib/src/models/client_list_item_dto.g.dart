@@ -15,6 +15,7 @@ ClientListItemDto _$ClientListItemDtoFromJson(Map<String, dynamic> json) =>
       avatarUrl: json['avatarUrl'] as String?,
       stateCode: json['stateCode'] as String,
       verifiedBadge: json['verifiedBadge'] as bool,
+      isFollowing: json['isFollowing'] as bool,
     );
 
 Map<String, dynamic> _$ClientListItemDtoToJson(ClientListItemDto instance) =>
@@ -26,4 +27,5 @@ Map<String, dynamic> _$ClientListItemDtoToJson(ClientListItemDto instance) =>
       'avatarUrl': ?instance.avatarUrl,
       'stateCode': instance.stateCode,
       'verifiedBadge': instance.verifiedBadge,
+      'isFollowing': instance.isFollowing,
     };

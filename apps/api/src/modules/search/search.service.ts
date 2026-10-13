@@ -187,7 +187,7 @@ export class SearchService {
       .map((t) => t.slice('client:'.length));
     const [attorneys, clients] = await Promise.all([
       this.follows.present(attorneyIds, user.sub),
-      this.clients.presentMany(clientIds),
+      this.clients.presentMany(clientIds, user.sub),
     ]);
     const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
     const byClient = new Map(clients.map((c) => [c.id, c]));

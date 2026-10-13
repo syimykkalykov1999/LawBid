@@ -104004,6 +104004,10 @@
           "verifiedBadge": {
             "type": "boolean",
             "description": "OQ-029 final: blue check = the client confirmed a phone number."
+          },
+          "isFollowing": {
+            "type": "boolean",
+            "description": "Does the viewer follow this client (false when not known)."
           }
         },
         "required": [
@@ -104013,7 +104017,8 @@
           "lastName",
           "avatarUrl",
           "stateCode",
-          "verifiedBadge"
+          "verifiedBadge",
+          "isFollowing"
         ]
       },
       "PersonItemDto": {

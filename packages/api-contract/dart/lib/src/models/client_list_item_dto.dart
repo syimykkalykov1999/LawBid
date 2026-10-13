@@ -16,6 +16,7 @@ class ClientListItemDto {
     required this.avatarUrl,
     required this.stateCode,
     required this.verifiedBadge,
+    required this.isFollowing,
   });
 
   factory ClientListItemDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +31,9 @@ class ClientListItemDto {
 
   /// OQ-029 final: blue check = the client confirmed a phone number.
   final bool verifiedBadge;
+
+  /// Does the viewer follow this client (false when not known).
+  final bool isFollowing;
 
   Map<String, Object?> toJson() => _$ClientListItemDtoToJson(this);
 }

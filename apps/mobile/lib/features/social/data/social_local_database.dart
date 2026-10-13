@@ -154,6 +154,11 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
         .go();
   }
 
+  Future<void> forgetRecent(String ownerId, String query) => (delete(
+        recentSearches,
+      )..where((r) => r.ownerId.equals(ownerId) & r.query.equals(query)))
+          .go();
+
   Future<void> clearRecent(String ownerId) =>
       (delete(recentSearches)..where((r) => r.ownerId.equals(ownerId))).go();
 }

@@ -12,7 +12,6 @@ import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -155,71 +154,16 @@ class _InnerHeader extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsetsDirectional.only(start: AppSpacing.md),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Semantics(
-                    button: true,
-                    label: t.t('post.author.open', {'name': a.displayName}),
-                    child: AppPressable(
-                      onTap: () => openAuthorProfile(context, ref, a),
-                      child: Row(
-                        children: [
-                          GoldRingAvatar(
-                            url: a.avatarUrl,
-                            initials: a.initials,
-                            size: 40,
-                            ring: a.verified,
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AuthorNameLine(
-                                  name: a.displayName,
-                                  verified: a.verified,
-                                  gold: a.isClient,
-                                  checkLabel: t.t('post.verified'),
-                                  style: type.body.copyWith(
-                                    color: colors.text,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  place.isEmpty ? role : '$role · $place',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.caption.copyWith(
-                                    color: colors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // Only on someone else's post — never on my own.
-                if (!post.isMine) ...[
-                  const SizedBox(width: AppSpacing.sm),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 124),
-                    child: FollowButton(
-                      attorneyId: a.id,
-                      initial: a.isFollowing,
-                      outlined: true,
-                    ),
-                  ),
-                ],
-                AppIconButton(
-                  icon: const AppIcon(AppIcons.moreHorizRounded),
-                  semanticLabel: t.t('post.menu'),
-                  onPressed: () => showPostMenu(context, ref, post),
-                ),
-              ],
+            child: AuthorHeader(
+              author: a,
+              showFollow: !post.isMine,
+              followMaxWidth: 124,
+              subtitle: place.isEmpty ? role : '$role · $place',
+              trailing: AppIconButton(
+                icon: const AppIcon(AppIcons.moreHorizRounded),
+                semanticLabel: t.t('post.menu'),
+                onPressed: () => showPostMenu(context, ref, post),
+              ),
             ),
           ),
         ],

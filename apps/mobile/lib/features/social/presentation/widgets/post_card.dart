@@ -1509,8 +1509,6 @@ class _AuthorRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = post.author;
     return Padding(
       padding: EdgeInsetsDirectional.fromSTEB(
@@ -1519,94 +1517,30 @@ class _AuthorRow extends ConsumerWidget {
         AppSpacing.xs,
         compact ? 6 : AppSpacing.md,
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Semantics(
-              button: true,
-              label: t.t('post.author.open', {'name': a.displayName}),
-              child: AppPressable(
-                onTap: () => openAuthorProfile(context, ref, a),
-                child: Row(
-                  children: [
-                    GoldRingAvatar(
-                      url: a.avatarUrl,
-                      initials: a.initials,
-                      size: compact ? 34 : AppSizes.cardAvatar,
-                      ring: a.verified,
-                    ),
-                    SizedBox(width: compact ? 10 : AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AuthorNameLine(
-                            name: a.displayName,
-                            verified: a.verified,
-                            gold: a.isClient,
-                            checkLabel: t.t('post.verified'),
-                            style: type.body.copyWith(
-                              color: onDark ? Colors.white : colors.text,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            sponsored
-                                ? t.t('promote.sponsored')
-                                : post.locationName ??
-                                    (a.isClient
-                                        ? '@${a.username} · '
-                                            '${t.t('person.client')}'
-                                        : a.verified
-                                            ? t.t('post.licensedAttorney')
-                                            : '@${a.username}'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.caption.copyWith(
-                              color: onDark
-                                  ? Colors.white.withValues(alpha: 0.9)
-                                  : colors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+      child: AuthorHeader(
+        author: a,
+        onDark: onDark,
+        avatarSize: compact ? 34 : AppSizes.cardAvatar,
+        gap: compact ? 10 : AppSpacing.md,
+        followMaxWidth: compact ? 120 : 136,
+        // Only on someone else's post.
+        showFollow: !post.isMine,
+        subtitle: sponsored
+            ? t.t('promote.sponsored')
+            : post.locationName ??
+                (a.isClient
+                    ? '@${a.username} · ${t.t('person.client')}'
+                    : a.verified
+                        ? t.t('post.licensedAttorney')
+                        : '@${a.username}'),
+        trailing: AppIconButton(
+          icon: AppIcon(
+            AppIcons.moreHorizRounded,
+            color: onDark ? Colors.white : null,
           ),
-          // Owner 2026-09-30: a working Follow on the card.
-          // Owner 2026-10-13: Follow / Following on the outer card too,
-          // only on someone else's post.
-          if (!post.isMine) ...[
-            // Capped so a long "Follow" can't squeeze the author's name;
-            // at least 12dp from whatever is on its left.
-            const SizedBox(width: 12),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: compact ? 120 : 136),
-              child: onDark
-                  ? ReelFollowButton(
-                      attorneyId: a.id,
-                      initial: a.isFollowing,
-                    )
-                  : FollowButton(
-                      attorneyId: a.id,
-                      initial: a.isFollowing,
-                      outlined: true,
-                    ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-          ],
-          AppIconButton(
-            icon: AppIcon(
-              AppIcons.moreHorizRounded,
-              color: onDark ? Colors.white : null,
-            ),
-            semanticLabel: t.t('post.menu'),
-            onPressed: () => showPostMenu(context, ref, post),
-          ),
-        ],
+          semanticLabel: t.t('post.menu'),
+          onPressed: () => showPostMenu(context, ref, post),
+        ),
       ),
     );
   }
@@ -1655,6 +1589,116 @@ class _OwnMenuRow extends ConsumerWidget {
 }
 
 /// docs/05 §2.4 "синяя галочка" next to verified attorneys.
+/// The one author row of the app (feed card, reel card, inner card, Reels
+/// player): avatar with its ring, the name on ONE line with the check right
+/// after it, a grey line under it, and the small Follow pill at the right
+/// edge of the same row (at least 12dp from the name). [trailing] is the
+/// "…" menu where the surface has one.
+class AuthorHeader extends ConsumerWidget {
+  const AuthorHeader({
+    required this.author,
+    required this.subtitle,
+    required this.showFollow,
+    this.avatarSize = 40,
+    this.onDark = false,
+    this.shadows,
+    this.trailing,
+    this.followMaxWidth = 136,
+    this.gap = AppSpacing.md,
+    super.key,
+  });
+
+  final PostAuthor author;
+  final String subtitle;
+  final bool showFollow;
+  final double avatarSize;
+
+  /// White text over a video.
+  final bool onDark;
+  final List<Shadow>? shadows;
+  final Widget? trailing;
+  final double followMaxWidth;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final a = author;
+    return Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            button: true,
+            label: t.t('post.author.open', {'name': a.displayName}),
+            child: AppPressable(
+              onTap: () => openAuthorProfile(context, ref, a),
+              child: Row(
+                children: [
+                  GoldRingAvatar(
+                    url: a.avatarUrl,
+                    initials: a.initials,
+                    size: avatarSize,
+                    ring: a.verified,
+                  ),
+                  SizedBox(width: gap),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AuthorNameLine(
+                          name: a.displayName,
+                          verified: a.verified,
+                          gold: a.isClient,
+                          checkLabel: t.t('post.verified'),
+                          style: type.body.copyWith(
+                            color: onDark ? Colors.white : colors.text,
+                            fontWeight: FontWeight.w600,
+                            shadows: shadows,
+                          ),
+                        ),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: onDark
+                                ? Colors.white.withValues(alpha: 0.9)
+                                : colors.textSecondary,
+                            shadows: shadows,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (showFollow) ...[
+          const SizedBox(width: 12),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: followMaxWidth),
+            child: onDark
+                ? ReelFollowButton(
+                    attorneyId: a.id,
+                    initial: a.isFollowing,
+                  )
+                : FollowButton(
+                    attorneyId: a.id,
+                    initial: a.isFollowing,
+                    outlined: true,
+                  ),
+          ),
+        ],
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
 /// The one author-name line used by every card and the Reels player: the
 /// name on a single line ending in "…" when it is long, the check right
 /// after it on the same line and never cut. (Follow sits at the row's
@@ -1720,7 +1764,7 @@ class VerifiedCheck extends StatelessWidget {
       child: AppIcon(
         AppIcons.verifiedRounded,
         size: size,
-        color: gold ? colors.gold : colors.info,
+        color: gold ? colors.goldAccent : colors.info,
       ),
     );
   }
