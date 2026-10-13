@@ -10,6 +10,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/social/presentation/widgets/recommended_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
@@ -286,13 +287,25 @@ class _NameWithCheckFitted extends StatelessWidget {
         final scaler = MediaQuery.textScalerOf(context);
         final locale = Localizations.maybeLocaleOf(context);
         final base = DefaultTextStyle.of(context).style.merge(style);
+        // A name that needs only one line keeps the check on that line
+        // (it is cut with "…" instead of letting the check drop to line 2).
+        final plain = TextPainter(
+          text: TextSpan(text: name, style: base),
+          textDirection: dir,
+          textScaler: scaler,
+          locale: locale,
+          maxLines: 1,
+        )..layout(maxWidth: box.maxWidth);
+        final oneLine = !plain.didExceedMaxLines;
+        plain.dispose();
+        final lines = oneLine ? 1 : maxLines;
         bool fits(String text) {
           final tp = TextPainter(
             text: _span(text, real: false, base: base),
             textDirection: dir,
             textScaler: scaler,
             locale: locale,
-            maxLines: maxLines,
+            maxLines: lines,
             textAlign: textAlign,
           )..setPlaceholderDimensions(const [
               PlaceholderDimensions(
@@ -323,7 +336,7 @@ class _NameWithCheckFitted extends StatelessWidget {
           _span(shown, real: true),
           style: style,
           textAlign: textAlign,
-          maxLines: maxLines,
+          maxLines: lines,
           overflow: TextOverflow.clip,
         );
       },
@@ -757,7 +770,7 @@ class SuggestedAttorneys extends ConsumerWidget {
 /// unbreakable group), rating, practices and a small Follow. Takes the
 /// suggestions the rows above did not show ([skip]).
 class RecommendedAttorneys extends ConsumerWidget {
-  const RecommendedAttorneys({this.skip = 5, this.limit = 10, super.key});
+  const RecommendedAttorneys({this.skip = 0, this.limit = 10, super.key});
 
   final int skip;
   final int limit;
@@ -785,13 +798,34 @@ class RecommendedAttorneys extends ConsumerWidget {
             AppSpacing.screenSide,
             AppSpacing.xs,
           ),
-          child: Text(
-            t.t('search.recommended'),
-            style: type.body.copyWith(
-              color: colors.text,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  t.t('search.recommended'),
+                  style: type.body.copyWith(
+                    color: colors.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              // At the opposite edge (right in LTR, left in Arabic).
+              GestureDetector(
+                onTap: () => showRecommendedSheet(context),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                  child: Text(
+                    t.t('post.more'),
+                    style: type.body.copyWith(
+                      color: colors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         SingleChildScrollView(
@@ -821,15 +855,19 @@ double _bodyLineHeight(BuildContext context) {
 
 /// One tile of [RecommendedAttorneys].
 class RecommendedTile extends ConsumerWidget {
-  const RecommendedTile({required this.row, super.key});
+  const RecommendedTile({required this.row, this.width = 132, super.key});
+
+  /// The tile's height, so a grid can give every cell the same one.
+  static const double height = 186;
 
   final AttorneyRow row;
+  final double width;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return SizedBox(
-      width: 132,
+      width: width,
       child: AppPressable(
         onTap: () =>
             openProfile(context, ref, id: row.id, username: row.username),

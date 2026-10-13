@@ -255,10 +255,12 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           else if (!blocked)
             Row(
               children: [
-                FollowButton(
-                  attorneyId: p.id,
-                  initial: p.isFollowing,
-                  outlined: true,
+                Expanded(
+                  child: FollowButton(
+                    attorneyId: p.id,
+                    initial: p.isFollowing,
+                    expanded: true,
+                  ),
                 ),
                 // OQ-043: an attorney can write to a client directly (a
                 // message request until the client accepts).
