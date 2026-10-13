@@ -714,7 +714,7 @@ model User {
   // Owner 2026-10-13 (contacts sync): STORED computed column, lowercase hex
   // SHA-256 of phone_e164. Lets the app match its address book without
   // sending a single raw number. Read-only — never write it.
-  phone_sha256            String?                 @default(dbgenerated("encode(sha256(phone_e164::BYTES), 'hex'::STRING)"))
+  phone_sha256            String?                 @default(dbgenerated("sha256(phone_e164::BYTES)"))
   created_at              DateTime                @default(now()) @db.Timestamptz
   updated_at              DateTime                @updatedAt @db.Timestamptz
 
@@ -1808,6 +1808,8 @@ model Post {
   deleted_at           DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
   search_tsv           Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, body)"))
+  // Owner 2026-10-13: the same text in the language-neutral 'simple' config.
+  search_tsv_simple    Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::STRING, body)"))
   created_at           DateTime                 @default(now()) @db.Timestamptz
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a
@@ -1825,6 +1827,7 @@ model Post {
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
   @@index([search_tsv], map: "posts_search_tsv_idx", type: Gin)
+  @@index([search_tsv_simple], map: "posts_search_tsv_simple_idx", type: Gin)
   @@index([practice_area_id, created_at(sort: Desc)])
   @@index([kind, created_at(sort: Desc)])
   @@index([content_class, created_at(sort: Desc)])
@@ -1940,7 +1943,7 @@ model CaseUpdate {
   case_id    String   @db.Uuid
   case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
   author_id  String   @db.Uuid
-  body       String   @db.String(2000)
+  body       String   @db.String(5000)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@index([case_id, created_at])
@@ -2693,9 +2696,9 @@ model PostShare {
 model PostView {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   post_id    String   @db.Uuid
-  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
   user_id    String   @db.Uuid
-  user       User     @relation("PostViewer", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User     @relation("PostViewer", fields: [user_id], references: [id], onDelete: Cascade)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@unique([user_id, post_id])
@@ -4744,9 +4747,9 @@ model CountryPartnerSettlement {
 /// Deleted with the owner's DELETE /contacts/sync and on anonymization.
 model ContactMatch {
   owner_id   String   @db.Uuid
-  owner      User     @relation("ContactOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  owner      User     @relation("ContactOwner", fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   matched_id String   @db.Uuid
-  matched    User     @relation("ContactMatched", fields: [matched_id], references: [id], onDelete: Cascade)
+  matched    User     @relation("ContactMatched", fields: [matched_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@id([owner_id, matched_id])
@@ -4757,7 +4760,7 @@ model ContactMatch {
 /// Owner 2026-10-13: whether a user syncs contacts, and when last.
 model ContactSyncSetting {
   user_id   String    @id @db.Uuid
-  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   enabled   Boolean   @default(true)
   synced_at DateTime? @db.Timestamptz
 

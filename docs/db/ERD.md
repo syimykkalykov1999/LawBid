@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-145 tables.
+154 tables.
 
 ```mermaid
 erDiagram
@@ -22,6 +22,8 @@ erDiagram
     DateTime email_verified_at "nullable"
     String phone_e164 UK "nullable"
     DateTime phone_verified_at "nullable"
+    String password_hash "nullable"
+    DateTime password_set_at "nullable"
     String ui_language
     enum_ThemePref theme
     String suspended_reason "nullable"
@@ -32,6 +34,7 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime anonymized_at "nullable"
     String full_name_lower "nullable"
+    String phone_sha256 "nullable"
     DateTime created_at
     DateTime updated_at
     String placeholder_kind "nullable"
@@ -354,6 +357,7 @@ erDiagram
     DateTime closed_at "nullable"
     DateTime deleted_at "nullable"
     tsvector search_tsv "nullable"
+    tsvector search_tsv_simple "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -478,9 +482,13 @@ erDiagram
     Int comment_count
     Int save_count
     Int share_count
+    Int view_count
+    Int pin_slot "nullable"
+    String pin_group "nullable"
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
     tsvector search_tsv "nullable"
+    tsvector search_tsv_simple "nullable"
     DateTime created_at
     Int created_shard
     DateTime updated_at
@@ -490,6 +498,58 @@ erDiagram
     String case_id FK
     String file_id FK
     Int position
+    String description "nullable"
+    String source
+    String source_id "nullable"
+    String source_item_id "nullable"
+    Boolean is_sample
+    String added_by "nullable"
+    DateTime created_at
+  }
+  case_tasks {
+    String id PK
+    String case_id FK
+    String kind
+    String title
+    String description "nullable"
+    String created_by
+    String status
+    DateTime done_at "nullable"
+    String done_by "nullable"
+    DateTime closed_at "nullable"
+    DateTime due_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  case_task_items {
+    String id PK
+    String task_id FK
+    Int position
+    String title
+    DateTime done_at "nullable"
+    String done_by "nullable"
+    DateTime created_at
+  }
+  case_reads {
+    String case_id PK
+    String user_id PK
+    DateTime updates_seen_at
+  }
+  case_task_events {
+    String id PK
+    String task_id FK
+    String case_id
+    String actor_id
+    String type
+    String note "nullable"
+    Int file_count
+    DateTime created_at
+  }
+  case_updates {
+    String id PK
+    String case_id FK
+    String author_id
+    String body
     DateTime created_at
   }
   post_media {
@@ -535,6 +595,12 @@ erDiagram
   post_likes {
     String post_id PK,FK
     String user_id PK,FK
+    DateTime created_at
+  }
+  post_reposts {
+    String id PK
+    String post_id FK
+    String user_id FK
     DateTime created_at
   }
   comment_likes {
@@ -859,6 +925,12 @@ erDiagram
     String user_id FK
     DateTime created_at
   }
+  post_views {
+    String id PK
+    String post_id FK
+    String user_id FK
+    DateTime created_at
+  }
   case_shares {
     String id PK
     String case_id FK
@@ -950,6 +1022,7 @@ erDiagram
     DateTime due_at "nullable"
     String case_id FK "nullable"
     String conversation_id "nullable"
+    String case_task_id "nullable"
     enum_AttorneyTaskStatus status
     enum_AttorneyTaskPriority priority
     enum_AttorneyTaskRepeat repeat
@@ -1575,6 +1648,8 @@ erDiagram
     Json stripe_price_ids
     Json stripe_product_ids
     String note "nullable"
+    Int compare_at_cents "nullable"
+    Boolean show_discount
     String created_by "nullable"
     DateTime created_at
   }
@@ -1904,6 +1979,16 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  contact_matches {
+    String owner_id PK,FK
+    String matched_id PK,FK
+    DateTime created_at
+  }
+  contact_sync_settings {
+    String user_id PK,FK
+    Boolean enabled
+    DateTime synced_at "nullable"
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -1969,6 +2054,10 @@ erDiagram
   posts |o--o| video_assets : "video_asset_id"
   case_photos }o--|| cases : "case_id"
   case_photos }o--|| files : "file_id"
+  case_tasks }o--|| cases : "case_id"
+  case_task_items }o--|| case_tasks : "task_id"
+  case_task_events }o--|| case_tasks : "task_id"
+  case_updates }o--|| cases : "case_id"
   post_media }o--|| posts : "post_id"
   post_media }o--|| files : "file_id"
   post_attachments }o--|| posts : "post_id"
@@ -1980,6 +2069,8 @@ erDiagram
   comments }o--o| comments : "parent_comment_id"
   post_likes }o--|| posts : "post_id"
   post_likes }o--|| users : "user_id"
+  post_reposts }o--|| posts : "post_id"
+  post_reposts }o--|| users : "user_id"
   comment_likes }o--|| comments : "comment_id"
   comment_likes }o--|| users : "user_id"
   follows }o--|| users : "follower_id"
@@ -2031,6 +2122,8 @@ erDiagram
   case_comment_likes }o--|| users : "user_id"
   post_shares }o--|| posts : "post_id"
   post_shares }o--|| users : "user_id"
+  post_views }o--|| posts : "post_id"
+  post_views }o--|| users : "user_id"
   case_shares }o--|| cases : "case_id"
   case_shares }o--|| users : "user_id"
   client_reviews }o--o| cases : "case_id"
@@ -2086,4 +2179,7 @@ erDiagram
   client_subscriptions |o--|| users : "user_id"
   client_subscriptions }o--o| plans : "plan_id"
   country_partner_settlements }o--|| country_partners : "partner_id"
+  contact_matches }o--|| users : "owner_id"
+  contact_matches }o--|| users : "matched_id"
+  contact_sync_settings |o--|| users : "user_id"
 ```
