@@ -1795,3 +1795,8 @@ export 'models/case_tasks_dto_role.dart';
 export 'models/create_case_task_dto_kind.dart';
 export 'models/case_update_dto_author_role.dart';
 export 'models/case_update_dto_kind.dart';
+export 'models/case_task_item_dto.dart';
+export 'models/case_activity_dto.dart';
+export 'models/case_activity_list_envelope.dart';
+export 'models/case_activity_dto_kind.dart';
+export 'models/case_activity_dto_actor_role.dart';

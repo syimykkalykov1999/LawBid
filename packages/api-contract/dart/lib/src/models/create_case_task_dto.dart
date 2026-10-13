@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'case_file_input_dto.dart';
 import 'create_case_task_dto_kind.dart';
 
 part 'create_case_task_dto.g.dart';
@@ -14,6 +15,8 @@ class CreateCaseTaskDto {
     required this.kind,
     required this.title,
     this.description,
+    this.items,
+    this.files,
   });
 
   factory CreateCaseTaskDto.fromJson(Map<String, Object?> json) =>
@@ -22,6 +25,10 @@ class CreateCaseTaskDto {
   final CreateCaseTaskDtoKind kind;
   final String title;
   final String? description;
+
+  /// Checklist lines of a for-client task, each up to 200.
+  final List<String>? items;
+  final List<CaseFileInputDto>? files;
 
   Map<String, Object?> toJson() => _$CreateCaseTaskDtoToJson(this);
 }

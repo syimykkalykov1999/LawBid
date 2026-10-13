@@ -23,6 +23,7 @@ class WorkspaceFileDto {
     this.description,
     this.sourceTitle,
     this.sourceId,
+    this.sourceItemId,
   });
 
   factory WorkspaceFileDto.fromJson(Map<String, Object?> json) =>
@@ -37,6 +38,7 @@ class WorkspaceFileDto {
   final WorkspaceFileDtoSource source;
   final String? sourceTitle;
   final String? sourceId;
+  final String? sourceItemId;
   final WorkspaceFileDtoAddedByRole addedByRole;
   final String addedAt;
 

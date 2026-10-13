@@ -20,6 +20,11 @@ CaseTaskDto _$CaseTaskDtoFromJson(Map<String, dynamic> json) => CaseTaskDto(
   events: (json['events'] as List<dynamic>)
       .map((e) => CaseTaskEventDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  items: (json['items'] as List<dynamic>)
+      .map((e) => CaseTaskItemDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  itemsDone: (json['itemsDone'] as num).toInt(),
+  itemsTotal: (json['itemsTotal'] as num).toInt(),
   description: json['description'] as String?,
   doneAt: json['doneAt'] as String?,
 );
@@ -37,4 +42,7 @@ Map<String, dynamic> _$CaseTaskDtoToJson(CaseTaskDto instance) =>
       'fileCount': instance.fileCount,
       'files': instance.files.map((e) => e.toJson()).toList(),
       'events': instance.events.map((e) => e.toJson()).toList(),
+      'items': instance.items.map((e) => e.toJson()).toList(),
+      'itemsDone': instance.itemsDone,
+      'itemsTotal': instance.itemsTotal,
     };

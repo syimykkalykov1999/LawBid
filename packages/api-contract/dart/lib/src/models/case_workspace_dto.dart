@@ -16,6 +16,7 @@ class CaseWorkspaceDto {
     required this.files,
     required this.openTasks,
     required this.updatesCount,
+    required this.newUpdates,
   });
 
   factory CaseWorkspaceDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,9 @@ class CaseWorkspaceDto {
   final List<WorkspaceFileDto> files;
   final int openTasks;
   final int updatesCount;
+
+  /// The other side's updates since this side last opened Updates.
+  final int newUpdates;
 
   Map<String, Object?> toJson() => _$CaseWorkspaceDtoToJson(this);
 }

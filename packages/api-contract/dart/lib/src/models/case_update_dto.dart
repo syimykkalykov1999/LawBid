@@ -16,10 +16,12 @@ class CaseUpdateDto {
     required this.id,
     required this.authorRole,
     required this.authorName,
+    required this.authorStates,
     required this.body,
     required this.files,
     required this.at,
     required this.kind,
+    this.authorAvatarUrl,
     this.taskTitle,
   });
 
@@ -29,6 +31,10 @@ class CaseUpdateDto {
   final String id;
   final CaseUpdateDtoAuthorRole authorRole;
   final String authorName;
+  final String? authorAvatarUrl;
+
+  /// The attorney's verified license states (the role line).
+  final List<String> authorStates;
   final String body;
   final List<WorkspaceFileDto> files;
   final String at;

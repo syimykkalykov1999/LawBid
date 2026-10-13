@@ -77323,6 +77323,348 @@
           "cases"
         ]
       }
+    },
+    "/cases/{id}/tasks/{taskId}/items/{itemId}/done": {
+      "post": {
+        "operationId": "setCaseTaskItemDone",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskDoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseTasksEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tick / untick one checklist line of a task",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{id}/activity": {
+      "get": {
+        "operationId": "listCaseActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseActivityListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Everything that happened in the case",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{id}/updates/seen": {
+      "post": {
+        "operationId": "markCaseUpdatesSeen",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mark the Updates tab as read",
+        "tags": [
+          "cases"
+        ]
+      }
     }
   },
   "info": {
@@ -118984,6 +119326,11 @@
             "nullable": true,
             "format": "uuid"
           },
+          "sourceItemId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
           "addedByRole": {
             "enum": [
               "client",
@@ -119027,13 +119374,18 @@
           },
           "updatesCount": {
             "type": "integer"
+          },
+          "newUpdates": {
+            "type": "integer",
+            "description": "The other side's updates since this side last opened Updates."
           }
         },
         "required": [
           "role",
           "files",
           "openTasks",
-          "updatesCount"
+          "updatesCount",
+          "newUpdates"
         ]
       },
       "CaseWorkspaceEnvelope": {
@@ -119164,6 +119516,18 @@
             "items": {
               "$ref": "#/components/schemas/CaseTaskEventDto"
             }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseTaskItemDto"
+            }
+          },
+          "itemsDone": {
+            "type": "integer"
+          },
+          "itemsTotal": {
+            "type": "integer"
           }
         },
         "required": [
@@ -119175,7 +119539,10 @@
           "createdAt",
           "fileCount",
           "files",
-          "events"
+          "events",
+          "items",
+          "itemsDone",
+          "itemsTotal"
         ]
       },
       "CaseTasksDto": {
@@ -119248,6 +119615,23 @@
           "description": {
             "type": "string",
             "maxLength": 5000
+          },
+          "items": {
+            "maxItems": 30,
+            "description": "Checklist lines of a for-client task, each up to 200.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            }
+          },
+          "files": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseFileInputDto"
+            }
           }
         },
         "required": [
@@ -119285,6 +119669,11 @@
       "TaskSubmissionDto": {
         "type": "object",
         "properties": {
+          "itemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The checklist line these files answer."
+          },
           "note": {
             "type": "string",
             "maxLength": 1000
@@ -119318,6 +119707,17 @@
           "authorName": {
             "type": "string"
           },
+          "authorAvatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "authorStates": {
+            "description": "The attorney's verified license states (the role line).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "body": {
             "type": "string"
           },
@@ -119348,6 +119748,7 @@
           "id",
           "authorRole",
           "authorName",
+          "authorStates",
           "body",
           "files",
           "at",
@@ -119377,7 +119778,7 @@
           "body": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 2000
+            "maxLength": 5000
           },
           "files": {
             "maxItems": 20,
@@ -119390,6 +119791,106 @@
         "required": [
           "body",
           "files"
+        ]
+      },
+      "CaseTaskItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "doneAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceFileDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "done",
+          "files"
+        ]
+      },
+      "CaseActivityDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "update",
+              "task_created",
+              "task_done",
+              "task_undone",
+              "task_closed",
+              "task_reopened",
+              "files_added"
+            ]
+          },
+          "actorRole": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "actorRole",
+          "actorName",
+          "fileCount",
+          "at"
+        ]
+      },
+      "CaseActivityListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseActivityDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       }
     }

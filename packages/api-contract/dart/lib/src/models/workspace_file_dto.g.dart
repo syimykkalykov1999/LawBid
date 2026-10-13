@@ -21,6 +21,7 @@ WorkspaceFileDto _$WorkspaceFileDtoFromJson(Map<String, dynamic> json) =>
       description: json['description'] as String?,
       sourceTitle: json['sourceTitle'] as String?,
       sourceId: json['sourceId'] as String?,
+      sourceItemId: json['sourceItemId'] as String?,
     );
 
 Map<String, dynamic> _$WorkspaceFileDtoToJson(WorkspaceFileDto instance) =>
@@ -34,6 +35,7 @@ Map<String, dynamic> _$WorkspaceFileDtoToJson(WorkspaceFileDto instance) =>
       'source': instance.source.toJson(),
       'sourceTitle': ?instance.sourceTitle,
       'sourceId': ?instance.sourceId,
+      'sourceItemId': ?instance.sourceItemId,
       'addedByRole': instance.addedByRole.toJson(),
       'addedAt': instance.addedAt,
     };

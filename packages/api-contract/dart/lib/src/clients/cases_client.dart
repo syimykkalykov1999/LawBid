@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/case_activity_list_envelope.dart';
 import '../models/case_bid_item_list_envelope.dart';
 import '../models/case_deleted_envelope.dart';
 import '../models/case_detail_for_attorney_envelope.dart';
@@ -305,6 +306,30 @@ abstract class CasesClient {
   Future<CaseUpdateListEnvelope> addCaseUpdate({
     @Path('id') required String id,
     @Body() required CreateCaseUpdateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Tick / untick one checklist line of a task
+  @POST('/cases/{id}/tasks/{taskId}/items/{itemId}/done')
+  Future<CaseTasksEnvelope> setCaseTaskItemDone({
+    @Path('id') required String id,
+    @Path('taskId') required String taskId,
+    @Path('itemId') required String itemId,
+    @Body() required TaskDoneDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Everything that happened in the case
+  @GET('/cases/{id}/activity')
+  Future<CaseActivityListEnvelope> listCaseActivity({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark the Updates tab as read
+  @POST('/cases/{id}/updates/seen')
+  Future<void> markCaseUpdatesSeen({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 }
