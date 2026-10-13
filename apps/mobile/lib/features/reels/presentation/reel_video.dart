@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -246,6 +250,26 @@ class InlineReel extends StatefulWidget {
 
 class _InlineReelState extends State<InlineReel> {
   bool _visible = false;
+  Timer? _viewTimer;
+
+  /// Owner 2026-10-12: a reel counts as viewed after a few seconds on
+  /// screen (once per viewer; the server dedups).
+  void _trackView() {
+    _viewTimer?.cancel();
+    if (!_visible) return;
+    _viewTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || !_visible) return;
+      ProviderScope.containerOf(context)
+          .read(socialActionsProvider)
+          .recordView(widget.post);
+    });
+  }
+
+  @override
+  void dispose() {
+    _viewTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -256,7 +280,10 @@ class _InlineReelState extends State<InlineReel> {
       key: ValueKey('reel-${widget.post.id}'),
       onVisibilityChanged: (info) {
         final v = info.visibleFraction > 0.6;
-        if (v != _visible && mounted) setState(() => _visible = v);
+        if (v != _visible && mounted) {
+          setState(() => _visible = v);
+          _trackView();
+        }
       },
       child: GestureDetector(
         onTap: widget.onOpen,

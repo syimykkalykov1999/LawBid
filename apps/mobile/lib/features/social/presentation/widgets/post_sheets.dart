@@ -78,6 +78,76 @@ void refreshPostLists(WidgetRef ref) {
     ..invalidate(attorneyNewsProvider);
 }
 
+/// Owner 2026-10-12: a small sheet with three numbers — the slot the post
+/// takes at the top of the profile (a taken slot is handed over).
+Future<void> showPinSlotSheet(BuildContext context, WidgetRef ref, Post post) {
+  final t = ref.read(translatorProvider);
+  return showAppBottomSheet<void>(
+    context: context,
+    builder: (sheet) => Consumer(
+      builder: (_, ref, __) {
+        final colors = Theme.of(sheet).extension<AppColorTokens>()!;
+        final type = Theme.of(sheet).extension<AppTypographyTokens>()!;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              0,
+              AppSpacing.screenSide,
+              AppSpacing.lg,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AppSheetHandle(),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (final slot in const [1, 2, 3])
+                      Semantics(
+                        button: true,
+                        label: t.t('post.pin.slot', {'n': '$slot'}),
+                        excludeSemantics: true,
+                        child: AppPressable(
+                          key: ValueKey('pin-slot-$slot'),
+                          onTap: () async {
+                            Navigator.of(sheet).pop();
+                            final error = await ref
+                                .read(socialActionsProvider)
+                                .pinPost(post, slot);
+                            if (error != null && context.mounted) {
+                              showAppSnackBar(context, errorText(t, error));
+                            }
+                          },
+                          child: Container(
+                            width: 64,
+                            height: 64,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: colors.surface,
+                              border: Border.all(color: colors.gold),
+                            ),
+                            child: Text(
+                              '$slot',
+                              style:
+                                  type.titleMedium.copyWith(color: colors.text),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
 /// §2.4 "⋯": your own post — edit, delete; someone else's — the author's
 /// profile, unfollow (when following), block, report.
 Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
@@ -93,6 +163,19 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
+            // Owner 2026-10-12 (Threads): Save lives in the "⋯" menu.
+            AppListRow(
+              key: const ValueKey('post-menu-save'),
+              icon: post.savedByMe
+                  ? AppIcons.bookmarkRounded
+                  : AppIcons.bookmarkBorderRounded,
+              label: t.t(post.savedByMe ? 'post.unsave' : 'post.save'),
+              showChevron: false,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                ref.read(socialActionsProvider).toggleSave(post);
+              },
+            ),
             if (post.isMine) ...[
               // Audit 2026-10-02: an assistant edits only with "publish" and
               // never deletes the attorney's posts.
@@ -104,6 +187,34 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                   onTap: () {
                     Navigator.of(sheet).pop();
                     showEditPostSheet(context, ref, post);
+                  },
+                ),
+              // Owner 2026-10-12: pin to the top of the profile (slots 1..3).
+              if (!post.isNews &&
+                  post.status == 'published' &&
+                  ref.read(canDoProvider(AssistantDuty.publish)))
+                AppListRow(
+                  key: const ValueKey('post-menu-pin'),
+                  icon: post.pinSlot == null
+                      ? AppIcons.pushPinOutlined
+                      : AppIcons.pushPin,
+                  label: t.t(
+                    post.pinSlot == null ? 'post.menu.pin' : 'post.menu.unpin',
+                  ),
+                  showChevron: false,
+                  onTap: () async {
+                    Navigator.of(sheet).pop();
+                    if (post.pinSlot != null) {
+                      final error =
+                          await ref.read(socialActionsProvider).unpinPost(post);
+                      if (error != null && context.mounted) {
+                        showAppSnackBar(context, errorText(t, error));
+                      }
+                      return;
+                    }
+                    if (context.mounted) {
+                      await showPinSlotSheet(context, ref, post);
+                    }
                   },
                 ),
               // Owner 2026-10-05: Instagram-style "Promote" (money: the
@@ -320,8 +431,17 @@ class PostTextField extends ConsumerWidget {
     required this.controller,
     this.autofocus = false,
     this.hint,
+    this.maxChars = kPostMaxChars,
+    this.limitHint,
     super.key,
   });
+
+  /// Shown small and red under the counter once the text is over the limit
+  /// of a post with files (Owner 2026-10-12).
+  final String? limitHint;
+
+  /// 5000 for a text-only thread, 2200 with files.
+  final int maxChars;
 
   final TextEditingController controller;
   final bool autofocus;
@@ -340,8 +460,8 @@ class PostTextField extends ConsumerWidget {
           autofocus: autofocus,
           minLines: 4,
           maxLines: 10,
-          maxLength: kPostMaxChars,
-          maxLengthEnforcement: MaxLengthEnforcement.enforced,
+          maxLength: maxChars,
+          maxLengthEnforcement: MaxLengthEnforcement.none,
           buildCounter: (
             _, {
             required currentLength,
@@ -373,12 +493,28 @@ class PostTextField extends ConsumerWidget {
           valueListenable: controller,
           builder: (context, v, _) {
             final n = v.text.characters.length;
-            final near = n > kPostMaxChars * 0.9;
-            return Text(
-              '$n / $kPostMaxChars',
-              style: type.caption.copyWith(
-                color: near ? colors.warning : colors.textSecondary,
-              ),
+            final near = n > maxChars * 0.9;
+            final over = n > maxChars;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$n / $maxChars',
+                  style: type.caption.copyWith(
+                    color: over
+                        ? colors.danger
+                        : (near ? colors.warning : colors.textSecondary),
+                  ),
+                ),
+                if (over && limitHint != null)
+                  Text(
+                    limitHint!,
+                    style: type.caption.copyWith(
+                      color: colors.danger,
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
             );
           },
         ),

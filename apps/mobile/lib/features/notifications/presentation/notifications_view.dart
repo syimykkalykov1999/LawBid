@@ -332,12 +332,16 @@ String notificationText(Translator t, AppNotification n) {
   }
   final name = n.actor?.displayName ?? '';
   final others = n.aggregateCount - 1;
+  // Owner 2026-10-12: a text post is a "Brief" — the notice says so.
+  final type = n.type == 'followed_post' && n.payload['kind'] == 'brief'
+      ? 'followed_brief'
+      : n.type;
   if (others > 0) {
-    final key = 'notif.list.${n.type}.many';
+    final key = 'notif.list.$type.many';
     final text = t.t(key, {'name': name, 'others': '$others'});
     if (text != key) return text;
   }
-  final key = 'notif.list.${n.type}';
+  final key = 'notif.list.$type';
   final text = t.t(key, {'name': name});
   // Owner 2026-10-06: never a raw key on screen (a type the app has no
   // text for yet).

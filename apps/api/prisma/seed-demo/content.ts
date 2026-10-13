@@ -704,7 +704,7 @@ function postRow(
     id,
     author_id: authorId,
     title: spec.title ? spec.title.slice(0, 120) : null,
-    body: spec.body.slice(0, 2200),
+    body: spec.body.slice(0, 5000),
     practice_area_id: spec.practice
       ? (practiceByCode.get(spec.practice) ?? null)
       : null,

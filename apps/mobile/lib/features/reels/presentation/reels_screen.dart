@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -268,16 +270,36 @@ class _ReelPage extends ConsumerStatefulWidget {
 class _ReelPageState extends ConsumerState<_ReelPage> {
   bool _paused = false;
   final _progress = ValueNotifier<double>(0);
+  Timer? _viewTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _trackView();
+  }
+
+  /// Owner 2026-10-12: a reel counts as viewed after a few seconds as the
+  /// current one (once per viewer; the server dedups).
+  void _trackView() {
+    _viewTimer?.cancel();
+    if (!widget.active) return;
+    _viewTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || !widget.active) return;
+      ref.read(socialActionsProvider).recordView(widget.post);
+    });
+  }
 
   @override
   void didUpdateWidget(_ReelPage old) {
     super.didUpdateWidget(old);
     // Coming back to a reel resumes it.
     if (widget.active && !old.active) _paused = false;
+    if (widget.active != old.active) _trackView();
   }
 
   @override
   void dispose() {
+    _viewTimer?.cancel();
     _progress.dispose();
     super.dispose();
   }
@@ -416,6 +438,29 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
                     children: [
+                      // Owner 2026-10-12: the view counter above the actions.
+                      if (p.viewCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                          child: Column(
+                            children: [
+                              const AppIcon(
+                                AppIcons.visibilityOutlined,
+                                size: 26,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                SocialFormat.count(f, p.viewCount),
+                                style: type.caption.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  shadows: shadow,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       rail(
                         p.likedByMe
                             ? AppIcons.favoriteRounded

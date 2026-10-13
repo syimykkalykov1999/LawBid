@@ -8,7 +8,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { ContentStatus, File, Prisma } from '@prisma/client';
+import type { ContentStatus, File, Post, Prisma } from '@prisma/client';
 import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -31,18 +31,24 @@ import {
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
 import {
+  POST_BODY_MAX_WITH_FILES,
   POSTS_PAGE_DEFAULT,
   type CreatePostDto,
   type UpdatePostDto,
   type PostDto,
   type PostPage,
+  type PostReposterDto,
 } from './dto/posts.dto';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { extractHashtags } from './hashtags';
-import { PostPresenter, VISIBLE_POST_WHERE } from './post-presenter.service';
+import {
+  BRIEF_POST_WHERE,
+  PostPresenter,
+  VISIBLE_POST_WHERE,
+} from './post-presenter.service';
 
 /** A display/download name without path parts or control characters. */
 export function safeFileName(name: string): string {
@@ -107,6 +113,19 @@ export class PostsService {
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
+    // Owner 2026-10-12: only a text-only thread may be longer than 2200.
+    if (
+      dto.body.length > POST_BODY_MAX_WITH_FILES &&
+      ((dto.mediaFileIds?.length ?? 0) > 0 ||
+        (dto.attachments?.length ?? 0) > 0 ||
+        dto.videoAssetId)
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `A post with files is up to ${POST_BODY_MAX_WITH_FILES} characters.`,
+        details: { field: 'body' },
+      });
+    }
     const video = dto.videoAssetId
       ? await this.attachableVideo(user.sub, dto.videoAssetId)
       : null;
@@ -254,6 +273,9 @@ export class PostsService {
         id: true,
         body: true,
         author_id: true,
+        kind: true,
+        video_asset_id: true,
+        _count: { select: { media: true, attachments: true } },
         author: { select: { role: true } },
       },
     });
@@ -272,7 +294,13 @@ export class PostsService {
     });
     // Owner 2026-09-30: followers who turned "Following" alerts on.
     const alerts = this.alerts;
-    alerts?.later(() => alerts.followersOfPost(post.author_id, post.id));
+    // Owner 2026-10-12: a text-only post is a "Brief"; the alert says so.
+    const brief =
+      post.kind === 'post' &&
+      !post.video_asset_id &&
+      post._count.media === 0 &&
+      post._count.attachments === 0;
+    alerts?.later(() => alerts.followersOfPost(post.author_id, post.id, brief));
   }
 
   /** Owner 2026-10-01: the reel's video could not be used. */
@@ -373,6 +401,19 @@ export class PostsService {
     });
     if (!current) throw postNotFound();
     const body = dto.body;
+    if (body.length > POST_BODY_MAX_WITH_FILES) {
+      const files =
+        (await this.prisma.postMedia.count({ where: { post_id: id } })) +
+        (await this.prisma.postAttachment.count({ where: { post_id: id } })) +
+        (current.video_asset_id ? 1 : 0);
+      if (files > 0) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: `A post with files is up to ${POST_BODY_MAX_WITH_FILES} characters.`,
+          details: { field: 'body' },
+        });
+      }
+    }
     const title = dto.title ?? current.title;
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
@@ -440,7 +481,7 @@ export class PostsService {
   async remove(user: RequestUser, id: string): Promise<{ deleted: true }> {
     const { count } = await this.prisma.post.updateMany({
       where: { id, author_id: user.sub, deleted_at: null },
-      data: { deleted_at: new Date() },
+      data: { deleted_at: new Date(), pin_slot: null, pin_group: null },
     });
     if (count !== 1) throw postNotFound();
     const post = await this.prisma.post.findFirst({
@@ -464,6 +505,67 @@ export class PostsService {
       );
     }
     return { deleted: true };
+  }
+
+  /** Owner 2026-10-12: pins an own post to slot 1..3 of its list (posts
+   * with files, or text-only briefs). A taken slot is not refused: the post
+   * that held it takes the pinned post's old slot, or loses its pin. */
+  async pin(user: RequestUser, id: string, slot: number): Promise<PostDto> {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        author_id: user.sub,
+        deleted_at: null,
+        status: 'published',
+        kind: 'post',
+      },
+    });
+    if (!post) throw postNotFound();
+    const brief =
+      (await this.prisma.post.count({
+        where: { id, ...BRIEF_POST_WHERE },
+      })) > 0;
+    const group = brief ? 'brief' : 'grid';
+    const oldSlot = post.pin_group === group ? post.pin_slot : null;
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const occupant = await tx.post.findFirst({
+        where: {
+          author_id: user.sub,
+          pin_group: group,
+          pin_slot: slot,
+          id: { not: id },
+        },
+        select: { id: true },
+      });
+      const ids = occupant ? [id, occupant.id] : [id];
+      await tx.post.updateMany({
+        where: { id: { in: ids } },
+        data: { pin_slot: null, pin_group: null },
+      });
+      const mine = await tx.post.update({
+        where: { id },
+        data: { pin_slot: slot, pin_group: group },
+      });
+      if (occupant && oldSlot) {
+        await tx.post.update({
+          where: { id: occupant.id },
+          data: { pin_slot: oldSlot, pin_group: group },
+        });
+      }
+      return mine;
+    });
+    return (await this.presenter.present([updated], user.sub))[0];
+  }
+
+  /** Owner 2026-10-12: takes an own post off the top of the list. */
+  async unpin(user: RequestUser, id: string): Promise<PostDto> {
+    const { count } = await this.prisma.post.updateMany({
+      where: { id, author_id: user.sub, deleted_at: null },
+      data: { pin_slot: null, pin_group: null },
+    });
+    if (count !== 1) throw postNotFound();
+    const post = await this.prisma.post.findFirstOrThrow({ where: { id } });
+    return (await this.presenter.present([post], user.sub))[0];
   }
 
   /** GET /posts/:id — the author also sees their own hidden post. */
@@ -494,6 +596,8 @@ export class PostsService {
         // Owner 2026-09-30: the profile's News tab.
         ...(query.kind ? { kind: query.kind } : {}),
         ...(own ? { deleted_at: null } : VISIBLE_POST_WHERE),
+        // Owner 2026-10-12: pinned posts lead the first page, once.
+        ...(query.kind === 'news' ? {} : { pin_slot: null }),
         ...(c
           ? {
               OR: [
@@ -506,13 +610,81 @@ export class PostsService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
-    const page = rows.slice(0, limit);
+    // Owner 2026-10-12 (Threads): the profile's list also carries the
+    // briefs this person reposted, by the time of the repost.
+    const reposts =
+      query.kind === 'news'
+        ? []
+        : await this.prisma.postRepost.findMany({
+            where: {
+              user_id: attorneyId,
+              ...(c
+                ? {
+                    OR: [
+                      { created_at: { lt: c.createdAt } },
+                      { created_at: c.createdAt, id: { lt: c.id } },
+                    ],
+                  }
+                : {}),
+              post: {
+                AND: [VISIBLE_POST_WHERE, BRIEF_POST_WHERE],
+                author_id: { not: attorneyId },
+              },
+            },
+            include: { post: true },
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            take: limit + 1,
+          });
+    type Entry = { at: Date; id: string; post: Post; repost: boolean };
+    const entries: Entry[] = [
+      ...rows.map((p) => ({
+        at: p.created_at,
+        id: p.id,
+        post: p,
+        repost: false,
+      })),
+      ...reposts.map((r) => ({
+        at: r.created_at,
+        id: r.id,
+        post: r.post,
+        repost: true,
+      })),
+    ].sort(
+      (x, y) =>
+        y.at.getTime() - x.at.getTime() ||
+        (x.id < y.id ? 1 : x.id > y.id ? -1 : 0),
+    );
+    const page = entries.slice(0, limit);
     const last = page[page.length - 1];
+    const names = await this.presenter.reposterNames(
+      page.some((e) => e.repost) ? [attorneyId] : [],
+    );
+    const reposter = names.get(attorneyId);
+    const reposters = new Map<string, PostReposterDto>();
+    if (reposter) {
+      for (const e of page) if (e.repost) reposters.set(e.post.id, reposter);
+    }
+    const pinned =
+      !c && query.kind !== 'news'
+        ? await this.prisma.post.findMany({
+            where: {
+              author_id: attorneyId,
+              kind: 'post',
+              pin_slot: { not: null },
+              ...(own ? { deleted_at: null } : VISIBLE_POST_WHERE),
+            },
+            orderBy: [{ pin_group: 'asc' }, { pin_slot: 'asc' }],
+          })
+        : [];
     return {
-      items: await this.presenter.present(page, user.sub),
+      items: await this.presenter.present(
+        [...pinned, ...page.map((e) => e.post)],
+        user.sub,
+        reposters,
+      ),
       nextCursor:
-        rows.length > limit && last
-          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+        entries.length > limit && last
+          ? encodeCursor({ createdAt: last.at, id: last.id })
           : null,
     };
   }

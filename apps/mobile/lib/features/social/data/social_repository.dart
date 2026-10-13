@@ -20,6 +20,9 @@ const kPostMaxPhotos = 9;
 /// docs/05 §3.1: post text limit (server-enforced too).
 const kPostMaxChars = 2200;
 
+/// Owner 2026-10-12: a text-only post (a thread) is up to 5000 characters.
+const kThreadMaxChars = 5000;
+
 /// Owner 2026-09-30: the card title limit (server-enforced too).
 const kPostTitleMaxChars = 120;
 
@@ -191,6 +194,10 @@ abstract interface class SocialRepository {
   });
   Future<void> deletePost(String id);
 
+  /// Owner 2026-10-12: pin an own post to slot 1..3 / take it off.
+  Future<Post> pinPost(String id, int slot);
+  Future<Post> unpinPost(String id);
+
   /// Owner 2026-10-05: the feed shows legal posts only (general, personal
   /// posts hidden in the feed, topics, search and recommendations).
   Future<bool> legalOnlyFeed();
@@ -202,6 +209,9 @@ abstract interface class SocialRepository {
 
   /// OQ-037: count a completed share of a post / a case.
   Future<void> recordPostShare(String postId);
+
+  /// Owner 2026-10-12: a video post / reel was watched (once per viewer).
+  Future<void> recordPostView(String postId);
   Future<void> recordCaseShare(String caseId);
   Future<void> setSaved(String postId, {required bool saved});
   Future<CursorPage<SavedPost>> savedPosts({String? cursor});
@@ -480,8 +490,25 @@ class ApiSocialRepository implements SocialRepository {
       guardApiCall(() => _posts.deletePost(id: id));
 
   @override
+  Future<Post> pinPost(String id, int slot) async => SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.pinPost(id: id, body: api.PinPostDto(slot: slot)),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> unpinPost(String id) async => SocialMappers.post(
+        (await guardApiCall(() => _posts.unpinPost(id: id))).data,
+      );
+
+  @override
   Future<void> recordPostShare(String postId) =>
       guardApiCall(() => _posts.sharePost(id: postId));
+
+  @override
+  Future<void> recordPostView(String postId) =>
+      guardApiCall(() => _posts.viewPost(id: postId));
 
   @override
   Future<void> recordCaseShare(String caseId) =>
@@ -926,8 +953,17 @@ abstract final class SocialMappers {
         likeCount: d.likeCount,
         commentCount: d.commentCount,
         shareCount: d.shareCount,
+        viewCount: d.viewCount,
         repostCount: d.repostCount,
         repostedByMe: d.repostedByMe,
+        pinSlot: d.pinSlot,
+        repostedBy: d.repostedBy == null
+            ? null
+            : PostReposter(
+                id: d.repostedBy!.id,
+                username: d.repostedBy!.username,
+                isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
+              ),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,

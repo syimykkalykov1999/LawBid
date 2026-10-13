@@ -26,7 +26,11 @@ import {
 } from 'class-validator';
 import { tidy } from '../../../common/utils/tidy-text';
 
-export const POST_BODY_MAX = 2200;
+/** Owner 2026-10-12: a thread (text only, no files) is up to 5000 characters. */
+export const POST_BODY_MAX = 5000;
+
+/** A post with photos, video or documents keeps 2200 (Instagram). */
+export const POST_BODY_MAX_WITH_FILES = 2200;
 export const POST_TITLE_MAX = 120;
 export const POST_KINDS = ['post', 'news'] as const;
 export type PostKindValue = (typeof POST_KINDS)[number];
@@ -225,6 +229,16 @@ export class PostIdParamDto {
   id!: string;
 }
 
+/** Owner 2026-10-12: where to pin a post — slot 1, 2 or 3. */
+export class PinPostDto {
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 3 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  slot!: number;
+}
+
 export class PostsPageQueryDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
@@ -281,6 +295,18 @@ export class PostAuthorDto {
   /** Owner 2026-09-30: the viewer follows this author (card Follow). */
   @ApiProperty()
   isFollowing!: boolean;
+}
+
+/** Owner 2026-10-12 (Threads): who put this post into the list. */
+export class PostReposterDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiProperty({ enum: ['attorney', 'client'] })
+  role!: 'attorney' | 'client';
 }
 
 export class PostMediaDto {
@@ -429,6 +455,11 @@ export class PostDto {
   @ApiProperty()
   repostedByMe!: boolean;
 
+  /** Set when the post reaches this list as someone's repost (a followed
+   * account in the feed, or the profile's own list). */
+  @ApiPropertyOptional({ type: PostReposterDto, nullable: true })
+  repostedBy?: PostReposterDto | null;
+
   @ApiProperty()
   savedByMe!: boolean;
 
@@ -444,6 +475,10 @@ export class PostDto {
     description: '"Изменено" (§3.3).',
   })
   editedAt!: string | null;
+
+  /** Owner 2026-10-12: 1..3 when pinned to the top of the author's list. */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  pinSlot?: number | null;
 
   /** Owner 2026-10-05: set on a paid promoted post in the feed — the app
    * shows «Реклама» and reports the open to POST /promotions/:id/click. */

@@ -856,7 +856,7 @@ function validatePayload(dto: CreateAssistantRequestDto): void {
   const ok =
     dto.kind === 'post'
       ? str('title', 120) &&
-        str('body', 2200) &&
+        str('body', 5000) &&
         // Owner 2026-10-01: the qualification is optional.
         (p.practiceCode === undefined ||
           p.practiceCode === null ||

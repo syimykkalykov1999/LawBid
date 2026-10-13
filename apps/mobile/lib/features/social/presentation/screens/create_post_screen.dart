@@ -237,7 +237,14 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     setState(() => _practice = picked.first);
   }
 
+  /// Owner 2026-10-12: no photos or documents = a thread (5000 characters),
+  /// with files a post (2200); the counter under the field follows.
+  bool get _hasFiles => _photos.isNotEmpty || _docs.items.isNotEmpty;
+
+  int get _maxChars => _hasFiles ? kPostMaxChars : kThreadMaxChars;
+
   bool get _ready =>
+      _text.text.characters.length <= _maxChars &&
       _parts.$1.isNotEmpty &&
       _photos.every((p) => p.fileId != null) &&
       _docs.ready;
@@ -311,7 +318,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       HapticFeedback.mediumImpact();
       showAppSnackBar(
         context,
-        t.t(_news ? 'post.news.published' : 'post.published'),
+        t.t(
+          _news
+              ? 'post.news.published'
+              : (_hasFiles ? 'post.published' : 'post.brief.published'),
+        ),
       );
       Navigator.of(context).pop();
     } on Object catch (e) {
@@ -436,6 +447,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   const SizedBox(height: AppSpacing.lg),
                   PostTextField(
                     controller: _text,
+                    maxChars: _maxChars,
+                    limitHint: _hasFiles ? t.t('post.create.limitHint') : null,
                     hint: t.t('post.create.oneFieldHint'),
                   ),
                   ValueListenableBuilder<TextEditingValue>(
@@ -530,26 +543,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       ),
                       style: type.caption.copyWith(color: colors.textSecondary),
                     ),
-                    // Without photos: a preview of the art the card gets.
-                    if (_photos.isEmpty && practice != null) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        t.t('post.create.defaultCover'),
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadii.card),
-                        child: AspectRatio(
-                          aspectRatio: 2,
-                          child: PracticePhoto(
-                            categoryCode: practiceCategoryOf(practice),
-                            practiceCode: practice,
-                          ),
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: AppSpacing.lg),
                     PostDocumentsEditor(
                       controller: _docs,

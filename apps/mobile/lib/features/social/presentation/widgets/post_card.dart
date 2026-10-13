@@ -57,10 +57,23 @@ class PostCard extends ConsumerWidget {
     this.inDetail = false,
     this.feedHeight,
     this.fromProfile = false,
+    this.onReply,
+    this.showPin = false,
     super.key,
   });
 
   final Post post;
+
+  /// The open thread of a text post: the reply icon focuses the field.
+  final VoidCallback? onReply;
+
+  /// Owner 2026-10-12: the profile's list shows a pinned post's "Pinned".
+  final bool showPin;
+
+  /// Owner 2026-10-12: a text-only post without a qualification is a
+  /// Threads thread (replies right under it when opened).
+  static bool isThreadsStyle(Post p) =>
+      !p.isNews && p.video == null && p.media.isEmpty && p.attachments.isEmpty;
 
   /// Owner 2026-10-07: a post opened from someone's grid (their own feed
   /// of posts, or the post screen reached from it): no author row — the
@@ -104,10 +117,14 @@ class PostCard extends ConsumerWidget {
     // no side border or rounded corners, hairlines on top and bottom.
     // Owner 2026-10-07: the open post and a profile's feed of posts are
     // full width too (Instagram), no card around them.
-    final edge = (feedHeight != null && !inDetail) || inDetail || fromProfile;
+    // Owner 2026-10-12: a text post is edge to edge in every list (Threads).
+    final edge = (feedHeight != null && !inDetail) ||
+        inDetail ||
+        fromProfile ||
+        isThreadsStyle(p);
     // Owner 2026-10-12: the practice card in a list has no side borders or
     // shadow, only a thin divider (a strip of the page background) below.
-    final flat = !inDetail && !(insta && p.video == null && p.media.isEmpty);
+    final flat = !inDetail && !isThreadsStyle(p);
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -138,7 +155,7 @@ class PostCard extends ConsumerWidget {
       // the heart (Instagram).
       child: DoubleTapLike(
         onLike: () => run(() => actions.like(p)),
-        child: insta && p.video == null && p.media.isEmpty
+        child: isThreadsStyle(p)
             // Owner 2026-10-07: a post without photos or video looks like
             // a Threads post.
             ? _ThreadsPost(
@@ -147,6 +164,8 @@ class PostCard extends ConsumerWidget {
                 run: run,
                 promotionId: post.promotionId,
                 fromProfile: fromProfile,
+                onReply: onReply,
+                showPin: showPin,
               )
             // Owner 2026-10-12: one card for every post with a photo or a
             // reel in a list — with a practice or without (no chips then).
@@ -318,7 +337,9 @@ class PostCard extends ConsumerWidget {
               post: p,
               sponsored: post.promotionId != null,
               compact: true,
-            ),
+            )
+          else if (fromProfile && p.isMine)
+            _OwnMenuRow(post: p),
           photoFor(fill: fill),
           _ActionsBar(post: p, run: run, showTime: true),
           _PracticeChips(post: p),
@@ -406,6 +427,8 @@ class PostCard extends ConsumerWidget {
       children: [
         if (!fromProfile)
           _AuthorRow(post: p, sponsored: post.promotionId != null)
+        else if (p.isMine)
+          _OwnMenuRow(post: p)
         else
           const SizedBox(height: AppSpacing.md),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
@@ -669,7 +692,10 @@ class _InstagramPost extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!fromProfile) _AuthorRow(post: p, sponsored: promotionId != null),
+        if (!fromProfile)
+          _AuthorRow(post: p, sponsored: promotionId != null)
+        else if (p.isMine)
+          _OwnMenuRow(post: p),
         if (p.video != null)
           AspectRatio(
             aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
@@ -841,6 +867,8 @@ class _ThreadsPost extends ConsumerWidget {
     required this.run,
     this.promotionId,
     this.fromProfile = false,
+    this.onReply,
+    this.showPin = false,
   });
 
   final Post post;
@@ -848,6 +876,12 @@ class _ThreadsPost extends ConsumerWidget {
   final bool fromProfile;
   final String? promotionId;
   final Future<void> Function(Future<Object?> Function()) run;
+
+  /// Open thread: the reply icon focuses the reply field below.
+  final VoidCallback? onReply;
+
+  /// Owner 2026-10-12: the profile's list shows a pinned post's "Pinned".
+  final bool showPin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -871,7 +905,9 @@ class _ThreadsPost extends ConsumerWidget {
           key: ValueKey(s.hashCode),
           body: s,
           expanded: inDetail,
-          collapsedLines: 6,
+          // Owner 2026-10-12 (Threads): up to 500 characters in full; a
+          // longer text folds to five lines.
+          collapsedLines: s.length > 500 ? 5 : 1000,
           onMore: inDetail ? null : open,
           mentions: p.mentions,
           large: inDetail,
@@ -892,210 +928,289 @@ class _ThreadsPost extends ConsumerWidget {
           ],
         );
 
-    return AppPressable(
-      onTap: inDetail ? null : open,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.xs,
-          AppSpacing.xs,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final repostedBy = p.repostedBy;
+    Widget nameRow() => Row(
           children: [
-            GestureDetector(
-              onTap: () => openAuthorProfile(context, ref, a),
-              child: GoldRingAvatar(
-                url: a.avatarUrl,
-                initials: a.initials,
-                size: 36,
-                ring: a.verified,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Row(
                 children: [
-                  if (p.repostedBy case final by?)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                      child: Row(
-                        children: [
-                          AppIcon(
-                            AppIcons.autoModeRounded,
-                            size: 14,
-                            color: colors.textSecondary,
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Flexible(
-                            child: Text(
-                              t.t(
-                                'post.repostedBy',
-                                {'username': by.username},
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.caption
-                                  .copyWith(color: colors.textSecondary),
-                            ),
-                          ),
-                        ],
+                  Flexible(
+                    child: GestureDetector(
+                      onTap: () => openAuthorProfile(context, ref, a),
+                      child: Text(
+                        a.username,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.bodySmall.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: GestureDetector(
-                                onTap: () => openAuthorProfile(context, ref, a),
-                                child: Text(
-                                  a.username,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: type.bodySmall.copyWith(
-                                    color: colors.text,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (a.verified) ...[
-                              const SizedBox(width: AppSpacing.xs),
-                              VerifiedCheck(
-                                label: t.t('post.verified'),
-                                size: 14,
-                                gold: a.isClient,
-                              ),
-                            ],
-                            const SizedBox(width: AppSpacing.sm),
-                            Flexible(
-                              child: Text(
-                                promotionId != null
-                                    ? t.t('promote.sponsored')
-                                    : SocialFormat.ago(t, f, p.createdAt),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.caption
-                                    .copyWith(color: colors.textSecondary),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      AppIconButton(
-                        icon: AppIcon(
-                          AppIcons.moreHorizRounded,
-                          size: 20,
-                          color: colors.textSecondary,
-                        ),
-                        semanticLabel: t.t('post.menu'),
-                        onPressed: () => showPostMenu(context, ref, p),
-                      ),
-                    ],
                   ),
-                  if (text.isNotEmpty && inDetail)
-                    TranslatableText(
-                      kind: TranslatableKind.post,
-                      id: p.id,
-                      text: text,
-                      enabled: !p.isMine,
-                      builder: (context, s) => bodyText(s),
-                    )
-                  else if (text.isNotEmpty)
-                    bodyText(text),
-                  if (p.attachments.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    PostAttachmentsButton(
-                      media: p.media,
-                      documents: p.attachments,
+                  if (a.verified) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    VerifiedCheck(
+                      label: t.t('post.verified'),
+                      size: 14,
+                      gold: a.isClient,
                     ),
                   ],
-                  Row(
-                    children: [
-                      if (!inDetail)
-                        action(
-                          BounceIcon(
-                            active: p.likedByMe,
-                            activeIcon: AppIcons.favoriteRounded,
-                            icon: AppIcons.favoriteBorderRounded,
-                            activeColor: colors.danger,
-                            size: 20,
-                            label:
-                                t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-                            onTap: () => run(() => actions.toggleLike(p)),
-                          ),
-                          p.likeCount,
-                        ),
-                      if (!inDetail)
-                        action(
-                          BounceIcon(
-                            active: false,
-                            activeIcon: AppIcons.modeCommentOutlined,
-                            icon: AppIcons.modeCommentOutlined,
-                            size: 20,
-                            label: t.t('post.comments'),
-                            onTap: () => showCommentsSheet(
-                              context,
-                              postId: p.id,
-                              commentsEnabled: p.commentsEnabled,
-                            ),
-                          ),
-                          p.commentCount,
-                        ),
-                      // Owner 2026-10-07: Threads-style repost.
-                      action(
-                        BounceIcon(
-                          active: p.repostedByMe,
-                          activeIcon: AppIcons.autoModeRounded,
-                          icon: AppIcons.autoModeRounded,
-                          activeColor: colors.success,
-                          size: 20,
-                          label: t.t(
-                            p.repostedByMe ? 'post.unrepost' : 'post.repost',
-                          ),
-                          onTap: () => run(() => actions.toggleRepost(p)),
-                        ),
-                        p.repostCount,
-                      ),
-                      if (!inDetail)
-                        action(
-                          BounceIcon(
-                            active: false,
-                            activeIcon: AppIcons.sendOutlined,
-                            icon: AppIcons.sendOutlined,
-                            size: 20,
-                            label: t.t('post.share'),
-                            onTap: () => sharePost(context, ref, p),
-                          ),
-                          p.shareCount,
-                        ),
-                      Expanded(
-                        child: !inDetail &&
-                                p.isMine &&
-                                !ref.watch(isAssistantProvider)
-                            ? Align(
-                                alignment: AlignmentDirectional.centerEnd,
-                                child: BoostButton(postId: p.id),
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                      BounceIcon(
-                        active: p.savedByMe,
-                        activeIcon: AppIcons.bookmarkRounded,
-                        icon: AppIcons.bookmarkBorderRounded,
-                        activeColor: colors.gold,
-                        size: 20,
-                        label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
-                        onTap: () => run(() => actions.toggleSave(p)),
-                      ),
-                    ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Flexible(
+                    child: Text(
+                      promotionId != null
+                          ? t.t('promote.sponsored')
+                          : SocialFormat.ago(t, f, p.createdAt),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
                   ),
                 ],
               ),
+            ),
+            AppIconButton(
+              icon: AppIcon(
+                AppIcons.moreHorizRounded,
+                size: 20,
+                color: colors.textSecondary,
+              ),
+              semanticLabel: t.t('post.menu'),
+              onPressed: () => showPostMenu(context, ref, p),
+            ),
+          ],
+        );
+
+    // Owner 2026-10-12 (Threads): above the card, the icon in the avatar
+    // column and "name reposted" aligned with the name below.
+    Widget repostLine() {
+      final who = repostedBy!;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 36,
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: AppIcon(
+                  AppIcons.autoModeRounded,
+                  size: 14,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Flexible(
+              child: GestureDetector(
+                onTap: () => openProfile(
+                  context,
+                  ref,
+                  id: who.id,
+                  username: who.username,
+                  isClient: who.isClient,
+                ),
+                child: Text(
+                  t.t('post.repostedBy', {'username': who.username}),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.caption.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget pinLine() => Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 36,
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: AppIcon(
+                    AppIcons.pushPin,
+                    size: 14,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Text(
+                t.t('post.pinned'),
+                style: type.caption.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        );
+
+    final avatar = GestureDetector(
+      onTap: () => openAuthorProfile(context, ref, a),
+      child: GoldRingAvatar(
+        url: a.avatarUrl,
+        initials: a.initials,
+        size: 36,
+        ring: a.verified,
+      ),
+    );
+
+    final textBlock = text.isNotEmpty && inDetail
+        ? TranslatableText(
+            kind: TranslatableKind.post,
+            id: p.id,
+            text: text,
+            enabled: !p.isMine,
+            builder: (context, s) => bodyText(s),
+          )
+        : (text.isNotEmpty ? bodyText(text) : const SizedBox.shrink());
+
+    // Owner 2026-10-12 (Threads): like, reply, repost, share with counts.
+    final actionRow = Row(
+      children: [
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: AlignmentDirectional.centerStart,
+            child: Row(
+              children: [
+                action(
+                  BounceIcon(
+                    active: p.likedByMe,
+                    activeIcon: AppIcons.favoriteRounded,
+                    icon: AppIcons.favoriteBorderRounded,
+                    activeColor: colors.danger,
+                    size: 20,
+                    extent: 34,
+                    label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
+                    onTap: () => run(() => actions.toggleLike(p)),
+                  ),
+                  p.likeCount,
+                ),
+                action(
+                  BounceIcon(
+                    active: false,
+                    activeIcon: AppIcons.modeCommentOutlined,
+                    icon: AppIcons.modeCommentOutlined,
+                    size: 20,
+                    extent: 34,
+                    label: t.t('post.comments'),
+                    // In the open thread the replies are right below: no sheet.
+                    onTap: () => inDetail
+                        ? onReply?.call()
+                        : context.push(SocialRoutes.post(p.id)),
+                  ),
+                  p.commentCount,
+                ),
+                action(
+                  BounceIcon(
+                    active: p.repostedByMe,
+                    activeIcon: AppIcons.autoModeRounded,
+                    icon: AppIcons.autoModeRounded,
+                    activeColor: colors.success,
+                    size: 20,
+                    extent: 34,
+                    label:
+                        t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
+                    onTap: () => run(() => actions.toggleRepost(p)),
+                  ),
+                  p.repostCount,
+                ),
+                action(
+                  BounceIcon(
+                    active: false,
+                    activeIcon: AppIcons.sendOutlined,
+                    icon: AppIcons.sendOutlined,
+                    size: 20,
+                    extent: 34,
+                    label: t.t('post.share'),
+                    onTap: () => sharePost(context, ref, p),
+                  ),
+                  p.shareCount,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (!inDetail && p.isMine && !ref.watch(isAssistantProvider)) ...[
+          const SizedBox(width: AppSpacing.sm),
+          BoostButton(postId: p.id),
+        ],
+      ],
+    );
+
+    if (inDetail) {
+      // The open thread: avatar + name on one line, the text under it on the
+      // full width, then the actions (Threads).
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.xs,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (repostedBy != null) repostLine(),
+            if (showPin && p.pinSlot != null) pinLine(),
+            Row(
+              children: [
+                avatar,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(child: nameRow()),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            textBlock,
+            _PracticeChips(post: p, inset: 0),
+            const SizedBox(height: AppSpacing.xs),
+            actionRow,
+          ],
+        ),
+      );
+    }
+
+    return AppPressable(
+      onTap: open,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.md,
+          AppSpacing.xs,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (repostedBy != null) repostLine(),
+            if (showPin && p.pinSlot != null) pinLine(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                avatar,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      nameRow(),
+                      textBlock,
+                      _PracticeChips(post: p, inset: 0),
+                      actionRow,
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1104,7 +1219,6 @@ class _ThreadsPost extends ConsumerWidget {
   }
 }
 
-/// "2 hours ago · Public" under the chips (owner design).
 class _TimeLine extends ConsumerWidget {
   const _TimeLine({required this.post});
 
@@ -1445,6 +1559,48 @@ class _AuthorRow extends ConsumerWidget {
               AppIcons.moreHorizRounded,
               color: onDark ? Colors.white : null,
             ),
+            semanticLabel: t.t('post.menu'),
+            onPressed: () => showPostMenu(context, ref, post),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-12: in the author's own feed of posts (no author row) the
+/// "…" menu stays reachable (pin, edit, delete), with "Pinned" on the left.
+class _OwnMenuRow extends ConsumerWidget {
+  const _OwnMenuRow({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+        start: AppSpacing.lg,
+        end: AppSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          if (post.pinSlot != null) ...[
+            AppIcon(AppIcons.pushPin, size: 14, color: colors.textSecondary),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              t.t('post.pinned'),
+              style: type.caption.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const Spacer(),
+          AppIconButton(
+            icon: const AppIcon(AppIcons.moreHorizRounded),
             semanticLabel: t.t('post.menu'),
             onPressed: () => showPostMenu(context, ref, post),
           ),
@@ -2070,7 +2226,10 @@ class _ActionsBar extends ConsumerWidget {
             child: showTime
                 ? Align(
                     alignment: AlignmentDirectional.centerEnd,
-                    child: _ShortDate(at: post.createdAt),
+                    child: _ShortDate(
+                      at: post.createdAt,
+                      views: post.video != null ? post.viewCount : 0,
+                    ),
                   )
                 // Owner 2026-10-07: «Продвигать» / «Boost» under my own
                 // post, right before Save; it may use all the free width.
@@ -2126,8 +2285,12 @@ class BounceIcon extends StatefulWidget {
     required this.onTap,
     this.activeColor,
     this.size = 26,
+    this.extent = AppSizes.touchTarget,
     super.key,
   });
+
+  /// The tap target's width (its height stays a touch target).
+  final double extent;
 
   final bool active;
   final IconData icon;
@@ -2184,8 +2347,9 @@ class _BounceIconState extends State<BounceIcon>
             HapticFeedback.selectionClick();
             widget.onTap();
           },
-          child: SizedBox.square(
-            dimension: AppSizes.touchTarget,
+          child: SizedBox(
+            width: widget.extent,
+            height: AppSizes.touchTarget,
             child: Center(
               child: ScaleTransition(
                 scale: _scale,
@@ -2288,9 +2452,12 @@ class PostDisclaimer extends ConsumerWidget {
 /// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
 /// "Mar 14, 2024").
 class _ShortDate extends ConsumerWidget {
-  const _ShortDate({required this.at});
+  const _ShortDate({required this.at, this.views = 0});
 
   final DateTime at;
+
+  /// Owner 2026-10-12: views of a video post, shown before the date.
+  final int views;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2300,11 +2467,31 @@ class _ShortDate extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
-      child: Text(
-        SocialFormat.shortDate(t, f, at),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: type.caption.copyWith(color: colors.textSecondary),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (views > 0) ...[
+            AppIcon(
+              AppIcons.visibilityOutlined,
+              size: 16,
+              color: colors.textSecondary,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              SocialFormat.count(f, views),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
+          Flexible(
+            child: Text(
+              SocialFormat.shortDate(t, f, at),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2421,9 +2608,12 @@ class _FeedCarouselState extends State<_FeedCarousel> {
 /// limit), all alike and light: no dot, radius 6, aligned with the text,
 /// one row that scrolls sideways when it does not fit.
 class _PracticeChips extends ConsumerWidget {
-  const _PracticeChips({required this.post});
+  const _PracticeChips({required this.post, this.inset = AppSpacing.md});
 
   final Post post;
+
+  /// Side padding of the chip row (zero inside the Threads text column).
+  final double inset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2466,7 +2656,7 @@ class _PracticeChips extends ConsumerWidget {
       padding: const EdgeInsets.only(top: 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: EdgeInsets.symmetric(horizontal: inset),
         child: Row(
           children: [
             for (final (i, c) in chips.indexed) ...[
