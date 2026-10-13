@@ -650,15 +650,18 @@ class FollowButton extends ConsumerWidget {
           ),
           alignment: compact ? null : Alignment.center,
           decoration: BoxDecoration(
-            color:
-                following || outlined ? Colors.transparent : colors.ctaBright,
+            color: following || outlined
+                ? Colors.transparent
+                : (expanded ? colors.goldAccent : colors.ctaBright),
             borderRadius: BorderRadius.circular(
               expanded ? AppRadii.field : AppRadii.pill,
             ),
             border: Border.all(
               color: following
                   ? colors.border
-                  : (outlined ? colors.gold : colors.ctaBright),
+                  : (outlined
+                      ? colors.gold
+                      : (expanded ? colors.goldAccent : colors.ctaBright)),
             ),
           ),
           child: AnimatedSwitcher(
@@ -682,7 +685,9 @@ class FollowButton extends ConsumerWidget {
                     size: AppSizes.iconSm,
                     color: following
                         ? colors.textSecondary
-                        : (outlined ? colors.gold : colors.onCtaBright),
+                        : (outlined
+                            ? colors.gold
+                            : (expanded ? colors.navy : colors.onCtaBright)),
                   ),
                   const SizedBox(width: AppSpacing.xs),
                 ],
@@ -697,7 +702,11 @@ class FollowButton extends ConsumerWidget {
                         fontSize: small ? 13 : 14,
                         color: following
                             ? (outlined ? colors.textSecondary : colors.text)
-                            : (outlined ? colors.gold : colors.onCtaBright),
+                            : (outlined
+                                ? colors.gold
+                                : (expanded
+                                    ? colors.navy
+                                    : colors.onCtaBright)),
                       ),
                     ),
                   ),
