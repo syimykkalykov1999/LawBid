@@ -90,6 +90,20 @@ class AvatarPickerField extends ConsumerWidget {
                 onTap: () =>
                     Navigator.of(sheetContext).pop(AvatarSource.gallery),
               ),
+              // The format / size note lives here, not on the screen.
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('profile.photo.hint'),
+                textAlign: TextAlign.center,
+                style: Theme.of(sheetContext)
+                    .extension<AppTypographyTokens>()!
+                    .caption
+                    .copyWith(
+                      color: Theme.of(sheetContext)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+              ),
             ],
           ),
         ),
@@ -242,8 +256,8 @@ class _TextAction extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppIcon(icon, size: AppSpacing.lg + 2, color: color),
-              const SizedBox(width: AppSpacing.xs),
+              // Owner 2026-10-13: no icon — the label starts on the same left
+              // edge as the title above it.
               Flexible(
                 child: FitText(
                   label,

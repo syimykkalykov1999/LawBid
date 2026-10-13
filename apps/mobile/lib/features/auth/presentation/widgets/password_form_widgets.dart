@@ -50,7 +50,7 @@ class PasswordFormScaffold extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 8),
                         if (onBack != null)
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
@@ -58,7 +58,7 @@ class PasswordFormScaffold extends ConsumerWidget {
                           )
                         else
                           const SizedBox(height: 40),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 14),
                         Semantics(
                           header: true,
                           child: Text(
@@ -75,9 +75,8 @@ class PasswordFormScaffold extends ConsumerWidget {
                                 .copyWith(color: colors.textSecondary),
                           ),
                         ],
-                        const SizedBox(height: 22),
+                        const SizedBox(height: 18),
                         ...fields,
-                        const Spacer(),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 22, top: 16),
                           child: bottom,
