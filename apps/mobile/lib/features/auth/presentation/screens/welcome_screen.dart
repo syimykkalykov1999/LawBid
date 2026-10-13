@@ -7,7 +7,6 @@ import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
@@ -354,19 +353,6 @@ class WelcomeScreen extends ConsumerWidget {
                             // LayoutBuilder/ConstrainedBox/IntrinsicHeight setup above,
                             // the standard Flutter idiom for pinning to the bottom of a
                             // Column that must also remain scrollable.
-                            const SizedBox(height: 8),
-                            LegalText(
-                              // Only the acceptance sentence: the third line of
-                              // the bottom block.
-                              text: _acceptLine(t),
-                              links: {
-                                t.t('auth.welcome.legal.terms'): () =>
-                                    context.push(AppRoutes.legalDoc('terms')),
-                                t.t('auth.welcome.legal.privacy'): () =>
-                                    context.push(AppRoutes.legalDoc('privacy')),
-                              },
-                              style: typography.legalFine,
-                            ),
                             const SizedBox(height: AppSpacing.lg),
                           ],
                         ),
@@ -381,26 +367,4 @@ class WelcomeScreen extends ConsumerWidget {
       ),
     );
   }
-}
-
-/// The sentence of [full] that holds the [termsLabel] link ("By continuing,
-/// you accept the Terms and Privacy Policy.").
-String _acceptSentence(String full, String termsLabel) {
-  final at = full.indexOf(termsLabel);
-  if (at <= 0) return full;
-  var start = 0;
-  for (final m in RegExp(r'[.!?。！？।۔]\s*').allMatches(full.substring(0, at))) {
-    start = m.end;
-  }
-  return full.substring(start);
-}
-
-/// «By continuing, you accept the {terms} and {privacy}» — its own key;
-/// languages still without it fall back to the last sentence of the long one.
-String _acceptLine(Translator t) {
-  final terms = t.t('auth.welcome.legal.terms');
-  final privacy = t.t('auth.welcome.legal.privacy');
-  final line = t.t('welcome.acceptLine', {'terms': terms, 'privacy': privacy});
-  if (line != 'welcome.acceptLine' && line.contains(terms)) return line;
-  return _acceptSentence(t.t('auth.welcome.legal'), terms);
 }
