@@ -69,13 +69,16 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             // scrolled alike), so nothing morphs while scrolling.
             child: _FloatDisc(
               forceDark: onDark,
+              // The logo takes the theme's own text colour (white on the
+              // dark discs, dark on the light ones), so it shows in all
+              // four themes.
               icon: ({required dark}) => ColorFiltered(
                 colorFilter: ColorFilter.mode(
-                  dark ? Colors.white : colors.navy,
+                  dark ? Colors.white : colors.text,
                   BlendMode.srcIn,
                 ),
                 child: ScalesLogo(
-                  size: 26,
+                  size: 28,
                   semanticLabel: t.t('brand.name'),
                 ),
               ),
