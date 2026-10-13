@@ -4,10 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
     show ActionSheetItem, showActionSheet;
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/team/application/team_providers.dart'
+    show invalidateAllTasks, teamRepositoryProvider;
+import 'package:lawbid/features/team/domain/team_models.dart'
+    show TaskDraft, TaskKind, TaskStepDraft;
+import 'package:lawbid/features/team/presentation/task_pickers.dart'
+    show showChoiceSheet, taskRemindChoices, taskRemindLabel;
+import 'package:lawbid/features/team/presentation/task_sheet.dart'
+    show pickDateTime;
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-13: what the compose sheet returns.
@@ -18,6 +27,9 @@ class ComposeResult {
     required this.items,
     required this.files,
     this.kind,
+    this.dueAt,
+    this.remindBeforeMin,
+    this.openFull = false,
   });
 
   final String title;
@@ -27,9 +39,18 @@ class ComposeResult {
   final List<String> items;
   final List<PickedCaseFile> files;
   final api.CreateCaseTaskDtoKind? kind;
+
+  /// The calendar and the bell of the strip (attorney's tasks).
+  final DateTime? dueAt;
+  final int? remindBeforeMin;
+
+  /// The Planner's "details": the full editor instead.
+  final bool openFull;
 }
 
-enum ComposeMode { update, task, attach }
+/// [planner]: a task of the attorney's / the client's own Planner (Mine) —
+/// the same widget as a task of a case, without the case kinds.
+enum ComposeMode { update, task, attach, planner }
 
 /// A half-height sheet (it stretches) for a new task or a new update, with
 /// the strip above the keyboard of the iPhone's Notes: checklist, clip
@@ -38,11 +59,16 @@ Future<ComposeResult?> showComposeSheet(
   BuildContext context, {
   required ComposeMode mode,
   required bool isAttorney,
+  String? moreLabel,
 }) =>
     showAppBottomSheet<ComposeResult>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _ComposeSheet(mode: mode, isAttorney: isAttorney),
+      builder: (_) => _ComposeSheet(
+        mode: mode,
+        isAttorney: isAttorney,
+        moreLabel: moreLabel,
+      ),
     );
 
 class _Line {
@@ -61,10 +87,15 @@ class _Line {
 }
 
 class _ComposeSheet extends ConsumerStatefulWidget {
-  const _ComposeSheet({required this.mode, required this.isAttorney});
+  const _ComposeSheet({
+    required this.mode,
+    required this.isAttorney,
+    this.moreLabel,
+  });
 
   final ComposeMode mode;
   final bool isAttorney;
+  final String? moreLabel;
 
   @override
   ConsumerState<_ComposeSheet> createState() => _ComposeSheetState();
@@ -76,11 +107,22 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
   final _files = <PickedCaseFile>[];
   api.CreateCaseTaskDtoKind _kind = api.CreateCaseTaskDtoKind.forClient;
   int _focused = 0;
+  DateTime? _due;
+  int? _remind;
+  final _sheet = DraggableScrollableController();
+  bool _keyboardWas = false;
 
-  bool get _task => widget.mode == ComposeMode.task;
+  bool get _task =>
+      widget.mode == ComposeMode.task || widget.mode == ComposeMode.planner;
+
+  /// The calendar and the bell: the attorney's tasks of a case and any
+  /// task of the Planner.
+  bool get _timed => _task && (widget.isAttorney || _planner);
+  bool get _planner => widget.mode == ComposeMode.planner;
 
   @override
   void dispose() {
+    _sheet.dispose();
     _title.dispose();
     for (final l in _lines) {
       l.dispose();
@@ -166,7 +208,8 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
         label: t.t('cases.compose.file'),
         onTap: () => _attach(sample: false),
       ),
-      if ((_task || widget.mode == ComposeMode.attach) &&
+      if ((widget.mode == ComposeMode.task ||
+              widget.mode == ComposeMode.attach) &&
           widget.isAttorney) ...[
         ActionSheetItem(
           icon: AppIcons.imageOutlined,
@@ -180,6 +223,28 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
         ),
       ],
     ]);
+  }
+
+  Future<void> _pickDue() async {
+    final d = await pickDateTime(context, initial: _due);
+    if (d != null && mounted) setState(() => _due = d);
+  }
+
+  Future<void> _pickRemind() async {
+    final t = ref.read(translatorProvider);
+    if (_due == null) {
+      await _pickDue();
+      if (_due == null) return;
+    }
+    if (!mounted) return;
+    final i = await showChoiceSheet(
+      context,
+      title: t.t('tasks.remind.title'),
+      labels: [for (final m in taskRemindChoices) taskRemindLabel(t, m)],
+      selected: taskRemindChoices.indexOf(_remind),
+      keyPrefix: 'remind',
+    );
+    if (i != null && mounted) setState(() => _remind = taskRemindChoices[i]);
   }
 
   ComposeResult? _result() {
@@ -202,7 +267,9 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
       text: plain,
       items: items,
       files: List.of(_files),
-      kind: _task ? _kind : null,
+      kind: widget.mode == ComposeMode.task ? _kind : null,
+      dueAt: _timed ? _due : null,
+      remindBeforeMin: _timed && _due != null ? _remind : null,
     );
   }
 
@@ -212,6 +279,19 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    // The keyboard takes the lower part: the sheet stretches to what is
+    // left, so the field and the strip are both above it.
+    if ((keyboard > 0) != _keyboardWas) {
+      _keyboardWas = keyboard > 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_sheet.isAttached) return;
+        _sheet.animateTo(
+          _keyboardWas ? 1 : 0.62,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      });
+    }
     final ready = _result() != null;
     final kinds = [
       (api.CreateCaseTaskDtoKind.forClient, t.t('cases.tasks.forClient')),
@@ -221,10 +301,10 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: keyboard),
       child: DraggableScrollableSheet(
+        controller: _sheet,
         expand: false,
         initialChildSize: 0.62,
         minChildSize: 0.4,
-        maxChildSize: 0.95,
         builder: (context, scroll) => Column(
           children: [
             const AppSheetHandle(),
@@ -243,7 +323,9 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                     child: Text(
                       t.t(
                         switch (widget.mode) {
-                          ComposeMode.task => 'cases.compose.newTask',
+                          ComposeMode.task ||
+                          ComposeMode.planner =>
+                            'cases.compose.newTask',
                           ComposeMode.attach => 'cases.compose.addFiles',
                           _ => 'cases.compose.newUpdate',
                         },
@@ -279,7 +361,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                   AppSpacing.lg,
                 ),
                 children: [
-                  if (_task && widget.isAttorney) ...[
+                  if (widget.mode == ComposeMode.task && widget.isAttorney) ...[
                     Wrap(
                       spacing: 8,
                       children: [
@@ -365,7 +447,8 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                                 hintText: i == 0
                                     ? t.t(
                                         switch (widget.mode) {
-                                          ComposeMode.task =>
+                                          ComposeMode.task ||
+                                          ComposeMode.planner =>
                                             'cases.compose.taskHint',
                                           ComposeMode.attach =>
                                             'cases.compose.noteHint',
@@ -385,12 +468,49 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                         ),
                       ],
                     ),
+                  if (_timed && (_due != null || _remind != null))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (_due != null)
+                            InputChip(
+                              avatar: AppIcon(
+                                AppIcons.eventOutlined,
+                                size: 16,
+                                color: colors.text,
+                              ),
+                              label: Text(
+                                ref.read(l10nFormatsProvider).dateTime(_due!),
+                              ),
+                              onPressed: _pickDue,
+                              onDeleted: () => setState(() {
+                                _due = null;
+                                _remind = null;
+                              }),
+                            ),
+                          if (_due != null && _remind != null)
+                            InputChip(
+                              avatar: AppIcon(
+                                AppIcons.notificationsActiveOutlined,
+                                size: 16,
+                                color: colors.text,
+                              ),
+                              label: Text(taskRemindLabel(t, _remind)),
+                              onPressed: _pickRemind,
+                              onDeleted: () => setState(() => _remind = null),
+                            ),
+                        ],
+                      ),
+                    ),
                   for (final (i, f) in _files.indexed)
                     _PickedTile(
                       file: f,
-                      showSample:
-                          (_task || widget.mode == ComposeMode.attach) &&
-                              widget.isAttorney,
+                      showSample: (widget.mode == ComposeMode.task ||
+                              widget.mode == ComposeMode.attach) &&
+                          widget.isAttorney,
                       onRemove: () => setState(() => _files.removeAt(i)),
                       onChanged: () => setState(() {}),
                     ),
@@ -430,7 +550,39 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                     icon:
                         AppIcon(AppIcons.attachFileRounded, color: colors.text),
                   ),
+                  if (_timed) ...[
+                    IconButton(
+                      tooltip: t.t('cases.compose.due'),
+                      onPressed: _pickDue,
+                      icon: AppIcon(
+                        AppIcons.eventOutlined,
+                        color: _due != null ? colors.goldDark : colors.text,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: t.t('cases.compose.remind'),
+                      onPressed: _pickRemind,
+                      icon: AppIcon(
+                        AppIcons.notificationsActiveOutlined,
+                        color: _remind != null ? colors.goldDark : colors.text,
+                      ),
+                    ),
+                  ],
                   const Spacer(),
+                  if (widget.moreLabel != null)
+                    IconButton(
+                      tooltip: widget.moreLabel,
+                      onPressed: () => Navigator.of(context).pop(
+                        const ComposeResult(
+                          title: '',
+                          text: '',
+                          items: [],
+                          files: [],
+                          openFull: true,
+                        ),
+                      ),
+                      icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
+                    ),
                   if (_files.isNotEmpty)
                     Text(
                       '${_files.length} / 20',
@@ -468,7 +620,7 @@ class _PickedTile extends ConsumerWidget {
       margin: const EdgeInsets.only(top: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: colors.border.withValues(alpha: 0.35),
+        color: colors.chip,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -556,4 +708,41 @@ class _PickedTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _mimeOf(String name) {
+  final e = name.split('.').last.toLowerCase();
+  return switch (e) {
+    'pdf' => 'application/pdf',
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'png' => 'image/png',
+    'heic' => 'image/heic',
+    'doc' => 'application/msword',
+    'docx' =>
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    _ => 'application/octet-stream',
+  };
+}
+
+/// Saves what the compose sheet returned as a task of the Planner (Mine):
+/// the checklist lines become the task's steps, the clip's files its files,
+/// the calendar its time, the bell its reminder.
+Future<void> createPlannerTaskFrom(WidgetRef ref, ComposeResult r) async {
+  final repo = ref.read(teamRepositoryProvider);
+  final ids = <String>[
+    for (final f in r.files)
+      await repo.uploadTaskFile(f.bytes, _mimeOf(f.name)),
+  ];
+  await repo.createTask(
+    TaskDraft(
+      kind: TaskKind.other,
+      title: r.title,
+      notes: r.text.isEmpty ? null : r.text,
+      dueAt: r.dueAt,
+      remindBeforeMin: r.dueAt == null ? null : r.remindBeforeMin,
+      fileIds: ids,
+      steps: [for (final l in r.items) TaskStepDraft(title: l)],
+    ),
+  );
+  invalidateAllTasks(ref);
 }

@@ -71,7 +71,7 @@ class AppConnectivityBanner extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final topInset = MediaQuery.paddingOf(context).top;
     final background = colors.text;
-    final foreground = colors.bg;
+    final foreground = colors.inverseText;
     // Gold on the navy-ink band (light theme) is 7.6:1; on the cream band
     // (dark theme) plain gold is only 2.1:1, so the darker gold is used
     // there (4.1:1) — both above the 3:1 non-text minimum.

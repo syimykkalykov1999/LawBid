@@ -4,7 +4,11 @@ import {
   ArrayMaxSize,
   IsBoolean,
   IsArray,
+  IsDateString,
   IsIn,
+  IsInt,
+  Max,
+  Min,
   IsOptional,
   IsString,
   IsUUID,
@@ -63,6 +67,20 @@ export class CreateCaseTaskDto {
   @MaxLength(TASK_TEXT_MAX)
   description?: string;
 
+  /// When it is due (the calendar of the compose strip).
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  dueAt?: string;
+
+  /// Minutes before dueAt for the attorney's reminder (a planner entry).
+  @ApiPropertyOptional({ minimum: 0, maximum: 20160 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(20160)
+  remindBeforeMin?: number;
+
   /// A checklist for a for-client task: one line per thing to send.
   @ApiPropertyOptional({
     type: [String],
@@ -92,7 +110,7 @@ export class CreateCaseTaskDto {
 
 export class TaskDoneDto {
   @ApiProperty()
-  @Type(() => Boolean)
+  @IsBoolean()
   done!: boolean;
 }
 
@@ -236,6 +254,8 @@ export class CaseTaskDto {
   closed!: boolean;
   @ApiPropertyOptional({ type: String, nullable: true })
   closedAt!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  dueAt!: string | null;
   @ApiProperty()
   createdAt!: string;
   @ApiProperty({ type: 'integer' })

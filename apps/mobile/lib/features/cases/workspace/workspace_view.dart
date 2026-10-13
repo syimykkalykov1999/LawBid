@@ -84,61 +84,104 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     final open = ws?.openTasks ?? 0;
     // On the Updates tab itself there is nothing new any more.
     final fresh = _tab == 3 ? 0 : (ws?.newUpdates ?? 0);
-    return RefreshIndicator(
-      color: colors.gold,
-      backgroundColor: colors.surface,
-      onRefresh: _refresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-        children: [
-          CaseChipsRow(labels: widget.chips, status: widget.statusLabel),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              0,
-            ),
-            child: Text(
-              widget.title,
-              style: type.titleMedium.copyWith(
-                color: colors.text,
-                fontWeight: FontWeight.w600,
-                fontSize: 22,
-                height: 1.22,
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Owner 2026-10-13: from 900 dp the Overview (the other party, the
+        // description, chat) stays in a side column and the tabs are the
+        // four working ones; on a phone it is the first tab.
+        final wide = box.maxWidth >= 900;
+        final tab = wide && _tab == 0 ? 2 : _tab;
+        final labels = [
+          if (!wide) CaseTabItem(t.t('cases.tab.overview')),
+          CaseTabItem(t.t('cases.tab.files'), count: files),
+          CaseTabItem(t.t('cases.tab.tasks'), count: open),
+          CaseTabItem(t.t('cases.tab.updates'), count: fresh),
+          CaseTabItem(t.t('cases.tab.activity')),
+        ];
+        final shift = wide ? 1 : 0;
+        final main = RefreshIndicator(
+          color: colors.gold,
+          backgroundColor: colors.surface,
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+            children: [
+              CaseChipsRow(labels: widget.chips, status: widget.statusLabel),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: Text(
+                  widget.title,
+                  style: type.titleMedium.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 22,
+                    height: 1.22,
+                  ),
+                ),
               ),
+              CaseFigures(
+                t: t,
+                formats: formats,
+                states: widget.states,
+                budget: widget.budget,
+                urgency: widget.urgency,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              CaseTextTabs(
+                items: labels,
+                index: tab - shift,
+                onChanged: (i) => _select(i + shift),
+              ),
+              switch (tab) {
+                0 => Column(children: widget.overview),
+                1 => FilesTab(
+                    caseId: widget.caseId,
+                    isAttorney: widget.isAttorney,
+                  ),
+                2 => TasksTab(
+                    caseId: widget.caseId,
+                    isAttorney: widget.isAttorney,
+                  ),
+                3 => UpdatesTab(
+                    caseId: widget.caseId,
+                    isAttorney: widget.isAttorney,
+                  ),
+                _ => ActivityTab(caseId: widget.caseId),
+              },
+            ],
+          ),
+        );
+        if (!wide) return main;
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1240),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: main),
+                Container(
+                  width: 380,
+                  decoration: BoxDecoration(
+                    border: BorderDirectional(
+                      start: BorderSide(color: colors.border),
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                    child: Column(children: widget.overview),
+                  ),
+                ),
+              ],
             ),
           ),
-          CaseFigures(
-            t: t,
-            formats: formats,
-            states: widget.states,
-            budget: widget.budget,
-            urgency: widget.urgency,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          CaseTextTabs(
-            items: [
-              CaseTabItem(t.t('cases.tab.overview')),
-              CaseTabItem(t.t('cases.tab.files'), count: files),
-              CaseTabItem(t.t('cases.tab.tasks'), count: open),
-              CaseTabItem(t.t('cases.tab.updates'), count: fresh),
-              CaseTabItem(t.t('cases.tab.activity')),
-            ],
-            index: _tab,
-            onChanged: _select,
-          ),
-          switch (_tab) {
-            0 => Column(children: widget.overview),
-            1 => FilesTab(caseId: widget.caseId, isAttorney: widget.isAttorney),
-            2 => TasksTab(caseId: widget.caseId, isAttorney: widget.isAttorney),
-            3 =>
-              UpdatesTab(caseId: widget.caseId, isAttorney: widget.isAttorney),
-            _ => ActivityTab(caseId: widget.caseId),
-          },
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -314,7 +357,7 @@ class _FileRow extends StatelessWidget {
               child: isImage
                   ? Image.network(file.previewUrl, fit: BoxFit.cover)
                   : ColoredBox(
-                      color: colors.border.withValues(alpha: 0.45),
+                      color: colors.chip,
                       child: AppIcon(
                         AppIcons.descriptionOutlined,
                         color: colors.goldDark,
@@ -566,8 +609,7 @@ class UpdateEntry extends StatelessWidget {
                             child: f.mime.startsWith('image/')
                                 ? Image.network(f.previewUrl, fit: BoxFit.cover)
                                 : ColoredBox(
-                                    color:
-                                        colors.border.withValues(alpha: 0.45),
+                                    color: colors.chip,
                                     child: const AppIcon(
                                       AppIcons.descriptionOutlined,
                                     ),

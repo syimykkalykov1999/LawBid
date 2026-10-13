@@ -21,7 +21,10 @@ function make(opts: { accepted: boolean; task?: Record<string, unknown> }) {
       update: jest.fn(() => Promise.resolve({})),
       findMany: jest.fn(() => Promise.resolve([])),
     },
-    attorneyTask: { findMany: jest.fn(() => Promise.resolve([])) },
+    attorneyTask: {
+      findMany: jest.fn(() => Promise.resolve([])),
+      updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+    },
     casePhoto: { findMany: jest.fn(() => Promise.resolve([])) },
   };
   const svc = new CaseWorkspaceService(prisma as never, {} as never);
@@ -50,6 +53,10 @@ describe('CaseWorkspaceService', () => {
     const m = make({ accepted: true, task });
     await m.svc.setDone(as(ATTORNEY), 'k', 't', true);
     expect(m.prisma.caseTask.update).toHaveBeenCalled();
+    // the planner entry of its reminder is ticked with it
+    expect(m.prisma.attorneyTask.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { case_task_id: 't' } }),
+    );
   });
 
   it('a for-client task: the client marks it done, only until it is closed', async () => {

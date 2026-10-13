@@ -7,7 +7,7 @@ const caseCoverRu = <String, String>{
   'cases.facts.urgency': 'Срочность',
   'cases.facts.budget': 'Бюджет',
   'cases.facts.negotiable': 'Обсуждается',
-  'cases.facts.notSet': 'Не указана',
+  'cases.facts.notSet': 'Не указано',
   'cases.urgency.flexible': 'Не срочно',
   'cases.urgency.soon': 'На этой неделе',
   'cases.urgency.urgent': 'Срочно',

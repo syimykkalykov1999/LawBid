@@ -128,6 +128,80 @@ abstract final class AppColorsDark {
   static const Color dangerText = Color(0xFFE36464);
 }
 
+/// Navy theme raw palette (owner 2026-10-13, artifact "LawBid Themes"):
+/// a dark blue night with the same gold. Everything not listed there is
+/// derived from [AppColorsDark] with the same alpha rules.
+abstract final class AppColorsNavy {
+  static const Color bg = Color(0xFF0B1020);
+  static const Color surface = Color(0xFF121A33);
+  static const Color text = Color(0xFFEEF0F4);
+  static const Color textSecondary = Color(0xFF9AA3B8);
+  static const Color border = Color(0xFF232C4A);
+  static const Color chip = Color(0xFF1B2440);
+  static const Color gold = Color(0xFFD6B05A);
+  static const Color goldStroke = Color(0xFFD6B05A);
+  static const Color goldLight = Color(0xFFE8CD85);
+  static const Color goldDark = Color(0xFF9A7A2E);
+  static const Color navy = Color(0xFF0A1A3F);
+  static const double watermarkOpacity = 0.10;
+  static const Color shadow = Color(0x66000000);
+  static const Color goldTint = Color(0x26D6B05A);
+  static const Color dangerTint = Color(0x26D64545);
+  static const Color successTint = Color(0x261F9D67);
+  static const Color infoTint = Color(0x262F80ED);
+  static const Color skeletonBase = Color(0xFF1B2440);
+  static const Color skeletonHighlight = Color(0xFF232C4A);
+  static const Color dangerText = Color(0xFFE36464);
+}
+
+/// Glass ("wet glass") theme raw palette (owner 2026-10-13): a deep teal
+/// gradient behind blurred translucent panels (white at 10%).
+abstract final class AppColorsGlass {
+  /// Transparent: screens sit on the gradient (AppBackdrop); [barSolid] is the
+  /// opaque colour for the system strip.
+  static const Color bg = Color(0x00000000);
+  static const Color barSolid = Color(0xFF0D2A33);
+  static const Color bar = Color(0x14FFFFFF);
+  static const List<Color> gradient = [
+    Color(0xFF16364A),
+    Color(0xFF0B1A28),
+    Color(0xFF0D2A33),
+  ];
+
+  /// Soft light spots drawn over the gradient (fraction of the screen).
+  static const Color spotBlue = Color(0x8C78BEDC);
+  static const Color spotIndigo = Color(0x804678BE);
+  static const Color spotTeal = Color(0x7328969A);
+  static const Color surface = Color(0x1AFFFFFF);
+
+  /// A sheet / dialog over the glass (artifact `--shb`).
+  static const Color sheet = Color(0xD1142C3C);
+  static const Color text = Color(0xFFF4F8FB);
+  static const Color textSecondary = Color(0xADE2ECF4);
+  static const Color border = Color(0x2EFFFFFF);
+  static const Color chip = Color(0x24FFFFFF);
+  static const Color gold = Color(0xFFE6C984);
+  static const Color goldStroke = Color(0xFFE6C984);
+  static const Color goldLight = Color(0xFFF0DAA6);
+  static const Color goldDark = Color(0xFFB8974A);
+  static const Color cta = Color(0xEBFFFFFF);
+  static const Color onCta = Color(0xFF0E1E2B);
+  static const Color navy = Color(0xFF0A1A3F);
+  static const double watermarkOpacity = 0.08;
+  static const Color shadow = Color(0x40000000);
+  static const Color goldTint = Color(0x29E6C984);
+  static const Color dangerTint = Color(0x29D64545);
+  static const Color successTint = Color(0x291F9D67);
+  static const Color infoTint = Color(0x292F80ED);
+  static const Color skeletonBase = Color(0x1AFFFFFF);
+  static const Color skeletonHighlight = Color(0x33FFFFFF);
+  static const Color dangerText = Color(0xFFFF8A8A);
+  static const Color successText = Color(0xFF8CF0BE);
+
+  /// Blur radius of a glass panel.
+  static const double blur = 18;
+}
+
 /// Status colors, shared by both themes: file 07 §2 says `danger`,
 /// `success`, `warning` come "из файла 01, раздел 8.1", and 01 §8.1 lists
 /// exactly these hex values (plus `info`). §8.1's dark table gives no

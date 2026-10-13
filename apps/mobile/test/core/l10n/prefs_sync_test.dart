@@ -1,8 +1,8 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lawbid/core/design_system/theme/theme_mode_providers.dart';
+import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
+import 'package:lawbid/core/design_system/theme/app_theme_providers.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -96,7 +96,6 @@ void main() {
     );
     // ignore: cascade_invocations
     c.listen(preferencesSyncProvider, (_, __) {});
-    await c.read(themeModeControllerProvider.future);
     await c.read(languageControllerProvider.future);
     await settle();
   }
@@ -107,20 +106,18 @@ void main() {
     await settle();
   }
 
-  ThemeMode theme() => c.read(themeModeControllerProvider).value!;
+  AppThemeId? theme() => c.read(appThemeControllerProvider);
   AppLanguage language() => c.read(languageControllerProvider).value!;
 
   test('signed out: changes stay local, nothing is sent', () async {
     await boot();
-    await c
-        .read(themeModeControllerProvider.notifier)
-        .setThemeMode(ThemeMode.dark);
+    await c.read(appThemeControllerProvider.notifier).select(AppThemeId.night);
     await c
         .read(languageControllerProvider.notifier)
         .setLanguage(AppLanguage.ru);
     await settle();
     expect(repo.patches, isEmpty);
-    expect(theme(), ThemeMode.dark);
+    expect(theme(), AppThemeId.night);
   });
 
   test('login to an existing account applies the server language and theme',
@@ -130,7 +127,7 @@ void main() {
     );
     await signIn(returning);
 
-    expect(theme(), ThemeMode.dark);
+    expect(theme(), AppThemeId.night);
     expect(language(), AppLanguage.ru);
     expect(
       repo.patches,
@@ -149,9 +146,7 @@ void main() {
     await boot();
     await signIn(returning);
 
-    await c
-        .read(themeModeControllerProvider.notifier)
-        .setThemeMode(ThemeMode.light);
+    await c.read(appThemeControllerProvider.notifier).select(AppThemeId.day);
     await settle();
     expect(repo.patches, [
       {'theme': 'light'},
@@ -166,9 +161,7 @@ void main() {
     expect(c.read(currentUserControllerProvider).user!.uiLanguage, 'en');
 
     // Re-selecting the current value sends nothing.
-    await c
-        .read(themeModeControllerProvider.notifier)
-        .setThemeMode(ThemeMode.light);
+    await c.read(appThemeControllerProvider.notifier).select(AppThemeId.day);
     await settle();
     expect(repo.patches, hasLength(2));
   });
@@ -184,7 +177,7 @@ void main() {
       {'uiLanguage': 'ru', 'theme': 'dark'},
     ]);
     expect(language(), AppLanguage.ru);
-    expect(theme(), ThemeMode.dark);
+    expect(theme(), AppThemeId.night);
   });
 
   test(
@@ -197,9 +190,7 @@ void main() {
       message: 'offline',
     );
 
-    await c
-        .read(themeModeControllerProvider.notifier)
-        .setThemeMode(ThemeMode.light);
+    await c.read(appThemeControllerProvider.notifier).select(AppThemeId.day);
     await settle();
     expect(repo.patches, [
       {'theme': 'light'},
@@ -215,7 +206,7 @@ void main() {
     await settle();
     expect(repo.patches, hasLength(patchesBefore + 1), reason: 'retried once');
     expect(repo.patches.last, {'theme': 'light'});
-    expect(theme(), ThemeMode.light);
+    expect(theme(), AppThemeId.day);
     expect(c.read(currentUserControllerProvider).user!.theme, 'light');
     expect(h.prefs.getString('prefs.sync.pending.theme'), isNull);
   });
@@ -233,7 +224,7 @@ void main() {
 
     expect(
       theme(),
-      ThemeMode.light,
+      AppThemeId.day,
       reason: 'pending local change is not reverted',
     );
     expect(repo.patches, [
@@ -264,9 +255,7 @@ void main() {
       code: ApiException.networkErrorCode,
       message: 'offline',
     );
-    await c
-        .read(themeModeControllerProvider.notifier)
-        .setThemeMode(ThemeMode.light);
+    await c.read(appThemeControllerProvider.notifier).select(AppThemeId.day);
     await settle();
     expect(h.prefs.getString('prefs.sync.pending.theme'), isNotNull);
 

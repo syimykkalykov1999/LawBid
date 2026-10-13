@@ -82,7 +82,7 @@ class _Banner extends ConsumerWidget {
                   t.t('demo.banner'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(color: colors.bg),
+                  style: type.caption.copyWith(color: colors.inverseText),
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
@@ -91,7 +91,7 @@ class _Banner extends ConsumerWidget {
                 icon: AppIcon(
                   AppIcons.visibilityOffOutlined,
                   size: 18,
-                  color: colors.bg,
+                  color: colors.inverseText,
                 ),
                 semanticLabel: t.t('demo.banner.hide'),
                 onPressed: () => ref

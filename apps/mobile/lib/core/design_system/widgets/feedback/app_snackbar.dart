@@ -49,7 +49,7 @@ void showAppSnackBar(
             Expanded(
               child: Text(
                 message,
-                style: typography.body.copyWith(color: colors.bg),
+                style: typography.body.copyWith(color: colors.inverseText),
               ),
             ),
           ],

@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
@@ -214,9 +215,28 @@ class _TasksTabState extends ConsumerState<TasksTab> {
 
   bool get _choosing => _picked.isNotEmpty;
 
+  /// Owner 2026-10-13: the same compose sheet as a task of a case (title,
+  /// checklist, clip, calendar, bell); "All options" is the full editor.
   Future<void> _add() async {
-    final created = await context.push<bool>(TeamRoutes.newTask);
-    if (created ?? false) invalidateAllTasks(ref);
+    final t = ref.read(translatorProvider);
+    final r = await showComposeSheet(
+      context,
+      mode: ComposeMode.planner,
+      isAttorney: false,
+      moreLabel: t.t('tasks.f.notes'),
+    );
+    if (!mounted || r == null) return;
+    if (r.openFull) {
+      final created = await context.push<bool>(TeamRoutes.newTask);
+      if (created ?? false) invalidateAllTasks(ref);
+      return;
+    }
+    try {
+      await createPlannerTaskFrom(ref, r);
+      if (mounted) showAppSnackBar(context, t.t('tasks.saved'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
   }
 
   /// Double tap / swipe right: the next step is checked off (or the whole

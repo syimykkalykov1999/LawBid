@@ -69,4 +69,35 @@ Future<void> main() async {
       });
     }
   }
+
+  testWidgets('an amount stays on one line at a large font (360 dp)', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: ListView(
+            children: [
+              CaseFigures(
+                t: const StaticTranslatorEn(),
+                formats: L10nFormats(AppLanguage.en),
+                states: const ['TX'],
+                budget: const CaseBudget(
+                  mode: BudgetMode.amount,
+                  amountCents: 300000,
+                ),
+                urgency: const CaseUrgencyInfo(),
+              ),
+            ],
+          ),
+        ),
+        theme: AppTheme.light(),
+        size: const Size(360, 800),
+        textScale: 1.6,
+      ),
+    );
+    await tester.pump();
+    final one = tester.getSize(find.text('TX')).height;
+    expect(tester.getSize(find.text(r'$3,000')).height, lessThan(one * 1.5));
+  });
 }
