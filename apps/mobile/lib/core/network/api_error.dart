@@ -41,6 +41,8 @@ abstract final class ApiErrorCodes {
   static const authSocialProviderUnavailable =
       'AUTH_SOCIAL_PROVIDER_UNAVAILABLE';
   static const authProviderDisabled = 'AUTH_PROVIDER_DISABLED';
+  static const authInvalidCredentials = 'AUTH_INVALID_CREDENTIALS';
+  static const postAttachmentsNotAllowed = 'POST_ATTACHMENTS_NOT_ALLOWED';
   static const accountExistsUseOtherMethod = 'ACCOUNT_EXISTS_USE_OTHER_METHOD';
   static const identifierAlreadyLinked = 'IDENTIFIER_ALREADY_LINKED';
   static const contactDomainBlocked = 'CONTACT_DOMAIN_BLOCKED';
@@ -278,6 +280,8 @@ abstract final class ApiErrorCodes {
     authSocialTokenInvalid,
     authSocialProviderUnavailable,
     authProviderDisabled,
+    authInvalidCredentials,
+    postAttachmentsNotAllowed,
     accountExistsUseOtherMethod,
     identifierAlreadyLinked,
     contactDomainBlocked,

@@ -38,6 +38,7 @@ import {
 } from '../../legal-documents/legal-acceptance.service';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
+import { demoContext } from '../../../common/demo/demo-context';
 
 /** docs/01_FOUNDATION_AUTH.md §10.2 H: consents that must be granted
  * before anything else in onboarding. */
@@ -62,6 +63,14 @@ export type MissingRequirement =
    * OQ-012). */
   | 'photo';
 
+/** Owner 2026-10-13: a verified phone / e-mail account without a password
+ * (the demo world and assistants, who sign in with a code, are exempt). */
+function passwordMissing(user: User): boolean {
+  if (demoContext.isDemo()) return false;
+  if (user.password_hash !== null || user.role === 'assistant') return false;
+  return user.phone_verified_at !== null || user.email_verified_at !== null;
+}
+
 export interface MeView {
   id: string;
   role: User['role'];
@@ -82,6 +91,11 @@ export interface MeView {
    * have not accepted at the current version (the app shows the
    * acceptance screen; empty = nothing to accept). */
   pendingLegalDocuments: PendingLegalDocument[];
+  /** Owner 2026-10-13: the account has a sign-in password. */
+  passwordSet: boolean;
+  /** Owner 2026-10-13: the account still signs in only with an SMS code
+   * and must set a password first (the app shows «Задайте пароль»). */
+  passwordRequired: boolean;
   onboarding: {
     currentStep: string | null;
     completedAt: string | null;
@@ -120,19 +134,27 @@ export class OnboardingService {
     if (!user) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
-    const [consentsOk, facts, avatarUrl, avatarClean, pendingLegal, emailOn] =
-      await Promise.all([
-        this.requiredConsentsGranted(userId, user.ui_language),
-        this.profiles.facts(userId, user.role, user.onboarding_state?.data),
-        this.files.mediaUrl(user.avatar_file_id),
-        this.files.isCleanAvatar(user.avatar_file_id, userId),
-        this.legalAcceptance.pendingFor(
-          userId,
-          requiredDocTypes(user.role),
-          docLocaleOf(user.ui_language),
-        ),
-        emailFlowsOn(this.flags),
-      ]);
+    const [
+      consentsOk,
+      facts,
+      avatarUrl,
+      avatarClean,
+      pendingLegal,
+      emailOn,
+      passwordOn,
+    ] = await Promise.all([
+      this.requiredConsentsGranted(userId, user.ui_language),
+      this.profiles.facts(userId, user.role, user.onboarding_state?.data),
+      this.files.mediaUrl(user.avatar_file_id),
+      this.files.isCleanAvatar(user.avatar_file_id, userId),
+      this.legalAcceptance.pendingFor(
+        userId,
+        requiredDocTypes(user.role),
+        docLocaleOf(user.ui_language),
+      ),
+      emailFlowsOn(this.flags),
+      this.flags ? this.flags.isEnabled('password_login', true) : true,
+    ]);
     // Admin «Вход и письма по почте» (owner 2026-10-07): while it is off a
     // client signs up with a phone only. Turning it on later asks the
     // e-mail only of clients still in onboarding — nobody who already
@@ -154,6 +176,8 @@ export class OnboardingService {
       avatarUrl,
       requiredConsentsGranted: consentsOk,
       pendingLegalDocuments: pendingLegal,
+      passwordSet: user.password_hash !== null,
+      passwordRequired: passwordOn && passwordMissing(user),
       onboarding: {
         currentStep: user.onboarding_state?.current_step ?? null,
         completedAt: user.onboarding_state?.completed_at?.toISOString() ?? null,

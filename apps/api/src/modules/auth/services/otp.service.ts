@@ -39,7 +39,8 @@ export type OtpChannel = 'phone' | 'email';
 /** Keeps a login OTP's Redis keys from colliding with a "verify new
  * contact" OTP for the same phone/email requested concurrently. */
 // OQ-048: 'assistant' — the code a joining assistant gets from the attorney.
-export type OtpPurpose = 'login' | 'contact' | 'admin' | 'assistant';
+// Owner 2026-10-13: 'reset' — the code of a forgotten-password reset.
+export type OtpPurpose = 'login' | 'contact' | 'admin' | 'assistant' | 'reset';
 
 export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 

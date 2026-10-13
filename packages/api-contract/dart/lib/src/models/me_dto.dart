@@ -32,6 +32,8 @@ class MeDto {
     required this.avatarUrl,
     required this.requiredConsentsGranted,
     required this.pendingLegalDocuments,
+    required this.passwordSet,
+    required this.passwordRequired,
     required this.onboarding,
     required this.profile,
     required this.missing,
@@ -64,6 +66,12 @@ class MeDto {
 
   /// Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.
   final List<PendingLegalDocumentDto> pendingLegalDocuments;
+
+  /// The account has a sign-in password.
+  final bool passwordSet;
+
+  /// The account still signs in only with an SMS code and must set a password first (the app shows the set-password screen; POST /auth/password).
+  final bool passwordRequired;
   final OnboardingStateDto onboarding;
 
   /// Null before the profile step is saved (or without a role).

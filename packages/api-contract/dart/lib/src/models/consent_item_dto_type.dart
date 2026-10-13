@@ -14,12 +14,6 @@ enum ConsentItemDtoType {
   disclaimer('disclaimer'),
   @JsonValue('client_contact_sharing')
   clientContactSharing('client_contact_sharing'),
-  @JsonValue('attorney_agreement')
-  attorneyAgreement('attorney_agreement'),
-  @JsonValue('client_agreement')
-  clientAgreement('client_agreement'),
-  @JsonValue('eula')
-  eula('eula'),
   @JsonValue('age_18')
   age18('age_18'),
   @JsonValue('marketing_email')
@@ -28,6 +22,12 @@ enum ConsentItemDtoType {
   marketingPush('marketing_push'),
   @JsonValue('analytics')
   analytics('analytics'),
+  @JsonValue('attorney_agreement')
+  attorneyAgreement('attorney_agreement'),
+  @JsonValue('client_agreement')
+  clientAgreement('client_agreement'),
+  @JsonValue('eula')
+  eula('eula'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

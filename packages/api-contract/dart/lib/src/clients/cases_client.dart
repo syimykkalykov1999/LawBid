@@ -58,9 +58,9 @@ abstract class CasesClient {
   ///
   /// [states] - Owner 2026-10-06: several states at once (comma-separated) — cases in any of them; joins `state` when both are sent.
   ///
-  /// [sort] - Owner 2026-10-13: for_you = ranked for this attorney (practice, states, freshness, budget, few offers, no offer yet); the cursor is then a position in the ranked list.
-  ///
   /// [scope] - Owner 2026-10-04: "licensed" = cases in states with a verified licence (default); "all" = browse open cases of own practices in every state (view only).
+  ///
+  /// [sort] - Owner 2026-10-13: for_you = ranked for this attorney (practice, states, freshness, budget, few offers, no offer yet); the cursor is then a position in the ranked list.
   ///
   /// [practiceCategory] - Practice category code: cases of any of its leaves (owner 2026-09-30, OQ-034 topic slider).
   ///
@@ -213,28 +213,6 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Either side "Done": in_progress → pending_completion (docs/04 §10.1)
-  @POST('/cases/{id}/complete')
-  Future<CaseEnvelope> completeCase({
-    @Path('id') required String id,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// The other side confirms completion: → closed (docs/04 §10.1)
-  @POST('/cases/{id}/confirm-completion')
-  Future<CaseEnvelope> confirmCaseCompletion({
-    @Path('id') required String id,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// The other side disputes completion: → disputed (docs/04 §10.1)
-  @POST('/cases/{id}/dispute')
-  Future<CaseEnvelope> disputeCase({
-    @Path('id') required String id,
-    @Body() required DisputeCaseDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
   /// Files, open tasks and updates of an accepted case
   @GET('/cases/{id}/workspace')
   Future<CaseWorkspaceEnvelope> caseWorkspace({
@@ -298,21 +276,6 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Updates feed of an accepted case
-  @GET('/cases/{id}/updates')
-  Future<CaseUpdateListEnvelope> listCaseUpdates({
-    @Path('id') required String id,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Add an update (text and files), either side
-  @POST('/cases/{id}/updates')
-  Future<CaseUpdateListEnvelope> addCaseUpdate({
-    @Path('id') required String id,
-    @Body() required CreateCaseUpdateDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
   /// Tick / untick one checklist line of a task
   @POST('/cases/{id}/tasks/{taskId}/items/{itemId}/done')
   Future<CaseTasksEnvelope> setCaseTaskItemDone({
@@ -334,6 +297,43 @@ abstract class CasesClient {
   @POST('/cases/{id}/updates/seen')
   Future<void> markCaseUpdatesSeen({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Updates feed of an accepted case
+  @GET('/cases/{id}/updates')
+  Future<CaseUpdateListEnvelope> listCaseUpdates({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add an update (text and files), either side
+  @POST('/cases/{id}/updates')
+  Future<CaseUpdateListEnvelope> addCaseUpdate({
+    @Path('id') required String id,
+    @Body() required CreateCaseUpdateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Either side "Done": in_progress → pending_completion (docs/04 §10.1)
+  @POST('/cases/{id}/complete')
+  Future<CaseEnvelope> completeCase({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The other side confirms completion: → closed (docs/04 §10.1)
+  @POST('/cases/{id}/confirm-completion')
+  Future<CaseEnvelope> confirmCaseCompletion({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The other side disputes completion: → disputed (docs/04 §10.1)
+  @POST('/cases/{id}/dispute')
+  Future<CaseEnvelope> disputeCase({
+    @Path('id') required String id,
+    @Body() required DisputeCaseDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

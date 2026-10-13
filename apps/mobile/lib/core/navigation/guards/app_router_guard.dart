@@ -52,6 +52,7 @@ class GuardSnapshot {
 ///
 /// ```text
 /// нет токена                      → /welcome
+/// токен есть, пароль не задан     → /auth/set-password (Owner 2026-10-13)
 /// токен есть, нет согласий/18+    → /onboarding/consents
 /// нет роли                        → /onboarding/role
 /// клиент без подтверждённых
@@ -83,6 +84,8 @@ abstract final class AppRouterGuard {
     AuthRoutes.email,
     AuthRoutes.otp,
     AuthRoutes.assistant,
+    AuthRoutes.login,
+    AuthRoutes.forgotPassword,
   };
 
   static String? redirect(String location, GuardSnapshot s) {
@@ -113,6 +116,13 @@ abstract final class AppRouterGuard {
 
     if (isLegal) return null;
 
+    // Owner 2026-10-13: the account signed in with an SMS code and has no
+    // password yet — set it first; from then on the person signs in with
+    // the password, no SMS (like Instagram).
+    if (user.passwordRequired) {
+      return location == AuthRoutes.setPassword ? null : AuthRoutes.setPassword;
+    }
+
     final required = requiredStep(user);
     if (required == null) {
       // Owner 2026-10-05 (legal documents): a new or materially changed
@@ -128,6 +138,7 @@ abstract final class AppRouterGuard {
       // app route (incl. the verification screens) stays reachable.
       final onEntryRoute = location == AppRoutes.splash ||
           publicAuthRoutes.contains(location) ||
+          location == AuthRoutes.setPassword ||
           OnboardingRoutes.stepOf(location) != null;
       // OQ-048: an assistant works only inside an attorney's account.
       if (user.role == UserRole.assistant) {

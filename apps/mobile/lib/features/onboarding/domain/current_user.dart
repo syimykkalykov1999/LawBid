@@ -155,6 +155,7 @@ class CurrentUser {
     this.attorneyProfile,
     this.avatarUrl,
     this.pendingLegalDocuments = const [],
+    this.passwordRequired = false,
   });
 
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
@@ -191,6 +192,7 @@ class CurrentUser {
               .whereType<PendingLegalDocument>()
               .toList(growable: false)
           : const [],
+      passwordRequired: json['passwordRequired'] as bool? ?? false,
       requiredConsentsGranted:
           json['requiredConsentsGranted'] as bool? ?? false,
       onboarding: OnboardingProgress.fromJson(
@@ -240,6 +242,12 @@ class CurrentUser {
   /// screen; publishing a case and placing a bid answer
   /// LEGAL_REACCEPT_REQUIRED meanwhile.
   final List<PendingLegalDocument> pendingLegalDocuments;
+
+  /// Owner 2026-10-13: the account still signs in only with an SMS code
+  /// and has no password yet. True → the guard shows the set-password
+  /// screen before anything else (the code is used once; from then on the
+  /// person signs in with the password).
+  final bool passwordRequired;
 
   bool get isClient => role == UserRole.client;
   bool get isAttorney => role == UserRole.attorney;

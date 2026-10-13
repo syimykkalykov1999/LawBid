@@ -52,6 +52,8 @@ enum ErrorCode {
   authSocialProviderUnavailable('AUTH_SOCIAL_PROVIDER_UNAVAILABLE'),
   @JsonValue('AUTH_PROVIDER_DISABLED')
   authProviderDisabled('AUTH_PROVIDER_DISABLED'),
+  @JsonValue('AUTH_INVALID_CREDENTIALS')
+  authInvalidCredentials('AUTH_INVALID_CREDENTIALS'),
   @JsonValue('ACCOUNT_EXISTS_USE_OTHER_METHOD')
   accountExistsUseOtherMethod('ACCOUNT_EXISTS_USE_OTHER_METHOD'),
   @JsonValue('IDENTIFIER_ALREADY_LINKED')
@@ -260,6 +262,8 @@ enum ErrorCode {
   postNotFound('POST_NOT_FOUND'),
   @JsonValue('POST_NOT_ALLOWED')
   postNotAllowed('POST_NOT_ALLOWED'),
+  @JsonValue('POST_ATTACHMENTS_NOT_ALLOWED')
+  postAttachmentsNotAllowed('POST_ATTACHMENTS_NOT_ALLOWED'),
   @JsonValue('REPOST_OWN_POST')
   repostOwnPost('REPOST_OWN_POST'),
   @JsonValue('COMMENT_NOT_FOUND')

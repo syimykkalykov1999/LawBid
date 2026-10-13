@@ -34,6 +34,7 @@ abstract final class CurrentUserMapper {
       theme: dto.theme.json,
       avatarUrl: dto.avatarUrl,
       requiredConsentsGranted: dto.requiredConsentsGranted,
+      passwordRequired: dto.passwordRequired,
       pendingLegalDocuments: dto.pendingLegalDocuments
           .map(
             (d) => PendingLegalDocument(

@@ -475,6 +475,68 @@ void main() {
         '/onboarding/consents',
       ),
     ],
+    'Owner 2026-10-13: no password yet → /auth/set-password first': [
+      _Case(
+        'feed is held back',
+        '/feed',
+        _signedIn(meFixture(passwordRequired: true)),
+        '/auth/set-password',
+      ),
+      _Case(
+        'onboarding is held back',
+        '/onboarding/consents',
+        _signedIn(meFixture(passwordRequired: true)),
+        '/auth/set-password',
+      ),
+      _Case(
+        'the screen itself stays',
+        '/auth/set-password',
+        _signedIn(meFixture(passwordRequired: true)),
+        null,
+      ),
+      _Case(
+        'password saved, onboarding left → its next step',
+        '/auth/set-password',
+        _signedIn(meFixture()),
+        '/onboarding/consents',
+      ),
+      _Case(
+        'password saved, all done → feed',
+        '/auth/set-password',
+        _signedIn(_readyClient(completed: true)),
+        '/feed',
+      ),
+      const _Case(
+        'signed out: the log-in and forgot-password screens are open',
+        '/auth/login',
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
+        null,
+      ),
+      const _Case(
+        'signed out: forgot password',
+        '/auth/forgot-password',
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
+        null,
+      ),
+      const _Case(
+        'signed out: the set-password screen is not reachable',
+        '/auth/set-password',
+        GuardSnapshot(
+          startup: StartupStatus.ready,
+          hasSession: false,
+          user: CurrentUserState.idle(),
+        ),
+        '/welcome',
+      ),
+    ],
     'row 8: клиент/адвокат ok → /feed': [
       _Case(
         'splash → feed',

@@ -683,6 +683,11 @@ model User {
   email_verified_at       DateTime?               @db.Timestamptz
   phone_e164              String?                 @unique
   phone_verified_at       DateTime?               @db.Timestamptz
+  /// Owner 2026-10-13: sign-in password (scrypt hash, never returned by
+  /// any endpoint). Null = the account signs in with an SMS code until it
+  /// sets one.
+  password_hash           String?
+  password_set_at         DateTime?               @db.Timestamptz
   ui_language             String                  @default("en")
   theme                   ThemePref               @default(system)
   suspended_reason        String?

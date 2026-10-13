@@ -21,6 +21,14 @@ export const AUTH_EVENT_TYPES = {
   // Owner 2026-10-04: an assistant signed in with the attorney's code.
   ASSISTANT_CODE_LOGIN: 'assistant_code_login',
   ASSISTANT_CODE_FAILED: 'assistant_code_failed',
+  // Owner 2026-10-13: sign-in with a password (no SMS), password set,
+  // changed or reset.
+  PASSWORD_LOGIN_SUCCESS: 'password_login_success',
+  PASSWORD_LOGIN_FAILED: 'password_login_failed',
+  PASSWORD_SET: 'password_set',
+  PASSWORD_RESET_REQUESTED: 'password_reset_requested',
+  PASSWORD_RESET_DONE: 'password_reset_done',
+  PASSWORD_RESET_BY_ADMIN: 'password_reset_by_admin',
   TOKEN_REFRESHED: 'token_refreshed',
   REFRESH_REUSE_DETECTED: 'refresh_reuse_detected',
   SESSION_REVOKED: 'session_revoked',
