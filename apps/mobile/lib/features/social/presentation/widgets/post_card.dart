@@ -1017,6 +1017,7 @@ class _ThreadsPost extends ConsumerWidget {
             // as the name, so that line sits right under it.
             if (compact)
               SizedBox(
+                width: 48,
                 height: 28,
                 child: OverflowBox(
                   maxHeight: 48,
