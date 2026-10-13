@@ -120,52 +120,50 @@ class CaseFigures extends StatelessWidget {
         ? t.t('cases.facts.negotiable')
         : CaseFormat.money(formats, budget.amountCents!);
     final deadline = CaseUrgencyText.label(t, formats, urgency);
-    Widget fig(String label, String value, {bool last = false}) => Flexible(
-          child: Container(
-            padding: EdgeInsetsDirectional.only(end: last ? 0 : AppSpacing.md),
-            margin: EdgeInsetsDirectional.only(end: last ? 0 : AppSpacing.md),
-            decoration: BoxDecoration(
-              border: last
-                  ? null
-                  : BorderDirectional(end: BorderSide(color: colors.border)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(color: colors.textSecondary),
+    Widget fig(String label, String value, {bool last = false}) => Container(
+          padding: EdgeInsetsDirectional.only(end: last ? 0 : AppSpacing.md),
+          margin: EdgeInsetsDirectional.only(end: last ? 0 : AppSpacing.md),
+          decoration: BoxDecoration(
+            border: last
+                ? null
+                : BorderDirectional(end: BorderSide(color: colors.border)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: type.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  height: 1.2,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.body.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    height: 1.2,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
+    // A figure keeps its own width (no "$3,00 / 0" at large fonts); when the
+    // three do not fit on one line, the last ones go to the next.
     return Padding(
       padding: padding,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            fig(t.t('cases.facts.state'), statesText(states)),
-            fig(t.t('cases.facts.budget'), money),
-            fig(t.t('cases.facts.deadline'), deadline, last: true),
-          ],
-        ),
+      child: Wrap(
+        runSpacing: AppSpacing.md,
+        children: [
+          fig(t.t('cases.facts.state'), statesText(states)),
+          fig(t.t('cases.facts.budget'), money),
+          fig(t.t('cases.facts.deadline'), deadline, last: true),
+        ],
       ),
     );
   }

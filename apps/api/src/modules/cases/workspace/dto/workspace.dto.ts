@@ -110,7 +110,7 @@ export class CreateCaseTaskDto {
 
 export class TaskDoneDto {
   @ApiProperty()
-  @Type(() => Boolean)
+  @IsBoolean()
   done!: boolean;
 }
 
