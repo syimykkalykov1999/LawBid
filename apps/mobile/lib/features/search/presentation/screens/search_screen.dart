@@ -287,6 +287,8 @@ class _Results extends ConsumerWidget {
           t: t,
           itemKey: (r) => r.id,
           itemBuilder: (context, r, _) => PersonTile(row: r),
+          // The row carries its own side padding (same as Suggested).
+          edgeToEdge: true,
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,

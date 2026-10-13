@@ -56,7 +56,7 @@ class AttorneyTile extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  PersonNameBadges(row: row),
+                  PersonNameBadges(row: row, maxLines: 2),
                   const SizedBox(height: 2),
                   PersonRatingLine(row: row, color: colors.textSecondary),
                   PersonPracticesLine(row: row),
@@ -209,6 +209,15 @@ class PersonNameBadges extends ConsumerWidget {
       color: colors.text,
       fontWeight: FontWeight.w600,
     );
+    if (maxLines != null && row.verified) {
+      return _NameWithCheckFitted(
+        name: row.displayName,
+        checkLabel: t.t('post.verified'),
+        style: style,
+        maxLines: maxLines!,
+        textAlign: textAlign,
+      );
+    }
     return Text.rich(
       nameWithCheck(
         row.displayName,
@@ -220,6 +229,96 @@ class PersonNameBadges extends ConsumerWidget {
       maxLines: maxLines,
       overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
       style: style,
+    );
+  }
+}
+
+/// The name cut with "…" so that the blue check always stays visible at the
+/// end of the last allowed line (an ellipsis alone would swallow the check).
+class _NameWithCheckFitted extends StatelessWidget {
+  const _NameWithCheckFitted({
+    required this.name,
+    required this.checkLabel,
+    required this.style,
+    required this.maxLines,
+    required this.textAlign,
+  });
+
+  final String name;
+  final String checkLabel;
+  final TextStyle style;
+  final int maxLines;
+  final TextAlign textAlign;
+
+  static const double _checkSize = 15;
+  static const double _gap = AppSpacing.xs;
+
+  InlineSpan _span(String text, {required bool real, TextStyle? base}) =>
+      TextSpan(
+        style: base ?? style,
+        children: [
+          TextSpan(text: text),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Padding(
+              padding: const EdgeInsets.only(left: _gap),
+              child: real
+                  ? VerifiedCheck(label: checkLabel, size: _checkSize)
+                  : const SizedBox(width: _checkSize + 8, height: _checkSize),
+            ),
+          ),
+        ],
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final dir = Directionality.of(context);
+        final scaler = MediaQuery.textScalerOf(context);
+        final locale = Localizations.maybeLocaleOf(context);
+        final base = DefaultTextStyle.of(context).style.merge(style);
+        bool fits(String text) {
+          final tp = TextPainter(
+            text: _span(text, real: false, base: base),
+            textDirection: dir,
+            textScaler: scaler,
+            locale: locale,
+            maxLines: maxLines,
+            textAlign: textAlign,
+          )..setPlaceholderDimensions(const [
+              PlaceholderDimensions(
+                size: Size(_checkSize + _gap + 8, _checkSize),
+                alignment: PlaceholderAlignment.middle,
+              ),
+            ]);
+          final ok = (tp..layout(maxWidth: box.maxWidth)).didExceedMaxLines;
+          tp.dispose();
+          return !ok;
+        }
+
+        var shown = name;
+        if (!fits(name)) {
+          var lo = 0;
+          var hi = name.length;
+          while (lo < hi) {
+            final mid = (lo + hi + 1) ~/ 2;
+            if (fits('${name.substring(0, mid).trimRight()}…')) {
+              lo = mid;
+            } else {
+              hi = mid - 1;
+            }
+          }
+          shown = '${name.substring(0, lo).trimRight()}…';
+        }
+        return Text.rich(
+          _span(shown, real: true),
+          style: style,
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: TextOverflow.clip,
+        );
+      },
     );
   }
 }
