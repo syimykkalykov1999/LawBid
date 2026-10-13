@@ -35,7 +35,7 @@ void main() {
     );
     await t.pump();
     final height = t.getSize(find.byType(PostBodyText)).height;
-    await t.tap(find.text('ещё'));
+    await t.tapOnText(find.textRange.ofSubstring('ещё'));
     await t.pump();
     expect(opened, 1);
     expect(t.getSize(find.byType(PostBodyText)).height, height);
@@ -60,7 +60,7 @@ void main() {
     );
     await t.pump();
     final before = t.getSize(find.byType(PostBodyText)).height;
-    await t.tap(find.text('ещё'));
+    await t.tapOnText(find.textRange.ofSubstring('ещё'));
     await t.pump();
     expect(t.getSize(find.byType(PostBodyText)).height, greaterThan(before));
   });
