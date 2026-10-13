@@ -120,7 +120,7 @@ export function buildVisibleCasesSql(
     : Prisma.empty;
   const searchFilter = Prisma.sql`${
     text
-      ? Prisma.sql`AND c.search_tsv @@ plainto_tsquery('english', ${text})`
+      ? Prisma.sql`AND (c.search_tsv @@ plainto_tsquery('english', ${text}) OR c.search_tsv_simple @@ plainto_tsquery('simple', ${text}))`
       : Prisma.empty
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty}`;
 
@@ -251,7 +251,7 @@ export function buildPracticeCasesSql(
   } = input;
   const searchFilter = Prisma.sql`${
     text
-      ? Prisma.sql`AND c.search_tsv @@ plainto_tsquery('english', ${text})`
+      ? Prisma.sql`AND (c.search_tsv @@ plainto_tsquery('english', ${text}) OR c.search_tsv_simple @@ plainto_tsquery('simple', ${text}))`
       : Prisma.empty
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty} ${
     extra ?? Prisma.empty
