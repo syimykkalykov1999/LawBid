@@ -351,7 +351,12 @@ class WelcomeScreen extends ConsumerWidget {
                             // Column that must also remain scrollable.
                             const SizedBox(height: 8),
                             LegalText(
-                              text: t.t('auth.welcome.legal'),
+                              // Only the acceptance sentence: the third line of
+                              // the bottom block.
+                              text: _acceptSentence(
+                                t.t('auth.welcome.legal'),
+                                t.t('auth.welcome.legal.terms'),
+                              ),
                               links: {
                                 t.t('auth.welcome.legal.terms'): () =>
                                     context.push(AppRoutes.legalDoc('terms')),
@@ -374,4 +379,16 @@ class WelcomeScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The sentence of [full] that holds the [termsLabel] link ("By continuing,
+/// you accept the Terms and Privacy Policy.").
+String _acceptSentence(String full, String termsLabel) {
+  final at = full.indexOf(termsLabel);
+  if (at <= 0) return full;
+  var start = 0;
+  for (final m in RegExp(r'[.!?。！？।۔]\s*').allMatches(full.substring(0, at))) {
+    start = m.end;
+  }
+  return full.substring(start);
 }
