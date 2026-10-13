@@ -26,6 +26,7 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { AdminBulkResultDto } from '../admin-content/admin-content.dto';
 import { createdWindow } from '../admin-content/admin-content.service';
 import { eachId } from '../admin-content/bulk.util';
+import { PasswordAuthService } from '../auth/password-auth.service';
 import { OtpService } from '../auth/services/otp.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
@@ -50,6 +51,7 @@ export const USERS_AUDIT = {
   suspend: 'users.suspend',
   restore: 'users.restore',
   phoneChanged: 'users.phone_changed',
+  passwordReset: 'users.password_reset',
 } as const;
 
 const LIST_DEFAULT = 20;
@@ -125,6 +127,8 @@ export class AdminUsersService {
     private readonly files: FilesService,
     private readonly otp: OtpService,
     private readonly rateLimit: RateLimitService,
+    // Owner 2026-10-13: «Сбросить пароль».
+    private readonly passwordAuth: PasswordAuthService,
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a block re-scores the
     // accounts that share a phone, e-mail, card or device with this one.
     @Optional() private readonly fraud?: ClientFraudService,
@@ -430,6 +434,30 @@ export class AdminUsersService {
       phone: u.phone_e164,
       phoneVerifiedAt: u.phone_verified_at?.toISOString() ?? null,
       preferredContactNote: u.client_profile?.preferred_contact_note ?? null,
+    };
+  }
+
+  /** Owner 2026-10-13: drops the user's password and every session; the
+   * person signs in with an SMS code once and sets a new password. */
+  async resetPassword(
+    admin: AdminActor,
+    id: string,
+  ): Promise<SanctionResultDto> {
+    const u = await this.target(id);
+    await this.passwordAuth.clearPasswordByAdmin(id, admin.id);
+    await this.audit.record({
+      adminId: admin.id,
+      action: USERS_AUDIT.passwordReset,
+      targetType: 'user',
+      targetId: id,
+      ip: admin.ip,
+    });
+    return {
+      userId: id,
+      status: u.status,
+      revokedSessions: 0,
+      archivedCases: 0,
+      withdrawnBids: 0,
     };
   }
 

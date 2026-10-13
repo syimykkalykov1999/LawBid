@@ -36,6 +36,8 @@ Map<String, dynamic> meJson({
       'theme': 'system',
       'requiredConsentsGranted': false,
       'pendingLegalDocuments': <Object>[],
+      'passwordSet': true,
+      'passwordRequired': false,
       'onboarding': {
         'currentStep': step,
         'completedAt': null,

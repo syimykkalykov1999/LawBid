@@ -46,13 +46,14 @@ const CONTACT_METHOD: Record<string, string> = {
   any: 'любой',
 };
 
-type Act = 'revoke' | 'warn' | 'suspend' | 'restore' | 'phone';
+type Act = 'revoke' | 'warn' | 'suspend' | 'restore' | 'phone' | 'password';
 const ACT_DONE: Record<Act, string> = {
   revoke: 'Все сессии отозваны',
   warn: 'Предупреждение отправлено',
   suspend: 'Аккаунт приостановлен',
   restore: 'Аккаунт восстановлен',
   phone: 'Телефон изменён',
+  password: 'Пароль сброшен',
 };
 
 /** docs/06 §2.3 item 3 card + §3.4 sanctions. Contacts are behind a
@@ -144,6 +145,18 @@ export default function UserCardPage() {
         await api.POST('/admin/users/{id}/sessions/revoke', path);
         return what;
       }
+      if (what === 'password') {
+        const ok = await confirm({
+          title: 'Сбросить пароль?',
+          description:
+            'Старый пароль перестанет работать, пользователь выйдет на всех устройствах. Войти можно по коду из SMS, после чего приложение попросит задать новый пароль.',
+          confirm: 'Сбросить',
+          danger: true,
+        });
+        if (!ok) return null;
+        await api.POST('/admin/users/{id}/password/reset', path);
+        return what;
+      }
       if (what === 'restore') {
         const ok = await confirm({
           title: 'Восстановить аккаунт?',
@@ -225,6 +238,9 @@ export default function UserCardPage() {
               </Button>
               {canSanction ? (
                 <>
+                  <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('password')}>
+                    Сбросить пароль
+                  </Button>
                   {me?.role === 'super_admin' ? (
                     // The API allows phone changes to super admins only.
                     <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('phone')}>

@@ -558,6 +558,7 @@ export const AUDIT_ACTION: Record<string, string> = {
   'users.restore': 'Пользователь восстановлен',
   'users.sessions_revoked': 'Сессии пользователя отозваны',
   'users.phone_changed': 'Смена телефона пользователя',
+  'users.password_reset': 'Сброс пароля пользователя',
   'verification.take': 'Заявка взята в работу',
   'verification.approve': 'Верификация одобрена',
   'verification.reject': 'Верификация отклонена',

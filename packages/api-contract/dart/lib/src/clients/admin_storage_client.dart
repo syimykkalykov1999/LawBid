@@ -10,6 +10,8 @@ import '../models/storage_cleanup_result_envelope.dart';
 import '../models/storage_overview_envelope.dart';
 import '../models/storage_settings_envelope.dart';
 import '../models/update_storage_settings_dto.dart';
+import '../models/update_upload_settings_dto.dart';
+import '../models/upload_settings_envelope.dart';
 import '../models/user_storage_quota_envelope.dart';
 
 part 'admin_storage_client.g.dart';
@@ -34,6 +36,19 @@ abstract class AdminStorageClient {
   /// Run the cleanup now (unused files, abandoned uploads)
   @POST('/admin/storage/cleanup')
   Future<StorageCleanupResultEnvelope> runStorageCleanup({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Upload limits and file formats per place
+  @GET('/admin/storage/uploads')
+  Future<UploadSettingsEnvelope> getUploadSettings({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Change upload limits and file formats
+  @PUT('/admin/storage/uploads')
+  Future<UploadSettingsEnvelope> updateUploadSettings({
+    @Body() required UpdateUploadSettingsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

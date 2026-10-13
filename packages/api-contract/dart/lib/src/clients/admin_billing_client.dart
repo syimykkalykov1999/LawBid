@@ -292,6 +292,19 @@ abstract class AdminBillingClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// The attachments-in-posts mode
+  @GET('/admin/billing/post-attachments')
+  Future<PostAttachmentsModeEnvelope> getPostAttachmentsMode({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the attachments-in-posts mode
+  @PUT('/admin/billing/post-attachments')
+  Future<PostAttachmentsModeEnvelope> setPostAttachmentsMode({
+    @Body() required PostAttachmentsModeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Requests for more assistant seats, newest first.
   ///
   /// [cursor] - meta.nextCursor of the previous page.
@@ -315,19 +328,6 @@ abstract class AdminBillingClient {
   Future<SeatLimitRequestEnvelope> rejectSeatLimitRequest({
     @Path('id') required String id,
     @Body() required RejectSeatLimitDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// The attachments-in-posts mode
-  @GET('/admin/billing/post-attachments')
-  Future<PostAttachmentsModeEnvelope> getPostAttachmentsMode({
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Set the attachments-in-posts mode
-  @PUT('/admin/billing/post-attachments')
-  Future<PostAttachmentsModeEnvelope> setPostAttachmentsMode({
-    @Body() required PostAttachmentsModeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

@@ -5,6 +5,18 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Password sign-in (2026-10-13)
+
+Owner: "like Instagram", so signing out and in does not cost an SMS each time.
+
+- Sign-up is unchanged (phone + one SMS code). Right after it the router guard shows **Create a password** (`/auth/set-password`, 8+ characters, show/hide) while `GET /users/me` says `passwordRequired`; accounts that signed in with a code before get it once too. Demo-world and assistant accounts are exempt.
+- **Log in** (`/auth/login`, link on Welcome): one field for a phone number or e-mail + password, no SMS; a wrong answer is always the same `AUTH_INVALID_CREDENTIALS` (unknown account costs the same time as a wrong password). The existing "signed in on another phone" question and all suspended/deleted/ban/fraud checks apply as for the SMS code.
+- **Forgot password** (`/auth/forgot-password`): a code to the verified e-mail (only while the admin's e-mail flows are on), else an SMS (the only paid path; nothing is sent for an unknown account); then code + new password, which ends every session and signs this device in.
+- API: `POST /auth/password/login`, `POST /auth/password` (set; changing needs `currentPassword`), `POST /auth/password/reset/request|confirm`, `POST /admin/users/{id}/password/reset`. Passwords: scrypt (Node built-in, `scrypt$N$r$p$salt$hash`), NFKC-normalised, never returned. Limits per hour: 10 log-in tries per phone/e-mail and 40 per IP, 3 reset codes per account and 15 per IP, 10 code tries per account and 30 per IP. Audit: `password_login_success|failed`, `password_set`, `password_reset_requested|done|by_admin`.
+- Migration `20261013190000_owner_password_login` (`users.password_hash`, `password_set_at`). Flag `password_login` (on; admin Flags «Вход по паролю»): off = everyone signs in with a code as before. Admin user card: **Сбросить пароль** (clears it and ends sessions).
+- `npm run seed:demo` gives the two demo phones the password `Demo1234!`. The code sign-in (dev code 000000) is unchanged.
+- Keys `auth.login.*`, `auth.setPassword.*`, `auth.forgot.*`, `auth.password.*` in the translations xlsx (en, ru) and `password_strings.dart`. Regenerated `packages/api-contract` (also picks up earlier drift: `POST_ATTACHMENTS_NOT_ALLOWED`). The Welcome golden changes (new button): regenerate on a Mac with `flutter test --update-goldens`.
+
 ## Contacts sync (2026-10-13)
 
 Owner: "find people from your contacts, like Instagram". Safety first.

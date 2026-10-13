@@ -37,6 +37,9 @@ class AppTextField extends StatefulWidget {
     this.autofillHints,
     this.onSubmitted,
     this.enabled = true,
+    this.obscureText = false,
+    this.trailing,
+    this.minHeight = 52,
   });
 
   final TextEditingController? controller;
@@ -67,6 +70,17 @@ class AppTextField extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onSubmitted;
   final bool enabled;
+
+  /// Owner 2026-10-13: a password field (dots; [trailing] hosts the
+  /// show / hide eye). Single line.
+  final bool obscureText;
+
+  /// Widget at the end of the field (inside the border), e.g. the password
+  /// visibility toggle.
+  final Widget? trailing;
+
+  /// Field height: 52 by default, 44 on the compact auth screens.
+  final double minHeight;
 
   @override
   State<AppTextField> createState() => _AppTextFieldState();
@@ -116,7 +130,7 @@ class _AppTextFieldState extends State<AppTextField> {
             const SizedBox(height: AppSpacing.sm),
           ],
           Container(
-            constraints: const BoxConstraints(minHeight: 52),
+            constraints: BoxConstraints(minHeight: widget.minHeight),
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(AppRadii.field),
@@ -155,7 +169,8 @@ class _AppTextFieldState extends State<AppTextField> {
                       if (widget.maxLength != null) setState(() {});
                       widget.onChanged?.call(value);
                     },
-                    maxLines: widget.maxLines,
+                    obscureText: widget.obscureText,
+                    maxLines: widget.obscureText ? 1 : widget.maxLines,
                     minLines: 1,
                     textCapitalization: widget.textCapitalization,
                     textInputAction: widget.textInputAction,
@@ -177,7 +192,10 @@ class _AppTextFieldState extends State<AppTextField> {
                     ),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.md),
+                if (widget.trailing != null)
+                  widget.trailing!
+                else
+                  const SizedBox(width: AppSpacing.md),
               ],
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:lawbid/features/auth/data/auth_dtos.dart' show DeviceSession;
 import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 import 'package:lawbid/features/auth/domain/social_login_result.dart';
 
@@ -31,6 +32,43 @@ class StubAuthRepository implements AuthRepository {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (code == _invalidCode) return const OtpVerifyResult.invalid();
     return const OtpVerifyResult.success(isNewUser: true);
+  }
+
+  @override
+  Future<PasswordAuthResult> signInWithPassword({
+    required String identifier,
+    required String password,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return password == 'Demo1234!'
+        ? const PasswordAuthResult.success()
+        : const PasswordAuthResult(PasswordAuthStatus.invalidCredentials);
+  }
+
+  @override
+  Future<PasswordAuthResult> setPassword(String password) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return const PasswordAuthResult.success();
+  }
+
+  @override
+  Future<PasswordAuthResult> requestPasswordReset(String identifier) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return PasswordAuthResult.success(
+      channel: identifier.contains('@') ? 'email' : 'phone',
+    );
+  }
+
+  @override
+  Future<PasswordAuthResult> resetPassword({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return code == _invalidCode
+        ? const PasswordAuthResult(PasswordAuthStatus.invalidCode)
+        : const PasswordAuthResult.success();
   }
 
   @override

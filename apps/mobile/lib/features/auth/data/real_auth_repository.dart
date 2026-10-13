@@ -7,6 +7,7 @@ import 'package:lawbid/features/auth/data/magic_link_verifier_store.dart';
 import 'package:lawbid/features/auth/data/social_auth_native_client.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 import 'package:lawbid/features/auth/domain/social_login_result.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -127,6 +128,96 @@ class RealAuthRepository implements AuthRepository {
       return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
     } on ApiException catch (e) {
       return _otpFailure(e);
+    }
+  }
+
+  @override
+  Future<PasswordAuthResult> signInWithPassword({
+    required String identifier,
+    required String password,
+  }) async {
+    try {
+      final tokens = await _orContinue(
+        () => _client.passwordLogin(
+          identifier: identifier,
+          password: password,
+          deviceInfo: _deviceInfo,
+        ),
+      );
+      await _session.applyTokens(tokens);
+      return const PasswordAuthResult.success();
+    } on ApiException catch (e) {
+      return _passwordFailure(e);
+    }
+  }
+
+  @override
+  Future<PasswordAuthResult> setPassword(String password) async {
+    try {
+      await _client.setPassword(password);
+      return const PasswordAuthResult.success();
+    } on ApiException catch (e) {
+      return _passwordFailure(e);
+    }
+  }
+
+  @override
+  Future<PasswordAuthResult> requestPasswordReset(String identifier) async {
+    try {
+      final channel = await _client.requestPasswordReset(identifier);
+      return PasswordAuthResult.success(channel: channel);
+    } on ApiException catch (e) {
+      return _passwordFailure(e);
+    }
+  }
+
+  @override
+  Future<PasswordAuthResult> resetPassword({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final tokens = await _orContinue(
+        () => _client.confirmPasswordReset(
+          identifier: identifier,
+          code: code,
+          newPassword: newPassword,
+          deviceInfo: _deviceInfo,
+        ),
+      );
+      await _session.applyTokens(tokens);
+      return const PasswordAuthResult.success();
+    } on ApiException catch (e) {
+      return _passwordFailure(e);
+    }
+  }
+
+  static PasswordAuthResult _passwordFailure(ApiException e) {
+    switch (e.code) {
+      case ApiErrorCodes.authInvalidCredentials:
+        return const PasswordAuthResult(PasswordAuthStatus.invalidCredentials);
+      case ApiErrorCodes.authOtpInvalid:
+        return const PasswordAuthResult(PasswordAuthStatus.invalidCode);
+      case ApiErrorCodes.authOtpExpired:
+        return const PasswordAuthResult(PasswordAuthStatus.expired);
+      case ApiErrorCodes.authOtpLocked:
+        return const PasswordAuthResult(PasswordAuthStatus.locked);
+      case ApiErrorCodes.authOtpRequestLimit:
+      case ApiErrorCodes.rateLimited:
+        final retryAfter = e.details?['retryAfterSeconds'];
+        return PasswordAuthResult(
+          PasswordAuthStatus.rateLimited,
+          retryAfterSeconds: retryAfter is int ? retryAfter : 60,
+        );
+      case ApiErrorCodes.accountSuspended:
+      case ApiErrorCodes.accountDeleted:
+        return const PasswordAuthResult(PasswordAuthStatus.unavailable);
+      case ApiErrorCodes.authProviderDisabled:
+      case ApiErrorCodes.featureDisabled:
+        return const PasswordAuthResult(PasswordAuthStatus.providerDisabled);
+      default:
+        return const PasswordAuthResult(PasswordAuthStatus.networkError);
     }
   }
 

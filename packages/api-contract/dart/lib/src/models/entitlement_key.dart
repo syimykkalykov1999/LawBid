@@ -46,6 +46,8 @@ enum EntitlementKey {
   priorityFeed('priority_feed'),
   @JsonValue('max_active_cases')
   maxActiveCases('max_active_cases'),
+  @JsonValue('post_attachments')
+  postAttachments('post_attachments'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

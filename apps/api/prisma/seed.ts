@@ -305,6 +305,13 @@ async function seedFeatureFlags(): Promise<void> {
     },
     { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
     {
+      // Owner 2026-10-13: sign in with a password, no SMS each time.
+      key: 'password_login',
+      enabled: true,
+      description:
+        'Sign in with a phone number or e-mail and a password (no SMS)',
+    },
+    {
       // Owner 2026-10-07: Admin «Вход и письма по почте» — every e-mail
       // flow in the app (sign-in, adding an e-mail, the client's e-mail
       // step, firm e-mail, e-mail notifications, waiting list). Off until

@@ -60,8 +60,11 @@ abstract class FollowsClient {
   /// Recommended attorneys (docs/05 §6.3).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [limit] - Page size.
   @GET('/suggestions/attorneys')
   Future<AttorneyListItemListEnvelope> listSuggestedAttorneys({
+    @Query('limit') int? limit = 20,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

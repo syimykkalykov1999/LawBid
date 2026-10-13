@@ -90,3 +90,22 @@ export class IdentifierLinkedDto {
   @ApiProperty({ description: 'Always true.' })
   linked!: boolean;
 }
+
+/** POST /auth/password. */
+export class PasswordSavedDto {
+  @ApiProperty()
+  saved!: boolean;
+}
+
+/** POST /auth/password/reset/request. */
+export class PasswordResetSentDto {
+  @ApiProperty()
+  sent!: boolean;
+
+  @ApiProperty({
+    enum: ['phone', 'email'],
+    description:
+      'Where the code went: the verified e-mail when there is one, else SMS.',
+  })
+  channel!: 'phone' | 'email';
+}
