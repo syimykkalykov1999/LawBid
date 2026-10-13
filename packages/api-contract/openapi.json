@@ -78131,84 +78131,6 @@
           "contacts-sync"
         ]
       }
-    },
-    "/suggestions/contacts": {
-      "get": {
-        "operationId": "suggestions",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Attorneys from my contacts (not followed yet)",
-        "tags": [
-          "contacts-sync"
-        ]
-      }
     }
   },
   "info": {
@@ -104259,6 +104181,13 @@
           "isFollowing": {
             "type": "boolean",
             "description": "The viewer follows this attorney."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "contacts"
+            ],
+            "description": "Why this person is suggested, when worth a caption: \"contacts\" = in my address book."
           }
         },
         "required": [

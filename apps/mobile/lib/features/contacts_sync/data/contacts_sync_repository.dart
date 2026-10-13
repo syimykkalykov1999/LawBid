@@ -1,9 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/features/social/data/social_repository.dart';
-import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/shared/domain/cursor_page.dart';
-import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Server state of the user's contacts sync.
 class ContactsSyncStatus {
@@ -13,7 +9,7 @@ class ContactsSyncStatus {
   final int matches;
 }
 
-/// Owner 2026-10-13: `/contacts/sync` and `/suggestions/contacts`. Only
+/// Owner 2026-10-13: `/contacts/sync`. Only
 /// SHA-256 hashes of phone numbers are sent (see phone_numbers.dart).
 // TODO(contract): switch to the generated ContactsSyncClient once
 // packages/api-contract/generate.sh has been run for the new endpoints.
@@ -25,8 +21,6 @@ abstract interface class ContactsSyncRepository {
 
   /// Turns the sync off and deletes every match.
   Future<void> remove();
-
-  Future<CursorPage<AttorneyRow>> suggestions({String? cursor});
 }
 
 class ApiContactsSyncRepository implements ContactsSyncRepository {
@@ -71,17 +65,4 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
   @override
   Future<void> remove() =>
       guardApiCall(() => _dio.delete<void>('/contacts/sync'));
-
-  @override
-  Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) async {
-    final res = await guardApiCall(() => _dio.get<Map<String, Object?>>(
-          '/suggestions/contacts',
-          queryParameters: {if (cursor != null) 'cursor': cursor},
-        ));
-    final env = api.AttorneyListItemListEnvelope.fromJson(res.data!);
-    return CursorPage(
-      items: env.data.map(SocialMappers.attorney).toList(),
-      nextCursor: env.meta?.nextCursor,
-    );
-  }
 }

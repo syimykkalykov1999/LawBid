@@ -6,11 +6,11 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
-import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 
-/// Owner 2026-10-13: People tab, before typing — "Contacts" (attorneys
-/// from the address book) when the sync is on, otherwise one soft row
-/// "Find people from your contacts". The system permission dialog opens
+/// Owner 2026-10-13: People tab, before typing — one soft row "Find people
+/// from your contacts" while the sync is off, a small "turn off" link when
+/// it is on. People from the address book are not a separate block: they
+/// sit in Recommended/Suggested with a small "From contacts" caption. The system permission dialog opens
 /// by itself only once, the first time this is shown.
 class ContactsSection extends ConsumerStatefulWidget {
   const ContactsSection({this.limit = 5, super.key});
@@ -111,38 +111,20 @@ class _ContactsSectionState extends ConsumerState<ContactsSection> {
         ),
       );
     }
-    final rows = (ref.watch(contactSuggestionsProvider).value ?? const [])
-        .take(widget.limit)
-        .toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (rows.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              AppSpacing.lg,
-              AppSpacing.screenSide,
-              AppSpacing.xs,
-            ),
-            child: Text(
-              t.t('phoneContacts.title'),
-              style: type.titleMedium.copyWith(color: colors.text),
-            ),
-          ),
-          for (final r in rows) AttorneyTile(key: ValueKey('contact-${r.id}'), row: r),
-        ],
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-          child: TextButton(
-            onPressed: _busy ? null : _remove,
-            child: Text(
-              t.t('phoneContacts.disable'),
-              style: type.caption.copyWith(color: colors.textSecondary),
-            ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: TextButton(
+          onPressed: _busy ? null : _remove,
+          child: Text(
+            t.t('phoneContacts.disable'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.caption.copyWith(color: colors.textSecondary),
           ),
         ),
-      ],
+      ),
     );
   }
 }

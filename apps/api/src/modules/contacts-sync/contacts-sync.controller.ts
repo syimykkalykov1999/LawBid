@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -19,11 +18,6 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
-import {
-  AttorneyListItemDto,
-  FollowsQueryDto,
-  type AttorneyListPage,
-} from '../follows/follows.dto';
 import {
   ContactSyncStatusDto,
   ContactUploadResultDto,
@@ -71,15 +65,5 @@ export class ContactsSyncController {
   })
   remove(@CurrentUser() user: RequestUser): Promise<void> {
     return this.sync.remove(user.sub);
-  }
-
-  @Get('suggestions/contacts')
-  @ApiOperation({ summary: 'Attorneys from my contacts (not followed yet)' })
-  @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
-  suggestions(
-    @CurrentUser() user: RequestUser,
-    @Query() q: FollowsQueryDto,
-  ): Promise<AttorneyListPage> {
-    return this.sync.suggestions(user.sub, q.cursor);
   }
 }

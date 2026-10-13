@@ -5,7 +5,6 @@ import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/contacts_sync/data/phone_numbers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/features/social/domain/social_models.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -16,14 +15,6 @@ final contactsSyncRepositoryProvider = Provider<ContactsSyncRepository>(
 final contactsSyncStatusProvider =
     FutureProvider.autoDispose<ContactsSyncStatus>(
   (ref) => ref.watch(contactsSyncRepositoryProvider).status(),
-  retry: _noRetry,
-);
-
-/// "Contacts": attorneys from the address book not followed yet.
-final contactSuggestionsProvider =
-    FutureProvider.autoDispose<List<AttorneyRow>>(
-  (ref) async =>
-      (await ref.watch(contactsSyncRepositoryProvider).suggestions()).items,
   retry: _noRetry,
 );
 
@@ -69,7 +60,6 @@ class ContactsSyncActions {
         .upload(contactHashes(numbers));
     _ref
       ..invalidate(contactsSyncStatusProvider)
-      ..invalidate(contactSuggestionsProvider)
       ..invalidate(suggestionsProvider);
     return true;
   }
@@ -78,7 +68,6 @@ class ContactsSyncActions {
     await _ref.read(contactsSyncRepositoryProvider).remove();
     _ref
       ..invalidate(contactsSyncStatusProvider)
-      ..invalidate(contactSuggestionsProvider)
       ..invalidate(suggestionsProvider);
   }
 }

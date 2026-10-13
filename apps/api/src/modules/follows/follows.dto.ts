@@ -59,6 +59,13 @@ export class AttorneyListItemDto {
 
   @ApiProperty({ description: 'The viewer follows this attorney.' })
   isFollowing!: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['contacts'],
+    description:
+      'Why this person is suggested, when worth a caption: "contacts" = in my address book.',
+  })
+  reason?: 'contacts';
 }
 
 export interface AttorneyListPage {

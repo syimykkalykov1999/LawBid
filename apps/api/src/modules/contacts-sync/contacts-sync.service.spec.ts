@@ -14,8 +14,6 @@ function make(
     users?: { id: string }[];
     matches?: { matched_id: string }[];
     enabled?: boolean | null;
-    followed?: string[];
-    hidden?: string[];
   } = {},
 ) {
   const tx: unknown[] = [];
@@ -39,36 +37,19 @@ function make(
             : { enabled: over.enabled, synced_at: null },
         ),
     },
-    follow: {
-      findMany: jest
-        .fn()
-        .mockResolvedValue(
-          (over.followed ?? []).map((followee_id) => ({ followee_id })),
-        ),
-    },
     $transaction: jest.fn((ops: unknown[]) => {
       tx.push(...ops);
       return Promise.resolve([]);
     }),
   };
   const limits = { consume: jest.fn().mockResolvedValue(undefined) };
-  const blocks = {
-    hiddenIds: jest.fn().mockResolvedValue(new Set(over.hidden ?? [])),
-  };
-  const follows = {
-    present: jest.fn((ids: string[]) =>
-      Promise.resolve(ids.map((id) => ({ id }))),
-    ),
-  };
   const redis = { del: jest.fn().mockResolvedValue(1) };
   const svc = new ContactsSyncService(
     prisma as never,
     limits as never,
-    blocks as never,
-    follows as never,
     redis as never,
   );
-  return { svc, prisma, limits, follows, redis, tx };
+  return { svc, prisma, limits, redis, tx };
 }
 
 describe('UploadContactHashesDto', () => {
@@ -156,30 +137,5 @@ describe('ContactsSyncService.remove / status', () => {
       matches: 0,
       syncedAt: null,
     });
-  });
-});
-
-describe('ContactsSyncService.suggestions', () => {
-  const rows = ['a', 'b', 'c', 'd'].map((matched_id) => ({ matched_id }));
-
-  it('off → empty, no lookups', async () => {
-    const { svc, prisma } = make({ enabled: false, matches: rows });
-    expect(await svc.suggestions('me', undefined)).toEqual({
-      items: [],
-      nextCursor: null,
-    });
-    expect(prisma.contactMatch.findMany).not.toHaveBeenCalled();
-  });
-
-  it('drops followed and blocked people', async () => {
-    const { svc, follows } = make({
-      matches: rows,
-      followed: ['a'],
-      hidden: ['c'],
-    });
-    const page = await svc.suggestions('me', undefined);
-    expect(follows.present).toHaveBeenCalledWith(['b', 'd'], 'me');
-    expect(page.items.map((i) => i.id)).toEqual(['b', 'd']);
-    expect(page.nextCursor).toBeNull();
   });
 });
