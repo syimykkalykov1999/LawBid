@@ -988,17 +988,19 @@ class _ThreadsPost extends ConsumerWidget {
                       gold: a.isClient,
                     ),
                   ],
-                  const SizedBox(width: AppSpacing.sm),
-                  Flexible(
-                    child: Text(
-                      promotionId != null
-                          ? t.t('promote.sponsored')
-                          : SocialFormat.ago(t, f, p.createdAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: colors.textSecondary),
+                  // Owner 2026-10-13: the time moved down, next to Save.
+                  if (promotionId != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    Flexible(
+                      child: Text(
+                        t.t('promote.sponsored'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -1014,47 +1016,29 @@ class _ThreadsPost extends ConsumerWidget {
           ],
         );
 
-    // Owner 2026-10-12 (Threads): above the card, the icon in the avatar
-    // column and "name reposted" aligned with the name below.
+    // Owner 2026-10-13: "name reposted" in small grey under the author's
+    // name, before the text; no icon.
     Widget repostLine() {
       final who = repostedBy!;
       return Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 36,
-              child: Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: AppIcon(
-                  AppIcons.autoModeRounded,
-                  size: 14,
-                  color: colors.textSecondary,
-                ),
-              ),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: GestureDetector(
+            onTap: () => openProfile(
+              context,
+              ref,
+              id: who.id,
+              username: who.username,
+              isClient: who.isClient,
             ),
-            const SizedBox(width: AppSpacing.md),
-            Flexible(
-              child: GestureDetector(
-                onTap: () => openProfile(
-                  context,
-                  ref,
-                  id: who.id,
-                  username: who.username,
-                  isClient: who.isClient,
-                ),
-                child: Text(
-                  t.t('post.repostedBy', {'username': who.username}),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+            child: Text(
+              t.t('post.repostedBy', {'username': who.username}),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
             ),
-          ],
+          ),
         ),
       );
     }
@@ -1177,6 +1161,30 @@ class _ThreadsPost extends ConsumerWidget {
           const SizedBox(width: AppSpacing.sm),
           BoostButton(postId: p.id),
         ],
+        // Owner 2026-10-13: the time sits left of Save, grey; Save (the
+        // bookmark) is the right-most button of the row.
+        if (promotionId == null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 96),
+            child: Text(
+              SocialFormat.ago(t, f, p.createdAt),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
+        BounceIcon(
+          active: p.savedByMe,
+          activeIcon: AppIcons.bookmarkRounded,
+          icon: AppIcons.bookmarkBorderRounded,
+          activeColor: colors.gold,
+          size: 20,
+          extent: 34,
+          label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
+          onTap: () => run(() => actions.toggleSave(p)),
+        ),
       ],
     );
 
@@ -1193,7 +1201,6 @@ class _ThreadsPost extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (repostedBy != null) repostLine(),
             if (showPin && p.pinSlot != null) pinLine(),
             Row(
               children: [
@@ -1202,6 +1209,7 @@ class _ThreadsPost extends ConsumerWidget {
                 Expanded(child: nameRow()),
               ],
             ),
+            if (repostedBy != null) repostLine(),
             const SizedBox(height: AppSpacing.sm),
             textBlock,
             PostPracticeChips(post: p, inset: 0),
@@ -1224,7 +1232,6 @@ class _ThreadsPost extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (repostedBy != null) repostLine(),
             if (showPin && p.pinSlot != null) pinLine(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1236,6 +1243,7 @@ class _ThreadsPost extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       nameRow(),
+                      if (repostedBy != null) repostLine(),
                       textBlock,
                       PostPracticeChips(post: p, inset: 0),
                       actionRow,
