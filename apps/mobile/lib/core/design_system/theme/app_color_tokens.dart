@@ -43,6 +43,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.sheet,
     required this.inverseText,
     required this.barFill,
+    required this.successText,
     this.panelBlur = 0,
     this.bgGradient,
     this.bgSpots = const [],
@@ -85,6 +86,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         sheet: AppColorsLight.surface,
         inverseText: AppColorsLight.bg,
         barFill: AppColorsLight.bg,
+        successText: AppColorsStatus.success,
       );
 
   factory AppColorTokens.dark() => const AppColorTokens(
@@ -124,6 +126,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         sheet: AppColorsDark.surface,
         inverseText: AppColorsDark.bg,
         barFill: AppColorsDark.bg,
+        successText: AppColorsStatus.success,
       );
 
   /// Navy: the dark blue theme (owner 2026-10-13).
@@ -164,6 +167,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         sheet: AppColorsNavy.surface,
         inverseText: AppColorsNavy.bg,
         barFill: AppColorsNavy.bg,
+        successText: AppColorsStatus.success,
       );
 
   /// Glass: "wet glass", translucent blurred panels over a gradient.
@@ -204,6 +208,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         sheet: AppColorsGlass.sheet,
         inverseText: AppColorsGlass.onCta,
         barFill: AppColorsGlass.bar,
+        successText: AppColorsGlass.successText,
         panelBlur: AppColorsGlass.blur,
         bgGradient: AppColorsGlass.gradient,
         bgSpots: [
@@ -267,6 +272,9 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// glass over the gradient in Glass).
   final Color barFill;
 
+  /// Readable green for TEXT on a success tint (lighter on Glass).
+  final Color successText;
+
   /// Blur radius behind a panel; 0 = none (only the Glass theme blurs).
   final double panelBlur;
 
@@ -317,6 +325,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? sheet,
     Color? inverseText,
     Color? barFill,
+    Color? successText,
     double? panelBlur,
     List<Color>? bgGradient,
     List<Color>? bgSpots,
@@ -358,6 +367,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       sheet: sheet ?? this.sheet,
       inverseText: inverseText ?? this.inverseText,
       barFill: barFill ?? this.barFill,
+      successText: successText ?? this.successText,
       panelBlur: panelBlur ?? this.panelBlur,
       bgGradient: bgGradient ?? this.bgGradient,
       bgSpots: bgSpots ?? this.bgSpots,
@@ -406,6 +416,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       sheet: Color.lerp(sheet, other.sheet, t)!,
       inverseText: Color.lerp(inverseText, other.inverseText, t)!,
       barFill: Color.lerp(barFill, other.barFill, t)!,
+      successText: Color.lerp(successText, other.successText, t)!,
       panelBlur: panelBlur + (other.panelBlur - panelBlur) * t,
       bgGradient: t < 0.5 ? bgGradient : other.bgGradient,
       bgSpots: t < 0.5 ? bgSpots : other.bgSpots,

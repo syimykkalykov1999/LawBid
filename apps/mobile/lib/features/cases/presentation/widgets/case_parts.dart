@@ -54,7 +54,7 @@ class CaseChipsRow extends StatelessWidget {
             style: type.bodySmall.copyWith(
               fontWeight: FontWeight.w600,
               color: ok
-                  ? colors.success
+                  ? colors.successText
                   : main
                       ? Colors.white
                       : colors.text,

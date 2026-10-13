@@ -85,6 +85,15 @@ Future<void> main() async {
       }
     });
 
+    test('Glass: the green status chip text reads on its tint', () {
+      for (final id in [AppThemeId.glass]) {
+        final c = AppThemes.of(id).tokens();
+        final page = c.isGlass ? c.bgGradient!.last : c.bg;
+        final chip = _over(c.success.withValues(alpha: 0.16), page);
+        expect(_contrast(c.successText, chip), greaterThan(4.5), reason: '$id');
+      }
+    });
+
     test('the primary button reads (label on its fill)', () {
       for (final id in AppThemeId.values) {
         final c = AppThemes.of(id).tokens();

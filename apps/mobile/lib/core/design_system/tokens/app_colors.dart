@@ -196,6 +196,7 @@ abstract final class AppColorsGlass {
   static const Color skeletonBase = Color(0x1AFFFFFF);
   static const Color skeletonHighlight = Color(0x33FFFFFF);
   static const Color dangerText = Color(0xFFFF8A8A);
+  static const Color successText = Color(0xFF8CF0BE);
 
   /// Blur radius of a glass panel.
   static const double blur = 18;
