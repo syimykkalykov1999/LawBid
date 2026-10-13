@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/create_post_dto.dart';
 import '../models/pin_post_dto.dart';
+import '../models/post_attachments_allowed_envelope.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
 import '../models/post_kind.dart';
@@ -126,6 +127,12 @@ abstract class PostsClient {
   @GET('/saved-items/posts')
   Future<SavedPostItemListEnvelope> listSavedPosts({
     @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// May this account add documents / extra photos to a post or a reel
+  @GET('/posts/attachments-allowed')
+  Future<PostAttachmentsAllowedEnvelope> attachmentsAllowed({
     @Extras() Map<String, dynamic>? extras,
   });
 }

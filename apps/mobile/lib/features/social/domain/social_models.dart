@@ -13,7 +13,11 @@ class PostAuthor {
     this.avatarUrl,
     this.isFollowing = false,
     this.isClient = false,
+    this.location,
   });
+
+  /// Owner 2026-10-13: an attorney's licensed states / a client's state.
+  final String? location;
 
   /// OQ-038: clients publish posts too (their profile is /client/:username).
   final bool isClient;
@@ -281,6 +285,13 @@ class Post {
   final String status;
 
   bool get pendingReview => isMine && status == 'hidden';
+
+  /// Owner 2026-10-13: the inside of a post (tabs: Overview, Documents,
+  /// Photos, Info) exists only when it has something to show — documents,
+  /// or photos beyond the first of a post. A reel's video is the reel
+  /// itself. Without it a tap on the card opens nothing (like Instagram).
+  bool get hasInner =>
+      attachments.isNotEmpty || (video == null && media.length > 1);
 
   Post copyWith({
     String? title,

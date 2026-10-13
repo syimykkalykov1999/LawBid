@@ -50,6 +50,7 @@ export const ENTITLEMENT_KEYS = [
   'verified_badge',
   'priority_feed',
   'max_active_cases',
+  'post_attachments',
 ] as const;
 export type EntitlementKey = (typeof ENTITLEMENT_KEYS)[number];
 
@@ -202,6 +203,20 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     },
   },
   {
+    key: 'post_attachments',
+    type: 'boolean',
+    audiences: ['attorney', 'client'],
+    group: 'features',
+    label: {
+      en: 'Attachments in posts and reels',
+      ru: 'Вложения в постах и рилсах',
+    },
+    description: {
+      en: 'Can add documents and extra photos to a post or a reel (only when the setting is "by subscription"; clients also need an active gold badge, attorneys a verified licence).',
+      ru: 'Может добавлять документы и лишние фото в пост или рилс (только при настройке «по подписке»; клиенту ещё нужна активная золотая галочка, адвокату подтверждённая лицензия).',
+    },
+  },
+  {
     key: 'posts_per_day',
     type: 'number',
     audiences: ['attorney', 'client'],
@@ -331,6 +346,7 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     chat_translate: true,
     translations_per_day: null,
     video_posts: true,
+    post_attachments: false,
     posts_per_day: null,
     videos_per_day: null,
     platform_payments: false,
@@ -344,6 +360,7 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     chat_translate: true,
     translations_per_day: null,
     video_posts: true,
+    post_attachments: false,
     posts_per_day: null,
     videos_per_day: null,
     case_promotion: true,

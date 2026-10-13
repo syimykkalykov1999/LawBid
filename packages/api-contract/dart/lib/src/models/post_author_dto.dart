@@ -19,6 +19,7 @@ class PostAuthorDto {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.location,
   });
 
   factory PostAuthorDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +41,9 @@ class PostAuthorDto {
 
   /// Owner 2026-09-30: the viewer follows this author (card Follow).
   final bool isFollowing;
+
+  /// Owner 2026-10-13: attorney: licensed states ("NY, CA"); client: state.
+  final String? location;
 
   Map<String, Object?> toJson() => _$PostAuthorDtoToJson(this);
 }

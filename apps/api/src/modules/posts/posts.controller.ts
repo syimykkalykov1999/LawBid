@@ -43,7 +43,9 @@ import {
   type PostPage,
 } from './dto/posts.dto';
 import { PostEngagementService } from './post-engagement.service';
+import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostsService } from './posts.service';
+import { PostAttachmentsAllowedDto } from './dto/posts.dto';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -57,7 +59,23 @@ export class PostsController {
   constructor(
     private readonly posts: PostsService,
     private readonly engagement: PostEngagementService,
+    private readonly attachmentsPolicy: PostAttachmentsPolicy,
   ) {}
+
+  @Get('posts/attachments-allowed')
+  @ApiOperation({
+    summary:
+      'May this account add documents / extra photos to a post or a reel',
+  })
+  @ApiEnvelopeResponse(PostAttachmentsAllowedDto)
+  async attachmentsAllowed(
+    @CurrentUser() user: RequestUser,
+  ): Promise<PostAttachmentsAllowedDto> {
+    return {
+      allowed: await this.attachmentsPolicy.canAttach(user.sub),
+      mode: await this.attachmentsPolicy.mode(),
+    };
+  }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('publish')

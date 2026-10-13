@@ -295,6 +295,10 @@ export class PostAuthorDto {
   /** Owner 2026-09-30: the viewer follows this author (card Follow). */
   @ApiProperty()
   isFollowing!: boolean;
+
+  /** Owner 2026-10-13: attorney: licensed states ("NY, CA"); client: state. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  location!: string | null;
 }
 
 /** Owner 2026-10-12 (Threads): who put this post into the list. */
@@ -517,4 +521,13 @@ export class SavedPostsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+}
+
+/** Owner 2026-10-13: can the caller attach files to a new post / reel. */
+export class PostAttachmentsAllowedDto {
+  @ApiProperty()
+  allowed!: boolean;
+
+  @ApiProperty({ enum: ['by_subscription', 'off_for_all', 'on_for_all'] })
+  mode!: 'by_subscription' | 'off_for_all' | 'on_for_all';
 }

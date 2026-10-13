@@ -160,6 +160,8 @@ export default function PlansPage() {
         <EmptyState icon={Stack} title="Планы не загрузились" />
       ) : (
         <>
+          <PostAttachmentsCard canWrite={canWrite} />
+
           <Tabs
             value={tab}
             onChange={setTab}
@@ -242,6 +244,59 @@ export default function PlansPage() {
       ) : null}
       {applying ? <ApplyDialog plan={applying} onClose={() => setApplying(null)} /> : null}
     </>
+  );
+}
+
+/* -------------------------------------------------- attachments in posts */
+
+type AttachmentsMode = components['schemas']['PostAttachmentsModeDto']['mode'];
+
+const ATTACHMENT_MODES: { value: AttachmentsMode; label: string; note: string }[] = [
+  {
+    value: 'by_subscription',
+    label: 'По подписке',
+    note: 'Клиентам нужна активная золотая галочка, адвокатам активная подписка и подтверждённая лицензия, и в плане должна стоять галочка «Вложения в постах и рилсах».',
+  },
+  { value: 'off_for_all', label: 'Выкл для всех', note: 'Никто не добавляет файлы, даже с подпиской. Посты без вложений, как в Instagram.' },
+  { value: 'on_for_all', label: 'Вкл для всех', note: 'Все могут добавлять документы и лишние фото. Подписки не нужны.' },
+];
+
+/** Owner 2026-10-13: who may add documents and extra photos to a post or a reel. */
+function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const key = ['admin-post-attachments'] as const;
+  const q = useQuery({
+    queryKey: key,
+    queryFn: async () => (await api.GET('/admin/billing/post-attachments')).data!.data,
+  });
+  const save = useMutation({
+    mutationFn: async (mode: AttachmentsMode) =>
+      (await api.PUT('/admin/billing/post-attachments', { body: { mode } })).data!.data,
+    onSuccess: (res) => {
+      qc.setQueryData(key, res);
+      toast.success('Сохранено');
+    },
+    onError: (e) => toast.error(e),
+  });
+  const mode = q.data?.mode ?? 'off_for_all';
+  const current = ATTACHMENT_MODES.find((m) => m.value === mode)!;
+  return (
+    <Card className="mb-5">
+      <h3 className="font-medium">Вложения в постах и рилсах</h3>
+      <p className="mt-1 text-sm text-muted">
+        Файлы, документы и лишние фото в посте или рилсе. Смотреть вложения и открывать внутреннюю карточку может любой пользователь, добавлять только те, у кого есть право.
+        Без вложений тап по посту ничего не открывает, а в Reels нет полоски Watch.
+      </p>
+      <div className="mt-3">
+        <Tabs
+          value={mode}
+          onChange={(v) => canWrite && save.mutate(v)}
+          items={ATTACHMENT_MODES.map((m) => ({ value: m.value, label: m.label }))}
+        />
+      </div>
+      <p className="mt-2 text-xs text-muted">{current.note}</p>
+    </Card>
   );
 }
 

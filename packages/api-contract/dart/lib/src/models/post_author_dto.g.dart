@@ -16,6 +16,7 @@ PostAuthorDto _$PostAuthorDtoFromJson(Map<String, dynamic> json) =>
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      location: json['location'] as String?,
     );
 
 Map<String, dynamic> _$PostAuthorDtoToJson(PostAuthorDto instance) =>
@@ -28,4 +29,5 @@ Map<String, dynamic> _$PostAuthorDtoToJson(PostAuthorDto instance) =>
       'avatarUrl': ?instance.avatarUrl,
       'verifiedBadge': instance.verifiedBadge,
       'isFollowing': instance.isFollowing,
+      'location': ?instance.location,
     };
