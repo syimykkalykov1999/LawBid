@@ -109,7 +109,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: colors.border.withValues(alpha: 0.6),
+                          color: colors.chip,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Row(
@@ -297,7 +297,7 @@ class TaskRow extends ConsumerWidget {
                               width: 28,
                               height: 28,
                               decoration: BoxDecoration(
-                                color: colors.border.withValues(alpha: 0.5),
+                                color: colors.chip,
                                 borderRadius: BorderRadius.circular(6),
                                 image: f.mime.startsWith('image/')
                                     ? DecorationImage(
@@ -454,7 +454,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                   child: f.mime.startsWith('image/')
                       ? Image.network(f.previewUrl, fit: BoxFit.cover)
                       : ColoredBox(
-                          color: colors.border.withValues(alpha: 0.45),
+                          color: colors.chip,
                           child: const AppIcon(AppIcons.descriptionOutlined),
                         ),
                 ),

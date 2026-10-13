@@ -357,7 +357,7 @@ class _FileRow extends StatelessWidget {
               child: isImage
                   ? Image.network(file.previewUrl, fit: BoxFit.cover)
                   : ColoredBox(
-                      color: colors.border.withValues(alpha: 0.45),
+                      color: colors.chip,
                       child: AppIcon(
                         AppIcons.descriptionOutlined,
                         color: colors.goldDark,
@@ -609,8 +609,7 @@ class UpdateEntry extends StatelessWidget {
                             child: f.mime.startsWith('image/')
                                 ? Image.network(f.previewUrl, fit: BoxFit.cover)
                                 : ColoredBox(
-                                    color:
-                                        colors.border.withValues(alpha: 0.45),
+                                    color: colors.chip,
                                     child: const AppIcon(
                                       AppIcons.descriptionOutlined,
                                     ),

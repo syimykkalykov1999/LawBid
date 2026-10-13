@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/core/design_system/theme/theme_mode_providers.dart';
+import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
+import 'package:lawbid/core/design_system/theme/app_theme_providers.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -15,20 +15,14 @@ import 'package:lawbid/features/onboarding/domain/current_user.dart';
 const _kPendingTheme = 'prefs.sync.pending.theme';
 const _kPendingLanguage = 'prefs.sync.pending.language';
 
-/// `users.theme` wire value (apps/api `ThemePref`: system/light/dark).
-String themeWireName(ThemeMode mode) => switch (mode) {
-      ThemeMode.system => 'system',
-      ThemeMode.light => 'light',
-      ThemeMode.dark => 'dark',
-    };
+/// `users.theme` wire value (apps/api `ThemePref`: system/light/dark/navy/
+/// glass): Day is `light`, Night `dark`, never chosen `system`.
+String themeWireName(AppThemeId? theme) =>
+    theme == null ? 'system' : AppThemes.of(theme).serverWire;
 
 /// Inverse of [themeWireName]; the server default (`null`/unknown) is
-/// `system` (`users.theme @default(system)`).
-ThemeMode parseThemeWire(String? raw) => switch (raw) {
-      'light' => ThemeMode.light,
-      'dark' => ThemeMode.dark,
-      _ => ThemeMode.system,
-    };
+/// `system` (`users.theme @default(system)`) = not chosen.
+AppThemeId? parseThemeWire(String? raw) => AppThemes.fromServer(raw);
 
 /// Keeps the interface language and theme in sync with the account
 /// (docs/07 §8.1: "выбор хранится локально и на сервере"; docs/01 §9.4
@@ -68,12 +62,9 @@ class PreferencesSyncController extends Notifier<void> {
       (previous, next) => unawaited(_onUser(previous, next)),
       fireImmediately: true,
     );
-    ref.listen<AsyncValue<ThemeMode>>(themeModeControllerProvider,
-        (previous, next) {
-      final before = previous?.value;
-      final now = next.value;
-      if (before == null || now == null || before == now) return;
-      unawaited(_onLocalChange(theme: themeWireName(now)));
+    ref.listen<AppThemeId?>(appThemeControllerProvider, (previous, next) {
+      if (previous == next) return;
+      unawaited(_onLocalChange(theme: themeWireName(next)));
     });
     ref.listen<AsyncValue<AppLanguage>>(languageControllerProvider,
         (previous, next) {
@@ -105,10 +96,9 @@ class PreferencesSyncController extends Notifier<void> {
   }
 
   Future<void> _reconcileAtLogin(CurrentUser user) async {
-    final ThemeMode localTheme;
+    final localTheme = ref.read(appThemeControllerProvider);
     final AppLanguage localLanguage;
     try {
-      localTheme = await ref.read(themeModeControllerProvider.future);
       localLanguage = await ref.read(languageControllerProvider.future);
     } on Object {
       return;
@@ -126,9 +116,7 @@ class PreferencesSyncController extends Notifier<void> {
       if (pushLocal || _isPending(_kPendingTheme)) {
         pushTheme = themeWireName(localTheme);
       } else {
-        await ref
-            .read(themeModeControllerProvider.notifier)
-            .setThemeMode(serverTheme);
+        await ref.read(appThemeControllerProvider.notifier).select(serverTheme);
       }
     }
     // Either way the resolved language is persisted as an explicit choice,
@@ -169,8 +157,8 @@ class PreferencesSyncController extends Notifier<void> {
     String? theme;
     String? uiLanguage;
     if (_isPending(_kPendingTheme)) {
-      final local = ref.read(themeModeControllerProvider).value;
-      if (local != null && themeWireName(local) != (user.theme ?? 'system')) {
+      final local = ref.read(appThemeControllerProvider);
+      if (themeWireName(local) != (user.theme ?? 'system')) {
         theme = themeWireName(local);
       } else {
         await _kv.remove(_kPendingTheme);

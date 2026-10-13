@@ -123,7 +123,7 @@ class _FileOpenButtonState extends ConsumerState<FileOpenButton> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
         decoration: BoxDecoration(
-          color: have ? colors.navy : colors.border.withValues(alpha: 0.5),
+          color: have ? colors.navy : colors.chip,
           borderRadius: BorderRadius.circular(999),
         ),
         child: _busy

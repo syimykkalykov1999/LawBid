@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
@@ -17,6 +18,14 @@ abstract final class AppTheme {
 
   static ThemeData dark() => _build(Brightness.dark, AppColorTokens.dark());
 
+  /// The theme the user picked (owner 2026-10-13: Day, Night, Navy, Glass).
+  static ThemeData of(AppThemeId id) => _cache.putIfAbsent(id, () {
+        final spec = AppThemes.of(id);
+        return _build(spec.brightness, spec.tokens());
+      });
+
+  static final Map<AppThemeId, ThemeData> _cache = {};
+
   static ThemeData _build(Brightness brightness, AppColorTokens colors) {
     final typography = AppTypographyTokens.standard();
 
@@ -32,7 +41,9 @@ abstract final class AppTheme {
       ),
       brightness: brightness,
       useMaterial3: true,
-      scaffoldBackgroundColor: colors.bg,
+      // Glass paints its gradient behind the whole app (AppBackdrop), so
+      // screens are transparent over it.
+      scaffoldBackgroundColor: colors.isGlass ? Colors.transparent : colors.bg,
       fontFamily: AppFontFamilies.sans,
       colorScheme: ColorScheme(
         brightness: brightness,
@@ -72,7 +83,7 @@ abstract final class AppTheme {
       // "not built yet" SnackBar is left on Material defaults on purpose —
       // non-welcome screens use `showAppSnackBar` instead).
       dialogTheme: DialogThemeData(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.sheet),
@@ -82,7 +93,7 @@ abstract final class AppTheme {
         contentTextStyle: typography.body.copyWith(color: colors.textSecondary),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(

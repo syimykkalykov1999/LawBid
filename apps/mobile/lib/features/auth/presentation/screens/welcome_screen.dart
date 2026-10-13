@@ -9,6 +9,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
@@ -90,8 +91,7 @@ class WelcomeScreen extends ConsumerWidget {
     }
 
     final flowState = ref.watch(onboardingFlowProvider);
-    final themeMode =
-        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    final chosenTheme = ref.watch(appThemeControllerProvider);
     // Login-method flag gating (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.8":
     // starter flags include phone_login/email_login/apple_login/
     // google_login — the exact four methods this screen offers, per
@@ -111,9 +111,11 @@ class WelcomeScreen extends ConsumerWidget {
         (!kReleaseMode || AppConfig.appleSignInSupported(platform));
     final googleLoginEnabled = flags.isEnabled('google_login') &&
         (!kReleaseMode || AppConfig.googleSignInConfigured(platform));
-    final isDark = themeMode == ThemeMode.dark ||
-        (themeMode == ThemeMode.system &&
-            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+    // The icon shows the current theme's mood: a moon in a dark one.
+    final isDark = (chosenTheme == null
+            ? MediaQuery.platformBrightnessOf(context)
+            : AppThemes.of(chosenTheme).brightness) ==
+        Brightness.dark;
 
     // Same flag-gating as the phone button below, applied to the 3 icon
     // buttons: an Expanded widget for each ENABLED method only, so a
@@ -186,13 +188,7 @@ class WelcomeScreen extends ConsumerWidget {
                           : AppIcons.lightModeOutlined,
                     ),
                     semanticLabel: t.t('theme.toggle.label'),
-                    onPressed: () {
-                      ref
-                          .read(themeModeControllerProvider.notifier)
-                          .setThemeMode(
-                            isDark ? ThemeMode.light : ThemeMode.dark,
-                          );
-                    },
+                    onPressed: () => ThemePickerSheet.show(context),
                   ),
                   AppIconButton(
                     plain: false,

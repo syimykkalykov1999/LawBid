@@ -146,34 +146,36 @@ class BottomActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     if (children.isEmpty) return const SizedBox.shrink();
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.bg,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        // Wide screens: the buttons stay a comfortable width, centred.
-        child: Center(
-          heightFactor: 1,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.md,
-                AppSpacing.screenSide,
-                AppSpacing.md,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < children.length; i++) ...[
-                    if (i > 0) const SizedBox(height: AppSpacing.sm),
-                    children[i],
+    return GlassPanel(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.barFill,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          // Wide screens: the buttons stay a comfortable width, centred.
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < children.length; i++) ...[
+                      if (i > 0) const SizedBox(height: AppSpacing.sm),
+                      children[i],
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

@@ -367,7 +367,7 @@ class _BodyState extends ConsumerState<_Body> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: colors.border.withValues(alpha: 0.45),
+                      color: colors.chip,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -383,7 +383,7 @@ class _BodyState extends ConsumerState<_Body> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: colors.border.withValues(alpha: 0.45),
+                      color: colors.chip,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -456,7 +456,7 @@ class _BodyState extends ConsumerState<_Body> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: colors.border.withValues(alpha: 0.45),
+                  color: colors.chip,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: AppIcon(icon, color: colors.goldDark),

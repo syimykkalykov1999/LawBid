@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/widgets/display/glass_panel.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 
 /// General-purpose card container (file 01 §15 component list): `surface`
@@ -47,7 +48,11 @@ class AppCard extends StatelessWidget {
       ),
       child: child,
     );
-    if (onTap == null) return card;
-    return AppPressable(onTap: onTap, child: card);
+    final panel = GlassPanel(
+      radius: BorderRadius.circular(AppRadii.card),
+      child: card,
+    );
+    if (onTap == null) return panel;
+    return AppPressable(onTap: onTap, child: panel);
   }
 }
