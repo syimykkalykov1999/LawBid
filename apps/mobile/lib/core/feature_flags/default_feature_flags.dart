@@ -37,6 +37,7 @@ const Map<String, bool> defaultFeatureFlags = {
   // Owner 2026-10-06: News is switched off (kept in code).
   'news_posts': false,
   'phone_login': true,
+  'demo_code_login': true,
   // Owner 2026-10-07: «Вход и письма по почте» — off until Amazon SES
   // may write to any address; a fetch failure must not show e-mail forms.
   'email_login': false,

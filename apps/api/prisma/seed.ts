@@ -305,6 +305,12 @@ async function seedFeatureFlags(): Promise<void> {
     },
     { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
     {
+      // Owner 2026-10-13: the «I have a demo code» link on Welcome.
+      key: 'demo_code_login',
+      enabled: true,
+      description: 'The «I have a demo code» link on the Welcome screen',
+    },
+    {
       // Owner 2026-10-13: sign in with a password, no SMS each time.
       key: 'password_login',
       enabled: true,

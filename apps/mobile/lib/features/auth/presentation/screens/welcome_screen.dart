@@ -7,6 +7,7 @@ import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
@@ -319,28 +320,32 @@ class WelcomeScreen extends ConsumerWidget {
                             ),
                             // Owner 2026-10-05 (docs/ops/demo-world.md): a blogger
                             // enters the demo with the admin's 8-character code.
-                            TextButton(
-                              key: const ValueKey('welcome-demo-code'),
-                              style: TextButton.styleFrom(
-                                minimumSize: const Size(0, 28),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
+                            if (ref
+                                .watch(featureFlagsControllerProvider)
+                                .isEnabled('demo_code_login'))
+                              TextButton(
+                                key: const ValueKey('welcome-demo-code'),
+                                style: TextButton.styleFrom(
+                                  minimumSize: const Size(0, 28),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                ),
+                                onPressed: () => DemoCodeSheet.show(context),
+                                child: Text(
+                                  t.t('demo.code.entry'),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: typography.caption.copyWith(
+                                    color: colors.textSecondary,
+                                    decoration: TextDecoration.underline,
+                                  ),
                                 ),
                               ),
-                              onPressed: () => DemoCodeSheet.show(context),
-                              child: Text(
-                                t.t('demo.code.entry'),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: typography.caption.copyWith(
-                                  color: colors.textSecondary,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                            ),
                             // Second flexible spacer (see the one above the phone
                             // button): the pair centers the button block between the
                             // logo and the legal text, while still pinning the legal
@@ -353,10 +358,7 @@ class WelcomeScreen extends ConsumerWidget {
                             LegalText(
                               // Only the acceptance sentence: the third line of
                               // the bottom block.
-                              text: _acceptSentence(
-                                t.t('auth.welcome.legal'),
-                                t.t('auth.welcome.legal.terms'),
-                              ),
+                              text: _acceptLine(t),
                               links: {
                                 t.t('auth.welcome.legal.terms'): () =>
                                     context.push(AppRoutes.legalDoc('terms')),
@@ -391,4 +393,14 @@ String _acceptSentence(String full, String termsLabel) {
     start = m.end;
   }
   return full.substring(start);
+}
+
+/// «By continuing, you accept the {terms} and {privacy}» — its own key;
+/// languages still without it fall back to the last sentence of the long one.
+String _acceptLine(Translator t) {
+  final terms = t.t('auth.welcome.legal.terms');
+  final privacy = t.t('auth.welcome.legal.privacy');
+  final line = t.t('welcome.acceptLine', {'terms': terms, 'privacy': privacy});
+  if (line != 'welcome.acceptLine' && line.contains(terms)) return line;
+  return _acceptSentence(t.t('auth.welcome.legal'), terms);
 }
