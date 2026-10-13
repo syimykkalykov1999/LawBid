@@ -45,7 +45,7 @@ class CaseChipsRow extends StatelessWidget {
                 ? colors.success.withValues(alpha: 0.16)
                 : main
                     ? (dark ? colors.border : colors.navy)
-                    : colors.border.withValues(alpha: 0.45),
+                    : colors.chip,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
@@ -54,7 +54,7 @@ class CaseChipsRow extends StatelessWidget {
             style: type.bodySmall.copyWith(
               fontWeight: FontWeight.w600,
               color: ok
-                  ? colors.success
+                  ? colors.successText
                   : main
                       ? Colors.white
                       : colors.text,

@@ -91529,7 +91529,9 @@
         "enum": [
           "system",
           "light",
-          "dark"
+          "dark",
+          "navy",
+          "glass"
         ]
       },
       "PendingLegalDocumentDto": {
@@ -91930,7 +91932,9 @@
             "enum": [
               "system",
               "light",
-              "dark"
+              "dark",
+              "navy",
+              "glass"
             ]
           }
         }

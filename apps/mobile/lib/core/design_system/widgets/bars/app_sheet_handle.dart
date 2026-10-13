@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/widgets/display/glass_panel.dart';
 
 /// Drag handle at the top of modal bottom sheets (decorative).
 class AppSheetHandle extends StatelessWidget {
@@ -40,7 +41,7 @@ Future<T?> showAppBottomSheet<T>({
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     showDragHandle: false,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
@@ -49,7 +50,12 @@ Future<T?> showAppBottomSheet<T>({
     ),
     // Owner 2026-10-01: every sheet closes with a swipe down — also when
     // its whole body scrolls (the list used to swallow the drag).
-    builder: (ctx) => PullDownToClose(child: builder(ctx)),
+    builder: (ctx) => GlassPanel(
+      radius: const BorderRadius.vertical(
+        top: Radius.circular(AppRadii.sheet),
+      ),
+      child: PullDownToClose(child: builder(ctx)),
+    ),
   );
 }
 

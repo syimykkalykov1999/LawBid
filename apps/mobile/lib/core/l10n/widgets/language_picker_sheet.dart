@@ -179,83 +179,29 @@ class _LanguageRow extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final enabled = onTap != null;
-
-    return Semantics(
-      button: enabled,
-      enabled: enabled,
-      selected: isCurrent,
-      label: '${entry.nativeName}, ${entry.englishName}',
-      excludeSemantics: true,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.45,
-        child: AppPressable(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-            curve: AppMotion.enterCurve,
-            constraints: const BoxConstraints(
-              minHeight: AppSizes.touchTarget + AppSpacing.md,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              color: isCurrent ? colors.goldTint : colors.surface,
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              border:
-                  Border.all(color: isCurrent ? colors.gold : colors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.nativeName,
-                        style: typography.body.copyWith(
-                          color: colors.text,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        entry.englishName,
-                        style: typography.caption
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.45,
+      child: AppPickerRow(
+        title: entry.nativeName,
+        subtitle: entry.englishName,
+        selected: isCurrent,
+        onTap: onTap,
+        semanticLabel: '${entry.nativeName}, ${entry.englishName}',
+        trailing: enabled
+            ? Text(
+                entry.code.toUpperCase(),
+                style: typography.caption.copyWith(color: colors.textSecondary),
+              )
+            : Flexible(
+                child: Text(
+                  comingSoonLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
                 ),
-                if (isCurrent)
-                  AppIcon(
-                    AppIcons.checkCircleRounded,
-                    size: AppSizes.iconSm,
-                    color: colors.goldStroke,
-                  )
-                else if (!enabled) ...[
-                  const SizedBox(width: AppSpacing.sm),
-                  Flexible(
-                    child: Text(
-                      comingSoonLabel,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.end,
-                      style: typography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                ] else
-                  Text(
-                    entry.code.toUpperCase(),
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
   }

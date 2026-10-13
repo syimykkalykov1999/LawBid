@@ -68,7 +68,7 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
         0,
       ),
       decoration: BoxDecoration(
-        color: onDark || bare ? Colors.transparent : colors.bg,
+        color: onDark || bare ? Colors.transparent : colors.barFill,
         border: Border(
           bottom: BorderSide(
             color: onDark || bare ? Colors.transparent : colors.border,
