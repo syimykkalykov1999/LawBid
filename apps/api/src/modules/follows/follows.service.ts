@@ -290,6 +290,7 @@ export class FollowsService {
   async suggestions(
     user: RequestUser,
     cursor?: string,
+    limit = PAGE,
   ): Promise<AttorneyListPage> {
     const state =
       user.role === 'client'
@@ -319,7 +320,7 @@ export class FollowsService {
     const hidden = await this.blocks.hiddenIds(user.sub);
     const picked: string[] = [];
     let i = start;
-    for (; i < pool.length && picked.length < PAGE; i++) {
+    for (; i < pool.length && picked.length < limit; i++) {
       if (
         pool[i] !== user.sub &&
         !followed.has(pool[i]) &&
