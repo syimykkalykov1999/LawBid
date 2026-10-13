@@ -402,6 +402,27 @@ export class AuthService {
       },
     );
 
+    return this.finishLogin(
+      user,
+      isNewUser,
+      deletionCancelled,
+      identifier,
+      deviceInfo,
+      meta,
+    );
+  }
+
+  /** Account-state checks, the "other device" question and the session of
+   * a sign-in whose identity is already proven (OTP, magic link or
+   * password — owner 2026-10-13). */
+  async finishLogin(
+    user: User,
+    isNewUser: boolean,
+    deletionCancelled: boolean,
+    identifier: string,
+    deviceInfo: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
     if (user.status === 'suspended') {
       await this.authEvents.record({
         userId: user.id,
@@ -652,7 +673,9 @@ export class AuthService {
         ? AUTH_EVENT_TYPES.SOCIAL_LOGIN_SUCCESS
         : identifier === 'assistant-code'
           ? AUTH_EVENT_TYPES.ASSISTANT_CODE_LOGIN
-          : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
+          : identifier.startsWith('password:')
+            ? AUTH_EVENT_TYPES.PASSWORD_LOGIN_SUCCESS
+            : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
       success: true,
       identifier,
       deviceId: deviceInfo.deviceId,

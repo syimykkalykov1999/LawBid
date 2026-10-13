@@ -256,6 +256,22 @@ class WelcomeScreen extends ConsumerWidget {
                             // телефоном" — GavelStrikeIconButton (added in stage 1.7,
                             // docs/CHANGELOG.md, see gavel_strike_icon_button.dart).
                             socialLoginRow,
+                            // Owner 2026-10-13: signing in again needs no SMS —
+                            // phone number or e-mail + password.
+                            TextButton(
+                              key: const ValueKey('welcome-login'),
+                              onPressed: () => context.push(AuthRoutes.login),
+                              child: Text(
+                                t.t('auth.login.entry'),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: typography.body.copyWith(
+                                  color: colors.text,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
                             // Owner 2026-10-04: assistants come in with the
                             // attorney's one-time code (no SMS).
                             const SizedBox(height: 4),

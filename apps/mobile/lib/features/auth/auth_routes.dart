@@ -3,9 +3,13 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 
 import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/change_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/set_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/welcome_screen.dart';
 
 /// Path constants for the auth/onboarding flow (file 07 §6: `/welcome`,
@@ -25,6 +29,17 @@ abstract final class AuthRoutes {
 
   /// Owner 2026-10-04: an assistant signs in with the attorney's code.
   static const assistant = '/auth/assistant';
+
+  /// Owner 2026-10-13: sign in with a phone number or e-mail + password
+  /// (no SMS), the forgot-password flow, and the screen that asks for a
+  /// password right after the one SMS code (shown by the router guard
+  /// while `passwordRequired`).
+  static const login = '/auth/login';
+  static const forgotPassword = '/auth/forgot-password';
+  static const setPassword = '/auth/set-password';
+
+  /// Settings → Change password (signed in).
+  static const changePassword = '/auth/change-password';
 
   /// Same path as `OnboardingRoutes.forStep(OnboardingStepId.role)`; the
   /// route itself is registered by onboardingRoutes().
@@ -65,6 +80,31 @@ List<RouteBase> authRoutes() => [
         path: AuthRoutes.otp,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const OtpScreen()),
+      ),
+      GoRoute(
+        path: AuthRoutes.login,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const LoginScreen()),
+      ),
+      GoRoute(
+        path: AuthRoutes.forgotPassword,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          ForgotPasswordScreen(
+            initialIdentifier:
+                state.extra is String ? state.extra! as String : '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AuthRoutes.changePassword,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const ChangePasswordScreen()),
+      ),
+      GoRoute(
+        path: AuthRoutes.setPassword,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const SetPasswordScreen()),
       ),
       GoRoute(
         path: AuthRoutes.email,

@@ -52,6 +52,8 @@ enum ErrorCode {
   authSocialProviderUnavailable('AUTH_SOCIAL_PROVIDER_UNAVAILABLE'),
   @JsonValue('AUTH_PROVIDER_DISABLED')
   authProviderDisabled('AUTH_PROVIDER_DISABLED'),
+  @JsonValue('AUTH_INVALID_CREDENTIALS')
+  authInvalidCredentials('AUTH_INVALID_CREDENTIALS'),
   @JsonValue('ACCOUNT_EXISTS_USE_OTHER_METHOD')
   accountExistsUseOtherMethod('ACCOUNT_EXISTS_USE_OTHER_METHOD'),
   @JsonValue('IDENTIFIER_ALREADY_LINKED')

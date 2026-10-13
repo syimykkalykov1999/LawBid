@@ -109,6 +109,71 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// Owner 2026-10-13: `POST /auth/password/login` — sign in with a phone
+  /// number or e-mail and the password (no SMS); issues tokens.
+  Future<AuthTokensResult> passwordLogin({
+    required String identifier,
+    required String password,
+    DeviceInfo? deviceInfo,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.passwordLogin(
+        body: api.PasswordLoginDto(
+          identifier: identifier,
+          password: password,
+          deviceInfo: deviceInfo,
+        ),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `POST /auth/password` — sets the password of the signed-in account.
+  Future<void> setPassword(String password, {String? currentPassword}) =>
+      guardApiCall(
+        () => _auth.setPassword(
+          body: api.SetPasswordDto(
+            password: password,
+            currentPassword: currentPassword,
+          ),
+        ),
+      );
+
+  /// `POST /auth/password/reset/request` — a code to the account's verified
+  /// e-mail, else an SMS. Returns where it went (`email` | `phone`).
+  Future<String> requestPasswordReset(String identifier) async {
+    final envelope = await guardApiCall(
+      () => _auth.passwordResetRequest(
+        body: api.PasswordResetRequestDto(identifier: identifier),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data.channel.json ?? 'phone';
+  }
+
+  /// `POST /auth/password/reset/confirm` — the code + a new password;
+  /// issues tokens.
+  Future<AuthTokensResult> confirmPasswordReset({
+    required String identifier,
+    required String code,
+    required String newPassword,
+    DeviceInfo? deviceInfo,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.passwordResetConfirm(
+        body: api.PasswordResetConfirmDto(
+          identifier: identifier,
+          code: code,
+          newPassword: newPassword,
+          deviceInfo: deviceInfo,
+        ),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
   /// `POST /auth/social` — the other endpoint that issues tokens rather
   /// than requiring them (same `_skipAuth` as [verifyOtp]).
   Future<AuthTokensResult> socialLogin(api.SocialLoginDto body) async {

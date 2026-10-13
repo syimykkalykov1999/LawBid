@@ -218,6 +218,7 @@ const _keys = <String, String>{
   ApiErrorCodes.accountRestricted: 'error.api.ACCOUNT_RESTRICTED',
   ApiErrorCodes.accountDeleted: 'error.api.ACCOUNT_DELETED',
   ApiErrorCodes.authProviderDisabled: 'error.api.AUTH_PROVIDER_DISABLED',
+  ApiErrorCodes.authInvalidCredentials: 'error.api.AUTH_INVALID_CREDENTIALS',
   ApiErrorCodes.deviceAttestationRequired:
       'error.api.DEVICE_ATTESTATION_REQUIRED',
   // Refresh-token theft signal (docs/01 §10.4): every session was revoked.

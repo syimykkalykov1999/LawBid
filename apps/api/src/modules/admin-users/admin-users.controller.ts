@@ -131,6 +131,25 @@ export class AdminUsersController {
     return this.users.revokeSessions(admin, params.id);
   }
 
+  @Post(':id/password/reset')
+  @HttpCode(HttpStatus.OK)
+  // An account takeover path (the next SMS code signs in): super admins
+  // and moderators, like warn / suspend.
+  @Roles('super_admin', 'moderator')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      "Reset the user's password (sessions signed out; SMS code to sign in once)",
+  })
+  @ApiEnvelopeResponse(SanctionResultDto)
+  @ApiErrors(TARGET_ERRORS)
+  resetUserPassword(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminUserIdParamDto,
+  ): Promise<SanctionResultDto> {
+    return this.users.resetPassword(admin, params.id);
+  }
+
   @Post(':id/phone')
   @HttpCode(HttpStatus.OK)
   // Security audit 2026-10-01: an account takeover path — super admins only.

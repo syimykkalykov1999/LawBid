@@ -193,6 +193,15 @@ export class MeDto {
   })
   pendingLegalDocuments!: PendingLegalDocumentDto[];
 
+  @ApiProperty({ description: 'The account has a sign-in password.' })
+  passwordSet!: boolean;
+
+  @ApiProperty({
+    description:
+      'The account still signs in only with an SMS code and must set a password first (the app shows the set-password screen; POST /auth/password).',
+  })
+  passwordRequired!: boolean;
+
   @ApiProperty({ type: OnboardingStateDto })
   onboarding!: OnboardingStateDto;
 

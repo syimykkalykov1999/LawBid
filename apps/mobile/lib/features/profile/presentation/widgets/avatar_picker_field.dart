@@ -142,10 +142,12 @@ class AvatarPickerField extends ConsumerWidget {
         ),
       AvatarUploadStage.idle => requiredError != null
           ? (requiredError!, colors.dangerText)
-          : (t.t('profile.photo.hint'), colors.textSecondary),
+          // Owner 2026-10-13: no file-format hint under the photo.
+          : ('', colors.textSecondary),
     };
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         ProfileAvatar(
           size: AppSizes.stateMedallion - AppSpacing.xl,
@@ -159,6 +161,7 @@ class AvatarPickerField extends ConsumerWidget {
         const SizedBox(width: AppSpacing.lg),
         Expanded(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -168,14 +171,16 @@ class AvatarPickerField extends ConsumerWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  status,
-                  style: typography.caption.copyWith(color: statusColor),
+              if (status.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    status,
+                    style: typography.caption.copyWith(color: statusColor),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: AppSpacing.xs),
               Wrap(
                 spacing: AppSpacing.sm,

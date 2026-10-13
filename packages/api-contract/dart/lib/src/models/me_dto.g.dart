@@ -24,6 +24,8 @@ MeDto _$MeDtoFromJson(Map<String, dynamic> json) => MeDto(
   pendingLegalDocuments: (json['pendingLegalDocuments'] as List<dynamic>)
       .map((e) => PendingLegalDocumentDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  passwordSet: json['passwordSet'] as bool,
+  passwordRequired: json['passwordRequired'] as bool,
   onboarding: OnboardingStateDto.fromJson(
     json['onboarding'] as Map<String, dynamic>,
   ),
@@ -53,6 +55,8 @@ Map<String, dynamic> _$MeDtoToJson(MeDto instance) => <String, dynamic>{
   'pendingLegalDocuments': instance.pendingLegalDocuments
       .map((e) => e.toJson())
       .toList(),
+  'passwordSet': instance.passwordSet,
+  'passwordRequired': instance.passwordRequired,
   'onboarding': instance.onboarding.toJson(),
   'profile': ?instance.profile?.toJson(),
   'missing': instance.missing.map((e) => e.toJson()).toList(),

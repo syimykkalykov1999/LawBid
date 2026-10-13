@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
@@ -86,6 +87,13 @@ class SettingsScreen extends ConsumerWidget {
             icon: AppIcons.shieldOutlined,
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
+          ),
+          // Owner 2026-10-13: change the sign-in password.
+          AppListRow(
+            key: const ValueKey('settings-change-password'),
+            icon: AppIcons.lockOutlineRounded,
+            label: t.t('auth.change.title'),
+            onTap: () => context.push(AuthRoutes.changePassword),
           ),
           // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney)

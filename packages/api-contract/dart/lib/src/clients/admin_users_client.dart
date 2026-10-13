@@ -82,6 +82,13 @@ abstract class AdminUsersClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Reset the user's password (sessions signed out; SMS code to sign in once)
+  @POST('/admin/users/{id}/password/reset')
+  Future<SanctionResultEnvelope> resetUserPassword({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Change the phone on the user's request (sessions signed out, user notified)
   @POST('/admin/users/{id}/phone')
   Future<PhoneChangedEnvelope> changeUserPhone({

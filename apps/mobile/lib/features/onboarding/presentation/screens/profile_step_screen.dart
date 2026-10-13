@@ -257,13 +257,15 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
                 ? 'onboarding.role.assistant.title'
                 : 'onboarding.profile.title.client',
       ),
-      subtitle: t.t(
-        attorney
-            ? 'onboarding.profile.subtitle.attorney'
-            : assistant
-                ? 'onboarding.role.assistant.body'
-                : 'onboarding.profile.subtitle.client',
-      ),
+      // Owner 2026-10-13: no «license details come with verification»
+      // line for attorneys.
+      subtitle: attorney
+          ? null
+          : t.t(
+              assistant
+                  ? 'onboarding.role.assistant.body'
+                  : 'onboarding.profile.subtitle.client',
+            ),
       // Owner 2026-10-04: an assistant has no contacts step (code sign-in)
       // and their role is fixed — back is the consents.
       onBack: () => context.go(
