@@ -347,11 +347,9 @@ class PostCard extends ConsumerWidget {
                   practiceCode: p.practice?.code,
                   seed: p.id,
                 );
-      final tappable = AppPressable(
-        onTap: hasInner ? open : null,
-        child: picture,
-      );
-      return photoBox(tappable, fill: fill, onShort: onShort);
+      // Owner 2026-10-13: the inner card opens only by «ещё» and the
+      // attached files, never by a tap on the picture.
+      return photoBox(picture, fill: fill, onShort: onShort);
     }
 
     // Owner 2026-10-12: the height the compact header frees goes to the
