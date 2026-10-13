@@ -5,6 +5,15 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Contacts sync (2026-10-13)
+
+Owner: "find people from your contacts, like Instagram". Safety first.
+
+- Phone: the first time People opens, one soft system permission request (no interstitial); a row "Find people from your contacts" shows while sync is off. Numbers are normalized to E.164 on the device (+country, or a US 10/11-digit number; anything else is skipped, not guessed) and sent only as SHA-256 hex.
+- API: `GET/POST/DELETE /contacts/sync`. The server matches hashes against `users.phone_sha256` (computed column over `phone_e164`) and stores only owner→registered-user pairs (`contact_matches`); hashes of unmatched numbers are never stored, raw numbers never leave the phone. Only a verified-phone account can upload; matches are verified, active users; 10 uploads/day (`rate_limit.contacts_sync_per_day`), at most 2000 hashes each; the answer is a count only (no oracle). `DELETE` removes the matches and turns sync off; account anonymization and the pre-launch wipe remove them too.
+- People ranking: new signal "in my contacts" weight 0.20 (1 = in my address book, 0.6 = I am in theirs); the other weights are scaled by 0.8. No separate block (owner, same day): people from the address book sit in Recommended/Suggested and `GET /suggestions/attorneys` returns `reason: "contacts"` for them; the tile shows a small grey one-line caption "From contacts" (`phoneContacts.reason`).
+- Migration `20261013180000_owner_contacts_sync`. Keys `phoneContacts.*` in the translations xlsx. Run `packages/api-contract/generate.sh` for the Dart client and `flutter pub get` (new `flutter_contacts`).
+
 ## Search recommendations: people, posts, cases (2026-10-13)
 
 Owner: recommendation algorithms "like Instagram, but ours". One server module (`modules/recommendations`), one weighted formula per kind (0..1 features, weights add up to 1, covered by specs). Ranked id lists are cached per viewer in Redis (people 10 min, posts and cases 3 min). Text search order is unchanged; the algorithm is only a tie-break there.

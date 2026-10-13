@@ -433,6 +433,7 @@ class AttorneyRow {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.reason,
   });
 
   final String id;
@@ -441,6 +442,10 @@ class AttorneyRow {
   final String? lastName;
   final String? avatarUrl;
   final bool verified;
+
+  /// Why it is suggested, shown as a small caption: 'contacts' = in my
+  /// address book.
+  final String? reason;
 
   /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
   final int trustLevel;
@@ -467,6 +472,8 @@ class AttorneyRow {
         states: states,
         practiceKeys: practiceKeys,
         isFollowing: isFollowing ?? this.isFollowing,
+        trustLevel: trustLevel,
+        reason: reason,
       );
 }
 

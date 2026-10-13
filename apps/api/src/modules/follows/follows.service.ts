@@ -290,6 +290,7 @@ export class FollowsService {
   async suggestions(
     user: RequestUser,
     cursor?: string,
+    limit = PAGE,
   ): Promise<AttorneyListPage> {
     const state =
       user.role === 'client'
@@ -319,7 +320,7 @@ export class FollowsService {
     const hidden = await this.blocks.hiddenIds(user.sub);
     const picked: string[] = [];
     let i = start;
-    for (; i < pool.length && picked.length < PAGE; i++) {
+    for (; i < pool.length && picked.length < limit; i++) {
       if (
         pool[i] !== user.sub &&
         !followed.has(pool[i]) &&
@@ -328,8 +329,21 @@ export class FollowsService {
         picked.push(pool[i]);
       }
     }
+    const items = await this.present(picked, user.sub);
+    // Owner 2026-10-13: people from my address book get a small caption.
+    const inContacts = new Set(
+      (
+        await this.prisma.contactMatch.findMany({
+          where: { owner_id: user.sub, matched_id: { in: picked } },
+          select: { matched_id: true },
+        })
+      ).map((m) => m.matched_id),
+    );
+    for (const item of items) {
+      if (inContacts.has(item.id)) item.reason = 'contacts';
+    }
     return {
-      items: await this.present(picked, user.sub),
+      items,
       nextCursor:
         i < pool.length ? Buffer.from(String(i)).toString('base64url') : null,
     };

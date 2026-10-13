@@ -35,6 +35,7 @@ function person(id: string, over: Record<string, unknown> = {}) {
     mutual: 0,
     follows_viewer: false,
     engaged: 0,
+    contact: 0,
     ...over,
   };
 }
@@ -129,6 +130,18 @@ describe('RecommendationsService.peopleFor', () => {
     expect(ids[0]).toBe('local-family');
     expect(ids).toHaveLength(3);
     expect(ids.indexOf('friend-of-friends')).toBeLessThan(ids.indexOf('plain'));
+  });
+
+  it('a person from my contacts leads (20% signal)', async () => {
+    const prisma = makePrisma({
+      people: [
+        person('plain'),
+        person('great', { rating_avg: 4.9, rating_count: 80, posts_30d: 9 }),
+        person('in-contacts', { contact: 1 }),
+      ],
+    });
+    const ids = await svc(prisma).peopleFor('viewer');
+    expect(ids[0]).toBe('in-contacts');
   });
 
   it('is cached per viewer', async () => {

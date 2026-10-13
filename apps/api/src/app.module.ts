@@ -40,6 +40,7 @@ import { LegalDocumentsModule } from './modules/legal-documents/legal-documents.
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
+import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
@@ -252,6 +253,7 @@ const isDev =
     ReportsModule,
     FollowsModule,
     SearchModule,
+    ContactsSyncModule,
     // Owner 2026-09-29 (OQ-028): user blocks.
     BlocksModule,
     PresenceModule,

@@ -37,7 +37,9 @@ class AttorneyTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final me = ref.watch(currentUserIdProvider);
     return AppPressable(
       onTap: () =>
@@ -60,6 +62,15 @@ class AttorneyTile extends ConsumerWidget {
                   const SizedBox(height: 2),
                   PersonRatingLine(row: row, color: colors.textSecondary),
                   PersonPracticesLine(row: row),
+                  if (row.reason == 'contacts')
+                    Text(
+                      t.t('phoneContacts.reason'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
                 ],
               ),
             ),

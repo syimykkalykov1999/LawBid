@@ -22,6 +22,7 @@ class AttorneyListItemDto {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.reason,
   });
 
   factory AttorneyListItemDto.fromJson(Map<String, Object?> json) =>
@@ -46,6 +47,9 @@ class AttorneyListItemDto {
 
   /// The viewer follows this attorney.
   final bool isFollowing;
+
+  /// Why this person is suggested, when worth a caption: "contacts" = in my address book.
+  final String? reason;
 
   Map<String, Object?> toJson() => _$AttorneyListItemDtoToJson(this);
 }

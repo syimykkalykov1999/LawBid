@@ -11,6 +11,7 @@ import 'package:lawbid/features/cases/data/cases_repository.dart'
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_section.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
@@ -522,6 +523,7 @@ class _BeforeTyping extends ConsumerWidget {
     // ignore: omit_local_variable_types
     final List<Widget> explore = switch (tab) {
       SearchTab.attorneys => [
+          const SliverToBoxAdapter(child: ContactsSection()),
           const SliverToBoxAdapter(child: SuggestedAttorneys()),
           const SliverToBoxAdapter(child: RecommendedAttorneys()),
         ],
