@@ -411,7 +411,13 @@ export class SearchService {
     // and filters, paged by position like popular).
     const forYou = filter.sort === 'for_you' && !!this.recommendations;
     // Popular and for_you page by offset; newest keeps the keyset cursor.
-    const offset = (popular || forYou) && cursor ? Number(cursor) || 0 : 0;
+    // Owner 2026-10-14: popular pages by a keyset cursor too (a numeric one
+    // from an older app still means an offset).
+    const popKey =
+      popular && !forYou && cursor && !/^\d+$/.test(cursor)
+        ? decodePopularCursor(cursor)
+        : undefined;
+    const offset = (popular && !popKey) || forYou ? Number(cursor) || 0 : 0;
     const c = !popular && !forYou && cursor ? decodeCursor(cursor) : undefined;
     const span = PERIOD_MS[filter.period ?? 'all'];
     const practice = filter.practice?.trim().toLowerCase();
@@ -493,6 +499,30 @@ export class SearchService {
           // period...) — the refactor of e4b29dba dropped `base` here, so the
           // newest / popular lists ignored all of them.
           ...base,
+          ...(popKey
+            ? [
+                {
+                  OR: [
+                    { like_count: { lt: popKey.likes } },
+                    {
+                      like_count: popKey.likes,
+                      comment_count: { lt: popKey.comments },
+                    },
+                    {
+                      like_count: popKey.likes,
+                      comment_count: popKey.comments,
+                      created_at: { lt: popKey.createdAt },
+                    },
+                    {
+                      like_count: popKey.likes,
+                      comment_count: popKey.comments,
+                      created_at: popKey.createdAt,
+                      id: { lt: popKey.id },
+                    },
+                  ],
+                },
+              ]
+            : []),
           ...(c
             ? [
                 {
@@ -513,7 +543,7 @@ export class SearchService {
             { id: 'desc' },
           ]
         : [{ created_at: 'desc' }, { id: 'desc' }],
-      ...(popular ? { skip: offset } : {}),
+      ...(popular && !popKey && offset > 0 ? { skip: offset } : {}),
       take: PAGE + 1,
     });
     const page = rows.slice(0, PAGE);
@@ -521,7 +551,15 @@ export class SearchService {
     if (popular) {
       return {
         items: await this.posts.present(page, user.sub),
-        nextCursor: rows.length > PAGE ? String(offset + PAGE) : null,
+        nextCursor:
+          rows.length > PAGE && last
+            ? encodePopularCursor({
+                likes: last.like_count,
+                comments: last.comment_count,
+                createdAt: last.created_at,
+                id: last.id,
+              })
+            : null,
       };
     }
     return {
@@ -703,4 +741,37 @@ function authorStateWhere(states: string[]): Prisma.PostWhereInput {
       },
     },
   };
+}
+
+interface PopularKey {
+  likes: number;
+  comments: number;
+  createdAt: Date;
+  id: string;
+}
+
+export function encodePopularCursor(k: PopularKey): string {
+  return Buffer.from(
+    JSON.stringify([k.likes, k.comments, k.createdAt.toISOString(), k.id]),
+  ).toString('base64url');
+}
+
+export function decodePopularCursor(raw: string): PopularKey | undefined {
+  try {
+    const [likes, comments, at, id] = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    ) as [number, number, string, string];
+    const createdAt = new Date(at);
+    if (
+      !Number.isInteger(likes) ||
+      !Number.isInteger(comments) ||
+      Number.isNaN(createdAt.getTime()) ||
+      typeof id !== 'string'
+    ) {
+      return undefined;
+    }
+    return { likes, comments, createdAt, id };
+  } catch {
+    return undefined;
+  }
 }

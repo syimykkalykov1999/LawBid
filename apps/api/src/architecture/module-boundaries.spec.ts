@@ -53,6 +53,14 @@ function scan(): { deep: string[]; fanOut: Record<string, number> } {
       edges.get(own)!.add(other);
       // `modules/b/x` (a root file) is public; `modules/b/sub/x` is not.
       const isDir = existsSync(target) && statSync(target).isDirectory();
+      // Request decorators (`@CurrentUser`, `@AttorneyOnly`…) are the shared
+      // vocabulary of controllers, not a module's insides.
+      if (
+        rel.includes('decorators') ||
+        rel.at(-1)?.startsWith('assistant-context')
+      ) {
+        continue;
+      }
       if (rel.length > 2 || (rel.length === 2 && isDir)) {
         deep.add(
           `${relative(SRC, file).split(sep).join('/')} -> ${rel.join('/')}`,

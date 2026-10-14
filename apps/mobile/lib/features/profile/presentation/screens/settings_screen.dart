@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
@@ -154,6 +155,17 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.verifiedRounded,
               label: t.t('cbadge.title'),
               onTap: () => context.push(AppRoutes.clientBadge),
+            ),
+          // Owner 2026-10-14: offer packs (flag `bid_packs`).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider) &&
+              ref.watch(featureFlagsControllerProvider).isEnabled('bid_packs'))
+            AppListRow(
+              key: const ValueKey('settings-bid-packs'),
+              icon: AppIcons.giftOutlined,
+              label: t.t('packs.title'),
+              subtitle: t.t('packs.hint'),
+              onTap: () => context.push(AppRoutes.bidPacks),
             ),
           // Owner 2026-10-14: the attorney's own numbers.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&

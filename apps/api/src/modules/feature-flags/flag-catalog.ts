@@ -19,6 +19,14 @@ export interface FlagDef {
 
 export const FLAG_CATALOG: readonly FlagDef[] = [
   {
+    // Owner 2026-10-14: offer packs bought on top of the monthly limit.
+    key: 'bid_packs',
+    enabled: false,
+    description:
+      'Offer packs: attorneys buy extra offers on top of the plan limit',
+    app: true,
+  },
+  {
     // Owner 2026-10-05: the video-call button needs a TURN relay.
     key: 'video_calls',
     enabled: false,

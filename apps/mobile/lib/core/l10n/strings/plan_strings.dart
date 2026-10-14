@@ -6,6 +6,11 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
+  'packs.title': 'Пакеты откликов',
+  'packs.hint': 'Докупите отклики сверх лимита плана',
+  'packs.balance': 'Куплено откликов: {n}',
+  'packs.item': '{n} откликов',
+  'packs.none': 'Пакеты сейчас недоступны.',
   'stats.title': 'Моя статистика',
   'stats.hint': 'Просмотры профиля, отклики, клиенты',
   'stats.views': 'Просмотры профиля, 30 дней',
@@ -89,6 +94,11 @@ const planRu = <String, String>{
 };
 
 const planEn = <String, String>{
+  'packs.title': 'Offer packs',
+  'packs.hint': 'Buy extra offers on top of your plan',
+  'packs.balance': 'Offers bought: {n}',
+  'packs.item': '{n} offers',
+  'packs.none': 'Packs are not available right now.',
   'stats.title': 'My statistics',
   'stats.hint': 'Profile views, offers, clients',
   'stats.views': 'Profile views, 30 days',

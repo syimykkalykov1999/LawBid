@@ -43,6 +43,8 @@ import '../models/promo_redemption_list_envelope.dart';
 import '../models/refund_envelope.dart';
 import '../models/refund_list_envelope.dart';
 import '../models/reject_seat_limit_dto.dart';
+import '../models/save_bid_packs_dto.dart';
+import '../models/save_bid_packs_envelope.dart';
 import '../models/seat_limit_request_envelope.dart';
 import '../models/seat_limit_request_status.dart';
 import '../models/seats.dart';
@@ -344,6 +346,19 @@ abstract class AdminBillingClient {
   Future<SeatLimitRequestEnvelope> rejectSeatLimitRequest({
     @Path('id') required String id,
     @Body() required RejectSeatLimitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Offer packs: sizes and prices
+  @GET('/admin/billing/bid-packs')
+  Future<SaveBidPacksEnvelope> listBidPacks({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save the offer packs
+  @PUT('/admin/billing/bid-packs')
+  Future<SaveBidPacksEnvelope> saveBidPacks({
+    @Body() required SaveBidPacksDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

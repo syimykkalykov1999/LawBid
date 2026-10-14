@@ -29,3 +29,32 @@ CREATE TABLE "attorney_profile_views" (
 
     CONSTRAINT "attorney_profile_views_pkey" PRIMARY KEY ("attorney_id","day")
 );
+
+-- Offer packs: one-time purchases on top of the monthly limit.
+CREATE TABLE "bid_pack_purchases" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "user_id" UUID NOT NULL,
+    "pack_id" VARCHAR(40) NOT NULL,
+    "bids" INTEGER NOT NULL,
+    "price_cents" INTEGER NOT NULL,
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending_payment',
+    "stripe_checkout_id" TEXT,
+    "payment_id" UUID,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "paid_at" TIMESTAMPTZ,
+
+    CONSTRAINT "bid_pack_purchases_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "bid_pack_purchases_stripe_checkout_id_key" ON "bid_pack_purchases"("stripe_checkout_id");
+CREATE INDEX "bid_pack_purchases_user_id_created_at_idx" ON "bid_pack_purchases"("user_id", "created_at" DESC);
+
+CREATE TABLE "bid_credits" (
+    "user_id" UUID NOT NULL,
+    "balance" INTEGER NOT NULL DEFAULT 0,
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "bid_credits_pkey" PRIMARY KEY ("user_id")
+);
+
+ALTER TABLE "bid_credits" ADD CONSTRAINT "bid_credits_balance_ck" CHECK ("balance" >= 0);

@@ -162,6 +162,7 @@ export default function PlansPage() {
         <>
           <PostAttachmentsCard canWrite={canWrite} />
           <CustomFeaturesCard canWrite={canWrite} catalog={catalog} />
+          <BidPacksCard canWrite={canWrite} />
 
           <Tabs
             value={tab}
@@ -432,6 +433,78 @@ function CustomFeaturesCard({ canWrite, catalog }: { canWrite: boolean; catalog:
             </Button>
           </div>
         </Dialog>
+      ) : null}
+    </Card>
+  );
+}
+
+
+/** Owner 2026-10-14: offer packs — sizes and prices; switched on by the flag «bid_packs». */
+function BidPacksCard({ canWrite }: { canWrite: boolean }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const key = ['admin-bid-packs'] as const;
+  const q = useQuery({
+    queryKey: key,
+    queryFn: async () => (await api.GET('/admin/billing/bid-packs')).data!.data,
+  });
+  const [rows, setRows] = useState<{ id: string; bids: string; price: string }[] | null>(null);
+  const current =
+    rows ?? (q.data?.packs ?? []).map((p) => ({ id: p.id, bids: String(p.bids), price: String(p.priceCents / 100) }));
+  const save = useMutation({
+    mutationFn: async () =>
+      (
+        await api.PUT('/admin/billing/bid-packs', {
+          body: {
+            packs: current.map((r) => ({ id: r.id, bids: Number(r.bids), priceCents: Math.round(Number(r.price) * 100) })),
+          },
+        })
+      ).data!.data,
+    onSuccess: (res) => {
+      qc.setQueryData(key, res);
+      setRows(null);
+      toast.success('Пакеты сохранены');
+    },
+    onError: (e) => toast.error(e),
+  });
+  const set = (i: number, patch: Partial<{ id: string; bids: string; price: string }>) =>
+    setRows(current.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const valid = current.every((r) => /^[a-z][a-z0-9_]{1,39}$/.test(r.id) && Number(r.bids) >= 1 && Number(r.price) >= 1);
+  return (
+    <Card className="mb-5">
+      <h3 className="font-medium">Пакеты откликов</h3>
+      <p className="mt-1 text-sm text-muted">
+        Адвокат докупает отклики разовой оплатой поверх лимита плана. Тратятся по одному на новый отклик, не сгорают. Включается флагом «bid_packs» в разделе флагов.
+      </p>
+      <div className="mt-3 grid gap-2">
+        {current.map((r, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2">
+            <Field label="Код">
+              <Input value={r.id} disabled={!canWrite} onChange={(e) => set(i, { id: e.target.value.toLowerCase() })} />
+            </Field>
+            <Field label="Откликов">
+              <Input value={r.bids} disabled={!canWrite} onChange={(e) => set(i, { bids: e.target.value })} />
+            </Field>
+            <Field label="Цена, $">
+              <Input value={r.price} disabled={!canWrite} onChange={(e) => set(i, { price: e.target.value })} />
+            </Field>
+            {canWrite ? (
+              <Button variant="ghost" onClick={() => setRows(current.filter((_, j) => j !== i))}>
+                <Trash size={16} />
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {canWrite ? (
+        <div className="mt-3 flex gap-2">
+          <Button variant="ghost" onClick={() => setRows([...current, { id: `pack_${current.length + 1}`, bids: '10', price: '15' }])}>
+            <Plus size={16} weight="bold" /> Добавить пакет
+          </Button>
+          <Button variant="gold" disabled={!valid || save.isPending} onClick={() => save.mutate()}>
+            Сохранить
+          </Button>
+        </div>
       ) : null}
     </Card>
   );

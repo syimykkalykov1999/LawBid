@@ -4777,3 +4777,30 @@ model AttorneyProfileView {
   @@id([attorney_id, day])
   @@map("attorney_profile_views")
 }
+
+/// Owner 2026-10-14: offers bought on top of the plan's monthly limit.
+/// One row per purchase (a hosted one-time checkout); the unspent offers of
+/// all paid purchases live in `bid_credits`.
+model BidPackPurchase {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String    @db.Uuid
+  pack_id            String    @db.VarChar(40)
+  bids               Int
+  price_cents        Int
+  status             String    @default("pending_payment") @db.VarChar(20)
+  stripe_checkout_id String?   @unique
+  payment_id         String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  paid_at            DateTime? @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("bid_pack_purchases")
+}
+
+model BidCredit {
+  user_id    String   @id @db.Uuid
+  balance    Int      @default(0)
+  updated_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("bid_credits")
+}

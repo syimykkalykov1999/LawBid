@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { BidsService } from '../bids/bids.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BidPacksService } from '../bid-packs/bid-packs.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import {
   CASE_PAYMENT_CHECKOUT_KIND,
@@ -56,6 +57,8 @@ export class SubscriptionSyncService {
     @Optional() private readonly clientPlans?: ClientPlansService,
     // Owner 2026-10-05: partner commissions reversed on refunds.
     @Optional() private readonly partners?: PartnersService,
+    // Owner 2026-10-14: offer packs.
+    @Optional() private readonly bidPacks?: BidPacksService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -94,6 +97,10 @@ export class SubscriptionSyncService {
         // Owner 2026-10-02: a one-time case-promotion payment.
         if (session?.metadata.kind === 'case_promotion') {
           await this.promotions?.applyCheckout(session);
+          return;
+        }
+        if (session?.metadata.kind === 'bid_pack') {
+          await this.bidPacks?.applyCheckout(session);
           return;
         }
         if (session?.metadata.kind === 'client_badge') {

@@ -1,3 +1,4 @@
+import { BidPacksService } from '../bid-packs/bid-packs.service';
 import {
   BadRequestException,
   ConflictException,
@@ -91,7 +92,19 @@ export class BidsService {
     private readonly trust: AttorneyTrustService,
     // Owner 2026-10-05: the plan's terms (offers in any state, offer limit).
     @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-14: offers bought in packs, spent above the plan's limit.
+    @Optional() private readonly packs?: BidPacksService,
   ) {}
+
+  /** One bought offer for a new offer above the plan's limit. */
+  private async spendCredit(
+    userId: string,
+    mark: () => void,
+  ): Promise<boolean> {
+    const ok = (await this.packs?.consume(userId)) ?? false;
+    if (ok) mark();
+    return ok;
+  }
 
   /** POST /cases/:caseId/bids (§5.1). One active-or-ever bid per attorney
    * per case (UQ bids(case_id, attorney_id)): a second attempt — even
@@ -167,6 +180,7 @@ export class BidsService {
       }
     }
 
+    let spent = false;
     // Owner 2026-10-14: the free trial ends by days or by the plan's number
     // of offers, whichever comes first.
     const trialBids = await this.entitlements?.limit(user.sub, 'trial_bids');
@@ -182,7 +196,10 @@ export class BidsService {
             created_at: { gte: sub.trial_started_at ?? sub.created_at },
           },
         });
-        if (used >= trialBids) {
+        if (
+          used >= trialBids &&
+          !(await this.spendCredit(user.sub, () => (spent = true)))
+        ) {
           throw new ConflictException({
             code: ErrorCode.BID_TRIAL_LIMIT_REACHED,
             message: 'The offers of your free trial are used up.',
@@ -209,7 +226,11 @@ export class BidsService {
         const used = await this.prisma.bid.count({
           where: { attorney_id: user.sub, created_at: { gte: monthStart } },
         });
-        if (used >= perMonth) {
+        if (
+          used >= perMonth &&
+          !spent &&
+          !(await this.spendCredit(user.sub, () => (spent = true)))
+        ) {
           throw new ConflictException({
             code: ErrorCode.BID_MONTHLY_LIMIT_REACHED,
             message: 'You have used all offers of this month on your plan.',
@@ -331,6 +352,8 @@ export class BidsService {
         .catch(() => undefined);
       return toBidDto(bid);
     } catch (error) {
+      // The offer did not go through: the bought one comes back.
+      if (spent) await this.packs?.refund(user.sub);
       if (isUniqueViolation(error)) throw bidAlreadyExists();
       throw error;
     }

@@ -1,3 +1,4 @@
+import { BidPacksService } from '../bid-packs/bid-packs.service';
 import {
   Controller,
   Get,
@@ -61,6 +62,7 @@ export class FakeCheckoutController {
     private readonly subscriptions: SubscriptionsService,
     @Optional() private readonly promotions?: PromotionsService,
     @Optional() private readonly casePayments?: CasePaymentsService,
+    @Optional() private readonly bidPacks?: BidPacksService,
   ) {}
 
   private fake(): FakePaymentProvider {
@@ -136,6 +138,18 @@ export class FakeCheckoutController {
     }
     const s = await fake.retrieveCheckoutSession(id);
     if (!s) throw new NotFoundException();
+    if (s.metadata.kind === 'bid_pack') {
+      const dollars = ((s.amountTotalCents ?? 0) / 100).toFixed(2);
+      res.type('html').send(
+        page(
+          'LawBid — Offer pack',
+          `<h1>Offer pack</h1><p>$${dollars} one-time payment.</p>
+<form method="post" action="${escapeHtml(encodeURIComponent(id))}/pay"><button type="submit">Pay with test card</button></form>
+<div class="test">Test mode — no real charge</div>`,
+        ),
+      );
+      return;
+    }
     // Owner 2026-10-02: one-time case-promotion payment.
     if (s.metadata.kind === 'case_promotion') {
       const dollars = ((s.amountTotalCents ?? 0) / 100).toFixed(2);
@@ -178,6 +192,18 @@ export class FakeCheckoutController {
     }
     await fake.payCheckout(id);
     const paid = await fake.retrieveCheckoutSession(id);
+    if (paid?.metadata.kind === 'bid_pack') {
+      await this.bidPacks?.applyCheckout(paid);
+      res
+        .type('html')
+        .send(
+          page(
+            'LawBid — Done',
+            `<h1>Offers added</h1><p>Return to the LawBid app — your offers are ready.</p>`,
+          ),
+        );
+      return;
+    }
     if (paid?.metadata.kind === 'case_promotion') {
       await this.promotions?.applyCheckout(paid);
       res

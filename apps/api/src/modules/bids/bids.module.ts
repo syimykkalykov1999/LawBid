@@ -1,6 +1,7 @@
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
+import { BidPacksCoreModule } from '../bid-packs/bid-packs.module';
 import { Module } from '@nestjs/common';
 import { CaseStateMachine } from '../cases/domain/case-state-machine';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -38,6 +39,8 @@ import { BidStateMachine } from './domain/bid-state-machine';
     // Owner 2026-10-05: a hire (`bid_accepted`) qualifies a referred
     // client for the partner program.
     ReferralsCoreModule,
+    // Owner 2026-10-14: bought offers are spent here.
+    BidPacksCoreModule,
   ],
   controllers: [BidsController, BidAcceptanceController],
   providers: [

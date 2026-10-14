@@ -832,4 +832,88 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
       clientsTotal: 0,
     });
   });
+  it('offer packs: behind a flag, sizes and prices from the admin, bought offers are spent above the limit', async () => {
+    const c = await user('client');
+    const a = await user('attorney');
+    const cases = [await kase(c.id), await kase(c.id), await kase(c.id)];
+    const bid = (caseId: string) =>
+      api()
+        .post(`/api/v1/cases/${caseId}/bids`)
+        .set(a.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          feeType: 'fixed',
+          amountCents: 50_000,
+          message: 'I can take this matter and start right away.',
+          startAvailability: 'immediately',
+        });
+    await prisma.featureFlag.upsert({
+      where: { key: 'bid_packs' },
+      create: { key: 'bid_packs', enabled: false, description: 'packs' },
+      update: { enabled: false },
+    });
+    // Off: nothing on sale.
+    const off = await api().get('/api/v1/bid-packs').set(a.auth).expect(200);
+    expect(off.body.data).toMatchObject({ enabled: false, packs: [] });
+    await api().post('/api/v1/bid-packs/pack_10/buy').set(a.auth).expect(409);
+
+    await prisma.featureFlag.update({
+      where: { key: 'bid_packs' },
+      data: { enabled: true },
+    });
+    await api()
+      .put('/api/v1/admin/billing/bid-packs')
+      .set(admin)
+      .send({ packs: [{ id: 'pack_2', bids: 2, priceCents: 500 }] })
+      .expect(200);
+    const on = await api().get('/api/v1/bid-packs').set(a.auth).expect(200);
+    expect(on.body.data.packs).toEqual([
+      { id: 'pack_2', bids: 2, priceCents: 500 },
+    ]);
+
+    await setTerm('attorney_monthly', 'bids_per_month', 1);
+    expect((await bid(cases[0])).status).toBe(201);
+    expect((await bid(cases[1])).body.error.code).toBe(
+      'BID_MONTHLY_LIMIT_REACHED',
+    );
+
+    const buy = await api()
+      .post('/api/v1/bid-packs/pack_2/buy')
+      .set(a.auth)
+      .expect(200);
+    const { purchaseId, checkoutUrl } = buy.body.data as {
+      purchaseId: string;
+      checkoutUrl: string;
+    };
+    expect(checkoutUrl).toContain('/fake-checkout/');
+    const row = await prisma.bidPackPurchase.findUniqueOrThrow({
+      where: { id: purchaseId },
+    });
+    await api()
+      .post(`/api/v1/subscriptions/fake-checkout/${row.stripe_checkout_id}/pay`)
+      .expect(201);
+    const done = await api()
+      .get(`/api/v1/bid-packs/purchases/${purchaseId}`)
+      .set(a.auth)
+      .expect(200);
+    expect(done.body.data).toMatchObject({ status: 'paid', balance: 2 });
+    // Paying twice credits once.
+    await api()
+      .post(`/api/v1/subscriptions/fake-checkout/${row.stripe_checkout_id}/pay`)
+      .catch(() => undefined);
+    expect(
+      (await api().get('/api/v1/bid-packs').set(a.auth)).body.data.balance,
+    ).toBe(2);
+
+    expect((await bid(cases[1])).status).toBe(201);
+    expect((await bid(cases[2])).status).toBe(201);
+    expect(
+      (await api().get('/api/v1/bid-packs').set(a.auth)).body.data.balance,
+    ).toBe(0);
+    await setTerm('attorney_monthly', 'bids_per_month', 30);
+    await prisma.featureFlag.update({
+      where: { key: 'bid_packs' },
+      data: { enabled: false },
+    });
+  });
 });

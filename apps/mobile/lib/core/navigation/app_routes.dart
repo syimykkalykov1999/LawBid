@@ -154,6 +154,7 @@ abstract final class AppRoutes {
   // Owner 2026-10-05: my promoted posts / cases (reach, clicks, stop).
   static const myPromotions = '/profile/settings/promotions';
   static const myStats = '/profile/settings/stats';
+  static const bidPacks = '/profile/settings/bid-packs';
   // Owner 2026-10-05: partner program (shown to partners only).
   static const partner = '/profile/settings/partner';
 
