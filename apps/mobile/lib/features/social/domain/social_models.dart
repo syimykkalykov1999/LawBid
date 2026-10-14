@@ -15,11 +15,15 @@ class PostAuthor {
     this.isClient = false,
     this.location,
     this.trustLevel = 0,
+    this.identityRejected = false,
     this.practiceKeys = const [],
   });
 
   /// Owner 2026-10-13: Identity level 0..3 (the circle on the avatar).
   final int trustLevel;
+
+  /// Verification rejected (a red circle on the avatar).
+  final bool identityRejected;
 
   /// Up to three practice keys shown under the name.
   final List<String> practiceKeys;
@@ -438,6 +442,7 @@ class AttorneyRow {
     required this.practiceKeys,
     required this.isFollowing,
     this.trustLevel = 0,
+    this.identityRejected = false,
     this.firstName,
     this.lastName,
     this.avatarUrl,
@@ -457,6 +462,7 @@ class AttorneyRow {
 
   /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
   final int trustLevel;
+  final bool identityRejected;
   final double ratingAvg;
   final int ratingCount;
   final List<String> states;
@@ -481,6 +487,7 @@ class AttorneyRow {
         practiceKeys: practiceKeys,
         isFollowing: isFollowing ?? this.isFollowing,
         trustLevel: trustLevel,
+        identityRejected: identityRejected,
         reason: reason,
       );
 }

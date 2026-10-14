@@ -289,6 +289,8 @@ export class PostPresenter {
           // Owner 2026-10-13: the Identity circle on the avatar and the
           // practices under the name (attorneys only).
           trustLevel: isClient ? 0 : (prof?.trust_level ?? 0),
+          identityRejected:
+            !isClient && prof?.verification_status === 'rejected',
           practiceI18nKeys: isClient
             ? []
             : (prof?.practice_areas ?? []).map((x) => x.practice_area.i18n_key),

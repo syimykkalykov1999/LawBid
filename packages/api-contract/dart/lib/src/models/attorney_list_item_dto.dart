@@ -23,6 +23,7 @@ class AttorneyListItemDto {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.identityRejected,
     this.reason,
   });
 
@@ -38,6 +39,7 @@ class AttorneyListItemDto {
 
   /// Trust level.
   final int trustLevel;
+  final bool? identityRejected;
   final RatingDto rating;
 
   /// Verified license state codes.

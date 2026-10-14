@@ -10,12 +10,13 @@ part 'post_attachments_mode_dto.g.dart';
 
 @JsonSerializable()
 class PostAttachmentsModeDto {
-  const PostAttachmentsModeDto({required this.mode});
+  const PostAttachmentsModeDto({required this.mode, this.keepAfterCancel});
 
   factory PostAttachmentsModeDto.fromJson(Map<String, Object?> json) =>
       _$PostAttachmentsModeDtoFromJson(json);
 
   final PostAttachmentsModeDtoMode mode;
+  final bool? keepAfterCancel;
 
   Map<String, Object?> toJson() => _$PostAttachmentsModeDtoToJson(this);
 }

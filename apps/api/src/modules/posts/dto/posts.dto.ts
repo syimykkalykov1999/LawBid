@@ -300,6 +300,11 @@ export class PostAuthorDto {
   @ApiProperty({ minimum: 0, maximum: 3 })
   trustLevel!: number;
 
+  /** Owner 2026-10-13: the attorney's verification was rejected — a red
+   * circle on the avatar. */
+  @ApiProperty({ required: false })
+  identityRejected?: boolean;
+
   /** Owner 2026-10-13: up to three practice keys under the name. */
   @ApiProperty({ type: [String] })
   practiceI18nKeys!: string[];

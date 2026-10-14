@@ -554,6 +554,7 @@ class _BeforeTyping extends ConsumerWidget {
       );
     }
 
+    // ignore: omit_local_variable_types
     final List<Widget> basedOn = switch (tab) {
       _ when last == null => const [],
       SearchTab.attorneys => [

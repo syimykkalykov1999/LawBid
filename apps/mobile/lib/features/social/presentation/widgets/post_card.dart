@@ -1087,6 +1087,7 @@ class _ThreadsPost extends ConsumerWidget {
         size: 36,
         ring: a.verified,
         trustLevel: a.isClient ? 0 : a.trustLevel,
+        rejected: !a.isClient && a.identityRejected,
       ),
     );
 
@@ -1543,7 +1544,7 @@ class _AuthorRow extends ConsumerWidget {
         followMaxWidth: compact ? 120 : 136,
         // Only on someone else's post.
         showFollow: !post.isMine,
-        preferPractices: !sponsored && post.locationName == null,
+        // Owner 2026-10-13: no qualifications under the name.
         subtitle: sponsored
             ? t.t('promote.sponsored')
             : post.locationName ??
@@ -1667,6 +1668,7 @@ class AuthorHeader extends ConsumerWidget {
                     size: avatarSize,
                     ring: a.verified,
                     trustLevel: a.isClient ? 0 : a.trustLevel,
+                    rejected: !a.isClient && a.identityRejected,
                   ),
                   SizedBox(width: gap),
                   Expanded(
@@ -1680,6 +1682,7 @@ class AuthorHeader extends ConsumerWidget {
                           checkLabel: t.t('post.verified'),
                           style: type.body.copyWith(
                             color: onDark ? Colors.white : colors.text,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             shadows: shadows,
                           ),
@@ -1703,6 +1706,7 @@ class AuthorHeader extends ConsumerWidget {
                               color: onDark
                                   ? Colors.white.withValues(alpha: 0.9)
                                   : colors.textSecondary,
+                              fontSize: 12,
                               shadows: shadows,
                             ),
                           ),

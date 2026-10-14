@@ -13,9 +13,9 @@ import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
 
 /// `/auth/forgot-password` (owner 2026-10-13): step 1 asks for the phone
-/// number and sends the code by SMS (owner 2026-10-14: never to an e-mail); step 2 takes the code and a new password and
-/// signs the person in. [initialIdentifier] is what they had typed on the
-/// sign-in screen.
+/// number and sends the code by SMS (owner 2026-10-14: never to an e-mail);
+/// step 2 takes the code and a new password and signs the person in.
+/// [initialIdentifier] is what they had typed on the sign-in screen.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({this.initialIdentifier = '', super.key});
 
@@ -32,7 +32,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _code = TextEditingController();
   final _password = TextEditingController();
   LoginIdentifier? _sentTo;
-  String _channel = 'phone';
   bool _busy = false;
   String? _error;
 
@@ -66,7 +65,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _busy = false;
       if (result.isSuccess) {
         _sentTo = id;
-        _channel = result.channel ?? 'phone';
         _code.clear();
       } else {
         _error = passwordErrorText(t, result);

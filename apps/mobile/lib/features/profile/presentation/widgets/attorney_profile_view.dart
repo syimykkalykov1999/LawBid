@@ -464,14 +464,16 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                 AppSpacing.screenSide,
                 AppSpacing.xxl,
               ),
-        header: _tab == AttorneyProfileTab.threads
-            ? Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenSide,
-                ),
-                child: header,
-              )
-            : header,
+        // One widget shape for every tab (only the padding value changes),
+        // so switching tabs keeps the header — avatar, counters, buttons —
+        // in place instead of rebuilding the page.
+        header: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal:
+                _tab == AttorneyProfileTab.threads ? AppSpacing.screenSide : 0,
+          ),
+          child: header,
+        ),
         footer: footer,
         labels: AppPaginationLabels(
           loadingMore: t.t('pagination.loadingMore'),

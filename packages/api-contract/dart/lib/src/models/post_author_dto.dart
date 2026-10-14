@@ -21,6 +21,7 @@ class PostAuthorDto {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.identityRejected,
     this.location,
   });
 
@@ -46,6 +47,10 @@ class PostAuthorDto {
 
   /// Owner 2026-10-13: Identity level 0..3 (attorneys; 0 for clients).
   final num trustLevel;
+
+  /// Owner 2026-10-13: the attorney's verification was rejected — a red.
+  /// circle on the avatar.
+  final bool? identityRejected;
 
   /// Owner 2026-10-13: up to three practice keys under the name.
   final List<String> practiceI18nKeys;

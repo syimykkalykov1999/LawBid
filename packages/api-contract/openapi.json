@@ -89421,6 +89421,10 @@
             "minimum": 0,
             "maximum": 3
           },
+          "identityRejected": {
+            "type": "boolean",
+            "description": "Owner 2026-10-13: the attorney's verification was rejected — a red\ncircle on the avatar."
+          },
           "practiceI18nKeys": {
             "description": "Owner 2026-10-13: up to three practice keys under the name.",
             "type": "array",
@@ -99469,6 +99473,9 @@
               "off_for_all",
               "on_for_all"
             ]
+          },
+          "keepAfterCancel": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -105888,6 +105895,9 @@
             "minimum": 0,
             "maximum": 3,
             "description": "Trust level."
+          },
+          "identityRejected": {
+            "type": "boolean"
           },
           "rating": {
             "$ref": "#/components/schemas/RatingDto"
