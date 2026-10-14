@@ -5,6 +5,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
+import { hiddenTagOf } from '../posts/hidden-tags';
 import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
@@ -426,10 +427,15 @@ export class SearchService {
       ...(filter.practices?.length
         ? [
             {
-              OR: filter.practices.flatMap((p) => [
-                { practice_area: { code: p } },
-                { practice_area: { code: { startsWith: `${p}.` } } },
-              ]),
+              tags: {
+                some: {
+                  tag: {
+                    tag_lower: {
+                      in: filter.practices.map((p) => hiddenTagOf(p)),
+                    },
+                  },
+                },
+              },
             },
           ]
         : []),
@@ -443,16 +449,16 @@ export class SearchService {
       ...(filter.withPhotos ? [{ media: { some: {} } }] : []),
       // Owner 2026-10-13: Briefs = text-only posts.
       ...(filter.briefsOnly ? [contentModeWhere('briefs_only')] : []),
-      // Owner 2026-09-30: the qualification and its subcategories;
-      // older posts (no qualification) by their topic hashtag.
+      // One tag algorithm (hidden-tags.ts): the qualification and every
+      // subcategory under it are one hidden tag; older posts (no
+      // qualification) by their topic hashtag.
       ...(practice
         ? [
             {
               OR: [
-                { practice_area: { code: practice } },
                 {
-                  practice_area: {
-                    code: { startsWith: `${practice}.` },
+                  tags: {
+                    some: { tag: { tag_lower: hiddenTagOf(practice) } },
                   },
                 },
                 ...(tag

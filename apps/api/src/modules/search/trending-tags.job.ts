@@ -30,6 +30,7 @@ export class TrendingTagsJob {
       JOIN tags t ON t.id = pt.tag_id
       WHERE p.status = 'published' AND p.deleted_at IS NULL
         AND p.created_at > ${since}
+        AND t.tag_lower NOT LIKE '~%'
       GROUP BY t.tag_lower
       ORDER BY n DESC, tag
       LIMIT ${TOP}`;

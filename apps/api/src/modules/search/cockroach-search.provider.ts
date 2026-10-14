@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { HIDDEN_TAG_PREFIX, hiddenTagOf } from '../posts/hidden-tags';
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -245,7 +246,7 @@ export class CockroachSearchProvider implements SearchProvider {
         // Audit 2026-10-01: a qualification matches posts of it (and its
         // subcategories) — older posts without one by the topic hashtag.
         f.practice
-          ? Prisma.sql`AND (EXISTS (SELECT 1 FROM practice_areas pa WHERE pa.id = p.practice_area_id AND (pa.code = ${f.practice} OR pa.code LIKE ${`${f.practice}.%`}))${
+          ? Prisma.sql`AND (EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${hiddenTagOf(f.practice)})${
               f.tag
                 ? Prisma.sql` OR (p.practice_area_id IS NULL AND EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.tag_lower = ${f.tag}))`
                 : Prisma.empty
@@ -290,7 +291,10 @@ export class CockroachSearchProvider implements SearchProvider {
 
   async searchTags(prefix: string, limit: number): Promise<string[]> {
     const rows = await this.prisma.tag.findMany({
-      where: { tag_lower: { startsWith: prefix } },
+      where: {
+        tag_lower: { startsWith: prefix },
+        NOT: { tag_lower: { startsWith: HIDDEN_TAG_PREFIX } },
+      },
       orderBy: { tag_lower: 'asc' },
       take: limit,
       select: { tag_lower: true },

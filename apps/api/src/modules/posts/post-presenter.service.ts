@@ -1,4 +1,5 @@
 import { activeClientBadgeIds } from '../client-badge/client-badge.util';
+import { isHiddenTag } from './hidden-tags';
 import { Injectable } from '@nestjs/common';
 import type { Post, Prisma } from '@prisma/client';
 import { MentionsService } from '../mentions/mentions.service';
@@ -204,7 +205,7 @@ export class PostPresenter {
     const tagsByPost = new Map<string, string[]>();
     for (const t of tags) {
       const list = tagsByPost.get(t.post_id) ?? [];
-      list.push(t.tag.tag_lower);
+      if (!isHiddenTag(t.tag.tag_lower)) list.push(t.tag.tag_lower);
       tagsByPost.set(t.post_id, list);
     }
     const mediaByPost = new Map<string, typeof media>();
