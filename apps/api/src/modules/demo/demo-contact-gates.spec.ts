@@ -243,26 +243,31 @@ describe('real clients keep the contacts requirement (unchanged)', () => {
     ...over,
   });
 
-  it('email_login on: phone and e-mail both required before a case', async () => {
-    const onboarding = onboardingFor(fakeDb([realClient()]), true);
+  it('a client without an e-mail: phone and the profile e-mail are required before a case', async () => {
+    const onboarding = onboardingFor(
+      fakeDb([realClient({ email: null })]),
+      true,
+    );
     const me = await onboarding.getMe('real-client');
     expect(me.missing).toEqual(
-      expect.arrayContaining(['phone_verified', 'email_verified']),
+      expect.arrayContaining(['phone_verified', 'email']),
     );
+    expect(me.missing).not.toContain('email_verified');
     await expect(
       casesWith(onboarding).assertClientReady('real-client'),
     ).rejects.toMatchObject({
       response: {
         code: ErrorCode.CLIENT_CONTACTS_INCOMPLETE,
-        details: { missing: ['phone_verified', 'email_verified'] },
+        details: { missing: ['phone_verified', 'email'] },
       },
     });
   });
 
-  it('email_login off: the phone alone is still required', async () => {
+  it('a client with an e-mail: the phone alone is still required', async () => {
     const onboarding = onboardingFor(fakeDb([realClient()]), false);
     const me = await onboarding.getMe('real-client');
     expect(me.missing).toContain('phone_verified');
+    expect(me.missing).not.toContain('email');
     expect(me.missing).not.toContain('email_verified');
     await expect(
       casesWith(onboarding).assertClientReady('real-client'),

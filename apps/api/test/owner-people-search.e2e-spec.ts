@@ -42,7 +42,7 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
     await prisma.state.upsert({
       where: { code: 'NY' },
       create: { code: 'NY', name: 'New York' },
-      update: {},
+      update: { name: 'New York' },
     });
   });
 

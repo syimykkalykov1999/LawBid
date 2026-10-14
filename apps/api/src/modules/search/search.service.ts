@@ -193,10 +193,10 @@ export class SearchService {
     const slice = rawSlice.filter((t) => !hidden.has(t.split(':')[1]));
     const attorneyIds = slice
       .filter((t) => t.startsWith('attorney:'))
-      .map((t) => t.slice('attorney:'.length));
+      .map((t) => t.split(':')[1]);
     const clientIds = slice
       .filter((t) => t.startsWith('client:'))
-      .map((t) => t.slice('client:'.length));
+      .map((t) => t.split(':')[1]);
     const [attorneys, clients] = await Promise.all([
       this.follows.present(attorneyIds, user.sub),
       this.clients.presentMany(clientIds, user.sub),
@@ -483,6 +483,10 @@ export class SearchService {
     const rows = await this.prisma.post.findMany({
       where: {
         AND: [
+          // Every filter (visibility, blocks, state, qualification, tag, kind,
+          // period...) — the refactor of e4b29dba dropped `base` here, so the
+          // newest / popular lists ignored all of them.
+          ...base,
           ...(c
             ? [
                 {

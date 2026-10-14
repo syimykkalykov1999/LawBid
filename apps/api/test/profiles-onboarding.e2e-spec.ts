@@ -149,7 +149,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     const before = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect(before.body.data.profile).toBeNull();
     expect(before.body.data.missing).toEqual(
-      expect.arrayContaining(['name', 'email_verified', 'state']),
+      expect.arrayContaining(['name', 'email', 'state']),
     );
 
     const saved = await saveProfile(auth, {
@@ -171,7 +171,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
         contactNote: 'Weekday evenings after 6pm',
       },
     });
-    expect(saved.body.data.missing).toEqual(['email_verified']);
+    expect(saved.body.data.missing).toEqual(['email']);
 
     const row = await prisma.clientProfile.findUniqueOrThrow({
       where: { user_id: userId },
@@ -307,7 +307,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       verificationStatus: 'unverified',
     });
     // docs/03 §4.1 / OQ-012: only the mandatory photo is still missing.
-    expect(saved.body.data.missing).toEqual(['photo']);
+    expect(saved.body.data.missing).toEqual(['email', 'photo']);
 
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: first.userId },
@@ -342,6 +342,10 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     }).expect(200);
     expect(dup.body.data.profile.username).toBe('avery.quill2');
 
+    await prisma.user.update({
+      where: { id: first.userId },
+      data: { email: 'avery.quill@example.com' },
+    });
     await attachCleanAvatar(prisma, first.userId);
     const done = await api()
       .post('/api/v1/users/me/onboarding/complete')
@@ -407,16 +411,17 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .set(auth)
       .expect(403);
     expect(res.body.error.code).toBe('ONBOARDING_INCOMPLETE');
-    expect(res.body.error.details.missing).toEqual([
-      'licensed_states',
-      'photo',
-    ]);
+    expect(res.body.error.details.missing).toEqual(['email', 'photo']);
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: userId },
     });
     expect(row.username).toBe('nolic.ense');
 
     await saveProfile(auth, { licensedStates: ['TX'] }, 'tour').expect(200);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { email: 'nolic.ense@example.com' },
+    });
     await attachCleanAvatar(prisma, userId);
     await api()
       .post('/api/v1/users/me/onboarding/complete')
