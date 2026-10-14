@@ -4804,3 +4804,31 @@ model BidCredit {
 
   @@map("bid_credits")
 }
+
+/// Owner 2026-10-14: a firm account. The firm has no bar number of its own:
+/// its states are the union of its member lawyers' verified licenses, and a
+/// bid goes out from the member who holds a matching license.
+model Firm {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String       @db.VarChar(120)
+  owner_id   String       @db.Uuid
+  created_at DateTime     @default(now()) @db.Timestamptz
+  members    FirmMember[]
+
+  @@index([owner_id])
+  @@map("firms")
+}
+
+/// status: invited (waiting for the lawyer) | active. A lawyer is in at most
+/// one firm (unique attorney_id).
+model FirmMember {
+  firm_id     String   @db.Uuid
+  firm        Firm     @relation(fields: [firm_id], references: [id], onDelete: Cascade)
+  attorney_id String   @unique @db.Uuid
+  role        String   @default("member") @db.VarChar(10)
+  status      String   @default("invited") @db.VarChar(10)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@id([firm_id, attorney_id])
+  @@map("firm_members")
+}
