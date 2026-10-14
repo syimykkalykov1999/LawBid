@@ -16,6 +16,7 @@ class CaseChipsRow extends StatelessWidget {
   const CaseChipsRow({
     required this.labels,
     this.status,
+    this.dense = false,
     this.padding = const EdgeInsets.fromLTRB(
       AppSpacing.lg,
       AppSpacing.md,
@@ -32,6 +33,9 @@ class CaseChipsRow extends StatelessWidget {
   final String? status;
   final EdgeInsetsGeometry padding;
 
+  /// Owner 2026-10-14: slimmer chips on the feed card.
+  final bool dense;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -39,7 +43,8 @@ class CaseChipsRow extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     Widget chip(String label, {bool main = false, bool ok = false}) =>
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding:
+              EdgeInsets.symmetric(horizontal: 10, vertical: dense ? 3 : 6),
           decoration: BoxDecoration(
             color: ok
                 ? colors.success.withValues(alpha: 0.16)
@@ -81,7 +86,8 @@ class CaseChipsRow extends StatelessWidget {
   }
 }
 
-/// State · Budget · Deadline, one size, hairline between.
+/// Deadline · Budget · State, one size, hairline between (owner
+/// 2026-10-14: the deadline comes first).
 class CaseFigures extends StatelessWidget {
   const CaseFigures({
     required this.t,
@@ -160,9 +166,9 @@ class CaseFigures extends StatelessWidget {
       child: Wrap(
         runSpacing: AppSpacing.md,
         children: [
-          fig(t.t('cases.facts.state'), statesText(states)),
+          fig(t.t('cases.facts.deadline'), deadline),
           fig(t.t('cases.facts.budget'), money),
-          fig(t.t('cases.facts.deadline'), deadline, last: true),
+          fig(t.t('cases.facts.state'), statesText(states), last: true),
         ],
       ),
     );

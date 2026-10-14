@@ -36,9 +36,9 @@ class _Safe implements Translator {
 void main() {
   setUpAll(initializeDateFormatting);
 
-  FeedCase kase({required bool bid}) => FeedCase(
+  FeedCase kase({required bool bid, String? title, String? desc}) => FeedCase(
         id: 'case-1',
-        title: 'Speeding ticket',
+        title: title ?? 'Speeding ticket',
         practice: const PracticeRef(
           id: 'p1',
           code: 'general_practice.not_sure_or_other',
@@ -55,7 +55,7 @@ void main() {
         createdAt: DateTime.now().subtract(const Duration(hours: 4)),
         isNew: false,
         hasOwnBid: bid,
-        description: 'A ticket on I-5, need help.',
+        description: desc ?? 'A ticket on I-5, need help.',
       );
 
   for (final translator in const [
@@ -102,4 +102,48 @@ void main() {
       });
     }
   }
+
+  testWidgets('two feed cards fit between the header and the navbar',
+      (t) async {
+    t.view.physicalSize = const Size(360, 780);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final long = kase(
+      bid: false,
+      title: 'A very long title of a case that needs two full lines of text '
+          'on a narrow phone screen to be sure it clamps',
+      desc: 'A long description. ' * 30,
+    );
+    await t.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: Column(
+            children: [
+              for (final i in [0, 1])
+                FeedCaseCard(
+                  key: ValueKey('c$i'),
+                  item: long,
+                  t: const _Safe(StaticTranslatorEn()),
+                  formats: L10nFormats(AppLanguage.fallback),
+                  onTap: () {},
+                ),
+            ],
+          ),
+        ),
+        theme: AppTheme.dark(),
+        size: const Size(360, 780),
+        overrides: uxOverrides(),
+      ),
+    );
+    await t.pump();
+    expect(t.takeException(), isNull);
+    final a = t.getRect(find.byKey(const ValueKey('c0')));
+    final b = t.getRect(find.byKey(const ValueKey('c1')));
+    // No gap between cards (a hairline only), and two cards leave room for
+    // the status bar, header, tabs and navbar of a 780dp phone.
+    expect(b.top - a.bottom, lessThanOrEqualTo(0.5));
+    // ignore: avoid_print
+    print('card height ${a.height}');
+    expect(b.bottom, lessThanOrEqualTo(780 - 24 - 150 - 64));
+  });
 }
