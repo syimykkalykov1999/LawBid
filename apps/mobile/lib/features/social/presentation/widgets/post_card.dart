@@ -2457,47 +2457,61 @@ class PostActionsBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       child: Row(
         children: [
-          // Owner 2026-10-14: the views of a reel / video post come first,
-          // an inline icon + number, before the likes.
-          if (post.video != null && post.viewCount > 0) _Views(post.viewCount),
-          if (reactions) ...[
-            BounceIcon(
-              size: _kBarIcon,
-              active: post.likedByMe,
-              activeIcon: AppIcons.favoriteRounded,
-              icon: AppIcons.favoriteBorderRounded,
-              activeColor: colors.danger,
-              label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
-              onTap: () => run(() => actions.toggleLike(post)),
-            ),
-            // Owner 2026-09-30 design: counts next to the icons.
-            if (showCounts && (showTime || post.likeCount > 0))
-              _Count(post.likeCount),
-            BounceIcon(
-              size: _kBarIcon,
-              active: false,
-              activeIcon: AppIcons.modeCommentOutlined,
-              icon: AppIcons.modeCommentOutlined,
-              label: t.t('post.comments'),
-              onTap: () => showCommentsSheet(
-                context,
-                postId: post.id,
-                commentsEnabled: post.commentsEnabled,
+          // The icons and counters shrink as a group if huge numbers (or a
+          // long language) don't fit; the date and Save keep their place.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Owner 2026-10-14: the views of a reel / video post come first,
+                  // an inline icon + number, before the likes.
+                  if (post.video != null && post.viewCount > 0)
+                    _Views(post.viewCount),
+                  if (reactions) ...[
+                    BounceIcon(
+                      size: _kBarIcon,
+                      active: post.likedByMe,
+                      activeIcon: AppIcons.favoriteRounded,
+                      icon: AppIcons.favoriteBorderRounded,
+                      activeColor: colors.danger,
+                      label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
+                      onTap: () => run(() => actions.toggleLike(post)),
+                    ),
+                    // Owner 2026-09-30 design: counts next to the icons.
+                    if (showCounts && (showTime || post.likeCount > 0))
+                      _Count(post.likeCount),
+                    BounceIcon(
+                      size: _kBarIcon,
+                      active: false,
+                      activeIcon: AppIcons.modeCommentOutlined,
+                      icon: AppIcons.modeCommentOutlined,
+                      label: t.t('post.comments'),
+                      onTap: () => showCommentsSheet(
+                        context,
+                        postId: post.id,
+                        commentsEnabled: post.commentsEnabled,
+                      ),
+                    ),
+                    if (showCounts && (showTime || post.commentCount > 0))
+                      _Count(post.commentCount),
+                    BounceIcon(
+                      size: _kBarIcon,
+                      active: false,
+                      activeIcon: AppIcons.sendOutlined,
+                      icon: AppIcons.sendOutlined,
+                      label: t.t('post.share'),
+                      onTap: () => sharePost(context, ref, post),
+                    ),
+                    if (showCounts && (showTime || post.shareCount > 0))
+                      _Count(post.shareCount),
+                  ],
+                ],
               ),
             ),
-            if (showCounts && (showTime || post.commentCount > 0))
-              _Count(post.commentCount),
-            BounceIcon(
-              size: _kBarIcon,
-              active: false,
-              activeIcon: AppIcons.sendOutlined,
-              icon: AppIcons.sendOutlined,
-              label: t.t('post.share'),
-              onTap: () => sharePost(context, ref, post),
-            ),
-            if (showCounts && (showTime || post.shareCount > 0))
-              _Count(post.shareCount),
-          ],
+          ),
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: showTime
