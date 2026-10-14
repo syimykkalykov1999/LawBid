@@ -332,7 +332,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     await api()
       .put(`/api/v1/admin/billing/plans/${yearly.id}`)
       .set(admin)
-      .send({ entitlements: { ...current.entitlements, included_seats: 6 } });
+      .send({ entitlements: { ...current.entitlements, included_seats: 10 } });
   });
 
   it('"offers in any state" is a plan term (baseline off → 403)', async () => {
@@ -576,5 +576,100 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     const ok = await api().get('/api/v1/promotions/quote?days=1').set(c.auth);
     expect(ok.status).toBe(200);
     await prisma.appConfig.delete({ where: { key: 'promotions.settings' } });
+  });
+  /**
+   * Owner 2026-10-14: a plan built in the admin from a set of functions
+   * switches them on for subscribers of BOTH roles (seen in the app's own
+   * /me/entitlements), and they go off again once the subscription ends.
+   */
+  it('a custom plan turns its functions on for both roles and off after cancel', async () => {
+    type Me = {
+      data: {
+        source: string;
+        isPaid: boolean;
+        values: Record<string, unknown>;
+      };
+    };
+    const mine = async (auth: Record<string, string>) =>
+      ((await api().get('/api/v1/me/entitlements').set(auth)) as { body: Me })
+        .body.data;
+    const make = async (
+      audience: 'attorney' | 'client',
+      terms: Record<string, number | boolean>,
+    ) => {
+      const code = `life_${audience}_${randomUUID().slice(0, 6)}`;
+      const res = await api()
+        .post('/api/v1/admin/billing/plans')
+        .set(admin)
+        .send({
+          code,
+          audience,
+          interval: 'month',
+          amountCents: 1900,
+          name: { en: 'Custom', ru: 'Свой' },
+          entitlements: terms,
+          status: 'active',
+        });
+      expect(res.status).toBe(200);
+      const plan = plansOf(res).plans.find((p) => p.code === code);
+      if (!plan) throw new Error('plan missing');
+      return plan;
+    };
+
+    const attorneyPlan = await make('attorney', {
+      priority_search: true,
+      max_active_bids: 7,
+    });
+    const clientPlan = await make('client', {
+      chat_translate: true,
+      verified_badge: true,
+    });
+    const a = await user('attorney');
+    const c = await user('client');
+    await prisma.subscription.update({
+      where: { user_id: a.id },
+      data: { plan_id: attorneyPlan.id },
+    });
+    const clientSub = await prisma.clientSubscription.create({
+      data: {
+        user_id: c.id,
+        plan_id: clientPlan.id,
+        status: 'active',
+        price_cents: 1900,
+        stripe_subscription_id: `sub_e2e_${randomUUID().slice(0, 8)}`,
+      },
+    });
+    await entitlements.invalidateAll();
+
+    const aOn = await mine(a.auth);
+    expect(aOn.isPaid).toBe(true);
+    expect(aOn.values.priority_search).toBe(true);
+    expect(aOn.values.max_active_bids).toBe(7);
+    const cOn = await mine(c.auth);
+    expect(cOn.isPaid).toBe(true);
+    expect(cOn.values.chat_translate).toBe(true);
+    expect(cOn.values.verified_badge).toBe(true);
+
+    // The subscription ends: attorney (cancelled) and client (period over).
+    await prisma.subscription.update({
+      where: { user_id: a.id },
+      data: { status: 'canceled', plan_id: attorneyPlan.id },
+    });
+    await prisma.clientSubscription.update({
+      where: { id: clientSub.id },
+      data: {
+        status: 'canceled',
+        current_period_end: new Date(Date.now() - 1000),
+      },
+    });
+    await entitlements.invalidateUser(a.id);
+    await entitlements.invalidateUser(c.id);
+
+    const aOff = await mine(a.auth);
+    expect(aOff.isPaid).toBe(false);
+    expect(aOff.values.max_active_bids).not.toBe(7);
+    const cOff = await mine(c.auth);
+    expect(cOff.isPaid).toBe(false);
+    expect(cOff.values.verified_badge).not.toBe(true);
   });
 });

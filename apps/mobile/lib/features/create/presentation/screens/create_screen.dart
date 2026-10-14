@@ -76,7 +76,10 @@ class _Chooser extends ConsumerWidget {
           child: AppPressable(
             onTap: () => onPick(kind),
             child: Container(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.md,
+              ),
               decoration: BoxDecoration(
                 color: colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.card),
@@ -85,28 +88,35 @@ class _Chooser extends ConsumerWidget {
               child: Row(
                 children: [
                   Container(
-                    width: 56,
-                    height: 56,
+                    width: AppSizes.rowMedallion,
+                    height: AppSizes.rowMedallion,
                     decoration: BoxDecoration(
                       color: colors.goldTint,
                       shape: BoxShape.circle,
                       border: Border.all(color: colors.goldStroke),
                     ),
-                    child: AppIcon(icon, color: colors.goldDark, size: 28),
+                    child: AppIcon(
+                      icon,
+                      color: colors.goldDark,
+                      size: AppSizes.iconMd,
+                    ),
                   ),
-                  const SizedBox(width: AppSpacing.lg),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           title,
-                          style: type.titleMedium.copyWith(color: colors.text),
+                          style: type.body.copyWith(
+                            color: colors.text,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        const SizedBox(height: AppSpacing.xs),
+                        const SizedBox(height: 2),
                         Text(
                           sub,
-                          style: type.bodySmall
+                          style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
                       ],

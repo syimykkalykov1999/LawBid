@@ -51,7 +51,7 @@ class _InviteRowState extends ConsumerState<_InviteRow> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.surface,
         title: Text(t.t('caseInvites.cancel.confirm')),
         actions: [

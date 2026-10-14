@@ -4,6 +4,9 @@
 // The legal disclaimer itself comes from the server (editable in the admin).
 
 const casePaymentsRu = <String, String>{
+  'cpay.fee.accepted': 'Предложение по комиссии принято.',
+  'common.retry': 'Повторить',
+  'common.remove': 'Убрать',
   'cpay.title': 'Оплата адвокату',
   'cpay.sub':
       'Деньги идут напрямую на счёт адвоката в Stripe. LawBid не берёт долю с гонорара.',
@@ -197,6 +200,9 @@ const casePaymentsRu = <String, String>{
 };
 
 const casePaymentsEn = <String, String>{
+  'cpay.fee.accepted': 'Fee proposal accepted.',
+  'common.retry': 'Try again',
+  'common.remove': 'Remove',
   'cpay.title': 'Pay the attorney',
   'cpay.sub':
       "Money goes straight to the attorney's Stripe account. LawBid takes no share of the fee.",

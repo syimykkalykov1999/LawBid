@@ -213,12 +213,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           );
         },
       ),
-      hints: [
-        t.t(attorney ? 'search.hint.attorney' : 'search.hint.client'),
-        t.t('search.hint.username'),
-        t.t('search.hint.tag'),
-        t.t(attorney ? 'search.hint.cases' : 'search.hint.practice'),
-      ],
+      // Owner 2026-10-14: the hint matches the tab it searches.
+      hints: switch (_tab) {
+        SearchTab.attorneys => [
+            t.t(attorney ? 'search.hint.attorney' : 'search.hint.client'),
+            t.t('search.hint.username'),
+          ],
+        SearchTab.cases => [t.t('search.hint.cases')],
+        SearchTab.posts => [t.t('search.hint.posts')],
+        SearchTab.tags => [t.t('search.hint.tag')],
+      },
       onSubmitted: (v) => ref.read(recentSearchesProvider.notifier).remember(v),
     );
 
@@ -363,7 +367,6 @@ class _Results extends ConsumerWidget {
             post: p,
             feed: ref.read(postSearchProvider(key)).value?.items,
           ),
-          header: _PostsFilterRow(filters: filters, onChanged: onFilters),
           empty: nothing,
           onRefresh: n.refresh,
           onLoadMore: n.loadMore,
@@ -633,9 +636,6 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         ],
       SearchTab.posts => [
-          SliverToBoxAdapter(
-            child: _PostsFilterRow(filters: filters, onChanged: onFilters),
-          ),
           grid<Post>(
             ref.watch(explorePostsProvider(_postsKey(filters))).value?.items ??
                 const <Post>[],
@@ -848,39 +848,6 @@ class _MyCasesGrid extends ConsumerWidget {
       itemCount: items.length,
       separatorBuilder: (_, __) => const SizedBox(height: kSearchRowGap),
       itemBuilder: (context, i) => SearchMyCaseTile(item: items[i]),
-    );
-  }
-}
-
-/// Owner 2026-10-13: the Posts tab's own row of filters — "Briefs" shows
-/// only text-only posts.
-class _PostsFilterRow extends ConsumerWidget {
-  const _PostsFilterRow({required this.filters, required this.onChanged});
-
-  final SearchFilters filters;
-  final ValueChanged<SearchFilters> onChanged;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        AppSpacing.xs,
-        AppSpacing.screenSide,
-        AppSpacing.sm,
-      ),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: AppChip(
-          key: const ValueKey('search-posts-briefs'),
-          label: t.t('feed.briefs'),
-          selected: filters.briefsOnly,
-          onTap: () => onChanged(
-            filters.withBriefsOnly(value: !filters.briefsOnly),
-          ),
-        ),
-      ),
     );
   }
 }

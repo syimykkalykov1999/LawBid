@@ -125,7 +125,7 @@ class _AccountRow extends ConsumerWidget {
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (dialog) => AlertDialog(
+      builder: (dialog) => AppAlertDialog(
         title: Text(t.t('demo.delete.confirm.title')),
         content: Text(
           t.t('demo.delete.confirm.message', {'name': account.displayName}),

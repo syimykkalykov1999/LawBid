@@ -45,7 +45,7 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
     final t = ref.read(translatorProvider);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppAlertDialog(
         backgroundColor: colors.surface,
         title: Text(title),
         content: Text(body),

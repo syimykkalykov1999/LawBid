@@ -63,7 +63,7 @@ class _AssistantCodeCardState extends ConsumerState<AssistantCodeCard> {
     if (_m.status == MemberStatus.active || _m.joinCode != null) {
       final ok = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
+        builder: (ctx) => AppAlertDialog(
           content: Text(
             t.t(
               _m.status == MemberStatus.active
@@ -207,7 +207,7 @@ Future<void> addAssistantWithCode(
   if (!team.hasFreeSeat) {
     final go = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         content: Text(t.t('team.noSeats')),
         actions: [
           TextButton(

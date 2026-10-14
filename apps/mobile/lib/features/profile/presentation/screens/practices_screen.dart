@@ -210,7 +210,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
   Future<void> _confirmLeave(Translator t) async {
     final leave = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppAlertDialog(
         title: Text(t.t('practices.unsaved.title')),
         content: Text(t.t('practices.unsaved.body')),
         actions: [

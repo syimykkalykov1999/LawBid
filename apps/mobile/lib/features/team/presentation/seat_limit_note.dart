@@ -135,7 +135,7 @@ class _RequestDialogState extends ConsumerState<_RequestDialog> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final n = int.tryParse(_seats.text.trim()) ?? 0;
     final ok = n >= widget.min && n <= _max && !_busy;
-    return AlertDialog(
+    return AppAlertDialog(
       backgroundColor: colors.surface,
       title: Text(t.t('team.limit.request.title')),
       content: SingleChildScrollView(

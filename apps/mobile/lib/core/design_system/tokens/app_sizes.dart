@@ -24,11 +24,11 @@ abstract final class AppSizes {
   static const double iconLg = 24;
 
   /// Circular icon badge in list rows (settings, device cards).
-  static const double rowMedallion = 40;
+  static const double rowMedallion = 34;
 
   /// Circular icon badge on empty / error / offline states.
-  static const double stateMedallion = 88;
-  static const double stateIcon = 36;
+  static const double stateMedallion = 64;
+  static const double stateIcon = 28;
 
   /// Top bar height.
   static const double topBar = 48;

@@ -104,7 +104,7 @@ class _AppListRowState extends State<AppListRow> {
               context.reduceMotion ? Duration.zero : AppMotion.stateChange,
           curve: AppMotion.enterCurve,
           constraints: const BoxConstraints(
-            minHeight: AppSizes.touchTarget + AppSpacing.md,
+            minHeight: AppSizes.touchTarget + AppSpacing.sm,
           ),
           padding: EdgeInsets.symmetric(
             horizontal: widget.flush ? 0 : AppSpacing.md,
