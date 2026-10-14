@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-154 tables.
+159 tables.
 
 ```mermaid
 erDiagram
@@ -1989,6 +1989,41 @@ erDiagram
     Boolean enabled
     DateTime synced_at "nullable"
   }
+  attorney_profile_views {
+    String attorney_id PK
+    DateTime day PK
+    Int views
+  }
+  bid_pack_purchases {
+    String id PK
+    String user_id
+    String pack_id
+    Int bids
+    Int price_cents
+    String status
+    String stripe_checkout_id UK "nullable"
+    String payment_id "nullable"
+    DateTime created_at
+    DateTime paid_at "nullable"
+  }
+  bid_credits {
+    String user_id PK
+    Int balance
+    DateTime updated_at
+  }
+  firms {
+    String id PK
+    String name
+    String owner_id
+    DateTime created_at
+  }
+  firm_members {
+    String firm_id PK,FK
+    String attorney_id PK,UK
+    String role
+    String status
+    DateTime created_at
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -2182,4 +2217,5 @@ erDiagram
   contact_matches }o--|| users : "owner_id"
   contact_matches }o--|| users : "matched_id"
   contact_sync_settings |o--|| users : "user_id"
+  firm_members }o--|| firms : "firm_id"
 ```
