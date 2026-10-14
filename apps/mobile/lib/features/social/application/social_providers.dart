@@ -48,11 +48,10 @@ final postAttachmentsAllowedProvider = FutureProvider.autoDispose<bool>(
 );
 
 /// Owner 2026-10-13: inner cards (the page behind a post / reel with
-/// attachments, the «Watch» strip) are off until the admin switches
-/// attachments on (`attachments_in_posts`, default off for all).
-final innerCardsEnabledProvider = Provider<bool>(
-  (ref) => ref.watch(postAttachmentsAllowedProvider).value ?? false,
-);
+/// attachments, the «Watch» strip). Viewing never depends on the viewer's
+/// own right to add files: a post that has files or extra photos always
+/// opens, for everyone.
+final innerCardsEnabledProvider = Provider<bool>((ref) => true);
 
 final socialRepositoryProvider = Provider<SocialRepository>(
   (ref) => ApiSocialRepository(

@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsIn } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional } from 'class-validator';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
 import { ApiEnvelopeResponse } from '../../common/dto/api-docs.decorators';
@@ -19,6 +19,13 @@ export class PostAttachmentsModeDto {
   @ApiProperty({ enum: POST_ATTACHMENT_MODES })
   @IsIn(POST_ATTACHMENT_MODES)
   mode!: PostAttachmentMode;
+
+  /** Owner 2026-10-13: files stay in a post after the author's
+   * subscription ends (default on). */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  keepAfterCancel?: boolean;
 }
 
 /**
@@ -44,7 +51,10 @@ export class AdminPostAttachmentsController {
     return {
       mode: (POST_ATTACHMENT_MODES as readonly string[]).includes(raw)
         ? (raw as PostAttachmentMode)
-        : 'off_for_all',
+        : 'by_subscription',
+      keepAfterCancel: await this.settings.boolean(
+        'attachments_keep_after_cancel',
+      ),
     };
   }
 
@@ -57,7 +67,15 @@ export class AdminPostAttachmentsController {
   ): Promise<PostAttachmentsModeDto> {
     await this.writer.write(admin.id, 'post_attachments.mode', {
       attachments_in_posts: dto.mode,
+      ...(dto.keepAfterCancel === undefined
+        ? {}
+        : { attachments_keep_after_cancel: dto.keepAfterCancel }),
     });
-    return { mode: dto.mode };
+    return {
+      mode: dto.mode,
+      keepAfterCancel: await this.settings.boolean(
+        'attachments_keep_after_cancel',
+      ),
+    };
   }
 }

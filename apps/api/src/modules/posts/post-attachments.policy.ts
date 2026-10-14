@@ -15,8 +15,8 @@ export type PostAttachmentMode = (typeof POST_ATTACHMENT_MODES)[number];
 /**
  * Owner 2026-10-13: who may ADD documents and extra photos to a post or a
  * reel (everybody always sees them). The admin's setting
- * `attachments_in_posts` decides: off for all (the default), on for all,
- * or by subscription — a client needs an active gold badge, an attorney an
+ * `attachments_in_posts` decides: by subscription (the default), off for
+ * all or on for all. By subscription — a client needs an active gold badge, an attorney an
  * active paid plan and a verified licence, and in both cases the plan must
  * include "attachments in posts and reels".
  */
@@ -32,7 +32,19 @@ export class PostAttachmentsPolicy {
     const raw = await this.settings.string('attachments_in_posts');
     return (POST_ATTACHMENT_MODES as readonly string[]).includes(raw)
       ? (raw as PostAttachmentMode)
-      : 'off_for_all';
+      : 'by_subscription';
+  }
+
+  /** Owner 2026-10-13: files already in a post stay after the author's
+   * subscription ends (default); with the switch off, in by_subscription
+   * mode they show only while the author may still add them. */
+  async visibleFor(authorIds: string[]): Promise<Set<string>> {
+    const ids = [...new Set(authorIds)];
+    if (ids.length === 0) return new Set();
+    const keep = await this.settings.boolean('attachments_keep_after_cancel');
+    if (keep || (await this.mode()) !== 'by_subscription') return new Set(ids);
+    const ok = await Promise.all(ids.map((id) => this.canAttach(id)));
+    return new Set(ids.filter((_, i) => ok[i]));
   }
 
   async canAttach(userId: string): Promise<boolean> {

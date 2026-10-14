@@ -27,3 +27,9 @@ SELECT DISTINCT l.post_id, t.id
 FROM levels l
 JOIN tags t ON t.tag_lower = l.tag_lower
 ON CONFLICT (post_id, tag_id) DO NOTHING;
+
+-- Owner 2026-10-13: attachments follow the subscription — paid plans that
+-- never mentioned the switch now include "attachments in posts and reels".
+UPDATE plans
+SET entitlements = entitlements || '{"post_attachments": true}'::JSONB
+WHERE kind = 'paid' AND entitlements->'post_attachments' IS NULL;

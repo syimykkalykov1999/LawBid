@@ -434,9 +434,12 @@ export const OWNER_FEED_SETTINGS = {
 
 // Owner 2026-10-13: who may ADD files, documents and extra photos to a post
 // or a reel: 'by_subscription' | 'off_for_all' | 'on_for_all'. Everyone
-// always sees them. Off by default.
+// always sees them. By subscription by default; files already in a post stay
+// there after the author's subscription ends unless the admin turns
+// `attachments_keep_after_cancel` off.
 export const OWNER_POST_ATTACHMENT_SETTINGS = {
-  attachments_in_posts: 'off_for_all',
+  attachments_in_posts: 'by_subscription',
+  attachments_keep_after_cancel: true,
 };
 
 export const APP_SETTINGS = {

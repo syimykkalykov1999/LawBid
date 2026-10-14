@@ -229,6 +229,12 @@ const reelsRu = <String, String>{
   'chat.select.deleted': 'Удалено из списка',
   'cbadge.title': 'Подтвердить аккаунт',
   'cbadge.hint': 'Золотая галочка рядом с именем',
+  'cbadge.benefits.title': 'Что даёт золотая галочка',
+  'cbadge.benefit.check': 'Золотая галочка рядом с именем, в постах и в чатах.',
+  'cbadge.benefit.first': 'Ваши кейсы показываются адвокатам в начале ленты.',
+  'cbadge.benefit.files':
+      'Документы и дополнительные фото в ваших постах и рилсах.',
+  'cbadge.benefit.promo': 'Продвижение кейса: его увидит больше адвокатов.',
   'cbadge.lead':
       'Золотая галочка показывает, что ваш аккаунт проверен. Отправьте документы, мы проверим их вручную. После одобрения галочка включается по подписке.',
   'cbadge.docs': 'Документы',
@@ -516,6 +522,12 @@ const reelsEn = <String, String>{
   'chat.select.deleted': 'Removed from your list',
   'cbadge.title': 'Verify account',
   'cbadge.hint': 'A gold check next to your name',
+  'cbadge.benefits.title': 'What the gold check gives you',
+  'cbadge.benefit.check': 'A gold check next to your name, in posts and chats.',
+  'cbadge.benefit.first':
+      'Your cases show to attorneys at the top of the feed.',
+  'cbadge.benefit.files': 'Documents and extra photos in your posts and reels.',
+  'cbadge.benefit.promo': 'Case promotion: more attorneys see your case.',
   'cbadge.lead':
       'The gold check shows your account was verified. Send documents and we review them by hand. After approval the check turns on with a subscription.',
   'cbadge.docs': 'Documents',

@@ -59,6 +59,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Who may add documents and extra photos to a post or a reel: by_subscription, off_for_all or on_for_all.',
     pattern: /^(by_subscription|off_for_all|on_for_all)$/,
   };
+  out['attachments_keep_after_cancel'] = {
+    ...out['attachments_keep_after_cancel'],
+    description:
+      'Keep the files of a post / reel visible after its author’s subscription ends (only in by_subscription mode).',
+  };
   // Owner 2026-10-05: assistants per attorney, set in the admin.
   out['billing.max_assistant_seats'] = {
     ...out['billing.max_assistant_seats'],
