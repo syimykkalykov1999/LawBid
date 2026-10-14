@@ -290,7 +290,7 @@ describe('Case photos (e2e, OQ-031)', () => {
     const ten = await Promise.all(
       Array.from({ length: 10 }, () => photo(cli.id)),
     );
-    expect((await postCase(cli.auth, ten)).status).toBe(400);
+    expect((await postCase(cli.auth, ten)).status).toBe(409);
 
     const other = await client();
     const foreign = await photo(other.id);

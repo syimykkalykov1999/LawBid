@@ -193,10 +193,10 @@ export class SearchService {
     const slice = rawSlice.filter((t) => !hidden.has(t.split(':')[1]));
     const attorneyIds = slice
       .filter((t) => t.startsWith('attorney:'))
-      .map((t) => t.slice('attorney:'.length));
+      .map((t) => t.split(':')[1]);
     const clientIds = slice
       .filter((t) => t.startsWith('client:'))
-      .map((t) => t.slice('client:'.length));
+      .map((t) => t.split(':')[1]);
     const [attorneys, clients] = await Promise.all([
       this.follows.present(attorneyIds, user.sub),
       this.clients.presentMany(clientIds, user.sub),
