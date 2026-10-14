@@ -355,24 +355,35 @@ export class AttorneyProfilesService {
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
     // Public photo only (a clean `avatar` file); documents never.
-    const [avatar, practiceAreas, follow, pPosts, pFollowers, pFollowing] =
-      await Promise.all([
-        this.files.avatarUrls(row.user.avatar_file_id),
-        this.practices.selectedOf(row.user_id),
-        this.prisma.follow.findUnique({
-          where: {
-            follower_id_followee_id: {
-              follower_id: viewerId,
-              followee_id: row.user_id,
-            },
+    const [
+      avatar,
+      practiceAreas,
+      follow,
+      pPosts,
+      pFollowers,
+      pFollowing,
+      membership,
+    ] = await Promise.all([
+      this.files.avatarUrls(row.user.avatar_file_id),
+      this.practices.selectedOf(row.user_id),
+      this.prisma.follow.findUnique({
+        where: {
+          follower_id_followee_id: {
+            follower_id: viewerId,
+            followee_id: row.user_id,
           },
-          select: { follower_id: true },
-        }),
-        // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
-        this.counters.pending('attorney', 'posts_count', [row.user_id]),
-        this.counters.pending('attorney', 'followers_count', [row.user_id]),
-        this.counters.pending('attorney', 'following_count', [row.user_id]),
-      ]);
+        },
+        select: { follower_id: true },
+      }),
+      // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
+      this.counters.pending('attorney', 'posts_count', [row.user_id]),
+      this.counters.pending('attorney', 'followers_count', [row.user_id]),
+      this.counters.pending('attorney', 'following_count', [row.user_id]),
+      this.prisma.firmMember.findFirst({
+        where: { attorney_id: row.user_id, status: 'active' },
+        select: { firm: { select: { id: true, name: true } } },
+      }),
+    ]);
     const plus = (base: number, m: Map<string, number>) =>
       Math.max(0, base + (m.get(row.user_id) ?? 0));
     return {
@@ -383,6 +394,7 @@ export class AttorneyProfilesService {
       bio: row.bio,
       firmName: row.firm_name,
       firms: firmsOf(row),
+      firm: membership?.firm ?? null,
       avatarUrl: avatar.url,
       avatarUrl256: avatar.url256,
       languages: row.languages,

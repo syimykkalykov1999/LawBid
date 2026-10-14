@@ -29,11 +29,11 @@ The list reflects the software the LawBid apps and servers use today. Providers 
 - **Website:** aws.amazon.com
 - **Data processing terms:** AWS Customer Agreement and AWS Data Processing Addendum. Owner to confirm the DPA is accepted for the account.
 
-### CockroachDB Cloud (Cockroach Labs, Inc.)
+### Managed PostgreSQL database host (provider to be confirmed by owner)
 
 - **Purpose:** Primary database and its backups.
 - **Data involved:** Account, profile, case, bid, message, review and payment-reference records.
-- **Website:** cockroachlabs.cloud
+- **Website:** To be confirmed by owner (the production host is not chosen yet)
 - **Data processing terms:** To be confirmed by owner: signed DPA not verified
 
 ### Firebase Cloud Messaging (Google LLC)

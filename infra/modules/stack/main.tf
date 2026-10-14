@@ -166,7 +166,7 @@ locals {
   # live in the admin key store (Безопасность → Ключи и сервисы, encrypted
   # with SECRETS_MASTER_KEYS); `extra_secrets` adds env-var fallbacks.
   secret_names = concat([
-    "DATABASE_URL",           # lawbid_app role (CockroachDB Cloud)
+    "DATABASE_URL",           # lawbid_app role (managed PostgreSQL)
     "RETENTION_DATABASE_URL", # lawbid_retention role
     "DEMO_DATABASE_URL",      # bloggers' demo world: own database, DDL role (docs/ops/demo-world.md)
     "JWT_KEYS",               # "j1:<secret>" (JWT_ACTIVE_KID below)

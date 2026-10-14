@@ -83,6 +83,7 @@ describe('Firm profile (e2e)', () => {
         username,
         username_lower: username,
         languages: ['en'],
+        verification_status: 'verified',
       },
     });
     await prisma.attorneyLicense.create({
@@ -232,6 +233,41 @@ describe('Firm profile (e2e)', () => {
       .expect(200);
     const fit = res.body.data as { attorneyId: string }[];
     expect(fit.map((x) => x.attorneyId)).toEqual([il.id]);
+
+    await prisma.attorneyPracticeArea.create({
+      data: { attorney_id: il.id, practice_area_id: pa.id },
+    });
+    const body = {
+      feeType: 'fixed',
+      amountCents: 50_000,
+      message: 'Happy to help with this lease dispute, I can start right away.',
+      startAvailability: 'immediately',
+    };
+    // The NJ-only owner cannot send it as himself on behalf of the NJ
+    // licence: only the IL lawyer fits this case.
+    const stranger = await lawyer('NJ');
+    const refused = await api()
+      .post(`/api/v1/cases/${c.id}/bids`)
+      .set(owner.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ ...body, sendAsAttorneyId: stranger.id });
+    expect(refused.status).toBe(403);
+    // The IL lawyer fits: the bid runs as them (their plan decides next).
+    const asIl = await api()
+      .post(`/api/v1/cases/${c.id}/bids`)
+      .set(owner.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ ...body, sendAsAttorneyId: il.id });
+    expect(asIl.body.error?.code).toBe('SUBSCRIPTION_REQUIRED');
+    expect(asIl.body.error?.message).toContain('subscription');
+
+    // The firm shows on the lawyer's public profile.
+    const prof = await api()
+      .get(`/api/v1/attorneys/${il.username}`)
+      .set(owner.auth)
+      .expect(200);
+    const shown = prof.body.data as { firm: { name: string } | null };
+    expect(shown.firm?.name).toBe('Firm C');
   });
 
   it('is off behind the flag', async () => {

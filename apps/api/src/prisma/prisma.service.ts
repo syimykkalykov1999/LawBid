@@ -191,7 +191,7 @@ export function routingOf(prisma: PrismaService): PrismaRoutingControl {
  * and then fails them, instead of opening connections without limit and
  * hanging (each API/worker task holds at most DB_POOL_SIZE connections,
  * default 10). Values already in the URL win. Statement timeouts are set
- * on the database roles (infra/cockroach/role-settings.sql).
+ * on the database roles (infra/postgres/role-settings.sql).
  */
 export function withPoolDefaults(
   raw: string | undefined,

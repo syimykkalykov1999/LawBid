@@ -190,6 +190,7 @@ describe('AttorneyProfilesService', () => {
       const prisma = {
         attorneyProfile: { findUnique: jest.fn(() => Promise.resolve(row)) },
         follow: { findUnique: jest.fn(() => Promise.resolve(null)) },
+        firmMember: { findFirst: jest.fn(() => Promise.resolve(null)) },
       };
       return new AttorneyProfilesService(
         prisma as unknown as PrismaService,

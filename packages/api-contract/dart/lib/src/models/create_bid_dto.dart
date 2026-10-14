@@ -15,6 +15,7 @@ class CreateBidDto {
     required this.feeType,
     required this.message,
     required this.startAvailability,
+    this.sendAsAttorneyId,
     this.amountCents,
     this.startDate,
     this.estimatedDurationDays,
@@ -23,6 +24,8 @@ class CreateBidDto {
   factory CreateBidDto.fromJson(Map<String, Object?> json) =>
       _$CreateBidDtoFromJson(json);
 
+  /// Firm lawyer who sends the bid (must hold a matching verified licence); default: the caller.
+  final String? sendAsAttorneyId;
   final FeeType feeType;
 
   /// Required for fixed/hourly; ignored (stored as 0) for free_consultation.

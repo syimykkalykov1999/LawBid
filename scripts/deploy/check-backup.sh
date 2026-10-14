@@ -1,16 +1,19 @@
 #!/usr/bin/env sh
 # docs/06 §6.4 "перед каждой продовой миграцией схемы проверяется, что
-# свежий бэкап создан": CockroachDB Cloud managed backups — the latest
-# full backup must be younger than 26 hours. Skips with a warning when the
-# Cloud API key is not configured (staging).
+# свежий бэкап создан": the managed PostgreSQL host's latest automated
+# snapshot must be younger than 26 hours.
+#
+# The production host is not chosen yet (owner decision, docs/runbooks/
+# PROD_LAUNCH.md), so there is no provider API to ask. Until then this only
+# warns and exits 0. Once the host is chosen, point it at its API, e.g. AWS
+# RDS:  aws rds describe-db-instances --query 'DBInstances[0].LatestRestorableTime'
+# (the in-app hourly check, ops-guard.job.ts, is re-pointed the same way).
 set -eu
-if [ -z "${COCKROACH_API_KEY:-}" ] || [ -z "${COCKROACH_CLUSTER_ID:-}" ]; then
-  echo "::warning::COCKROACH_CLOUD_API_KEY not set — backup freshness not verified"
+if [ -z "${DB_BACKUP_LATEST_ISO:-}" ]; then
+  echo "::warning::database backup freshness not verified (no provider configured yet)"
   exit 0
 fi
-LATEST=$(curl -fsS -H "Authorization: Bearer $COCKROACH_API_KEY" \
-  "https://cockroachlabs.cloud/api/v1/clusters/${COCKROACH_CLUSTER_ID}/backups?type=FULL" \
-  | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const b=JSON.parse(d).backups||[];const t=b.map(x=>Date.parse(x.completed_at||x.created_at)).filter(Boolean).sort((a,b)=>b-a)[0];console.log(t||0)})')
+LATEST=$(node -e 'console.log(Date.parse(process.argv[1])||0)' "$DB_BACKUP_LATEST_ISO")
 AGE_H=$(( ( $(date +%s) * 1000 - LATEST ) / 3600000 ))
-echo "latest full backup: ${AGE_H}h ago"
+echo "latest backup: ${AGE_H}h ago"
 [ "$LATEST" != "0" ] && [ "$AGE_H" -le 26 ]

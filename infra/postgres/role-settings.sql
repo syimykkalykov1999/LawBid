@@ -1,8 +1,8 @@
 -- Zero maintenance (owner 2026-10-05): limits on the database side, so one
 -- runaway query or a forgotten open transaction can never hold the
 -- database for everybody. Run once after the roles of docs/02 §6.3 exist
--- (CockroachDB Cloud → SQL shell, or `cockroach sql --url "$ADMIN_URL"
--- -f infra/cockroach/role-settings.sql`); re-running is harmless.
+-- (the provider's SQL console, or `psql "$ADMIN_URL" -v ON_ERROR_STOP=1
+-- -f infra/postgres/role-settings.sql`); re-running is harmless.
 -- The app retries serialization conflicts itself (src/prisma/tx-retry.util.ts)
 -- and holds at most DB_POOL_SIZE connections per task (src/prisma/prisma.service.ts).
 

@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -54,6 +55,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   final _duration = TextEditingController();
   bool _busy = false;
   String? _error;
+  String? _sendAs;
 
   /// OQ-048: who prepared the loaded draft (an assistant).
   String? _draftBy;
@@ -185,6 +187,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               startAvailability: _start,
               startDate: _startDate,
               estimatedDurationDays: int.tryParse(_duration.text),
+              sendAsAttorneyId: _sendAs,
             ),
           );
       if (!mounted) return;
@@ -312,6 +315,11 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                   ),
           ),
           const SizedBox(height: AppSpacing.lg),
+          _FirmSender(
+            caseId: widget.caseId,
+            value: _sendAs,
+            onChanged: (v) => setState(() => _sendAs = v),
+          ),
           AppTextField(
             controller: _message,
             label: t.t('cases.bidForm.message'),
@@ -399,6 +407,48 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               onPressed: _submit,
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-14: a firm member picks which lawyer of the firm (with a
+/// matching verified licence) sends the bid.
+class _FirmSender extends ConsumerWidget {
+  const _FirmSender({
+    required this.caseId,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String caseId;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final me = ref.watch(sessionControllerProvider)?.sub;
+    final fit = ref.watch(firmSendersProvider(caseId)).value ?? const [];
+    if (fit.isEmpty || (fit.length == 1 && fit.first.attorneyId == me)) {
+      return const SizedBox.shrink();
+    }
+    final current = value ?? (fit.any((m) => m.attorneyId == me) ? me : null);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: DropdownButtonFormField<String>(
+        initialValue: current ?? fit.first.attorneyId,
+        decoration: InputDecoration(labelText: t.t('firm.sendAs')),
+        items: [
+          for (final m in fit)
+            DropdownMenuItem(
+              value: m.attorneyId,
+              child: Text(
+                [m.firstName, m.lastName].whereType<String>().join(' ').trim(),
+              ),
+            ),
+        ],
+        onChanged: onChanged,
       ),
     );
   }

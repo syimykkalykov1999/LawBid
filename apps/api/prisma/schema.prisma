@@ -675,7 +675,7 @@ model User {
   /// (null = storage.user_quota_mb, 0 = no cap).
   storage_quota_mb        Int?
   // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
-  // number of NULLs in CockroachDB, which is exactly the §8 stage-2.2
+  // number of NULLs in PostgreSQL, which is exactly the §8 stage-2.2
   // acceptance ("несколько NULL допускаются"); a partial index can't be
   // expressed in Prisma 6 and would be dropped as drift by the next
   // `migrate dev`, so @unique is used instead.
@@ -818,9 +818,8 @@ model User {
   contact_matched_by          ContactMatch[]                 @relation("ContactMatched")
   contact_sync                ContactSyncSetting?
 
-  // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
-  // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
-  // indexes in its diff.
+  // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma
+  // can't declare gin_trgm_ops, and ignores partial indexes in its diff.
   // docs/06 stage 6.12 (load review): ops counters and the anonymization
   // scan must not walk the whole table.
   @@index([created_at])
@@ -3452,8 +3451,8 @@ model VideoAsset {
 
 // ---------------------------------------------------------------------------
 // Owner 2026-10-02 — admin growth & support tools. Status/kind columns are
-// short strings validated by the DTOs (no new enum types: CockroachDB can't
-// use an enum created in the same migration). User/admin ids are plain UUID
+// short strings validated by the DTOs (no new enum types: a new value of an
+// existing enum can't be used in the same migration transaction). User/admin ids are plain UUID
 // columns so these tables don't add back-relations to `User`.
 // ---------------------------------------------------------------------------
 
@@ -4587,7 +4586,7 @@ model StorageSnapshot {
   files_count  Int
   /// { purpose: { bytes, count } }
   by_purpose   Json
-  /// [{ table, rows, bytes }] — estimates from CockroachDB statistics.
+  /// [{ table, rows, bytes }] — estimates from PostgreSQL statistics.
   db_tables    Json
   db_bytes     BigInt   @default(0)
   created_at   DateTime @default(now()) @db.Timestamptz

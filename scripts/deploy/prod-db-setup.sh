@@ -2,8 +2,10 @@
 # First launch, database side — run once from the owner's Mac
 # (docs/runbooks/PROD_LAUNCH.md, step «База»). Needs: AWS CLI logged in to
 # the prod account, the prod Terraform applied (the secrets exist), and the
-# connection string of the SQL user `lawbid_migrator` created in the
-# CockroachDB Cloud console (Console users are admins).
+# connection string of the user `lawbid_migrator` created in the managed
+# PostgreSQL 16 console (e.g. AWS RDS / Neon / Supabase — the owner picks
+# one; on RDS it can be the master user). That user must be allowed to
+# create databases and roles (CREATEDB, CREATEROLE).
 #
 # It creates the databases `lawbid` and `lawbid_demo`, runs the migrations
 # (they create the roles lawbid_app / lawbid_retention / lawbid_readonly),
@@ -19,13 +21,13 @@ PREFIX="${SECRET_PREFIX:-lawbid-prod}"
 # until it looks like one; never print what was typed (it holds the password).
 while :; do
   if [ -z "${MIGRATOR_URL:-}" ]; then
-    read -rsp "Строка подключения lawbid_migrator из CockroachDB Cloud целиком, начинается с postgresql:// (не будет видна): " MIGRATOR_URL
+    read -rsp "Строка подключения lawbid_migrator из консоли PostgreSQL целиком, начинается с postgresql:// (не будет видна): " MIGRATOR_URL
     echo
   fi
   case "$MIGRATOR_URL" in
     postgresql://*@*|postgres://*@*) break ;;
   esac
-  echo "Это не строка подключения. Нужна вся строка из Connect → General connection string (postgresql://lawbid_migrator:…@…/defaultdb?sslmode=verify-full)." >&2
+  echo "Это не строка подключения. Нужна вся строка подключения из консоли базы (postgresql://lawbid_migrator:…@…:5432/postgres?sslmode=verify-full)." >&2
   MIGRATOR_URL=""
 done
 
@@ -52,7 +54,14 @@ put() {
   echo "  $1 ✓"
 }
 
-DEFAULT_URL="$(url_for defaultdb)"
+# The maintenance database: the one named in the pasted string (RDS and
+# Supabase: postgres, Neon: neondb), never lawbid itself (it may be dropped).
+MAINT_DB="$(node -e '
+  let d = "";
+  try { d = decodeURIComponent(new URL(process.argv[1]).pathname.slice(1)); } catch {}
+  process.stdout.write(!d || d === "lawbid" || d === "lawbid_demo" ? "postgres" : d);
+' "$MIGRATOR_URL")"
+DEFAULT_URL="$(url_for "$MAINT_DB")"
 MIGRATOR="$(url_for lawbid)"
 DEMO_URL="$(url_for lawbid_demo)"
 
@@ -79,23 +88,35 @@ migration_state() {
   ' "$1"
 }
 
-# CockroachDB 26.x creates tables schema-locked by default, and a locked
-# table refuses the ALTERs later migrations make. Turn that default off for
-# every non-root user of both databases (the API migrates lawbid_demo itself).
-UNLOCK='ALTER DATABASE lawbid SET create_table_with_schema_locked = false; ALTER DATABASE lawbid_demo SET create_table_with_schema_locked = false;'
+# db_admin create|recreate <name> — PostgreSQL has no CREATE DATABASE IF NOT
+# EXISTS, and CREATE/DROP DATABASE cannot run inside a multi-statement
+# script, so each runs as its own statement.
+db_admin() {
+  node -e '
+    const { PrismaClient } = require("@prisma/client");
+    const [url, op, name] = process.argv.slice(1);
+    if (!/^[a-z0-9_]+$/.test(name)) process.exit(2);
+    const p = new PrismaClient({ datasourceUrl: url });
+    (async () => {
+      if (op === "recreate") await p.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+      const found = await p.$queryRawUnsafe("SELECT 1 FROM pg_database WHERE datname = $1", name);
+      if (found.length === 0) await p.$executeRawUnsafe(`CREATE DATABASE "${name}"`);
+    })().catch(() => { console.error("Не удалось создать базу " + name + " (нужно право CREATEDB)."); process.exit(1); })
+      .finally(() => p.$disconnect());
+  ' "$DEFAULT_URL" "$1" "$2"
+}
 
 echo "1/5 Базы lawbid и lawbid_demo"
-echo 'CREATE DATABASE IF NOT EXISTS lawbid; CREATE DATABASE IF NOT EXISTS lawbid_demo;' \
-  | sql "$DEFAULT_URL"
+db_admin create lawbid
+db_admin create lawbid_demo
 STATE="$(migration_state "$MIGRATOR")"
 if [ "$STATE" = "failed-empty" ]; then
   # Only a brand-new database whose first run broke: nothing finished, no
   # users. Start it over; a database with any finished migration is never
   # dropped here.
   echo "  прошлый запуск оборвался на пустой базе — создаю lawbid заново"
-  echo 'DROP DATABASE lawbid CASCADE; CREATE DATABASE lawbid;' | sql "$DEFAULT_URL"
+  db_admin recreate lawbid
 fi
-echo "$UNLOCK" | sql "$DEFAULT_URL"
 
 echo "2/5 Миграции"
 DATABASE_URL="$MIGRATOR" npx prisma migrate deploy
@@ -109,7 +130,7 @@ APP_URL="$(url_for lawbid lawbid_app "$APP_PW")"
 RET_URL="$(url_for lawbid lawbid_retention "$RET_PW")"
 
 echo "4/5 Лимиты запросов по ролям"
-sql "$MIGRATOR" < ../../infra/cockroach/role-settings.sql
+sql "$MIGRATOR" < ../../infra/postgres/role-settings.sql
 
 echo "5/5 Строки подключения → Secrets Manager ($PREFIX/…)"
 put MIGRATOR_DATABASE_URL "$MIGRATOR"

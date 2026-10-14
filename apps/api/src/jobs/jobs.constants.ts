@@ -99,7 +99,7 @@ export const CRON_JOBS = {
   opsGuard: 'ops.guard',
   /** AWS spend vs the monthly budget; scale to the minimum at 100 %. */
   opsCostCheck: 'ops.cost-check',
-  /** Newest CockroachDB Cloud backup is fresh. */
+  /** Newest database backup (provider API) is fresh. */
   opsBackupCheck: 'ops.backup-check',
   /** Owner 2026-10-05: spend caps in mode «Авто» follow real usage
    * (CostAutoscaleService). */

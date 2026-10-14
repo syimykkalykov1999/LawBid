@@ -22,8 +22,11 @@ class BidInput {
     this.amountCents,
     this.startDate,
     this.estimatedDurationDays,
+    this.sendAsAttorneyId,
   });
 
+  /// Owner 2026-10-14: the firm lawyer who sends the bid (null: me).
+  final String? sendAsAttorneyId;
   final FeeType feeType;
   final int? amountCents;
   final String message;
@@ -530,6 +533,7 @@ class ApiCasesRepository implements CasesRepository {
                   ? input.startDate
                   : null,
               estimatedDurationDays: input.estimatedDurationDays,
+              sendAsAttorneyId: input.sendAsAttorneyId,
             ),
             extras: _createsResource,
           ),

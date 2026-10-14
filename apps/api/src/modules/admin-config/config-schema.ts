@@ -114,7 +114,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['ops.backup_max_age_hours'] = {
     ...out['ops.backup_max_age_hours'],
     description:
-      'Alert when the newest CockroachDB Cloud backup is older than this many hours.',
+      'Alert when the newest database backup is older than this many hours.',
     min: 2,
     max: 24 * 14,
   };

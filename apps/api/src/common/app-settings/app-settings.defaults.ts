@@ -84,8 +84,9 @@ export const FILE_06_SETTINGS = {
 // Owner 2026-10-01: video reels (Bunny Stream) and stickers — tunables the
 // owner changes from the admin panel without a release.
 export const OWNER_MEDIA_SETTINGS = {
-  'video.max_duration_sec': 90,
-  'video.max_size_mb': 500,
+  // Owner 2026-10-14: reels as long as Instagram's (up to 3 minutes).
+  'video.max_duration_sec': 180,
+  'video.max_size_mb': 1000,
   'video.upload_ttl_min': 60,
   'video.playback_ttl_sec': 21600,
   'video.max_pending_per_user': 3,
@@ -99,7 +100,7 @@ export const OWNER_MEDIA_SETTINGS = {
   'files.sticker_max_size_mb': 1,
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
-  'video.max_source_duration_sec': 180,
+  'video.max_source_duration_sec': 900,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by
   // their own size) are shrunk on the phone before upload — longest side,
   // JPEG quality — no visible loss, small files. Videos are re-encoded by
@@ -409,7 +410,7 @@ export const OWNER_OPS_SETTINGS = {
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
    * at the minimum until the next month (or until the owner lifts it). */
   'ops.auto_scale_down_on_budget': true,
-  /** The newest CockroachDB Cloud backup older than this → alert. */
+  /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
 };
 

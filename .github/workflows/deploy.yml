@@ -115,9 +115,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Fresh backup exists (docs/06 §6.4 "перед каждой продовой миграцией")
         run: scripts/deploy/check-backup.sh
-        env:
-          COCKROACH_API_KEY: ${{ secrets.COCKROACH_CLOUD_API_KEY }}
-          COCKROACH_CLUSTER_ID: ${{ secrets.COCKROACH_CLOUD_CLUSTER_ID }}
       - name: Migrations (expand/contract only, docs/02 §7.1)
         run: scripts/deploy/run-migrations.sh lawbid-prod "$IMAGE_TAG"
       - name: Rolling deploy api / worker / admin

@@ -8,7 +8,7 @@
 #   3. the alert e-mail subscription is confirmed (else nobody gets alerts)
 #   4. the monthly AWS budget exists
 #   5. api and worker run as many tasks as they should
-#   6. the newest CockroachDB Cloud backup is fresh (scripts/deploy/check-backup.sh)
+#   6. the newest database backup is fresh (scripts/deploy/check-backup.sh)
 #   7. the restore drill was done within 100 days (docs/runbooks/restore-drill.md)
 # Usage: scripts/ops/self-check.sh <env> <api url>   e.g. prod https://api.lawbid.dev
 set -uo pipefail

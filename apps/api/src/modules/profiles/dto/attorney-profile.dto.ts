@@ -258,7 +258,19 @@ export class OwnAttorneyProfileDto {
 
 /** GET /attorneys/:username — what any signed-in user may see
  * (docs/03 §4.2, §6). Never bar numbers, documents or contacts. */
+export class ProfileFirmDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+}
+
 export class PublicAttorneyProfileDto {
+  /** Owner 2026-10-14: the firm the lawyer works in (active member). */
+  @ApiProperty({ type: ProfileFirmDto, nullable: true })
+  firm!: ProfileFirmDto | null;
+
   @ApiProperty({ format: 'uuid' })
   id!: string;
 

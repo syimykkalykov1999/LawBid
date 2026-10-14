@@ -2,7 +2,7 @@
 
 Owner-owned: every box below is ticked by the owner, not by CI. Stage
 6.12 delivered the tooling behind each line; the items that need real
-accounts (AWS, CockroachDB Cloud, Stripe live, stores) are open.
+accounts (AWS, managed PostgreSQL host, Stripe live, stores) are open.
 
 ## 11.1 Readiness
 

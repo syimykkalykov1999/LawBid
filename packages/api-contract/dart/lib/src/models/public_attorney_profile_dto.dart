@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'profile_counters_dto.dart';
+import 'profile_firm_dto.dart';
 import 'rating_dto.dart';
 import 'selected_practice_area_dto.dart';
 import 'state_ref_dto.dart';
@@ -14,6 +15,7 @@ part 'public_attorney_profile_dto.g.dart';
 @JsonSerializable()
 class PublicAttorneyProfileDto {
   const PublicAttorneyProfileDto({
+    required this.firm,
     required this.id,
     required this.username,
     required this.firstName,
@@ -39,6 +41,8 @@ class PublicAttorneyProfileDto {
   factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
       _$PublicAttorneyProfileDtoFromJson(json);
 
+  /// Owner 2026-10-14: the firm the lawyer works in (active member).
+  final ProfileFirmDto? firm;
   final String id;
   final String username;
   final String? firstName;

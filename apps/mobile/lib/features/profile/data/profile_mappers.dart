@@ -55,7 +55,10 @@ abstract final class ProfileMappers {
         lastName: d.lastName,
         bio: d.bio,
         firmName: d.firmName,
-        firms: d.firms,
+        firms: [
+          if (d.firm != null) d.firm!.name,
+          ...d.firms.where((f) => f != d.firm?.name),
+        ],
         languages: d.languages,
         verifiedBadge: d.verifiedBadge,
         trustLevel: d.trustLevel,

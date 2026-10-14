@@ -1,5 +1,5 @@
 # Launch size for prod, ≈ $150/month (≈ $140 + the antivirus memory)
-# of AWS at us-east-1 prices (2026-10) plus CockroachDB Cloud billed separately.
+# of AWS at us-east-1 prices (2026-10) plus the managed PostgreSQL host billed separately.
 # Copy to terraform.tfvars and fill the REPLACE values. To grow, raise the
 # numbers below (or delete a line to fall back to the full-size default in
 # variables.tf) and run `terraform apply`; no code change is needed.

@@ -256,14 +256,14 @@ export const GUIDES: Record<string, ProviderGuide> = {
 
   cockroach_cloud: {
     steps: [
-      'cockroachlabs.cloud → Organization → Access Management → Service Accounts → Create.',
-      'Роль: только чтение (Cluster Monitor / Read). Создайте API key и скопируйте его.',
-      'ID кластера: откройте кластер — он в адресе страницы (36 символов с дефисами).',
+      'Выберите боевой хостинг PostgreSQL (например, AWS RDS, Neon или Supabase) — проверка бэкапов подключается к его API после выбора.',
+      'В кабинете хостинга создайте ключ с ролью «только чтение» и скопируйте его.',
+      'ID базы или кластера: он в адресе страницы базы в кабинете хостинга.',
     ],
-    links: [{ label: 'CockroachDB Cloud', url: 'https://cockroachlabs.cloud/' }],
+    links: [],
     fields: {
-      apiKey: { how: 'Service Accounts → API key.' },
-      clusterId: { how: 'Из адреса страницы кластера.', example: '00000000-0000-0000-0000-000000000000' },
+      apiKey: { how: 'Кабинет хостинга → API key (только чтение).' },
+      clusterId: { how: 'Из адреса страницы базы в кабинете хостинга.', example: '00000000-0000-0000-0000-000000000000' },
     },
   },
 };

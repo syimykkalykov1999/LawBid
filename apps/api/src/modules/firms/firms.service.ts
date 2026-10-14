@@ -225,6 +225,25 @@ export class FirmsService {
     await this.prisma.firmMember.delete({ where: { attorney_id: attorneyId } });
   }
 
+  /** The lawyer a firm member sends a bid as: both active members of one
+   * firm, and the sender holds a verified licence that fits the case. */
+  async resolveSender(
+    callerId: string,
+    senderId: string,
+    caseId: string,
+  ): Promise<string> {
+    if (senderId === callerId) return callerId;
+    await this.assertEnabled();
+    const fit = await this.eligibleForCase(callerId, caseId);
+    if (!fit.some((m) => m.attorneyId === senderId)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'This lawyer cannot send a bid on this case for the firm.',
+      });
+    }
+    return senderId;
+  }
+
   /** Members who can bid on a case: an active, verified licence in one of
    * the case's states (the firm owner picks who sends the bid). */
   async eligibleForCase(

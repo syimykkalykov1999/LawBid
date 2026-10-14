@@ -47,6 +47,15 @@ const trimToNull = ({ value }: { value: unknown }): unknown => {
  * decorator combination that also rejects a stray value cleanly.
  */
 export class CreateBidDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Firm lawyer who sends the bid (must hold a matching verified licence); default: the caller.',
+  })
+  @IsOptional()
+  @IsUUID()
+  sendAsAttorneyId?: string;
+
   @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
   @IsEnum(FeeType)
   feeType!: FeeType;

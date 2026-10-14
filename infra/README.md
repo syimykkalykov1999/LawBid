@@ -3,7 +3,7 @@
 AWS infrastructure for `staging` and `prod` (separate accounts, same
 stack, different sizes — §6.2). Written and validated in stage 6.10
 (`terraform validate` for both environments); **not applied yet** — the
-first `apply` needs the owner's AWS accounts, a CockroachDB Cloud cluster
+first `apply` needs the owner's AWS accounts, a managed PostgreSQL 16 database
 and the registrar/DNS access listed below.
 
 ```
@@ -37,8 +37,10 @@ infra/
    `admin.<domain>` (`certificate_arn`).
 3. ECR repositories `lawbid-api` and `lawbid-admin` (the deploy workflow
    pushes there; images are referenced by tag in `api_image` / `admin_image`).
-4. **CockroachDB Cloud** (dedicated, 3 nodes, multi-AZ, backups + PITR —
-   §6.1/§6.4) is created in the CockroachDB console, not here. Create the
+4. **Managed PostgreSQL 16** (multi-AZ, automated backups + PITR —
+   §6.1/§6.4; e.g. AWS RDS, Neon or Supabase — the owner picks the host,
+   see docs/runbooks/PROD_LAUNCH.md step 4) is created in the host's
+   console (or in RDS), not here. Create the
    roles of docs/02 §6.3 (`lawbid_migrator`, `lawbid_app`,
    `lawbid_retention`, `lawbid_readonly`) and allow the VPC's NAT IPs.
 
@@ -57,8 +59,8 @@ variables without an override keep the full-size defaults of
 (`infra/bootstrap` creates the prerequisites below; `scripts/deploy/prod-*.sh`
 fill the secrets, set up the database and seed it). The prod API connects
 as `lawbid_app` (the migration `20261007000000_prod_role_privileges` gives
-that role every table, now and future); CockroachDB Cloud **Basic** is the
-launch plan, not the dedicated cluster of «Prerequisites».
+that role every table, now and future); the launch database is a small managed PostgreSQL instance, not the
+multi-AZ setup of «Prerequisites».
 
 ```sh
 cd infra/envs/staging
@@ -72,7 +74,7 @@ After the first apply:
 
 1. Fill the secrets printed by `terraform output secrets_to_fill`
    (`aws secretsmanager put-secret-value --secret-id lawbid-staging/<NAME> …`):
-   the three CockroachDB connection strings (`DATABASE_URL` = `lawbid_app`,
+   the three PostgreSQL connection strings (TLS required) (`DATABASE_URL` = `lawbid_app`,
    `MIGRATOR_DATABASE_URL` = `lawbid_migrator`, `RETENTION_DATABASE_URL` =
    `lawbid_retention`), `JWT_KEYS`, the OTP/auth peppers,
    `ADMIN_TOTP_ENC_KEY`, `SECRETS_MASTER_KEYS` (`k1:<random 48+ chars>`),
@@ -90,10 +92,10 @@ After the first apply:
    release) and roll the services (`.github/workflows/deploy.yml`).
 4. Confirm the alert e-mail subscriptions (SNS sends a confirmation).
 5. Zero maintenance (docs/ZERO_MAINTENANCE.md): run
-   `infra/cockroach/role-settings.sql` once (statement / idle-transaction
-   timeouts per role); add the read-only CockroachDB Cloud API key in the
-   admin (Ключи и сервисы → CockroachDB Cloud) and as the GitHub secrets
-   `COCKROACH_CLOUD_API_KEY` / `COCKROACH_CLOUD_CLUSTER_ID`; optionally a
+   `infra/postgres/role-settings.sql` once (`psql … -f`) (statement / idle-transaction
+   timeouts per role); after the host is chosen, the read-only key of its backup API goes
+   into the admin (Ключи и сервисы → Хостинг базы данных; until then the
+   backup-freshness check only warns); optionally a
    read-only OIDC role `AWS_SELFCHECK_ROLE_PROD` for
    `.github/workflows/self-check.yml` (falls back to the deploy role).
    `monthly_budget_usd` creates the AWS budget (e-mails 50/80/100 %, the
@@ -118,7 +120,7 @@ After the first apply:
   standalone image) behind the same ALB instead of a static CloudFront
   site: its API proxy and httpOnly-cookie session (docs/06 §2.1) need a
   server. Recorded as OQ-023.
-- Redis and CockroachDB are private (no public endpoints); the tasks reach
+- Redis and PostgreSQL are private (no public endpoints); the tasks reach
   AWS APIs through VPC endpoints and the internet (Stripe, Twilio, FCM)
   through the NAT gateways.
 

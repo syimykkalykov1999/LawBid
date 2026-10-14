@@ -16,6 +16,7 @@ import 'clients/verification_client.dart';
 import 'clients/admin_verification_client.dart';
 import 'clients/files_client.dart';
 import 'clients/bids_client.dart';
+import 'clients/firms_client.dart';
 import 'clients/admin_sanctions_client.dart';
 import 'clients/admin_cases_client.dart';
 import 'clients/admin_data_requests_client.dart';
@@ -81,7 +82,6 @@ import 'clients/admin_outreach_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
 import 'clients/bid_packs_client.dart';
-import 'clients/firms_client.dart';
 import 'clients/case_payments_client.dart';
 import 'clients/admin_case_payments_client.dart';
 import 'clients/client_badge_client.dart';
@@ -121,6 +121,7 @@ class LawbidApi {
   AdminVerificationClient? _adminVerification;
   FilesClient? _files;
   BidsClient? _bids;
+  FirmsClient? _firms;
   AdminSanctionsClient? _adminSanctions;
   AdminCasesClient? _adminCases;
   AdminDataRequestsClient? _adminDataRequests;
@@ -186,7 +187,6 @@ class LawbidApi {
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
   BidPacksClient? _bidPacks;
-  FirmsClient? _firms;
   CasePaymentsClient? _casePayments;
   AdminCasePaymentsClient? _adminCasePayments;
   ClientBadgeClient? _clientBadge;
@@ -234,6 +234,8 @@ class LawbidApi {
   FilesClient get files => _files ??= FilesClient(_dio, baseUrl: _baseUrl);
 
   BidsClient get bids => _bids ??= BidsClient(_dio, baseUrl: _baseUrl);
+
+  FirmsClient get firms => _firms ??= FirmsClient(_dio, baseUrl: _baseUrl);
 
   AdminSanctionsClient get adminSanctions =>
       _adminSanctions ??= AdminSanctionsClient(_dio, baseUrl: _baseUrl);
@@ -420,8 +422,6 @@ class LawbidApi {
 
   BidPacksClient get bidPacks =>
       _bidPacks ??= BidPacksClient(_dio, baseUrl: _baseUrl);
-
-  FirmsClient get firms => _firms ??= FirmsClient(_dio, baseUrl: _baseUrl);
 
   CasePaymentsClient get casePayments =>
       _casePayments ??= CasePaymentsClient(_dio, baseUrl: _baseUrl);

@@ -44,8 +44,8 @@ export const PROVIDER_RU: Record<string, { label: string; description: string; w
   },
   sentry: { label: 'Sentry (отчёты об ошибках)', description: 'Отчёты о сбоях и ошибках сервера.' },
   cockroach_cloud: {
-    label: 'CockroachDB Cloud (проверка бэкапов)',
-    description: 'Ключ только для чтения от облака базы данных: сервер каждый час проверяет, что свежий бэкап есть.',
+    label: 'Хостинг базы данных (проверка бэкапов)',
+    description: 'Ключ только для чтения от хостинга базы данных: сервер каждый час проверяет, что свежий бэкап есть. Подключается после выбора боевого хостинга PostgreSQL.',
   },
 };
 
