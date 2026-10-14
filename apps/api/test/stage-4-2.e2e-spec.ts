@@ -9,7 +9,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.2 acceptance, against real
- * CockroachDB/Redis:
+ * PostgreSQL/Redis:
  *  - a case is not created without verified contacts, without the
  *    client_contact_sharing consent, with more than 3 states, a short
  *    description, or contact info in free text;

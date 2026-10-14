@@ -202,7 +202,7 @@ describe('OpsGuardJob.backupCheck', () => {
   it('no key: skips', async () => {
     const { job } = setup();
     expect(await job.backupCheck()).toEqual({
-      skipped: 'no CockroachDB Cloud key',
+      skipped: 'no database provider key',
     });
   });
 

@@ -12,7 +12,7 @@ import { attachCleanAvatar } from './support/clean-avatar';
  * checklist: role chosen once, onboarding step resumes, client can't
  * finish without BOTH verified contacts, attorney needs a verified phone,
  * POST /cases stub returns CLIENT_CONTACTS_INCOMPLETE (item 9). Same real
- * CockroachDB/Redis setup and fixed OTP as auth.e2e-spec.ts.
+ * PostgreSQL/Redis setup and fixed OTP as auth.e2e-spec.ts.
  */
 describe('Onboarding (e2e) — stage 1.7 server side', () => {
   let app: INestApplication;
@@ -170,12 +170,18 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .send({ role: 'client' })
       .expect(200);
 
-    const again = await api()
+    // Owner 2026-10-14: until onboarding is complete the person may take the
+    // other door (a visitor who peeked at the lawyer side), and back.
+    await api()
       .post('/api/v1/users/me/role')
       .set(auth)
       .send({ role: 'attorney' })
-      .expect(409);
-    expect(again.body.error.code).toBe('ROLE_ALREADY_SET');
+      .expect(200);
+    await api()
+      .post('/api/v1/users/me/role')
+      .set(auth)
+      .send({ role: 'client' })
+      .expect(200);
 
     // Step position + data survive "closing the app" (item 4).
     await api()
@@ -223,6 +229,13 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .expect(200);
     expect(done.body.data.onboarding.completedAt).toEqual(expect.any(String));
     expect(done.body.data.missing).toEqual([]);
+    // Finished: the role is final.
+    const locked = await api()
+      .post('/api/v1/users/me/role')
+      .set(auth)
+      .send({ role: 'attorney' })
+      .expect(409);
+    expect(locked.body.error.code).toBe('ROLE_ALREADY_SET');
 
     // Onboarding complete: the real endpoint (docs/04 stage 4.2) creates it.
     const created = await postCase(auth);

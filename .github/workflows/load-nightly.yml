@@ -1,0 +1,37 @@
+# Owner 2026-10-14 (architecture audit, step 9): the k6 scenarios of
+# apps/api/k6 run every night against STAGING and fail on the p95 / error
+# thresholds of docs/06 §9.4, so a slow feed or search shows up before users
+# feel it. It does nothing until the owner adds the staging secrets
+# (docs/perf/README.md → "Accounts"): STAGING_API_URL, STAGING_WS_URL and
+# the JSON token / id lists below.
+name: Load test (nightly)
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+    steps:
+      - name: Staging is not configured yet
+        if: env.STAGING_API_URL == ''
+        run: echo "Add the STAGING_* secrets to run the nightly load test."
+      - uses: actions/checkout@v4
+        if: env.STAGING_API_URL != ''
+      - uses: grafana/setup-k6-action@v1
+        if: env.STAGING_API_URL != ''
+      - name: k6 — feed, search, cases, bids, chat (5 minutes, read/write thresholds)
+        if: env.STAGING_API_URL != ''
+        env:
+          BASE_URL: ${{ secrets.STAGING_API_URL }}
+          WS_URL: ${{ secrets.STAGING_WS_URL }}
+          CLIENT_TOKENS: ${{ secrets.STAGING_CLIENT_TOKENS }}
+          ATTORNEY_TOKENS: ${{ secrets.STAGING_ATTORNEY_TOKENS }}
+          CASE_IDS: ${{ secrets.STAGING_CASE_IDS }}
+          CONVERSATION_IDS: ${{ secrets.STAGING_CONVERSATION_IDS }}
+        run: k6 run apps/api/k6/all.js

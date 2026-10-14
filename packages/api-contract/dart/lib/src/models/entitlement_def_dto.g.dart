@@ -8,7 +8,7 @@ part of 'entitlement_def_dto.dart';
 
 EntitlementDefDto _$EntitlementDefDtoFromJson(Map<String, dynamic> json) =>
     EntitlementDefDto(
-      key: EntitlementKey.fromJson(json['key'] as String),
+      key: json['key'] as String,
       type: EntitlementDefDtoType.fromJson(json['type'] as String),
       audiences: (json['audiences'] as List<dynamic>)
           .map((e) => EntitlementDefDtoAudiences.fromJson(e as String))
@@ -21,11 +21,12 @@ EntitlementDefDto _$EntitlementDefDtoFromJson(Map<String, dynamic> json) =>
       min: (json['min'] as num?)?.toInt(),
       max: (json['max'] as num?)?.toInt(),
       zeroIsUnlimited: json['zeroIsUnlimited'] as bool?,
+      custom: json['custom'] as bool?,
     );
 
 Map<String, dynamic> _$EntitlementDefDtoToJson(EntitlementDefDto instance) =>
     <String, dynamic>{
-      'key': instance.key.toJson(),
+      'key': instance.key,
       'type': instance.type.toJson(),
       'audiences': instance.audiences.map((e) => e.toJson()).toList(),
       'group': instance.group,
@@ -34,4 +35,5 @@ Map<String, dynamic> _$EntitlementDefDtoToJson(EntitlementDefDto instance) =>
       'min': ?instance.min,
       'max': ?instance.max,
       'zeroIsUnlimited': ?instance.zeroIsUnlimited,
+      'custom': ?instance.custom,
     };

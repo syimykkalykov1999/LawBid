@@ -10,7 +10,7 @@ import { AdminCaseManagementService } from '../src/modules/admin-cases/admin-cas
 
 /**
  * Owner 2026-10-05: a client offers their open case to a chosen attorney
- * ("Предложить дело"). Against real CockroachDB/Redis:
+ * ("Предложить дело"). Against real PostgreSQL/Redis:
  *  - invite → the attorney is notified and sees it (without the client's
  *    identity); one pending invite per case and attorney;
  *  - the attorney's bid answers it (accepted, bidId); a decline (with a

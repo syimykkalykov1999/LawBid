@@ -87,23 +87,22 @@ export class StorageStatsService {
   }
 
   /**
-   * The biggest tables (CockroachDB span statistics: live bytes and the
-   * optimizer's row estimate). Empty when the database user may not read
-   * crdb_internal — the page then just hides the card.
+   * The biggest tables (PostgreSQL: on-disk size and the planner's row
+   * estimate). Empty when the statistics are unavailable — the page then
+   * just hides the card.
    */
   async tables(limit = 15): Promise<TableUsage[]> {
     try {
       const rows = await this.prisma.$queryRaw<
         { name: string; bytes: bigint | null; n: bigint | null }[]
       >`
-        SELECT t.name AS name, s.live_bytes::INT8 AS bytes,
-               r.estimated_row_count::INT8 AS n
-        FROM crdb_internal.tenant_span_stats() s
-        JOIN crdb_internal.tables t ON t.table_id = s.table_id
-        LEFT JOIN crdb_internal.table_row_statistics r
-          ON r.table_id = s.table_id
-        WHERE t.database_name = current_database() AND t.drop_time IS NULL
-        ORDER BY s.live_bytes DESC
+        SELECT c.relname AS name,
+               pg_total_relation_size(c.oid)::INT8 AS bytes,
+               GREATEST(c.reltuples, 0)::INT8 AS n
+        FROM pg_class c
+        JOIN pg_namespace ns ON ns.oid = c.relnamespace
+        WHERE c.relkind = 'r' AND ns.nspname = current_schema()
+        ORDER BY pg_total_relation_size(c.oid) DESC
         LIMIT ${limit}`;
       return rows.map((r) => ({
         table: r.name,

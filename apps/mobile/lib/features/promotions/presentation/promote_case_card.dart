@@ -793,17 +793,17 @@ class BoostButton extends ConsumerWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 32),
+          constraints: const BoxConstraints(minHeight: 28),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
+            vertical: 2,
           ),
           decoration: BoxDecoration(
             color: live ? colors.goldTint : null,
             borderRadius: BorderRadius.circular(AppRadii.pill),
             border: Border.all(color: colors.goldStroke),
           ),
-          // Small: as wide as its text, centred in its 32 px height.
+          // Small: as wide as its text, centred in its 28 px height.
           child: Align(
             widthFactor: 1,
             heightFactor: 1,
@@ -814,6 +814,7 @@ class BoostButton extends ConsumerWidget {
               style: type.bodySmall.copyWith(
                 color: colors.goldDark,
                 fontWeight: FontWeight.w700,
+                fontSize: 13,
               ),
             ),
           ),

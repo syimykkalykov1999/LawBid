@@ -45,9 +45,11 @@ export class JournalRetentionService implements OnModuleDestroy {
     while (deleted < MAX_PER_RUN) {
       const n = await db.$executeRaw`
         DELETE FROM case_journal
-        WHERE retain_until < ${now}
-        ORDER BY retain_until
-        LIMIT ${BATCH}`;
+        WHERE ctid IN (
+          SELECT ctid FROM case_journal
+          WHERE retain_until < ${now}
+          ORDER BY retain_until
+          LIMIT ${BATCH})`;
       deleted += n;
       if (n < BATCH) break;
       await new Promise((r) => setTimeout(r, 200));

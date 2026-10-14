@@ -286,7 +286,7 @@ async function dbPhase(
       );
     }
   }
-  // Batched: one huge DELETE can exceed CockroachDB's transaction limits.
+  // Batched: one huge DELETE holds locks and WAL for too long.
   for (const [table, keep] of [
     ['files', keepFiles],
     ['users', keepUsers],

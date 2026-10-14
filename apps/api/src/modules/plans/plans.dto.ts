@@ -1,12 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PriceDiscountDto } from '../billing/price-discount.dto';
 import { IsIn, IsOptional } from 'class-validator';
-import {
-  type Audience,
-  type EntitlementKey,
-  ENTITLEMENT_KEYS,
-  type EntitlementType,
-} from './entitlement-catalog';
+import { type Audience, type EntitlementType } from './entitlement-catalog';
 
 export const AUDIENCES = ['attorney', 'client'] as const;
 
@@ -17,8 +12,8 @@ export class LocalizedTextDto {
 
 /** One catalog entry — the app and the admin render labels from it. */
 export class EntitlementDefDto {
-  @ApiProperty({ enum: ENTITLEMENT_KEYS, enumName: 'EntitlementKey' })
-  key!: EntitlementKey;
+  @ApiProperty({ description: 'Built-in key or one created in the admin.' })
+  key!: string;
   @ApiProperty({ enum: ['boolean', 'number', 'price'] })
   type!: EntitlementType;
   @ApiProperty({ enum: AUDIENCES, isArray: true })
@@ -29,6 +24,8 @@ export class EntitlementDefDto {
   @ApiPropertyOptional({ type: 'integer' }) min?: number;
   @ApiPropertyOptional({ type: 'integer' }) max?: number;
   @ApiPropertyOptional() zeroIsUnlimited?: boolean;
+  @ApiPropertyOptional({ description: 'Created by the owner in the admin.' })
+  custom?: boolean;
 }
 
 /** Entitlement values; a number is a limit (see the catalog), a price is
@@ -44,6 +41,10 @@ export class PlanEntitlementsDto {
   bids_any_state?: number | boolean | null;
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   max_active_bids?: number | boolean | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  bids_per_month?: number | boolean | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  trial_bids?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
   priority_search?: number | boolean | null;
   @ApiPropertyOptional({ type: Boolean, nullable: true })
@@ -149,6 +150,13 @@ export class MyEntitlementsDto {
   planHighlights!: LocalizedTextDto[];
   @ApiProperty() isPaid!: boolean;
   @ApiProperty({ type: PlanEntitlementsDto }) values!: PlanEntitlementsDto;
+  @ApiProperty({
+    description:
+      'Values of the features the owner created in the admin (key → on/off or limit).',
+    type: 'object',
+    additionalProperties: true,
+  })
+  customValues!: Record<string, boolean | number | null>;
   @ApiProperty({ type: SeatSummaryDto, nullable: true })
   seats!: SeatSummaryDto | null;
   @ApiProperty({ type: [EntitlementDefDto] }) catalog!: EntitlementDefDto[];

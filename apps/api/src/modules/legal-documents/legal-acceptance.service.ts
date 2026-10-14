@@ -71,7 +71,7 @@ export class LegalAcceptanceService {
     try {
       rows = await this.loadRows(userId, types, consentTypes);
     } catch (e) {
-      // A CockroachDB enum value added by a migration is unusable until its
+      // A PostgreSQL enum value added by a migration is unusable until its
       // schema change finishes («enum value is not yet public»); on a
       // damaged restore that never happens. Everyone's /users/me would 500,
       // so treat it as "nothing to accept" and say so in the log.

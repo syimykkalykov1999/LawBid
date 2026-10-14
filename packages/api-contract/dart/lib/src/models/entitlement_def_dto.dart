@@ -6,7 +6,6 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'entitlement_def_dto_audiences.dart';
 import 'entitlement_def_dto_type.dart';
-import 'entitlement_key.dart';
 import 'localized_text_dto.dart';
 
 part 'entitlement_def_dto.g.dart';
@@ -23,12 +22,14 @@ class EntitlementDefDto {
     this.min,
     this.max,
     this.zeroIsUnlimited,
+    this.custom,
   });
 
   factory EntitlementDefDto.fromJson(Map<String, Object?> json) =>
       _$EntitlementDefDtoFromJson(json);
 
-  final EntitlementKey key;
+  /// Built-in key or one created in the admin.
+  final String key;
   final EntitlementDefDtoType type;
   final List<EntitlementDefDtoAudiences> audiences;
   final String group;
@@ -37,6 +38,9 @@ class EntitlementDefDto {
   final int? min;
   final int? max;
   final bool? zeroIsUnlimited;
+
+  /// Created by the owner in the admin.
+  final bool? custom;
 
   Map<String, Object?> toJson() => _$EntitlementDefDtoToJson(this);
 }

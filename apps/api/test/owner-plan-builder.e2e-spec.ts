@@ -672,4 +672,248 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     expect(cOff.isPaid).toBe(false);
     expect(cOff.values.verified_badge).not.toBe(true);
   });
+  /** Owner 2026-10-14: a feature is data — created in the admin, no release. */
+  it('a feature created in the admin is switchable per plan and reaches users by key', async () => {
+    const key = `own_${randomUUID().slice(0, 6).replace(/-/g, '')}`;
+    const made = await api()
+      .post('/api/v1/admin/billing/entitlements')
+      .set(admin)
+      .send({
+        key,
+        type: 'boolean',
+        audiences: ['client'],
+        group: 'features',
+        label: { en: 'Own feature', ru: 'Своя функция' },
+        description: { en: 'Made by the owner', ru: 'Создано владельцем' },
+      });
+    expect(made.status).toBe(200);
+    // Built-in keys and repeats are refused.
+    await api()
+      .post('/api/v1/admin/billing/entitlements')
+      .set(admin)
+      .send({
+        key: 'calls',
+        type: 'boolean',
+        audiences: ['client'],
+        group: 'features',
+        label: { en: 'x', ru: 'x' },
+        description: { en: 'x', ru: 'x' },
+      })
+      .expect(409);
+    const dup = await api()
+      .post('/api/v1/admin/billing/entitlements')
+      .set(admin)
+      .send({
+        key,
+        type: 'boolean',
+        audiences: ['client'],
+        group: 'features',
+        label: { en: 'x', ru: 'x' },
+        description: { en: 'x', ru: 'x' },
+      });
+    expect(dup.status).toBe(409);
+
+    const list = await api().get('/api/v1/admin/billing/plans').set(admin);
+    const entry = (
+      list.body.data.catalog as { key: string; custom?: boolean }[]
+    ).find((d) => d.key === key);
+    expect(entry?.custom).toBe(true);
+
+    // On the client baseline plan: every client without a plan has it.
+    const c = await user('client');
+    const me = async (): Promise<{
+      customValues: Record<string, unknown>;
+    }> =>
+      (await api().get('/api/v1/me/entitlements').set(c.auth)).body.data as {
+        customValues: Record<string, unknown>;
+      };
+    expect((await me()).customValues[key]).toBeUndefined();
+    await setTerm('client_free', key, true);
+    expect((await me()).customValues[key]).toBe(true);
+    expect(await entitlements.has(c.id, key)).toBe(true);
+    await setTerm('client_free', key, false);
+    expect(await entitlements.has(c.id, key)).toBe(false);
+
+    await api()
+      .delete(`/api/v1/admin/billing/entitlements/${key}`)
+      .set(admin)
+      .expect(200);
+    await api()
+      .delete('/api/v1/admin/billing/entitlements/calls')
+      .set(admin)
+      .expect(404);
+    expect((await me()).customValues[key]).toBeUndefined();
+  });
+  it('offers per month: the plan caps new offers, resending one is free, 0 lifts the cap', async () => {
+    const c = await user('client');
+    const a = await user('attorney');
+    const first = await kase(c.id);
+    const second = await kase(c.id);
+    const bid = (caseId: string, amountCents: number) =>
+      api()
+        .post(`/api/v1/cases/${caseId}/bids`)
+        .set(a.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          feeType: 'fixed',
+          amountCents,
+          message: 'I can take this matter and start right away.',
+          startAvailability: 'immediately',
+        });
+    await setTerm('attorney_monthly', 'bids_per_month', 1);
+    const ok = await bid(first, 50_000);
+    expect(ok.status).toBe(201);
+    const denied = await bid(second, 50_000);
+    expect(denied.status).toBe(409);
+    expect(denied.body.error.code).toBe('BID_MONTHLY_LIMIT_REACHED');
+    expect(denied.body.error.details).toMatchObject({ limit: 1, used: 1 });
+    // The same case again is a change, not a new offer.
+    const again = await bid(first, 45_000);
+    expect(again.body?.error?.code).not.toBe('BID_MONTHLY_LIMIT_REACHED');
+    await setTerm('attorney_monthly', 'bids_per_month', 0);
+    expect((await bid(second, 50_000)).status).toBe(201);
+    await setTerm('attorney_monthly', 'bids_per_month', 30);
+  });
+  it("trial: ends by days or by the plan's number of offers, whichever comes first", async () => {
+    const c = await user('client');
+    const a = await user('attorney');
+    await prisma.subscription.update({
+      where: { user_id: a.id },
+      data: { status: 'trialing', trial_started_at: new Date() },
+    });
+    const first = await kase(c.id);
+    const second = await kase(c.id);
+    const bid = (caseId: string) =>
+      api()
+        .post(`/api/v1/cases/${caseId}/bids`)
+        .set(a.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          feeType: 'fixed',
+          amountCents: 50_000,
+          message: 'I can take this matter and start right away.',
+          startAvailability: 'immediately',
+        });
+    await setTerm('attorney_monthly', 'trial_bids', 1);
+    expect((await bid(first)).status).toBe(201);
+    const denied = await bid(second);
+    expect(denied.status).toBe(409);
+    expect(denied.body.error.code).toBe('BID_TRIAL_LIMIT_REACHED');
+    // A paying attorney is not held by the trial number.
+    await prisma.subscription.update({
+      where: { user_id: a.id },
+      data: { status: 'active' },
+    });
+    expect((await bid(second)).status).toBe(201);
+    await setTerm('attorney_monthly', 'trial_bids', 5);
+  });
+  it('attorney statistics: profile opens, offers, accepted, clients', async () => {
+    const c = await user('client');
+    const a = await user('attorney');
+    const profile = await prisma.attorneyProfile.findUniqueOrThrow({
+      where: { user_id: a.id },
+      select: { username: true },
+    });
+    for (let i = 0; i < 2; i += 1) {
+      await api()
+        .get(`/api/v1/attorneys/${profile.username}`)
+        .set(c.auth)
+        .expect(200);
+    }
+    // The attorney opening their own profile is not a view.
+    await api().get(`/api/v1/attorneys/${profile.username}`).set(a.auth);
+    await new Promise((r) => setTimeout(r, 300));
+    const stats = await api().get('/api/v1/attorneys/me/stats').set(a.auth);
+    expect(stats.status).toBe(200);
+    expect(stats.body.data).toMatchObject({
+      profileViews30d: 2,
+      bidsSent30d: 0,
+      bidsAccepted30d: 0,
+      clientsTotal: 0,
+    });
+  });
+  it('offer packs: behind a flag, sizes and prices from the admin, bought offers are spent above the limit', async () => {
+    const c = await user('client');
+    const a = await user('attorney');
+    const cases = [await kase(c.id), await kase(c.id), await kase(c.id)];
+    const bid = (caseId: string) =>
+      api()
+        .post(`/api/v1/cases/${caseId}/bids`)
+        .set(a.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          feeType: 'fixed',
+          amountCents: 50_000,
+          message: 'I can take this matter and start right away.',
+          startAvailability: 'immediately',
+        });
+    await prisma.featureFlag.upsert({
+      where: { key: 'bid_packs' },
+      create: { key: 'bid_packs', enabled: false, description: 'packs' },
+      update: { enabled: false },
+    });
+    // Off: nothing on sale.
+    const off = await api().get('/api/v1/bid-packs').set(a.auth).expect(200);
+    expect(off.body.data).toMatchObject({ enabled: false, packs: [] });
+    await api().post('/api/v1/bid-packs/pack_10/buy').set(a.auth).expect(409);
+
+    await prisma.featureFlag.update({
+      where: { key: 'bid_packs' },
+      data: { enabled: true },
+    });
+    await api()
+      .put('/api/v1/admin/billing/bid-packs')
+      .set(admin)
+      .send({ packs: [{ id: 'pack_2', bids: 2, priceCents: 500 }] })
+      .expect(200);
+    const on = await api().get('/api/v1/bid-packs').set(a.auth).expect(200);
+    expect(on.body.data.packs).toEqual([
+      { id: 'pack_2', bids: 2, priceCents: 500 },
+    ]);
+
+    await setTerm('attorney_monthly', 'bids_per_month', 1);
+    expect((await bid(cases[0])).status).toBe(201);
+    expect((await bid(cases[1])).body.error.code).toBe(
+      'BID_MONTHLY_LIMIT_REACHED',
+    );
+
+    const buy = await api()
+      .post('/api/v1/bid-packs/pack_2/buy')
+      .set(a.auth)
+      .expect(200);
+    const { purchaseId, checkoutUrl } = buy.body.data as {
+      purchaseId: string;
+      checkoutUrl: string;
+    };
+    expect(checkoutUrl).toContain('/fake-checkout/');
+    const row = await prisma.bidPackPurchase.findUniqueOrThrow({
+      where: { id: purchaseId },
+    });
+    await api()
+      .post(`/api/v1/subscriptions/fake-checkout/${row.stripe_checkout_id}/pay`)
+      .expect(201);
+    const done = await api()
+      .get(`/api/v1/bid-packs/purchases/${purchaseId}`)
+      .set(a.auth)
+      .expect(200);
+    expect(done.body.data).toMatchObject({ status: 'paid', balance: 2 });
+    // Paying twice credits once.
+    await api()
+      .post(`/api/v1/subscriptions/fake-checkout/${row.stripe_checkout_id}/pay`)
+      .catch(() => undefined);
+    expect(
+      (await api().get('/api/v1/bid-packs').set(a.auth)).body.data.balance,
+    ).toBe(2);
+
+    expect((await bid(cases[1])).status).toBe(201);
+    expect((await bid(cases[2])).status).toBe(201);
+    expect(
+      (await api().get('/api/v1/bid-packs').set(a.auth)).body.data.balance,
+    ).toBe(0);
+    await setTerm('attorney_monthly', 'bids_per_month', 30);
+    await prisma.featureFlag.update({
+      where: { key: 'bid_packs' },
+      data: { enabled: false },
+    });
+  });
 });

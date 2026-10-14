@@ -15,9 +15,9 @@ import { attachCleanAvatar } from './support/clean-avatar';
  * GET /users/me returns the profile, attorneys get a unique generated
  * username that skips reserved words. Plus Settings → Account (§10.3):
  * GET /users/me/identifiers and a reauth-gated phone change that retires
- * the old phone as a sign-in method. Real CockroachDB/Redis, fixed OTP.
+ * the old phone as a sign-in method. Real PostgreSQL/Redis, fixed OTP.
  */
-// Each scenario makes 10-20 round trips to a real (shared) CockroachDB;
+// Each scenario makes 10-20 round trips to a real (shared) PostgreSQL;
 // the 5 s default is too tight when parallel suites load the cluster.
 jest.setTimeout(30_000);
 

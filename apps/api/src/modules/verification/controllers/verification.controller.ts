@@ -152,8 +152,9 @@ export class VerificationController {
     @CurrentUser() user: RequestUser,
     @Param() params: RequestIdParamDto,
     @Body() dto: AddLicenseDto,
+    @Ip() ip: string,
   ): Promise<VerificationRequestDto> {
-    return this.requests.addLicense(user.sub, params.id, dto);
+    return this.requests.addLicense(user.sub, params.id, dto, ip);
   }
 
   @Delete('requests/:id/licenses/:licenseId')

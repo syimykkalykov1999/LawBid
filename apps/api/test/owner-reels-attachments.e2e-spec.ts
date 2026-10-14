@@ -273,22 +273,23 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
     const upload = (body: Record<string, unknown>) =>
       api().post('/api/v1/videos/uploads').set(att.auth).send(body);
 
-    // Untrimmed and longer than 90 s → refused; the source cap is 180 s.
-    const long = await upload({ sizeBytes: 1000, durationSec: 120 });
+    // Untrimmed and longer than 180 s (3 minutes) → refused; the source
+    // cap is 900 s.
+    const long = await upload({ sizeBytes: 1000, durationSec: 200 });
     expect(long.status).toBe(422);
     expect(long.body.error.code).toBe('VIDEO_TOO_LONG');
     const tooLongSource = await upload({
       sizeBytes: 1000,
-      durationSec: 200,
+      durationSec: 1000,
       trimStartMs: 0,
       trimEndMs: 60_000,
     });
     expect(tooLongSource.status).toBe(422);
     const tooLongCut = await upload({
       sizeBytes: 1000,
-      durationSec: 150,
+      durationSec: 400,
       trimStartMs: 10_000,
-      trimEndMs: 110_000,
+      trimEndMs: 200_000,
     });
     expect(tooLongCut.status).toBe(422);
     const backwards = await upload({
@@ -301,7 +302,7 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
 
     const ok = await upload({
       sizeBytes: 1000,
-      durationSec: 150,
+      durationSec: 400,
       title: 'Know your rights',
       trimStartMs: 20_000,
       trimEndMs: 95_000,

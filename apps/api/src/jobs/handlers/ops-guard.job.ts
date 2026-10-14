@@ -20,7 +20,7 @@ const BACKUP_TIMEOUT_MS = 10_000;
  *   budget; at 100 % caps autoscaling at the minimum until the next month
  *   (ops.auto_scale_down_on_budget, default on) and gives it back when the
  *   new month starts.
- * - `ops.backup-check` (hourly): asks CockroachDB Cloud for the newest
+ * - `ops.backup-check` (hourly): asks the database provider's backup API for the newest
  *   backup; older than ops.backup_max_age_hours → alert.
  *
  * Alerts are log lines with an `alert` field; infra/modules/monitoring
@@ -140,7 +140,7 @@ export class OpsGuardJob {
     const creds = await this.secrets.get('cockroach_cloud');
     const apiKey = creds?.fields.apiKey;
     const clusterId = creds?.fields.clusterId;
-    if (!apiKey || !clusterId) return { skipped: 'no CockroachDB Cloud key' };
+    if (!apiKey || !clusterId) return { skipped: 'no database provider key' };
     const maxAgeH = await this.settings.number('ops.backup_max_age_hours');
     let newest: Date | null = null;
     try {
@@ -193,7 +193,7 @@ export class OpsGuardJob {
         signal: ctrl.signal,
       });
       if (!res.ok)
-        throw new Error(`CockroachDB Cloud answered HTTP ${res.status}`);
+        throw new Error(`Database provider answered HTTP ${res.status}`);
       const body = (await res.json()) as { backups?: BackupRow[] };
       return newestOf(body.backups ?? []);
     } finally {

@@ -10,7 +10,7 @@ import { RedisHealthIndicator } from './indicators/redis.health';
 /**
  * `GET /health/live` — process is up (no dependency checks: a DB outage
  * must not make the orchestrator restart every healthy API container).
- * `GET /health/ready` — this instance can serve traffic: CockroachDB
+ * `GET /health/ready` — this instance can serve traffic: PostgreSQL
  * answers `SELECT 1` and Redis answers PING, each within
  * HEALTH_CHECK_TIMEOUT_MS; otherwise 503 so the ALB/k8s stops routing to
  * it (docs/06_PRODUCTION.md rolling deploys, docs/01 §13 availability).

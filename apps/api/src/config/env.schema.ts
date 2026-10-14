@@ -652,6 +652,19 @@ export const envSchema = z
         });
       }
     }
+    // Owner 2026-10-14: the database link is encrypted on a deployed
+    // environment (PostgreSQL: sslmode=require or stricter).
+    if (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') {
+      const mode = /[?&]sslmode=([a-z-]+)/.exec(env.DATABASE_URL)?.[1];
+      if (!mode || !['require', 'verify-ca', 'verify-full'].includes(mode)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['DATABASE_URL'],
+          message:
+            'DATABASE_URL needs sslmode=require (or verify-ca / verify-full) on staging/production: the database connection must be encrypted',
+        });
+      }
+    }
     // Security audit 2026-10-01: deployed behind the ALB with 0 hops,
     // req.ip is the load balancer for everyone and every per-IP limit
     // (OTP, admin login, refresh) becomes one shared bucket.

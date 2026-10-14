@@ -86,6 +86,11 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: { startsWith: 'trust.' } },
     });
+    // The suites start with offers open (production default is on since
+    // 2026-10-14; the e2e global setup and this reset keep it open).
+    await prisma.appConfig.create({
+      data: { key: 'trust.bids_require_cleared', value: false },
+    });
     await redis.del('config:app_config');
   }
 
@@ -440,10 +445,10 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     const caseId2 = await kase(c.id);
     const refused = await bid(a.auth, caseId2);
     expect(refused.status).toBe(403);
-    expect(refused.body.error.code).toBe('TRUST_LEVEL_REQUIRED');
+    expect(refused.body.error.code).toBe('BID_LICENSE_PENDING');
     expect(refused.body.error.details).toMatchObject({
       gate: 'bids',
-      missing: ['registry', 'identity'],
+      missing: ['registry'],
       current: 0,
     });
     // Fewer requirements → the same attorney passes.

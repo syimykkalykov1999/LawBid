@@ -1013,6 +1013,12 @@ class _ThreadsPost extends ConsumerWidget {
                 ],
               ),
             ),
+            // Owner 2026-10-14: on my own post Boost sits here, right of the
+            // username (where Follow sits on someone else's).
+            if (p.isMine && !ref.watch(isAssistantProvider)) ...[
+              BoostButton(postId: p.id),
+              const SizedBox(width: AppSpacing.xs),
+            ],
             // With a "reposted" line under the name the row is only as tall
             // as the name, so that line sits right under it.
             if (compact)
@@ -1125,7 +1131,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.favoriteRounded,
                       icon: AppIcons.favoriteBorderRounded,
                       activeColor: colors.danger,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
@@ -1137,7 +1143,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
                       icon: AppIcons.modeCommentOutlined,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label: t.t('post.comments'),
                       // In the open thread the replies are right below:
@@ -1154,7 +1160,7 @@ class _ThreadsPost extends ConsumerWidget {
                       activeIcon: AppIcons.autoModeRounded,
                       icon: AppIcons.autoModeRounded,
                       activeColor: colors.success,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label:
                           t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
@@ -1167,7 +1173,7 @@ class _ThreadsPost extends ConsumerWidget {
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
                       icon: AppIcons.sendOutlined,
-                      size: 20,
+                      size: 22,
                       extent: 34,
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
@@ -1179,10 +1185,6 @@ class _ThreadsPost extends ConsumerWidget {
             ),
           ),
         ),
-        if (!inDetail && p.isMine && !ref.watch(isAssistantProvider)) ...[
-          const SizedBox(width: AppSpacing.sm),
-          BoostButton(postId: p.id),
-        ],
         // Owner 2026-10-13: the time sits left of Save, grey, in every role
         // and place; Save (the bookmark) is the right-most button.
         if (promotionId == null) ...[
@@ -1556,6 +1558,7 @@ class _AuthorRow extends ConsumerWidget {
         followMaxWidth: compact ? 120 : 136,
         // Only on someone else's post.
         showFollow: !post.isMine,
+        boostPostId: post.isMine ? post.id : null,
         // Owner 2026-10-13: no qualifications under the name.
         subtitle: sponsored
             ? t.t('promote.sponsored')
@@ -1638,8 +1641,13 @@ class AuthorHeader extends ConsumerWidget {
     this.followMaxWidth = 136,
     this.gap = AppSpacing.md,
     this.preferPractices = false,
+    this.boostPostId,
     super.key,
   });
+
+  /// Owner 2026-10-14: on my own post / reel the Boost button sits where
+  /// Follow sits on someone else's (never both).
+  final String? boostPostId;
 
   /// Under the name: the attorney's practices ("A · B +1") when there
   /// are any, instead of [subtitle].
@@ -1730,6 +1738,12 @@ class AuthorHeader extends ConsumerWidget {
             ),
           ),
         ),
+        if (!showFollow &&
+            boostPostId != null &&
+            !ref.watch(isAssistantProvider)) ...[
+          const SizedBox(width: 12),
+          BoostButton(postId: boostPostId!),
+        ],
         if (showFollow) ...[
           const SizedBox(width: 12),
           ConstrainedBox(
@@ -2443,78 +2457,72 @@ class PostActionsBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
       child: Row(
         children: [
-          if (reactions) ...[
-            BounceIcon(
-              active: post.likedByMe,
-              activeIcon: AppIcons.favoriteRounded,
-              icon: AppIcons.favoriteBorderRounded,
-              activeColor: colors.danger,
-              label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
-              onTap: () => run(() => actions.toggleLike(post)),
-            ),
-            // Owner 2026-09-30 design: counts next to the icons.
-            if (showCounts && (showTime || post.likeCount > 0))
-              _Count(post.likeCount),
-            BounceIcon(
-              active: false,
-              activeIcon: AppIcons.modeCommentOutlined,
-              icon: AppIcons.modeCommentOutlined,
-              label: t.t('post.comments'),
-              onTap: () => showCommentsSheet(
-                context,
-                postId: post.id,
-                commentsEnabled: post.commentsEnabled,
+          // The icons and counters shrink as a group if huge numbers (or a
+          // long language) don't fit; the date and Save keep their place.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.centerStart,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Owner 2026-10-14: the views of a reel / video post come first,
+                  // an inline icon + number, before the likes.
+                  if (post.video != null && post.viewCount > 0)
+                    _Views(post.viewCount),
+                  if (reactions) ...[
+                    BounceIcon(
+                      size: _kBarIcon,
+                      active: post.likedByMe,
+                      activeIcon: AppIcons.favoriteRounded,
+                      icon: AppIcons.favoriteBorderRounded,
+                      activeColor: colors.danger,
+                      label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
+                      onTap: () => run(() => actions.toggleLike(post)),
+                    ),
+                    // Owner 2026-09-30 design: counts next to the icons.
+                    if (showCounts && (showTime || post.likeCount > 0))
+                      _Count(post.likeCount),
+                    BounceIcon(
+                      size: _kBarIcon,
+                      active: false,
+                      activeIcon: AppIcons.modeCommentOutlined,
+                      icon: AppIcons.modeCommentOutlined,
+                      label: t.t('post.comments'),
+                      onTap: () => showCommentsSheet(
+                        context,
+                        postId: post.id,
+                        commentsEnabled: post.commentsEnabled,
+                      ),
+                    ),
+                    if (showCounts && (showTime || post.commentCount > 0))
+                      _Count(post.commentCount),
+                    BounceIcon(
+                      size: _kBarIcon,
+                      active: false,
+                      activeIcon: AppIcons.sendOutlined,
+                      icon: AppIcons.sendOutlined,
+                      label: t.t('post.share'),
+                      onTap: () => sharePost(context, ref, post),
+                    ),
+                    if (showCounts && (showTime || post.shareCount > 0))
+                      _Count(post.shareCount),
+                  ],
+                ],
               ),
             ),
-            if (showCounts && (showTime || post.commentCount > 0))
-              _Count(post.commentCount),
-            BounceIcon(
-              active: false,
-              activeIcon: AppIcons.sendOutlined,
-              icon: AppIcons.sendOutlined,
-              label: t.t('post.share'),
-              onTap: () => sharePost(context, ref, post),
-            ),
-            if (showCounts && (showTime || post.shareCount > 0))
-              _Count(post.shareCount),
-          ],
+          ),
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
             child: showTime
-                // Owner 2026-10-13: Boost (own post only) sits next to the
-                // date, on the outer and the inner card alike.
                 ? Align(
                     alignment: AlignmentDirectional.centerEnd,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (boost &&
-                            post.isMine &&
-                            !ref.watch(isAssistantProvider))
-                          Flexible(child: BoostButton(postId: post.id)),
-                        if (boost &&
-                            post.isMine &&
-                            !ref.watch(isAssistantProvider))
-                          const SizedBox(width: AppSpacing.sm),
-                        Flexible(
-                          child: _ShortDate(
-                            at: post.createdAt,
-                            views: post.video != null ? post.viewCount : 0,
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: _ShortDate(at: post.createdAt),
                   )
-                // Owner 2026-10-07: «Продвигать» / «Boost» under my own
-                // post, right before Save; it may use all the free width.
-                : boost && post.isMine && !ref.watch(isAssistantProvider)
-                    ? Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: BoostButton(postId: post.id),
-                      )
-                    : const SizedBox.shrink(),
+                : const SizedBox.shrink(),
           ),
           BounceIcon(
+            size: _kBarIcon,
             active: post.savedByMe,
             activeIcon: AppIcons.bookmarkRounded,
             icon: AppIcons.bookmarkBorderRounded,
@@ -2542,8 +2550,53 @@ class _Count extends ConsumerWidget {
       padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
       child: Text(
         SocialFormat.count(f, value),
-        style:
-            type.body.copyWith(color: colors.text, fontWeight: FontWeight.w500),
+        style: type.bodySmall.copyWith(
+          color: colors.text,
+          fontWeight: FontWeight.w500,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-14: Instagram-size icons in the action bar (22).
+const double _kBarIcon = 22;
+
+/// The views counter at the start of the action bar: a small eye and the
+/// compact number, inline (never over the media).
+class _Views extends ConsumerWidget {
+  const _Views(this.value);
+
+  final int value;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+        start: AppSpacing.xs,
+        end: AppSpacing.sm,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppIcon(
+            AppIcons.visibilityOutlined,
+            size: 18,
+            color: colors.textSecondary,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            SocialFormat.count(f, value),
+            style: type.bodySmall.copyWith(
+              color: colors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2726,12 +2779,9 @@ class PostDisclaimer extends ConsumerWidget {
 /// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
 /// "Mar 14, 2024").
 class _ShortDate extends ConsumerWidget {
-  const _ShortDate({required this.at, this.views = 0});
+  const _ShortDate({required this.at});
 
   final DateTime at;
-
-  /// Owner 2026-10-12: views of a video post, shown before the date.
-  final int views;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2741,31 +2791,11 @@ class _ShortDate extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(horizontal: AppSpacing.xs),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (views > 0) ...[
-            AppIcon(
-              AppIcons.visibilityOutlined,
-              size: 16,
-              color: colors.textSecondary,
-            ),
-            const SizedBox(width: 3),
-            Text(
-              SocialFormat.count(f, views),
-              style: type.caption.copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
-          Flexible(
-            child: Text(
-              SocialFormat.shortDate(t, f, at),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.caption.copyWith(color: colors.textSecondary),
-            ),
-          ),
-        ],
+      child: Text(
+        SocialFormat.shortDate(t, f, at),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: type.caption.copyWith(color: colors.textSecondary, fontSize: 13),
       ),
     );
   }

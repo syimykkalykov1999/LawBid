@@ -13,7 +13,7 @@ import { PRACTICE_TREE_CACHE_KEY } from '../src/modules/profiles/services/practi
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stages 3.5 (practices, license
- * expiry) and 3.6 (profiles API), against real CockroachDB + Redis.
+ * expiry) and 3.6 (profiles API), against real PostgreSQL + Redis.
  *
  * Acceptance 3.5: practices before `verified` -> ATTORNEY_NOT_VERIFIED;
  * the last license expiring makes the profile `unverified`; the §5.4

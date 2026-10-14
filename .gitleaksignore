@@ -17,3 +17,6 @@ acd09f1ad5b44e40d30c81fe759858932311daa3:apps/api/test/owner-case-urgency.e2e-sp
 b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:4
 b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:20
 b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:28
+
+# Owner 2026-10-14: an i18n key of a practice area in an e2e test, not a secret.
+e0ca2b9e1318d1417c5e4aaace2b297b0d15148f:apps/api/test/owner-firms.e2e-spec.ts:generic-api-key:210

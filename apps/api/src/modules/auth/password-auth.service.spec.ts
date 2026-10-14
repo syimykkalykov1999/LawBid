@@ -116,6 +116,28 @@ describe('PasswordAuthService', () => {
     );
   });
 
+  it('owner 2026-10-14: an unknown number and a number without a password answer the same', async () => {
+    const unknown = await make({ hasUser: false });
+    const a = await unknown.service.phoneStatus(
+      { identifier: '+14155552680' },
+      META,
+    );
+    expect(a).toEqual({ registered: false, hasPassword: false });
+  });
+
+  it('owner 2026-10-14: guesses are counted per account AND source, so a stranger cannot lock the owner out', async () => {
+    const { service, rateLimit } = await make();
+    await service.login(
+      { identifier: '+14155552680', password: 'Demo1234!' },
+      META,
+    );
+    const keys = (rateLimit.consumeSlidingWindow.mock.calls as unknown[][]).map(
+      (c) => (c[0] as string[])[1],
+    );
+    expect(keys).toContain('id+src');
+    expect(keys).not.toContain('id');
+  });
+
   it('lower-cases an e-mail identifier', async () => {
     const { service, prisma } = await make({ verifiedEmail: true });
     await service.login(
@@ -171,13 +193,11 @@ describe('PasswordAuthService', () => {
       );
     });
 
-    it('an e-mail identifier sends nothing (reset is by phone only)', async () => {
+    it('an e-mail identifier is refused honestly (reset is by phone only)', async () => {
       const { service, otp } = await make({ verifiedEmail: true });
-      const res = await service.requestReset(
-        { identifier: 'sofia@example.com' },
-        META,
-      );
-      expect(res.sent).toBe(true);
+      await expect(
+        service.requestReset({ identifier: 'sofia@example.com' }, META),
+      ).rejects.toThrow('phone number only');
       expect(otp.requestOtp).not.toHaveBeenCalled();
     });
 

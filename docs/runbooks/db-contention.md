@@ -8,7 +8,9 @@ paths touch the same rows (bid accept on one case, counters).
 
 **Check.** Logs Insights on the api group:
 `filter msg = "transaction retried" | stats count() by bin(1m)` and the
-CockroachDB Console → Transactions (contention, retries by statement).
+the database side: `pg_stat_activity` (who waits on which lock,
+`wait_event_type = 'Lock'`), `pg_locks`, and `pg_stat_statements` if the
+provider enables it (or the provider's query insights page).
 
 **Act.** Usually no immediate action; if the retry budget is exhausted the
 request fails with 409/500 and shows on the 5xx board. Long-term: move the

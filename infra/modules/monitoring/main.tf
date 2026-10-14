@@ -532,7 +532,7 @@ resource "aws_cloudwatch_metric_alarm" "cost_budget" {
 # The worker's `ops.guard` job probes the database every minute and logs
 # `metric: db_health`; `ops.cost-check` / `ops.backup-check` log
 # `alert: cost_ceiling` / `alert: backup_stale` (src/jobs/handlers/
-# ops-guard.job.ts). CockroachDB Cloud is outside AWS, so this is how its
+# ops-guard.job.ts). The managed PostgreSQL host may be outside AWS, so this is how its
 # health reaches CloudWatch.
 resource "aws_cloudwatch_log_metric_filter" "db_ok" {
   name           = "${var.name}-db-ok"
@@ -578,7 +578,7 @@ resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
 # Missing data is left to queue_backlog (a silent worker already alarms).
 resource "aws_cloudwatch_metric_alarm" "db_down" {
   alarm_name          = "${var.name}-db-down"
-  alarm_description   = "LawBid: База данных не отвечает 3 минуты подряд. Что делать: приложение переподключится само, когда база вернётся. Откройте CockroachDB Cloud → Status: если там авария, её чинит провайдер. Инструкция: ${var.runbook_base_url}/db-redis-unavailable.md (EN: db_health ok=0 for 3 minutes.)"
+  alarm_description   = "LawBid: База данных не отвечает 3 минуты подряд. Что делать: приложение переподключится само, когда база вернётся. Откройте кабинет хостинга базы данных (Status): если там авария, её чинит провайдер. Инструкция: ${var.runbook_base_url}/db-redis-unavailable.md (EN: db_health ok=0 for 3 minutes.)"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 3
   period              = 60
@@ -625,7 +625,7 @@ resource "aws_cloudwatch_metric_alarm" "cost_ceiling" {
 
 resource "aws_cloudwatch_metric_alarm" "backup_stale" {
   alarm_name          = "${var.name}-backup-stale"
-  alarm_description   = "LawBid: Нет свежей резервной копии базы (старше 26 часов) или проверка не смогла её найти. Что делать: откройте CockroachDB Cloud → Backups. Есть ошибка — напишите в их поддержку (бэкапы делают они) или Claude «бэкап». Инструкция: ${var.runbook_base_url}/backup-failed.md (EN: newest CockroachDB Cloud backup is stale.)"
+  alarm_description   = "LawBid: Нет свежей резервной копии базы (старше 26 часов) или проверка не смогла её найти. Что делать: откройте кабинет хостинга базы данных → Backups. Есть ошибка — напишите в их поддержку (бэкапы делает хостинг) или Claude «бэкап». Инструкция: ${var.runbook_base_url}/backup-failed.md (EN: newest CockroachDB Cloud backup is stale.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600

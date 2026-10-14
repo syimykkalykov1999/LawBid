@@ -36,7 +36,7 @@ import {
   PracticeAreaSeedCategory,
 } from '../src/common/reference-data/practice-areas.util';
 import { US_STATES } from '../src/common/reference-data/us-states';
-import { EMAIL_FLOWS_DESCRIPTION } from '../src/modules/feature-flags/email-flows';
+import { FLAG_CATALOG } from '../src/modules/feature-flags/flag-catalog';
 import {
   FILE_03_SETTINGS,
   FILE_04_SETTINGS,
@@ -250,94 +250,7 @@ async function seedBlockedEmailDomains(): Promise<void> {
 // GET /config/bootstrap) is the stage-1.8 work added alongside this
 // function's app_config sibling below.
 async function seedFeatureFlags(): Promise<void> {
-  const flags = [
-    {
-      key: 'video_posts',
-      enabled: false,
-      description: 'Video attachments on feed posts',
-    },
-    {
-      key: 'profile_promotion',
-      enabled: false,
-      description: 'Paid attorney profile promotion',
-    },
-    {
-      key: 'payments_in_app',
-      enabled: false,
-      description:
-        'Clients pay the accepted attorney through the platform (Stripe Connect)',
-    },
-    {
-      key: 'stripe_identity',
-      enabled: false,
-      description: 'Stripe Identity as a verification provider',
-    },
-    {
-      key: 'persona_verification',
-      enabled: false,
-      description: 'Persona as a verification provider',
-    },
-    {
-      key: 'chat_translate',
-      enabled: false,
-      description: 'Translate button under chat messages (Google Translate)',
-    },
-    {
-      key: 'payroll_stripe_payouts',
-      enabled: false,
-      description:
-        'Salaries paid out through Stripe Connect (employees link a bank account or card)',
-    },
-    {
-      key: 'auto_bar_check',
-      // Retired 2026-10-05: bar lookups are switched on per state in Admin →
-      // Ключи и сервисы → "Реестры адвокатов по штатам"; not read any more.
-      enabled: false,
-      description:
-        'Retired: bar lookups are enabled per state in Admin → Integrations → state registries',
-    },
-    {
-      // Owner 2026-10-06: the News system is switched off (kept in code).
-      key: 'news_posts',
-      enabled: false,
-      description:
-        'News: the News topic, the Post/News switch and the profile News tab',
-    },
-    { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
-    {
-      // Owner 2026-10-13: the «I have a demo code» link on Welcome.
-      key: 'demo_code_login',
-      enabled: true,
-      description: 'The «I have a demo code» link on the Welcome screen',
-    },
-    {
-      // Owner 2026-10-13: sign in with a password, no SMS each time.
-      key: 'password_login',
-      enabled: true,
-      description:
-        'Sign in with a phone number or e-mail and a password (no SMS)',
-    },
-    {
-      // Owner 2026-10-07: Admin «Вход и письма по почте» — every e-mail
-      // flow in the app (sign-in, adding an e-mail, the client's e-mail
-      // step, firm e-mail, e-mail notifications, waiting list). Off until
-      // Amazon SES may write to any address (feature-flags/email-flows.ts).
-      key: 'email_login',
-      enabled: false,
-      description: EMAIL_FLOWS_DESCRIPTION,
-    },
-    { key: 'apple_login', enabled: true, description: 'Sign in with Apple' },
-    { key: 'google_login', enabled: true, description: 'Sign in with Google' },
-    {
-      // docs/01 §10.6: App Attest / Play Integrity on otp/request and
-      // social login. Keep OFF until real verifiers are configured —
-      // the placeholder verifiers reject every token.
-      key: 'device_attestation',
-      enabled: false,
-      description:
-        'Require App Attest / Play Integrity on OTP request and social login',
-    },
-  ];
+  const flags = FLAG_CATALOG;
   for (const flag of flags) {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },

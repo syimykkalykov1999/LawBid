@@ -11,7 +11,7 @@ import { SubscriptionAccessService } from '../src/modules/subscriptions/subscrip
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.5 acceptance (integration + concurrency),
- * against real CockroachDB/Redis:
+ * against real PostgreSQL/Redis:
  *  - two parallel accepts of different bids on one case: exactly one wins,
  *    the other gets CASE_INVALID_STATE;
  *  - afterwards the other bids are rejected_auto, the case is in_progress

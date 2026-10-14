@@ -14,7 +14,8 @@ export type EntitlementType = 'boolean' | 'number' | 'price';
 export type EntitlementValue = boolean | number | null;
 
 export interface EntitlementDef {
-  key: EntitlementKey;
+  /** A built-in key, or one the owner created in the admin (see below). */
+  key: string;
   type: EntitlementType;
   audiences: Audience[];
   /** Grouping in the admin editor and the app. */
@@ -27,6 +28,8 @@ export interface EntitlementDef {
   zeroIsUnlimited?: boolean;
   /** Not shown in the app's feature lists (billing internals). */
   hidden?: boolean;
+  /** Created by the owner in the admin (not built in). */
+  custom?: boolean;
 }
 
 export const ENTITLEMENT_KEYS = [
@@ -35,6 +38,8 @@ export const ENTITLEMENT_KEYS = [
   'extra_seat_price_cents',
   'bids_any_state',
   'max_active_bids',
+  'bids_per_month',
+  'trial_bids',
   'priority_search',
   'calls',
   'video_calls',
@@ -103,6 +108,37 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     description: {
       en: 'Send offers on cases outside the states of a verified licence (the client is told).',
       ru: 'Отклики на дела вне штатов подтверждённой лицензии (клиент это видит).',
+    },
+  },
+  {
+    key: 'bids_per_month',
+    type: 'number',
+    audiences: ['attorney'],
+    group: 'cases',
+    min: 0,
+    max: 100000,
+    zeroIsUnlimited: true,
+    label: {
+      en: 'Offers per month',
+      ru: 'Откликов на кейсы в месяц',
+    },
+    description: {
+      en: 'New offers an attorney may send per calendar month (UTC). Stops spam. 0 = unlimited.',
+      ru: 'Сколько новых откликов на кейсы можно отправить за календарный месяц (UTC). Защита от спама. 0 — без ограничения.',
+    },
+  },
+  {
+    key: 'trial_bids',
+    type: 'number',
+    audiences: ['attorney'],
+    group: 'cases',
+    min: 0,
+    max: 1000,
+    zeroIsUnlimited: true,
+    label: { en: 'Offers during the trial', ru: 'Откликов в пробный период' },
+    description: {
+      en: 'Offers an attorney may send while the free trial runs; the trial ends by days or by this number, whichever comes first. 0 = no cap.',
+      ru: 'Сколько откликов можно отправить, пока идёт пробный период; он заканчивается по сроку или по этому числу, что раньше. 0 — без ограничения.',
     },
   },
   {
@@ -317,14 +353,39 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
   },
 ];
 
-export const CATALOG_BY_KEY: ReadonlyMap<EntitlementKey, EntitlementDef> =
-  new Map(ENTITLEMENT_CATALOG.map((d) => [d.key, d]));
+export const CATALOG_BY_KEY: ReadonlyMap<string, EntitlementDef> = new Map(
+  ENTITLEMENT_CATALOG.map((d) => [d.key, d]),
+);
 
-export function catalogFor(audience: Audience): EntitlementDef[] {
-  return ENTITLEMENT_CATALOG.filter((d) => d.audiences.includes(audience));
+/**
+ * Owner 2026-10-14: the catalog is data too. Features the owner creates in
+ * the admin (Деньги → Планы → «Новая функция») live in app_config
+ * (`plans.custom_entitlements`, CustomEntitlementsService) and are merged
+ * here: plans can switch them per plan, `/me/entitlements` reports them,
+ * and code checks them by key (`entitlements.has(userId, 'my_key')`). The
+ * built-in ones above keep their meaning in code and cannot be redefined.
+ */
+let customDefs: readonly EntitlementDef[] = [];
+
+export function setCustomEntitlementDefs(
+  defs: readonly EntitlementDef[],
+): void {
+  customDefs = defs.filter((d) => !CATALOG_BY_KEY.has(d.key));
 }
 
-export type Entitlements = Partial<Record<EntitlementKey, EntitlementValue>>;
+export function customEntitlementDefs(): readonly EntitlementDef[] {
+  return customDefs;
+}
+
+export function fullCatalog(): EntitlementDef[] {
+  return [...ENTITLEMENT_CATALOG, ...customDefs];
+}
+
+export function catalogFor(audience: Audience): EntitlementDef[] {
+  return fullCatalog().filter((d) => d.audiences.includes(audience));
+}
+
+export type Entitlements = Partial<Record<string, EntitlementValue>>;
 
 /**
  * What a user with NO subscription gets until the admin edits the
@@ -338,6 +399,10 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     extra_seat_price_cents: null,
     bids_any_state: true,
     max_active_bids: 0,
+    // Owner 2026-10-14: without a paid plan 3 offers a month; the paid
+    // plans carry 30 (the owner sets the numbers in the plan builder).
+    bids_per_month: 3,
+    trial_bids: 0,
     priority_search: false,
     calls: true,
     video_calls: true,
@@ -414,20 +479,17 @@ export function mergeEntitlements(
   for (const layer of layers) {
     if (!layer) continue;
     for (const [k, v] of Object.entries(layer)) {
-      if (v !== undefined) out[k as EntitlementKey] = v;
+      if (v !== undefined) out[k] = v;
     }
   }
   return out;
 }
 
-export function entitlementBool(e: Entitlements, key: EntitlementKey): boolean {
+export function entitlementBool(e: Entitlements, key: string): boolean {
   return e[key] === true;
 }
 
-export function entitlementNumber(
-  e: Entitlements,
-  key: EntitlementKey,
-): number {
+export function entitlementNumber(e: Entitlements, key: string): number {
   const v = e[key];
   return typeof v === 'number' ? v : 0;
 }

@@ -1,4 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'package:intl/intl.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
@@ -52,16 +53,17 @@ abstract final class SocialFormat {
   /// never a trailing ".0").
   static String count(L10nFormats f, int n) {
     if (n < 1000) return f.number(n);
-    String unit(double v, String s) {
-      final text = v < 10 ? v.toStringAsFixed(1) : v.floor().toString();
-      return '${text.endsWith('.0') ? text.substring(0, text.length - 2) : text}$s';
-    }
-
-    // Round down, so 999 999 never shows as "1000K".
+    // Round down, so 999 999 never shows as "1000K": two significant
+    // digits below 10 of the unit (1.3K), whole units above (12K).
     double floor1(double v) => (v * 10).floorToDouble() / 10;
-    if (n < 1000000) return unit(floor1(n / 1000), 'K');
-    if (n < 1000000000) return unit(floor1(n / 1000000), 'M');
-    return unit(floor1(n / 1000000000), 'B');
+    final (double v, int unit) = n < 1000000
+        ? (floor1(n / 1000), 1000)
+        : n < 1000000000
+            ? (floor1(n / 1000000), 1000000)
+            : (floor1(n / 1000000000), 1000000000);
+    final whole = v < 10 ? v : v.floorToDouble();
+    // Owner 2026-10-14: localized — 1.2K / 1,2 тыс. / 1,2 Mio. / ١٫٢ ألف.
+    return NumberFormat.compact(locale: f.locale).format(whole * unit);
   }
 
   /// A plural label ("12 345 likes") with its number made compact

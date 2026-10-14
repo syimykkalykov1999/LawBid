@@ -33,7 +33,4 @@ jobs:
           role-to-assume: ${{ secrets.AWS_SELFCHECK_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ secrets.AWS_REGION }}
       - name: Self-check
-        env:
-          COCKROACH_API_KEY: ${{ secrets.COCKROACH_CLOUD_API_KEY }}
-          COCKROACH_CLUSTER_ID: ${{ secrets.COCKROACH_CLOUD_CLUSTER_ID }}
         run: scripts/ops/self-check.sh prod "${{ secrets.PROD_API_URL }}"

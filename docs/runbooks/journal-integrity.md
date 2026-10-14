@@ -11,8 +11,8 @@ access, a restore from a backup that cut a chain, or a bug.
 1. Worker log line: `caseId`, `brokenAt.id`, `reason`
    (`hash_mismatch` = row content changed, `link_mismatch` = a row is
    missing/reordered).
-2. Was there a restore or a manual DB session? CockroachDB audit log /
-   Cloud Console SQL activity for that table.
+2. Was there a restore or a manual DB session? PostgreSQL logs / the
+   provider's audit log (`pgaudit` if enabled) for that table.
 3. Retention: a `link_mismatch` on the first remaining row of a very old
    case can be the retention job (rows past 5 years removed) — the
    verifier accepts that only for heads older than 4 years (OQ-022).

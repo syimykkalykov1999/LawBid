@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -34,6 +35,11 @@ String planOfferPath(UserRole? role, PaywallReason reason) =>
         ? ClientPlanRoutes.clientPlan
         : AppRoutes.subscriptionRequiredFor(reason.name);
 
+bool _bidLimit(Object e) =>
+    e is ApiException &&
+    (e.code == ApiErrorCodes.bidMonthlyLimitReached ||
+        e.code == ApiErrorCodes.bidTrialLimitReached);
+
 /// Owner 2026-10-13: an answer "not in your plan" (video, chat translation,
 /// attachments) says so and carries an «Open plans» action in the same bar;
 /// any other error is shown as before.
@@ -41,13 +47,18 @@ void showErrorOrPlans(BuildContext context, WidgetRef ref, Object error) {
   final t = ref.read(translatorProvider);
   final needsPlan = isPlanRequired(error) ||
       (error is ApiException &&
-          error.code == ApiErrorCodes.postAttachmentsNotAllowed);
+          (error.code == ApiErrorCodes.postAttachmentsNotAllowed ||
+              error.code == ApiErrorCodes.bidMonthlyLimitReached ||
+              error.code == ApiErrorCodes.bidTrialLimitReached));
   showAppSnackBar(
     context,
     errorText(t, error),
     actionLabel: needsPlan ? t.t('plan.open') : null,
     onAction: needsPlan
-        ? () => openPlanOffer(context, ref, PaywallReason.generic)
+        ? () => _bidLimit(error) &&
+                ref.read(featureFlagsControllerProvider).isEnabled('bid_packs')
+            ? context.push(AppRoutes.bidPacks)
+            : openPlanOffer(context, ref, PaywallReason.generic)
         : null,
   );
 }

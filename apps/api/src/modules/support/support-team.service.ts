@@ -344,7 +344,7 @@ export class SupportTeamService {
       if (!free) return null;
       // Two agents pressing «Следующий» together never get the same one.
       // A concurrent claim of the same row can abort with 40001 on
-      // CockroachDB: retry it instead of answering 500.
+      // PostgreSQL: retry it instead of answering 500.
       const took = await withTxRetry(this.prisma, (tx) =>
         tx.supportTicket.updateMany({
           where: { id: free.id, assignee_id: null },

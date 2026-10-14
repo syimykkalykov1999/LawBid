@@ -16,7 +16,7 @@ import { PUSH_QUEUE } from '../src/modules/notifications/push/push.constants';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.8 acceptance, against real
- * CockroachDB/Redis:
+ * PostgreSQL/Redis:
  *  - every §13 event of a full negotiation creates exactly one row for its
  *    recipient; a retried request (same Idempotency-Key) creates none;
  *  - each stored row is queued for push exactly once (jobId = row id),

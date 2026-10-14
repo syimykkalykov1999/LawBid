@@ -13,7 +13,7 @@ import { BOOTSTRAP_CACHE_KEY } from '../src/modules/feature-flags/services/boots
  * Production hardening (ledger leaf-1.2 G1; docs/01 §7, §13): readiness
  * probe with real dependency checks, security headers, no API docs in
  * production, cached bootstrap, atomic idempotency, graceful shutdown.
- * Runs against the real (isolated) CockroachDB + Redis — see
+ * Runs against the real (isolated) PostgreSQL + Redis — see
  * test/support/e2e-global-setup.ts — and the exact main.ts wiring via
  * configureApp().
  */

@@ -11,7 +11,7 @@ import { SubscriptionAlertsService } from '../src/modules/notifications/subscrip
 
 /**
  * Owner 2026-10-05: case urgency as a level or a concrete date. Against
- * real CockroachDB/Redis:
+ * real PostgreSQL/Redis:
  *  - a date alone means `by_date`; the level follows from the days left;
  *    a level clears the date; bad dates are refused;
  *  - the attorney feed filters "at least urgent" and "with a date";

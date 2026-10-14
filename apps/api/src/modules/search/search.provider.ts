@@ -54,7 +54,7 @@ export interface PostSearchFilters {
 
 /**
  * docs/05 §7.6: the search backend behind `/search/*`. The first
- * implementation is CockroachSearchProvider (trigram + tsvector indexes of
+ * implementation is PostgresSearchProvider (trigram + tsvector indexes of
  * docs/02 §5.3); an external engine can replace it without an API change.
  * Every method returns ids only — access and presentation stay in
  * SearchService (cases always go through CaseAccessPolicy there).

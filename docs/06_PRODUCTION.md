@@ -162,7 +162,7 @@
 - Разделение JWT мобильного приложения и админки (раздел 2.1).
 
 ### 4.3 Данные
-- Шифрование: диски и бэкапы кластера БД (управляемый CockroachDB Cloud), S3 SSE-KMS, Redis in-transit (TLS) и at-rest, секреты в AWS Secrets Manager (не в репозитории, не в образах).
+- Шифрование: диски и бэкапы кластера БД (управляемый PostgreSQL), S3 SSE-KMS, Redis in-transit (TLS) и at-rest, секреты в AWS Secrets Manager (не в репозитории, не в образах).
 - Документы верификации: приватный бакет, доступ только по подписанным ссылкам (5 минут), просмотр логируется (файл 3).
 - Логи: `pino` с редактированием (redact) полей `phone`, `email`, `authorization`, `refreshToken`, `code`, `body`, `idToken`; Sentry с очисткой персональных данных; в логи не попадает содержимое сообщений и кейсов.
 - Пароли не используются (беспарольный вход), OTP хранятся только как HMAC.
@@ -210,7 +210,7 @@
 ### 6.1 Состав (AWS, управляемые сервисы)
 | Компонент | Решение |
 |---|---|
-| БД | **CockroachDB Cloud** (dedicated, 3+ ноды, multi-AZ), автоматические бэкапы и PITR |
+| БД | **Управляемый PostgreSQL 16** (multi-AZ, хостинг выбирает владелец: AWS RDS / Neon / Supabase), автоматические бэкапы и PITR |
 | Кэш, очереди, rate-limit, realtime adapter | Amazon ElastiCache for Redis (кластер, multi-AZ, TLS) |
 | Приложение | **ECS Fargate**: сервис `api` (REST + Socket.IO) и сервис `worker` (BullMQ, cron-задачи) из одного Docker-образа, разные команды запуска |
 | Балансировка | Application Load Balancer (WebSocket-совместимые таймауты) + AWS WAF |
@@ -233,7 +233,7 @@
 - Нагрузочное тестирование (раздел 9.4) обязательно до запуска.
 
 ### 6.4 Бэкапы и восстановление
-- CockroachDB: полный бэкап ежедневно, инкрементальный каждый час, PITR; хранение 30 дней (для ежедневных).
+- PostgreSQL: автоматические снимки ежедневно, WAL-архив для PITR; хранение 30 дней.
 - S3: версионирование, репликация документов в другой регион.
 - Redis не является источником правды (потеря допустима, данные восстанавливаются из БД).
 - Целевые показатели: **RPO ≤ 1 час, RTO ≤ 4 часа**. Тест восстановления **раз в квартал** с записью результата в `docs/runbooks/restore-drill.md`.
@@ -247,7 +247,7 @@
 GitHub, `main` защищён (только через PR, обязательные проверки, минимум 1 ревью или проверка владельцем). Ветки Cursor: `cursor/stage-X-Y-описание` (по одной ветке на этап). Коммиты в формате Conventional Commits. Каждый этап = один PR.
 
 ### 7.2 Проверки на каждый PR (GitHub Actions)
-1. Backend: lint, typecheck, unit-тесты, e2e (testcontainers: CockroachDB + Redis), `prisma validate` и `migrate diff`, применение миграций на чистой БД.
+1. Backend: lint, typecheck, unit-тесты, e2e (PostgreSQL 16 + Redis), `prisma validate` и `migrate diff`, применение миграций на чистой БД.
 2. Контракт: генерация `openapi.json`, проверка совместимости с предыдущей версией (breaking changes блокируют), регенерация Dart-клиента и проверка отсутствия diff.
 3. Flutter: `flutter analyze`, `flutter test`, golden-тесты, проверка отсутствия строковых литералов в `presentation/` и hardcode-цветов (файл 1, раздел 9.4 и 8.1).
 4. Безопасность: раздел 4.4.
@@ -450,7 +450,7 @@ TestFlight и Google Play Internal/Closed Testing с ограниченной г
 - **Приёмка:** после анонимизации в БД нет имени/email/телефона/файлов документов, журнал остаётся; удаление записей журнала до `retain_until` невозможно; повреждённая запись журнала обнаруживается проверкой цепочки и создаёт алерт; ссылка экспорта истекает.
 
 ### Этап 6.10: Инфраструктура (Terraform)
-- Раздел 6: модули сети, ECS Fargate (`api`, `worker`), ALB+WAF, ElastiCache, S3/CloudFront/KMS, SES, Secrets Manager, подключение к CockroachDB Cloud, автомасштабирование; окружения `staging` и `prod`.
+- Раздел 6: модули сети, ECS Fargate (`api`, `worker`), ALB+WAF, ElastiCache, S3/CloudFront/KMS, SES, Secrets Manager, подключение к управляемому PostgreSQL, автомасштабирование; окружения `staging` и `prod`.
 - **Приёмка:** `terraform apply` поднимает staging с нуля; API отвечает по HTTPS, WebSocket работает через ALB, миграции применяются джобой, секреты не видны в образах и логах.
 
 ### Этап 6.11: CI/CD, наблюдаемость, бэкапы

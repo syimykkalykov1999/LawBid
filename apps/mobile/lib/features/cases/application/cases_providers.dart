@@ -1,17 +1,35 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/cases/data/cases_local_database.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // No silent automatic retries (Riverpod 3 default): a failed load shows
 // its error/offline state with Retry at once (docs/01 §8.3).
 Duration? _noRetry(int retryCount, Object error) => null;
+
+/// Owner 2026-10-14: the lawyers of my firm whose licence fits the case
+/// (empty without a firm or when the feature is off).
+final firmSendersProvider =
+    FutureProvider.autoDispose.family<List<api.FirmMemberDto>, String>(
+  (ref, caseId) async {
+    try {
+      return (await guardApiCall(
+        () => api.FirmsClient(ref.watch(dioProvider))
+            .firmMembersForCase(caseId: caseId),
+      ))
+          .data;
+    } on ApiException {
+      return const [];
+    }
+  },
+);
 
 // --- Infrastructure --------------------------------------------------------
 

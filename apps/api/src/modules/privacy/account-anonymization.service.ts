@@ -110,9 +110,11 @@ export class AccountAnonymizationService {
         SET body_original = ${DELETED_MESSAGE_BODY},
             body_display = ${DELETED_MESSAGE_BODY},
             contact_masked = false
-        WHERE sender_id = ${userId}::UUID
-          AND body_display <> ${DELETED_MESSAGE_BODY}
-        LIMIT 5000`;
+        WHERE ctid IN (
+          SELECT ctid FROM messages
+          WHERE sender_id = ${userId}::UUID
+            AND body_display <> ${DELETED_MESSAGE_BODY}
+          LIMIT 5000)`;
       if (n < 5000) break;
     }
   }

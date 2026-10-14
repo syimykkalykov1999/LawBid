@@ -9,13 +9,12 @@
 Что создаётся (Terraform, `infra/`): сеть (VPC, 1 NAT), балансировщик
 HTTPS + WAF, ECS Fargate (api, worker с антивирусом ClamAV, admin),
 Redis, S3 (документы и медиа) + CloudFront, Secrets Manager, KMS, SES-домен,
-тревоги CloudWatch → e-mail, бюджет. База данных — CockroachDB Cloud
-(Basic), создаётся в их консоли.
+тревоги CloudWatch → e-mail, бюджет. База данных — управляемый PostgreSQL 16
+(хостинг выбирает владелец, см. шаг 4), создаётся в консоли хостинга.
 
 Цена в месяц: AWS ≈ $150 при запуске (`launch.tfvars.example`), растёт
 сама с нагрузкой до потолков из `terraform.tfvars`; бюджет-тревоги на
-50/80/100 % от `monthly_budget_usd`. CockroachDB Basic: бесплатно в
-пределах их месячного лимита, дальше по использованию.
+50/80/100 % от `monthly_budget_usd`. База данных: цена зависит от выбранного хостинга (см. шаг 4).
 
 ## 0. Инструменты на Mac (Claude)
 
@@ -61,19 +60,28 @@ New Record**, для каждой записи из `acm_dns_records`:
 
 Проверка (Claude): `aws acm wait certificate-validated --certificate-arn <arn>`.
 
-## 4. 👤 База CockroachDB Cloud
+## 4. 👤 База PostgreSQL (хостинг выбирает владелец)
 
-[cockroachlabs.cloud](https://cockroachlabs.cloud) → **Create cluster**:
+**Решение владельца (ещё не принято):** где живёт боевой PostgreSQL 16.
+Варианты: AWS RDS (рядом с остальным, бэкапы и PITR из коробки, нужен
+PgBouncer/RDS Proxy), Neon или Supabase (проще и дешевле на старте).
+Любой подходит; требования:
 
-- **Plan**: Basic
-- **Cloud**: AWS, **Region**: `us-east-1` (N. Virginia)
-- **Cluster name**: `lawbid-prod`
-- **Spend limit**: $20 в месяц (потом можно поднять)
+- PostgreSQL **16**, регион `us-east-1`, **TLS обязателен** (приложение не
+  стартует на staging/production без TLS в `DATABASE_URL`);
+- автоматические бэкапы и восстановление на любую минуту (PITR), хранение
+  не меньше 30 дней;
+- роли: `lawbid_migrator` (миграции), `lawbid_app`, `lawbid_retention`,
+  `lawbid_readonly`; таймауты ролей — `infra/postgres/role-settings.sql`
+  (выполнить один раз: `psql "$MIGRATOR_URL" -f infra/postgres/role-settings.sql`).
 
-Затем **SQL Users → Add user** → имя `lawbid_migrator` → **Generate &
-save password**. Затем **Connect** → «General connection string» →
-скопировать строку (в ней пароль). Строку **не присылать в чат** — её
-спросит скрипт на шаге 6.
+После выбора: создать базу `lawbid_prod`, пользователя `lawbid_migrator`
+с паролем и скопировать строку подключения (в ней пароль). Строку **не
+присылать в чат** — её спросит скрипт на шаге 6.
+
+Когда хостинг выбран, Claude подключает проверку свежести бэкапа
+(`scripts/deploy/check-backup.sh` и почасовую проверку в админке, «Ключи и
+сервисы → Хостинг базы данных»): сейчас они только предупреждают.
 
 ## 5. Образы и сервер (Claude)
 

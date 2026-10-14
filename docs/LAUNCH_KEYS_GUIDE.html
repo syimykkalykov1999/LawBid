@@ -38,7 +38,7 @@
 <tr><td>9</td><td>AWS SES</td><td>Письма с кодами и уведомлениями</td><td>$0.10 за 1000 писем</td><td>1–2 дня</td></tr>
 <tr><td>10</td><td>Stripe</td><td>Подписка адвокатов</td><td>2.9% + $0.30 с платежа</td><td>1–3 дня</td></tr>
 <tr><td>11</td><td>AWS (серверы и хранилище)</td><td>API, фоновые задачи, админка, фото и документы, Redis</td><td>~$150–400 в месяц на старте</td><td>1–2 дня (разверну я)</td></tr>
-<tr><td>12</td><td>CockroachDB Cloud</td><td>База данных</td><td>$0–300 в месяц (есть бесплатный уровень)</td><td>1 час</td></tr>
+<tr><td>12</td><td>Хостинг PostgreSQL (выбирает владелец)</td><td>База данных</td><td>$15–300 в месяц, зависит от хостинга</td><td>1 час</td></tr>
 <tr><td>13</td><td>TURN-сервер</td><td>Звонки, которые соединяются всегда</td><td>$5–20 в месяц</td><td>1 день (разверну я)</td></tr>
 <tr><td>14</td><td>Sentry</td><td>Отчёты об ошибках и падениях</td><td>бесплатно до 5000 событий в месяц</td><td>30 минут</td></tr>
 <tr><td>15</td><td>Persona, проверка бар-лицензий (по желанию)</td><td>Автоматическая проверка адвоката</td><td>~$1+ за проверку</td><td>позже</td></tr>
@@ -150,9 +150,9 @@
 <li><b>Прислать мне:</b> доступ, e-mail для оповещений о сбоях.</li>
 </ol>
 
-<h2>12. CockroachDB Cloud — база данных</h2>
+<h2>12. Хостинг PostgreSQL — база данных</h2>
 <ol>
-<li><b>cockroachlabs.cloud</b> → Create cluster в том же регионе, что AWS. Для продакшена — 3 узла и резервные копии.</li>
+<li>Выберите хостинг управляемого PostgreSQL 16 (AWS RDS, Neon или Supabase) в том же регионе, что AWS. Для продакшена — резервные копии и восстановление на любую минуту (PITR).</li>
 <li>Создайте пользователей SQL (подскажу: migrator, app, retention, readonly) → строки подключения → в секреты (это секрет).</li>
 <li>Разрешите подключения с IP серверов (дам после развёртывания).</li>
 </ol>
@@ -190,7 +190,7 @@
 <table>
 <tr><th>Неделя</th><th>Вы</th><th>Я</th></tr>
 <tr><td>1</td><td>LLC, EIN, D‑U‑N‑S. Домен. Twilio + <b>A2P 10DLC (сразу — это самое долгое)</b>. Apple Developer, Google Play</td><td>Сайт (6 страниц + файлы ссылок), тексты для сторов, скриншоты</td></tr>
-<tr><td>2</td><td>AWS, CockroachDB Cloud, Stripe, Firebase, Google OAuth, Sentry</td><td>Развёртывание staging, подключение ключей по мере получения, проверка пушей, SMS, писем и оплаты</td></tr>
+<tr><td>2</td><td>AWS, хостинг PostgreSQL, Stripe, Firebase, Google OAuth, Sentry</td><td>Развёртывание staging, подключение ключей по мере получения, проверка пушей, SMS, писем и оплаты</td></tr>
 <tr><td>3</td><td>APNs-ключ, карточки в App Store Connect и Play Console</td><td>TURN и звонки на двух телефонах, сборки iOS и Android, TestFlight и закрытый тест</td></tr>
 <tr><td>4</td><td>Проверка на реальных людях, решение по оплате на iPhone</td><td>Развёртывание prod. Отправка в сторы — только по вашей команде</td></tr>
 </table>
@@ -211,7 +211,7 @@
 <tr><td>pk_live, Price ID</td><td>Stripe</td><td>публичные</td></tr>
 <tr><td>sk_live, whsec</td><td>Stripe</td><td><b>секреты</b></td></tr>
 <tr><td>Доступ к AWS</td><td>AWS IAM Identity Center</td><td><b>секрет</b></td></tr>
-<tr><td>Строки подключения БД</td><td>CockroachDB Cloud</td><td><b>секрет</b></td></tr>
+<tr><td>Строки подключения БД</td><td>Хостинг PostgreSQL</td><td><b>секрет</b></td></tr>
 <tr><td>DSN (2 шт.)</td><td>Sentry</td><td>публичные</td></tr>
 <tr><td>E-mail для оповещений и поддержки</td><td>вы</td><td>публичное</td></tr>
 </table>

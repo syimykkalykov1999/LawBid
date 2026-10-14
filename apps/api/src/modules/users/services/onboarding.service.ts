@@ -255,24 +255,57 @@ export class OnboardingService {
     });
   }
 
-  /** §11 step 2: "роль потом изменить нельзя" — set exactly once. The
-   * conditional updateMany makes two racing requests safe: only one can
-   * move role from NULL. The client refreshes its tokens afterwards to
-   * get the new `role` claim. */
+  /** §11 step 2: the role is chosen once the profile is done — until then
+   * (owner 2026-10-14) a person who took the wrong door (looked at the
+   * lawyer side, hit the licence step, went back) picks again: the half-made
+   * profile of the other side is removed and onboarding restarts. Once
+   * onboarding is complete, or a card / a verification request exists, the
+   * role is final. The client refreshes its tokens afterwards. */
   async setRole(
     userId: string,
     role: 'client' | 'attorney' | 'assistant',
   ): Promise<void> {
-    const { count } = await this.prisma.user.updateMany({
-      where: { id: userId, role: null },
-      data: { role },
-    });
-    if (count === 0) {
-      throw new ConflictException({
+    const locked = () =>
+      new ConflictException({
         code: ErrorCode.ROLE_ALREADY_SET,
         message: 'Role has already been chosen and cannot be changed.',
       });
-    }
+    await withTxRetry(this.prisma, async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: {
+          role: true,
+          onboarding_state: { select: { completed_at: true } },
+        },
+      });
+      if (!user) throw locked();
+      if (user.role === null) {
+        await tx.user.update({ where: { id: userId }, data: { role } });
+        return;
+      }
+      if (user.role === role) return;
+      const swappable = (r: string) => r === 'client' || r === 'attorney';
+      if (
+        !swappable(user.role) ||
+        !swappable(role) ||
+        user.onboarding_state?.completed_at
+      ) {
+        throw locked();
+      }
+      const [sub, request] = await Promise.all([
+        tx.subscription.count({ where: { user_id: userId } }),
+        tx.verificationRequest.count({ where: { attorney_id: userId } }),
+      ]);
+      if (sub > 0 || request > 0) throw locked();
+      await tx.attorneyLicense.deleteMany({ where: { attorney_id: userId } });
+      await tx.attorneyPracticeArea.deleteMany({
+        where: { attorney_id: userId },
+      });
+      await tx.attorneyProfile.deleteMany({ where: { user_id: userId } });
+      await tx.clientProfile.deleteMany({ where: { user_id: userId } });
+      await tx.onboardingState.deleteMany({ where: { user_id: userId } });
+      await tx.user.update({ where: { id: userId }, data: { role } });
+    });
   }
 
   async saveStep(userId: string, dto: SaveOnboardingStepDto): Promise<void> {

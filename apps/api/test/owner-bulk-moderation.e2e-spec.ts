@@ -474,6 +474,17 @@ describe('Bulk moderation + broadcast states (e2e)', () => {
   it('broadcasts reach any chosen set of states (and one state still works)', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
     const tag = randomUUID().slice(0, 8);
+    for (const [code, name] of [
+      ['IL', 'Illinois'],
+      ['NY', 'New York'],
+      ['TX', 'Texas'],
+    ]) {
+      await prisma.state.upsert({
+        where: { code },
+        create: { code, name, is_active: true },
+        update: {},
+      });
+    }
     const client = (state: string) =>
       prisma.user.create({
         data: {

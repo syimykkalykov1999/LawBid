@@ -362,6 +362,20 @@ enum ErrorCode {
   stickerPackNameTaken('STICKER_PACK_NAME_TAKEN'),
   @JsonValue('BID_LIMIT_REACHED')
   bidLimitReached('BID_LIMIT_REACHED'),
+  @JsonValue('BID_MONTHLY_LIMIT_REACHED')
+  bidMonthlyLimitReached('BID_MONTHLY_LIMIT_REACHED'),
+  @JsonValue('BID_TRIAL_LIMIT_REACHED')
+  bidTrialLimitReached('BID_TRIAL_LIMIT_REACHED'),
+  @JsonValue('BAR_NUMBER_FORMAT_INVALID')
+  barNumberFormatInvalid('BAR_NUMBER_FORMAT_INVALID'),
+  @JsonValue('FIRM_ALREADY_MEMBER')
+  firmAlreadyMember('FIRM_ALREADY_MEMBER'),
+  @JsonValue('FIRM_FULL')
+  firmFull('FIRM_FULL'),
+  @JsonValue('BID_LICENSE_PENDING')
+  bidLicensePending('BID_LICENSE_PENDING'),
+  @JsonValue('BAR_ATTEMPTS_COOLDOWN')
+  barAttemptsCooldown('BAR_ATTEMPTS_COOLDOWN'),
   @JsonValue('CASE_LIMIT_REACHED')
   caseLimitReached('CASE_LIMIT_REACHED'),
   @JsonValue('PLAN_NOT_AVAILABLE')

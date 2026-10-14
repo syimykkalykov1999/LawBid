@@ -1,4 +1,4 @@
-// LawBid — Prisma schema (CockroachDB).
+// LawBid — Prisma schema (PostgreSQL).
 //
 // Stage 1.3 scope (docs/01_FOUNDATION_AUTH.md §15, "Этап 1.3: Схема БД для
 // auth"): models needed for stages 1.4-1.7 — users, user_identifiers,
@@ -28,7 +28,7 @@ generator client {
 }
 
 datasource db {
-  provider = "cockroachdb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -675,7 +675,7 @@ model User {
   /// (null = storage.user_quota_mb, 0 = no cap).
   storage_quota_mb        Int?
   // UQ (docs/02 §4.A, §5.1). A plain unique index already admits any
-  // number of NULLs in CockroachDB, which is exactly the §8 stage-2.2
+  // number of NULLs in PostgreSQL, which is exactly the §8 stage-2.2
   // acceptance ("несколько NULL допускаются"); a partial index can't be
   // expressed in Prisma 6 and would be dropped as drift by the next
   // `migrate dev`, so @unique is used instead.
@@ -704,17 +704,17 @@ model User {
   /// Owner 2026-10-05: feed content — 'all' or 'legal_only' (general
   /// posts hidden from feed, search and recommendations); null = the admin
   /// default `feed.default_content_mode`.
-  feed_content_mode       String?                 @db.String(16)
+  feed_content_mode       String?                 @db.VarChar(16)
   deletion_requested_at   DateTime?               @db.Timestamptz
   deleted_at              DateTime?               @db.Timestamptz
   anonymized_at           DateTime?               @db.Timestamptz
   // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
   // trigram GIN-indexed. Read-only — never write it.
-  full_name_lower         String?                 @default(dbgenerated("lower((COALESCE(first_name, ''::STRING) || ' '::STRING) || COALESCE(last_name, ''::STRING))"))
+  full_name_lower         String?                 @default(dbgenerated("lower(((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)))"))
   // Owner 2026-10-13 (contacts sync): STORED computed column, lowercase hex
   // SHA-256 of phone_e164. Lets the app match its address book without
   // sending a single raw number. Read-only — never write it.
-  phone_sha256            String?                 @default(dbgenerated("sha256(phone_e164::BYTES)"))
+  phone_sha256            String?                 @default(dbgenerated("encode(sha256((phone_e164)::bytea), 'hex'::text)"))
   created_at              DateTime                @default(now()) @db.Timestamptz
   updated_at              DateTime                @updatedAt @db.Timestamptz
 
@@ -805,7 +805,7 @@ model User {
   // external partner — a blogger whose referral code the admin hands out
   // before they register). No identifiers, cannot sign in, hidden from
   // the people lists. Values: external_partner.
-  placeholder_kind            String?                        @db.String(24)
+  placeholder_kind            String?                        @db.VarChar(24)
   country_code                String                         @default("US") @db.Char(2)
   country                     Country                        @relation(fields: [country_code], references: [code], onDelete: Restrict)
   /// Owner 2026-10-05 (legal): DMCA removals counted against the author;
@@ -818,9 +818,8 @@ model User {
   contact_matched_by          ContactMatch[]                 @relation("ContactMatched")
   contact_sync                ContactSyncSetting?
 
-  // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma's
-  // CockroachDB connector can't declare gin_trgm_ops, and ignores partial
-  // indexes in its diff.
+  // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma
+  // can't declare gin_trgm_ops, and ignores partial indexes in its diff.
   // docs/06 stage 6.12 (load review): ops counters and the anonymization
   // scan must not walk the whole table.
   @@index([created_at])
@@ -856,7 +855,7 @@ model File {
   deleted_at     DateTime?   @db.Timestamptz
   /// Why the row was deleted: orphan (never attached / detached), released
   /// (its owner entity went away), infected, failed.
-  deleted_reason String?     @db.String(16)
+  deleted_reason String?     @db.VarChar(16)
   /// The S3 object (and its variants) is gone; the row stays only while
   /// something still references it.
   purged_at      DateTime?   @db.Timestamptz
@@ -962,7 +961,7 @@ model AuthEvent {
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a
   // USING HASH index, which crashes Prisma's introspection. Read-only.
-  created_shard   Int      @default(dbgenerated("mod(fnv32(id::STRING), 16)::INT2")) @db.Int2
+  created_shard   Int      @default(0) @db.SmallInt
 
   // Append-only (docs/02_DATABASE.md §6.2) — no updated_at, and the
   // lawbid_app DB role gets INSERT/SELECT only (raw SQL grant, stage 2.6).
@@ -987,14 +986,14 @@ model LegalDocument {
   // Owner 2026-10-05 (legal documents): `draft` (version = 'draft', one per
   // type + locale, edited freely), `published` (the current version) or
   // `archived` (a former version; never deleted — it is what users accepted).
-  status                String  @default("draft") @db.String(16)
+  status                String  @default("draft") @db.VarChar(16)
   // The users accepted an older version → ask them again when this one is
   // published (material change). Stored on the version that was published.
   requires_reacceptance Boolean @default(true)
   // Admin ids (users.id of the admin) and the note shown in the history.
   created_by            String? @db.Uuid
   changed_by            String? @db.Uuid
-  change_note           String? @db.String(1000)
+  change_note           String? @db.VarChar(1000)
   // Rollback = the old text published as a new version; points at the
   // version it was copied from.
   rollback_of_id        String? @db.Uuid
@@ -1315,13 +1314,13 @@ model AttorneyProfile {
   verification_requests       VerificationRequest[]
   // Owner 2026-10-05: a personal assistant limit set by an admin on
   // the attorney's request; null = the global billing.max_assistant_seats.
-  assistant_seat_limit        Int?                   @db.Int2
+  assistant_seat_limit        Int?                   @db.SmallInt
   // Owner 2026-10-05 (attorney trust levels): 0 self-attested, 1 license
   // confirmed (registry / staff), 2 identity confirmed (Stripe KYC with a
   // matching name, or staff-checked documents), 3 both. Recomputed by
   // AttorneyTrustService from events; `trust_badge` is the blue check
   // (level >= trust.min_level_badge, verified, no name mismatch).
-  trust_level                 Int                    @default(0) @db.Int2
+  trust_level                 Int                    @default(0) @db.SmallInt
   trust_badge                 Boolean                @default(false)
   trust                       AttorneyTrust?
   trust_events                AttorneyTrustEvent[]
@@ -1515,9 +1514,9 @@ model Case {
   deleted_at            DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', title || ' ' ||
   // description). Read-only.
-  search_tsv            Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, (title || ' '::STRING) || description)"))
+  search_tsv            Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::regconfig, ((title || ' '::text) || description))"))
   // Same text with the 'simple' config: exact words in any language.
-  search_tsv_simple     Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::STRING, (title || ' '::STRING) || description)"))
+  search_tsv_simple     Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, ((title || ' '::text) || description))"))
   created_at            DateTime                 @default(now()) @db.Timestamptz
   updated_at            DateTime                 @updatedAt @db.Timestamptz
 
@@ -1579,7 +1578,7 @@ model Bid {
   start_availability      StartAvailability
   start_date              DateTime?         @db.Date
   estimated_duration_days Int?
-  round_count             Int               @default(0) @db.Int2
+  round_count             Int               @default(0) @db.SmallInt
   turn                    PartyRole
   // Owner 2026-09-30: the case's practice is not one of the attorney's.
   outside_practice        Boolean           @default(false)
@@ -1613,7 +1612,7 @@ model BidOffer {
   id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   bid_id       String      @db.Uuid
   bid          Bid         @relation(fields: [bid_id], references: [id], onDelete: Restrict)
-  round_no     Int         @db.Int2
+  round_no     Int         @db.SmallInt
   from_role    PartyRole
   fee_type     FeeType
   amount_cents Int
@@ -1644,7 +1643,7 @@ model CaseJournal {
   payload       Json
   prev_hash     String?
   row_hash      String
-  retain_until  DateTime         @default(dbgenerated("now() + '5 years'::INTERVAL")) @db.Timestamptz
+  retain_until  DateTime         @default(dbgenerated("(now() + '5 years'::interval)")) @db.Timestamptz
   created_at    DateTime         @default(now()) @db.Timestamptz
 
   @@index([case_id, created_at])
@@ -1730,13 +1729,13 @@ model Review {
   attorney_id   String       @db.Uuid
   attorney      User         @relation("ReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict)
   // CHECK 1..5; body ≤ 1000 (§6.1), in the migration.
-  rating        Int          @db.Int2
+  rating        Int          @db.SmallInt
   body          String?
   status        ReviewStatus @default(published)
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
   edited_at     DateTime?    @db.Timestamptz
   /// Owner 2026-10-01 (Google-style): the attorney's public reply.
-  reply         String?      @db.String(1000)
+  reply         String?      @db.VarChar(1000)
   reply_at      DateTime?    @db.Timestamptz
   helpful_count Int          @default(0)
   /// Owner 2026-10-01: up to 10 `review_photo` files.
@@ -1785,7 +1784,7 @@ model Post {
   comments_enabled     Boolean                  @default(true)
   /// Owner 2026-10-05: 'legal' (a law topic, news, or marked by the author)
   /// or 'general' (personal, no law topic). Viewers can hide general posts.
-  content_class        String                   @default("general") @db.String(16)
+  content_class        String                   @default("general") @db.VarChar(16)
   /// Set by moderation: the author's edits no longer change content_class.
   content_class_locked Boolean                  @default(false)
   status               ContentStatus            @default(published)
@@ -1801,20 +1800,20 @@ model Post {
   // Owner 2026-10-12: pinned to the top of the author's profile list, slot
   // 1..3 inside pin_group 'grid' (posts) or 'brief' (text-only). A partial
   // unique index (author, group, slot) is in the migration.
-  pin_slot             Int?                     @db.Int2
+  pin_slot             Int?                     @db.SmallInt
   pin_group            String?
   // docs/05 §3.3, §14 (stage 5.1): "Изменено" after a text edit.
   edited_at            DateTime?                @db.Timestamptz
   deleted_at           DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
-  search_tsv           Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::STRING, body)"))
+  search_tsv           Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::regconfig, body)"))
   // Owner 2026-10-13: the same text in the language-neutral 'simple' config.
-  search_tsv_simple    Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::STRING, body)"))
+  search_tsv_simple    Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, body)"))
   created_at           DateTime                 @default(now()) @db.Timestamptz
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a
   // USING HASH index, which crashes Prisma's introspection. Read-only.
-  created_shard        Int                      @default(dbgenerated("mod(fnv32(id::STRING), 16)::INT2")) @db.Int2
+  created_shard        Int                      @default(0) @db.SmallInt
   updated_at           DateTime                 @updatedAt @db.Timestamptz
 
   media       PostMedia[]
@@ -1843,10 +1842,10 @@ model CasePhoto {
   case           Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   file_id        String   @db.Uuid
   file           File     @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  position       Int      @db.Int2
+  position       Int      @db.SmallInt
   /// Owner 2026-10-13: a short note on each file (≤500), who added it and
   /// where it came from: the case itself, a task submission or an update.
-  description    String?  @db.String(500)
+  description    String?  @db.VarChar(500)
   source         String   @default("case")
   source_id      String?  @db.Uuid
   /// The checklist line of a for-client task this file answers.
@@ -1872,7 +1871,7 @@ model CaseTask {
   case_id     String          @db.Uuid
   case        Case            @relation(fields: [case_id], references: [id], onDelete: Cascade)
   kind        String
-  title       String          @db.String(200)
+  title       String          @db.VarChar(200)
   description String?
   created_by  String          @db.Uuid
   /// open | done
@@ -1898,8 +1897,8 @@ model CaseTaskItem {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   task_id    String    @db.Uuid
   task       CaseTask  @relation(fields: [task_id], references: [id], onDelete: Cascade)
-  position   Int       @db.Int2
-  title      String    @db.String(200)
+  position   Int       @db.SmallInt
+  title      String    @db.VarChar(200)
   done_at    DateTime? @db.Timestamptz
   done_by    String?   @db.Uuid
   created_at DateTime  @default(now()) @db.Timestamptz
@@ -1927,7 +1926,7 @@ model CaseTaskEvent {
   case_id    String   @db.Uuid
   actor_id   String   @db.Uuid
   type       String
-  note       String?  @db.String(1000)
+  note       String?  @db.VarChar(1000)
   file_count Int      @default(0)
   created_at DateTime @default(now()) @db.Timestamptz
 
@@ -1943,7 +1942,7 @@ model CaseUpdate {
   case_id    String   @db.Uuid
   case       Case     @relation(fields: [case_id], references: [id], onDelete: Cascade)
   author_id  String   @db.Uuid
-  body       String   @db.String(5000)
+  body       String   @db.VarChar(5000)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@index([case_id, created_at])
@@ -1957,7 +1956,7 @@ model PostMedia {
   file_id    String    @db.Uuid
   file       File      @relation(fields: [file_id], references: [id], onDelete: Restrict)
   media_type MediaType @default(image)
-  position   Int       @db.Int2
+  position   Int       @db.SmallInt
   width      Int?
   height     Int?
   created_at DateTime  @default(now()) @db.Timestamptz
@@ -1976,7 +1975,7 @@ model PostAttachment {
   file_id    String   @unique @db.Uuid
   file       File     @relation(fields: [file_id], references: [id], onDelete: Restrict)
   file_name  String
-  position   Int      @db.Int2
+  position   Int      @db.SmallInt
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@unique([post_id, position])
@@ -2172,7 +2171,7 @@ model ConversationParticipant {
   /// "Waiting for my answer" since (the Waiting folder).
   waiting_since        DateTime?    @db.Timestamptz
   /// My note pinned on the chat ("send him the documents").
-  note                 String?      @db.String(280)
+  note                 String?      @db.VarChar(280)
   pinned_at            DateTime?    @db.Timestamptz
   /// Owner 2026-10-02: "deleted" from my list (only for me); a new message
   /// brings the chat back. The history itself is never erased.
@@ -2236,7 +2235,7 @@ model Message {
   file_name             String?
   // OQ-048: sent by an assistant on the attorney's behalf.
   sent_by_membership_id String?      @db.Uuid
-  sent_by_name          String?      @db.String(80)
+  sent_by_name          String?      @db.VarChar(80)
   listened_at           DateTime?    @db.Timestamptz
   // Owner 2026-10-01: a sticker message.
   sticker_id            String?      @db.Uuid
@@ -2344,7 +2343,7 @@ model Subscription {
   plan                   SubscriptionPlan   @default(monthly)
   // 0–6 (CHECK in the migration). Owner 2026-10-05: with a plan_id these
   // are the EXTRA seats bought on top of the plan's included ones.
-  assistant_seats        Int                @default(0) @db.Int2
+  assistant_seats        Int                @default(0) @db.SmallInt
   // Owner 2026-10-05 (plan builder): the plan bought and the entitlements
   // frozen at purchase — a later edit of the plan does not change a
   // subscriber's terms until the admin applies it.
@@ -2427,17 +2426,17 @@ model DmcaNotice {
   report               Report?           @relation(fields: [report_id], references: [id], onDelete: SetNull)
   target_type          ReportTargetType?
   target_id            String?           @db.Uuid
-  infringing_url       String?           @db.String(1000)
-  complainant_name     String            @db.String(200)
-  complainant_email    String            @db.String(254)
-  complainant_address  String            @db.String(500)
-  complainant_phone    String?           @db.String(40)
-  work_description     String            @db.String(4000)
+  infringing_url       String?           @db.VarChar(1000)
+  complainant_name     String            @db.VarChar(200)
+  complainant_email    String            @db.VarChar(254)
+  complainant_address  String            @db.VarChar(500)
+  complainant_phone    String?           @db.VarChar(40)
+  work_description     String            @db.VarChar(4000)
   good_faith           Boolean
   accuracy_sworn       Boolean
-  signature            String            @db.String(200)
+  signature            String            @db.VarChar(200)
   // new | removed | rejected | counter_received | restored
-  status               String            @default("new") @db.String(24)
+  status               String            @default("new") @db.VarChar(24)
   submitted_by_user_id String?           @db.Uuid
   submitted_by         User?             @relation("DmcaSubmitter", fields: [submitted_by_user_id], references: [id], onDelete: SetNull)
   // The content's author at decision time (who gets the strike and may
@@ -2447,7 +2446,7 @@ model DmcaNotice {
   counter              Json?
   decided_by           String?           @db.Uuid
   decided_at           DateTime?         @db.Timestamptz
-  decision_note        String?           @db.String(1000)
+  decision_note        String?           @db.VarChar(1000)
   created_at           DateTime          @default(now()) @db.Timestamptz
   updated_at           DateTime          @updatedAt @db.Timestamptz
 
@@ -2489,7 +2488,7 @@ model AdminProfile {
 /// Owner 2026-10-02: named sets of admin rights ("Verifier", "Support", ...).
 model AdminRoleTemplate {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String   @unique @db.String(60)
+  name        String   @unique @db.VarChar(60)
   permissions Json     @default("{}")
   created_by  String   @db.Uuid
   created_at  DateTime @default(now()) @db.Timestamptz
@@ -2503,7 +2502,7 @@ model AdminRoleTemplate {
 /// Active while lifted_at is null and expires_at is empty or in the future.
 model AccountBan {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kind        String    @db.String(10)
+  kind        String    @db.VarChar(10)
   value       String
   user_id     String?   @db.Uuid
   reason      String
@@ -2536,7 +2535,7 @@ model AuditLog {
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a
   // USING HASH index, which crashes Prisma's introspection. Read-only.
-  created_shard Int      @default(dbgenerated("mod(fnv32(id::STRING), 16)::INT2")) @db.Int2
+  created_shard Int      @default(0) @db.SmallInt
 
   @@index([admin_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "audit_log_created_at_idx")
@@ -2590,10 +2589,10 @@ model AdminCredential {
   last_login_at        DateTime? @db.Timestamptz
   // Login + password as the first factor (lower case, unique). The password
   // is a scrypt hash; the security answer (super admin only) is hashed too.
-  login                String?   @unique @db.String(40)
+  login                String?   @unique @db.VarChar(40)
   password_hash        String?
   password_changed_at  DateTime? @db.Timestamptz
-  security_question    String?   @db.String(200)
+  security_question    String?   @db.VarChar(200)
   security_answer_hash String?
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @updatedAt @db.Timestamptz
@@ -2732,11 +2731,11 @@ model ClientReview {
   attorney      User         @relation("ClientReviewAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   client_id     String       @db.Uuid
   client        User         @relation("ClientReviewClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  rating        Int          @db.Int2
+  rating        Int          @db.SmallInt
   body          String?
   status        ReviewStatus @default(published)
   /// Owner 2026-10-01 (Google-style): the reviewed person's public reply.
-  reply         String?      @db.String(1000)
+  reply         String?      @db.VarChar(1000)
   reply_at      DateTime?    @db.Timestamptz
   helpful_count Int          @default(0)
   /// Owner 2026-10-01: up to 10 `review_photo` files.
@@ -3039,8 +3038,8 @@ model AttorneyTaskPlace {
   task_id    String       @db.Uuid
   task       AttorneyTask @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "attorney_task_places_task_fkey")
   position   Int          @default(0)
-  label      String?      @db.String(80)
-  address    String       @db.String(300)
+  label      String?      @db.VarChar(80)
+  address    String       @db.VarChar(300)
   created_at DateTime     @default(now()) @db.Timestamptz
 
   @@index([task_id, position], map: "attorney_task_places_task_idx")
@@ -3058,10 +3057,10 @@ model AttorneyTaskPerson {
   user_id    String?      @db.Uuid
   user       User?        @relation("TaskPeople", fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "attorney_task_people_user_fkey")
   /// What the person is to the task ("witness", "judge"), free text.
-  role       String?      @db.String(60)
-  name       String       @db.String(120)
-  phone      String?      @db.String(20)
-  email      String?      @db.String(254)
+  role       String?      @db.VarChar(60)
+  name       String       @db.VarChar(120)
+  phone      String?      @db.VarChar(20)
+  email      String?      @db.VarChar(254)
   created_at DateTime     @default(now()) @db.Timestamptz
 
   @@index([task_id, position], map: "attorney_task_people_task_idx")
@@ -3077,16 +3076,16 @@ model AttorneyTaskStep {
   task            AttorneyTask       @relation(fields: [task_id], references: [id], onDelete: Cascade, map: "attorney_task_steps_task_fkey", onUpdate: NoAction)
   position        Int                @default(0)
   kind            AttorneyTaskKind?
-  title           String             @db.String(160)
+  title           String             @db.VarChar(160)
   due_at          DateTime?          @db.Timestamptz
-  location        String?            @db.String(200)
-  contact_name    String?            @db.String(120)
-  contact_phone   String?            @db.String(20)
-  contact_email   String?            @db.String(254)
+  location        String?            @db.VarChar(200)
+  contact_name    String?            @db.VarChar(120)
+  contact_phone   String?            @db.VarChar(20)
+  contact_email   String?            @db.VarChar(254)
   status          AttorneyTaskStatus @default(open)
-  note            String?            @db.String(1000)
+  note            String?            @db.VarChar(1000)
   done_at         DateTime?          @db.Timestamptz
-  created_by_name String?            @db.String(120)
+  created_by_name String?            @db.VarChar(120)
   created_at      DateTime           @default(now()) @db.Timestamptz
   updated_at      DateTime           @default(now()) @updatedAt @db.Timestamptz
 
@@ -3102,7 +3101,7 @@ model BidDraft {
   case_id          String   @db.Uuid
   case             Case     @relation(fields: [case_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   payload          Json
-  prepared_by_name String?  @db.String(80)
+  prepared_by_name String?  @db.VarChar(80)
   created_at       DateTime @default(now()) @db.Timestamptz
   updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz
 
@@ -3122,10 +3121,10 @@ model CaseInvite {
   client                  User      @relation("CaseInvitesSent", fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   attorney_id             String    @db.Uuid
   attorney                User      @relation("CaseInvitesReceived", fields: [attorney_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  status                  String    @default("pending") @db.String(20)
-  message                 String?   @db.String(1000)
+  status                  String    @default("pending") @db.VarChar(20)
+  message                 String?   @db.VarChar(1000)
   budget_cents            Int?
-  decline_reason          String?   @db.String(500)
+  decline_reason          String?   @db.VarChar(500)
   outside_practice        Boolean   @default(false)
   outside_licensed_states Boolean   @default(false)
   bid_id                  String?   @db.Uuid
@@ -3144,10 +3143,10 @@ model CaseInvite {
 model AdminBroadcast {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   admin_id    String   @db.Uuid
-  title       String   @db.String(120)
-  body        String   @db.String(1000)
-  audience    String   @db.String(20)
-  state_code  String?  @db.String(2)
+  title       String   @db.VarChar(120)
+  body        String   @db.VarChar(1000)
+  audience    String   @db.VarChar(20)
+  state_code  String?  @db.VarChar(2)
   /// Owner 2026-10-04: any set of states (empty = every state);
   /// `state_code` keeps the first one for older readers.
   state_codes String[] @default([])
@@ -3167,9 +3166,9 @@ model AssistantLiabilityAcceptance {
   membership    AssistantMembership @relation(fields: [membership_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   duties        String[]
   granted       Boolean
-  terms_version String              @db.String(20)
-  ip            String?             @db.String(64)
-  user_agent    String?             @db.String(300)
+  terms_version String              @db.VarChar(20)
+  ip            String?             @db.VarChar(64)
+  user_agent    String?             @db.VarChar(300)
   created_at    DateTime            @default(now()) @db.Timestamptz
 
   @@index([attorney_id, created_at(sort: Desc)], map: "assistant_liability_by_attorney")
@@ -3247,14 +3246,14 @@ model StateBarRegistry {
 model AttorneyTrust {
   attorney_id                  String          @id @db.Uuid
   attorney                     AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
-  level                        Int             @default(0) @db.Int2
+  level                        Int             @default(0) @db.SmallInt
   // Signals ----------------------------------------------------------
   // The license was confirmed outside the attorney's word: 'registry'
   // (state registry match) or 'staff' (verifier opened the state bar's
   // page). Null = only self-attested.
   license_confirmed_at         DateTime?       @db.Timestamptz
-  license_confirmed_by         String?         @db.String(16)
-  license_confirmed_note       String?         @db.String(500)
+  license_confirmed_by         String?         @db.VarChar(16)
+  license_confirmed_note       String?         @db.VarChar(500)
   // A verifier checked bar card + ID + selfie.
   documents_verified_at        DateTime?       @db.Timestamptz
   documents_verified_by        String?         @db.Uuid
@@ -3262,27 +3261,27 @@ model AttorneyTrust {
   // submitted; the legal name Stripe verified.
   stripe_kyc_at                DateTime?       @db.Timestamptz
   stripe_charges_enabled       Boolean         @default(false)
-  stripe_legal_name            String?         @db.String(200)
+  stripe_legal_name            String?         @db.VarChar(200)
   // Owner 2026-10-05 (LLC question): individual | company | non_profit |
   // government_entity; for a company the representative / owners are the
   // people compared with the profile, never the company name.
-  stripe_business_type         String?         @db.String(24)
-  stripe_company_name          String?         @db.String(200)
+  stripe_business_type         String?         @db.VarChar(24)
+  stripe_company_name          String?         @db.VarChar(200)
   // Host of business_profile.url (a firm's website), for the firm e-mail check.
-  stripe_company_domain        String?         @db.String(200)
+  stripe_company_domain        String?         @db.VarChar(200)
   // The representative / owner whose name matched the profile (or the first).
-  stripe_representative        String?         @db.String(200)
+  stripe_representative        String?         @db.VarChar(200)
   // Legal name (Stripe) vs profile / registry: match | mismatch | unknown.
-  name_check                   String          @default("unknown") @db.String(16)
+  name_check                   String          @default("unknown") @db.VarChar(16)
   name_checked_at              DateTime?       @db.Timestamptz
   // Firm link (a company account the attorney neither owns nor represents):
   // none | pending | confirmed; source registry | email | staff.
-  firm_link_status             String          @default("none") @db.String(16)
-  firm_link_source             String?         @db.String(16)
+  firm_link_status             String          @default("none") @db.VarChar(16)
+  firm_link_source             String?         @db.VarChar(16)
   firm_link_at                 DateTime?       @db.Timestamptz
-  firm_link_note               String?         @db.String(500)
+  firm_link_note               String?         @db.VarChar(500)
   // The firm e-mail domain the attorney confirmed with a code.
-  firm_email_domain            String?         @db.String(200)
+  firm_email_domain            String?         @db.VarChar(200)
   firm_email_verified_at       DateTime?       @db.Timestamptz
   // Staff clearance (owner 2026-10-05, «Борьба с мошенниками»): a verifier
   // pressed «Подтвердить» after checking what the rules require; from then
@@ -3290,23 +3289,23 @@ model AttorneyTrust {
   // and an explicit withdrawal close them).
   staff_cleared_at             DateTime?       @db.Timestamptz
   staff_cleared_by             String?         @db.Uuid
-  staff_cleared_note           String?         @db.String(500)
+  staff_cleared_note           String?         @db.VarChar(500)
   // «Запросить ещё»: the last request for more documents and its template.
   documents_requested_at       DateTime?       @db.Timestamptz
-  documents_requested_template String?         @db.String(32)
+  documents_requested_template String?         @db.VarChar(32)
   // Holds -------------------------------------------------------------
   // A code (complaint | name_mismatch | duplicate_claim | admin | ...) or
   // null. While set, the gate is closed whatever the level.
-  payments_hold                String?         @db.String(32)
+  payments_hold                String?         @db.VarChar(32)
   payments_hold_at             DateTime?       @db.Timestamptz
-  bids_hold                    String?         @db.String(32)
+  bids_hold                    String?         @db.VarChar(32)
   bids_hold_at                 DateTime?       @db.Timestamptz
-  hold_note                    String?         @db.String(500)
+  hold_note                    String?         @db.VarChar(500)
   // Counters ----------------------------------------------------------
   complaints_total             Int             @default(0)
   duplicate_claims             Int             @default(0)
   // Payout delay (days) LawBid asked Stripe to apply; null = Stripe default.
-  payout_delay_days            Int?            @db.Int2
+  payout_delay_days            Int?            @db.SmallInt
   payout_delay_synced_at       DateTime?       @db.Timestamptz
   computed_at                  DateTime        @default(now()) @db.Timestamptz
   created_at                   DateTime        @default(now()) @db.Timestamptz
@@ -3324,10 +3323,10 @@ model AttorneyTrustEvent {
   id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   attorney_id String          @db.Uuid
   attorney    AttorneyProfile @relation(fields: [attorney_id], references: [user_id], onDelete: Cascade)
-  kind        String          @db.String(48)
-  from_level  Int?            @db.Int2
-  to_level    Int?            @db.Int2
-  actor_type  String          @default("system") @db.String(16)
+  kind        String          @db.VarChar(48)
+  from_level  Int?            @db.SmallInt
+  to_level    Int?            @db.SmallInt
+  actor_type  String          @default("system") @db.VarChar(16)
   actor_id    String?         @db.Uuid
   details     Json            @default("{}")
   created_at  DateTime        @default(now()) @db.Timestamptz
@@ -3348,9 +3347,9 @@ model BarNumberBlock {
   /// Normalised for matching: upper-case, no spaces / punctuation.
   bar_key         String
   active          Boolean               @default(true)
-  reason          String                @db.String(500)
+  reason          String                @db.VarChar(500)
   /// 'staff_reject' | 'verification_reject' | 'suspend' | 'manual'
-  source          String                @db.String(32)
+  source          String                @db.VarChar(32)
   /// The attorney whose rejection / block created it (may be gone later).
   attorney_id     String?               @db.Uuid
   blocked_by      String?               @db.Uuid
@@ -3361,7 +3360,7 @@ model BarNumberBlock {
   phone_e164      String?
   unblocked_at    DateTime?             @db.Timestamptz
   unblocked_by    String?               @db.Uuid
-  unblock_reason  String?               @db.String(500)
+  unblock_reason  String?               @db.VarChar(500)
   attempts        Int                   @default(0)
   last_attempt_at DateTime?             @db.Timestamptz
   created_at      DateTime              @default(now()) @db.Timestamptz
@@ -3381,10 +3380,10 @@ model BarNumberBlockEvent {
   id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   block_id   String         @db.Uuid
   block      BarNumberBlock @relation(fields: [block_id], references: [id], onDelete: Cascade)
-  kind       String         @db.String(32)
-  actor_type String         @default("system") @db.String(16)
+  kind       String         @db.VarChar(32)
+  actor_type String         @default("system") @db.VarChar(16)
   actor_id   String?        @db.Uuid
-  reason     String?        @db.String(500)
+  reason     String?        @db.VarChar(500)
   details    Json           @default("{}")
   created_at DateTime       @default(now()) @db.Timestamptz
 
@@ -3452,8 +3451,8 @@ model VideoAsset {
 
 // ---------------------------------------------------------------------------
 // Owner 2026-10-02 — admin growth & support tools. Status/kind columns are
-// short strings validated by the DTOs (no new enum types: CockroachDB can't
-// use an enum created in the same migration). User/admin ids are plain UUID
+// short strings validated by the DTOs (no new enum types: a new value of an
+// existing enum can't be used in the same migration transaction). User/admin ids are plain UUID
 // columns so these tables don't add back-relations to `User`.
 // ---------------------------------------------------------------------------
 
@@ -3463,17 +3462,17 @@ model VideoAsset {
 model ContractGrant {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id         String    @db.Uuid
-  months          Int       @db.Int2
-  assistant_seats Int       @default(0) @db.Int2
+  months          Int       @db.SmallInt
+  assistant_seats Int       @default(0) @db.SmallInt
   starts_at       DateTime  @db.Timestamptz
   ends_at         DateTime  @db.Timestamptz
   // Contract reference / blogger handle, shown to admins only.
-  contract_ref    String?   @db.String(200)
-  note            String?   @db.String(1000)
+  contract_ref    String?   @db.VarChar(200)
+  note            String?   @db.VarChar(1000)
   created_by      String    @db.Uuid
   revoked_at      DateTime? @db.Timestamptz
   revoked_by      String?   @db.Uuid
-  revoke_reason   String?   @db.String(500)
+  revoke_reason   String?   @db.VarChar(500)
   created_at      DateTime  @default(now()) @db.Timestamptz
   updated_at      DateTime  @updatedAt @db.Timestamptz
 
@@ -3488,12 +3487,12 @@ model ContractGrant {
 model SeatLimitRequest {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   attorney_id     String    @db.Uuid
-  requested_seats Int       @db.Int2
-  note            String?   @db.String(1000)
+  requested_seats Int       @db.SmallInt
+  note            String?   @db.VarChar(1000)
   // pending | approved | rejected
-  status          String    @default("pending") @db.String(20)
-  granted_seats   Int?      @db.Int2
-  decision_note   String?   @db.String(500)
+  status          String    @default("pending") @db.VarChar(20)
+  granted_seats   Int?      @db.SmallInt
+  decision_note   String?   @db.VarChar(500)
   decided_by      String?   @db.Uuid
   decided_at      DateTime? @db.Timestamptz
   created_at      DateTime  @default(now()) @db.Timestamptz
@@ -3508,17 +3507,17 @@ model SeatLimitRequest {
 model PromoCode {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Upper-case, unique.
-  code             String    @unique @db.String(40)
-  description      String?   @db.String(300)
+  code             String    @unique @db.VarChar(40)
+  description      String?   @db.VarChar(300)
   // percent | amount | free_days
-  discount_type    String    @db.String(16)
-  percent_off      Int?      @db.Int2
+  discount_type    String    @db.VarChar(16)
+  percent_off      Int?      @db.SmallInt
   amount_off_cents Int?
   free_days        Int?
   // all | attorney | client
-  audience         String    @default("attorney") @db.String(16)
+  audience         String    @default("attorney") @db.VarChar(16)
   // any | monthly | yearly | promotion
-  applies_to       String    @default("any") @db.String(16)
+  applies_to       String    @default("any") @db.VarChar(16)
   max_redemptions  Int?
   redeemed_count   Int       @default(0)
   starts_at        DateTime? @db.Timestamptz
@@ -3555,9 +3554,9 @@ model Refund {
   payment_id       String   @db.Uuid
   user_id          String   @db.Uuid
   amount_cents     Int
-  reason           String   @db.String(500)
+  reason           String   @db.VarChar(500)
   // pending | succeeded | failed
-  status           String   @db.String(16)
+  status           String   @db.VarChar(16)
   stripe_refund_id String?  @unique
   failure_reason   String?
   admin_id         String   @db.Uuid
@@ -3573,7 +3572,7 @@ model Refund {
 model ReferralCode {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id    String   @unique @db.Uuid
-  code       String   @unique @db.String(24)
+  code       String   @unique @db.VarChar(24)
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@map("referral_codes")
@@ -3583,17 +3582,17 @@ model Referral {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   referrer_id     String    @db.Uuid
   referee_id      String    @unique @db.Uuid
-  code            String    @db.String(24)
+  code            String    @db.VarChar(24)
   // pending | qualified | rewarded | rejected
-  status          String    @default("pending") @db.String(16)
-  referrer_role   String    @db.String(16)
-  referee_role    String    @db.String(16)
+  status          String    @default("pending") @db.VarChar(16)
+  referrer_role   String    @db.VarChar(16)
+  referee_role    String    @db.VarChar(16)
   // Snapshot of the program at sign-up time.
   referrer_reward Json      @default("{}")
   referee_reward  Json      @default("{}")
   qualified_at    DateTime? @db.Timestamptz
   rewarded_at     DateTime? @db.Timestamptz
-  rejected_reason String?   @db.String(300)
+  rejected_reason String?   @db.VarChar(300)
   created_at      DateTime  @default(now()) @db.Timestamptz
   updated_at      DateTime  @updatedAt @db.Timestamptz
 
@@ -3610,23 +3609,23 @@ model Partner {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id             String    @unique @db.Uuid
   // active | paused | ended
-  status              String    @default("active") @db.String(16)
+  status              String    @default("active") @db.VarChar(16)
   // How the admin calls them ("blogger Ivan"); admin only.
-  label               String?   @db.String(120)
-  note                String?   @db.String(1000)
+  label               String?   @db.VarChar(120)
+  note                String?   @db.VarChar(1000)
   // null = program default (app_config partners.program).
   attorney_rate_cents Int?
   client_rate_cents   Int?
   monthly_base_cents  Int       @default(0)
   // null = program default; case_published | bid_accepted
-  client_rule         String?   @db.String(24)
-  hold_days           Int?      @db.Int2
+  client_rule         String?   @db.VarChar(24)
+  hold_days           Int?      @db.SmallInt
   created_by          String?   @db.Uuid
   // Owner 2026-10-05: partner without an app account (user is a placeholder
   // row, users.placeholder_kind = external_partner): who they are and how
   // to reach them, admin only. Cleared when a real account is linked.
-  external_name       String?   @db.String(120)
-  external_contact    String?   @db.String(200)
+  external_name       String?   @db.VarChar(120)
+  external_contact    String?   @db.VarChar(200)
   // Owner 2026-10-05 («Продвижение»): may create demo accounts for videos.
   demo_access         Boolean   @default(false)
   created_at          DateTime  @default(now()) @db.Timestamptz
@@ -3636,8 +3635,8 @@ model Partner {
   // independent contractor, ...) accepted in the app — when, which
   // version (PARTNER_TERMS_VERSION) and from which IP.
   terms_accepted_at   DateTime? @db.Timestamptz
-  terms_version       String?   @db.String(16)
-  terms_ip            String?   @db.String(45)
+  terms_version       String?   @db.VarChar(16)
+  terms_ip            String?   @db.VarChar(45)
   // A W-9 (or W-8) on file; required before the first payout when
   // partners.program.requireW9 is on (IRS 1099 reporting).
   w9_received_at      DateTime? @db.Timestamptz
@@ -3660,25 +3659,25 @@ model PartnerCommission {
   referral_id      String?   @db.Uuid
   referred_user_id String?   @db.Uuid
   // attorney_subscription | client_qualified | monthly_base | adjustment
-  kind             String    @db.String(32)
+  kind             String    @db.VarChar(32)
   // Negative for a reversal of an already paid commission.
   amount_cents     Int
   // held | approved | paid | reversed
-  status           String    @default("held") @db.String(16)
+  status           String    @default("held") @db.VarChar(16)
   // "referral:<id>:attorney_subscription", "base:<partnerId>:2026-10", ...
-  event_ref        String    @unique @db.String(120)
+  event_ref        String    @unique @db.VarChar(120)
   // Payroll period YYYY-MM the accrual belongs to.
-  period           String    @db.String(7)
+  period           String    @db.VarChar(7)
   // null while held = manual hold (released only by an admin).
   hold_until       DateTime? @db.Timestamptz
   approved_at      DateTime? @db.Timestamptz
   approved_by      String?   @db.Uuid
   paid_at          DateTime? @db.Timestamptz
   paid_by          String?   @db.Uuid
-  payout_ref       String?   @db.String(120)
+  payout_ref       String?   @db.VarChar(120)
   reversed_at      DateTime? @db.Timestamptz
-  reversed_reason  String?   @db.String(300)
-  note             String?   @db.String(300)
+  reversed_reason  String?   @db.VarChar(300)
+  note             String?   @db.VarChar(300)
   created_at       DateTime  @default(now()) @db.Timestamptz
   updated_at       DateTime  @updatedAt @db.Timestamptz
 
@@ -3696,39 +3695,39 @@ model PartnerCommission {
 /// source: csv | manual | ny_registry. kind: attorney | client.
 model OutreachLead {
   id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kind                  String    @default("attorney") @db.String(10)
-  first_name            String?   @db.String(80)
-  last_name             String?   @db.String(80)
-  company               String?   @db.String(160)
-  state_code            String?   @db.String(2)
-  city                  String?   @db.String(80)
-  practice              String?   @db.String(80)
+  kind                  String    @default("attorney") @db.VarChar(10)
+  first_name            String?   @db.VarChar(80)
+  last_name             String?   @db.VarChar(80)
+  company               String?   @db.VarChar(160)
+  state_code            String?   @db.VarChar(2)
+  city                  String?   @db.VarChar(80)
+  practice              String?   @db.VarChar(80)
   // Digits only (E.164 without "+"); unique when present.
-  phone                 String?   @unique @db.String(20)
+  phone                 String?   @unique @db.VarChar(20)
   // Lower-cased; unique when present.
-  email                 String?   @unique @db.String(254)
-  source                String    @default("manual") @db.String(20)
-  source_ref            String?   @db.String(64)
-  status                String    @default("new") @db.String(16)
+  email                 String?   @unique @db.VarChar(254)
+  source                String    @default("manual") @db.VarChar(20)
+  source_ref            String?   @db.VarChar(64)
+  status                String    @default("new") @db.VarChar(16)
   partner_id            String?   @db.Uuid
   partner               Partner?  @relation(fields: [partner_id], references: [id], onDelete: SetNull)
   converted_user_id     String?   @db.Uuid
-  unsubscribe_token     String    @unique @db.String(48)
+  unsubscribe_token     String    @unique @db.VarChar(48)
   unsubscribed_at       DateTime? @db.Timestamptz
   last_activity_at      DateTime? @db.Timestamptz
   next_action_at        DateTime? @db.Timestamptz
-  note                  String?   @db.String(2000)
+  note                  String?   @db.VarChar(2000)
   // Owner 2026-10-05 (legal): do-not-contact (TCPA / DNC). Reason:
   // manual | not_interested | wrong_number | unsubscribed | suppression |
   // retention. While set, phone and email are hidden and no call/email
   // may be logged or sent.
   do_not_contact_at     DateTime? @db.Timestamptz
-  do_not_contact_reason String?   @db.String(24)
+  do_not_contact_reason String?   @db.VarChar(24)
   // Where the contact came from and on what basis we may reach out
   // (required for CSV imports and for client leads).
-  source_note           String?   @db.String(300)
+  source_note           String?   @db.VarChar(300)
   // Cold emails sent to this lead (cap + cooldown in outreach settings).
-  emails_sent           Int       @default(0) @db.Int4
+  emails_sent           Int       @default(0) @db.Integer
   last_email_at         DateTime? @db.Timestamptz
   created_by            String    @db.Uuid
   created_at            DateTime  @default(now()) @db.Timestamptz
@@ -3754,9 +3753,9 @@ model OutreachActivity {
   lead           OutreachLead @relation(fields: [lead_id], references: [id], onDelete: Cascade)
   partner_id     String?      @db.Uuid
   actor_admin_id String?      @db.Uuid
-  kind           String       @db.String(12)
-  outcome        String?      @db.String(24)
-  body           String?      @db.String(4000)
+  kind           String       @db.VarChar(12)
+  outcome        String?      @db.VarChar(24)
+  body           String?      @db.VarChar(4000)
   meta           Json?
   created_at     DateTime     @default(now()) @db.Timestamptz
 
@@ -3771,10 +3770,10 @@ model OutreachActivity {
 /// attorney | client | any.
 model OutreachTemplate {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String   @db.String(80)
-  kind       String   @default("any") @db.String(10)
-  subject    String   @db.String(200)
-  body       String   @db.String(8000)
+  name       String   @db.VarChar(80)
+  kind       String   @default("any") @db.VarChar(10)
+  subject    String   @db.VarChar(200)
+  body       String   @db.VarChar(8000)
   active     Boolean  @default(true)
   created_by String   @db.Uuid
   created_at DateTime @default(now()) @db.Timestamptz
@@ -3790,9 +3789,9 @@ model OutreachTemplate {
 model OutreachSuppression {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // phone | email
-  kind       String   @db.String(8)
-  value      String   @db.String(254)
-  note       String?  @db.String(200)
+  kind       String   @db.VarChar(8)
+  value      String   @db.VarChar(254)
+  note       String?  @db.VarChar(200)
   created_by String   @db.Uuid
   created_at DateTime @default(now()) @db.Timestamptz
 
@@ -3808,17 +3807,17 @@ model OutreachSuppression {
 model CasePromotion {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // case | post
-  target_type         String    @default("case") @db.String(8)
+  target_type         String    @default("case") @db.VarChar(8)
   case_id             String?   @db.Uuid
   post_id             String?   @db.Uuid
   user_id             String    @db.Uuid
-  days                Int       @db.Int2
+  days                Int       @db.SmallInt
   // The chosen daily budget (= price per day).
   price_cents_per_day Int
   total_cents         Int
   // pending_payment | pending_review | active | paused | finished |
   // canceled | refunded | rejected
-  status              String    @db.String(20)
+  status              String    @db.VarChar(20)
   starts_at           DateTime? @db.Timestamptz
   ends_at             DateTime? @db.Timestamptz
   stripe_checkout_id  String?   @unique
@@ -3827,7 +3826,7 @@ model CasePromotion {
   // Granted for free by an admin (no payment).
   granted_by          String?   @db.Uuid
   canceled_by         String?   @db.Uuid
-  cancel_reason       String?   @db.String(500)
+  cancel_reason       String?   @db.VarChar(500)
   impressions         Int       @default(0)
   // Owner 2026-10-05: delivery. cpm_cents frozen at purchase; null target
   // = no cap (older rows). reach = distinct people shown it.
@@ -3862,7 +3861,7 @@ model PromotionView {
   user_id       String        @db.Uuid
   impressions   Int           @default(0)
   // Impressions on day_key (UTC date) for the daily cap.
-  day_key       String        @db.String(10)
+  day_key       String        @db.VarChar(10)
   day_count     Int           @default(0)
   clicked       Boolean       @default(false)
   first_seen_at DateTime      @default(now()) @db.Timestamptz
@@ -3877,13 +3876,13 @@ model PromotionView {
 model SupportTicket {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id           String    @db.Uuid
-  subject           String    @db.String(200)
+  subject           String    @db.VarChar(200)
   // account | billing | verification | case | bug | abuse | other
-  category          String    @default("other") @db.String(20)
+  category          String    @default("other") @db.VarChar(20)
   // open | waiting_user | resolved | closed
-  status            String    @default("open") @db.String(16)
+  status            String    @default("open") @db.VarChar(16)
   // low | normal | high | urgent
-  priority          String    @default("normal") @db.String(8)
+  priority          String    @default("normal") @db.VarChar(8)
   assignee_id       String?   @db.Uuid
   unread_by_admin   Boolean   @default(true)
   unread_by_user    Boolean   @default(false)
@@ -3924,7 +3923,7 @@ model SupportMessage {
   // Owner 2026-10-05: an automatic answer (after hours, "we got it"):
   // neither author id is set; shown as "LawBid Support".
   auto            Boolean  @default(false)
-  body            String   @db.String(5000)
+  body            String   @db.VarChar(5000)
   created_at      DateTime @default(now()) @db.Timestamptz
 
   @@index([ticket_id, created_at])
@@ -3935,10 +3934,10 @@ model SupportMessage {
 /// `{name}` in the body becomes the user's first name.
 model SupportMacro {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title      String   @db.String(120)
-  body       String   @db.String(5000)
+  title      String   @db.VarChar(120)
+  body       String   @db.VarChar(5000)
   /// null = any category.
-  category   String?  @db.String(20)
+  category   String?  @db.VarChar(20)
   active     Boolean  @default(true)
   uses       Int      @default(0)
   created_by String?  @db.Uuid
@@ -3966,15 +3965,15 @@ model SupportAgent {
 model StaffReward {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// "2026-10" (month) or "2026-W41" (week).
-  period      String   @db.String(20)
+  period      String   @db.VarChar(20)
   /// verification · moderation · support · finance
-  department  String   @db.String(24)
+  department  String   @db.VarChar(24)
   admin_id    String   @db.Uuid
   rank        Int      @default(1)
   score       Int      @default(0)
-  prize       String   @default("") @db.String(200)
+  prize       String   @default("") @db.VarChar(200)
   bonus_cents Int      @default(0)
-  currency    String   @default("usd") @db.String(3)
+  currency    String   @default("usd") @db.VarChar(3)
   /// The payroll accrual created for the bonus, when there is one.
   accrual_id  String?  @db.Uuid
   /// Given by the period-end job (true) or by hand.
@@ -3990,9 +3989,9 @@ model StaffReward {
 // Admin overrides of the built-in transactional emails, per locale.
 // Missing row (or enabled=false) = the built-in text is sent.
 model EmailTemplate {
-  key        String   @db.String(64)
-  locale     String   @db.String(5)
-  subject    String   @db.String(200)
+  key        String   @db.VarChar(64)
+  locale     String   @db.VarChar(5)
+  subject    String   @db.VarChar(200)
   text_body  String
   html_body  String?
   enabled    Boolean  @default(true)
@@ -4010,10 +4009,10 @@ model StickerPack {
   id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   owner_user_id String?           @db.Uuid
   owner         User?             @relation("StickerPackOwner", fields: [owner_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "sticker_packs_owner_fkey")
-  title         String            @db.String(64)
-  short_name    String            @unique @db.String(40)
+  title         String            @db.VarChar(64)
+  short_name    String            @unique @db.VarChar(40)
   is_official   Boolean           @default(false)
-  status        String            @default("active") @db.String(16)
+  status        String            @default("active") @db.VarChar(16)
   sticker_count Int               @default(0)
   install_count Int               @default(0)
   created_at    DateTime          @default(now()) @db.Timestamptz
@@ -4033,7 +4032,7 @@ model Sticker {
   pack       StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stickers_pack_fkey")
   file_id    String              @unique @db.Uuid
   file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stickers_file_fkey")
-  emoji      String              @default("🙂") @db.String(16)
+  emoji      String              @default("🙂") @db.VarChar(16)
   position   Int                 @default(0)
   created_at DateTime            @default(now()) @db.Timestamptz
   deleted_at DateTime?           @db.Timestamptz
@@ -4078,19 +4077,19 @@ model ClientVerification {
   user_id                String    @unique @db.Uuid
   user                   User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_verifications_user_fkey")
   /// pending · approved · rejected · revoked
-  status                 String    @default("pending") @db.String(16)
+  status                 String    @default("pending") @db.VarChar(16)
   /// File ids (verification_document / verification_selfie), private bucket.
   document_file_ids      Json      @default("[]")
-  note                   String?   @db.String(500)
+  note                   String?   @db.VarChar(500)
   submitted_at           DateTime  @default(now()) @db.Timestamptz
   reviewed_at            DateTime? @db.Timestamptz
   reviewed_by            String?   @db.Uuid
-  reject_reason          String?   @db.String(500)
-  revoke_reason          String?   @db.String(500)
-  stripe_checkout_id     String?   @db.String(255)
-  stripe_subscription_id String?   @unique @db.String(255)
+  reject_reason          String?   @db.VarChar(500)
+  revoke_reason          String?   @db.VarChar(500)
+  stripe_checkout_id     String?   @db.VarChar(255)
+  stripe_subscription_id String?   @unique @db.VarChar(255)
   /// none · active · past_due · canceled
-  sub_status             String    @default("none") @db.String(16)
+  sub_status             String    @default("none") @db.VarChar(16)
   current_period_end     DateTime? @db.Timestamptz
   cancel_at_period_end   Boolean   @default(false)
   created_at             DateTime  @default(now()) @db.Timestamptz
@@ -4109,15 +4108,15 @@ model PlanPrice {
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// monthly · seat · yearly · client_badge, or a plan code / seat.<plan code>
   /// (owner 2026-10-05, plan builder).
-  kind               String   @db.String(64)
+  kind               String   @db.VarChar(64)
   amount_cents       Int
-  currency           String   @default("usd") @db.String(3)
+  currency           String   @default("usd") @db.VarChar(3)
   active             Boolean  @default(true)
   /// {"test": "price_…", "live": "price_…", "fake": "price_fake_…"}
   stripe_price_ids   Json     @default("{}")
   /// {"test": "prod_…", "live": "prod_…"}
   stripe_product_ids Json     @default("{}")
-  note               String?  @db.String(300)
+  note               String?  @db.VarChar(300)
   /// Owner 2026-10-07: the strikethrough "old price" ($149 → $99). Shown
   /// only while show_discount is on and it is above amount_cents.
   compare_at_cents   Int?
@@ -4139,16 +4138,16 @@ model PayrollEmployee {
   /// Owner 2026-10-05: any LawBid account paid through payroll (a partner
   /// blogger, …); commissions from other modules land on this person.
   user_id                String?          @unique @db.Uuid
-  name                   String           @db.String(120)
-  role_title             String           @default("") @db.String(120)
+  name                   String           @db.VarChar(120)
+  role_title             String           @default("") @db.VarChar(120)
   amount_cents           Int
-  currency               String           @default("usd") @db.String(3)
+  currency               String           @default("usd") @db.VarChar(3)
   /// How the money goes: bank transfer details, Zelle, cash… (free text).
-  method_note            String           @default("") @db.String(300)
+  method_note            String           @default("") @db.VarChar(300)
   /// For the Stripe Connect invite (optional).
-  email                  String?          @db.String(254)
+  email                  String?          @db.VarChar(254)
   /// Stripe Connect Express account (payroll_stripe_payouts).
-  stripe_account_id      String?          @db.String(64)
+  stripe_account_id      String?          @db.VarChar(64)
   /// Stripe says the bank account / card is linked and payouts work.
   stripe_payouts_enabled Boolean          @default(false)
   active                 Boolean          @default(true)
@@ -4171,13 +4170,13 @@ model PayrollPayout {
   employee         PayrollEmployee @relation(fields: [employee_id], references: [id], onDelete: Restrict)
   batch_id         String          @db.Uuid
   /// "2026-10" (month) or any label the owner gives the period.
-  period           String          @db.String(40)
+  period           String          @db.VarChar(40)
   amount_cents     Int
-  currency         String          @default("usd") @db.String(3)
+  currency         String          @default("usd") @db.VarChar(3)
   /// manual · bank · zelle · cash · other · stripe
-  method           String          @default("manual") @db.String(20)
+  method           String          @default("manual") @db.VarChar(20)
   /// paid · canceled · processing (Stripe transfer in flight) · failed
-  status           String          @default("paid") @db.String(16)
+  status           String          @default("paid") @db.VarChar(16)
   /// Gross = base + commissions; net = gross - fee (what the person gets).
   base_cents       Int             @default(0)
   commission_cents Int             @default(0)
@@ -4185,11 +4184,11 @@ model PayrollPayout {
   fee_cents        Int             @default(0)
   net_cents        Int             @default(0)
   /// Stripe transfer id (method = stripe).
-  transfer_id      String?         @db.String(64)
+  transfer_id      String?         @db.VarChar(64)
   /// Why the Stripe transfer failed.
-  failure          String?         @db.String(300)
-  note             String?         @db.String(300)
-  cancel_reason    String?         @db.String(500)
+  failure          String?         @db.VarChar(300)
+  note             String?         @db.VarChar(300)
+  cancel_reason    String?         @db.VarChar(500)
   created_by       String?         @db.Uuid
   created_at       DateTime        @default(now()) @db.Timestamptz
   canceled_at      DateTime?       @db.Timestamptz
@@ -4208,17 +4207,17 @@ model PayrollAccrual {
   employee_id  String          @db.Uuid
   employee     PayrollEmployee @relation(fields: [employee_id], references: [id], onDelete: Restrict)
   /// partner · admin · …
-  source       String          @db.String(24)
+  source       String          @db.VarChar(24)
   /// commission · bonus · adjustment
-  kind         String          @default("commission") @db.String(24)
-  event_ref    String          @unique @db.String(120)
+  kind         String          @default("commission") @db.VarChar(24)
+  event_ref    String          @unique @db.VarChar(120)
   /// Negative for a reversal.
   amount_cents Int
-  currency     String          @default("usd") @db.String(3)
-  period       String          @db.String(40)
-  note         String?         @db.String(300)
+  currency     String          @default("usd") @db.VarChar(3)
+  period       String          @db.VarChar(40)
+  note         String?         @db.VarChar(300)
   /// pending · paid · canceled
-  status       String          @default("pending") @db.String(16)
+  status       String          @default("pending") @db.VarChar(16)
   payout_id    String?         @db.Uuid
   created_at   DateTime        @default(now()) @db.Timestamptz
   paid_at      DateTime?       @db.Timestamptz
@@ -4234,10 +4233,10 @@ model PayrollAccrual {
 /// split sends this much to the «Расходы» bank before any profit.
 model TreasuryExpense {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String   @db.String(80)
+  name          String   @db.VarChar(80)
   monthly_cents Int
   /// manual · aws (taken from the AWS budget when it is higher)
-  source        String   @default("manual") @db.String(16)
+  source        String   @default("manual") @db.VarChar(16)
   active        Boolean  @default(true)
   sort          Int      @default(0)
   created_at    DateTime @default(now()) @db.Timestamptz
@@ -4252,22 +4251,22 @@ model TreasuryExpense {
 model TreasuryPayout {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// Idempotency: auto:<period>:<kind> once a month; manual ones are unique.
-  key               String   @unique @db.String(80)
+  key               String   @unique @db.VarChar(80)
   /// YYYY-MM of the run.
-  period            String   @db.String(7)
+  period            String   @db.VarChar(7)
   /// expenses · profit
-  kind              String   @db.String(16)
+  kind              String   @db.VarChar(16)
   /// auto · manual
-  trigger           String   @default("auto") @db.String(8)
+  trigger           String   @default("auto") @db.VarChar(8)
   amount_cents      Int
-  currency          String   @default("usd") @db.String(3)
+  currency          String   @default("usd") @db.VarChar(3)
   /// Stripe bank id (null = Stripe's default bank).
-  destination_id    String?  @db.String(64)
-  destination_label String?  @db.String(80)
-  stripe_payout_id  String?  @db.String(64)
+  destination_id    String?  @db.VarChar(64)
+  destination_label String?  @db.VarChar(80)
+  stripe_payout_id  String?  @db.VarChar(64)
   /// pending · in_transit · paid · failed · canceled
-  status            String   @default("pending") @db.String(16)
-  failure           String?  @db.String(300)
+  status            String   @default("pending") @db.VarChar(16)
+  failure           String?  @db.VarChar(300)
   /// The numbers the amount came from (reserve, expenses, balance).
   plan              Json?
   created_by        String?  @db.Uuid
@@ -4286,20 +4285,20 @@ model TreasuryPayout {
 // fee (`application_fee_amount`) and never holds the client's funds.
 model PayoutAccount {
   user_id              String    @id @db.Uuid
-  provider             String    @default("stripe") @db.String(16)
+  provider             String    @default("stripe") @db.VarChar(16)
   stripe_account_id    String    @unique
   // pending | onboarding | active | restricted | disabled
-  status               String    @default("pending") @db.String(16)
+  status               String    @default("pending") @db.VarChar(16)
   charges_enabled      Boolean   @default(false)
   payouts_enabled      Boolean   @default(false)
   details_submitted    Boolean   @default(false)
   requirements_due     String[]  @default([])
-  disabled_reason      String?   @db.String(200)
-  country              String?   @db.String(2)
+  disabled_reason      String?   @db.VarChar(200)
+  country              String?   @db.VarChar(2)
   // Owner 2026-10-05: the attorney's own default for who covers Stripe's
   // card fee on their invoices (client | attorney | split); null = the
   // admin default for new attorneys applies.
-  processing_fee_payer String?   @db.String(16)
+  processing_fee_payer String?   @db.VarChar(16)
   last_synced_at       DateTime? @db.Timestamptz
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @updatedAt @db.Timestamptz
@@ -4318,12 +4317,12 @@ model CasePayment {
   client_id                String    @db.Uuid
   attorney_id              String    @db.Uuid
   // bid | deposit | balance | custom | invoice
-  kind                     String    @db.String(16)
+  kind                     String    @db.VarChar(16)
   // The attorney's payment request this pays (kind = invoice).
   request_id               String?   @db.Uuid
   // pending_payment | succeeded | failed | canceled | refunded |
   // partially_refunded | disputed
-  status                   String    @db.String(24)
+  status                   String    @db.VarChar(24)
   // What the attorney charges for the work.
   amount_cents             Int
   // The platform's fee (application fee) and the card-processing fee
@@ -4333,12 +4332,12 @@ model CasePayment {
   client_total_cents       Int
   attorney_net_cents       Int
   // fixed | none; client | attorney
-  fee_type                 String    @db.String(16)
-  fee_payer                String    @db.String(16)
+  fee_type                 String    @db.VarChar(16)
+  fee_payer                String    @db.VarChar(16)
   // Who covered Stripe's card fee: client | attorney | split.
-  processing_fee_payer     String    @default("client") @db.String(16)
-  currency                 String    @default("usd") @db.String(3)
-  note                     String?   @db.String(200)
+  processing_fee_payer     String    @default("client") @db.VarChar(16)
+  currency                 String    @default("usd") @db.VarChar(3)
+  note                     String?   @db.VarChar(200)
   stripe_account_id        String?
   stripe_checkout_id       String?   @unique
   stripe_payment_intent_id String?   @unique
@@ -4346,11 +4345,11 @@ model CasePayment {
   receipt_url              String?
   refunded_cents           Int       @default(0)
   // Stripe dispute status while / after a chargeback.
-  dispute_status           String?   @db.String(32)
+  dispute_status           String?   @db.VarChar(32)
   disputed_at              DateTime? @db.Timestamptz
   paid_at                  DateTime? @db.Timestamptz
-  canceled_reason          String?   @db.String(100)
-  failure_code             String?   @db.String(100)
+  canceled_reason          String?   @db.VarChar(100)
+  failure_code             String?   @db.VarChar(100)
   created_at               DateTime  @default(now()) @db.Timestamptz
   updated_at               DateTime  @updatedAt @db.Timestamptz
 
@@ -4374,22 +4373,22 @@ model PaymentRequest {
   // Who actually created it (the attorney or one of their assistants).
   created_by           String    @db.Uuid
   amount_cents         Int
-  description          String    @db.String(200)
+  description          String    @db.VarChar(200)
   due_at               DateTime? @db.Timestamptz
   // Who covers Stripe's fee on this invoice: client | attorney | split.
   // Owner 2026-10-05 03:03: agreed like a bid — the attorney proposes, the
   // client accepts or counters, the attorney answers; paying is possible
   // once agreed (or by accepting the attorney's proposal with the payment).
-  processing_fee_payer String    @default("client") @db.String(16)
+  processing_fee_payer String    @default("client") @db.VarChar(16)
   // proposed | countered | agreed
-  fee_payer_status     String    @default("proposed") @db.String(16)
+  fee_payer_status     String    @default("proposed") @db.VarChar(16)
   // Who made the current proposal: attorney | client.
-  fee_payer_by         String    @default("attorney") @db.String(16)
+  fee_payer_by         String    @default("attorney") @db.VarChar(16)
   // Counter-offers so far (the admin caps them like bid rounds).
   fee_payer_rounds     Int       @default(0)
   fee_payer_agreed_at  DateTime? @db.Timestamptz
   // open | paid | canceled | expired
-  status               String    @default("open") @db.String(16)
+  status               String    @default("open") @db.VarChar(16)
   plan_id              String?   @db.Uuid
   seq                  Int       @default(1)
   total                Int       @default(1)
@@ -4426,13 +4425,13 @@ model CasePaymentRefund {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   payment_id        String   @db.Uuid
   amount_cents      Int
-  reason            String   @db.String(500)
+  reason            String   @db.VarChar(500)
   // attorney | admin | stripe
-  initiated_by_type String   @db.String(16)
+  initiated_by_type String   @db.VarChar(16)
   initiated_by      String?  @db.Uuid
   stripe_refund_id  String?  @unique
   // pending | succeeded | failed
-  status            String   @db.String(16)
+  status            String   @db.VarChar(16)
   failure_reason    String?
   created_at        DateTime @default(now()) @db.Timestamptz
   updated_at        DateTime @updatedAt @db.Timestamptz
@@ -4487,23 +4486,23 @@ model DocumentTemplate {
 /// frozen on their subscription row until the admin applies a change.
 model Plan {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code         String   @unique @db.String(64)
+  code         String   @unique @db.VarChar(64)
   /// attorney · client
-  audience     String   @db.String(16)
+  audience     String   @db.VarChar(16)
   /// paid · baseline
-  kind         String   @default("paid") @db.String(16)
+  kind         String   @default("paid") @db.VarChar(16)
   /// {"en": "...", "ru": "..."}
   name         Json     @default("{}")
   tagline      Json     @default("{}")
   description  Json     @default("{}")
   /// month · year (null for a baseline)
-  interval     String?  @db.String(8)
+  interval     String?  @db.VarChar(8)
   /// plan_prices.kind that carries this plan's price (null for a baseline).
-  price_kind   String?  @db.String(64)
+  price_kind   String?  @db.VarChar(64)
   entitlements Json     @default("{}")
   highlights   Json     @default("[]")
   /// draft · active · archived
-  status       String   @default("draft") @db.String(16)
+  status       String   @default("draft") @db.VarChar(16)
   sort         Int      @default(0)
   /// The plan legacy flows (no planCode given) buy for this audience+interval.
   is_default   Boolean  @default(false)
@@ -4527,10 +4526,10 @@ model ClientSubscription {
   user                   User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   plan_id                String?   @db.Uuid
   plan                   Plan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
-  stripe_checkout_id     String?   @db.String(255)
-  stripe_subscription_id String?   @unique @db.String(255)
+  stripe_checkout_id     String?   @db.VarChar(255)
+  stripe_subscription_id String?   @unique @db.VarChar(255)
   /// incomplete · trialing · active · past_due · canceled · expired
-  status                 String    @default("incomplete") @db.String(16)
+  status                 String    @default("incomplete") @db.VarChar(16)
   price_cents            Int       @default(0)
   trial_ends_at          DateTime? @db.Timestamptz
   current_period_end     DateTime? @db.Timestamptz
@@ -4554,15 +4553,15 @@ model DemoAccount {
   // users.id inside the demo database.
   demo_user_id        String    @unique @db.Uuid
   // client | attorney | assistant
-  role                String    @db.String(16)
-  display_name        String    @db.String(120)
+  role                String    @db.VarChar(16)
+  display_name        String    @db.VarChar(120)
   // Admin's note: "блогер Иван, Instagram".
-  label               String?   @db.String(200)
+  label               String?   @db.VarChar(200)
   // The partner (real user) who created it from the app; null when the
   // admin created it for a blogger without an account.
   created_by_user_id  String?   @db.Uuid
   created_by_admin_id String?   @db.Uuid
-  invite_code_hash    String?   @unique @db.String(64)
+  invite_code_hash    String?   @unique @db.VarChar(64)
   invite_expires_at   DateTime? @db.Timestamptz
   last_seen_at        DateTime? @db.Timestamptz
   created_at          DateTime  @default(now()) @db.Timestamptz
@@ -4587,7 +4586,7 @@ model StorageSnapshot {
   files_count  Int
   /// { purpose: { bytes, count } }
   by_purpose   Json
-  /// [{ table, rows, bytes }] — estimates from CockroachDB statistics.
+  /// [{ table, rows, bytes }] — estimates from PostgreSQL statistics.
   db_tables    Json
   db_bytes     BigInt   @default(0)
   created_at   DateTime @default(now()) @db.Timestamptz
@@ -4603,8 +4602,8 @@ model IdentityFingerprint {
   id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id       String    @db.Uuid
   /// phone | email | apple | google | device | card | ip | text
-  kind          String    @db.String(16)
-  hash          String    @db.String(64)
+  kind          String    @db.VarChar(16)
+  hash          String    @db.VarChar(64)
   first_seen_at DateTime  @default(now()) @db.Timestamptz
   last_seen_at  DateTime  @default(now()) @db.Timestamptz
   /// Set when the owner's account was blocked and then deleted: the hash
@@ -4622,13 +4621,13 @@ model IdentityFingerprint {
 model ClientFraudProfile {
   user_id        String    @id @db.Uuid
   score          Int       @default(0)
-  status         String    @default("ok") @db.String(16)
+  status         String    @default("ok") @db.VarChar(16)
   /// [{ code, points, count }] — what the score is made of.
   signals        Json      @default("[]")
   /// The blocked account a sign-in matched, if any.
   linked_user_id String?   @db.Uuid
   /// What put the account in the queue: 'score' | 'linked' | 'staff'.
-  queue_reason   String?   @db.String(16)
+  queue_reason   String?   @db.VarChar(16)
   queued_at      DateTime? @db.Timestamptz
   /// A staff «Снять» freezes the score: automatic actions return only when
   /// the score grows past it.
@@ -4647,11 +4646,11 @@ model ClientFraudProfile {
 model ClientFraudEvent {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id    String?  @db.Uuid
-  kind       String   @db.String(32)
+  kind       String   @db.VarChar(32)
   /// system | admin
-  actor_type String   @default("system") @db.String(16)
+  actor_type String   @default("system") @db.VarChar(16)
   actor_id   String?  @db.Uuid
-  note       String?  @db.String(500)
+  note       String?  @db.VarChar(500)
   details    Json     @default("{}")
   created_at DateTime @default(now()) @db.Timestamptz
 
@@ -4672,14 +4671,14 @@ model CountryPartner {
   id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   country_code         String    @db.Char(2)
   /// Company or person (contract party).
-  name                 String    @db.String(120)
-  contact              String?   @db.String(200)
+  name                 String    @db.VarChar(120)
+  contact              String?   @db.VarChar(200)
   /// The partner's own admin account (users.id with an admin profile).
   lead_admin_id        String    @unique @db.Uuid
   /// Share of the country's net revenue, basis points (2000 = 20 %).
   share_bps            Int
   /// active · paused · disabled
-  status               String    @default("active") @db.String(16)
+  status               String    @default("active") @db.VarChar(16)
   /// Staff the lead may hire (the lead not counted).
   max_admins           Int       @default(10)
   /// Owner switches payouts on per partner; until then settlements wait.
@@ -4692,12 +4691,12 @@ model CountryPartner {
   /// app_config); null = not accepted yet, the portal asks first.
   contract_version     Int?
   contract_accepted_at DateTime? @db.Timestamptz
-  contract_accepted_ip String?   @db.String(64)
+  contract_accepted_ip String?   @db.VarChar(64)
   /// [{metric: attorneys|clients|revenue_cents, target, deadline, alerted}]
   goals                Json      @default("[]")
   /// Team accounts suspended by «Отключить» / «Пауза» (restored together).
   suspended_admin_ids  String[]  @default([])
-  note                 String?   @db.String(1000)
+  note                 String?   @db.VarChar(1000)
   created_by           String?   @db.Uuid
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @updatedAt @db.Timestamptz
@@ -4720,8 +4719,8 @@ model CountryPartnerSettlement {
   partner_id    String         @db.Uuid
   partner       CountryPartner @relation(fields: [partner_id], references: [id], onDelete: Restrict)
   /// "2026-10"
-  period        String         @db.String(7)
-  currency      String         @default("usd") @db.String(3)
+  period        String         @db.VarChar(7)
+  currency      String         @default("usd") @db.VarChar(3)
   gross_cents   Int
   refunds_cents Int            @default(0)
   fees_cents    Int            @default(0)
@@ -4729,9 +4728,9 @@ model CountryPartnerSettlement {
   share_bps     Int
   amount_cents  Int
   /// held (payouts off / paused) · zero · accrued (sent to payroll)
-  status        String         @default("held") @db.String(16)
+  status        String         @default("held") @db.VarChar(16)
   /// payroll_accruals.event_ref of the latest send to payroll.
-  accrual_ref   String?        @db.String(120)
+  accrual_ref   String?        @db.VarChar(120)
   created_at    DateTime       @default(now()) @db.Timestamptz
   updated_at    DateTime       @updatedAt @db.Timestamptz
 
@@ -4765,4 +4764,70 @@ model ContactSyncSetting {
   synced_at DateTime? @db.Timestamptz
 
   @@map("contact_sync_settings")
+}
+
+/// Owner 2026-10-14: how often an attorney's profile was opened, per day
+/// (the attorney's own statistics; one row per attorney and day).
+model AttorneyProfileView {
+  attorney_id String   @db.Uuid
+  day         DateTime @db.Date
+  views       Int      @default(0)
+
+  @@id([attorney_id, day])
+  @@map("attorney_profile_views")
+}
+
+/// Owner 2026-10-14: offers bought on top of the plan's monthly limit.
+/// One row per purchase (a hosted one-time checkout); the unspent offers of
+/// all paid purchases live in `bid_credits`.
+model BidPackPurchase {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String    @db.Uuid
+  pack_id            String    @db.VarChar(40)
+  bids               Int
+  price_cents        Int
+  status             String    @default("pending_payment") @db.VarChar(20)
+  stripe_checkout_id String?   @unique
+  payment_id         String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  paid_at            DateTime? @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("bid_pack_purchases")
+}
+
+model BidCredit {
+  user_id    String   @id @db.Uuid
+  balance    Int      @default(0)
+  updated_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("bid_credits")
+}
+
+/// Owner 2026-10-14: a firm account. The firm has no bar number of its own:
+/// its states are the union of its member lawyers' verified licenses, and a
+/// bid goes out from the member who holds a matching license.
+model Firm {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String       @db.VarChar(120)
+  owner_id   String       @db.Uuid
+  created_at DateTime     @default(now()) @db.Timestamptz
+  members    FirmMember[]
+
+  @@index([owner_id])
+  @@map("firms")
+}
+
+/// status: invited (waiting for the lawyer) | active. A lawyer is in at most
+/// one firm (unique attorney_id).
+model FirmMember {
+  firm_id     String   @db.Uuid
+  firm        Firm     @relation(fields: [firm_id], references: [id], onDelete: Cascade)
+  attorney_id String   @unique @db.Uuid
+  role        String   @default("member") @db.VarChar(10)
+  status      String   @default("invited") @db.VarChar(10)
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  @@id([firm_id, attorney_id])
+  @@map("firm_members")
 }

@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 # Zero maintenance (owner 2026-10-05): the quarterly restore drill
 # (docs/runbooks/restore-drill.md), automated after the one click that
-# only the CockroachDB Cloud console can do.
+# only the managed PostgreSQL host's console can do.
 #
-#   1. CockroachDB Cloud → Backups → newest backup → Restore → into a NEW
-#      cluster (never the live one). Copy its connection string.
+#   1. Host console → Backups / snapshots → newest one (or point-in-time) →
+#      Restore → into a NEW instance (never the live one). Copy its
+#      connection string. (Without a managed snapshot: pg_restore a recent
+#      `pg_dump -Fc` into an empty scratch database.)
 #   2. RESTORED_URL='postgresql://…restored…' PROD_URL='postgresql://…live, read-only role…' \
 #        scripts/ops/restore-drill.sh
 #
 # Checks: the restored database answers, its migrations match the code,
 # the main tables have about as many rows as production (a backup is at
 # most a day old) and how fresh the newest data is. Prints a
-# row for the drill log; delete the scratch cluster afterwards (it costs
+# row for the drill log; delete the scratch instance afterwards (it costs
 # money while it exists).
 set -euo pipefail
-: "${RESTORED_URL:?connection string of the restored scratch cluster}"
+: "${RESTORED_URL:?connection string of the restored scratch instance}"
 : "${PROD_URL:?read-only connection string of production}"
 START=$(date +%s)
 q() { psql "$1" -At -v ON_ERROR_STOP=1 -c "$2"; }
@@ -45,5 +47,5 @@ echo "   newest user: $latest, newest journal entry: $(q "$RESTORED_URL" "SELECT
 MIN=$(( ( $(date +%s) - START ) / 60 ))
 echo
 echo "OK. Add this row to docs/runbooks/restore-drill.md:"
-echo "| $(date -u +%Y-%m-%d) | newest row $latest | scratch cluster | console restore + ${MIN} min checks | ≤ 24 h | rows ok (chain: run journal.chain-verify on staging if needed) | — | $(whoami) |"
-echo "Then delete the scratch cluster in CockroachDB Cloud."
+echo "| $(date -u +%Y-%m-%d) | newest row $latest | scratch instance | console restore + ${MIN} min checks | ≤ 24 h | rows ok (chain: run journal.chain-verify on staging if needed) | — | $(whoami) |"
+echo "Then delete the scratch instance in the host console."

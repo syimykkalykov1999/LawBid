@@ -74,8 +74,8 @@ dashboard, Twilio logs.
 
 ## Steps
 
-1. **Backup (owner).** CockroachDB Cloud console → the prod cluster →
-   **Backup and Restore**: the newest backup must be younger than 24 h; note
+1. **Backup (owner).** Managed PostgreSQL provider console → the prod
+   database → **Backups / Snapshots** (or take a manual snapshot there): the newest backup must be younger than 24 h; note
    its time. (Managed backups + PITR are what a restore would use —
    [backups.md](backups.md).) Optionally, for a point exactly before the wipe,
    wait until the next scheduled backup completes and note it.

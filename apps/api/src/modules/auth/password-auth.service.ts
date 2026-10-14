@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -35,6 +36,12 @@ const WINDOW_SECONDS = 3600;
 /** Wrong-password guesses per phone / e-mail and per IP, per hour. */
 const LOGIN_PER_IDENTIFIER = 10;
 const LOGIN_PER_IP = 40;
+/** Guesses from ONE source (identifier + IP) — someone else's wrong tries
+ * from another place must never lock the owner of the number out. */
+const LOGIN_PER_IDENTIFIER_AND_IP = 10;
+/** Wrong passwords for one account from anywhere (a guessing storm). Only
+ * failures count, so the owner's correct sign-in is never blocked by it. */
+const LOGIN_FAILURES_PER_IDENTIFIER = 60;
 /** Reset codes sent per account / IP per hour (the SMS is the paid path). */
 const RESET_REQUEST_PER_IDENTIFIER = 3;
 const RESET_REQUEST_PER_IP = 15;
@@ -80,9 +87,14 @@ export class PasswordAuthService {
     const { channel, identifier } = this.parseIdentifier(dto.identifier);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
 
+    const idHash = this.rateLimit.hashIdentifier(identifier);
     await this.limit(
-      ['pwd-login', 'id', this.rateLimit.hashIdentifier(identifier)],
-      LOGIN_PER_IDENTIFIER,
+      [
+        'pwd-login',
+        'id+src',
+        `${idHash}:${meta.ip ?? deviceInfo.deviceId ?? 'x'}`,
+      ],
+      LOGIN_PER_IDENTIFIER_AND_IP,
     );
     if (meta.ip) {
       await this.limit(['pwd-login', 'ip', meta.ip], LOGIN_PER_IP);
@@ -96,6 +108,10 @@ export class PasswordAuthService {
       user?.password_hash ?? null,
     );
     if (!user || !ok) {
+      await this.limit(
+        ['pwd-login-fail', 'id', idHash],
+        LOGIN_FAILURES_PER_IDENTIFIER,
+      );
       await this.authEvents.record({
         userId: user?.id,
         eventType: AUTH_EVENT_TYPES.PASSWORD_LOGIN_FAILED,
@@ -135,10 +151,11 @@ export class PasswordAuthService {
       await this.limit(['phone-status', 'ip', meta.ip], LOGIN_PER_IP);
     }
     const user = await this.findUser(channel, identifier);
-    return {
-      registered: user != null,
-      hasPassword: user?.password_hash != null,
-    };
+    // Owner 2026-10-14 (audit): the answer must not tell "no account" from
+    // "account without a password" — both go to the SMS code. Only a
+    // number that has a password says so (that is what the screen needs).
+    const hasPassword = user?.password_hash != null;
+    return { registered: hasPassword, hasPassword };
   }
 
   // POST /auth/password (signed in)
@@ -176,6 +193,7 @@ export class PasswordAuthService {
   ): Promise<PasswordResetSent> {
     await this.loginMethods.assertEnabled('password');
     const { channel, identifier } = this.parseIdentifier(dto.identifier);
+    this.assertResetByPhone(channel);
     await this.limit(
       ['pwd-reset-req', 'id', this.rateLimit.hashIdentifier(identifier)],
       RESET_REQUEST_PER_IDENTIFIER,
@@ -218,6 +236,7 @@ export class PasswordAuthService {
     await this.loginMethods.assertPlatformAllowed(dto.deviceInfo?.platform);
     const { channel, identifier } = this.parseIdentifier(dto.identifier);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
+    this.assertResetByPhone(channel);
     await this.limit(
       ['pwd-reset-verify', 'id', this.rateLimit.hashIdentifier(identifier)],
       RESET_VERIFY_PER_IDENTIFIER,
@@ -368,6 +387,16 @@ export class PasswordAuthService {
     return value.startsWith('+')
       ? { channel: 'phone', identifier: value }
       : { channel: 'email', identifier: value.toLowerCase() };
+  }
+
+  /** Reset works by the phone number only (owner 2026-10-14): an e-mail
+   * is told so instead of a "code sent" that never comes. */
+  private assertResetByPhone(channel: Channel): void {
+    if (channel === 'phone') return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'Password reset works with a phone number only.',
+    });
   }
 
   private async limit(key: string[], max: number): Promise<void> {

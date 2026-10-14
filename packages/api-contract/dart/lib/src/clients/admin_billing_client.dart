@@ -27,6 +27,8 @@ import '../models/create_refund_dto.dart';
 import '../models/extend_contract_grant_dto.dart';
 import '../models/move_plan_subscribers_dto.dart';
 import '../models/move_plan_subscribers_result_envelope.dart';
+import '../models/new_entitlement_dto.dart';
+import '../models/new_entitlement_result_envelope.dart';
 import '../models/payment_status.dart';
 import '../models/plan.dart';
 import '../models/plan_fields_dto.dart';
@@ -41,6 +43,8 @@ import '../models/promo_redemption_list_envelope.dart';
 import '../models/refund_envelope.dart';
 import '../models/refund_list_envelope.dart';
 import '../models/reject_seat_limit_dto.dart';
+import '../models/save_bid_packs_dto.dart';
+import '../models/save_bid_packs_envelope.dart';
 import '../models/seat_limit_request_envelope.dart';
 import '../models/seat_limit_request_status.dart';
 import '../models/seats.dart';
@@ -292,6 +296,20 @@ abstract class AdminBillingClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Create a plan feature (stored as data)
+  @POST('/admin/billing/entitlements')
+  Future<NewEntitlementResultEnvelope> createEntitlement({
+    @Body() required NewEntitlementDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a feature created in the admin
+  @DELETE('/admin/billing/entitlements/{key}')
+  Future<NewEntitlementResultEnvelope> removeEntitlement({
+    @Path('key') required String key,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// The attachments-in-posts mode
   @GET('/admin/billing/post-attachments')
   Future<PostAttachmentsModeEnvelope> getPostAttachmentsMode({
@@ -328,6 +346,19 @@ abstract class AdminBillingClient {
   Future<SeatLimitRequestEnvelope> rejectSeatLimitRequest({
     @Path('id') required String id,
     @Body() required RejectSeatLimitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Offer packs: sizes and prices
+  @GET('/admin/billing/bid-packs')
+  Future<SaveBidPacksEnvelope> listBidPacks({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save the offer packs
+  @PUT('/admin/billing/bid-packs')
+  Future<SaveBidPacksEnvelope> saveBidPacks({
+    @Body() required SaveBidPacksDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

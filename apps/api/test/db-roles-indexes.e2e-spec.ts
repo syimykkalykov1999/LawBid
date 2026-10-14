@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 /**
  * docs/02_DATABASE.md §8 stages 2.6 + 2.7 and the leftover 2.4 item,
- * against a real CockroachDB:
+ * against a real PostgreSQL:
  * - roles (§6.2/6.3): lawbid_app can't UPDATE/DELETE append-only tables,
  *   lawbid_readonly can't read contact tables, lawbid_retention can
  *   delete journal rows;
@@ -165,13 +165,13 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
           where: { id: row.id },
           data: { payload: { x: 1 } },
         }),
-      ).rejects.toThrow(/privilege/i);
+      ).rejects.toThrow(/privilege|permission denied/i);
       await expect(
         app.caseJournal.delete({ where: { id: row.id } }),
-      ).rejects.toThrow(/privilege/i);
+      ).rejects.toThrow(/privilege|permission denied/i);
       await expect(
         app.authEvent.deleteMany({ where: { event_type: 'none' } }),
-      ).rejects.toThrow(/privilege/i);
+      ).rejects.toThrow(/privilege|permission denied/i);
       // Ordinary tables stay writable.
       await app.user.update({
         where: { id: clientId },
@@ -196,10 +196,14 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
 
     it('lawbid_readonly reads cases but not users/messages/documents', async () => {
       await readonly.case.count();
-      await expect(readonly.user.count()).rejects.toThrow(/privilege/i);
-      await expect(readonly.message.count()).rejects.toThrow(/privilege/i);
+      await expect(readonly.user.count()).rejects.toThrow(
+        /privilege|permission denied/i,
+      );
+      await expect(readonly.message.count()).rejects.toThrow(
+        /privilege|permission denied/i,
+      );
       await expect(readonly.verificationDocument.count()).rejects.toThrow(
-        /privilege/i,
+        /privilege|permission denied/i,
       );
     });
   });
@@ -248,7 +252,7 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
   // (primary_state_code, practice_area_id, created_at DESC) per
   // (licensed state × practice) pair; matches on an additional state go
   // through case_states(state_code, case_id). The naive IN + EXISTS form
-  // makes CockroachDB scan every open case and every case_states row.
+  // makes PostgreSQL scan every open case and every case_states row.
   const visibleQuery = (attorney: string) => `
     SELECT id FROM (
       SELECT c.id, c.created_at FROM cases c
@@ -301,15 +305,17 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
       }
     });
 
-    // The reused e2e DB is TRUNCATEd between runs, so CockroachDB's
+    // The reused e2e DB is TRUNCATEd between runs, so PostgreSQL's
     // statistics *forecast* (extrapolated from older runs) can claim the
     // table is nearly empty; plan from the fresh ANALYZE instead.
     async function plan(sql: string): Promise<string> {
       const rows = await root.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe('SET LOCAL optimizer_use_forecasts = off');
-        return tx.$queryRawUnsafe<{ info: string }[]>(`EXPLAIN ${sql}`);
+        // A scan of a small table is legitimately cheapest; forbidding it
+        // shows whether an index could serve the query at all.
+        await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off');
+        return tx.$queryRawUnsafe<Record<string, string>[]>(`EXPLAIN ${sql}`);
       });
-      return rows.map((r) => r.info).join('\n');
+      return rows.map((r) => Object.values(r)[0]).join('\n');
     }
 
     it('EXPLAIN: §5.4 and §5.2 case queries never full-scan cases', async () => {
@@ -369,20 +375,11 @@ describe('DB — stage 2.6/2.7 roles, search, indexes', () => {
         `SELECT id FROM cases WHERE status = 'pending_completion' AND auto_close_at < now()`,
       ];
       for (const q of queries) {
-        // Split the plan into nodes ("• scan", "• lookup join", ...). A
-        // node touching `cases` must be either a constrained index scan or
-        // a lookup by key — never a FULL SCAN (§5.4, stage 2.7).
-        const nodes = (await plan(q)).split('•').slice(1);
-        const casesNodes = nodes.filter((n) =>
-          /table: (cases|case_states)@/.test(n),
-        );
-        expect(casesNodes.length).toBeGreaterThan(0);
-        for (const node of casesNodes) {
-          expect(node).not.toMatch(/FULL SCAN/);
-          if (/cases@cases_pkey/.test(node)) {
-            expect(node).toMatch(/lookup join|index join/);
-          }
-        }
+        // With seq scans forbidden, a table touched without an index
+        // shows up as `Seq Scan on <table>` (§5.4, stage 2.7).
+        const text = await plan(q);
+        expect(text).toMatch(/Index (Only )?Scan|Bitmap Index Scan/);
+        expect(text).not.toMatch(/Seq Scan on (cases|case_states)\b/);
       }
     });
   });

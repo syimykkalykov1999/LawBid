@@ -84,8 +84,8 @@ class MyCaseRow extends ConsumerWidget {
       bidsCount: c.bidsCount,
       newBids: newBids,
       semanticLabel: '${c.title}, ${caseStatusLabel(t, c.status)}',
-      // Owner 2026-10-07: Boost lives on the cards only.
-      trailing: open
+      // Owner 2026-10-14: Boost sits top right, where Follow sits on a post.
+      topTrailing: open
           ? BoostButton(postId: c.id, target: PromotionTarget.case_)
           : null,
       onTap: () => context.push(AppRoutes.myCase(c.id)),

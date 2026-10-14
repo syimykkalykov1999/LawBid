@@ -1,3 +1,4 @@
+import { DEFAULT_BAR_FORMATS } from '../../src/modules/verification/bar-number-format';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -15,7 +16,7 @@ const MIGRATIONS_DIR = join(__dirname, '../../prisma/migrations');
 
 // The e2e database is named after a hash of every migration, so it is
 // reused (and only emptied) while migrations are unchanged, and rebuilt
-// when they change. Migrating a fresh CockroachDB takes minutes — every
+// when they change. Migrating a fresh PostgreSQL takes minutes — every
 // DDL statement is a schema-change job — while TRUNCATE takes seconds.
 function migrationsHash(): { hash: string; count: number } {
   const dirs = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
@@ -45,15 +46,15 @@ export default async function globalSetup(): Promise<void> {
 
   const admin = new PrismaClient({ datasourceUrl: databaseUrl });
   const existing = await admin.$queryRaw<{ database_name: string }[]>`
-    SELECT database_name FROM [SHOW DATABASES]
-    WHERE database_name LIKE ${`${prefix}%`}`;
+    SELECT datname AS database_name FROM pg_database
+    WHERE datname LIKE ${`${prefix.replace(/[_%]/g, '\\$&')}%`}`;
   for (const { database_name } of existing) {
     // Only this run's own family (same isolation tag, older hash) is
     // dropped; an untagged run never touches tagged databases.
     const rest = database_name.slice(prefix.length);
     if (database_name !== dbName && /^[0-9a-f]{12}$/.test(rest)) {
       await admin.$executeRawUnsafe(
-        `DROP DATABASE IF EXISTS "${database_name}" CASCADE`,
+        `DROP DATABASE IF EXISTS "${database_name}" WITH (FORCE)`,
       );
     }
   }
@@ -69,7 +70,9 @@ export default async function globalSetup(): Promise<void> {
       const tables = await db.$queryRaw<{ table_name: string }[]>`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-          AND table_name <> '_prisma_migrations'`;
+          AND table_name NOT IN ('_prisma_migrations', 'countries')`;
+      // `countries` is reference data the baseline migration inserts
+      // (regions point at it); the suites never change it, so it stays.
       await db.$executeRawUnsafe(
         `TRUNCATE ${tables.map((t) => `"${t.table_name}"`).join(', ')} CASCADE`,
       );
@@ -77,7 +80,7 @@ export default async function globalSetup(): Promise<void> {
     await db.$disconnect();
     if (!ready) {
       // Half-migrated leftover of an interrupted run: rebuild it.
-      await admin.$executeRawUnsafe(`DROP DATABASE "${dbName}" CASCADE`);
+      await admin.$executeRawUnsafe(`DROP DATABASE "${dbName}" WITH (FORCE)`);
     }
   }
   if (!ready) {
@@ -94,6 +97,30 @@ export default async function globalSetup(): Promise<void> {
     await db.featureFlag.deleteMany({ where: { key: 'email_login' } });
     await db.$disconnect();
   }
+  // Owner 2026-10-14: production sends offers only after the licence is
+  // confirmed (`trust.bids_require_cleared`); the suites place offers
+  // without a registry, so they start with the gate open. The suites about
+  // the gate itself switch it on explicitly.
+  const seed = new PrismaClient({ datasourceUrl: url });
+  await seed.appConfig.upsert({
+    where: { key: 'trust.bids_require_cleared' },
+    create: { key: 'trust.bids_require_cleared', value: false },
+    update: { value: false },
+  });
+  // Bar numbers: the suites type arbitrary ones, so every listed state
+  // accepts any 3+ letters / digits here; the format suite sets its own.
+  const loose = Object.fromEntries(
+    Object.keys(DEFAULT_BAR_FORMATS).map((state) => [
+      state,
+      { pattern: '^[A-Z0-9]{3,32}$', example: 'ABC123' },
+    ]),
+  );
+  await seed.appConfig.upsert({
+    where: { key: 'verification.bar_formats' },
+    create: { key: 'verification.bar_formats', value: JSON.stringify(loose) },
+    update: { value: JSON.stringify(loose) },
+  });
+  await seed.$disconnect();
   await admin.$disconnect();
 
   process.env.E2E_DATABASE_URL = url;

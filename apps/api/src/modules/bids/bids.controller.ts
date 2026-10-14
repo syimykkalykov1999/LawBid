@@ -26,6 +26,7 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
+import { FirmsService } from '../firms/firms.service';
 import { BidsService } from './bids.service';
 import {
   BidIdParamDto,
@@ -48,7 +49,10 @@ const E = ErrorCode;
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller()
 export class BidsController {
-  constructor(private readonly bids: BidsService) {}
+  constructor(
+    private readonly bids: BidsService,
+    private readonly firms: FirmsService,
+  ) {}
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('bids')
@@ -73,12 +77,24 @@ export class BidsController {
       E.IDEMPOTENCY_KEY_CONFLICT,
     ],
   })
-  createBid(
+  async createBid(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
     @Body() dto: CreateBidDto,
   ): Promise<BidDto> {
-    return this.bids.create(user, params.caseId, dto);
+    const sender = dto.sendAsAttorneyId
+      ? await this.firms.resolveSender(
+          user.sub,
+          dto.sendAsAttorneyId,
+          params.caseId,
+        )
+      : null;
+    // The bid is the firm lawyer's: their licence, plan and limits.
+    return this.bids.create(
+      sender ? { ...user, sub: sender } : user,
+      params.caseId,
+      dto,
+    );
   }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).

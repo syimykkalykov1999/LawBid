@@ -321,6 +321,16 @@ async function main() {
   const baseDb = new URL(baseUrl).pathname.slice(1) || 'defaultdb';
   const current = currentMigrations();
   const prev = resolvePrevious(current);
+  // Owner 2026-10-14: the engine changed (CockroachDB → PostgreSQL) with a
+  // fresh baseline; a previous set written for another engine cannot be
+  // replayed here, so there is nothing to upgrade from.
+  const providerOf = (toml) => /provider\s*=\s*"(\w+)"/.exec(toml ?? '')?.[1];
+  const prevLock = tryGit('show', `${prev.ref}:./prisma/migrations/migration_lock.toml`);
+  const nowLock = readFileSync(join(MIGRATIONS_DIR, 'migration_lock.toml'), 'utf8');
+  if (prevLock && providerOf(prevLock) !== providerOf(nowLock)) {
+    log(`${prev.ref} used ${providerOf(prevLock)}, now ${providerOf(nowLock)}; nothing to upgrade`);
+    return;
+  }
   // A PR that adds no migration (MIGRATE_PREV_REF = its base) has nothing
   // to upgrade: the base's own run already checked this exact set.
   const sameSet =

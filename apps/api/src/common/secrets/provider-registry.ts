@@ -581,10 +581,13 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   // Owner 2026-10-05: zero maintenance — the worker checks every hour that
-  // CockroachDB Cloud made a fresh backup (Система → Здоровье системы).
+  // the managed database provider made a fresh backup (Система → Здоровье
+  // системы). The stored id stays `cockroach_cloud`; the call below is the
+  // old provider's backup API and is re-pointed once the owner picks the
+  // production PostgreSQL host (docs/runbooks/PROD_LAUNCH.md).
   {
     id: 'cockroach_cloud',
-    label: 'CockroachDB Cloud (backup check)',
+    label: 'Database provider (backup check)',
     description:
       'Read-only API key of the database cloud: the server checks every hour that a fresh backup exists.',
     fields: [

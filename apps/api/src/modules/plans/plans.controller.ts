@@ -17,6 +17,7 @@ import { SkipVersionCheck } from '../feature-flags/decorators/skip-version-check
 import {
   type Audience,
   catalogFor,
+  ENTITLEMENT_KEYS,
   type Entitlements,
 } from './entitlement-catalog';
 import { EntitlementsService } from './entitlements.service';
@@ -70,7 +71,12 @@ export class PlansController {
     @CurrentUser() user: RequestUser,
   ): Promise<MyEntitlementsDto> {
     const r = await this.entitlements.forUser(user.sub);
-    return { ...r, catalog: catalogDtos(r.audience) };
+    const builtIn = new Set<string>(ENTITLEMENT_KEYS);
+    const customValues: Record<string, boolean | number | null> = {};
+    for (const [k, v] of Object.entries(r.values)) {
+      if (!builtIn.has(k) && v !== undefined) customValues[k] = v;
+    }
+    return { ...r, customValues, catalog: catalogDtos(r.audience) };
   }
 
   /** Shared with the subscription "me" endpoints. */
@@ -92,6 +98,7 @@ export function catalogDtos(audience: Audience): EntitlementDefDto[] {
       min: d.min,
       max: d.max,
       zeroIsUnlimited: d.zeroIsUnlimited,
+      custom: d.custom ?? false,
     }));
 }
 

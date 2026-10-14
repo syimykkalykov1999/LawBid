@@ -1,3 +1,4 @@
+import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
@@ -257,6 +258,50 @@ export class AttorneyProfilesService {
    * never be reached here. Unverified/pending/rejected profiles are shown
    * without the blue check.
    */
+  /** One more open of the profile today (statistics only; never blocks). */
+  private async recordView(attorneyId: string): Promise<void> {
+    try {
+      await this.prisma.$executeRaw`
+        INSERT INTO attorney_profile_views (attorney_id, day, views)
+        VALUES (${attorneyId}::uuid, CURRENT_DATE, 1)
+        ON CONFLICT (attorney_id, day)
+        DO UPDATE SET views = attorney_profile_views.views + 1`;
+    } catch {
+      /* statistics are best effort */
+    }
+  }
+
+  /** The attorney's own numbers for the last 30 days (+ clients all time). */
+  async stats(attorneyId: string): Promise<AttorneyStatsDto> {
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    const [views, sent, accepted, clients] = await Promise.all([
+      this.prisma.attorneyProfileView.aggregate({
+        where: { attorney_id: attorneyId, day: { gte: since } },
+        _sum: { views: true },
+      }),
+      this.prisma.bid.count({
+        where: { attorney_id: attorneyId, created_at: { gte: since } },
+      }),
+      this.prisma.bid.count({
+        where: {
+          attorney_id: attorneyId,
+          status: 'accepted',
+          updated_at: { gte: since },
+        },
+      }),
+      this.prisma.case.groupBy({
+        by: ['client_id'],
+        where: { accepted_bid: { attorney_id: attorneyId } },
+      }),
+    ]);
+    return {
+      profileViews30d: views._sum.views ?? 0,
+      bidsSent30d: sent,
+      bidsAccepted30d: accepted,
+      clientsTotal: clients.length,
+    };
+  }
+
   async getPublic(
     username: string,
     viewerId: string,
@@ -306,27 +351,39 @@ export class AttorneyProfilesService {
     ) {
       throw notFound('Profile is unavailable.');
     }
+    if (row.user_id !== viewerId) void this.recordView(row.user_id);
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
     // Public photo only (a clean `avatar` file); documents never.
-    const [avatar, practiceAreas, follow, pPosts, pFollowers, pFollowing] =
-      await Promise.all([
-        this.files.avatarUrls(row.user.avatar_file_id),
-        this.practices.selectedOf(row.user_id),
-        this.prisma.follow.findUnique({
-          where: {
-            follower_id_followee_id: {
-              follower_id: viewerId,
-              followee_id: row.user_id,
-            },
+    const [
+      avatar,
+      practiceAreas,
+      follow,
+      pPosts,
+      pFollowers,
+      pFollowing,
+      membership,
+    ] = await Promise.all([
+      this.files.avatarUrls(row.user.avatar_file_id),
+      this.practices.selectedOf(row.user_id),
+      this.prisma.follow.findUnique({
+        where: {
+          follower_id_followee_id: {
+            follower_id: viewerId,
+            followee_id: row.user_id,
           },
-          select: { follower_id: true },
-        }),
-        // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
-        this.counters.pending('attorney', 'posts_count', [row.user_id]),
-        this.counters.pending('attorney', 'followers_count', [row.user_id]),
-        this.counters.pending('attorney', 'following_count', [row.user_id]),
-      ]);
+        },
+        select: { follower_id: true },
+      }),
+      // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
+      this.counters.pending('attorney', 'posts_count', [row.user_id]),
+      this.counters.pending('attorney', 'followers_count', [row.user_id]),
+      this.counters.pending('attorney', 'following_count', [row.user_id]),
+      this.prisma.firmMember.findFirst({
+        where: { attorney_id: row.user_id, status: 'active' },
+        select: { firm: { select: { id: true, name: true } } },
+      }),
+    ]);
     const plus = (base: number, m: Map<string, number>) =>
       Math.max(0, base + (m.get(row.user_id) ?? 0));
     return {
@@ -337,6 +394,7 @@ export class AttorneyProfilesService {
       bio: row.bio,
       firmName: row.firm_name,
       firms: firmsOf(row),
+      firm: membership?.firm ?? null,
       avatarUrl: avatar.url,
       avatarUrl256: avatar.url256,
       languages: row.languages,

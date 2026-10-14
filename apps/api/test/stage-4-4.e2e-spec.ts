@@ -12,7 +12,7 @@ import { SubscriptionAccessService } from '../src/modules/subscriptions/subscrip
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.4 acceptance, against real
- * CockroachDB/Redis:
+ * PostgreSQL/Redis:
  *  - a second bid by the same attorney on a case is rejected
  *    (BID_ALREADY_EXISTS), even after the first is withdrawn;
  *  - a bid without an active subscription/trial is SUBSCRIPTION_REQUIRED;

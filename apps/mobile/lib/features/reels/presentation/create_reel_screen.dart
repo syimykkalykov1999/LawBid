@@ -54,10 +54,10 @@ class CreateReelScreen extends ConsumerStatefulWidget {
 
 /// The server's `video.max_duration_sec` default; the live value comes
 /// from the admin panel (bootstrap app_config).
-const _kDefaultMaxSeconds = 90;
+const _kDefaultMaxSeconds = 180;
 
 /// `video.max_source_duration_sec`: the longest video a reel is cut from.
-const _kDefaultSourceSeconds = 180;
+const _kDefaultSourceSeconds = 900;
 
 /// A photo of the reel's inner page, uploaded right after it is picked.
 class _Photo {

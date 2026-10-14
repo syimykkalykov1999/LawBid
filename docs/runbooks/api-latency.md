@@ -7,8 +7,8 @@ Targets (docs/06 §9.4): reads p95 < 300 ms, writes < 600 ms (alarm at 600 ms).
 **Check.**
 1. *API health* board: is RPS unusual (traffic spike or a scraper)? WAF
    blocked requests?
-2. *Database & Redis*: Redis CPU/memory, CockroachDB SQL latency in the
-   Cloud Console; transaction retries (40001) climbing → contention,
+2. *Database & Redis*: Redis CPU/memory, PostgreSQL query latency in the
+   provider console (`pg_stat_statements` / query insights); transaction retries (40001) climbing → contention,
    see [db-contention.md](db-contention.md).
 3. Logs Insights: `stats avg(responseTime), pct(responseTime, 95) by req.url`
    — a single slow endpoint points at a missing index or an N+1.

@@ -59,8 +59,10 @@ export class DataRetentionService implements OnModuleDestroy {
           ? await this.batched(
               (limit) => this.prisma.$executeRaw`
                 DELETE FROM assistant_activity
-                WHERE created_at < ${before(activityDays)}
-                ORDER BY created_at LIMIT ${limit}`,
+                WHERE ctid IN (
+                  SELECT ctid FROM assistant_activity
+                  WHERE created_at < ${before(activityDays)}
+                  ORDER BY created_at LIMIT ${limit})`,
             )
           : 0,
       snapshots:
@@ -87,8 +89,10 @@ export class DataRetentionService implements OnModuleDestroy {
       total += await this.batched(
         (limit) => db.$executeRaw`
           DELETE FROM auth_events
-          WHERE created_shard = ${shard} AND created_at < ${before}
-          ORDER BY created_at LIMIT ${limit}`,
+          WHERE ctid IN (
+            SELECT ctid FROM auth_events
+            WHERE created_shard = ${shard} AND created_at < ${before}
+            ORDER BY created_at LIMIT ${limit})`,
       );
     }
     return total;

@@ -26,6 +26,14 @@ process.env.OTP_VERIFY_LIMIT_PER_IP_PER_HOUR = '1000';
 // fallback is lifted; daily/monthly caps keep their real defaults and
 // cost-guard.e2e-spec.ts drives caps explicitly through app_config.
 process.env.BUDGET_SMS_PER_MINUTE_MAX = '1000';
+// A whole run sends hundreds of codes and mails; which suite crosses a real
+// daily cap depended on the order the suites ran in. Lifted here;
+// cost-guard.e2e-spec.ts sets its own caps through app_config.
+for (const k of ['SMS', 'EMAIL']) {
+  process.env[`BUDGET_${k}_DAILY_MAX`] = '1000000';
+  process.env[`BUDGET_${k}_MONTHLY_MAX`] = '1000000';
+  process.env[`BUDGET_${k}_PER_MINUTE_MAX`] = '1000000';
+}
 
 // docs/03 stage 3.2: uploads go to the local MinIO from docker-compose.yml
 // (dev-only credentials published there). Buckets are per isolation tag

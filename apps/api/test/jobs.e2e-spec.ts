@@ -15,13 +15,13 @@ import {
 import { DISPOSABLE_MIN_DOMAINS } from '../src/jobs/disposable-domains/disposable-domains-refresh.job';
 
 /**
- * BullMQ `cron` queue end to end (real Redis + CockroachDB): schedules
+ * BullMQ `cron` queue end to end (real Redis + PostgreSQL): schedules
  * exist once no matter how many instances boot, and each job — run
  * through the real queue and worker — does its docs/02 §6.4 / §3.3 work.
  * The disposable-domain fetcher is a fake (no network).
  */
 describe('Background jobs (e2e) — BullMQ cron queue', () => {
-  // App boot + CockroachDB fixtures exceed Jest's 5 s default under load.
+  // App boot + PostgreSQL fixtures exceed Jest's 5 s default under load.
   jest.setTimeout(60_000);
 
   const prisma = new PrismaClient();

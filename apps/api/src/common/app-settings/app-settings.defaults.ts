@@ -5,6 +5,17 @@
 // or has the wrong type.
 export const FILE_03_SETTINGS = {
   'verification.max_submissions_30d': 5,
+  /** Owner 2026-10-14: wrong bar numbers in a row before a cooldown. */
+  'verification.bar_fails_per_step': 3,
+  /** Cooldowns after each series of wrong numbers, hours, comma list; the
+   * last one repeats. Never a permanent block. */
+  'verification.bar_cooldown_hours': '1,12,24',
+  /** Days without a wrong number after which the counter starts over. */
+  'verification.bar_fail_reset_days': 7,
+  /** Bar number format per state (JSON: {"NY":{"pattern":"^\\d{4,7}$",
+   * "example":"1234567"}}); a state not listed only needs 4+ characters with
+   * at least 3 digits. */
+  'verification.bar_formats': '',
   'verification.signed_url_ttl_sec': 300,
   'verification.license_expiry_notify_days': [30, 7],
   'profile.username_change_cooldown_days': 30,
@@ -73,8 +84,9 @@ export const FILE_06_SETTINGS = {
 // Owner 2026-10-01: video reels (Bunny Stream) and stickers — tunables the
 // owner changes from the admin panel without a release.
 export const OWNER_MEDIA_SETTINGS = {
-  'video.max_duration_sec': 90,
-  'video.max_size_mb': 500,
+  // Owner 2026-10-14: reels as long as Instagram's (up to 3 minutes).
+  'video.max_duration_sec': 180,
+  'video.max_size_mb': 1000,
   'video.upload_ttl_min': 60,
   'video.playback_ttl_sec': 21600,
   'video.max_pending_per_user': 3,
@@ -88,7 +100,7 @@ export const OWNER_MEDIA_SETTINGS = {
   'files.sticker_max_size_mb': 1,
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
-  'video.max_source_duration_sec': 180,
+  'video.max_source_duration_sec': 900,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by
   // their own size) are shrunk on the phone before upload — longest side,
   // JPEG quality — no visible loss, small files. Videos are re-encoded by
@@ -211,9 +223,10 @@ export const OWNER_TRUST_SETTINGS = {
   'trust.require_identity': true,
   /** Staff checked a government ID + selfie + bar card. */
   'trust.require_documents': false,
-  /** Bids too wait for the requirements (default: bids are open to every
-   * self-attested attorney, only money and the badge wait). */
-  'trust.bids_require_cleared': false,
+  /** Bids wait for the LICENCE (a registry match or a staff confirmation);
+   * identity and documents only gate money and the badge. Owner
+   * 2026-10-14: on — a pending lawyer may browse and prepare, not send. */
+  'trust.bids_require_cleared': true,
   /** Stripe payout delay (days) asked for attorneys not yet cleared; 0 =
    * Stripe's default. */
   'trust.payout_delay_days': 7,
@@ -248,7 +261,7 @@ export const OWNER_TRUST_SETTINGS = {
 // trial). Applies to new trials; running ones keep their end date (an
 // admin extends one attorney's trial from their subscription card).
 export const OWNER_TRIAL_SETTINGS = {
-  'billing.trial_days': 7,
+  'billing.trial_days': 14,
 } as const;
 
 // Owner 2026-10-05: sections where admins other than the super admin must
@@ -397,7 +410,7 @@ export const OWNER_OPS_SETTINGS = {
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
    * at the minimum until the next month (or until the owner lifts it). */
   'ops.auto_scale_down_on_budget': true,
-  /** The newest CockroachDB Cloud backup older than this → alert. */
+  /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
 };
 

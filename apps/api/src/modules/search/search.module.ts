@@ -5,7 +5,7 @@ import { CasesModule } from '../cases/cases.module';
 import { FollowsModule } from '../follows/follows.module';
 import { PostsModule } from '../posts/posts.module';
 import { ProfilesModule } from '../profiles/profiles.module';
-import { CockroachSearchProvider } from './cockroach-search.provider';
+import { PostgresSearchProvider } from './postgres-search.provider';
 import { SearchController } from './search.controller';
 import { SEARCH_PROVIDER } from './search.provider';
 import { SearchService } from './search.service';
@@ -25,7 +25,7 @@ import { SearchService } from './search.service';
   controllers: [SearchController],
   providers: [
     SearchService,
-    { provide: SEARCH_PROVIDER, useClass: CockroachSearchProvider },
+    { provide: SEARCH_PROVIDER, useClass: PostgresSearchProvider },
   ],
 })
 export class SearchModule {}

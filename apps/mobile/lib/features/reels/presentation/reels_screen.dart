@@ -89,11 +89,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     if (_loading || !_more) return;
     setState(() => _loading = true);
     try {
-      final page =
-          await ref.read(reelsRepositoryProvider).reels(
-        cursor: _cursor,
-        practice: widget.practice,
-      );
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            cursor: _cursor,
+            practice: widget.practice,
+          );
       final seen = _items.map((p) => p.id).toSet();
       setState(() {
         _items.addAll(page.items.where((p) => !seen.contains(p.id)));
@@ -357,7 +356,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       Color? color,
     }) =>
         Padding(
-          // Owner 2026-10-13: small, Instagram-like rail — a 26 icon, the
+          // Owner 2026-10-13: small, Instagram-like rail — a 24 icon, the
           // count in 12, a tight step, whatever the system text size.
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: MediaQuery.withNoTextScaling(
@@ -370,13 +369,13 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 behavior: HitTestBehavior.opaque,
                 child: Column(
                   children: [
-                    AppIcon(icon, size: 26, color: color ?? Colors.white),
+                    AppIcon(icon, size: 24, color: color ?? Colors.white),
                     if (count != null && count > 0) ...[
                       const SizedBox(height: 2),
                       Text(
                         SocialFormat.count(f, count),
                         style: type.caption.copyWith(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           shadows: shadow,
@@ -543,6 +542,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         gap: AppSpacing.sm,
                         followMaxWidth: 140,
                         showFollow: !p.isMine,
+                        boostPostId: p.isMine ? p.id : null,
                         subtitle: p.locationName ??
                             (p.author.isClient
                                 ? '@${p.author.username} · '

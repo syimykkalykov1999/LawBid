@@ -23,11 +23,11 @@ On-call: the owner until a rotation exists (docs/06 §11.1 "дежурный
 | `sms-spend` | [sms-spend.md](sms-spend.md) |
 | `redis-cpu` / `redis-memory` | [redis.md](redis.md) |
 | `api-cpu` / `worker-cpu` | [ecs-capacity.md](ecs-capacity.md) |
-| Backup failed (CockroachDB Cloud alert) | [backup-failed.md](backup-failed.md) |
+| Backup failed (database host alert) | [backup-failed.md](backup-failed.md) |
 | DB / Redis unavailable (`/health/ready` 503), `db-down` | [db-redis-unavailable.md](db-redis-unavailable.md) |
 | `db-slow` (DB probe > 1 s) | [db-contention.md](db-contention.md) |
 | `aws-budget-reached`, AWS Budgets / Cost Anomaly e-mails | [cost.md](cost.md) |
-| `backup-stale` (newest CockroachDB Cloud backup too old) | [backup-failed.md](backup-failed.md) |
+| `backup-stale` (newest database backup too old) | [backup-failed.md](backup-failed.md) |
 | `ses-bounce-rate` / `ses-complaint-rate` | [ses.md](ses.md) |
 | `api-no-running-tasks` / `worker-no-running-tasks` | [ecs-capacity.md](ecs-capacity.md) |
 | GitHub «Self-check (production)» failed | the run summary + [OWNER.md](OWNER.md) |

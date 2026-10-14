@@ -6,6 +6,26 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
+  'error.api.BAR_NUMBER_FORMAT_INVALID': 'Номер не найден для этого штата.',
+  'error.api.BAR_ATTEMPTS_COOLDOWN':
+      'Слишком много неверных номеров. Попробуйте позже.',
+  'error.api.BID_LICENSE_PENDING':
+      'Лицензия на проверке. Пока можно смотреть кейсы и готовить отклик, а отправка откроется после подтверждения.',
+  'packs.title': 'Пакеты откликов',
+  'packs.hint': 'Докупите отклики сверх лимита плана',
+  'packs.balance': 'Куплено откликов: {n}',
+  'packs.item': '{n} откликов',
+  'packs.none': 'Пакеты сейчас недоступны.',
+  'stats.title': 'Моя статистика',
+  'stats.hint': 'Просмотры профиля, отклики, клиенты',
+  'stats.views': 'Просмотры профиля, 30 дней',
+  'stats.sent': 'Отправлено откликов, 30 дней',
+  'stats.accepted': 'Принято откликов, 30 дней',
+  'stats.clients': 'Клиентов через LawBid',
+  'error.api.BID_TRIAL_LIMIT_REACHED':
+      'Отклики пробного периода закончились. Выберите тариф, чтобы откликаться дальше.',
+  'error.api.BID_MONTHLY_LIMIT_REACHED':
+      'Вы использовали все отклики этого месяца по вашему тарифу. Откройте тарифы, чтобы откликаться больше.',
   'error.api.ENTITLEMENT_REQUIRED': 'Эта возможность не входит в ваш план.',
   'error.api.BID_LIMIT_REACHED':
       'Достигнут лимит активных ставок вашего плана.',
@@ -76,9 +96,51 @@ const planRu = <String, String>{
   'plan.badge.included.hint':
       'После проверки документов галочка появится без отдельной оплаты.',
   'plan.feed.priority': 'ПРИОРИТЕТ',
+  'firm.title': 'Моя фирма',
+  'cases.card.bidDone': 'Отклик ✓',
+  'firm.sendAs': 'Отправить от имени',
+  'firm.hint': 'Адвокаты фирмы и их штаты',
+  'firm.none': 'У вас пока нет фирмы. Создайте её и добавьте адвокатов.',
+  'firm.name': 'Название фирмы',
+  'firm.create': 'Создать фирму',
+  'firm.members': 'Адвокаты',
+  'firm.states': 'Штаты фирмы',
+  'firm.invite.username': 'Имя адвоката (@username)',
+  'firm.invite': 'Пригласить',
+  'firm.pending': 'Приглашён',
+  'firm.owner': 'Владелец',
+  'firm.accept': 'Принять приглашение',
+  'firm.decline': 'Отклонить',
+  'firm.leave': 'Выйти из фирмы',
+  'firm.remove': 'Убрать',
+  'firm.invited.hint':
+      'Вас пригласили в фирму. Ваша лицензия и проверка остаются при вас.',
+  'error.api.FIRM_ALREADY_MEMBER':
+      'Адвокат уже состоит в фирме или приглашён в неё.',
+  'error.api.FIRM_FULL': 'В фирме уже максимум адвокатов.',
 };
 
 const planEn = <String, String>{
+  'error.api.BAR_NUMBER_FORMAT_INVALID': 'Bar number not found for this state.',
+  'error.api.BAR_ATTEMPTS_COOLDOWN':
+      'Too many wrong bar numbers. Try again later.',
+  'error.api.BID_LICENSE_PENDING':
+      'Your licence is being checked. You can browse cases and prepare an offer; sending opens once it is confirmed.',
+  'packs.title': 'Offer packs',
+  'packs.hint': 'Buy extra offers on top of your plan',
+  'packs.balance': 'Offers bought: {n}',
+  'packs.item': '{n} offers',
+  'packs.none': 'Packs are not available right now.',
+  'stats.title': 'My statistics',
+  'stats.hint': 'Profile views, offers, clients',
+  'stats.views': 'Profile views, 30 days',
+  'stats.sent': 'Offers sent, 30 days',
+  'stats.accepted': 'Offers accepted, 30 days',
+  'stats.clients': 'Clients through LawBid',
+  'error.api.BID_TRIAL_LIMIT_REACHED':
+      'The offers of your free trial are used up. Pick a plan to keep sending offers.',
+  'error.api.BID_MONTHLY_LIMIT_REACHED':
+      'You have used all offers of this month on your plan. Open plans to send more.',
   'error.api.ENTITLEMENT_REQUIRED': 'This feature is not part of your plan.',
   'error.api.BID_LIMIT_REACHED':
       "You've reached your plan's limit of active offers.",
@@ -149,4 +211,26 @@ const planEn = <String, String>{
   'plan.badge.included.hint':
       'Once your documents are approved the badge shows — no separate payment.',
   'plan.feed.priority': 'PRIORITY',
+  'firm.title': 'My firm',
+  'cases.card.bidDone': 'Bid ✓',
+  'firm.sendAs': 'Send as',
+  'firm.hint': "The firm's lawyers and their states",
+  'firm.none': 'You have no firm yet. Create one and add lawyers.',
+  'firm.name': 'Firm name',
+  'firm.create': 'Create firm',
+  'firm.members': 'Lawyers',
+  'firm.states': "Firm's states",
+  'firm.invite.username': "Lawyer's @username",
+  'firm.invite': 'Invite',
+  'firm.pending': 'Invited',
+  'firm.owner': 'Owner',
+  'firm.accept': 'Accept invitation',
+  'firm.decline': 'Decline',
+  'firm.leave': 'Leave firm',
+  'firm.remove': 'Remove',
+  'firm.invited.hint':
+      'You are invited to a firm. Your licence and verification stay yours.',
+  'error.api.FIRM_ALREADY_MEMBER':
+      'This lawyer is already in a firm or invited to one.',
+  'error.api.FIRM_FULL': 'The firm already has the maximum number of lawyers.',
 };

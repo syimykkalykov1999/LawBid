@@ -20,7 +20,7 @@ describe('withTxRetry', () => {
     expect($transaction).toHaveBeenCalledTimes(1);
   });
 
-  it('retries on a CockroachDB serialization failure (P2034) and eventually succeeds', async () => {
+  it('retries on a serialization failure (P2034) and eventually succeeds', async () => {
     const $transaction = jest
       .fn()
       .mockRejectedValueOnce(makeSerializationError())

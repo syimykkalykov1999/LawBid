@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 /**
  * docs/02_DATABASE.md §8, stage 2.2 acceptance, against a real
- * CockroachDB (the per-run e2e database, see test/support/e2e-env.ts):
+ * PostgreSQL (the per-run e2e database, see test/support/e2e-env.ts):
  * email/phone uniqueness with multiple NULLs allowed, identifier UQ,
  * creating a session and an auth event. Plus the files table added here.
  */

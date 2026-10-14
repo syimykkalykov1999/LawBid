@@ -9,6 +9,9 @@ part of 'public_attorney_profile_dto.dart';
 PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
   Map<String, dynamic> json,
 ) => PublicAttorneyProfileDto(
+  firm: json['firm'] == null
+      ? null
+      : ProfileFirmDto.fromJson(json['firm'] as Map<String, dynamic>),
   id: json['id'] as String,
   username: json['username'] as String,
   firstName: json['firstName'] as String?,
@@ -42,6 +45,7 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
 Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   PublicAttorneyProfileDto instance,
 ) => <String, dynamic>{
+  'firm': ?instance.firm?.toJson(),
   'id': instance.id,
   'username': instance.username,
   'firstName': ?instance.firstName,

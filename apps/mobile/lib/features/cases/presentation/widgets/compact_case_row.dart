@@ -30,6 +30,7 @@ class CompactCaseRow extends StatelessWidget {
     this.bidsCount,
     this.newBids = 0,
     this.trailing,
+    this.topTrailing,
     this.semanticLabel,
     super.key,
   });
@@ -60,6 +61,10 @@ class CompactCaseRow extends StatelessWidget {
 
   /// A small action at the end of the bottom line (e.g. Boost).
   final Widget? trailing;
+
+  /// Owner 2026-10-14: top right of the row, where Follow sits on a post
+  /// (the owner's Boost button).
+  final Widget? topTrailing;
   final String? semanticLabel;
 
   static const double thumb = 64;
@@ -155,15 +160,26 @@ class CompactCaseRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.body.copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.body.copyWith(
+                              color: colors.text,
+                              fontWeight: FontWeight.w700,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                        if (topTrailing != null) ...[
+                          const SizedBox(width: AppSpacing.sm),
+                          topTrailing!,
+                        ],
+                      ],
                     ),
                     if (desc.isNotEmpty) ...[
                       const SizedBox(height: 2),
