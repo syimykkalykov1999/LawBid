@@ -90,6 +90,7 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
       child: Row(
         children: [
           BounceIcon(
+            size: 22,
             active: false,
             icon: AppIcons.modeCommentOutlined,
             activeIcon: AppIcons.modeCommentOutlined,
@@ -99,10 +100,14 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
           if (count > 0)
             Text(
               SocialFormat.count(f, count),
-              style: type.bodySmall
-                  .copyWith(color: colors.text, fontWeight: FontWeight.w600),
+              style: type.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
           BounceIcon(
+            size: 22,
             active: false,
             icon: AppIcons.sendOutlined,
             activeIcon: AppIcons.sendOutlined,
@@ -112,8 +117,11 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
           if (widget.item.shareCount + _shared > 0)
             Text(
               SocialFormat.count(f, widget.item.shareCount + _shared),
-              style: type.bodySmall
-                  .copyWith(color: colors.text, fontWeight: FontWeight.w600),
+              style: type.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
           // Owner 2026-09-30: the time and Save sit at the right edge.
           Expanded(
@@ -122,10 +130,14 @@ class _CaseActionsBarState extends ConsumerState<CaseActionsBar> {
               maxLines: 1,
               textAlign: TextAlign.right,
               overflow: TextOverflow.ellipsis,
-              style: type.caption.copyWith(color: colors.textSecondary),
+              style: type.caption.copyWith(
+                color: colors.textSecondary,
+                fontSize: 13,
+              ),
             ),
           ),
           BounceIcon(
+            size: 22,
             active: saved,
             icon: AppIcons.bookmarkBorderRounded,
             activeIcon: AppIcons.bookmarkRounded,

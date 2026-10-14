@@ -204,7 +204,10 @@ class FeedCaseCard extends StatelessWidget {
         item.additionalStateCodes.length,
       ),
       CaseFormat.budget(t, formats, item.budget),
-      t.t('cases.card.bidsCount', {'count': '${item.bidsCount}'}),
+      t.t(
+        'cases.card.bidsCount',
+        {'count': SocialFormat.count(formats, item.bidsCount)},
+      ),
       if (item.hasOwnBid) t.t('cases.card.youBid'),
     ].join(', ');
     final text = (item.description ?? item.excerpt).trim();
@@ -293,13 +296,14 @@ class _CaseCardRow extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppIcon(icon, size: 20, color: colors.text),
+              AppIcon(icon, size: 22, color: colors.text),
               const SizedBox(width: 4),
               Text(
                 SocialFormat.count(formats, n),
                 style: typography.bodySmall.copyWith(
                   color: colors.text,
                   fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             ],
@@ -312,53 +316,60 @@ class _CaseCardRow extends StatelessWidget {
         AppSpacing.xs,
         AppSpacing.sm,
       ),
-      child: Row(
+      // Owner 2026-10-14: the Bid button has its own row above the icons;
+      // once a bid is placed the same button turns grey with "Bid ✓".
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (item.hasOwnBid)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
-              child: StatusPill(
-                label: t.t('cases.card.youBid'),
-                tone: StatusTone.gold,
+          Padding(
+            padding: const EdgeInsetsDirectional.only(bottom: AppSpacing.xs),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 32),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: 4,
               ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.gold,
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                ),
-                child: Text(
-                  t.t('cases.card.bid'),
-                  style: typography.body.copyWith(
-                    color: colors.navy,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: item.hasOwnBid ? colors.chip : colors.gold,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border:
+                    item.hasOwnBid ? Border.all(color: colors.border) : null,
               ),
-            ),
-          stat(AppIcons.gavelRounded, item.bidsCount),
-          stat(AppIcons.modeCommentOutlined, item.commentCount),
-          stat(AppIcons.sendOutlined, item.shareCount),
-          const Spacer(),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
               child: Text(
-                SocialFormat.ago(t, formats, item.createdAt),
+                item.hasOwnBid
+                    ? t.t('cases.card.bidDone')
+                    : t.t('cases.card.bid'),
                 maxLines: 1,
-                style: typography.caption.copyWith(color: colors.textSecondary),
+                overflow: TextOverflow.ellipsis,
+                style: typography.bodySmall.copyWith(
+                  color: item.hasOwnBid ? colors.textSecondary : colors.navy,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
             ),
           ),
-          CaseSaveButton(item: item),
+          Row(
+            children: [
+              stat(AppIcons.gavelRounded, item.bidsCount),
+              stat(AppIcons.modeCommentOutlined, item.commentCount),
+              stat(AppIcons.sendOutlined, item.shareCount),
+              const Spacer(),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    SocialFormat.ago(t, formats, item.createdAt),
+                    maxLines: 1,
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ),
+              ),
+              CaseSaveButton(item: item),
+            ],
+          ),
         ],
       ),
     );
