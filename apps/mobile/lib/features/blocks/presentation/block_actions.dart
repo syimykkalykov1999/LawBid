@@ -22,7 +22,7 @@ Future<bool> toggleBlock(
   if (!currentlyBlocked) {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (dialog) => AlertDialog(
+      builder: (dialog) => AppAlertDialog(
         title: Text(t.t('block.confirm.title', {'name': displayName})),
         content: Text(t.t('block.confirm.body')),
         actions: [

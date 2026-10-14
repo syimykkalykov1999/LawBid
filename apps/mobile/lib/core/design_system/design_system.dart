@@ -38,6 +38,7 @@ export 'widgets/display/photo_gallery.dart';
 export 'widgets/display/role_card.dart';
 export 'widgets/display/scales_logo.dart';
 export 'widgets/display/watermark_scales.dart';
+export 'widgets/feedback/app_alert_dialog.dart';
 export 'widgets/feedback/app_connectivity_banner.dart';
 export 'widgets/feedback/app_empty_state.dart';
 export 'widgets/feedback/app_error_state.dart';
