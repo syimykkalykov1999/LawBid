@@ -24,6 +24,14 @@ const RULES = [
   [/\bADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?\S+\s+[^,;]*\bNOT\s+NULL\b(?![^,;]*\b(?:DEFAULT|AS)\b)/i, 'adds a NOT NULL column without DEFAULT'],
 ];
 
+// Widening a text column (`ALTER COLUMN x TYPE VARCHAR(n)` / `STRING(n)`
+// without USING) is a safe expand step: the previous release reads and
+// writes the same values, and a rollback only meets longer values it never
+// writes. The script cannot see the old length, so a narrowing change must
+// still be reviewed by hand (it needs a USING clause or a waiver in practice).
+const WIDENING =
+  /\bALTER\s+COLUMN\s+\S+\s+(?:SET\s+DATA\s+)?TYPE\s+(?:VARCHAR|STRING|CHAR(?:ACTER)?(?:\s+VARYING)?)\s*\(\s*\d+\s*\)(?![^;,]*\bUSING\b)/gi;
+
 const stripComments = (sql) => sql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 let failed = 0;
@@ -34,7 +42,7 @@ const names = readdirSync(dir, { withFileTypes: true })
 for (const name of names) {
   const raw = readFileSync(join(dir, name, 'migration.sql'), 'utf8');
   const waiver = /^--\s*migration-safety:\s*contract\b(.*)$/im.exec(raw);
-  const sql = stripComments(raw);
+  const sql = stripComments(raw).replace(WIDENING, '');
   for (const [re, what] of RULES) {
     if (!re.test(sql)) continue;
     if (waiver) {

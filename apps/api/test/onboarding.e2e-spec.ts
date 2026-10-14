@@ -189,7 +189,7 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       theme: 'dark',
       role: 'client',
       onboarding: { currentStep: 'contacts', data: { stateCode: 'NY' } },
-      missing: ['email_verified', 'state'],
+      missing: ['email', 'state'],
     });
 
     // The profile step persists into client_profiles (§11 3A).
@@ -229,7 +229,7 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     expect(created.status).toBe(201);
   });
 
-  it('attorney: completes with a verified phone, no email needed', async () => {
+  it('attorney: completes with a verified phone and a profile e-mail (no code)', async () => {
     const token = await login('+12025557002');
     const auth = { Authorization: `Bearer ${token}` };
     await grantRequiredConsents(token);
@@ -246,7 +246,10 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     await api()
       .patch('/api/v1/users/me/onboarding')
       .set(auth)
-      .send({ currentStep: 'push', profile: { licensedStates: ['NY'] } })
+      .send({
+        currentStep: 'push',
+        profile: { licensedStates: ['NY'], email: 'john.roe@example.com' },
+      })
       .expect(200);
     // docs/03 §4.1 / OQ-012: the attorney photo is mandatory.
     const noPhoto = await api()

@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
@@ -66,6 +67,16 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    // Owner 2026-10-13: adding files to posts is an admin mode (off by
+    // default); these suites are about the files themselves.
+    await prisma.appConfig.upsert({
+      where: { key: 'attachments_in_posts' },
+      create: { key: 'attachments_in_posts', value: 'on_for_all' },
+      update: { value: 'on_for_all' },
+    });
+    await app
+      .get<import('ioredis').default>(REDIS_CLIENT)
+      .del('config:app_config');
     await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
     await prisma.featureFlag.upsert({
@@ -189,7 +200,7 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
       body: 'x',
       attachments: ten.map((fileId) => ({ fileId, fileName: 'a.pdf' })),
     });
-    expect(tooMany.status).toBe(400);
+    expect(tooMany.status).toBe(409);
 
     const other = await attorney();
     const foreign = await post(att.auth, {

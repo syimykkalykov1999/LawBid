@@ -61,7 +61,11 @@ describe('Filters audit (e2e, 2026-10-01)', () => {
 
   async function user(role: 'client' | 'attorney', verified = true) {
     const u = await prisma.user.create({
-      data: { role, phone_verified_at: role === 'client' ? new Date() : null },
+      data: {
+        email: `e2e-${crypto.randomUUID()}@example.com`,
+        role,
+        phone_verified_at: role === 'client' ? new Date() : null,
+      },
     });
     if (role === 'client') {
       const handle = `cl_${u.id.slice(0, 8)}`;

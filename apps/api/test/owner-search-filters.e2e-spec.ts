@@ -179,6 +179,7 @@ describe('Search filters per tab (e2e, OQ-036)', () => {
     const now = new Date();
     const cu = await prisma.user.create({
       data: {
+        email: `e2e-${crypto.randomUUID()}@example.com`,
         role: 'client',
         first_name: 'Zed',
         last_name: 'Client',

@@ -37,6 +37,16 @@ describe('Admin flexibility: user filters + bulk users / cases (e2e)', () => {
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    for (const [code, name] of [
+      ['NY', 'New York'],
+      ['WY', 'Wyoming'],
+    ]) {
+      await prisma.state.upsert({
+        where: { code },
+        create: { code, name },
+        update: {},
+      });
+    }
   });
 
   afterAll(async () => {

@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { ensurePostPractices } from './support/post-practices';
@@ -38,6 +39,16 @@ describe('Posts (e2e, docs/05 §3, stage 5.2)', () => {
     await app.listen(0, '127.0.0.1');
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
+    // Owner 2026-10-13: adding files to posts is an admin mode (off by
+    // default); these suites are about the files themselves.
+    await prisma.appConfig.upsert({
+      where: { key: 'attachments_in_posts' },
+      create: { key: 'attachments_in_posts', value: 'on_for_all' },
+      update: { value: 'on_for_all' },
+    });
+    await app
+      .get<import('ioredis').default>(REDIS_CLIENT)
+      .del('config:app_config');
     await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
   });
