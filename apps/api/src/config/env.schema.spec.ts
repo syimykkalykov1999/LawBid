@@ -8,7 +8,7 @@ const base: Record<string, string> = {
   // Deployed configs run behind one ALB (security audit 2026-10-01).
   TRUST_PROXY_HOPS: '1',
   NODE_ENV: 'development',
-  DATABASE_URL: 'postgresql://root@localhost:26257/lawbid?sslmode=disable',
+  DATABASE_URL: 'postgresql://root@localhost:5432/lawbid?sslmode=require',
   REDIS_URL: 'redis://localhost:6379',
   JWT_KEYS: `k1:${strong('jwt')}`,
   JWT_ACTIVE_KID: 'k1',
@@ -96,6 +96,23 @@ describe('envSchema — credentials', () => {
         'SES_FROM_ADDRESS',
       ]),
     );
+  });
+
+  it('owner 2026-10-14: staging/production refuse an unencrypted database link', () => {
+    for (const NODE_ENV of ['staging', 'production']) {
+      expect(
+        issuePaths({
+          NODE_ENV,
+          DATABASE_URL: 'postgresql://app@db:5432/lawbid?sslmode=disable',
+        }),
+      ).toContain('DATABASE_URL');
+      expect(
+        issuePaths({
+          NODE_ENV,
+          DATABASE_URL: 'postgresql://app@db:5432/lawbid',
+        }),
+      ).toContain('DATABASE_URL');
+    }
   });
 
   it('staging/production refuse TRUST_PROXY_HOPS=0 (one shared per-IP bucket)', () => {

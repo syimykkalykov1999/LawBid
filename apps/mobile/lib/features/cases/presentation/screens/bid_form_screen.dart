@@ -7,12 +7,14 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -192,6 +194,15 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       if (!mounted) return;
       if (routeSubscriptionError(context, e, reason: 'bid')) {
         setState(() => _busy = false);
+        return;
+      }
+      // Owner 2026-10-14: the month's offers are used up — say so and offer
+      // the plans in the same bar.
+      if (e is ApiException &&
+          (e.code == ApiErrorCodes.bidMonthlyLimitReached ||
+              e.code == ApiErrorCodes.bidTrialLimitReached)) {
+        setState(() => _busy = false);
+        showErrorOrPlans(context, ref, e);
         return;
       }
       setState(() {

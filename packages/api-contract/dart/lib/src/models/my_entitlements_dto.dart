@@ -24,6 +24,7 @@ class MyEntitlementsDto {
     required this.planHighlights,
     required this.isPaid,
     required this.values,
+    required this.customValues,
     required this.seats,
     required this.catalog,
   });
@@ -39,6 +40,9 @@ class MyEntitlementsDto {
   final List<LocalizedTextDto> planHighlights;
   final bool isPaid;
   final PlanEntitlementsDto values;
+
+  /// Values of the features the owner created in the admin (key → on/off or limit).
+  final dynamic customValues;
   final SeatSummaryDto? seats;
   final List<EntitlementDefDto> catalog;
 

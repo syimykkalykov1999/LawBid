@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { FLAG_CATALOG } from '../flag-catalog';
 
 /** Same reasoning as I18nBundleService's bundle-version TTL
  * (i18n-bundle.service.ts): the admin's flag toggle writes straight to
@@ -33,11 +34,39 @@ export const FLAGS_CACHE_KEY = 'config:feature_flags';
  * later stage to use; this service just doesn't read it yet.
  */
 @Injectable()
-export class FeatureFlagsService {
+export class FeatureFlagsService implements OnModuleInit {
+  private readonly logger = new Logger(FeatureFlagsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
+
+  /** A flag added to FLAG_CATALOG appears in the database on the next boot
+   * with its starter value; a value an admin chose is never touched. The
+   * test environment keeps its tables as the suites set them. */
+  async onModuleInit(): Promise<void> {
+    if (process.env.NODE_ENV === 'test') return;
+    try {
+      const made = await this.prisma.featureFlag.createMany({
+        data: FLAG_CATALOG.map((f) => ({
+          key: f.key,
+          enabled: f.enabled,
+          description: f.description,
+          rollout_percent: 100,
+        })),
+        skipDuplicates: true,
+      });
+      if (made.count > 0) {
+        await this.redis.del(FLAGS_CACHE_KEY);
+        this.logger.log(
+          `feature flags created from the catalog: ${made.count}`,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`feature flag catalog sync skipped: ${String(e)}`);
+    }
+  }
 
   async getFlags(): Promise<Record<string, boolean>> {
     const cached = await this.redis.get(FLAGS_CACHE_KEY);

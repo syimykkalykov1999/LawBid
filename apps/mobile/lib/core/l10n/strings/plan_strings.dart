@@ -6,6 +6,16 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
+  'stats.title': 'Моя статистика',
+  'stats.hint': 'Просмотры профиля, отклики, клиенты',
+  'stats.views': 'Просмотры профиля, 30 дней',
+  'stats.sent': 'Отправлено откликов, 30 дней',
+  'stats.accepted': 'Принято откликов, 30 дней',
+  'stats.clients': 'Клиентов через LawBid',
+  'error.api.BID_TRIAL_LIMIT_REACHED':
+      'Отклики пробного периода закончились. Выберите тариф, чтобы откликаться дальше.',
+  'error.api.BID_MONTHLY_LIMIT_REACHED':
+      'Вы использовали все отклики этого месяца по вашему тарифу. Откройте тарифы, чтобы откликаться больше.',
   'error.api.ENTITLEMENT_REQUIRED': 'Эта возможность не входит в ваш план.',
   'error.api.BID_LIMIT_REACHED':
       'Достигнут лимит активных ставок вашего плана.',
@@ -79,6 +89,16 @@ const planRu = <String, String>{
 };
 
 const planEn = <String, String>{
+  'stats.title': 'My statistics',
+  'stats.hint': 'Profile views, offers, clients',
+  'stats.views': 'Profile views, 30 days',
+  'stats.sent': 'Offers sent, 30 days',
+  'stats.accepted': 'Offers accepted, 30 days',
+  'stats.clients': 'Clients through LawBid',
+  'error.api.BID_TRIAL_LIMIT_REACHED':
+      'The offers of your free trial are used up. Pick a plan to keep sending offers.',
+  'error.api.BID_MONTHLY_LIMIT_REACHED':
+      'You have used all offers of this month on your plan. Open plans to send more.',
   'error.api.ENTITLEMENT_REQUIRED': 'This feature is not part of your plan.',
   'error.api.BID_LIMIT_REACHED':
       "You've reached your plan's limit of active offers.",

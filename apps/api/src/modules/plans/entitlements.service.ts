@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { type Plan, Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -26,6 +26,7 @@ import {
   PlansService,
   text,
 } from './plans.service';
+import { CustomEntitlementsService } from './custom-entitlements.service';
 
 export type EntitlementSource = 'baseline' | 'plan' | 'legacy' | 'grant';
 
@@ -79,6 +80,7 @@ export class EntitlementsService {
     private readonly prisma: PrismaService,
     private readonly plans: PlansService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly custom?: CustomEntitlementsService,
   ) {}
 
   async forUser(userId: string): Promise<ResolvedEntitlements> {
@@ -92,6 +94,7 @@ export class EntitlementsService {
         /* fall through */
       }
     }
+    await this.custom?.ensureFresh().catch(() => undefined);
     const resolved = await this.compute(userId);
     await this.redis
       .set(key, JSON.stringify(resolved), 'EX', CACHE_TTL_SECONDS)
@@ -99,12 +102,12 @@ export class EntitlementsService {
     return resolved;
   }
 
-  async has(userId: string, key: EntitlementKey): Promise<boolean> {
+  async has(userId: string, key: string): Promise<boolean> {
     return entitlementBool((await this.forUser(userId)).values, key);
   }
 
   /** A numeric limit; 0 = unlimited for the catalog's "zeroIsUnlimited" keys. */
-  async limit(userId: string, key: EntitlementKey): Promise<number> {
+  async limit(userId: string, key: string): Promise<number> {
     return entitlementNumber((await this.forUser(userId)).values, key);
   }
 

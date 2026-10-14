@@ -155,6 +155,16 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('cbadge.title'),
               onTap: () => context.push(AppRoutes.clientBadge),
             ),
+          // Owner 2026-10-14: the attorney's own numbers.
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-stats'),
+              icon: AppIcons.insightsOutlined,
+              label: t.t('stats.title'),
+              subtitle: t.t('stats.hint'),
+              onTap: () => context.push(AppRoutes.myStats),
+            ),
           // Owner 2026-10-05: promoted posts / cases (reach, clicks, stop) —
           // once there is one; the first starts from «Продвигать».
           if (!ref.watch(isAssistantProvider) &&

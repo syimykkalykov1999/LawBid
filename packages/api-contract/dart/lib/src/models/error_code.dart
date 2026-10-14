@@ -362,6 +362,10 @@ enum ErrorCode {
   stickerPackNameTaken('STICKER_PACK_NAME_TAKEN'),
   @JsonValue('BID_LIMIT_REACHED')
   bidLimitReached('BID_LIMIT_REACHED'),
+  @JsonValue('BID_MONTHLY_LIMIT_REACHED')
+  bidMonthlyLimitReached('BID_MONTHLY_LIMIT_REACHED'),
+  @JsonValue('BID_TRIAL_LIMIT_REACHED')
+  bidTrialLimitReached('BID_TRIAL_LIMIT_REACHED'),
   @JsonValue('CASE_LIMIT_REACHED')
   caseLimitReached('CASE_LIMIT_REACHED'),
   @JsonValue('PLAN_NOT_AVAILABLE')

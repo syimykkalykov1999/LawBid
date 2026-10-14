@@ -19,6 +19,7 @@ MyEntitlementsDto _$MyEntitlementsDtoFromJson(
       .toList(),
   isPaid: json['isPaid'] as bool,
   values: PlanEntitlementsDto.fromJson(json['values'] as Map<String, dynamic>),
+  customValues: json['customValues'],
   seats: json['seats'] == null
       ? null
       : SeatSummaryDto.fromJson(json['seats'] as Map<String, dynamic>),
@@ -37,6 +38,7 @@ Map<String, dynamic> _$MyEntitlementsDtoToJson(MyEntitlementsDto instance) =>
       'planHighlights': instance.planHighlights.map((e) => e.toJson()).toList(),
       'isPaid': instance.isPaid,
       'values': instance.values.toJson(),
+      'customValues': ?instance.customValues,
       'seats': ?instance.seats?.toJson(),
       'catalog': instance.catalog.map((e) => e.toJson()).toList(),
     };

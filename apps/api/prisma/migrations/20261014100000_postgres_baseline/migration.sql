@@ -4524,6 +4524,15 @@ BEGIN
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO lawbid_app;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO lawbid_migrator;
   GRANT USAGE ON SCHEMA public TO lawbid_app, lawbid_retention, lawbid_readonly, lawbid_migrator;
+  -- Limits on the database side (infra/postgres/role-settings.sql): one
+  -- runaway query or forgotten transaction cannot hold the database.
+  ALTER ROLE lawbid_app SET statement_timeout = '30s';
+  ALTER ROLE lawbid_app SET idle_in_transaction_session_timeout = '60s';
+  ALTER ROLE lawbid_app SET lock_timeout = '10s';
+  ALTER ROLE lawbid_retention SET statement_timeout = '10min';
+  ALTER ROLE lawbid_retention SET idle_in_transaction_session_timeout = '5min';
+  ALTER ROLE lawbid_readonly SET statement_timeout = '2min';
+  ALTER ROLE lawbid_readonly SET default_transaction_read_only = 'on';
 EXCEPTION WHEN insufficient_privilege THEN
   RAISE NOTICE 'database roles not set up here (insufficient privilege)';
 END

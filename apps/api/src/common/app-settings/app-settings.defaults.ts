@@ -248,7 +248,7 @@ export const OWNER_TRUST_SETTINGS = {
 // trial). Applies to new trials; running ones keep their end date (an
 // admin extends one attorney's trial from their subscription card).
 export const OWNER_TRIAL_SETTINGS = {
-  'billing.trial_days': 7,
+  'billing.trial_days': 14,
 } as const;
 
 // Owner 2026-10-05: sections where admins other than the super admin must

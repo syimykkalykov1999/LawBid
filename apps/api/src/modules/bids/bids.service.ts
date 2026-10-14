@@ -167,6 +167,64 @@ export class BidsService {
       }
     }
 
+    // Owner 2026-10-14: the free trial ends by days or by the plan's number
+    // of offers, whichever comes first.
+    const trialBids = await this.entitlements?.limit(user.sub, 'trial_bids');
+    if (trialBids && trialBids > 0) {
+      const sub = await this.prisma.subscription.findUnique({
+        where: { user_id: user.sub },
+        select: { status: true, trial_started_at: true, created_at: true },
+      });
+      if (sub?.status === 'trialing') {
+        const used = await this.prisma.bid.count({
+          where: {
+            attorney_id: user.sub,
+            created_at: { gte: sub.trial_started_at ?? sub.created_at },
+          },
+        });
+        if (used >= trialBids) {
+          throw new ConflictException({
+            code: ErrorCode.BID_TRIAL_LIMIT_REACHED,
+            message: 'The offers of your free trial are used up.',
+            details: { limit: trialBids, used },
+          });
+        }
+      }
+    }
+    // Owner 2026-10-14 (spam): new offers per calendar month (UTC) by plan;
+    // changing an offer already sent on this case is not a new offer.
+    const perMonth = await this.entitlements?.limit(user.sub, 'bids_per_month');
+    if (perMonth && perMonth > 0) {
+      const already = await this.prisma.bid.findUnique({
+        where: {
+          case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+        },
+        select: { id: true },
+      });
+      if (!already) {
+        const now = new Date();
+        const monthStart = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+        );
+        const used = await this.prisma.bid.count({
+          where: { attorney_id: user.sub, created_at: { gte: monthStart } },
+        });
+        if (used >= perMonth) {
+          throw new ConflictException({
+            code: ErrorCode.BID_MONTHLY_LIMIT_REACHED,
+            message: 'You have used all offers of this month on your plan.',
+            details: {
+              limit: perMonth,
+              used,
+              resetsAt: new Date(
+                Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+              ).toISOString(),
+            },
+          });
+        }
+      }
+    }
+
     try {
       const bid = await withTxRetry(this.prisma, async (tx) => {
         const kase = await tx.case.findUnique({

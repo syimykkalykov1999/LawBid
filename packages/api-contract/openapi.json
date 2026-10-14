@@ -29077,6 +29077,82 @@
         ]
       }
     },
+    "/attorneys/me/stats": {
+      "get": {
+        "operationId": "getMyStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttorneyStatsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "attorneys"
+        ]
+      }
+    },
     "/attorneys/me/practice-areas": {
       "get": {
         "operationId": "getMyPracticeAreas",
@@ -38671,6 +38747,209 @@
           }
         ],
         "summary": "Give current subscribers the plan's terms as they are now",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/entitlements": {
+      "post": {
+        "operationId": "createEntitlement",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewEntitlementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewEntitlementResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PLAN_CODE_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create a plan feature (stored as data)",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
+    "/admin/billing/entitlements/{key}": {
+      "delete": {
+        "operationId": "removeEntitlement",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewEntitlementResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Remove a feature created in the admin",
         "tags": [
           "admin-billing"
         ]
@@ -78942,6 +79221,8 @@
           "CONTENT_INVALID_STATE",
           "STICKER_PACK_NAME_TAKEN",
           "BID_LIMIT_REACHED",
+          "BID_MONTHLY_LIMIT_REACHED",
+          "BID_TRIAL_LIMIT_REACHED",
           "CASE_LIMIT_REACHED",
           "PLAN_NOT_AVAILABLE",
           "PLAN_CODE_EXISTS",
@@ -86435,6 +86716,14 @@
             "type": "integer",
             "nullable": true
           },
+          "bids_per_month": {
+            "type": "integer",
+            "nullable": true
+          },
+          "trial_bids": {
+            "type": "integer",
+            "nullable": true
+          },
           "priority_search": {
             "type": "boolean",
             "nullable": true
@@ -87067,41 +87356,12 @@
           "data"
         ]
       },
-      "EntitlementKey": {
-        "type": "string",
-        "enum": [
-          "included_seats",
-          "max_seats",
-          "extra_seat_price_cents",
-          "bids_any_state",
-          "max_active_bids",
-          "priority_search",
-          "calls",
-          "video_calls",
-          "document_templates",
-          "chat_translate",
-          "translations_per_day",
-          "video_posts",
-          "posts_per_day",
-          "videos_per_day",
-          "case_promotion",
-          "platform_payments",
-          "trial_days",
-          "verified_badge",
-          "priority_feed",
-          "max_active_cases",
-          "post_attachments"
-        ]
-      },
       "EntitlementDefDto": {
         "type": "object",
         "properties": {
           "key": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/EntitlementKey"
-              }
-            ]
+            "type": "string",
+            "description": "Built-in key or one created in the admin."
           },
           "type": {
             "enum": [
@@ -87138,6 +87398,10 @@
           },
           "zeroIsUnlimited": {
             "type": "boolean"
+          },
+          "custom": {
+            "type": "boolean",
+            "description": "Created by the owner in the admin."
           }
         },
         "required": [
@@ -87245,6 +87509,11 @@
           "values": {
             "$ref": "#/components/schemas/PlanEntitlementsDto"
           },
+          "customValues": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Values of the features the owner created in the admin (key → on/off or limit)."
+          },
           "seats": {
             "nullable": true,
             "type": "object",
@@ -87270,6 +87539,7 @@
           "planHighlights",
           "isPaid",
           "values",
+          "customValues",
           "seats",
           "catalog"
         ]
@@ -94663,6 +94933,47 @@
           "data"
         ]
       },
+      "AttorneyStatsDto": {
+        "type": "object",
+        "properties": {
+          "profileViews30d": {
+            "type": "integer",
+            "description": "Profile opens, last 30 days"
+          },
+          "bidsSent30d": {
+            "type": "integer",
+            "description": "Offers sent, last 30 days"
+          },
+          "bidsAccepted30d": {
+            "type": "integer",
+            "description": "Offers accepted, last 30 days"
+          },
+          "clientsTotal": {
+            "type": "integer",
+            "description": "Clients who hired this attorney through LawBid, all time"
+          }
+        },
+        "required": [
+          "profileViews30d",
+          "bidsSent30d",
+          "bidsAccepted30d",
+          "clientsTotal"
+        ]
+      },
+      "AttorneyStatsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AttorneyStatsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "UpdateAttorneyProfileDto": {
         "type": "object",
         "properties": {
@@ -99454,6 +99765,106 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ApplyPlanResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "NewEntitlementResultDto": {
+        "type": "object",
+        "properties": {
+          "entitlement": {
+            "$ref": "#/components/schemas/EntitlementDefDto"
+          },
+          "_note": {
+            "$ref": "#/components/schemas/LocalizedTextDto"
+          }
+        },
+        "required": [
+          "entitlement",
+          "_note"
+        ]
+      },
+      "NewTextDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "ru": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "en",
+          "ru"
+        ]
+      },
+      "NewEntitlementDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "a-z, 0-9, _; 3-40 characters; cannot be a built-in key"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "boolean",
+              "number"
+            ]
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "attorney",
+                "client"
+              ]
+            }
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "team",
+              "cases",
+              "visibility",
+              "features",
+              "billing"
+            ]
+          },
+          "label": {
+            "$ref": "#/components/schemas/NewTextDto"
+          },
+          "description": {
+            "$ref": "#/components/schemas/NewTextDto"
+          },
+          "max": {
+            "type": "integer"
+          },
+          "zeroIsUnlimited": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "audiences",
+          "group",
+          "label",
+          "description"
+        ]
+      },
+      "NewEntitlementResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/NewEntitlementResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

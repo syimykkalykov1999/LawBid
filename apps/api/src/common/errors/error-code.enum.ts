@@ -406,6 +406,8 @@ export enum ErrorCode {
   // Owner 2026-10-05 (plan builder) — 409: an attorney's open offers or a
   // client's open cases are at the plan's limit.
   BID_LIMIT_REACHED = 'BID_LIMIT_REACHED',
+  BID_MONTHLY_LIMIT_REACHED = 'BID_MONTHLY_LIMIT_REACHED',
+  BID_TRIAL_LIMIT_REACHED = 'BID_TRIAL_LIMIT_REACHED',
   CASE_LIMIT_REACHED = 'CASE_LIMIT_REACHED',
   // 409: the plan is not for sale (archived / draft / other audience).
   PLAN_NOT_AVAILABLE = 'PLAN_NOT_AVAILABLE',

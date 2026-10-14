@@ -41,7 +41,9 @@ void showErrorOrPlans(BuildContext context, WidgetRef ref, Object error) {
   final t = ref.read(translatorProvider);
   final needsPlan = isPlanRequired(error) ||
       (error is ApiException &&
-          error.code == ApiErrorCodes.postAttachmentsNotAllowed);
+          (error.code == ApiErrorCodes.postAttachmentsNotAllowed ||
+              error.code == ApiErrorCodes.bidMonthlyLimitReached ||
+              error.code == ApiErrorCodes.bidTrialLimitReached));
   showAppSnackBar(
     context,
     errorText(t, error),

@@ -21,6 +21,7 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../../auth/decorators/current-user.decorator';
+import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
   OwnAttorneyProfileDto,
   PublicAttorneyProfileDto,
@@ -61,6 +62,15 @@ export class AttorneysController {
     @CurrentUser() user: RequestUser,
   ): Promise<OwnAttorneyProfileDto> {
     return this.profiles.getOwn(user.sub);
+  }
+
+  @Get('me/stats')
+  @ApiEnvelopeResponse(AttorneyStatsDto)
+  @ApiErrors({ 403: [E.FORBIDDEN] })
+  async getMyStats(
+    @CurrentUser() user: RequestUser,
+  ): Promise<AttorneyStatsDto> {
+    return this.profiles.stats(user.sub);
   }
 
   @AttorneyOnly()

@@ -161,6 +161,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   assistant_activity: 'assistant activity',
   assistant_requests: 'assistant requests',
   assistant_liability_acceptances: 'assistant liability acceptances',
+  attorney_profile_views: 'profile views',
   attorney_tasks: 'tasks',
   attorney_task_places: 'task places',
   attorney_task_people: 'task people',

@@ -4766,3 +4766,14 @@ model ContactSyncSetting {
 
   @@map("contact_sync_settings")
 }
+
+/// Owner 2026-10-14: how often an attorney's profile was opened, per day
+/// (the attorney's own statistics; one row per attorney and day).
+model AttorneyProfileView {
+  attorney_id String   @db.Uuid
+  day         DateTime @db.Date
+  views       Int      @default(0)
+
+  @@id([attorney_id, day])
+  @@map("attorney_profile_views")
+}

@@ -14,6 +14,8 @@ class PlanEntitlementsDto {
     this.extraSeatPriceCents,
     this.bidsAnyState,
     this.maxActiveBids,
+    this.bidsPerMonth,
+    this.trialBids,
     this.prioritySearch,
     this.calls,
     this.videoCalls,
@@ -44,6 +46,10 @@ class PlanEntitlementsDto {
   final bool? bidsAnyState;
   @JsonKey(name: 'max_active_bids')
   final int? maxActiveBids;
+  @JsonKey(name: 'bids_per_month')
+  final int? bidsPerMonth;
+  @JsonKey(name: 'trial_bids')
+  final int? trialBids;
   @JsonKey(name: 'priority_search')
   final bool? prioritySearch;
   final bool? calls;

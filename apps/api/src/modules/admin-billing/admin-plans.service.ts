@@ -13,7 +13,7 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   type Audience,
-  ENTITLEMENT_CATALOG,
+  fullCatalog,
   sanitizeEntitlements,
 } from '../plans/entitlement-catalog';
 import { EntitlementsService } from '../plans/entitlements.service';
@@ -80,7 +80,7 @@ export class AdminPlansService {
       currency: this.pricing.currency(),
       mode,
       plans,
-      catalog: ENTITLEMENT_CATALOG.map((d) => ({
+      catalog: fullCatalog().map((d) => ({
         key: d.key,
         type: d.type,
         audiences: d.audiences,
@@ -90,6 +90,7 @@ export class AdminPlansService {
         min: d.min,
         max: d.max,
         zeroIsUnlimited: d.zeroIsUnlimited,
+        custom: d.custom ?? false,
       })),
       _localized: [],
     };

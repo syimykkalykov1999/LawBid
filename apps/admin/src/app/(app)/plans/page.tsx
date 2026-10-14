@@ -161,6 +161,7 @@ export default function PlansPage() {
       ) : (
         <>
           <PostAttachmentsCard canWrite={canWrite} />
+          <CustomFeaturesCard canWrite={canWrite} catalog={catalog} />
 
           <Tabs
             value={tab}
@@ -309,6 +310,129 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
           </p>
         </div>
       )}
+    </Card>
+  );
+}
+
+
+/** Owner 2026-10-14: «Новая функция» — a plan feature is data, no release. */
+function CustomFeaturesCard({ canWrite, catalog }: { canWrite: boolean; catalog: Def[] }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [key, setKey] = useState('');
+  const [ru, setRu] = useState('');
+  const [en, setEn] = useState('');
+  const [about, setAbout] = useState('');
+  const [aud, setAud] = useState<Audience[]>(['attorney', 'client']);
+  const [type, setType] = useState<'boolean' | 'number'>('boolean');
+  const custom = catalog.filter((d) => d.custom);
+  const done = () => {
+    qc.invalidateQueries({ queryKey: QUERY_KEY });
+    setOpen(false);
+    setKey('');
+    setRu('');
+    setEn('');
+    setAbout('');
+  };
+  const create = useMutation({
+    mutationFn: async () =>
+      (
+        await api.POST('/admin/billing/entitlements', {
+          body: {
+            key,
+            type,
+            audiences: aud,
+            group: 'features',
+            label: { en: en || ru, ru: ru || en },
+            description: { en: about || ru, ru: about || ru },
+          },
+        })
+      ).data!.data,
+    onSuccess: () => {
+      toast.success('Функция создана — она появилась в редакторе каждого плана');
+      done();
+    },
+    onError: (e) => toast.error(e),
+  });
+  const remove = useMutation({
+    mutationFn: async (k: string) =>
+      (await api.DELETE('/admin/billing/entitlements/{key}', { params: { path: { key: k } } })).data!.data,
+    onSuccess: () => {
+      toast.success('Функция удалена');
+      qc.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+    onError: (e) => toast.error(e),
+  });
+  const valid = /^[a-z][a-z0-9_]{2,39}$/.test(key) && (ru.trim() || en.trim()) && aud.length > 0;
+  return (
+    <Card className="mb-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-medium">Свои функции планов</h3>
+          <p className="mt-1 text-sm text-muted">
+            Добавьте функцию, и её можно включать в любом плане без выпуска версии. Приложение видит её значение у пользователя; проверка в коде идёт по ключу.
+          </p>
+        </div>
+        {canWrite ? (
+          <Button variant="gold" onClick={() => setOpen(true)}>
+            <Plus size={16} weight="bold" /> Новая функция
+          </Button>
+        ) : null}
+      </div>
+      {custom.length > 0 ? (
+        <ul className="mt-3 grid gap-2">
+          {custom.map((d) => (
+            <li key={d.key} className="flex items-center justify-between rounded-[var(--radius-md)] border border-line px-3 py-2 text-sm">
+              <span>
+                <b>{text(d.label, d.key)}</b> <span className="text-muted">· {d.key} · {d.type === 'boolean' ? 'вкл/выкл' : 'лимит'}</span>
+              </span>
+              {canWrite ? (
+                <Button variant="ghost" onClick={() => remove.mutate(d.key)}>
+                  <Trash size={16} />
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {open ? (
+        <Dialog open title="Новая функция плана" onClose={() => setOpen(false)}>
+          <div className="grid gap-3">
+            <Field label="Ключ (латиницей, например vip_support)">
+              <Input value={key} onChange={(e) => setKey(e.target.value.toLowerCase())} />
+            </Field>
+            <Field label="Название по-русски">
+              <Input value={ru} onChange={(e) => setRu(e.target.value)} />
+            </Field>
+            <Field label="Название по-английски">
+              <Input value={en} onChange={(e) => setEn(e.target.value)} />
+            </Field>
+            <Field label="Описание">
+              <Textarea value={about} onChange={(e) => setAbout(e.target.value)} />
+            </Field>
+            <Field label="Тип">
+              <Select value={type} onChange={(e) => setType(e.target.value as 'boolean' | 'number')}>
+                <option value="boolean">Включена или нет</option>
+                <option value="number">Число (лимит)</option>
+              </Select>
+            </Field>
+            <Field label="Для кого">
+              <Select
+                value={aud.length === 2 ? 'both' : aud[0]}
+                onChange={(e) => setAud(e.target.value === 'both' ? ['attorney', 'client'] : [e.target.value as Audience])}
+              >
+                <option value="both">Адвокаты и клиенты</option>
+                <option value="attorney">Только адвокаты</option>
+                <option value="client">Только клиенты</option>
+              </Select>
+            </Field>
+            <Button variant="gold" disabled={!valid || create.isPending} onClick={() => create.mutate()}>
+              Создать
+            </Button>
+          </div>
+        </Dialog>
+      ) : null}
     </Card>
   );
 }

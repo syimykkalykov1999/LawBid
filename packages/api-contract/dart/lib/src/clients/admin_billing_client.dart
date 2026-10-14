@@ -27,6 +27,8 @@ import '../models/create_refund_dto.dart';
 import '../models/extend_contract_grant_dto.dart';
 import '../models/move_plan_subscribers_dto.dart';
 import '../models/move_plan_subscribers_result_envelope.dart';
+import '../models/new_entitlement_dto.dart';
+import '../models/new_entitlement_result_envelope.dart';
 import '../models/payment_status.dart';
 import '../models/plan.dart';
 import '../models/plan_fields_dto.dart';
@@ -289,6 +291,20 @@ abstract class AdminBillingClient {
   Future<ApplyPlanResultEnvelope> adminApplyPlanToSubscribers({
     @Path('id') required String id,
     @Body() required ApplyPlanDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create a plan feature (stored as data)
+  @POST('/admin/billing/entitlements')
+  Future<NewEntitlementResultEnvelope> createEntitlement({
+    @Body() required NewEntitlementDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a feature created in the admin
+  @DELETE('/admin/billing/entitlements/{key}')
+  Future<NewEntitlementResultEnvelope> removeEntitlement({
+    @Path('key') required String key,
     @Extras() Map<String, dynamic>? extras,
   });
 

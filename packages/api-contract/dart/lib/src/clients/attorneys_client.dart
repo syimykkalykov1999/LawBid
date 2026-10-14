@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/attorney_stats_envelope.dart';
 import '../models/own_attorney_profile_envelope.dart';
 import '../models/public_attorney_profile_envelope.dart';
 import '../models/replace_practice_areas_dto.dart';
@@ -26,6 +27,11 @@ abstract class AttorneysClient {
   @PATCH('/attorneys/me/profile')
   Future<OwnAttorneyProfileEnvelope> updateMyAttorneyProfile({
     @Body() required UpdateAttorneyProfileDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  @GET('/attorneys/me/stats')
+  Future<AttorneyStatsEnvelope> getMyStats({
     @Extras() Map<String, dynamic>? extras,
   });
 

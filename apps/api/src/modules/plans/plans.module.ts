@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { EntitlementsService } from './entitlements.service';
 import { PlansService } from './plans.service';
+import { CustomEntitlementsService } from './custom-entitlements.service';
 
 /**
  * Owner 2026-10-05 (plan builder): plans + the entitlements gate. Global,
@@ -12,7 +13,7 @@ import { PlansService } from './plans.service';
  */
 @Global()
 @Module({
-  providers: [PlansService, EntitlementsService],
-  exports: [PlansService, EntitlementsService],
+  providers: [PlansService, EntitlementsService, CustomEntitlementsService],
+  exports: [PlansService, EntitlementsService, CustomEntitlementsService],
 })
 export class PlansCoreModule {}

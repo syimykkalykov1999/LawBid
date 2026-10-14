@@ -233,6 +233,8 @@ abstract final class ApiErrorCodes {
   static const stickerPackNameTaken = 'STICKER_PACK_NAME_TAKEN';
   // Owner 2026-10-05: plan builder.
   static const bidLimitReached = 'BID_LIMIT_REACHED';
+  static const bidMonthlyLimitReached = 'BID_MONTHLY_LIMIT_REACHED';
+  static const bidTrialLimitReached = 'BID_TRIAL_LIMIT_REACHED';
   static const caseLimitReached = 'CASE_LIMIT_REACHED';
   static const planNotAvailable = 'PLAN_NOT_AVAILABLE';
   static const planCodeExists = 'PLAN_CODE_EXISTS';
@@ -435,6 +437,8 @@ abstract final class ApiErrorCodes {
     contentInvalidState,
     stickerPackNameTaken,
     bidLimitReached,
+    bidMonthlyLimitReached,
+    bidTrialLimitReached,
     caseLimitReached,
     planNotAvailable,
     planCodeExists,
