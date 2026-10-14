@@ -332,7 +332,7 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
     await api()
       .put(`/api/v1/admin/billing/plans/${yearly.id}`)
       .set(admin)
-      .send({ entitlements: { ...current.entitlements, included_seats: 6 } });
+      .send({ entitlements: { ...current.entitlements, included_seats: 10 } });
   });
 
   it('"offers in any state" is a plan term (baseline off → 403)', async () => {
