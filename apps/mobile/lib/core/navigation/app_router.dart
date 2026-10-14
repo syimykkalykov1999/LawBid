@@ -40,6 +40,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_stats_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/firm_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/my_contacts_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/practices_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
@@ -368,6 +369,12 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const BidPacksScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.myFirm,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const FirmScreen()),
       ),
       GoRoute(
         path: AppRoutes.myStats,

@@ -238,6 +238,8 @@ abstract final class ApiErrorCodes {
   static const barNumberFormatInvalid = 'BAR_NUMBER_FORMAT_INVALID';
   static const barAttemptsCooldown = 'BAR_ATTEMPTS_COOLDOWN';
   static const bidLicensePending = 'BID_LICENSE_PENDING';
+  static const firmAlreadyMember = 'FIRM_ALREADY_MEMBER';
+  static const firmFull = 'FIRM_FULL';
   static const caseLimitReached = 'CASE_LIMIT_REACHED';
   static const planNotAvailable = 'PLAN_NOT_AVAILABLE';
   static const planCodeExists = 'PLAN_CODE_EXISTS';

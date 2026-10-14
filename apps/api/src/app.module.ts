@@ -35,6 +35,7 @@ import { ReferralsModule } from './modules/referrals/referrals.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { BidPacksModule } from './modules/bid-packs/bid-packs.module';
+import { FirmsModule } from './modules/firms/firms.module';
 import { PartnersModule } from './modules/partners/partners.module';
 import { LegalModule } from './modules/legal/legal.module';
 import { LegalDocumentsModule } from './modules/legal-documents/legal-documents.module';
@@ -273,6 +274,7 @@ const isDev =
     OutreachModule,
     PromotionsModule,
     BidPacksModule,
+    FirmsModule,
     // Owner 2026-10-05: client → attorney payments via Stripe Connect.
     CasePaymentsModule,
     ClientBadgeModule,

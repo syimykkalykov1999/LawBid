@@ -172,6 +172,8 @@ const _keys = <String, String>{
   ApiErrorCodes.barNumberFormatInvalid: 'error.api.BAR_NUMBER_FORMAT_INVALID',
   ApiErrorCodes.barAttemptsCooldown: 'error.api.BAR_ATTEMPTS_COOLDOWN',
   ApiErrorCodes.bidLicensePending: 'error.api.BID_LICENSE_PENDING',
+  ApiErrorCodes.firmAlreadyMember: 'error.api.FIRM_ALREADY_MEMBER',
+  ApiErrorCodes.firmFull: 'error.api.FIRM_FULL',
   ApiErrorCodes.accountExistsUseOtherMethod:
       'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD',
   ApiErrorCodes.promotionAlreadyActive: 'error.api.PROMOTION_ALREADY_ACTIVE',

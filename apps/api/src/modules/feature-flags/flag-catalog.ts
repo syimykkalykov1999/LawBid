@@ -27,6 +27,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
   },
   {
+    // Owner 2026-10-14: a firm is its lawyers (members, union of states).
+    key: 'firm_profiles',
+    enabled: false,
+    description:
+      'Firm profiles: a firm adds its lawyers, each with their own licence',
+    app: true,
+  },
+  {
     // Owner 2026-10-05: the video-call button needs a TURN relay.
     key: 'video_calls',
     enabled: false,

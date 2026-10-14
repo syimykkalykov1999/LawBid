@@ -368,6 +368,10 @@ enum ErrorCode {
   bidTrialLimitReached('BID_TRIAL_LIMIT_REACHED'),
   @JsonValue('BAR_NUMBER_FORMAT_INVALID')
   barNumberFormatInvalid('BAR_NUMBER_FORMAT_INVALID'),
+  @JsonValue('FIRM_ALREADY_MEMBER')
+  firmAlreadyMember('FIRM_ALREADY_MEMBER'),
+  @JsonValue('FIRM_FULL')
+  firmFull('FIRM_FULL'),
   @JsonValue('BID_LICENSE_PENDING')
   bidLicensePending('BID_LICENSE_PENDING'),
   @JsonValue('BAR_ATTEMPTS_COOLDOWN')

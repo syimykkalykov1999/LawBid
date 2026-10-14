@@ -6,8 +6,7 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
-  'error.api.BAR_NUMBER_FORMAT_INVALID':
-      'Номер не найден для этого штата.',
+  'error.api.BAR_NUMBER_FORMAT_INVALID': 'Номер не найден для этого штата.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Слишком много неверных номеров. Попробуйте позже.',
   'error.api.BID_LICENSE_PENDING':
@@ -97,11 +96,30 @@ const planRu = <String, String>{
   'plan.badge.included.hint':
       'После проверки документов галочка появится без отдельной оплаты.',
   'plan.feed.priority': 'ПРИОРИТЕТ',
+  'firm.title': 'Моя фирма',
+  'firm.hint': 'Адвокаты фирмы и их штаты',
+  'firm.none': 'У вас пока нет фирмы. Создайте её и добавьте адвокатов.',
+  'firm.name': 'Название фирмы',
+  'firm.create': 'Создать фирму',
+  'firm.members': 'Адвокаты',
+  'firm.states': 'Штаты фирмы',
+  'firm.invite.username': 'Имя адвоката (@username)',
+  'firm.invite': 'Пригласить',
+  'firm.pending': 'Приглашён',
+  'firm.owner': 'Владелец',
+  'firm.accept': 'Принять приглашение',
+  'firm.decline': 'Отклонить',
+  'firm.leave': 'Выйти из фирмы',
+  'firm.remove': 'Убрать',
+  'firm.invited.hint':
+      'Вас пригласили в фирму. Ваша лицензия и проверка остаются при вас.',
+  'error.api.FIRM_ALREADY_MEMBER':
+      'Адвокат уже состоит в фирме или приглашён в неё.',
+  'error.api.FIRM_FULL': 'В фирме уже максимум адвокатов.',
 };
 
 const planEn = <String, String>{
-  'error.api.BAR_NUMBER_FORMAT_INVALID':
-      'Bar number not found for this state.',
+  'error.api.BAR_NUMBER_FORMAT_INVALID': 'Bar number not found for this state.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Too many wrong bar numbers. Try again later.',
   'error.api.BID_LICENSE_PENDING':
@@ -191,4 +209,24 @@ const planEn = <String, String>{
   'plan.badge.included.hint':
       'Once your documents are approved the badge shows — no separate payment.',
   'plan.feed.priority': 'PRIORITY',
+  'firm.title': 'My firm',
+  'firm.hint': "The firm's lawyers and their states",
+  'firm.none': 'You have no firm yet. Create one and add lawyers.',
+  'firm.name': 'Firm name',
+  'firm.create': 'Create firm',
+  'firm.members': 'Lawyers',
+  'firm.states': "Firm's states",
+  'firm.invite.username': "Lawyer's @username",
+  'firm.invite': 'Invite',
+  'firm.pending': 'Invited',
+  'firm.owner': 'Owner',
+  'firm.accept': 'Accept invitation',
+  'firm.decline': 'Decline',
+  'firm.leave': 'Leave firm',
+  'firm.remove': 'Remove',
+  'firm.invited.hint':
+      'You are invited to a firm. Your licence and verification stay yours.',
+  'error.api.FIRM_ALREADY_MEMBER':
+      'This lawyer is already in a firm or invited to one.',
+  'error.api.FIRM_FULL': 'The firm already has the maximum number of lawyers.',
 };

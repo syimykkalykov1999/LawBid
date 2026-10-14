@@ -167,6 +167,19 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('packs.hint'),
               onTap: () => context.push(AppRoutes.bidPacks),
             ),
+          // Owner 2026-10-14: the firm profile (flag `firm_profiles`).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider) &&
+              ref
+                  .watch(featureFlagsControllerProvider)
+                  .isEnabled('firm_profiles'))
+            AppListRow(
+              key: const ValueKey('settings-firm'),
+              icon: AppIcons.groupsOutlined,
+              label: t.t('firm.title'),
+              subtitle: t.t('firm.hint'),
+              onTap: () => context.push(AppRoutes.myFirm),
+            ),
           // Owner 2026-10-14: the attorney's own numbers.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
               !ref.watch(isAssistantProvider))
