@@ -166,6 +166,12 @@ const _keys = <String, String>{
   ApiErrorCodes.conversationClosed: 'error.api.CONVERSATION_CLOSED',
   ApiErrorCodes.messageTooLong: 'error.api.MESSAGE_TOO_LONG',
   ApiErrorCodes.featureDisabled: 'error.api.FEATURE_DISABLED',
+  ApiErrorCodes.accountExistsUseOtherMethod:
+      'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD',
+  ApiErrorCodes.promotionAlreadyActive: 'error.api.PROMOTION_ALREADY_ACTIVE',
+  ApiErrorCodes.stickerPackNameTaken: 'error.api.STICKER_PACK_NAME_TAKEN',
+  ApiErrorCodes.planNotAvailable: 'error.api.PLAN_NOT_AVAILABLE',
+  ApiErrorCodes.contentInvalidState: 'error.api.CONTENT_INVALID_STATE',
   ApiErrorCodes.searchQueryTooShort: 'error.api.SEARCH_QUERY_TOO_SHORT',
   ApiErrorCodes.userBlocked: 'error.api.USER_BLOCKED',
   // Audit 2026-10-02: calls answered elsewhere / already gone.
