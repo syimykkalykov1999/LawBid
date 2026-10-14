@@ -41,9 +41,7 @@ export const WITHDRAW_REASON_ATTORNEY_INACTIVE = 'attorney_inactive';
  * answering BID_ATTORNEY_INACTIVE.
  */
 class AttorneyInactive extends Error {
-  constructor(
-    readonly why: 'not_verified' | 'no_license' | 'no_subscription' | 'on_hold',
-  ) {
+  constructor(readonly why: 'not_verified' | 'no_subscription' | 'on_hold') {
     super(`attorney inactive: ${why}`);
   }
 }
@@ -165,8 +163,10 @@ export class BidAcceptanceService {
     // eligibility re-check so a finished bid never gets "withdrawn".
     planBidTransition(bid, 'accept', by, now);
 
-    // §7 step 2 — the attorney must still be verified, licensed in a
-    // state of the case and subscribed at the moment of acceptance.
+    // §7 step 2 — the attorney must still be verified and subscribed at the
+    // moment of acceptance. Owner 2026-10-14: a licence in the case's state
+    // is NOT required (a client in Illinois may hire their California
+    // attorney); the bid card only warns about it.
     const profile = await tx.attorneyProfile.findUnique({
       where: { user_id: attorneyId },
       select: { verification_status: true },
@@ -174,15 +174,6 @@ export class BidAcceptanceService {
     if (profile?.verification_status !== 'verified') {
       throw new AttorneyInactive('not_verified');
     }
-    const license = await tx.attorneyLicense.findFirst({
-      where: {
-        attorney_id: attorneyId,
-        license_status: 'verified',
-        state_code: { in: kase.states.map((s) => s.state_code) },
-      },
-      select: { id: true },
-    });
-    if (!license) throw new AttorneyInactive('no_license');
     if (!(await this.subscriptions.isActive(attorneyId, tx))) {
       throw new AttorneyInactive('no_subscription');
     }
