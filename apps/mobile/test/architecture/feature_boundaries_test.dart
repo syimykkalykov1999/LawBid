@@ -42,12 +42,13 @@ void main() {
   };
   if (Platform.environment['UPDATE_BOUNDARIES'] == '1') {
     baselineFile.writeAsStringSync(
-        '${const JsonEncoder.withIndent(' ').convert(now)}\n');
+      '${const JsonEncoder.withIndent(' ').convert(now)}\n',
+    );
   }
   final base =
       jsonDecode(baselineFile.readAsStringSync()) as Map<String, dynamic>;
 
-  test('no new import of another feature\'s data layer', () {
+  test("no new import of another feature's data layer", () {
     final known = (base['deep'] as List).cast<String>().toSet();
     expect((now['deep']! as List).where((d) => !known.contains(d)), isEmpty);
   });

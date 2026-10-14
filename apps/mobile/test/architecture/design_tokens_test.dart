@@ -27,9 +27,11 @@ void main() {
   }
   if (Platform.environment['UPDATE_BOUNDARIES'] == '1') {
     final sorted = Map.fromEntries(
-        now.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
+      now.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+    );
     baselineFile.writeAsStringSync(
-        '${const JsonEncoder.withIndent(' ').convert(sorted)}\n');
+      '${const JsonEncoder.withIndent(' ').convert(sorted)}\n',
+    );
   }
   final base =
       (jsonDecode(baselineFile.readAsStringSync()) as Map).cast<String, int>();
@@ -37,6 +39,8 @@ void main() {
   test('no file gains raw colours or font sizes', () {
     final grew = now.entries.where((e) => e.value > (base[e.key] ?? 0));
     expect(
-        grew.map((e) => '${e.key}: ${e.value} > ${base[e.key] ?? 0}'), isEmpty);
+      grew.map((e) => '${e.key}: ${e.value} > ${base[e.key] ?? 0}'),
+      isEmpty,
+    );
   });
 }
