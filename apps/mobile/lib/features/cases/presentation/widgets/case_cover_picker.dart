@@ -5,8 +5,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 
 /// Owner 2026-10-04: the client picks how their case card looks to
-/// attorneys: Auto, one of the practice's covers, or an icon avatar —
-/// never their own photo.
+/// attorneys: Auto or one of the practice's covers — never their own photo
+/// and (owner 2026-10-14) no icon to choose.
 class CaseCoverPicker extends StatelessWidget {
   const CaseCoverPicker({
     required this.t,
@@ -36,7 +36,6 @@ class CaseCoverPicker extends StatelessWidget {
       required String label,
       required VoidCallback onTap,
       required Widget child,
-      bool circle = false,
     }) {
       const radius = AppRadii.card - 4;
       return Semantics(
@@ -51,19 +50,16 @@ class CaseCoverPicker extends StatelessWidget {
                 context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             padding: const EdgeInsets.all(2.5),
             decoration: BoxDecoration(
-              shape: circle ? BoxShape.circle : BoxShape.rectangle,
-              borderRadius: circle ? null : BorderRadius.circular(radius + 2.5),
+              borderRadius: BorderRadius.circular(radius + 2.5),
               border: Border.all(
                 color: active ? colors.gold : colors.border,
                 width: active ? 2.5 : 1,
               ),
             ),
-            child: circle
-                ? ClipOval(child: child)
-                : ClipRRect(
-                    borderRadius: BorderRadius.circular(radius),
-                    child: child,
-                  ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: child,
+            ),
           ),
         ),
       );
@@ -113,88 +109,63 @@ class CaseCoverPicker extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         sectionLabel(t.t('cases.cover.covers')),
+        // Owner 2026-10-14: no icon choice (the icon follows the practice
+        // by itself); the four covers share the full width, no empty strip.
         SizedBox(
-          height: 64,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
+          height: 72,
+          child: Row(
             children: [
-              frame(
-                active: selected == null,
-                label: t.t('cases.cover.auto'),
-                onTap: () => onChanged(null),
-                child: SizedBox(
-                  width: 84,
-                  child: ColoredBox(
-                    color: colors.goldTint,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        AppIcon(
-                          AppIcons.autoAwesomeOutlined,
-                          size: 20,
-                          color: colors.goldDark,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          t.t('cases.cover.auto'),
-                          style: typography.caption.copyWith(
-                            color: colors.text,
-                            fontWeight: FontWeight.w600,
+              Expanded(
+                child: frame(
+                  active: selected == null,
+                  label: t.t('cases.cover.auto'),
+                  onTap: () => onChanged(null),
+                  child: SizedBox.expand(
+                    child: ColoredBox(
+                      color: colors.goldTint,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AppIcon(
+                            AppIcons.autoAwesomeOutlined,
+                            size: 20,
+                            color: colors.goldDark,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            t.t('cases.cover.auto'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: typography.caption.copyWith(
+                              color: colors.text,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
               for (var v = 0; v < kCaseCoverVariants; v++) ...[
                 const SizedBox(width: AppSpacing.sm),
-                frame(
-                  active: selected == coverArtKey(v),
-                  label: t.t('cases.cover.option', {'n': '${v + 1}'}),
-                  onTap: () => onChanged(coverArtKey(v)),
-                  child: SizedBox(
-                    width: 96,
-                    child: CaseCover(
-                      categoryCode: category,
-                      practiceCode: practiceCode,
-                      coverKey: coverArtKey(v),
+                Expanded(
+                  child: frame(
+                    active: selected == coverArtKey(v),
+                    label: t.t('cases.cover.option', {'n': '${v + 1}'}),
+                    onTap: () => onChanged(coverArtKey(v)),
+                    child: SizedBox.expand(
+                      child: CaseCover(
+                        categoryCode: category,
+                        practiceCode: practiceCode,
+                        coverKey: coverArtKey(v),
+                      ),
                     ),
                   ),
                 ),
               ],
             ],
           ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        sectionLabel(t.t('cases.cover.icons')),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            for (final (i, (name, icon)) in kCaseCoverIcons.indexed)
-              frame(
-                active: selected == coverIconKey(name),
-                label: t.t('cases.cover.iconOption', {'n': '${i + 1}'}),
-                onTap: () => onChanged(coverIconKey(name)),
-                circle: true,
-                child: Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        colors.navy,
-                        Color.lerp(colors.navy, colors.gold, 0.2)!,
-                      ],
-                    ),
-                  ),
-                  child: AppIcon(icon, size: 22, color: colors.goldLight),
-                ),
-              ),
-          ],
         ),
       ],
     );
