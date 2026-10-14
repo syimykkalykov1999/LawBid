@@ -65,27 +65,29 @@ class LawBidApp extends ConsumerWidget {
         textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
         // Owner 2026-10-05: nothing ever sits under the Android system
         // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
-        child: AppBackdrop(
-          child: SystemNavBand(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-              child: AccountSuspendedGate(
-                child: AppUpdateGate(
-                  child: child == null
-                      ? null
-                      // OQ-041: the call screen pops over any route.
-                      : CallHost(
-                          router: router,
-                          child: RouterOfflineBannerHost(
+        child: TextWarmUp(
+          child: AppBackdrop(
+            child: SystemNavBand(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                child: AccountSuspendedGate(
+                  child: AppUpdateGate(
+                    child: child == null
+                        ? null
+                        // OQ-041: the call screen pops over any route.
+                        : CallHost(
                             router: router,
-                            // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                            child: AccountRestrictedHost(
+                            child: RouterOfflineBannerHost(
                               router: router,
-                              child: child,
+                              // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                              child: AccountRestrictedHost(
+                                router: router,
+                                child: child,
+                              ),
                             ),
                           ),
-                        ),
+                  ),
                 ),
               ),
             ),

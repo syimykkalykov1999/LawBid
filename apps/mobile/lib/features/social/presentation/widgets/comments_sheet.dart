@@ -79,52 +79,55 @@ class _CommentsSheetState extends ConsumerState<CommentsSheet> {
         minChildSize: 0.3,
         snap: true,
         snapSizes: const [0.55],
-        builder: (context, controller) => Column(
-          children: [
-            const SizedBox(height: AppSpacing.sm),
-            const AppSheetHandle(),
-            Text(
-              t.t('post.comments'),
-              style: type.titleMedium.copyWith(
-                color: colors.text,
-                fontFamily: type.body.fontFamily,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Divider(height: 1, color: colors.border),
-            Expanded(
-              child: CustomScrollView(
-                controller: controller,
-                slivers: commentThreadSlivers(
-                  context,
-                  ref,
-                  widget.postId,
-                  comments,
-                  _reply,
+        builder: (context, controller) => DeferFirstFrame(
+          child: Column(
+            children: [
+              const SizedBox(height: AppSpacing.sm),
+              const AppSheetHandle(),
+              Text(
+                t.t('post.comments'),
+                style: type.titleMedium.copyWith(
+                  color: colors.text,
+                  fontFamily: type.body.fontFamily,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
-            if (widget.commentsEnabled)
-              CommentComposer(
-                postId: widget.postId,
-                replyTo: _replyTo,
-                focusNode: _focus,
-                onClearReply: () => setState(() => _replyTo = null),
-              )
-            else
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Text(
-                    t.t('reels.commentsOff'),
-                    textAlign: TextAlign.center,
-                    style: type.bodySmall.copyWith(color: colors.textSecondary),
+              const SizedBox(height: AppSpacing.sm),
+              Divider(height: 1, color: colors.border),
+              Expanded(
+                child: CustomScrollView(
+                  controller: controller,
+                  slivers: commentThreadSlivers(
+                    context,
+                    ref,
+                    widget.postId,
+                    comments,
+                    _reply,
                   ),
                 ),
               ),
-          ],
+              if (widget.commentsEnabled)
+                CommentComposer(
+                  postId: widget.postId,
+                  replyTo: _replyTo,
+                  focusNode: _focus,
+                  onClearReply: () => setState(() => _replyTo = null),
+                )
+              else
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Text(
+                      t.t('reels.commentsOff'),
+                      textAlign: TextAlign.center,
+                      style:
+                          type.bodySmall.copyWith(color: colors.textSecondary),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
