@@ -271,7 +271,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: AppButton(
-                    label: t.t('profile.action.shareProfile'),
+                    label: t.t('post.share'),
                     variant: AppButtonVariant.secondary,
                     height: 32,
                     onPressed: () => _share(t),

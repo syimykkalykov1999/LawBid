@@ -21074,17 +21074,17 @@
             "schema": {
               "minimum": 1,
               "maximum": 50,
-              "default": 20,
               "type": "number"
             }
           },
           {
-            "name": "kind",
+            "name": "practice",
             "required": false,
             "in": "query",
-            "description": "Owner 2026-09-30: only News / only regular posts (profile tabs).",
+            "description": "A practice category or subcategory code; the same hidden-tag filter as the feed topics.",
             "schema": {
-              "$ref": "#/components/schemas/PostKind"
+              "maxLength": 80,
+              "type": "string"
             }
           }
         ],

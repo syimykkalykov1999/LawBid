@@ -88,7 +88,7 @@ class _Reels extends ReelsRepository {
   final List<Post> items;
 
   @override
-  Future<CursorPage<Post>> reels({String? cursor}) async =>
+  Future<CursorPage<Post>> reels({String? cursor, String? practice}) async =>
       CursorPage(items: items);
 }
 

@@ -239,6 +239,32 @@ export class PinPostDto {
   slot!: number;
 }
 
+/** GET /reels: the page plus the Reels tab's topic filter. */
+export class ReelsQueryDto {
+  @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  cursor?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: POSTS_PAGE_MAX })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(POSTS_PAGE_MAX)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'A practice category or subcategory code; the same hidden-tag filter as the feed topics.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  practice?: string;
+}
+
 export class PostsPageQueryDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()

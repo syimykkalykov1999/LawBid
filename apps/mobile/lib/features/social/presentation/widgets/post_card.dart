@@ -131,12 +131,8 @@ class PostCard extends ConsumerWidget {
         borderRadius:
             edge || flat ? null : BorderRadius.circular(AppRadii.card),
         border: flat
-            ? Border(
-                bottom: BorderSide(
-                  color: colors.textSecondary.withValues(alpha: 0.14),
-                  width: 8,
-                ),
-              )
+            // Owner 2026-10-13: no empty strip between posts, only a hairline.
+            ? Border(bottom: BorderSide(color: colors.border))
             : edge
                 ? Border.symmetric(horizontal: BorderSide(color: colors.border))
                 : Border.all(color: colors.border),
@@ -243,10 +239,11 @@ class PostCard extends ConsumerWidget {
     // nav bar; the photo takes what the other blocks leave (the fullest
     // post has a smaller photo, a photo-only post a full-screen one).
     final width = MediaQuery.sizeOf(context).width;
-    // Owner 2026-10-13: the photo takes what the text leaves but never less
-    // than 60% of the screen; when the text leaves less, the card grows
-    // (natural height) and the photo keeps that minimum.
-    final minPhoto = MediaQuery.sizeOf(context).height * 0.6;
+    // Owner 2026-10-13: one card is exactly the screen between the header
+    // and the navbar; the photo takes what the text, chips and files
+    // leave, and only a tiny leftover (under 30% of the screen) lets the
+    // card grow instead.
+    final minPhoto = MediaQuery.sizeOf(context).height * 0.3;
     final photoHeight = fillHeight != null || feedHeight != null
         ? math.max(width * 1.25, minPhoto)
         : width * 1.25;

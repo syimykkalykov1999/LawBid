@@ -15,7 +15,7 @@ import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
-    show feedCardHeight, topicCategory;
+    show feedCardHeight;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
@@ -351,11 +351,8 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
   String? _category;
 
   bool _accepts(Post p, {required bool legalOnly}) {
-    if (legalOnly && p.isGeneral) return false;
-    final c = _category;
-    if (c == null) return true;
-    if (p.practice?.categoryCode == c) return true;
-    return p.tags.map(topicCategory).contains(c);
+    // The topic itself is filtered by the server (one tag algorithm).
+    return !(legalOnly && p.isGeneral);
   }
 
   @override
@@ -380,6 +377,7 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
                   key: ValueKey('reels|$_category|$legalOnly'),
                   embedded: true,
                   filter: (p) => _accepts(p, legalOnly: legalOnly),
+                  practice: _category,
                 ),
               ),
               Positioned(

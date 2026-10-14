@@ -1179,7 +1179,7 @@ class _Actions extends ConsumerWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: _QuietButton(
-              label: t.t('profile.action.shareProfile'),
+              label: t.t('post.share'),
               onTap: onShare,
             ),
           ),

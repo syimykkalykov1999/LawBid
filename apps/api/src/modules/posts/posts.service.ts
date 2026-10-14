@@ -43,7 +43,7 @@ import { SubscriptionAlertsService } from '../notifications/subscription-alerts.
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import { hiddenTagsFor } from './hidden-tags';
+import { hiddenTagOf, hiddenTagsFor } from './hidden-tags';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import {
@@ -722,9 +722,10 @@ export class PostsService {
    * nobody blocked either way. */
   async listReels(
     user: RequestUser,
-    query: { cursor?: string; limit?: number },
+    query: { cursor?: string; limit?: number; practice?: string },
   ): Promise<PostPage> {
     const limit = Math.min(query.limit ?? 10, 20);
+    const practice = query.practice?.trim().toLowerCase();
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
     const blocks = await this.prisma.userBlock.findMany({
       where: { OR: [{ blocker_id: user.sub }, { blocked_id: user.sub }] },
@@ -738,6 +739,10 @@ export class PostsService {
         AND: [
           VISIBLE_POST_WHERE,
           { video_asset: { status: 'ready', deleted_at: null } },
+          // One tag algorithm: the qualification and everything under it.
+          practice
+            ? { tags: { some: { tag: { tag_lower: hiddenTagOf(practice) } } } }
+            : {},
           hidden.length ? { author_id: { notIn: hidden } } : {},
           c
             ? {
