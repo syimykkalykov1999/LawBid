@@ -166,6 +166,9 @@ class PostCard extends ConsumerWidget {
                 fromProfile: fromProfile,
                 onReply: onReply,
                 showPin: showPin,
+                cardHeight: feedHeight != null && !inDetail && !fromProfile
+                    ? feedHeight! / 2
+                    : null,
               )
             // Owner 2026-10-12: one card for every post with a photo or a
             // reel in a list — with a practice or without (no chips then).
@@ -882,7 +885,11 @@ class _ThreadsPost extends ConsumerWidget {
     this.fromProfile = false,
     this.onReply,
     this.showPin = false,
+    this.cardHeight,
   });
+
+  /// Half of the feed's viewport; null = natural height.
+  final double? cardHeight;
 
   final Post post;
   final bool inDetail;
@@ -914,13 +921,19 @@ class _ThreadsPost extends ConsumerWidget {
     final title = (p.title ?? '').trim();
     final body = p.body.trim();
     final text = [title, body].where((s) => s.isNotEmpty).join('\n');
+    // Owner 2026-10-13: in the feed a brief is exactly half a screen (two
+    // fit between the header and the navbar); the text folds to the lines
+    // that fit, «ещё» opens the rest.
+    final briefLines = (((cardHeight ?? 0) - 150) / 22).floor().clamp(2, 12);
     Widget bodyText(String s) => PostBodyText(
           key: ValueKey(s.hashCode),
           body: s,
           expanded: inDetail,
           // Owner 2026-10-12 (Threads): up to 500 characters in full; a
           // longer text folds to five lines.
-          collapsedLines: s.length > 500 ? 5 : 1000,
+          collapsedLines: cardHeight != null && !inDetail
+              ? briefLines
+              : (s.length > 500 ? 5 : 1000),
           onMore: inDetail ? null : open,
           mentions: p.mentions,
           large: inDetail,
@@ -1000,11 +1013,6 @@ class _ThreadsPost extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  if (!a.isClient && a.practiceKeys.isNotEmpty)
-                    _AuthorPractices(
-                      keys: a.practiceKeys,
-                      color: colors.textSecondary,
-                    ),
                 ],
               ),
             ),
@@ -1240,7 +1248,7 @@ class _ThreadsPost extends ConsumerWidget {
       );
     }
 
-    return AppPressable(
+    final card = AppPressable(
       onTap: open,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -1277,6 +1285,13 @@ class _ThreadsPost extends ConsumerWidget {
           ],
         ),
       ),
+    );
+    final h = cardHeight;
+    if (h == null) return card;
+    return SizedBox(
+      height: h,
+      child:
+          ClipRect(child: Align(alignment: Alignment.topCenter, child: card)),
     );
   }
 }
