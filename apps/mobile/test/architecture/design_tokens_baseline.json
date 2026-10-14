@@ -7,6 +7,7 @@
  "features/cases/presentation/widgets/case_facts.dart": 3,
  "features/cases/presentation/widgets/case_parts.dart": 2,
  "features/cases/presentation/widgets/case_wizard_steps.dart": 1,
+ "features/cases/presentation/widgets/pill_tabs.dart": 1,
  "features/cases/workspace/compose_sheet.dart": 2,
  "features/cases/workspace/tasks_tab.dart": 2,
  "features/cases/workspace/workspace_view.dart": 2,

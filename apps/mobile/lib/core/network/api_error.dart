@@ -447,6 +447,8 @@ abstract final class ApiErrorCodes {
     barNumberFormatInvalid,
     barAttemptsCooldown,
     bidLicensePending,
+    firmAlreadyMember,
+    firmFull,
     caseLimitReached,
     planNotAvailable,
     planCodeExists,
