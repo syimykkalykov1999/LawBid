@@ -23,3 +23,25 @@ export function hiddenTagsFor(code: string | null | undefined): string[] {
   const parts = code.trim().toLowerCase().split('.').filter(Boolean);
   return parts.map((_, i) => hiddenTagOf(parts.slice(0, i + 1).join('.')));
 }
+
+/**
+ * Posts written before qualifications existed carry only a topic hashtag.
+ * The topic hashtags each practice category answers to — the same list the
+ * app's topic slider always used.
+ */
+const LEGACY_TOPIC_TAGS: Record<string, string[]> = {
+  immigration: ['immigration', 'greencard', 'visa', 'asylum'],
+  family_law: ['familylaw', 'divorce', 'custody', 'childcustody'],
+  traffic_tickets: ['traffic', 'trafficticket', 'speeding', 'tickets'],
+  dui_and_dwi: ['dui', 'dwi'],
+  criminal_defense: ['criminaldefense', 'criminal'],
+  personal_injury: ['personalinjury', 'injury', 'caraccident'],
+  real_estate: ['realestate'],
+  employment_and_labor: ['employment', 'workplace'],
+  bankruptcy_and_debt: ['bankruptcy', 'debt'],
+};
+
+/** The legacy hashtags of a practice category (top level only). */
+export function legacyTopicTags(code: string): string[] {
+  return LEGACY_TOPIC_TAGS[code.trim().toLowerCase()] ?? [];
+}

@@ -51,7 +51,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     // number only — no e-mail anywhere on this screen.
     final id = LoginIdentifier.tryParse(_identifier.text);
     if (id == null || id.isEmail) {
-      setState(() => _error = t.t('auth.login.error.identifier'));
+      setState(() => _error = t.t('auth.forgot.error.phone'));
       return;
     }
     setState(() {

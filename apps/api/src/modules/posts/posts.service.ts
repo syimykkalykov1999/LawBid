@@ -43,7 +43,7 @@ import { SubscriptionAlertsService } from '../notifications/subscription-alerts.
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import { hiddenTagOf, hiddenTagsFor } from './hidden-tags';
+import { hiddenTagOf, hiddenTagsFor, legacyTopicTags } from './hidden-tags';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import {
@@ -741,7 +741,24 @@ export class PostsService {
           { video_asset: { status: 'ready', deleted_at: null } },
           // One tag algorithm: the qualification and everything under it.
           practice
-            ? { tags: { some: { tag: { tag_lower: hiddenTagOf(practice) } } } }
+            ? {
+                OR: [
+                  {
+                    tags: {
+                      some: { tag: { tag_lower: hiddenTagOf(practice) } },
+                    },
+                  },
+                  // Older posts have only the topic hashtag.
+                  {
+                    practice_area_id: null,
+                    tags: {
+                      some: {
+                        tag: { tag_lower: { in: legacyTopicTags(practice) } },
+                      },
+                    },
+                  },
+                ],
+              }
             : {},
           hidden.length ? { author_id: { notIn: hidden } } : {},
           c

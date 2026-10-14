@@ -168,7 +168,7 @@ void main() {
         ),
       );
       expect(find.text('Edit'), findsOneWidget);
-      expect(find.bySemanticsLabel('Share'), findsOneWidget);
+      expect(find.bySemanticsLabel('Share profile'), findsOneWidget);
       expect(find.text('Follow'), findsNothing);
       await _teardown(tester);
     });
