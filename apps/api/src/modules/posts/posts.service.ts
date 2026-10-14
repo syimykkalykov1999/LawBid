@@ -43,6 +43,7 @@ import { SubscriptionAlertsService } from '../notifications/subscription-alerts.
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { hiddenTagOf, hiddenTagsFor, legacyTopicTags } from './hidden-tags';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import {
@@ -247,7 +248,10 @@ export class PostsService {
             })),
           });
         }
-        await this.writeTags(tx, created.id, tags);
+        await this.writeTags(tx, created.id, [
+          ...tags,
+          ...hiddenTagsFor(practice?.code),
+        ]);
         return created;
       });
     let post;
@@ -429,6 +433,17 @@ export class PostsService {
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
+    // The hidden tags follow the qualification the post ends up with.
+    const practiceCode =
+      practice?.code ??
+      (current.practice_area_id
+        ? (
+            await this.prisma.practiceArea.findUnique({
+              where: { id: current.practice_area_id },
+              select: { code: true },
+            })
+          )?.code
+        : undefined);
     const verdict = await this.moderate(
       title ? `${title}\n${body}` : body,
       user.sub,
@@ -465,7 +480,10 @@ export class PostsService {
         },
       });
       await tx.postTag.deleteMany({ where: { post_id: id } });
-      await this.writeTags(tx, id, extractHashtags(body));
+      await this.writeTags(tx, id, [
+        ...extractHashtags(body),
+        ...hiddenTagsFor(practiceCode),
+      ]);
       return updated;
     });
     if (post.status === 'published') {
@@ -704,9 +722,10 @@ export class PostsService {
    * nobody blocked either way. */
   async listReels(
     user: RequestUser,
-    query: { cursor?: string; limit?: number },
+    query: { cursor?: string; limit?: number; practice?: string },
   ): Promise<PostPage> {
     const limit = Math.min(query.limit ?? 10, 20);
+    const practice = query.practice?.trim().toLowerCase();
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
     const blocks = await this.prisma.userBlock.findMany({
       where: { OR: [{ blocker_id: user.sub }, { blocked_id: user.sub }] },
@@ -720,6 +739,27 @@ export class PostsService {
         AND: [
           VISIBLE_POST_WHERE,
           { video_asset: { status: 'ready', deleted_at: null } },
+          // One tag algorithm: the qualification and everything under it.
+          practice
+            ? {
+                OR: [
+                  {
+                    tags: {
+                      some: { tag: { tag_lower: hiddenTagOf(practice) } },
+                    },
+                  },
+                  // Older posts have only the topic hashtag.
+                  {
+                    practice_area_id: null,
+                    tags: {
+                      some: {
+                        tag: { tag_lower: { in: legacyTopicTags(practice) } },
+                      },
+                    },
+                  },
+                ],
+              }
+            : {},
           hidden.length ? { author_id: { notIn: hidden } } : {},
           c
             ? {
@@ -751,10 +791,12 @@ export class PostsService {
   }
 
   /** An active practice category or subcategory (owner 2026-09-30). */
-  private async practiceByCode(code: string): Promise<{ id: string }> {
+  private async practiceByCode(
+    code: string,
+  ): Promise<{ id: string; code: string }> {
     const area = await this.prisma.practiceArea.findFirst({
       where: { code, is_active: true },
-      select: { id: true },
+      select: { id: true, code: true },
     });
     if (!area) {
       throw new BadRequestException({

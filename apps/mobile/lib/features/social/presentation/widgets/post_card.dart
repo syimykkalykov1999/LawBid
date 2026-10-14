@@ -131,12 +131,8 @@ class PostCard extends ConsumerWidget {
         borderRadius:
             edge || flat ? null : BorderRadius.circular(AppRadii.card),
         border: flat
-            ? Border(
-                bottom: BorderSide(
-                  color: colors.textSecondary.withValues(alpha: 0.14),
-                  width: 8,
-                ),
-              )
+            // Owner 2026-10-13: no empty strip between posts, only a hairline.
+            ? Border(bottom: BorderSide(color: colors.border))
             : edge
                 ? Border.symmetric(horizontal: BorderSide(color: colors.border))
                 : Border.all(color: colors.border),
@@ -166,6 +162,9 @@ class PostCard extends ConsumerWidget {
                 fromProfile: fromProfile,
                 onReply: onReply,
                 showPin: showPin,
+                cardHeight: feedHeight != null && !inDetail && !fromProfile
+                    ? feedHeight! / 2
+                    : null,
               )
             // Owner 2026-10-12: one card for every post with a photo or a
             // reel in a list — with a practice or without (no chips then).
@@ -240,10 +239,11 @@ class PostCard extends ConsumerWidget {
     // nav bar; the photo takes what the other blocks leave (the fullest
     // post has a smaller photo, a photo-only post a full-screen one).
     final width = MediaQuery.sizeOf(context).width;
-    // Owner 2026-10-13: the photo takes what the text leaves but never less
-    // than 60% of the screen; when the text leaves less, the card grows
-    // (natural height) and the photo keeps that minimum.
-    final minPhoto = MediaQuery.sizeOf(context).height * 0.6;
+    // Owner 2026-10-13: one card is exactly the screen between the header
+    // and the navbar; the photo takes what the text, chips and files
+    // leave, and only a tiny leftover (under 30% of the screen) lets the
+    // card grow instead.
+    final minPhoto = MediaQuery.sizeOf(context).height * 0.3;
     final photoHeight = fillHeight != null || feedHeight != null
         ? math.max(width * 1.25, minPhoto)
         : width * 1.25;
@@ -882,7 +882,11 @@ class _ThreadsPost extends ConsumerWidget {
     this.fromProfile = false,
     this.onReply,
     this.showPin = false,
+    this.cardHeight,
   });
+
+  /// Half of the feed's viewport; null = natural height.
+  final double? cardHeight;
 
   final Post post;
   final bool inDetail;
@@ -914,13 +918,19 @@ class _ThreadsPost extends ConsumerWidget {
     final title = (p.title ?? '').trim();
     final body = p.body.trim();
     final text = [title, body].where((s) => s.isNotEmpty).join('\n');
+    // Owner 2026-10-13: in the feed a brief is exactly half a screen (two
+    // fit between the header and the navbar); the text folds to the lines
+    // that fit, «ещё» opens the rest.
+    final briefLines = (((cardHeight ?? 0) - 150) / 22).floor().clamp(2, 12);
     Widget bodyText(String s) => PostBodyText(
           key: ValueKey(s.hashCode),
           body: s,
           expanded: inDetail,
           // Owner 2026-10-12 (Threads): up to 500 characters in full; a
           // longer text folds to five lines.
-          collapsedLines: s.length > 500 ? 5 : 1000,
+          collapsedLines: cardHeight != null && !inDetail
+              ? briefLines
+              : (s.length > 500 ? 5 : 1000),
           onMore: inDetail ? null : open,
           mentions: p.mentions,
           large: inDetail,
@@ -1000,11 +1010,6 @@ class _ThreadsPost extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  if (!a.isClient && a.practiceKeys.isNotEmpty)
-                    _AuthorPractices(
-                      keys: a.practiceKeys,
-                      color: colors.textSecondary,
-                    ),
                 ],
               ),
             ),
@@ -1087,6 +1092,7 @@ class _ThreadsPost extends ConsumerWidget {
         size: 36,
         ring: a.verified,
         trustLevel: a.isClient ? 0 : a.trustLevel,
+        rejected: !a.isClient && a.identityRejected,
       ),
     );
 
@@ -1239,7 +1245,7 @@ class _ThreadsPost extends ConsumerWidget {
       );
     }
 
-    return AppPressable(
+    final card = AppPressable(
       onTap: open,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -1276,6 +1282,13 @@ class _ThreadsPost extends ConsumerWidget {
           ],
         ),
       ),
+    );
+    final h = cardHeight;
+    if (h == null) return card;
+    return SizedBox(
+      height: h,
+      child:
+          ClipRect(child: Align(alignment: Alignment.topCenter, child: card)),
     );
   }
 }
@@ -1543,7 +1556,7 @@ class _AuthorRow extends ConsumerWidget {
         followMaxWidth: compact ? 120 : 136,
         // Only on someone else's post.
         showFollow: !post.isMine,
-        preferPractices: !sponsored && post.locationName == null,
+        // Owner 2026-10-13: no qualifications under the name.
         subtitle: sponsored
             ? t.t('promote.sponsored')
             : post.locationName ??
@@ -1667,6 +1680,7 @@ class AuthorHeader extends ConsumerWidget {
                     size: avatarSize,
                     ring: a.verified,
                     trustLevel: a.isClient ? 0 : a.trustLevel,
+                    rejected: !a.isClient && a.identityRejected,
                   ),
                   SizedBox(width: gap),
                   Expanded(
@@ -1680,6 +1694,7 @@ class AuthorHeader extends ConsumerWidget {
                           checkLabel: t.t('post.verified'),
                           style: type.body.copyWith(
                             color: onDark ? Colors.white : colors.text,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             shadows: shadows,
                           ),
@@ -1703,6 +1718,7 @@ class AuthorHeader extends ConsumerWidget {
                               color: onDark
                                   ? Colors.white.withValues(alpha: 0.9)
                                   : colors.textSecondary,
+                              fontSize: 12,
                               shadows: shadows,
                             ),
                           ),

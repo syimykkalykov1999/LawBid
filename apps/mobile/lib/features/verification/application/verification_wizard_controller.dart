@@ -282,13 +282,22 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
   }) async {
     final s = _s;
     if (s == null) return;
-    final r = await _repo.addLicense(
-      s.request.id,
-      stateCode: stateCode,
-      barNumber: barNumber,
-      expiresAt: expiresAt,
-    );
-    _setRequest(r);
+    Future<VerificationRequest> add(String requestId) => _repo.addLicense(
+          requestId,
+          stateCode: stateCode,
+          barNumber: barNumber,
+          expiresAt: expiresAt,
+        );
+    try {
+      _setRequest(await add(s.request.id));
+    } on ApiException catch (e) {
+      if (e.code != ApiErrorCodes.verificationInvalidStatus) rethrow;
+      // The request was sent or decided meanwhile: continue on a new draft
+      // (the same number is put back to review there) instead of failing.
+      final fresh = await _repo.create();
+      _setRequest(fresh);
+      _setRequest(await add(fresh.id));
+    }
   }
 
   Future<void> removeLicense(VerificationLicense license) async {
@@ -298,7 +307,13 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     for (final t in s.tasksFor(slot)) {
       cancel(t.localId);
     }
-    _setRequest(await _repo.removeLicense(s.request.id, license.id));
+    try {
+      _setRequest(await _repo.removeLicense(s.request.id, license.id));
+    } on ApiException catch (e) {
+      // A licence of a closed request cannot be removed; saving the edited
+      // one reuses its row, so editing still works.
+      if (e.code != ApiErrorCodes.verificationInvalidStatus) rethrow;
+    }
   }
 
   Future<void> removeDocument(String documentId) async {

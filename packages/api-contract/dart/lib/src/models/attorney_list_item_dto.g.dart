@@ -23,6 +23,7 @@ AttorneyListItemDto _$AttorneyListItemDtoFromJson(Map<String, dynamic> json) =>
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      identityRejected: json['identityRejected'] as bool?,
       reason: json['reason'] == null
           ? null
           : AttorneyListItemDtoReason.fromJson(json['reason'] as String),
@@ -38,6 +39,7 @@ Map<String, dynamic> _$AttorneyListItemDtoToJson(
   'avatarUrl': ?instance.avatarUrl,
   'verifiedBadge': instance.verifiedBadge,
   'trustLevel': instance.trustLevel,
+  'identityRejected': ?instance.identityRejected,
   'rating': instance.rating.toJson(),
   'states': instance.states,
   'practiceI18nKeys': instance.practiceI18nKeys,

@@ -499,6 +499,7 @@ export class FollowsService {
           : null,
         verifiedBadge: p.trust_badge,
         trustLevel: p.trust_level,
+        identityRejected: p.verification_status === 'rejected',
         rating: { avg: Number(p.rating_avg), count: p.rating_count },
         states: p.licenses.map((l) => l.state_code),
         practiceI18nKeys: p.practice_areas.map((x) => x.practice_area.i18n_key),

@@ -322,12 +322,12 @@ void main() {
       ]);
     });
 
-    testWidgets('forgot password: an e-mail code says so', (tester) async {
-      repo.requestResult = const PasswordAuthResult.success(channel: 'email');
+    testWidgets('forgot password: an e-mail is refused, nothing is sent',
+        (tester) async {
       await open(tester, AuthRoutes.forgotPassword, extra: 'a@b.co');
       await tester.tap(button('Send code'));
       await tester.pumpAndSettle();
-      expect(find.text('We sent a code to your email.'), findsOneWidget);
+      expect(repo.requested, isEmpty);
     });
 
     for (final (name, translator, direction) in [

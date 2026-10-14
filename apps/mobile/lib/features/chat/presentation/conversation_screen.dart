@@ -31,6 +31,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
@@ -1105,7 +1106,6 @@ class _MessageTextState extends ConsumerState<_MessageText> {
       setState(() => _showTranslation = !_showTranslation);
       return;
     }
-    final t = ref.read(translatorProvider);
     final target =
         (ref.read(languageControllerProvider).value ?? AppLanguage.fallback)
             .code;
@@ -1120,7 +1120,7 @@ class _MessageTextState extends ConsumerState<_MessageText> {
         _showTranslation = true;
       });
     } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
+      if (mounted) showErrorOrPlans(context, ref, e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

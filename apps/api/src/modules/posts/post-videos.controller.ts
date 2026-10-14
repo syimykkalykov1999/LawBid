@@ -28,7 +28,7 @@ import {
   VideoUploadDto,
 } from '../videos/videos.dto';
 import { VideosService } from '../videos/videos.service';
-import { PostsPageQueryDto, PostDto, type PostPage } from './dto/posts.dto';
+import { ReelsQueryDto, PostDto, type PostPage } from './dto/posts.dto';
 import { PostsService } from './posts.service';
 
 const E = ErrorCode;
@@ -97,7 +97,7 @@ export class PostVideosController {
   @ApiErrors({ 403: [E.VIDEO_UNAVAILABLE], 503: [E.VIDEO_UNAVAILABLE] })
   async listReels(
     @CurrentUser() user: RequestUser,
-    @Query() q: PostsPageQueryDto,
+    @Query() q: ReelsQueryDto,
   ): Promise<PostPage> {
     await this.videos.assertAvailable();
     return this.posts.listReels(user, q);

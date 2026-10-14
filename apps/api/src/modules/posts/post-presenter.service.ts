@@ -1,5 +1,7 @@
 import { activeClientBadgeIds } from '../client-badge/client-badge.util';
-import { Injectable } from '@nestjs/common';
+import { isHiddenTag } from './hidden-tags';
+import { Injectable, Optional } from '@nestjs/common';
+import { PostAttachmentsPolicy } from './post-attachments.policy';
 import type { Post, Prisma } from '@prisma/client';
 import { MentionsService } from '../mentions/mentions.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -45,6 +47,7 @@ export class PostPresenter {
     private readonly counters: CounterAggregator,
     private readonly mentions: MentionsService,
     private readonly videos: VideosService,
+    @Optional() private readonly attachmentsPolicy?: PostAttachmentsPolicy,
   ) {}
 
   /** userId → {id, username} for the "reposted by" line. */
@@ -178,11 +181,22 @@ export class PostPresenter {
       reposts.map((r) => [r.post_id, r._count._all]),
     );
     const reposted = new Set(myReposts.map((r) => r.post_id));
+    // Owner 2026-10-13: files stay after the author's subscription ends
+    // unless the admin switched «keep attachments» off.
+    const docAuthors = new Map(posts.map((p) => [p.id, p.author_id]));
+    const shownAuthors = this.attachmentsPolicy
+      ? await this.attachmentsPolicy.visibleFor(
+          docs.map((d) => docAuthors.get(d.post_id) ?? ''),
+        )
+      : null;
+    const visibleDocs = shownAuthors
+      ? docs.filter((d) => shownAuthors.has(docAuthors.get(d.post_id) ?? ''))
+      : docs;
     const docUrls = await this.files.postAttachmentUrls(
-      docs.map((d) => ({ fileId: d.file_id, fileName: d.file_name })),
+      visibleDocs.map((d) => ({ fileId: d.file_id, fileName: d.file_name })),
     );
     const docsByPost = new Map<string, typeof docs>();
-    for (const d of docs) {
+    for (const d of visibleDocs) {
       const list = docsByPost.get(d.post_id) ?? [];
       list.push(d);
       docsByPost.set(d.post_id, list);
@@ -204,7 +218,7 @@ export class PostPresenter {
     const tagsByPost = new Map<string, string[]>();
     for (const t of tags) {
       const list = tagsByPost.get(t.post_id) ?? [];
-      list.push(t.tag.tag_lower);
+      if (!isHiddenTag(t.tag.tag_lower)) list.push(t.tag.tag_lower);
       tagsByPost.set(t.post_id, list);
     }
     const mediaByPost = new Map<string, typeof media>();
@@ -275,6 +289,8 @@ export class PostPresenter {
           // Owner 2026-10-13: the Identity circle on the avatar and the
           // practices under the name (attorneys only).
           trustLevel: isClient ? 0 : (prof?.trust_level ?? 0),
+          identityRejected:
+            !isClient && prof?.verification_status === 'rejected',
           practiceI18nKeys: isClient
             ? []
             : (prof?.practice_areas ?? []).map((x) => x.practice_area.i18n_key),

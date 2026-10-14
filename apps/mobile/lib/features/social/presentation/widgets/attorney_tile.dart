@@ -108,8 +108,12 @@ class IdentityAvatar extends ConsumerWidget {
     required this.size,
     required this.ring,
     required this.trustLevel,
+    this.rejected = false,
     super.key,
   });
+
+  /// Owner 2026-10-13: the attorney's verification was rejected — red.
+  final bool rejected;
 
   final String id;
   final String? url;
@@ -130,8 +134,14 @@ class IdentityAvatar extends ConsumerWidget {
     );
     // Owner 2026-10-13: green Identity badge once the profile is confirmed
     // (identity level and above); grey while it is not; nothing at level 0.
-    if (trustLevel < 1) return avatar;
-    final c = trustLevelColors(colors, trustLevel);
+    if (trustLevel < 1 && !rejected) return avatar;
+    final c = rejected
+        ? (
+            fill: colors.dangerTint,
+            fg: colors.dangerText,
+            border: colors.dangerText
+          )
+        : trustLevelColors(colors, trustLevel);
     final badge = size * 0.4;
     final label = t.t(TrustLevels.nameKey(trustLevel));
     return SizedBox(
@@ -165,7 +175,9 @@ class IdentityAvatar extends ConsumerWidget {
                   ),
                   child: Center(
                     child: AppIcon(
-                      trustLevelIcon(trustLevel),
+                      rejected
+                          ? AppIcons.closeRounded
+                          : trustLevelIcon(trustLevel),
                       size: badge * 0.55,
                       color: Colors.white,
                     ),
@@ -194,6 +206,7 @@ class PersonAvatar extends StatelessWidget {
         size: size,
         ring: row.verified,
         trustLevel: row.trustLevel,
+        rejected: row.identityRejected,
       );
 }
 

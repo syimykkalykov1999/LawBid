@@ -354,6 +354,40 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               style: type.body.copyWith(color: colors.textSecondary),
             ),
           ]),
+          const SizedBox(height: AppSpacing.md),
+          card([
+            Text(
+              t.t('cbadge.benefits.title'),
+              style: type.titleMedium.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (final k in const [
+              'cbadge.benefit.check',
+              'cbadge.benefit.first',
+              'cbadge.benefit.files',
+              'cbadge.benefit.promo',
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppIcon(
+                      AppIcons.checkRounded,
+                      color: colors.gold,
+                      size: 20,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        t.t(k),
+                        style: type.body.copyWith(color: colors.text),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ]),
           if (reason != null && reason.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
             Text(

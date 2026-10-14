@@ -16,6 +16,7 @@ import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
     show
         MapsReviewTile,
@@ -261,20 +262,16 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
             Row(
               children: [
                 Expanded(
-                  child: AppButton(
+                  child: ProfileQuietButton(
                     label: t.t('profile.action.edit'),
-                    variant: AppButtonVariant.secondary,
-                    height: 32,
-                    onPressed: () => context.push(AppRoutes.profileEdit),
+                    onTap: () => context.push(AppRoutes.profileEdit),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: AppButton(
+                  child: ProfileQuietButton(
                     label: t.t('profile.action.shareProfile'),
-                    variant: AppButtonVariant.secondary,
-                    height: 32,
-                    onPressed: () => _share(t),
+                    onTap: () => _share(t),
                   ),
                 ),
               ],

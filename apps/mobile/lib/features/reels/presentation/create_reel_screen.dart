@@ -10,10 +10,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_compression.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
@@ -364,7 +364,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
         _progress = null;
       });
       if (!(e is DioException && CancelToken.isCancel(e))) {
-        showAppSnackBar(context, errorText(t, e));
+        showErrorOrPlans(context, ref, e);
       }
     }
   }

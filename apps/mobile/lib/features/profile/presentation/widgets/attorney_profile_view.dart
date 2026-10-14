@@ -22,6 +22,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
 import 'package:lawbid/features/social/domain/social_models.dart'
     show ReportTarget;
@@ -464,14 +465,16 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                 AppSpacing.screenSide,
                 AppSpacing.xxl,
               ),
-        header: _tab == AttorneyProfileTab.threads
-            ? Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenSide,
-                ),
-                child: header,
-              )
-            : header,
+        // One widget shape for every tab (only the padding value changes),
+        // so switching tabs keeps the header — avatar, counters, buttons —
+        // in place instead of rebuilding the page.
+        header: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal:
+                _tab == AttorneyProfileTab.threads ? AppSpacing.screenSide : 0,
+          ),
+          child: header,
+        ),
         footer: footer,
         labels: AppPaginationLabels(
           loadingMore: t.t('pagination.loadingMore'),
@@ -1169,14 +1172,14 @@ class _Actions extends ConsumerWidget {
       return Row(
         children: [
           Expanded(
-            child: _QuietButton(
+            child: ProfileQuietButton(
               label: t.t('profile.action.edit'),
               onTap: () => context.push(AppRoutes.profileEdit),
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: _QuietButton(
+            child: ProfileQuietButton(
               label: t.t('profile.action.shareProfile'),
               onTap: onShare,
             ),
@@ -1189,7 +1192,7 @@ class _Actions extends ConsumerWidget {
         if (!blocked)
           Expanded(
             child: isSelf
-                ? _QuietButton(
+                ? ProfileQuietButton(
                     label: t.t('profile.action.edit'),
                     onTap: () => context.push(AppRoutes.profileEdit),
                   )
@@ -1202,7 +1205,7 @@ class _Actions extends ConsumerWidget {
         if (!isSelf && !blocked && canMessage) ...[
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: _QuietButton(
+            child: ProfileQuietButton(
               label: t.t('profile.action.message'),
               onTap: onMessage,
             ),
@@ -1244,75 +1247,13 @@ class _IconSquare extends StatelessWidget {
         onTap: onTap,
         child: Container(
           width: AppSizes.touchTarget,
-          height: _QuietButton.height,
+          height: ProfileQuietButton.height,
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(AppRadii.field),
             border: Border.all(color: colors.border),
           ),
           child: AppIcon(icon, size: AppSizes.iconSm, color: colors.text),
-        ),
-      ),
-    );
-  }
-}
-
-/// Instagram-style secondary button: soft fill, no icon, small type.
-class _QuietButton extends StatelessWidget {
-  const _QuietButton({
-    required this.label,
-    required this.onTap,
-    // ignore: unused_element_parameter
-    this.loading = false,
-  });
-
-  // Owner 2026-10-13: Follow, Message and Offer a case share one height.
-  static const double height = 32;
-
-  final String label;
-  final VoidCallback onTap;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: AppPressable(
-        onTap: onTap,
-        // Fixed height; a long translation shrinks to fit (owner
-        // 2026-10-05: buttons keep their size and place).
-        child: Container(
-          height: height,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            border: Border.all(color: colors.border),
-          ),
-          child: loading
-              ? SizedBox.square(
-                  dimension: AppSizes.iconSm,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: colors.text,
-                  ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: FitText(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: typography.button
-                        .copyWith(fontSize: 14, color: colors.text),
-                  ),
-                ),
         ),
       ),
     );

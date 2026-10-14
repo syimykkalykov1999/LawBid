@@ -111,17 +111,17 @@ class _VideosClient implements VideosClient {
 
   @override
   Future<PostListEnvelope> listReels({
-    num? limit = 20,
     String? cursor,
-    PostKind? kind,
+    num? limit,
+    String? practice,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'limit': limit,
       r'cursor': cursor,
-      r'kind': kind?.toJson(),
+      r'limit': limit,
+      r'practice': practice,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

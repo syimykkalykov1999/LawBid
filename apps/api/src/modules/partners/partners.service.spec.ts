@@ -53,7 +53,9 @@ function setup(
     appConfig: {
       findUnique: jest
         .fn()
-        .mockResolvedValue(opts.settings ? { value: opts.settings } : null),
+        // The program is off by default now (owner 2026-10-14): tests that
+        // are not about the switch run with it on.
+        .mockResolvedValue({ value: { enabled: true, ...opts.settings } }),
     },
     partner: {
       findUnique: jest.fn().mockResolvedValue(partner),

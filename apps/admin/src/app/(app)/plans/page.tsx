@@ -271,15 +271,16 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
     queryFn: async () => (await api.GET('/admin/billing/post-attachments')).data!.data,
   });
   const save = useMutation({
-    mutationFn: async (mode: AttachmentsMode) =>
-      (await api.PUT('/admin/billing/post-attachments', { body: { mode } })).data!.data,
+    mutationFn: async (body: { mode: AttachmentsMode; keepAfterCancel?: boolean }) =>
+      (await api.PUT('/admin/billing/post-attachments', { body })).data!.data,
     onSuccess: (res) => {
       qc.setQueryData(key, res);
       toast.success('Сохранено');
     },
     onError: (e) => toast.error(e),
   });
-  const mode = q.data?.mode ?? 'off_for_all';
+  const mode = q.data?.mode ?? 'by_subscription';
+  const keep = q.data?.keepAfterCancel ?? true;
   const current = ATTACHMENT_MODES.find((m) => m.value === mode)!;
   return (
     <Card className="mb-5">
@@ -291,11 +292,23 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
       <div className="mt-3">
         <Tabs
           value={mode}
-          onChange={(v) => canWrite && save.mutate(v)}
+          onChange={(v) => canWrite && save.mutate({ mode: v, keepAfterCancel: keep })}
           items={ATTACHMENT_MODES.map((m) => ({ value: m.value, label: m.label }))}
         />
       </div>
       <p className="mt-2 text-xs text-muted">{current.note}</p>
+      {mode === 'by_subscription' && (
+        <div className="mt-3">
+          <Switch
+            checked={keep}
+            onChange={(v) => canWrite && save.mutate({ mode, keepAfterCancel: v })}
+            label="Оставлять вложения после отмены подписки"
+          />
+          <p className="mt-1 text-xs text-muted">
+            Включено: файлы, уже добавленные в пост или рилс, остаются у всех. Выключено: после отмены подписки автора они скрываются.
+          </p>
+        </div>
+      )}
     </Card>
   );
 }

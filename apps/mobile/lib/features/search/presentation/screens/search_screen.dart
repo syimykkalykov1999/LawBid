@@ -533,6 +533,28 @@ class _BeforeTyping extends ConsumerWidget {
 
     // "Based on your search" for this tab.
     // ignore: omit_local_variable_types
+    // Owner 2026-10-14: no "Show more" button — the next page loads by
+    // itself when the list is scrolled near its end.
+    final loaders = <VoidCallback>[];
+    Widget more({required bool hasMore, required VoidCallback onMore}) {
+      if (hasMore) loaders.add(onMore);
+      return SliverToBoxAdapter(
+        child: hasMore
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(),
+      );
+    }
+
+    // ignore: omit_local_variable_types
     final List<Widget> basedOn = switch (tab) {
       _ when last == null => const [],
       SearchTab.attorneys => [
@@ -599,7 +621,7 @@ class _BeforeTyping extends ConsumerWidget {
                 const <FeedCase>[],
             (c) => SearchCaseTile(item: c),
           ),
-          _MoreButton(
+          more(
             hasMore: ref
                     .watch(exploreCasesProvider(_casesKey(filters)))
                     .value
@@ -625,7 +647,7 @@ class _BeforeTyping extends ConsumerWidget {
                   ?.items,
             ),
           ),
-          _MoreButton(
+          more(
             hasMore: ref
                     .watch(explorePostsProvider(_postsKey(filters)))
                     .value
@@ -699,20 +721,30 @@ class _BeforeTyping extends ConsumerWidget {
           ..invalidate(postSearchProvider)
           ..invalidate(tagSearchProvider);
       },
-      child: CustomScrollView(
-        slivers: [
-          ...explore,
-          if (basedOn.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: title(
-                t.t('search.section.basedOn', {'q': last!}),
-                small: true,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n.metrics.extentAfter < 400) {
+            for (final load in loaders) {
+              load();
+            }
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          slivers: [
+            ...explore,
+            if (basedOn.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: title(
+                  t.t('search.section.basedOn', {'q': last!}),
+                  small: true,
+                ),
               ),
-            ),
-            ...basedOn,
+              ...basedOn,
+            ],
+            const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
           ],
-          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
-        ],
+        ),
       ),
     );
   }
@@ -781,28 +813,6 @@ ExplorePostsKey _postsKey(SearchFilters f) => (
     );
 
 /// "Show more" under an explore grid.
-class _MoreButton extends ConsumerWidget {
-  const _MoreButton({required this.hasMore, required this.onMore});
-
-  final bool hasMore;
-  final VoidCallback onMore;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (!hasMore) return const SliverToBoxAdapter(child: SizedBox.shrink());
-    final t = ref.watch(translatorProvider);
-    return SliverToBoxAdapter(
-      child: Center(
-        child: TextButton(
-          key: const ValueKey('search-explore-more'),
-          onPressed: onMore,
-          child: Text(t.t('search.more')),
-        ),
-      ),
-    );
-  }
-}
-
 List<String> _sortedPractices(
   WidgetRef ref,
   SearchFilters f,

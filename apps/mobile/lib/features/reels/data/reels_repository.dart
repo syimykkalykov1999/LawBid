@@ -164,8 +164,10 @@ class ReelsRepository {
       guardApiCall(() => _videos.cancelVideoUpload(id: videoAssetId));
 
   /// The full-screen reels feed, newest first.
-  Future<CursorPage<Post>> reels({String? cursor}) async {
-    final env = await guardApiCall(() => _videos.listReels(cursor: cursor));
+  Future<CursorPage<Post>> reels({String? cursor, String? practice}) async {
+    final env = await guardApiCall(
+      () => _videos.listReels(cursor: cursor, practice: practice),
+    );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
       nextCursor: env.meta?.nextCursor,

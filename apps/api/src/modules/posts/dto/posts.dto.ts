@@ -239,6 +239,32 @@ export class PinPostDto {
   slot!: number;
 }
 
+/** GET /reels: the page plus the Reels tab's topic filter. */
+export class ReelsQueryDto {
+  @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  cursor?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: POSTS_PAGE_MAX })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(POSTS_PAGE_MAX)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'A practice category or subcategory code; the same hidden-tag filter as the feed topics.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  practice?: string;
+}
+
 export class PostsPageQueryDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
@@ -299,6 +325,11 @@ export class PostAuthorDto {
   /** Owner 2026-10-13: Identity level 0..3 (attorneys; 0 for clients). */
   @ApiProperty({ minimum: 0, maximum: 3 })
   trustLevel!: number;
+
+  /** Owner 2026-10-13: the attorney's verification was rejected — a red
+   * circle on the avatar. */
+  @ApiProperty({ required: false })
+  identityRejected?: boolean;
 
   /** Owner 2026-10-13: up to three practice keys under the name. */
   @ApiProperty({ type: [String] })

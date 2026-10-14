@@ -72,6 +72,9 @@ export class AttorneyListItemDto {
   })
   trustLevel!: number;
 
+  @ApiProperty({ required: false })
+  identityRejected?: boolean;
+
   @ApiProperty({ type: RatingDto })
   rating!: RatingDto;
 

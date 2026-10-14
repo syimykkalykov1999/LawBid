@@ -32,6 +32,7 @@ class ReelsScreen extends ConsumerStatefulWidget {
     this.initialIndex = 0,
     this.embedded = false,
     this.filter,
+    this.practice,
     super.key,
   });
 
@@ -39,8 +40,12 @@ class ReelsScreen extends ConsumerStatefulWidget {
   /// own back row, under the feed's filter row.
   final bool embedded;
 
-  /// Keeps only the reels it accepts (the tab's topic filter).
+  /// Keeps only the reels it accepts (the tab's content-mode filter).
   final bool Function(Post)? filter;
+
+  /// The tab's topic: a practice category, filtered by the server with the
+  /// same hidden-tag algorithm as the feed.
+  final String? practice;
 
   /// Opened from a feed card: that reel first, then the reels feed.
   final List<Post> initial;
@@ -85,7 +90,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     setState(() => _loading = true);
     try {
       final page =
-          await ref.read(reelsRepositoryProvider).reels(cursor: _cursor);
+          await ref.read(reelsRepositoryProvider).reels(
+        cursor: _cursor,
+        practice: widget.practice,
+      );
       final seen = _items.map((p) => p.id).toSet();
       setState(() {
         _items.addAll(page.items.where((p) => !seen.contains(p.id)));
@@ -535,7 +543,6 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         gap: AppSpacing.sm,
                         followMaxWidth: 140,
                         showFollow: !p.isMine,
-                        preferPractices: p.locationName == null,
                         subtitle: p.locationName ??
                             (p.author.isClient
                                 ? '@${p.author.username} · '

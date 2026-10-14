@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -12,6 +11,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
@@ -335,7 +335,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     } on Object catch (e) {
       if (mounted) {
         setState(() => _publishing = false);
-        showAppSnackBar(context, errorText(t, e));
+        showErrorOrPlans(context, ref, e);
       }
     }
   }

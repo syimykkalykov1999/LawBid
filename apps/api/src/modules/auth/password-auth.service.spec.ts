@@ -143,16 +143,16 @@ describe('PasswordAuthService', () => {
   });
 
   describe('forgot password', () => {
-    it('sends the code to the verified e-mail when there is one', async () => {
+    it('owner 2026-10-14: the code goes by SMS even when a verified e-mail exists', async () => {
       const { service, otp } = await make({ verifiedEmail: true });
       const res = await service.requestReset(
         { identifier: '+14155552680' },
         META,
       );
-      expect(res).toEqual({ sent: true, channel: 'email' });
+      expect(res).toEqual({ sent: true, channel: 'phone' });
       expect(otp.requestOtp).toHaveBeenCalledWith(
-        'email',
-        'sofia@example.com',
+        'phone',
+        '+14155552680',
         'reset',
       );
     });
@@ -171,17 +171,14 @@ describe('PasswordAuthService', () => {
       );
     });
 
-    it('uses the SMS while the e-mail flows are off', async () => {
-      const { service, otp } = await make({
-        verifiedEmail: true,
-        emailFlowsOn: false,
-      });
-      await service.requestReset({ identifier: 'sofia@example.com' }, META);
-      expect(otp.requestOtp).toHaveBeenCalledWith(
-        'phone',
-        '+14155552680',
-        'reset',
+    it('an e-mail identifier sends nothing (reset is by phone only)', async () => {
+      const { service, otp } = await make({ verifiedEmail: true });
+      const res = await service.requestReset(
+        { identifier: 'sofia@example.com' },
+        META,
       );
+      expect(res.sent).toBe(true);
+      expect(otp.requestOtp).not.toHaveBeenCalled();
     });
 
     it('sends nothing for an unknown account but answers the same', async () => {

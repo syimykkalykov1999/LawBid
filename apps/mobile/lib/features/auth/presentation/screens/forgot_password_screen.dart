@@ -13,10 +13,9 @@ import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
 
 /// `/auth/forgot-password` (owner 2026-10-13): step 1 asks for the phone
-/// number or e-mail and sends a code to the verified e-mail, else an SMS
-/// (the only paid path); step 2 takes the code and a new password and
-/// signs the person in. [initialIdentifier] is what they had typed on the
-/// sign-in screen.
+/// number and sends the code by SMS (owner 2026-10-14: never to an e-mail);
+/// step 2 takes the code and a new password and signs the person in.
+/// [initialIdentifier] is what they had typed on the sign-in screen.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({this.initialIdentifier = '', super.key});
 
@@ -33,7 +32,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _code = TextEditingController();
   final _password = TextEditingController();
   LoginIdentifier? _sentTo;
-  String _channel = 'phone';
   bool _busy = false;
   String? _error;
 
@@ -49,9 +47,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _sendCode() async {
     final t = ref.read(translatorProvider);
+    // Owner 2026-10-14: a forgotten password is reset by SMS to the phone
+    // number only — no e-mail anywhere on this screen.
     final id = LoginIdentifier.tryParse(_identifier.text);
-    if (id == null) {
-      setState(() => _error = t.t('auth.login.error.identifier'));
+    if (id == null || id.isEmail) {
+      setState(() => _error = t.t('auth.forgot.error.phone'));
       return;
     }
     setState(() {
@@ -65,7 +65,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       _busy = false;
       if (result.isSuccess) {
         _sentTo = id;
-        _channel = result.channel ?? 'phone';
         _code.clear();
       } else {
         _error = passwordErrorText(t, result);
@@ -101,11 +100,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     return PasswordFormScaffold(
       title: t.t('auth.forgot.title'),
       subtitle: _codeStep
-          ? t.t(
-              _channel == 'email'
-                  ? 'auth.forgot.sentEmail'
-                  : 'auth.forgot.sentPhone',
-            )
+          ? t.t('auth.forgot.sentPhone')
           : t.t('auth.forgot.body'),
       onBack: () {
         if (_codeStep && !_busy) {
@@ -153,10 +148,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           : [
               AppTextField(
                 controller: _identifier,
-                hintText: t.t('auth.login.identifier.hint'),
-                semanticLabel: t.t('auth.login.identifier.hint'),
+                hintText: t.t('auth.forgot.phone.hint'),
+                semanticLabel: t.t('auth.forgot.phone.hint'),
                 errorText: _error,
-                keyboardType: TextInputType.emailAddress,
+                keyboardType: TextInputType.phone,
                 autofocus: true,
                 autofillHints: const [AutofillHints.username],
                 textInputAction: TextInputAction.go,
