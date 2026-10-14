@@ -7,9 +7,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 
-/// Owner 2026-10-13: People tab, before typing — one soft row "Find people
-/// from your contacts" while the sync is off, a small "turn off" link when
-/// it is on. People from the address book are not a separate block: they
+/// Owner 2026-10-13: People tab, before typing — the system dialog opens
+/// once; afterwards only a small "turn off" link while the sync is on. People from the address book are not a separate block: they
 /// sit in Recommended/Suggested with a small "From contacts" caption. The system permission dialog opens
 /// by itself only once, the first time this is shown.
 class ContactsSection extends ConsumerStatefulWidget {
@@ -98,38 +97,8 @@ class _ContactsSectionState extends ConsumerState<ContactsSection> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final status = ref.watch(contactsSyncStatusProvider).value;
     if (status == null) return const SizedBox.shrink();
-    if (!status.enabled) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.md,
-          AppSpacing.screenSide,
-          0,
-        ),
-        child: AppPressable(
-          onTap: _sync,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.contacts_outlined,
-                  size: 22,
-                  color: colors.textSecondary,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    t.t('phoneContacts.find'),
-                    style: type.body.copyWith(color: colors.text),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+    // Owner 2026-10-13: asked once; no "Find people" row afterwards.
+    if (!status.enabled) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
       child: Align(
