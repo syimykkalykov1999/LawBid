@@ -193,14 +193,7 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.caseHistory'),
             onTap: () => context.push(AppRoutes.caseHistory),
           ),
-          // Owner 2026-10-05: the document templates library.
-          if (ref.watch(templatesEnabledProvider))
-            AppListRow(
-              icon: AppIcons.descriptionOutlined,
-              label: t.t('templates.title'),
-              subtitle: t.t('templates.hint'),
-              onTap: () => context.push(AppRoutes.templates),
-            ),
+          // Owner 2026-10-14: the document templates row is gone from Settings.
         ],
       ),
       AppListSection(

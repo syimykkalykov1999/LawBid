@@ -6,7 +6,7 @@
 
 const newsOffRu = <String, String>{
   'feed.legalPosts': 'Юр. посты',
-  'feed.briefs': 'Briefs',
+  'feed.briefs': 'Текст',
   'feed.legal.all': 'Все юр. посты',
   'feed.legal.mine': 'Только мои темы',
   'feed.legal.mineEmpty':
@@ -20,7 +20,7 @@ const newsOffRu = <String, String>{
   'notif.list.generic': 'Новое уведомление',
   'notif.list.followed_post': '{name} опубликовал(-а) новое',
   'notif.list.followed_post.many': '{name} и ещё {others} опубликовали новое',
-  // Owner 2026-10-12: «Brief» is the name of a text post, never translated.
+  // Owner 2026-10-14: the word «Brief» is gone from the UI; a text post is «Text».
   'notif.list.followed_brief': '{name} опубликовал(-а) brief',
   'notif.list.followed_brief.many': '{name} и ещё {others} опубликовали brief',
   'notif.list.new_case': 'Новый кейс по вашим практикам',
@@ -34,7 +34,7 @@ const newsOffRu = <String, String>{
 
 const newsOffEn = <String, String>{
   'feed.legalPosts': 'Legal posts',
-  'feed.briefs': 'Briefs',
+  'feed.briefs': 'Text',
   'feed.legal.all': 'All legal posts',
   'feed.legal.mine': 'Only my topics',
   'feed.legal.mineEmpty':

@@ -184,8 +184,9 @@ export class PasswordAuthService {
       await this.limit(['pwd-reset-req', 'ip', meta.ip], RESET_REQUEST_PER_IP);
     }
 
-    const user = await this.findUser(channel, identifier);
-    const target = user ? await this.resetTarget(user) : null;
+    const user =
+      channel === 'phone' ? await this.findUser(channel, identifier) : null;
+    const target = user ? this.resetTarget(user) : null;
     if (user && target) {
       await this.bans.assertAllowed({
         userId: user.id,
@@ -228,8 +229,9 @@ export class PasswordAuthService {
       );
     }
 
-    const user = await this.findUser(channel, identifier);
-    const target = user ? await this.resetTarget(user) : null;
+    const user =
+      channel === 'phone' ? await this.findUser(channel, identifier) : null;
+    const target = user ? this.resetTarget(user) : null;
     // Unknown account: the same "incorrect code" as a wrong code.
     const result = target
       ? await this.otp.verifyOtp(
@@ -347,18 +349,11 @@ export class PasswordAuthService {
 
   /** The verified e-mail when there is one (free), else the verified phone
    * (SMS — the only paid path). */
-  private async resetTarget(
+  private resetTarget(
     user: User,
-  ): Promise<{ channel: Channel; destination: string } | null> {
-    // E-mail only while the admin's e-mail flows are on (SES may not be
-    // allowed to write to any address yet); otherwise the SMS.
-    if (
-      user.email &&
-      user.email_verified_at &&
-      (await this.loginMethods.isEnabled('email'))
-    ) {
-      return { channel: 'email', destination: user.email };
-    }
+  ): { channel: Channel; destination: string } | null {
+    // Owner 2026-10-14: a forgotten password is reset by SMS only (the
+    // e-mail is an unverified profile field and nothing is ever sent to it).
     if (user.phone_e164 && user.phone_verified_at) {
       return { channel: 'phone', destination: user.phone_e164 };
     }

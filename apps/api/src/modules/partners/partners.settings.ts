@@ -96,7 +96,8 @@ export const DEFAULT_PARTNER_TEXTS: PartnerTextsByLang = {
 };
 
 export const DEFAULT_PARTNER_SETTINGS: PartnerProgramSettings = {
-  enabled: true,
+  // Owner 2026-10-14: off until the owner switches it on in the admin.
+  enabled: false,
   joinMode: 'open',
   attorneyRateCents: 5_000, // $50 per paying attorney
   clientRateCents: 1_000, // $10 per client who became active
