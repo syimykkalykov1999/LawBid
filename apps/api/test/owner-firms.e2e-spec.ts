@@ -204,11 +204,11 @@ describe('Firm profile (e2e)', () => {
 
     const client = await prisma.user.create({ data: { role: 'client' } });
     const pa = await prisma.practiceArea.upsert({
-      where: { code: 'e2e_firm_leaf' },
+      where: { code: 'firm_test_area' },
       create: {
-        code: 'e2e_firm_leaf',
+        code: 'firm_test_area',
         name_en: 'E2E firm',
-        i18n_key: 'practice.e2e_firm_leaf',
+        i18n_key: 'practice.firm_test',
         sort: 1,
       },
       update: {},
