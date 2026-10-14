@@ -99,7 +99,8 @@ abstract final class AppTheme {
         ),
         titleTextStyle:
             typography.roleTitle.copyWith(color: colors.text, fontSize: 16),
-        contentTextStyle: typography.body.copyWith(color: colors.textSecondary),
+        contentTextStyle:
+            typography.bodySmall.copyWith(color: colors.textSecondary),
         insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       ),

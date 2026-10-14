@@ -61,32 +61,41 @@ class LawBidApp extends ConsumerWidget {
       // Owner 2026-09-30: a tap on empty space anywhere hides the keyboard
       // (Instagram/YouTube behaviour). Translucent: buttons and fields
       // still get their own taps first.
-      builder: (context, child) => Directionality(
-        textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-        // Owner 2026-10-05: nothing ever sits under the Android system
-        // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
-        child: TextWarmUp(
-          child: AppBackdrop(
-            child: SystemNavBand(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-                child: AccountSuspendedGate(
-                  child: AppUpdateGate(
-                    child: child == null
-                        ? null
-                        // OQ-041: the call screen pops over any route.
-                        : CallHost(
-                            router: router,
-                            child: RouterOfflineBannerHost(
+      builder: (context, child) => MediaQuery(
+        // Owner 2026-10-14: nothing is bigger than in Instagram. The phone's
+        // font-size setting still counts, but only up to 1.1x (Instagram
+        // caps it the same way) so cards, sheets and warnings stay compact.
+        data: MediaQuery.of(context).copyWith(
+          textScaler: MediaQuery.textScalerOf(context)
+              .clamp(minScaleFactor: 0.9, maxScaleFactor: 1.1),
+        ),
+        child: Directionality(
+          textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+          // Owner 2026-10-05: nothing ever sits under the Android system
+          // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
+          child: TextWarmUp(
+            child: AppBackdrop(
+              child: SystemNavBand(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                  child: AccountSuspendedGate(
+                    child: AppUpdateGate(
+                      child: child == null
+                          ? null
+                          // OQ-041: the call screen pops over any route.
+                          : CallHost(
                               router: router,
-                              // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                              child: AccountRestrictedHost(
+                              child: RouterOfflineBannerHost(
                                 router: router,
-                                child: child,
+                                // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                                child: AccountRestrictedHost(
+                                  router: router,
+                                  child: child,
+                                ),
                               ),
                             ),
-                          ),
+                    ),
                   ),
                 ),
               ),

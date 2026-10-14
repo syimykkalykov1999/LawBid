@@ -36,15 +36,15 @@ class WizardHeading extends StatelessWidget {
           header: true,
           child: Text(
             title,
-            style: typography.titleLarge.copyWith(color: colors.text),
+            style: typography.titleMedium.copyWith(color: colors.text),
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           subtitle,
-          style: typography.body.copyWith(color: colors.textSecondary),
+          style: typography.bodySmall.copyWith(color: colors.textSecondary),
         ),
-        const SizedBox(height: AppSpacing.xl),
+        const SizedBox(height: AppSpacing.lg),
       ],
     );
   }
