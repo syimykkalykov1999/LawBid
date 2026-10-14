@@ -328,7 +328,7 @@ export class OnboardingService {
     if (me.onboarding.completedAt !== null) return;
     if (me.missing.length > 0) {
       const contactsOnly = me.missing.every(
-        (m) => m === 'phone_verified' || m === 'email_verified',
+        (m) => m === 'phone_verified' || m === 'email',
       );
       throw new ForbiddenException({
         code:
