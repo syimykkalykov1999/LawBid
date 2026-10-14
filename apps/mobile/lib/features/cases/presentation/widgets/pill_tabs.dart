@@ -138,6 +138,7 @@ class _Segment extends StatelessWidget {
                 child: AnimatedDefaultTextStyle(
                   duration: motion,
                   style: typography.button.copyWith(
+                    fontSize: 13,
                     color: onDark
                         ? (selected
                             ? Colors.white
