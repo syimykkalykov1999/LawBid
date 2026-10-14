@@ -27,7 +27,7 @@ import { seedDemoWorld } from './demo-seed';
  * Owner 2026-10-05 («Продвижение»): keeps the DEMO database alive without
  * anyone's hands (automation principle):
  *
- *  1. on boot: `CREATE DATABASE IF NOT EXISTS <db>_demo` (ignored when
+ *  1. on boot: `CREATE DATABASE <db>_demo` when missing (ignored when
  *     the app role may not — infra then creates it), connect, replay the
  *     very same Prisma migrations the real database runs (recorded in the
  *     demo database's `_prisma_migrations`, so `prisma migrate deploy`
@@ -185,9 +185,14 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       throw new Error(`invalid demo database name "${name ?? ''}"`);
     }
     try {
-      await this.realClient().$executeRawUnsafe(
-        `CREATE DATABASE IF NOT EXISTS "${name}"`,
+      // PostgreSQL has no CREATE DATABASE IF NOT EXISTS.
+      const found = await this.realClient().$queryRawUnsafe<unknown[]>(
+        `SELECT 1 FROM pg_database WHERE datname = $1`,
+        name,
       );
+      if (found.length === 0) {
+        await this.realClient().$executeRawUnsafe(`CREATE DATABASE "${name}"`);
+      }
     } catch (e) {
       // The app role may lack CREATE DATABASE in production: infra creates
       // the database (docs/ops/demo-world.md) and this is only a note.
@@ -506,7 +511,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
 
 /**
  * Splits a Prisma migration file into statements: `;` outside single
- * quotes, `$$` bodies and `--` comments ends one. Prisma's CockroachDB
+ * quotes, `$$` bodies and `--` comments ends one. Prisma's
  * migrations contain neither functions nor procedures, but the splitter
  * copes with them anyway.
  */

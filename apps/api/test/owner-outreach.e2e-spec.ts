@@ -71,6 +71,13 @@ describe('Outreach (e2e)', () => {
         },
       },
     });
+    // Owner 2026-10-14: the partner program is off by default; these suites
+    // exercise it, so they switch it on.
+    await prisma.appConfig.upsert({
+      where: { key: 'partners.program' },
+      create: { key: 'partners.program', value: { enabled: true } },
+      update: { value: { enabled: true } },
+    });
   });
 
   afterAll(async () => {

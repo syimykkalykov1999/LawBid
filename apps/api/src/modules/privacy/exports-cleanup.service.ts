@@ -30,9 +30,11 @@ export class ExportsCleanupService {
     for (;;) {
       const n = await this.prisma.$executeRaw`
         DELETE FROM stripe_webhook_events
-        WHERE processed_at IS NOT NULL AND processed_at < ${before}
-        ORDER BY processed_at
-        LIMIT 5000`;
+        WHERE ctid IN (
+          SELECT ctid FROM stripe_webhook_events
+          WHERE processed_at IS NOT NULL AND processed_at < ${before}
+          ORDER BY processed_at
+          LIMIT 5000)`;
       removed += n;
       if (n < 5000) break;
     }

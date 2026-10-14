@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { validateCaseStates } from '../src/modules/cases/domain/case-states.rule';
 
 /**
- * docs/02_DATABASE.md §8, stage 2.4 acceptance (real CockroachDB):
+ * docs/02_DATABASE.md §8, stage 2.4 acceptance (real PostgreSQL):
  * one bid per attorney per case; round_count > 5 rejected; a case can't
  * be created with > 3 states or without a primary; a case_journal row is
  * written in the same transaction as the case change. The lawbid_app

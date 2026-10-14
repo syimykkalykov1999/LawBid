@@ -7,7 +7,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15, stage 1.4 acceptance criteria — the
- * four required e2e scenarios, run against a REAL CockroachDB and REAL
+ * four required e2e scenarios, run against a REAL PostgreSQL and REAL
  * Redis (not FakeRedis/a stubbed PrismaService, unlike test/app.e2e-
  * spec.ts's stage 1.2 plumbing test): this stage's whole point is
  * Redis-backed atomicity (the OTP Lua script, the reuse-detection

@@ -18,11 +18,11 @@ import { IdentityService } from '../src/modules/auth/services/identity.service';
 /**
  * docs/02_DATABASE.md §1.4: reads exclude soft-deleted rows by default via
  * the Prisma extension (not by hand), with an explicit opt-out. Real
- * CockroachDB, the DI-provided PrismaService (the same instance every
+ * PostgreSQL, the DI-provided PrismaService (the same instance every
  * service gets), users / cases / posts / files / comments.
  */
 describe('DB soft delete (e2e) — docs/02 §1.4', () => {
-  // App boot + CockroachDB fixtures exceed Jest's 5 s default under load.
+  // App boot + PostgreSQL fixtures exceed Jest's 5 s default under load.
   jest.setTimeout(60_000);
 
   let app: INestApplication;

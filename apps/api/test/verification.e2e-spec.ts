@@ -16,7 +16,7 @@ import { SELF_ATTESTED_NOTE } from '../src/modules/verification/services/verific
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stages 3.3 (verification request API)
- * and 3.4 (checks + verifier admin API), against real CockroachDB + Redis.
+ * and 3.4 (checks + verifier admin API), against real PostgreSQL + Redis.
  *
  * 3.3 acceptance: two open requests are impossible; a request can't be
  * submitted without identity document / selfie / license; the same bar

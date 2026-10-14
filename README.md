@@ -5,7 +5,7 @@ negotiate, client accepts one bid. Attorneys pay a $399/mo subscription
 after verification to unlock client contact info and messaging.
 
 Production-grade target (not an MVP): Flutter mobile client, NestJS API,
-CockroachDB, Stripe billing, Redis/BullMQ, AWS infrastructure, built for
+PostgreSQL, Stripe billing, Redis/BullMQ, AWS infrastructure, built for
 scale (5M+ users / 500k DAU / 5k RPS design target).
 
 ## Structure

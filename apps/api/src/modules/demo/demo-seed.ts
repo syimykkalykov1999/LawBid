@@ -13,7 +13,7 @@
  *
  * Everything is built in memory first (ids generated up front), then
  * written with `createMany` in dependency order, in small chunks — no
- * single giant transaction (CockroachDB). A tiny seeded PRNG (mulberry32)
+ * single giant transaction (PostgreSQL). A tiny seeded PRNG (mulberry32)
  * makes the world look the same after every reset.
  */
 import { randomUUID } from 'node:crypto';

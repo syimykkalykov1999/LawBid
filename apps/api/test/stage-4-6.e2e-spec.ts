@@ -18,7 +18,7 @@ import {
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.6 acceptance, with an injected clock
- * (each job takes `now`), against real CockroachDB/Redis:
+ * (each job takes `now`), against real PostgreSQL/Redis:
  *  - 30 days without activity → one `case_stale_prompt`; 14 more days →
  *    `archived` (active bids rejected_auto, `case_archived`);
  *  - "Да, актуален" resets the timer (no archive after the next 14 days);

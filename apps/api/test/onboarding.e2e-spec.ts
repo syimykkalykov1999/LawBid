@@ -12,7 +12,7 @@ import { attachCleanAvatar } from './support/clean-avatar';
  * checklist: role chosen once, onboarding step resumes, client can't
  * finish without BOTH verified contacts, attorney needs a verified phone,
  * POST /cases stub returns CLIENT_CONTACTS_INCOMPLETE (item 9). Same real
- * CockroachDB/Redis setup and fixed OTP as auth.e2e-spec.ts.
+ * PostgreSQL/Redis setup and fixed OTP as auth.e2e-spec.ts.
  */
 describe('Onboarding (e2e) — stage 1.7 server side', () => {
   let app: INestApplication;

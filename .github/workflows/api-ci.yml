@@ -7,10 +7,7 @@
 # the "API contract is up to date" step below.
 #
 # Service containers mirror docker-compose.yml's dev infra:
-#   - CockroachDB v24.1.5 (single-node, insecure) — started via a manual
-#     `docker run` step, not the `services:` block, because CockroachDB's
-#     image needs a command (`start-single-node --insecure`) and GitHub
-#     Actions service containers cannot override a service image's command.
+#   - PostgreSQL 16 — a real `services:` entry (owner 2026-10-14).
 #   - Redis 7 — a real `services:` entry (its default command needs no args).
 #   - Mailhog — a real `services:` entry, for the email-OTP path some future
 #     e2e test may exercise (current e2e suite only drives the phone-OTP
@@ -51,7 +48,7 @@ jobs:
   api-ci:
     name: Lint, typecheck, unit + e2e tests
     runs-on: ubuntu-latest
-    # Two full CockroachDB migration runs (clean DB + upgrade from the
+    # Two full PostgreSQL migration runs (clean DB + upgrade from the
     # previous release) at ~10 min each, plus the e2e database.
     timeout-minutes: 45
 
@@ -62,7 +59,7 @@ jobs:
     env:
       NODE_ENV: test
       PORT: "3000"
-      DATABASE_URL: "postgresql://root@localhost:26257/lawbid_ci?sslmode=disable"
+      DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
       REDIS_URL: "redis://localhost:6379"
       SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
       JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
@@ -92,6 +89,21 @@ jobs:
       FEATURE_ATTESTATION: "false"
 
     services:
+      # Owner 2026-10-14: the whole project runs on PostgreSQL 16.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
       redis:
         image: redis:7-alpine
         ports:
@@ -116,29 +128,6 @@ jobs:
 
       - name: Install dependencies (root workspace, hoisted)
         run: npm ci
-
-      - name: Start CockroachDB v24.1.5 (matches docker-compose.yml)
-        run: |
-          docker run -d --name cockroach \
-            -p 26257:26257 -p 8080:8080 \
-            cockroachdb/cockroach:v24.1.5 start-single-node --insecure
-
-      - name: Wait for CockroachDB to be ready
-        run: |
-          for i in $(seq 1 30); do
-            if curl -sf "http://localhost:8080/health?ready=1" > /dev/null; then
-              echo "CockroachDB is ready"
-              exit 0
-            fi
-            echo "Waiting for CockroachDB... ($i/30)"
-            sleep 2
-          done
-          echo "CockroachDB did not become ready in time" >&2
-          docker logs cockroach || true
-          exit 1
-
-      - name: Create CI database
-        run: docker exec cockroach cockroach sql --insecure -e "CREATE DATABASE IF NOT EXISTS lawbid_ci"
 
       - name: Prisma generate
         working-directory: apps/api
@@ -244,7 +233,7 @@ jobs:
           for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
           echo "MinIO did not start"; cat /tmp/minio.log; exit 1
 
-      - name: e2e tests (real CockroachDB + Redis + local S3)
+      - name: e2e tests (real PostgreSQL + Redis + local S3)
         # One jest process runs every suite in turn and its heap grows past
         # node's default limit (~2 GB) around the 60th suite.
         env:

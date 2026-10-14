@@ -72,7 +72,7 @@ function anyStateOf(codes: string[]): Prisma.Sql {
  * created_at DESC) per (licensed state × practice) pair the attorney
  * holds; matches on an additional state go through `case_states
  * (state_code, case_id)`. A naive `IN (...) + EXISTS` form makes
- * CockroachDB scan every open case and every case_states row instead
+ * PostgreSQL scan every open case and every case_states row instead
  * (test/db-roles-indexes.e2e-spec.ts's comment on `visibleQuery`).
  *
  * Extended, without changing that shape, for:
@@ -91,7 +91,7 @@ function anyStateOf(codes: string[]): Prisma.Sql {
  *
  * test/stage-4-3.e2e-spec.ts imports this function directly (not a copy
  * of the SQL) so its EXPLAIN assertions cover exactly what production
- * code sends to CockroachDB.
+ * code sends to PostgreSQL.
  */
 export function buildVisibleCasesSql(
   input: VisibleCasesQueryInput,

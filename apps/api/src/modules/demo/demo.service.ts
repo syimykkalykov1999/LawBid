@@ -52,7 +52,7 @@ import {
 const DAY_MS = 86_400_000;
 const SEEN_THROTTLE_SECONDS = 600;
 /** Shown on the admin status card while the world is truncated, mirrored
- * and seeded (the first boot on CockroachDB Cloud takes several minutes). */
+ * and seeded (the first boot on PostgreSQL Cloud takes several minutes). */
 const SEEDING_REASON =
   'Демо-мир заполняется (первый раз несколько минут). Попробуйте позже.';
 

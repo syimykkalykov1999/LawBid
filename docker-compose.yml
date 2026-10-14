@@ -1,19 +1,21 @@
 # LawBid local dev infrastructure — docs/01_FOUNDATION_AUTH.md §15, stage 1.1.
-# CockroachDB single-node, Redis, MinIO (local S3), Mailhog (local SMTP/email OTP capture).
+# PostgreSQL, Redis, MinIO (local S3), Mailhog (local SMTP/email OTP capture).
 name: lawbid
 
 services:
-  cockroachdb:
-    # Owner 2026-10-02: v25.3 — the owner's restored data was written by it.
-    image: cockroachdb/cockroach:v25.3.0
-    command: start-single-node --insecure
+  postgres:
+    # Owner 2026-10-14: PostgreSQL 16 for everything (dev, CI, prod).
+    image: postgres:16
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: lawbid
+      POSTGRES_DB: lawbid
     ports:
-      - "26257:26257" # SQL
-      - "8080:8080"   # DB console
+      - "5432:5432"
     volumes:
-      - cockroach-data:/cockroach/cockroach-data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
+      test: ["CMD-SHELL", "pg_isready -U root -d lawbid"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -75,6 +77,6 @@ services:
       - "49160-49200:49160-49200/udp"
 
 volumes:
-  cockroach-data:
+  postgres-data:
   redis-data:
   minio-data:

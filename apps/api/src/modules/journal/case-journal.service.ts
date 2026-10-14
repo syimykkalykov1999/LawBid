@@ -84,12 +84,12 @@ type JournalReader = Pick<Prisma.TransactionClient, 'caseJournal'>;
  * row_hash = SHA-256(prev_hash + canonical JSON of the row), so any later
  * edit, deletion or reordering is detectable by verifyChain().
  *
- * Per-case serialization (safe on CockroachDB): append() first takes
+ * Per-case serialization (safe on PostgreSQL): append() first takes
  * `SELECT ... FOR UPDATE` on the case's `cases` row — the journal row
  * itself can't be locked (lawbid_app has no UPDATE on case_journal, and
  * the first row doesn't exist yet) — so two transactions appending to the
  * same case run one after the other and each sees the other's tail. Under
- * CockroachDB SERIALIZABLE the read of the tail would already conflict;
+ * PostgreSQL SERIALIZABLE the read of the tail would already conflict;
  * the lock turns that retry into a wait. created_at is made strictly
  * increasing within a case, so "last row" is unambiguous.
  */

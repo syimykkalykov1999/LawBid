@@ -10,7 +10,7 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
  * БД отражается в приложении без релиза" (docs/01_FOUNDATION_AUTH.md §15
  * stage 1.8 acceptance) true in practice: an already-cached flag set is
  * stale for at most this long, then a bootstrap call reads through to
- * Postgres/CockroachDB again. Short enough that a manually-toggled flag
+ * Postgres again. Short enough that a manually-toggled flag
  * shows up well within a minute; long enough that a burst of concurrent
  * `/config/bootstrap` calls (e.g. many clients cold-starting at once)
  * hits Redis, not the DB, for all but one of them. */

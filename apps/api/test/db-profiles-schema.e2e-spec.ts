@@ -2,11 +2,11 @@ import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 /**
- * docs/02_DATABASE.md §8, stage 2.3 acceptance (real CockroachDB): one
+ * docs/02_DATABASE.md §8, stage 2.3 acceptance (real PostgreSQL): one
  * state bar_number can't belong to two attorneys; username_lower is
  * unique regardless of case. Plus the §4.C length CHECKs.
  */
-// 23514 = check_violation (CockroachDB reports the expression, not the
+// 23514 = check_violation (PostgreSQL reports the expression, not the
 // constraint name).
 describe('DB schema — stage 2.3 acceptance', () => {
   const prisma = new PrismaClient();

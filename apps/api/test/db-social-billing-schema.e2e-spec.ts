@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 /**
- * docs/02_DATABASE.md §8, stage 2.5 acceptance (real CockroachDB):
+ * docs/02_DATABASE.md §8, stage 2.5 acceptance (real PostgreSQL):
  * client_message_id is unique per sender in a conversation;
  * stripe_webhook_events rejects a repeated event; a repeated like
  * doesn't create a duplicate. Plus follows self-CHECK.

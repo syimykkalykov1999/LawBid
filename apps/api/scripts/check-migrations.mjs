@@ -13,7 +13,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const BASELINE = '20261005170000_owner_case_urgency_deadline';
+const BASELINE = '20261014100000_postgres_baseline';
 const dir = join(import.meta.dirname, '..', 'prisma', 'migrations');
 
 const RULES = [

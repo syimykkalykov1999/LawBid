@@ -16,7 +16,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 /**
  * Cost protection (owner-approved extension 2026-09-27, docs/
- * OPEN_QUESTIONS.md) against REAL CockroachDB + Redis (DB 15, isolated
+ * OPEN_QUESTIONS.md) against REAL PostgreSQL + Redis (DB 15, isolated
  * throwaway database — test/support/*). Proves what the unit spec can't:
  * the Lua script's atomicity / no-over-increment / once-per-window
  * alerts, app_config-driven caps, US-only SMS, per-device and per-user

@@ -2,7 +2,7 @@ import {
   PrismaClientKnownRequestError,
   PrismaClientUnknownRequestError,
 } from '@prisma/client/runtime/library';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { PrismaService } from './prisma.service';
 import pino from 'pino';
 
@@ -15,9 +15,10 @@ const retryLog = pino({
 
 /**
  * docs/06_PRODUCTION.md §12 (.cursorrules): "Транзакции с несколькими
- * записями только через withTxRetry(); короткие." CockroachDB uses
- * SERIALIZABLE isolation and can abort a transaction under contention with
- * SQLSTATE 40001 ("restart transaction") — the client is expected to retry.
+ * записями только через withTxRetry(); короткие." Every transaction here runs
+ * SERIALIZABLE (what the code was written against; PostgreSQL's default is
+ * READ COMMITTED) and PostgreSQL can abort one under contention with
+ * SQLSTATE 40001 — the client is expected to retry.
  * This wraps prisma.$transaction with bounded retries + jittered backoff
  * for exactly that case. Any other error rethrows immediately.
  *
@@ -34,7 +35,7 @@ export interface TxRetryOptions {
   timeoutMs?: number;
 }
 
-const COCKROACH_SERIALIZATION_FAILURE = '40001';
+const SERIALIZATION_FAILURE = '40001';
 
 export async function withTxRetry<T>(
   prisma: PrismaService,
@@ -50,12 +51,12 @@ export async function withTxRetry<T>(
   while (true) {
     attempt += 1;
     try {
-      return await prisma.$transaction(
-        fn,
-        options.timeoutMs
+      return await prisma.$transaction(fn, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        ...(options.timeoutMs
           ? { timeout: options.timeoutMs, maxWait: 10_000 }
-          : undefined,
-      );
+          : {}),
+      });
     } catch (error) {
       if (!isSerializationFailure(error) || attempt >= maxAttempts) {
         throw error;
@@ -74,12 +75,10 @@ export async function withTxRetry<T>(
 function isSerializationFailure(error: unknown): boolean {
   if (error instanceof PrismaClientKnownRequestError) {
     const meta = error.meta as { code?: string } | undefined;
-    return (
-      error.code === 'P2034' || meta?.code === COCKROACH_SERIALIZATION_FAILURE
-    );
+    return error.code === 'P2034' || meta?.code === SERIALIZATION_FAILURE;
   }
   if (error instanceof PrismaClientUnknownRequestError) {
-    return error.message.includes(COCKROACH_SERIALIZATION_FAILURE);
+    return error.message.includes(SERIALIZATION_FAILURE);
   }
   return false;
 }

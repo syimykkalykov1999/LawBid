@@ -16,7 +16,7 @@ import { JournalIntegrityService } from '../src/modules/privacy/journal-integrit
 import { JournalRetentionService } from '../src/modules/privacy/journal-retention.service';
 
 /**
- * docs/06 §5 / §13 stage 6.9 acceptance, against real CockroachDB / Redis /
+ * docs/06 §5 / §13 stage 6.9 acceptance, against real PostgreSQL / Redis /
  * MinIO:
  *  - after anonymization the DB holds no name/email/phone/document files
  *    of the user, the journal stays;
@@ -302,7 +302,7 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
         expect(row.deleted_at).not.toBeNull();
       }
       const [p] = await prisma.$queryRaw<{ status: string }[]>`
-        SELECT status::STRING AS status FROM posts WHERE id = ${post.id}::UUID`;
+        SELECT status::TEXT AS status FROM posts WHERE id = ${post.id}::UUID`;
       expect(p.status).toBe('removed');
       const m = await prisma.message.findUniqueOrThrow({
         where: { id: message.id },

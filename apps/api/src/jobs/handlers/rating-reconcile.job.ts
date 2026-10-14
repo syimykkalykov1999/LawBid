@@ -73,7 +73,7 @@ export class RatingReconcileJob {
           WHERE ap.user_id = d.user_id
           RETURNING ap.user_id
         )
-        SELECT (SELECT max(user_id) FROM batch)::TEXT AS last_id,
+        SELECT (SELECT user_id FROM batch ORDER BY user_id DESC LIMIT 1)::TEXT AS last_id,
                (SELECT count(*) FROM batch) AS scanned,
                (SELECT count(*) FROM fixed) AS fixed`);
 

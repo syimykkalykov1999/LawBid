@@ -15,7 +15,7 @@ const MIGRATIONS_DIR = join(__dirname, '../../prisma/migrations');
 
 // The e2e database is named after a hash of every migration, so it is
 // reused (and only emptied) while migrations are unchanged, and rebuilt
-// when they change. Migrating a fresh CockroachDB takes minutes — every
+// when they change. Migrating a fresh PostgreSQL takes minutes — every
 // DDL statement is a schema-change job — while TRUNCATE takes seconds.
 function migrationsHash(): { hash: string; count: number } {
   const dirs = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
@@ -45,15 +45,15 @@ export default async function globalSetup(): Promise<void> {
 
   const admin = new PrismaClient({ datasourceUrl: databaseUrl });
   const existing = await admin.$queryRaw<{ database_name: string }[]>`
-    SELECT database_name FROM [SHOW DATABASES]
-    WHERE database_name LIKE ${`${prefix}%`}`;
+    SELECT datname AS database_name FROM pg_database
+    WHERE datname LIKE ${`${prefix.replace(/[_%]/g, '\\$&')}%`}`;
   for (const { database_name } of existing) {
     // Only this run's own family (same isolation tag, older hash) is
     // dropped; an untagged run never touches tagged databases.
     const rest = database_name.slice(prefix.length);
     if (database_name !== dbName && /^[0-9a-f]{12}$/.test(rest)) {
       await admin.$executeRawUnsafe(
-        `DROP DATABASE IF EXISTS "${database_name}" CASCADE`,
+        `DROP DATABASE IF EXISTS "${database_name}" WITH (FORCE)`,
       );
     }
   }
@@ -69,7 +69,9 @@ export default async function globalSetup(): Promise<void> {
       const tables = await db.$queryRaw<{ table_name: string }[]>`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-          AND table_name <> '_prisma_migrations'`;
+          AND table_name NOT IN ('_prisma_migrations', 'countries')`;
+      // `countries` is reference data the baseline migration inserts
+      // (regions point at it); the suites never change it, so it stays.
       await db.$executeRawUnsafe(
         `TRUNCATE ${tables.map((t) => `"${t.table_name}"`).join(', ')} CASCADE`,
       );
@@ -77,7 +79,7 @@ export default async function globalSetup(): Promise<void> {
     await db.$disconnect();
     if (!ready) {
       // Half-migrated leftover of an interrupted run: rebuild it.
-      await admin.$executeRawUnsafe(`DROP DATABASE "${dbName}" CASCADE`);
+      await admin.$executeRawUnsafe(`DROP DATABASE "${dbName}" WITH (FORCE)`);
     }
   }
   if (!ready) {

@@ -10,7 +10,7 @@ import { CaseHistoryExportRunner } from '../src/modules/case-history/case-histor
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.7 acceptance, against real
- * CockroachDB/Redis/MinIO:
+ * PostgreSQL/Redis/MinIO:
  *  - without reauthToken → REAUTH_REQUIRED;
  *  - deleting a case from the feed does not remove it from the history;
  *  - an attorney sees the client's name only after contacts were

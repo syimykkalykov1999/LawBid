@@ -41,7 +41,7 @@ interface BatchRow {
  * Walks the table in primary-key order in fixed-size batches instead of
  * relying on an index over expires_at: sessions is a high-write table and
  * expires_at is monotonic, so a plain index on it would be a write
- * hot-spot (§1.1) — the same trade-off CockroachDB's own row-level TTL
+ * hot-spot (§1.1) — the same trade-off a row-level TTL
  * makes. Each batch is one statement: scan ≤ N rows by PK range, delete
  * the doomed ones among them. push_tokens rows go with their session
  * (FK ON DELETE CASCADE, stage 2.5).
@@ -88,7 +88,7 @@ export class SessionsCleanupJob {
           )
           RETURNING id
         )
-        SELECT (SELECT max(id) FROM batch)::TEXT AS last_id,
+        SELECT (SELECT id FROM batch ORDER BY id DESC LIMIT 1)::TEXT AS last_id,
                (SELECT count(*) FROM batch) AS scanned,
                (SELECT count(*) FROM doomed) AS deleted`);
 

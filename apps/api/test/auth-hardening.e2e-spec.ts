@@ -49,7 +49,7 @@ const FIXED_CODE = '000000';
 /**
  * Ledger leaf-1.2 G2 — docs/01 §10.3 (blocked accounts), §10.4 (refresh),
  * §10.2 E (email magic link), §10.6 (login flags, new-device alert,
- * device integrity), §10.2 G (social token nonce). Real CockroachDB +
+ * device integrity), §10.2 G (social token nonce). Real PostgreSQL +
  * Redis (isolated per E2E_ISOLATION), only the outbound email provider,
  * Google's JWKS signature check and the App Attest verifier are faked.
  */
