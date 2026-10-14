@@ -7,7 +7,7 @@
 
 const planRu = <String, String>{
   'error.api.BAR_NUMBER_FORMAT_INVALID':
-      'Номер не похож на номер адвоката этого штата. Введите его так, как он указан в коллегии штата.',
+      'Номер не найден для этого штата.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Слишком много неверных номеров. Попробуйте позже.',
   'error.api.BID_LICENSE_PENDING':
@@ -101,7 +101,7 @@ const planRu = <String, String>{
 
 const planEn = <String, String>{
   'error.api.BAR_NUMBER_FORMAT_INVALID':
-      'This does not look like a bar number of this state. Enter it exactly as the state bar lists it.',
+      'Bar number not found for this state.',
   'error.api.BAR_ATTEMPTS_COOLDOWN':
       'Too many wrong bar numbers. Try again later.',
   'error.api.BID_LICENSE_PENDING':

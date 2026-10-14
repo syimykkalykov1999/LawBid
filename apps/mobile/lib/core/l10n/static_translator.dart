@@ -708,7 +708,7 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.license.state.placeholder': 'Выберите штат',
         'verification.license.state.required': 'Выберите штат.',
         'verification.license.barNumber': 'Номер лицензии (bar number)',
-        'verification.license.barNumber.hint': 'например, 1234567',
+        'verification.license.barNumber.hint': 'Номер лицензии',
         'verification.license.barNumber.helper':
             'Буквы и цифры, как в лицензии.',
         'verification.license.barNumber.invalid':
@@ -2117,7 +2117,7 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.license.state.placeholder': 'Choose a state',
         'verification.license.state.required': 'Choose a state.',
         'verification.license.barNumber': 'Bar number',
-        'verification.license.barNumber.hint': 'e.g. 1234567',
+        'verification.license.barNumber.hint': 'License number',
         'verification.license.barNumber.helper':
             'Letters and digits as on your license.',
         'verification.license.barNumber.invalid':

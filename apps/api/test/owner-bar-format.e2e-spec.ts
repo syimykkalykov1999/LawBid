@@ -114,10 +114,8 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
     const bad = await add(a, 'MI', '12345');
     expect(bad.status).toBe(400);
     expect(bad.body.error.code).toBe('BAR_NUMBER_FORMAT_INVALID');
-    expect(bad.body.error.details).toMatchObject({
-      stateCode: 'MI',
-      example: 'P12345',
-    });
+    // Owner 2026-10-14: the shape is never revealed to the client.
+    expect(bad.body.error.details).toEqual({ stateCode: 'MI' });
     const ok = await add(a, 'MI', 'p-12345');
     expect(ok.status).toBe(201);
     const row = await prisma.attorneyLicense.findFirstOrThrow({

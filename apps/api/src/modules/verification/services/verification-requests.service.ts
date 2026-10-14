@@ -252,10 +252,10 @@ export class VerificationRequestsService {
             : ErrorCode.BAR_NUMBER_FORMAT_INVALID,
           cooldown > 0
             ? 'Too many wrong bar numbers. Try again later.'
-            : 'This does not look like a bar number of this state.',
+            : 'Bar number not found for this state.',
           cooldown > 0
             ? { retryAfterSeconds: cooldown }
-            : { stateCode: dto.stateCode, example: shape.example },
+            : { stateCode: dto.stateCode },
         );
       }
       dto = { ...dto, barNumber: shape.normalized };
