@@ -880,18 +880,23 @@ class RecommendedAttorneys extends ConsumerWidget {
             ],
           ),
         ),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding:
-              const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final r in rows) ...[
-                RecommendedTile(key: ValueKey('rec-${r.id}'), row: r),
-                const SizedBox(width: AppSpacing.sm),
-              ],
-            ],
+        // Lazy: only the tiles on screen are built and laid out (ten tiles
+        // at once cost ~15 ms on the first open of Search).
+        SizedBox(
+          height: RecommendedTile.height,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+            itemExtent: 132 + AppSpacing.sm,
+            itemCount: rows.length,
+            itemBuilder: (context, i) => Padding(
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+              child: RecommendedTile(
+                key: ValueKey('rec-${rows[i].id}'),
+                row: rows[i],
+              ),
+            ),
           ),
         ),
       ],
