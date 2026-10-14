@@ -483,6 +483,10 @@ export class SearchService {
     const rows = await this.prisma.post.findMany({
       where: {
         AND: [
+          // Every filter (visibility, blocks, state, qualification, tag, kind,
+          // period...) — the refactor of e4b29dba dropped `base` here, so the
+          // newest / popular lists ignored all of them.
+          ...base,
           ...(c
             ? [
                 {
