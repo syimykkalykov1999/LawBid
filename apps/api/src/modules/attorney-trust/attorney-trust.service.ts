@@ -387,6 +387,38 @@ export class AttorneyTrustService {
     return row !== null;
   }
 
+  /** One rule-change notice per attorney: the check and the emit run one
+   * after another per attorney, so a preset's background recompute and an
+   * explicit one racing each other cannot both send it. */
+  private readonly telling = new Map<string, Promise<void>>();
+
+  private tellRequirementsOnce(
+    attorneyId: string,
+    missing: string[],
+  ): Promise<void> {
+    const prev = this.telling.get(attorneyId) ?? Promise.resolve();
+    const next = prev
+      .catch(() => undefined)
+      .then(async () => {
+        if (await this.recentlyToldRequirements(attorneyId)) return;
+        await this.notifications.emit({
+          type: 'verification_update',
+          recipientId: attorneyId,
+          payload: {
+            kind: TRUST_NOTIFICATION_KIND.requirementsChanged,
+            missing,
+          },
+        });
+      })
+      .finally(() => {
+        if (this.telling.get(attorneyId) === next) {
+          this.telling.delete(attorneyId);
+        }
+      });
+    this.telling.set(attorneyId, next);
+    return next;
+  }
+
   /** Nightly safety net and the admin's "recompute everyone". */
   async recomputeAll(
     batch = 200,
@@ -417,17 +449,9 @@ export class AttorneyTrustService {
             opts.notifyNewlyRequired &&
             r.trust_badge &&
             !snap.badge &&
-            snap.missing.length > 0 &&
-            !(await this.recentlyToldRequirements(r.user_id))
+            snap.missing.length > 0
           ) {
-            await this.notifications.emit({
-              type: 'verification_update',
-              recipientId: r.user_id,
-              payload: {
-                kind: TRUST_NOTIFICATION_KIND.requirementsChanged,
-                missing: snap.missing,
-              },
-            });
+            await this.tellRequirementsOnce(r.user_id, snap.missing);
           }
         }
       }
