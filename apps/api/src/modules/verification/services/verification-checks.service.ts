@@ -1,4 +1,5 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { BarAttemptsService } from './bar-attempts.service';
+import { HttpException, Injectable, Optional } from '@nestjs/common';
 import type {
   AttorneyLicense,
   Prisma,
@@ -52,6 +53,8 @@ export class VerificationChecksService {
     private readonly notifications: NotificationsService,
     private readonly trust: AttorneyTrustService,
     private readonly logger: PinoLogger,
+    // Owner 2026-10-14: a registry miss counts as a wrong number.
+    @Optional() private readonly attempts?: BarAttemptsService,
   ) {
     this.logger.setContext(VerificationChecksService.name);
   }
@@ -229,7 +232,9 @@ export class VerificationChecksService {
           firstName: request.attorney.user.first_name ?? '',
           lastName: request.attorney.user.last_name ?? '',
         });
-        await this.applyRegistryFlag(license.id, outcome);
+        const flag = await this.applyRegistryFlag(license.id, outcome);
+        if (flag) await this.attempts?.recordFailure(license.attorney_id);
+        else if (flag === null) await this.attempts?.reset(license.attorney_id);
       }
     } catch (err) {
       this.logger.warn(

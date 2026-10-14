@@ -1,3 +1,4 @@
+import { DEFAULT_BAR_FORMATS } from '../../src/modules/verification/bar-number-format';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -96,6 +97,30 @@ export default async function globalSetup(): Promise<void> {
     await db.featureFlag.deleteMany({ where: { key: 'email_login' } });
     await db.$disconnect();
   }
+  // Owner 2026-10-14: production sends offers only after the licence is
+  // confirmed (`trust.bids_require_cleared`); the suites place offers
+  // without a registry, so they start with the gate open. The suites about
+  // the gate itself switch it on explicitly.
+  const seed = new PrismaClient({ datasourceUrl: url });
+  await seed.appConfig.upsert({
+    where: { key: 'trust.bids_require_cleared' },
+    create: { key: 'trust.bids_require_cleared', value: false },
+    update: { value: false },
+  });
+  // Bar numbers: the suites type arbitrary ones, so every listed state
+  // accepts any 3+ letters / digits here; the format suite sets its own.
+  const loose = Object.fromEntries(
+    Object.keys(DEFAULT_BAR_FORMATS).map((state) => [
+      state,
+      { pattern: '^[A-Z0-9]{3,32}$', example: 'ABC123' },
+    ]),
+  );
+  await seed.appConfig.upsert({
+    where: { key: 'verification.bar_formats' },
+    create: { key: 'verification.bar_formats', value: JSON.stringify(loose) },
+    update: { value: JSON.stringify(loose) },
+  });
+  await seed.$disconnect();
   await admin.$disconnect();
 
   process.env.E2E_DATABASE_URL = url;

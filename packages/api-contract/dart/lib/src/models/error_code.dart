@@ -366,6 +366,12 @@ enum ErrorCode {
   bidMonthlyLimitReached('BID_MONTHLY_LIMIT_REACHED'),
   @JsonValue('BID_TRIAL_LIMIT_REACHED')
   bidTrialLimitReached('BID_TRIAL_LIMIT_REACHED'),
+  @JsonValue('BAR_NUMBER_FORMAT_INVALID')
+  barNumberFormatInvalid('BAR_NUMBER_FORMAT_INVALID'),
+  @JsonValue('BID_LICENSE_PENDING')
+  bidLicensePending('BID_LICENSE_PENDING'),
+  @JsonValue('BAR_ATTEMPTS_COOLDOWN')
+  barAttemptsCooldown('BAR_ATTEMPTS_COOLDOWN'),
   @JsonValue('CASE_LIMIT_REACHED')
   caseLimitReached('CASE_LIMIT_REACHED'),
   @JsonValue('PLAN_NOT_AVAILABLE')

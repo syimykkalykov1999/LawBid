@@ -696,7 +696,7 @@ export class VerificationAdminService {
     const rows = await this.prisma.attorneyLicense.findMany({
       where: { registry_flag: { not: null } },
       orderBy: [{ registry_flagged_at: 'desc' }, { id: 'asc' }],
-      take: limit,
+      take: Math.max(limit, 500),
       include: {
         state: true,
         attorney: {
@@ -711,7 +711,13 @@ export class VerificationAdminService {
         },
       },
     });
-    return rows.map((l) => ({
+    // Owner 2026-10-14: the riskiest first — a number the registry does
+    // not know, then a different name, then a lapsed licence; newest first
+    // inside a group (the query order is kept by the stable sort).
+    const risk = (flag: string | null) =>
+      flag === 'not_found' ? 3 : flag === 'name_mismatch' ? 2 : 1;
+    rows.sort((x, y) => risk(y.registry_flag) - risk(x.registry_flag));
+    return rows.slice(0, limit).map((l) => ({
       attorney: {
         id: l.attorney.user_id,
         firstName: l.attorney.user.first_name,

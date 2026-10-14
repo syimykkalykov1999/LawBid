@@ -224,7 +224,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     return id;
   }
 
-  const barNumber = () => `B${randomUUID().slice(0, 10).toUpperCase()}`;
+  const barNumber = () =>
+    `B${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
 
   async function createDraft(auth: Record<string, string>): Promise<string> {
     const res = await api()

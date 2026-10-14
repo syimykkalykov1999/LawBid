@@ -5,6 +5,17 @@
 // or has the wrong type.
 export const FILE_03_SETTINGS = {
   'verification.max_submissions_30d': 5,
+  /** Owner 2026-10-14: wrong bar numbers in a row before a cooldown. */
+  'verification.bar_fails_per_step': 3,
+  /** Cooldowns after each series of wrong numbers, hours, comma list; the
+   * last one repeats. Never a permanent block. */
+  'verification.bar_cooldown_hours': '1,12,24',
+  /** Days without a wrong number after which the counter starts over. */
+  'verification.bar_fail_reset_days': 7,
+  /** Bar number format per state (JSON: {"NY":{"pattern":"^\\d{4,7}$",
+   * "example":"1234567"}}); a state not listed only needs 4+ characters with
+   * at least 3 digits. */
+  'verification.bar_formats': '',
   'verification.signed_url_ttl_sec': 300,
   'verification.license_expiry_notify_days': [30, 7],
   'profile.username_change_cooldown_days': 30,
@@ -211,9 +222,10 @@ export const OWNER_TRUST_SETTINGS = {
   'trust.require_identity': true,
   /** Staff checked a government ID + selfie + bar card. */
   'trust.require_documents': false,
-  /** Bids too wait for the requirements (default: bids are open to every
-   * self-attested attorney, only money and the badge wait). */
-  'trust.bids_require_cleared': false,
+  /** Bids wait for the LICENCE (a registry match or a staff confirmation);
+   * identity and documents only gate money and the badge. Owner
+   * 2026-10-14: on — a pending lawyer may browse and prepare, not send. */
+  'trust.bids_require_cleared': true,
   /** Stripe payout delay (days) asked for attorneys not yet cleared; 0 =
    * Stripe's default. */
   'trust.payout_delay_days': 7,

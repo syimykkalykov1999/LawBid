@@ -1404,16 +1404,32 @@ export class AttorneyTrustService {
     const staffCleared = trust.staff_cleared_at !== null;
     const missing = missingRequirements(s, requirements);
     const cleared = isCleared(s, requirements, staffCleared);
-    const gate = (needsCleared: boolean, hold: string | null): TrustGate => {
-      if (suspended) return closed('suspended', missing, level);
+    // Owner 2026-10-14: for BIDS only the licence counts (a registry match
+    // or a staff confirmation) — identity and documents stay for money and
+    // the badge, so a lawyer is not kept from bidding by a KYC step.
+    const bidRequirements: TrustRequirements = {
+      registry: requirements.registry,
+      identity: false,
+      documents: false,
+    };
+    const bidMissing = missingRequirements(s, bidRequirements);
+    const bidCleared = isCleared(s, bidRequirements, staffCleared);
+    const gate = (
+      needsCleared: boolean,
+      hold: string | null,
+      forBids = false,
+    ): TrustGate => {
+      const gateMissing = forBids ? bidMissing : missing;
+      const gateCleared = forBids ? bidCleared : cleared;
+      if (suspended) return closed('suspended', gateMissing, level);
       // Master switch off: the pre-trust mode — holds and requirements
       // stay recorded but close nothing.
       if (!enabled) {
         return { ok: true, reason: null, missing: [], current: level, hold };
       }
-      if (hold) return { ...closed('hold', missing, level), hold };
-      if (needsCleared && !cleared)
-        return closed('requirements', missing, level);
+      if (hold) return { ...closed('hold', gateMissing, level), hold };
+      if (needsCleared && !gateCleared)
+        return closed('requirements', gateMissing, level);
       return {
         ok: true,
         reason: null,
@@ -1450,7 +1466,7 @@ export class AttorneyTrustService {
         note: trust.hold_note,
       },
       gates: {
-        bids: gate(bidsRequireCleared, trust.bids_hold),
+        bids: gate(bidsRequireCleared, trust.bids_hold, true),
         payments: gate(true, trust.payments_hold),
       },
       requirements,
@@ -1992,6 +2008,16 @@ function throwIfClosed(gate: TrustGate, which: 'bids' | 'payments'): void {
     throw new ForbiddenException({
       code: ErrorCode.ATTORNEY_SUSPENDED,
       message: 'Your profile is suspended.',
+    });
+  }
+  // Owner 2026-10-14: a lawyer whose licence is not confirmed yet may
+  // browse and prepare, but sending waits for the confirmation.
+  if (which === 'bids') {
+    throw new ForbiddenException({
+      code: ErrorCode.BID_LICENSE_PENDING,
+      message:
+        'Your licence is being checked. You can browse cases and prepare an offer; sending opens once it is confirmed.',
+      details: { gate: which, missing: gate.missing, current: gate.current },
     });
   }
   throw new ForbiddenException({

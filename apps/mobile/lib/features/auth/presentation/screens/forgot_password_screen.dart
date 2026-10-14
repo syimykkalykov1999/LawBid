@@ -99,9 +99,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final t = ref.watch(translatorProvider);
     return PasswordFormScaffold(
       title: t.t('auth.forgot.title'),
-      subtitle: _codeStep
-          ? t.t('auth.forgot.sentPhone')
-          : t.t('auth.forgot.body'),
+      subtitle:
+          _codeStep ? t.t('auth.forgot.sentPhone') : t.t('auth.forgot.body'),
       onBack: () {
         if (_codeStep && !_busy) {
           setState(() {

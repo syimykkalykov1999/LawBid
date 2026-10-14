@@ -6,6 +6,12 @@
 // apps/api/prisma/seed/translations_seed.xlsx.
 
 const planRu = <String, String>{
+  'error.api.BAR_NUMBER_FORMAT_INVALID':
+      'Номер не похож на номер адвоката этого штата. Введите его так, как он указан в коллегии штата.',
+  'error.api.BAR_ATTEMPTS_COOLDOWN':
+      'Слишком много неверных номеров. Попробуйте позже.',
+  'error.api.BID_LICENSE_PENDING':
+      'Лицензия на проверке. Пока можно смотреть кейсы и готовить отклик, а отправка откроется после подтверждения.',
   'packs.title': 'Пакеты откликов',
   'packs.hint': 'Докупите отклики сверх лимита плана',
   'packs.balance': 'Куплено откликов: {n}',
@@ -94,6 +100,12 @@ const planRu = <String, String>{
 };
 
 const planEn = <String, String>{
+  'error.api.BAR_NUMBER_FORMAT_INVALID':
+      'This does not look like a bar number of this state. Enter it exactly as the state bar lists it.',
+  'error.api.BAR_ATTEMPTS_COOLDOWN':
+      'Too many wrong bar numbers. Try again later.',
+  'error.api.BID_LICENSE_PENDING':
+      'Your licence is being checked. You can browse cases and prepare an offer; sending opens once it is confirmed.',
   'packs.title': 'Offer packs',
   'packs.hint': 'Buy extra offers on top of your plan',
   'packs.balance': 'Offers bought: {n}',

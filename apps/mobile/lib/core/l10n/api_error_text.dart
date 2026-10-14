@@ -166,6 +166,12 @@ const _keys = <String, String>{
   ApiErrorCodes.conversationClosed: 'error.api.CONVERSATION_CLOSED',
   ApiErrorCodes.messageTooLong: 'error.api.MESSAGE_TOO_LONG',
   ApiErrorCodes.featureDisabled: 'error.api.FEATURE_DISABLED',
+  ApiErrorCodes.bidLimitReached: 'error.api.BID_LIMIT_REACHED',
+  ApiErrorCodes.bidMonthlyLimitReached: 'error.api.BID_MONTHLY_LIMIT_REACHED',
+  ApiErrorCodes.bidTrialLimitReached: 'error.api.BID_TRIAL_LIMIT_REACHED',
+  ApiErrorCodes.barNumberFormatInvalid: 'error.api.BAR_NUMBER_FORMAT_INVALID',
+  ApiErrorCodes.barAttemptsCooldown: 'error.api.BAR_ATTEMPTS_COOLDOWN',
+  ApiErrorCodes.bidLicensePending: 'error.api.BID_LICENSE_PENDING',
   ApiErrorCodes.searchQueryTooShort: 'error.api.SEARCH_QUERY_TOO_SHORT',
   ApiErrorCodes.userBlocked: 'error.api.USER_BLOCKED',
   // Audit 2026-10-02: calls answered elsewhere / already gone.

@@ -235,6 +235,9 @@ abstract final class ApiErrorCodes {
   static const bidLimitReached = 'BID_LIMIT_REACHED';
   static const bidMonthlyLimitReached = 'BID_MONTHLY_LIMIT_REACHED';
   static const bidTrialLimitReached = 'BID_TRIAL_LIMIT_REACHED';
+  static const barNumberFormatInvalid = 'BAR_NUMBER_FORMAT_INVALID';
+  static const barAttemptsCooldown = 'BAR_ATTEMPTS_COOLDOWN';
+  static const bidLicensePending = 'BID_LICENSE_PENDING';
   static const caseLimitReached = 'CASE_LIMIT_REACHED';
   static const planNotAvailable = 'PLAN_NOT_AVAILABLE';
   static const planCodeExists = 'PLAN_CODE_EXISTS';
@@ -439,6 +442,9 @@ abstract final class ApiErrorCodes {
     bidLimitReached,
     bidMonthlyLimitReached,
     bidTrialLimitReached,
+    barNumberFormatInvalid,
+    barAttemptsCooldown,
+    bidLicensePending,
     caseLimitReached,
     planNotAvailable,
     planCodeExists,

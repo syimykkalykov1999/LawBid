@@ -89,11 +89,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     if (_loading || !_more) return;
     setState(() => _loading = true);
     try {
-      final page =
-          await ref.read(reelsRepositoryProvider).reels(
-        cursor: _cursor,
-        practice: widget.practice,
-      );
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            cursor: _cursor,
+            practice: widget.practice,
+          );
       final seen = _items.map((p) => p.id).toSet();
       setState(() {
         _items.addAll(page.items.where((p) => !seen.contains(p.id)));

@@ -1,5 +1,7 @@
+import { BarAttemptsService } from './bar-attempts.service';
+import { checkBarNumber, resolveFormats } from '../bar-number-format';
 import { notAvailable } from '../../countries/countries.service';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import {
   Prisma,
   type VerificationDocType,
@@ -87,6 +89,8 @@ export class VerificationRequestsService {
     private readonly checks: VerificationChecksService,
     private readonly trust: AttorneyTrustService,
     private readonly blocks: BarNumberBlocksService,
+    // Owner 2026-10-14: the number's shape and the stepped cooldown.
+    @Optional() private readonly attempts?: BarAttemptsService,
   ) {}
 
   /**
@@ -219,8 +223,43 @@ export class VerificationRequestsService {
     userId: string,
     requestId: string,
     dto: AddLicenseDto,
+    ip?: string,
   ): Promise<VerificationRequestDto> {
     await this.requireActiveAttorney(userId);
+    // Owner 2026-10-14: cooling down after wrong numbers, then the state's
+    // own shape — a number that does not fit never reaches a reviewer.
+    if (this.attempts) {
+      const wait = await this.attempts.remainingSeconds(userId, ip);
+      if (wait > 0) {
+        throw httpError(
+          HttpStatus.TOO_MANY_REQUESTS,
+          ErrorCode.BAR_ATTEMPTS_COOLDOWN,
+          'Too many wrong bar numbers. Try again later.',
+          { retryAfterSeconds: wait },
+        );
+      }
+      const shape = checkBarNumber(
+        dto.stateCode,
+        dto.barNumber,
+        resolveFormats(await this.settings.string('verification.bar_formats')),
+      );
+      if (!shape.ok) {
+        const cooldown = await this.attempts.recordFailure(userId, ip);
+        throw httpError(
+          cooldown > 0 ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_REQUEST,
+          cooldown > 0
+            ? ErrorCode.BAR_ATTEMPTS_COOLDOWN
+            : ErrorCode.BAR_NUMBER_FORMAT_INVALID,
+          cooldown > 0
+            ? 'Too many wrong bar numbers. Try again later.'
+            : 'This does not look like a bar number of this state.',
+          cooldown > 0
+            ? { retryAfterSeconds: cooldown }
+            : { stateCode: dto.stateCode, example: shape.example },
+        );
+      }
+      dto = { ...dto, barNumber: shape.normalized };
+    }
     const state = await this.prisma.state.findUnique({
       where: { code: dto.stateCode },
       select: { code: true, country_code: true, country: true },

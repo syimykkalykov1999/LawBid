@@ -1,3 +1,4 @@
+import { BarAttemptsService } from './services/bar-attempts.service';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
@@ -59,6 +60,7 @@ import { VerificationRequestsService } from './services/verification-requests.se
     AdminStateRegistriesController,
   ],
   providers: [
+    BarAttemptsService,
     ManualBarLookupProvider,
     ManualIdVerificationProvider,
     StripeIdentityProvider,
