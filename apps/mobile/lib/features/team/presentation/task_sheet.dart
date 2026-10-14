@@ -462,7 +462,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final t = ref.read(translatorProvider);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(t.t('tasks.delete.title')),
         content: Text(t.t('tasks.delete.body')),
         actions: [

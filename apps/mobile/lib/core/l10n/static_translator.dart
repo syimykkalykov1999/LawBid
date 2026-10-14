@@ -429,6 +429,13 @@ class StaticTranslatorRu extends _MapTranslator {
         'error.api.MESSAGE_TOO_LONG':
             'Сообщение слишком длинное (до 2000 символов).',
         'error.api.FEATURE_DISABLED': 'Эта функция пока недоступна.',
+        'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD':
+            'Аккаунт с этой почтой уже есть. Войдите так, как входили раньше.',
+        'error.api.PROMOTION_ALREADY_ACTIVE': 'Этот кейс уже продвигается.',
+        'error.api.STICKER_PACK_NAME_TAKEN':
+            'Набор стикеров с таким названием уже есть. Выберите другое.',
+        'error.api.CONTENT_INVALID_STATE':
+            'В текущем состоянии этого сделать нельзя.',
         'error.api.SEARCH_QUERY_TOO_SHORT': 'Введите хотя бы 2 символа.',
         'error.api.BID_ATTORNEY_INACTIVE':
             'Этот адвокат недоступен, выберите другой бид.',
@@ -1477,6 +1484,13 @@ class StaticTranslatorEn extends _MapTranslator {
         'error.api.MESSAGE_TOO_LONG':
             'The message is too long (up to 2000 characters).',
         'error.api.FEATURE_DISABLED': 'This feature is not available yet.',
+        'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD':
+            'An account with this e-mail already exists. Sign in the way you did before.',
+        'error.api.PROMOTION_ALREADY_ACTIVE': 'This case is already promoted.',
+        'error.api.STICKER_PACK_NAME_TAKEN':
+            'A sticker pack with this name already exists. Choose another name.',
+        'error.api.CONTENT_INVALID_STATE':
+            "This can't be done with the content in its current state.",
         'error.api.SEARCH_QUERY_TOO_SHORT': 'Type at least 2 characters.',
         'error.api.BID_ATTORNEY_INACTIVE':
             'This attorney is no longer available. Please choose another bid.',

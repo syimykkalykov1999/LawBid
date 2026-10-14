@@ -56,7 +56,7 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
     final t = ref.read(translatorProvider);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         content: Text(t.t('support.close.confirm')),
         actions: [
           TextButton(

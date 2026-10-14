@@ -59,7 +59,7 @@ class _VerificationWizardScreenState
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.surface,
         title: Text(title),
         content: Text(body),

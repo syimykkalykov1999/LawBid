@@ -42,7 +42,7 @@ Future<SubscribeOutcome> payForPlan(
     final price = formats.currencyFromCents(cents);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         backgroundColor: colors.surface,
         title: Text(t.t('subscription.chargeNow.title')),
         content: Text(t.t('subscription.chargeNow.body', {'price': price})),

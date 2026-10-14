@@ -41,7 +41,7 @@ final class AppTypographyTokens extends ThemeExtension<AppTypographyTokens> {
         titleMedium: TextStyle(
           fontFamily: AppFontFamilies.serif,
           fontWeight: FontWeight.w600,
-          fontSize: 15,
+          fontSize: 16,
           height: 1.2,
         ),
         titleWelcome: TextStyle(

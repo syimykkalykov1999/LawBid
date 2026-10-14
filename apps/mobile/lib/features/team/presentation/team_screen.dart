@@ -378,7 +378,7 @@ class _MemberSheetState extends ConsumerState<_MemberSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         content: Text(
           t.t('team.remove.confirm', {
             'name': widget.member.label,

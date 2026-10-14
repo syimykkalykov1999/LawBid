@@ -915,7 +915,7 @@ class RecommendedTile extends ConsumerWidget {
   const RecommendedTile({required this.row, this.width = 132, super.key});
 
   /// The tile's height, so a grid can give every cell the same one.
-  static const double height = 186;
+  static const double height = 164;
 
   final AttorneyRow row;
   final double width;

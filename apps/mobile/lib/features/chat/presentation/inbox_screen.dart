@@ -685,7 +685,10 @@ class ConversationRow extends ConsumerWidget {
           ? () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
           : () => context.push(ChatRoutes.conversation(c.id)),
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: BorderRadius.circular(AppRadii.card),

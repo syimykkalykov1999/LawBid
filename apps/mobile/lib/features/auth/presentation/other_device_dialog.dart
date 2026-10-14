@@ -25,7 +25,7 @@ Future<bool> showOtherDeviceDialog(
   final ok = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (ctx) => AlertDialog(
+    builder: (ctx) => AppAlertDialog(
       backgroundColor: colors.surface,
       icon: AppIcon(
         web ? AppIcons.computerRounded : AppIcons.phoneIphoneRounded,
@@ -33,7 +33,6 @@ Future<bool> showOtherDeviceDialog(
       ),
       title: Text(t.t('otherDevice.title')),
       content: Text(t.t('otherDevice.body', {'device': device, 'when': when})),
-      actionsAlignment: MainAxisAlignment.spaceBetween,
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),

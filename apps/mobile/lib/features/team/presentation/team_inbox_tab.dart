@@ -152,7 +152,7 @@ class _RejectDialogState extends State<_RejectDialog> {
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
-    return AlertDialog(
+    return AppAlertDialog(
       title: Text(t.t('team.reject')),
       content: TextField(
         onTapOutside: hideKeyboardOnTapOutside,

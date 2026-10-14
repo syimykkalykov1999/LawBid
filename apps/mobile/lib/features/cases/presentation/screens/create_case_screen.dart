@@ -210,23 +210,24 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                       onPressed: _c.next,
                     ),
                   )
-                else ...[
-                  GavelStrikeButton(
-                    label: t.t('cases.create.publish'),
-                    strike: true,
-                    isLoading: state.isSubmitting,
-                    disabledHint: t.t('form.disabled.required'),
-                    isEnabled: state.stepValid,
-                    // Owner 2026-09-29: visibly off until the consent box
-                    // is ticked, lights up once it is.
-                    onPressed: _publish,
+                else
+                  ButtonPair(
+                    left: AppButton(
+                      label: t.t('common.back'),
+                      variant: AppButtonVariant.secondary,
+                      onPressed: _c.back,
+                    ),
+                    right: GavelStrikeButton(
+                      label: t.t('cases.create.publish'),
+                      strike: true,
+                      isLoading: state.isSubmitting,
+                      disabledHint: t.t('form.disabled.required'),
+                      isEnabled: state.stepValid,
+                      // Owner 2026-09-29: visibly off until the consent box
+                      // is ticked, lights up once it is.
+                      onPressed: _publish,
+                    ),
                   ),
-                  AppButton(
-                    label: t.t('common.back'),
-                    variant: AppButtonVariant.secondary,
-                    onPressed: _c.back,
-                  ),
-                ],
               ],
             ),
           ],
@@ -390,7 +391,7 @@ class _ReviewStep extends ConsumerWidget {
           child: AppPressable(
             onTap: () => c.goTo(step),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -408,7 +409,8 @@ class _ReviewStep extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text(
                           value,
-                          style: typography.body.copyWith(color: colors.text),
+                          style:
+                              typography.bodySmall.copyWith(color: colors.text),
                         ),
                       ],
                     ),
@@ -527,7 +529,10 @@ class _ReviewStep extends ConsumerWidget {
         // what, right above Publish.
         const SizedBox(height: AppSpacing.lg),
         Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
           decoration: BoxDecoration(
             color: colors.goldTint,
             borderRadius: BorderRadius.circular(AppRadii.card),
@@ -549,20 +554,19 @@ class _ReviewStep extends ConsumerWidget {
                   children: [
                     AppIcon(
                       icon,
-                      size: AppSizes.iconSm,
+                      size: AppSpacing.xl - 2,
                       color: colors.goldDark,
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         t.t(key),
-                        style:
-                            typography.bodySmall.copyWith(color: colors.text),
+                        style: typography.caption.copyWith(color: colors.text),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.xs + 2),
               ],
             ],
           ),
@@ -606,7 +610,7 @@ class _ConsentBox extends StatelessWidget {
         onTap: () => onChanged(!checked),
         child: AnimatedContainer(
           duration: motion,
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(AppRadii.card),
@@ -642,7 +646,7 @@ class _ConsentBox extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: typography.bodySmall.copyWith(color: colors.text),
+                  style: typography.caption.copyWith(color: colors.text),
                 ),
               ),
             ],

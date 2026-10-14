@@ -172,6 +172,12 @@ const _keys = <String, String>{
   ApiErrorCodes.barNumberFormatInvalid: 'error.api.BAR_NUMBER_FORMAT_INVALID',
   ApiErrorCodes.barAttemptsCooldown: 'error.api.BAR_ATTEMPTS_COOLDOWN',
   ApiErrorCodes.bidLicensePending: 'error.api.BID_LICENSE_PENDING',
+  ApiErrorCodes.accountExistsUseOtherMethod:
+      'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD',
+  ApiErrorCodes.promotionAlreadyActive: 'error.api.PROMOTION_ALREADY_ACTIVE',
+  ApiErrorCodes.stickerPackNameTaken: 'error.api.STICKER_PACK_NAME_TAKEN',
+  ApiErrorCodes.planNotAvailable: 'error.api.PLAN_NOT_AVAILABLE',
+  ApiErrorCodes.contentInvalidState: 'error.api.CONTENT_INVALID_STATE',
   ApiErrorCodes.searchQueryTooShort: 'error.api.SEARCH_QUERY_TOO_SHORT',
   ApiErrorCodes.userBlocked: 'error.api.USER_BLOCKED',
   // Audit 2026-10-02: calls answered elsewhere / already gone.
