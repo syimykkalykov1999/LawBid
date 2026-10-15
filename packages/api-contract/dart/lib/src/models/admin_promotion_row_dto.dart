@@ -34,6 +34,9 @@ class AdminPromotionRowDto {
     this.targetImpressions,
     this.audience,
     this.cancelReason,
+    this.goal,
+    this.ctaType,
+    this.ctaValue,
     this.reviewedBy,
     this.cpmCents,
     this.ownerName,
@@ -68,6 +71,9 @@ class AdminPromotionRowDto {
   final int? targetImpressions;
   final PromotionAudienceDto? audience;
   final String? cancelReason;
+  final String? goal;
+  final String? ctaType;
+  final String? ctaValue;
   final DateTime createdAt;
 
   /// Case title, or the post title / text.

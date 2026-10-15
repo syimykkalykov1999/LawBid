@@ -133,6 +133,9 @@ class CasePromotion {
     this.endsAt,
     this.createdAt,
     this.title = '',
+    this.goal,
+    this.ctaType,
+    this.ctaValue,
   });
 
   final String id;
@@ -156,6 +159,11 @@ class CasePromotion {
 
   /// "My promotions": the case title or the post's title / text.
   final String title;
+
+  /// Owner 2026-10-15: the goal and the button of a promoted post.
+  final String? goal;
+  final String? ctaType;
+  final String? ctaValue;
 
   /// 0..1 of the bought impressions delivered (null = no cap).
   double? get progress => targetImpressions == null || targetImpressions == 0
@@ -198,6 +206,50 @@ class PromotionPurchase {
   /// Stripe's page when something is left to pay (null = fully covered by
   /// credits, already active).
   final String? checkoutUrl;
+}
+
+/// One day of a promotion's numbers (the bars on the stats screen).
+@immutable
+class PromotionDay {
+  const PromotionDay({
+    required this.day,
+    required this.impressions,
+    required this.reach,
+    required this.clicks,
+  });
+
+  final DateTime day;
+  final int impressions;
+  final int reach;
+  final int clicks;
+}
+
+/// `GET /promotions/:id/stats`.
+@immutable
+class PromotionStats {
+  const PromotionStats({
+    required this.promotion,
+    required this.days,
+    required this.spentCents,
+  });
+
+  final CasePromotion promotion;
+  final List<PromotionDay> days;
+  final int spentCents;
+
+  /// Clicks ÷ impressions, 0..1.
+  double get ctr =>
+      promotion.impressions == 0 ? 0 : promotion.clicks / promotion.impressions;
+}
+
+/// The button under a promoted post / reel.
+@immutable
+class PromotionCta {
+  const PromotionCta({required this.type, this.value});
+
+  /// `more` | `message` | `profile` | `download` | `call`.
+  final String type;
+  final String? value;
 }
 
 /// A page of "My promotions".

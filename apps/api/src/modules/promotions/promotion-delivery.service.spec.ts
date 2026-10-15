@@ -47,6 +47,8 @@ describe('pacingScore', () => {
     targetImpressions: 1_000,
     startsAt: new Date(0),
     endsAt: new Date(10_000),
+    ctaType: null,
+    ctaValue: null,
   });
 
   it('behind schedule ranks first', () => {

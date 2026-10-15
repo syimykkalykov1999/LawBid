@@ -443,7 +443,8 @@ export class CasesFeedService {
       ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
-    const promoted = new Set(await this.activePromotedCaseIds(ids));
+    const promotedEnds = await this.activePromotedEnds(ids);
+    const promoted = new Set(promotedEnds.keys());
     const priorityClients = await this.priorityClientIds(
       rows.map((r) => r.client_id),
     );
@@ -497,6 +498,7 @@ export class CasesFeedService {
         isSaved: savedIds.has(c.id),
         shareCount: Math.max(0, c.share_count + (pendingShares.get(c.id) ?? 0)),
         promoted: promoted.has(c.id),
+        promotedUntil: promotedEnds.get(c.id)?.toISOString() ?? null,
         priorityClient: priorityClients.has(c.client_id),
         dossier: {
           imagesCount: files.get(c.id)?.images ?? 0,
@@ -522,6 +524,29 @@ export class CasesFeedService {
     } catch {
       return new Set();
     }
+  }
+
+  /** caseId → the end of its running promotion (best effort). */
+  private async activePromotedEnds(ids: string[]): Promise<Map<string, Date>> {
+    const out = new Map<string, Date>();
+    if (ids.length === 0) return out;
+    try {
+      const now = new Date();
+      const rows = await this.prisma.casePromotion.findMany({
+        where: {
+          status: 'active',
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+          case_id: { in: ids },
+        },
+        select: { case_id: true, ends_at: true },
+      });
+      for (const r of rows)
+        if (r.case_id && r.ends_at) out.set(r.case_id, r.ends_at);
+    } catch {
+      // The badge just loses its date.
+    }
+    return out;
   }
 
   /** Cases with a running paid/granted promotion (owner 2026-10-02),

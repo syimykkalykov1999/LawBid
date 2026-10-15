@@ -403,6 +403,7 @@ class FeedCase {
     this.inMyLicensedStates = true,
     this.bidAllowed = true,
     this.promoted = false,
+    this.promotedUntil,
     this.priorityClient = false,
     this.extraPracticeCount = 0,
     this.completionRequestedBy,
@@ -435,6 +436,9 @@ class FeedCase {
 
   /// Owner 2026-10-02: a paid promotion keeps this case near the top.
   final bool promoted;
+
+  /// Owner 2026-10-15: the last paid day, «Реклама · до {date}».
+  final DateTime? promotedUntil;
 
   /// Owner 2026-10-05 (plan builder): the client's plan puts the case
   /// first in the feed (shown with a small «Приоритет» mark).

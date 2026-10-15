@@ -1,3 +1,4 @@
+import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   BadRequestException,
@@ -91,6 +92,7 @@ export class PostsService {
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
     private readonly settings: AppSettingsService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
@@ -812,13 +814,74 @@ export class PostsService {
     });
     const page = rows.slice(0, limit);
     const last = page[page.length - 1];
+    const items = await this.presenter.present(page, user.sub);
     return {
-      items: await this.presenter.present(page, user.sub),
+      items: c ? items : await this.withPromotedReels(user, items, hidden),
       nextCursor:
         rows.length > limit && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /** Owner 2026-10-15: a boosted reel after every N-th reel (own counter,
+   * 10–15 in admin). Best effort — never breaks the reels. */
+  private async withPromotedReels(
+    user: RequestUser,
+    items: PostDto[],
+    hidden: string[],
+  ): Promise<PostDto[]> {
+    const delivery = this.promoDelivery;
+    if (!delivery || items.length === 0) return items;
+    try {
+      const s = await delivery.settings();
+      if (!s.postsEnabled || !s.reelsEnabled) return items;
+      const every = s.reelEveryN;
+      const slots = Math.floor(items.length / (every - 1));
+      if (slots < 1) return items;
+      const candidates = await delivery.eligible('post', user.sub, {
+        excludeUserIds: hidden,
+      });
+      const onPage = new Set(items.map((p) => p.id));
+      const wanted = candidates
+        .filter((c) => c.postId && !onPage.has(c.postId))
+        .slice(0, slots * 2);
+      if (wanted.length === 0) return items;
+      const rows = await this.prisma.post.findMany({
+        where: {
+          AND: [
+            VISIBLE_POST_WHERE,
+            { video_asset: { status: 'ready', deleted_at: null } },
+            { id: { in: wanted.map((c) => c.postId!) } },
+          ],
+        },
+      });
+      const byId = new Map(rows.map((p) => [p.id, p]));
+      const picked = wanted.filter((c) => byId.has(c.postId!)).slice(0, slots);
+      if (picked.length === 0) return items;
+      const presented = await this.presenter.present(
+        picked.map((c) => byId.get(c.postId!)!),
+        user.sub,
+      );
+      const out = [...items];
+      presented.forEach((dto, i) => {
+        const c = picked[i];
+        out.splice(Math.min(out.length, (i + 1) * every - 1), 0, {
+          ...dto,
+          promotionId: c.id,
+          promotionCta: c.ctaType
+            ? { type: c.ctaType, value: c.ctaValue }
+            : null,
+        });
+      });
+      delivery.recordImpressions(
+        user.sub,
+        picked.map((c) => c.id),
+      );
+      return out;
+    } catch {
+      return items;
+    }
   }
 
   /** Owner 2026-10-01: the same gate as POST /posts (reel uploads). */

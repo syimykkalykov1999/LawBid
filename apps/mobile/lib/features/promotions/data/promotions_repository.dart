@@ -57,6 +57,9 @@ class PromotionsRepository {
     PromotionAudience? audience,
     bool useCredits = true,
     String? promoCode,
+    String? goal,
+    String? ctaType,
+    String? ctaValue,
   }) async {
     final body = api.CreatePromotionDto(
       days: days,
@@ -75,6 +78,11 @@ class PromotionsRepository {
             ),
       useCredits: useCredits,
       promoCode: promoCode,
+      goal: goal == null ? null : api.CreatePromotionDtoGoal.fromJson(goal),
+      ctaType: ctaType == null
+          ? null
+          : api.CreatePromotionDtoCtaType.fromJson(ctaType),
+      ctaValue: ctaValue,
     );
     const extras = {RequestFlags.createsResource: true};
     final d = (await guardApiCall(
@@ -115,9 +123,52 @@ class PromotionsRepository {
             endsAt: d.endsAt,
             createdAt: d.createdAt,
             title: d.title,
+            goal: d.goal,
+            ctaType: d.ctaType,
+            ctaValue: d.ctaValue,
           ),
       ],
       nextCursor: r.meta?.nextCursor,
+    );
+  }
+
+  /// One promotion with its numbers by day.
+  Future<PromotionStats> stats(String id) async {
+    final d = (await guardApiCall(() => _api.promotionStats(id: id))).data;
+    final p = d.promotion;
+    return PromotionStats(
+      promotion: _fromFields(
+        id: p.id,
+        target: p.targetType,
+        caseId: p.caseId,
+        postId: p.postId,
+        status: p.status,
+        days: p.days,
+        priceCentsPerDay: p.priceCentsPerDay,
+        totalCents: p.totalCents,
+        impressions: p.impressions,
+        reach: p.reach,
+        clicks: p.clicks,
+        targetImpressions: p.targetImpressions,
+        cancelReason: p.cancelReason,
+        startsAt: p.startsAt,
+        endsAt: p.endsAt,
+        createdAt: p.createdAt,
+        title: p.title,
+        goal: p.goal,
+        ctaType: p.ctaType,
+        ctaValue: p.ctaValue,
+      ),
+      days: [
+        for (final x in d.days)
+          PromotionDay(
+            day: DateTime.tryParse(x.day) ?? DateTime.now(),
+            impressions: x.impressions,
+            reach: x.reach,
+            clicks: x.clicks,
+          ),
+      ],
+      spentCents: d.spentCents,
     );
   }
 
@@ -216,6 +267,9 @@ class PromotionsRepository {
     required DateTime? endsAt,
     required DateTime createdAt,
     String title = '',
+    String? goal,
+    String? ctaType,
+    String? ctaValue,
   }) =>
       CasePromotion(
         id: id,
@@ -235,5 +289,8 @@ class PromotionsRepository {
         endsAt: endsAt?.toLocal(),
         createdAt: createdAt.toLocal(),
         title: title,
+        goal: goal,
+        ctaType: ctaType,
+        ctaValue: ctaValue,
       );
 }

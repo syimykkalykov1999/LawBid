@@ -117,6 +117,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   case_invites: 'case invites',
   case_promotions: 'paid case / post boosts',
   promotion_views: 'boost impressions',
+  promotion_daily: 'boost numbers by day',
   reviews: 'reviews of attorneys',
   review_helpful_votes: 'their votes',
   client_reviews: 'reviews of clients',

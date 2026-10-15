@@ -53,6 +53,11 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   editedAt: json['editedAt'] as String?,
   pinSlot: (json['pinSlot'] as num?)?.toInt(),
   promotionId: json['promotionId'] as String?,
+  promotionCta: json['promotionCta'] == null
+      ? null
+      : PostPromotionCtaDto.fromJson(
+          json['promotionCta'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
@@ -88,4 +93,5 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'editedAt': ?instance.editedAt,
   'pinSlot': ?instance.pinSlot,
   'promotionId': ?instance.promotionId,
+  'promotionCta': ?instance.promotionCta?.toJson(),
 };

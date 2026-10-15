@@ -23,8 +23,18 @@ export interface PromotionSettings {
   budgetPresetsCents: number[];
   /** Quick-pick durations (days) in the app. */
   durationPresets: number[];
-  /** A promoted post goes after every N-th organic post in the feed. */
+  /** A promoted post goes after every N-th organic post in the feed
+   * (owner 2026-10-15: 10–15, default 12). */
   feedEveryN: number;
+  /** The same for reels: one promoted reel in N (own counter, 10–15). */
+  reelEveryN: number;
+  /** Promoted posts may be shown among reels. */
+  reelsEnabled: boolean;
+  /** A promoted post may carry a button (the types below). */
+  ctaEnabled: boolean;
+  /** Which buttons an advertiser can pick: more | message | profile |
+   * download | call. */
+  ctaTypes: string[];
   /** Promoted cases on top of an attorney's first case-feed page. */
   caseFeedSlots: number;
   /** One person sees the same promotion at most this many times a day. */
@@ -49,7 +59,11 @@ export const DEFAULT_PROMOTION_SETTINGS: PromotionSettings = {
   maxDailyBudgetCents: 100_000,
   budgetPresetsCents: [300, 500, 1_000, 2_500, 5_000],
   durationPresets: [1, 3, 7, 14, 30],
-  feedEveryN: 6,
+  feedEveryN: 12,
+  reelEveryN: 12,
+  reelsEnabled: true,
+  ctaEnabled: true,
+  ctaTypes: ['more', 'message', 'profile', 'download', 'call'],
   caseFeedSlots: 3,
   frequencyCapPerDay: 3,
   impressionsPerPerson: 1.6,
@@ -76,6 +90,53 @@ export const PROMOTION_STATUSES = [
 export type PromotionStatus = (typeof PROMOTION_STATUSES)[number];
 
 export const PROMOTION_TARGETS = ['case', 'post'] as const;
+
+/** Owner 2026-10-15: the buttons under a promoted post. */
+export const PROMOTION_CTA_TYPES: string[] = [
+  'more',
+  'message',
+  'profile',
+  'download',
+  'call',
+];
+export const PROMOTION_GOALS = ['views', 'clicks', 'messages', 'followers'];
+
+/** Links an advertiser may not use: shorteners and messengers (the site
+ * is checked by the moderation, a redirect can hide anything). */
+const BLOCKED_HOSTS = [
+  'bit.ly',
+  'tinyurl.com',
+  't.co',
+  'goo.gl',
+  'ow.ly',
+  'is.gd',
+  'cutt.ly',
+  'rb.gy',
+  'wa.me',
+  'api.whatsapp.com',
+  'whatsapp.com',
+  't.me',
+  'telegram.me',
+  'telegram.org',
+  'm.me',
+  'discord.gg',
+  'viber.com',
+  'signal.me',
+];
+
+/** An https link to a real site: no shorteners, no messengers, no IPs. */
+export function isAllowedAdLink(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:' || u.username || u.password) return false;
+  const host = u.hostname.toLowerCase();
+  if (!host.includes('.') || /^\d+(\.\d+){3}$/.test(host)) return false;
+  return !BLOCKED_HOSTS.some((b) => host === b || host.endsWith(`.${b}`));
+}
 export type PromotionTarget = (typeof PROMOTION_TARGETS)[number];
 
 /** Who a promoted post is shown to; empty lists = everyone. */
@@ -190,7 +251,20 @@ export function parsePromotionSettings(raw: unknown): PromotionSettings {
         ? d.durationPresets.filter((x) => x <= maxDays)
         : [1],
     ),
-    feedEveryN: int(r.feedEveryN, 2, 50) ?? d.feedEveryN,
+    feedEveryN: int(r.feedEveryN, 10, 15) ?? d.feedEveryN,
+    reelEveryN: int(r.reelEveryN, 10, 15) ?? d.reelEveryN,
+    reelsEnabled: bool(r.reelsEnabled, d.reelsEnabled),
+    ctaEnabled: bool(r.ctaEnabled, d.ctaEnabled),
+    ctaTypes: Array.isArray(r.ctaTypes)
+      ? [
+          ...new Set(
+            r.ctaTypes.filter(
+              (x): x is string =>
+                typeof x === 'string' && PROMOTION_CTA_TYPES.includes(x),
+            ),
+          ),
+        ]
+      : [...d.ctaTypes],
     caseFeedSlots: int(r.caseFeedSlots, 0, 10) ?? d.caseFeedSlots,
     frequencyCapPerDay:
       int(r.frequencyCapPerDay, 1, 50) ?? d.frequencyCapPerDay,

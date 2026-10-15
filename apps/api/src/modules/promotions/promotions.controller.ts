@@ -36,6 +36,7 @@ import {
   PromotionCaseIdParamDto,
   PromotionClickResultDto,
   PromotionIdParamDto,
+  PromotionStatsDto,
   PromotionPostIdParamDto,
   PromotionQuoteDto,
   PromotionQuoteQueryDto,
@@ -170,6 +171,17 @@ export class PromotionsController {
     @Query() q: MyPromotionsQueryDto,
   ): Promise<{ items: MyPromotionDto[]; nextCursor: string | null }> {
     return this.promotions.mine(user.sub, q.cursor);
+  }
+
+  @Get('promotions/:id/stats')
+  @ApiOperation({ summary: 'One promotion with its numbers by day' })
+  @ApiEnvelopeResponse(PromotionStatsDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  promotionStats(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PromotionIdParamDto,
+  ): Promise<PromotionStatsDto> {
+    return this.promotions.stats(user.sub, p.id);
   }
 
   @Post('promotions/:id/stop')

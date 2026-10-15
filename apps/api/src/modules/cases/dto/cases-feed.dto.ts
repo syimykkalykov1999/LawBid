@@ -383,6 +383,10 @@ export class CaseFeedItemDto {
   @ApiProperty({ description: 'Promoted by its client right now.' })
   promoted!: boolean;
 
+  /** Owner 2026-10-15: the last paid day, «Реклама · до {date}». */
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  promotedUntil?: string | null;
+
   @ApiProperty({
     description:
       "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).",

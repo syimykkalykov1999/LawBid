@@ -26,34 +26,35 @@ class CaseDetailForAttorneyDto {
     required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCodes,
+    required this.inMyLicensedStates,
     required this.status,
     required this.budget,
+    required this.inMyPractice,
     required this.id,
+    required this.photosCount,
+    required this.photos,
+    required this.description,
     required this.viewCount,
     required this.bidsCount,
-    required this.isSaved,
+    required this.promoted,
     required this.isNew,
     required this.hasOwnBid,
     required this.commentCount,
     required this.shareCount,
+    required this.isSaved,
     required this.bidAllowed,
-    required this.promoted,
-    required this.priorityClient,
     required this.dossier,
-    required this.description,
-    required this.inMyLicensedStates,
-    required this.photos,
+    required this.priorityClient,
     required this.acceptedBidIsMine,
-    required this.inMyPractice,
-    required this.photosCount,
-    this.ownBidId,
     this.deadlineKind,
+    this.ownBidId,
+    this.urgency,
     this.completionRequestedBy,
     this.deadlineAt,
-    this.urgency,
+    this.urgencyLevel,
     this.coverKey,
     this.city,
-    this.urgencyLevel,
+    this.promotedUntil,
   });
 
   factory CaseDetailForAttorneyDto.fromJson(Map<String, Object?> json) =>
@@ -111,6 +112,9 @@ class CaseDetailForAttorneyDto {
 
   /// Promoted by its client right now.
   final bool promoted;
+
+  /// Owner 2026-10-15: the last paid day, «Реклама · до {date}».
+  final DateTime? promotedUntil;
 
   /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
   final bool priorityClient;

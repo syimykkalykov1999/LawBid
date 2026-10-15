@@ -13,6 +13,7 @@ import 'post_kind.dart';
 import 'post_location_dto.dart';
 import 'post_media_dto.dart';
 import 'post_practice_dto.dart';
+import 'post_promotion_cta_dto.dart';
 import 'post_reposter_dto.dart';
 import 'post_video_dto.dart';
 
@@ -53,6 +54,7 @@ class PostDto {
     this.editedAt,
     this.pinSlot,
     this.promotionId,
+    this.promotionCta,
   });
 
   factory PostDto.fromJson(Map<String, Object?> json) =>
@@ -120,6 +122,9 @@ class PostDto {
   /// Owner 2026-10-05: set on a paid promoted post in the feed — the app.
   /// shows «Реклама» and reports the open to POST /promotions/:id/click.
   final String? promotionId;
+
+  /// Owner 2026-10-15: the button of a promoted post (null = none).
+  final PostPromotionCtaDto? promotionCta;
 
   Map<String, Object?> toJson() => _$PostDtoToJson(this);
 }

@@ -3861,6 +3861,12 @@ model CasePromotion {
   reach               Int       @default(0)
   clicks              Int       @default(0)
   audience            Json?
+  // Owner 2026-10-15 (Boost): what the advertiser wants (views | clicks |
+  // messages | followers) and the button under the ad: more | message |
+  // profile | download | call, with its link / phone in cta_value.
+  goal                String?   @db.VarChar(12)
+  cta_type            String?   @db.VarChar(12)
+  cta_value           String?   @db.VarChar(500)
   // Refunded part (admin cancel with refund).
   refunded_cents      Int       @default(0)
   // Who approved it (null = automatic) and when.
@@ -3870,6 +3876,7 @@ model CasePromotion {
   updated_at          DateTime  @updatedAt @db.Timestamptz
 
   views PromotionView[]
+  daily PromotionDaily[]
 
   @@index([status, ends_at])
   @@index([case_id])
@@ -3881,6 +3888,20 @@ model CasePromotion {
 
 // Owner 2026-10-05: who saw a promotion — unique reach, the per-person
 // daily frequency cap and clicks. One row per (promotion, viewer).
+// Owner 2026-10-15: a promotion's numbers by day (UTC date) — the bars of
+// its statistics.
+model PromotionDaily {
+  promotion_id String        @db.Uuid
+  promotion    CasePromotion @relation(fields: [promotion_id], references: [id], onDelete: Cascade)
+  day_key      String        @db.VarChar(10)
+  impressions  Int           @default(0)
+  reach        Int           @default(0)
+  clicks       Int           @default(0)
+
+  @@id([promotion_id, day_key])
+  @@map("promotion_daily")
+}
+
 model PromotionView {
   promotion_id  String        @db.Uuid
   promotion     CasePromotion @relation(fields: [promotion_id], references: [id], onDelete: Cascade)

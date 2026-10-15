@@ -43,6 +43,7 @@ class CaseFeedItemDto {
     this.urgencyLevel,
     this.deadlineAt,
     this.deadlineKind,
+    this.promotedUntil,
   });
 
   factory CaseFeedItemDto.fromJson(Map<String, Object?> json) =>
@@ -100,6 +101,9 @@ class CaseFeedItemDto {
 
   /// Promoted by its client right now.
   final bool promoted;
+
+  /// Owner 2026-10-15: the last paid day, «Реклама · до {date}».
+  final DateTime? promotedUntil;
 
   /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
   final bool priorityClient;

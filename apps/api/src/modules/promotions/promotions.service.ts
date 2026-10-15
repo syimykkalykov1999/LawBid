@@ -34,10 +34,12 @@ import type {
   CreatePromotionResultDto,
   MyPromotionDto,
   PromotionQuoteDto,
+  PromotionStatsDto,
 } from './promotions.dto';
 import { PromotionDeliveryService } from './promotion-delivery.service';
 import {
   impressionsFor,
+  isAllowedAdLink,
   parseAudience,
   parsePromotionSettings,
   PENDING_PAYMENT_TTL_MS,
@@ -75,6 +77,9 @@ export function toPromotionDto(p: CasePromotion): CasePromotionDto {
     targetImpressions: p.target_impressions,
     audience: p.audience ? parseAudience(p.audience) : null,
     cancelReason: p.cancel_reason,
+    goal: p.goal,
+    ctaType: p.cta_type,
+    ctaValue: p.cta_value,
     createdAt: p.created_at.toISOString(),
   };
 }
@@ -210,6 +215,7 @@ export class PromotionsService {
       estReachMax: reach.max,
       postsEnabled: settings.postsEnabled,
       casesEnabled: settings.enabled,
+      ctaTypes: settings.ctaEnabled ? settings.ctaTypes : [],
     };
   }
 
@@ -273,6 +279,32 @@ export class PromotionsService {
     return this.createFor(userId, 'post', postId, dto);
   }
 
+  /** The button of a promoted post: allowed type, safe link, real phone.
+   * A case (the client's request) has no button — it is always «Respond». */
+  private checkCta(
+    type: PromotionTarget,
+    dto: CreatePromotionDto,
+    settings: PromotionSettings,
+  ): { type: string; value: string | null } | null {
+    if (type !== 'post' || !dto.ctaType || !settings.ctaEnabled) return null;
+    const bad = (message: string) =>
+      new BadRequestException({ code: ErrorCode.VALIDATION_ERROR, message });
+    if (!settings.ctaTypes.includes(dto.ctaType)) {
+      throw bad('This button is not available.');
+    }
+    const value = dto.ctaValue?.trim() || null;
+    if (dto.ctaType === 'more' || dto.ctaType === 'download') {
+      if (!value || !isAllowedAdLink(value)) {
+        throw bad('Use an https link to your site (no shorteners or chats).');
+      }
+    } else if (dto.ctaType === 'call') {
+      if (!value || !/^\+[1-9]\d{6,14}$/.test(value)) {
+        throw bad('Enter the phone in international format, +123456789.');
+      }
+    }
+    return { type: dto.ctaType, value };
+  }
+
   private async createFor(
     userId: string,
     type: PromotionTarget,
@@ -299,6 +331,7 @@ export class PromotionsService {
             : 'Only an open case can be promoted.',
       });
     }
+    const cta = this.checkCta(type, dto, settings);
     const audience =
       type === 'post' && dto.audience ? parseAudience(dto.audience) : null;
     const promo = dto.promoCode
@@ -361,6 +394,9 @@ export class PromotionsService {
             total_cents: q.totalCents,
             cpm_cents: settings.cpmCents,
             target_impressions: impressionsFor(q.grossCents, settings.cpmCents),
+            goal: dto.goal ?? null,
+            cta_type: cta?.type ?? null,
+            cta_value: cta?.value ?? null,
             ...(audience
               ? { audience: audience as unknown as Prisma.InputJsonObject }
               : {}),
@@ -496,6 +532,44 @@ export class PromotionsService {
         rows.length > PAGE && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
+    };
+  }
+
+  /** GET /promotions/:id/stats — the numbers by day (owner only). */
+  async stats(userId: string, id: string): Promise<PromotionStatsDto> {
+    const p = await this.prisma.casePromotion.findUnique({ where: { id } });
+    if (!p || p.user_id !== userId) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Promotion not found.',
+      });
+    }
+    const [rows, titles] = await Promise.all([
+      this.prisma.promotionDaily.findMany({
+        where: { promotion_id: id },
+        orderBy: { day_key: 'asc' },
+        take: 120,
+      }),
+      this.titles([p]),
+    ]);
+    // Spent so far: the paid days that already ran, pro rata.
+    const span = Math.max(
+      1,
+      (p.ends_at?.getTime() ?? 0) - (p.starts_at?.getTime() ?? 0),
+    );
+    const ran = p.starts_at
+      ? Math.min(span, Math.max(0, Date.now() - p.starts_at.getTime()))
+      : 0;
+    const done = ['finished', 'refunded'].includes(p.status) ? span : ran;
+    return {
+      promotion: { ...toPromotionDto(p), title: titles.get(p.id) ?? '' },
+      days: rows.map((r) => ({
+        day: r.day_key,
+        impressions: r.impressions,
+        reach: r.reach,
+        clicks: r.clicks,
+      })),
+      spentCents: Math.round((p.total_cents * done) / span),
     };
   }
 

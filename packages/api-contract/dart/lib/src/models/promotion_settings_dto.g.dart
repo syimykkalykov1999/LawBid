@@ -23,6 +23,12 @@ PromotionSettingsDto _$PromotionSettingsDtoFromJson(
       .map((e) => (e as num).toInt())
       .toList(),
   feedEveryN: (json['feedEveryN'] as num).toInt(),
+  reelEveryN: (json['reelEveryN'] as num).toInt(),
+  reelsEnabled: json['reelsEnabled'] as bool,
+  ctaEnabled: json['ctaEnabled'] as bool,
+  ctaTypes: (json['ctaTypes'] as List<dynamic>)
+      .map((e) => PromotionSettingsDtoCtaTypes.fromJson(e as String))
+      .toList(),
   caseFeedSlots: (json['caseFeedSlots'] as num).toInt(),
   frequencyCapPerDay: (json['frequencyCapPerDay'] as num).toInt(),
   impressionsPerPerson: json['impressionsPerPerson'] as num,
@@ -45,6 +51,10 @@ Map<String, dynamic> _$PromotionSettingsDtoToJson(
   'budgetPresetsCents': instance.budgetPresetsCents,
   'durationPresets': instance.durationPresets,
   'feedEveryN': instance.feedEveryN,
+  'reelEveryN': instance.reelEveryN,
+  'reelsEnabled': instance.reelsEnabled,
+  'ctaEnabled': instance.ctaEnabled,
+  'ctaTypes': instance.ctaTypes.map((e) => e.toJson()).toList(),
   'caseFeedSlots': instance.caseFeedSlots,
   'frequencyCapPerDay': instance.frequencyCapPerDay,
   'impressionsPerPerson': instance.impressionsPerPerson,

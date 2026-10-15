@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/l10n/week_start.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
@@ -630,9 +631,12 @@ class TasksHero extends StatelessWidget {
     required this.active,
     required this.doneToday,
     required this.now,
+    this.firstWeekday = DateTime.monday,
     super.key,
   });
 
+  /// Owner 2026-10-15: the week strip starts on the locale's first day.
+  final int firstWeekday;
   final Translator t;
   final L10nFormats formats;
 
@@ -668,7 +672,7 @@ class TasksHero extends StatelessWidget {
       for (final x in todays)
         if (dueOf(x) != null && !dueOf(x)!.isBefore(now)) dueOf(x)!,
     ]..sort();
-    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final weekStart = weekStartOf(today, firstWeekday);
     final counts = [
       for (var i = 0; i < 7; i++)
         active.where((x) => onDay(x, weekStart.add(Duration(days: i)))).length,
@@ -741,7 +745,10 @@ class TasksHero extends StatelessWidget {
                             weekStart.add(Duration(days: i)),
                           ),
                           fraction: counts[i] / maxCount,
-                          today: i == today.weekday - 1,
+                          today: DateUtils.isSameDay(
+                            weekStart.add(Duration(days: i)),
+                            today,
+                          ),
                           accent: accent,
                           count: counts[i],
                         ),

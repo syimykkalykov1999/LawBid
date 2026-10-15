@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_editor_screen.dart'
@@ -552,7 +553,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final task = _task;
     final active = task.status.active;
     final canComplete = task.canComplete;
-    final now = DateTime.now();
+    final now = ref.watch(localNowProvider);
     final remind = task.dueAt == null ? null : task.remindBeforeMin;
     return DraggableScrollableSheet(
       expand: false,
@@ -604,7 +605,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             _InfoRow(
               icon: AppIcons.eventOutlined,
               text: formats.dateTime(task.dueAt!),
-              danger: task.isOverdue(DateTime.now()),
+              danger: task.isOverdue(now),
             ),
           if (task.dueAt != null && remind != null)
             _InfoRow(

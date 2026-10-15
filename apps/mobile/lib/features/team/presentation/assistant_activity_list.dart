@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
@@ -55,7 +56,7 @@ class AssistantActivityList extends ConsumerWidget {
             final prev = i == 0
                 ? null
                 : DateUtils.dateOnly(items[i - 1].createdAt.toLocal());
-            final today = DateUtils.dateOnly(DateTime.now());
+            final today = DateUtils.dateOnly(ref.watch(localNowProvider));
             final label = day == today
                 ? tr.t('tasks.today')
                 : day == today.subtract(const Duration(days: 1))

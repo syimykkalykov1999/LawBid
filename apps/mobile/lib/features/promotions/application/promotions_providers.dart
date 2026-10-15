@@ -25,3 +25,9 @@ final postPromotionProvider =
 final myPromotionsProvider = FutureProvider.autoDispose<PromotionPage>(
   (ref) => ref.watch(promotionsRepositoryProvider).mine(),
 );
+
+/// Owner 2026-10-15: one promotion with its numbers by day.
+final promotionStatsProvider =
+    FutureProvider.autoDispose.family<PromotionStats, String>(
+  (ref, id) => ref.watch(promotionsRepositoryProvider).stats(id),
+);

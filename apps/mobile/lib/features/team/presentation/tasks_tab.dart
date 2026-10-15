@@ -9,7 +9,9 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/l10n/week_start.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
@@ -481,7 +483,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   /// puts it back.
   Future<void> _tomorrow(TaskItem task) async {
     final t = ref.read(translatorProvider);
-    final now = DateTime.now();
+    final now = ref.read(localNowProvider);
     final base = task.nextDueAt?.toLocal();
     final to = DateTime(
       now.year,
@@ -646,7 +648,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
               final shown = applyTaskFilter(
                 all,
                 _filter,
-                now: DateTime.now(),
+                now: ref.read(localNowProvider),
                 query: _search.text,
               );
               setState(() => _picked.addAll(shown.map((x) => x.id)));
@@ -852,7 +854,7 @@ class _TaskList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final value = ref.watch(mergedTasksProvider(listKey));
-    final now = DateTime.now();
+    final now = ref.watch(localNowProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final archive = view == TasksView.archive;
@@ -1109,6 +1111,7 @@ class _BoardHeader extends ConsumerWidget {
           active: active,
           doneToday: doneToday,
           now: now,
+          firstWeekday: ref.watch(firstWeekdayProvider),
         ),
         if (openCases.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -1574,7 +1577,7 @@ class _ResultsList extends ConsumerWidget {
             const <AssistantRequest>[])
         .where((r) => r.status != RequestStatus.pending)
         .toList();
-    final now = DateTime.now();
+    final now = ref.watch(localNowProvider);
     if (tasks.isEmpty && requests.isEmpty) {
       return PullableState(
         child: AppEmptyState(

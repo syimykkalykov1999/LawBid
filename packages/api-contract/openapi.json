@@ -63851,6 +63851,93 @@
         ]
       }
     },
+    "/promotions/{id}/stats": {
+      "get": {
+        "operationId": "promotionStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionStatsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One promotion with its numbers by day",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
     "/promotions/{id}/stop": {
       "post": {
         "operationId": "stopPromotion",
@@ -91419,6 +91506,28 @@
           "role"
         ]
       },
+      "PostPromotionCtaDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "more",
+              "message",
+              "profile",
+              "download",
+              "call"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
       "PostDto": {
         "type": "object",
         "properties": {
@@ -91588,6 +91697,16 @@
             "nullable": true,
             "description": "Owner 2026-10-05: set on a paid promoted post in the feed — the app\nshows «Реклама» and reports the open to POST /promotions/:id/click.",
             "format": "uuid"
+          },
+          "promotionCta": {
+            "nullable": true,
+            "description": "Owner 2026-10-15: the button of a promoted post (null = none).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostPromotionCtaDto"
+              }
+            ]
           }
         },
         "required": [
@@ -93131,6 +93250,12 @@
             "type": "boolean",
             "description": "Promoted by its client right now."
           },
+          "promotedUntil": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-15: the last paid day, «Реклама · до {date}».",
+            "format": "date-time"
+          },
           "priorityClient": {
             "type": "boolean",
             "description": "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page)."
@@ -93351,6 +93476,12 @@
           "promoted": {
             "type": "boolean",
             "description": "Promoted by its client right now."
+          },
+          "promotedUntil": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-15: the last paid day, «Реклама · до {date}».",
+            "format": "date-time"
           },
           "priorityClient": {
             "type": "boolean",
@@ -114666,6 +114797,18 @@
             "type": "string",
             "nullable": true
           },
+          "goal": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaType": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaValue": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -114798,6 +114941,31 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 40
+          },
+          "goal": {
+            "type": "string",
+            "enum": [
+              "views",
+              "clicks",
+              "messages",
+              "followers"
+            ]
+          },
+          "ctaType": {
+            "type": "string",
+            "enum": [
+              "more",
+              "message",
+              "profile",
+              "download",
+              "call"
+            ],
+            "description": "The button under a promoted post (posts only)."
+          },
+          "ctaValue": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "https link (more, download) or a phone (call)."
           }
         },
         "required": [
@@ -114897,6 +115065,18 @@
             "type": "string",
             "nullable": true
           },
+          "goal": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaType": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaValue": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -114928,6 +115108,67 @@
             "items": {
               "$ref": "#/components/schemas/MyPromotionDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PromotionDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "example": "2026-10-15"
+          },
+          "impressions": {
+            "type": "integer"
+          },
+          "reach": {
+            "type": "integer"
+          },
+          "clicks": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "impressions",
+          "reach",
+          "clicks"
+        ]
+      },
+      "PromotionStatsDto": {
+        "type": "object",
+        "properties": {
+          "promotion": {
+            "$ref": "#/components/schemas/MyPromotionDto"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromotionDayDto"
+            }
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent so far, cents."
+          }
+        },
+        "required": [
+          "promotion",
+          "days",
+          "spentCents"
+        ]
+      },
+      "PromotionStatsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromotionStatsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -115052,6 +115293,18 @@
             ]
           },
           "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "goal": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaType": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaValue": {
             "type": "string",
             "nullable": true
           },
@@ -115278,8 +115531,33 @@
           },
           "feedEveryN": {
             "type": "integer",
-            "minimum": 2,
-            "maximum": 50
+            "minimum": 10,
+            "maximum": 15
+          },
+          "reelEveryN": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 15
+          },
+          "reelsEnabled": {
+            "type": "boolean"
+          },
+          "ctaEnabled": {
+            "type": "boolean"
+          },
+          "ctaTypes": {
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "more",
+                "message",
+                "profile",
+                "download",
+                "call"
+              ]
+            },
+            "type": "array"
           },
           "caseFeedSlots": {
             "type": "integer",
@@ -115315,6 +115593,10 @@
           "budgetPresetsCents",
           "durationPresets",
           "feedEveryN",
+          "reelEveryN",
+          "reelsEnabled",
+          "ctaEnabled",
+          "ctaTypes",
           "caseFeedSlots",
           "frequencyCapPerDay",
           "impressionsPerPerson",

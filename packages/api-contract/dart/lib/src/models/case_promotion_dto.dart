@@ -30,6 +30,9 @@ class CasePromotionDto {
     this.targetImpressions,
     this.audience,
     this.cancelReason,
+    this.goal,
+    this.ctaType,
+    this.ctaValue,
   });
 
   factory CasePromotionDto.fromJson(Map<String, Object?> json) =>
@@ -57,6 +60,9 @@ class CasePromotionDto {
   final int? targetImpressions;
   final PromotionAudienceDto? audience;
   final String? cancelReason;
+  final String? goal;
+  final String? ctaType;
+  final String? ctaValue;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$CasePromotionDtoToJson(this);
