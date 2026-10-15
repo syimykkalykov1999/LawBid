@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/social_routes.dart';
@@ -15,17 +16,20 @@ Future<void> showPostTextSheet(BuildContext context, Post post) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    constraints: contentColumnSheetConstraints(context),
     useRootNavigator: true,
     useSafeArea: true,
     backgroundColor: colors.sheet,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
     ),
-    builder: (_) => GlassPanel(
-      radius: const BorderRadius.vertical(
-        top: Radius.circular(AppRadii.sheet),
+    builder: (_) => ContentColumnFrame(
+      child: GlassPanel(
+        radius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadii.sheet),
+        ),
+        child: PostTextSheet(post: post),
       ),
-      child: PostTextSheet(post: post),
     ),
   );
 }

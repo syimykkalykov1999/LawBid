@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show commentThreadSlivers;
@@ -19,6 +20,7 @@ Future<void> showCommentsSheet(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    constraints: contentColumnSheetConstraints(context),
     // Over the nav bar too, like Instagram.
     useRootNavigator: true,
     useSafeArea: true,
@@ -26,9 +28,11 @@ Future<void> showCommentsSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
     ),
-    builder: (_) => CommentsSheet(
-      postId: postId,
-      commentsEnabled: commentsEnabled,
+    builder: (_) => ContentColumnFrame(
+      child: CommentsSheet(
+        postId: postId,
+        commentsEnabled: commentsEnabled,
+      ),
     ),
   );
 }

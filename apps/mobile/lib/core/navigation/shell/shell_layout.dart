@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 
 /// Owner 2026-10-15 (web): how the main shell lays out its navigation.
 enum ShellLayout {
@@ -27,6 +27,10 @@ const double kShellContentMaxWidth = 680;
 const bool kAdaptiveShell =
     bool.fromEnvironment('ADAPTIVE_SHELL', defaultValue: kIsWeb);
 
+/// Tests set this to see the web layout on the VM.
+@visibleForTesting
+bool? adaptiveShellOverride;
+
 /// The layout for a window [width] wide.
 ShellLayout shellLayoutFor(double width, {bool adaptive = kAdaptiveShell}) {
   if (!adaptive || width < kShellRailMinWidth) return ShellLayout.bottom;
@@ -34,3 +38,36 @@ ShellLayout shellLayoutFor(double width, {bool adaptive = kAdaptiveShell}) {
       ? ShellLayout.rail
       : ShellLayout.extendedRail;
 }
+
+/// Owner 2026-10-15 (web): sheets and dialogs open over the content column
+/// (same edges, same widest width), not over the whole window.
+///
+/// Measured from the view, not from MediaQuery: inside the content column
+/// the query already holds the column's own size.
+({double shift, double? maxWidth}) contentColumnBounds(
+  double windowWidth, {
+  bool? adaptive,
+}) {
+  switch (shellLayoutFor(
+    windowWidth,
+    adaptive: adaptive ?? adaptiveShellOverride ?? kAdaptiveShell,
+  )) {
+    case ShellLayout.bottom:
+      return (shift: 0, maxWidth: null);
+    case ShellLayout.rail:
+      return (
+        shift: kShellRailWidth / 2,
+        maxWidth: windowWidth - kShellRailWidth
+      );
+    case ShellLayout.extendedRail:
+      final free = windowWidth - kShellExtendedWidth;
+      return (
+        shift: kShellExtendedWidth / 2,
+        maxWidth: free < kShellContentMaxWidth ? free : kShellContentMaxWidth,
+      );
+  }
+}
+
+/// The side column widths, as in the side nav.
+const double kShellRailWidth = 76;
+const double kShellExtendedWidth = 220;
