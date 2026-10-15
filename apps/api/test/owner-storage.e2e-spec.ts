@@ -288,9 +288,26 @@ describe('Storage like Telegram (e2e)', () => {
     await api().get('/api/v1/admin/storage').set(a.auth).expect(401);
   });
   it('nightly: old technical logs go, a daily snapshot is kept', async () => {
-    await user();
+    const author = await user();
+    const post = await prisma.post.create({
+      data: { author_id: author.id, body: 'retention check' },
+    });
+    const oldViewer = await user();
+    const freshViewer = await user();
+    const longAgo = new Date(Date.now() - 400 * 24 * 3600 * 1000);
+    await prisma.postView.create({
+      data: { post_id: post.id, user_id: oldViewer.id, created_at: longAgo },
+    });
+    await prisma.postView.create({
+      data: { post_id: post.id, user_id: freshViewer.id },
+    });
     const r = await app.get(DataRetentionService).run();
     expect(r).not.toBeNull();
+    expect(r!.postViews).toBeGreaterThanOrEqual(1);
+    const left = await prisma.postView.findMany({
+      where: { post_id: post.id },
+    });
+    expect(left.map((v) => v.user_id)).toEqual([freshViewer.id]);
     await app.get(StorageStatsService).snapshot();
     const today = new Date(new Date().toISOString().slice(0, 10));
     const snap = await prisma.storageSnapshot.findUnique({
