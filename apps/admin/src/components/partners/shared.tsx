@@ -29,11 +29,10 @@ export function partnerName(p: PartnerRowExt): string {
     p.id.slice(0, 8)
   );
 }
-export type PartnerUser = components["schemas"]["AdminPartnerUserDto"];
+type PartnerUser = components["schemas"]["AdminPartnerUserDto"];
 export type Commission = components["schemas"]["AdminPartnerCommissionRowDto"];
 export type CommissionStatus =
   components["schemas"]["PartnerCommissionStatus"];
-export type CommissionKind = components["schemas"]["PartnerCommissionKind"];
 export type ClientRule = components["schemas"]["PartnerClientRule"];
 export type JoinMode = components["schemas"]["PartnerJoinMode"];
 export type PartnerStatus = components["schemas"]["PartnerStatus"];

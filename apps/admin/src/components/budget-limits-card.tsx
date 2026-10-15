@@ -14,7 +14,7 @@ import { formatDateTime } from '@/lib/utils';
 type Window = 'minute' | 'daily' | 'monthly';
 type Mode = 'auto' | 'manual';
 
-export type BudgetLimit = {
+type BudgetLimit = {
   provider: string;
   window: Window;
   mode: Mode;

@@ -29677,6 +29677,51 @@
         ]
       }
     },
+    "/app-events": {
+      "post": {
+        "operationId": "reportEvents",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppEventBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The app reports events (batch of up to 50)",
+        "tags": [
+          "app-events"
+        ]
+      }
+    },
     "/practice-areas": {
       "get": {
         "operationId": "listPracticeAreas",
@@ -98264,6 +98309,52 @@
           "purchases"
         ]
       },
+      "AppEventCountDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "screen": {
+            "type": "string",
+            "description": "Empty when the event has no screen."
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "screen",
+          "count"
+        ]
+      },
+      "AnalyticsEventsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The app sends events (flag app_events)."
+          },
+          "topEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventCountDto"
+            }
+          },
+          "topScreens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventCountDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "topEvents",
+          "topScreens"
+        ]
+      },
       "AnalyticsDto": {
         "type": "object",
         "properties": {
@@ -98300,6 +98391,9 @@
             "items": {
               "$ref": "#/components/schemas/AnalyticsDayDto"
             }
+          },
+          "events": {
+            "$ref": "#/components/schemas/AnalyticsEventsDto"
           }
         },
         "required": [
@@ -98311,7 +98405,8 @@
           "funnel",
           "retention",
           "churn",
-          "daily"
+          "daily",
+          "events"
         ]
       },
       "AnalyticsEnvelope": {
@@ -98326,6 +98421,40 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "AppEventInDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9_.]{1,40}$",
+            "example": "screen_view"
+          },
+          "screen": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_:/.-]{0,80}$",
+            "example": "/cases/:id",
+            "description": "Screen route."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "AppEventBatchDto": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventInDto"
+            }
+          }
+        },
+        "required": [
+          "events"
         ]
       },
       "PracticeAreaLeafDto": {

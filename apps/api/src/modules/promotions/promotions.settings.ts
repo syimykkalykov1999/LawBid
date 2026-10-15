@@ -80,8 +80,6 @@ export const DEFAULT_PROMOTION_SETTINGS: PromotionSettings = {
   requireSubscription: false,
 };
 
-/** Promoted cases shown on top of an attorney's first feed page. */
-export const PROMOTED_FEED_SLOTS = 3;
 /** Stripe's smallest USD charge. */
 export const MIN_CHARGE_CENTS = 50;
 /** Unpaid checkouts are given up after this long (Stripe: 24 h). */

@@ -17,7 +17,7 @@ const GOLD = '#C9A24A';
 const GOLD_DARK = '#8E6F26';
 const NAVY = '#0A1A3F';
 
-export type PreviewDiscount = { compareAtCents: number; percent: number } | null;
+type PreviewDiscount = { compareAtCents: number; percent: number } | null;
 
 const appMoney = (cents: number) =>
   new Intl.NumberFormat('en-US', {

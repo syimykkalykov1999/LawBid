@@ -25,6 +25,10 @@ class CrashReporter {
 
   static CrashReporter? instance;
 
+  /// Switched by the feature flag `crash_reports` (default on): off means
+  /// nothing is queued or sent.
+  static bool enabled = true;
+
   final SharedPreferences _prefs;
   final AppEnvironment _env;
   final Dio _dio;
@@ -77,6 +81,7 @@ class CrashReporter {
   /// Queues an error; never throws.
   void report(Object error, StackTrace? stack, {bool fatal = false}) {
     try {
+      if (!enabled) return;
       final message = '${error.runtimeType}: $error';
       final trace = (stack ?? StackTrace.current).toString();
       final head = message.length > 160 ? message.substring(0, 160) : message;
@@ -146,6 +151,10 @@ class CrashReporter {
   Future<void> flush() async {
     final queue = _read();
     if (queue.isEmpty) return;
+    if (!enabled) {
+      await _prefs.setString(_queueKey, '[]');
+      return;
+    }
     final take = queue.take(_batch).toList();
     try {
       final device = await _deviceInfo();

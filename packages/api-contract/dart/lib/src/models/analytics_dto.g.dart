@@ -22,6 +22,7 @@ AnalyticsDto _$AnalyticsDtoFromJson(Map<String, dynamic> json) => AnalyticsDto(
   daily: (json['daily'] as List<dynamic>)
       .map((e) => AnalyticsDayDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  events: AnalyticsEventsDto.fromJson(json['events'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$AnalyticsDtoToJson(AnalyticsDto instance) =>
@@ -35,4 +36,5 @@ Map<String, dynamic> _$AnalyticsDtoToJson(AnalyticsDto instance) =>
       'retention': instance.retention.toJson(),
       'churn': instance.churn.toJson(),
       'daily': instance.daily.map((e) => e.toJson()).toList(),
+      'events': instance.events.toJson(),
     };

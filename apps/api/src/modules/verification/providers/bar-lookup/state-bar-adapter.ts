@@ -36,16 +36,6 @@ export interface StateBarAdapter {
   ): Promise<CheckOutcome>;
 }
 
-export interface BarLookupDetails {
-  provider: string;
-  found: boolean;
-  licenseStatus: 'active' | 'inactive' | null;
-  name: string | null;
-  admittedAt: string | null;
-  sourceUrl: string | null;
-  raw?: string;
-}
-
 export const STATE_BAR_ADAPTERS = Symbol('STATE_BAR_ADAPTERS');
 
 /** One setting of an adapter, as the admin form shows it. */

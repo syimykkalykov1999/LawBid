@@ -11,7 +11,6 @@ import {
 } from './entitlement-catalog';
 
 export type PlanInterval = 'month' | 'year';
-export type PlanStatus = 'draft' | 'active' | 'archived';
 export type LocalizedText = { en?: string; ru?: string };
 
 /** The plans every install starts with (owner 2026-10-05): the attorney's

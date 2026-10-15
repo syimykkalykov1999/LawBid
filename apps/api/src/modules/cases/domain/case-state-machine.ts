@@ -180,13 +180,6 @@ export function caseInvalidState(
   });
 }
 
-export function canApplyCaseAction(
-  status: CaseStatus,
-  action: CaseAction,
-): boolean {
-  return CASE_TRANSITIONS[action].from.includes(status);
-}
-
 /**
  * Pure: validates `action` from `status` and returns the target status,
  * the journal event and the column changes. Throws CASE_INVALID_STATE.

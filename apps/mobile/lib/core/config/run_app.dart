@@ -8,6 +8,7 @@ import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/device_key.dart';
@@ -47,6 +48,8 @@ Future<void> runLawBid(AppFlavor flavor) async {
 
   // Owner 2026-10-15: the app's own crash reports (admin → Вылеты).
   CrashReporter.install(prefs, AppEnvironment.current);
+  // Owner 2026-10-15: the app's own usage events (admin → Аналитика).
+  AppEvents.install(prefs, AppEnvironment.current);
 
   final container = ProviderContainer(
     overrides: [

@@ -13,7 +13,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 
 export const CLIENT_REVIEW_BODY_MAX = 2000;
@@ -42,18 +41,6 @@ export class UpsertClientReviewDto {
   @ArrayMaxSize(20)
   @IsUUID('all', { each: true })
   photoIds?: string[];
-}
-
-/** Owner 2026-09-30: POST /client-reviews/:id/appeal. */
-export class AppealClientReviewDto {
-  @ApiProperty({ minLength: 1, maxLength: 1000 })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MinLength(1)
-  @MaxLength(1000)
-  reason!: string;
 }
 
 export class ClientReviewIdParamDto {

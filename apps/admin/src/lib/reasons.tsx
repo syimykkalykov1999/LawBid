@@ -1,7 +1,7 @@
 import * as React from 'react';
 
 /** Russian wording for raw codes the API passes through (Stripe decline codes, system cancel reasons). */
-export const REASON_TEXT: Record<string, string> = {
+const REASON_TEXT: Record<string, string> = {
   // payments (Stripe)
   card_declined: 'Карта отклонена',
   generic_decline: 'Карта отклонена банком',
@@ -41,7 +41,7 @@ export const REASON_TEXT: Record<string, string> = {
 };
 
 /** Human text for a raw code; unknown codes are returned unchanged. */
-export function reasonText(code: string | null | undefined): string {
+function reasonText(code: string | null | undefined): string {
   if (!code) return '';
   return REASON_TEXT[code] ?? code;
 }

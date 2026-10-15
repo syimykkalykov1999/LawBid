@@ -15,7 +15,7 @@ export const URGENCY_LEVEL: Record<Level, string> = {
   overdue: 'дата прошла',
 };
 
-export const DEADLINE_KIND: Record<components['schemas']['CaseDeadlineKind'], string> = {
+const DEADLINE_KIND: Record<components['schemas']['CaseDeadlineKind'], string> = {
   court_hearing: 'заседание суда',
   filing_deadline: 'срок подачи',
   meeting: 'встреча',
@@ -27,7 +27,7 @@ const toneOf = (level: Level | null): Tone =>
   level === 'urgent' || level === 'very_urgent' || level === 'overdue' ? 'danger' : level === 'soon' ? 'gold' : 'neutral';
 
 /** `2026-11-03` → `3 нояб. 2026` (a calendar date, no time zone shift). */
-export function formatDay(iso: string): string {
+function formatDay(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }

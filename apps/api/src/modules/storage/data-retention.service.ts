@@ -16,6 +16,7 @@ export interface RetentionResult {
   assistantActivity: number;
   snapshots: number;
   postViews: number;
+  appEvents: number;
 }
 
 /**
@@ -50,14 +51,14 @@ export class DataRetentionService implements OnModuleDestroy {
 
   async run(now: Date = new Date()): Promise<RetentionResult | null> {
     if (!(await this.settings.boolean('storage.auto_retention'))) return null;
-    const [authDays, activityDays, snapshotDays, viewsDays] = await Promise.all(
-      [
+    const [authDays, activityDays, snapshotDays, viewsDays, eventsDays] =
+      await Promise.all([
         this.settings.number('storage.retention_auth_events_days'),
         this.settings.number('storage.retention_assistant_activity_days'),
         this.settings.number('storage.retention_snapshots_days'),
         this.settings.number('storage.retention_post_views_days'),
-      ],
-    );
+        this.settings.number('storage.retention_app_events_days'),
+      ]);
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
     const result: RetentionResult = {
       authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
@@ -90,6 +91,14 @@ export class DataRetentionService implements OnModuleDestroy {
                   WHERE created_at < ${before(viewsDays)}
                   ORDER BY created_at LIMIT ${limit})`,
             )
+          : 0,
+      appEvents:
+        eventsDays > 0
+          ? (
+              await this.prisma.appEventDay.deleteMany({
+                where: { day: { lt: before(eventsDays) } },
+              })
+            ).count
           : 0,
     };
     if (Object.values(result).some((n) => n > 0)) {

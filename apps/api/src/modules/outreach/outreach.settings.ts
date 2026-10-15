@@ -65,14 +65,6 @@ export const STATUS_AFTER_CALL: Readonly<
 export const TEMPLATE_KINDS = ['any', 'attorney', 'client'] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
 
-export const TEMPLATE_VARS = [
-  'first_name',
-  'last_name',
-  'company',
-  'sender_name',
-  'link',
-] as const;
-
 export interface OutreachSettings {
   /** Cold emails one employee may send per calendar day (UTC). */
   dailyEmailLimit: number;

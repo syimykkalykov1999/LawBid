@@ -4,6 +4,7 @@ import { demoContext } from '../../common/demo/demo-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { AnalyticsDto } from './analytics.dto';
+import { AppEventsService } from './app-events.service';
 
 const CACHE_TTL_SEC = 300;
 const DAY_MS = 86_400_000;
@@ -24,6 +25,7 @@ export class AnalyticsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly appEvents: AppEventsService,
   ) {}
 
   /** The person opened the app today: one write a day, not one per call. */
@@ -57,6 +59,7 @@ export class AnalyticsService {
     const since = new Date(now.getTime() - days * DAY_MS);
     const today = dayKey(now);
 
+    const events = await this.appEvents.top(days);
     const [series, signups, actives, funnel, retention, churn, buys] =
       await Promise.all([
         p.$queryRaw<{ day: Date; n: bigint }[]>`
@@ -203,6 +206,7 @@ export class AnalyticsService {
       },
       churn: { clients: byRole('client'), attorneys: byRole('attorney') },
       daily,
+      events,
     };
   }
 }

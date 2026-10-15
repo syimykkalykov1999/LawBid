@@ -14,7 +14,7 @@ import type { components } from './schema';
 export type DemoRole = 'client' | 'attorney' | 'assistant';
 export const DEMO_ROLES: DemoRole[] = ['client', 'attorney', 'assistant'];
 
-export interface DemoAccountDto {
+interface DemoAccountDto {
   id: string;
   role: DemoRole;
   displayName: string;
@@ -50,12 +50,12 @@ export interface DemoStatusDto {
   migrationsPending: number;
 }
 
-export interface DemoAccountsPage {
+interface DemoAccountsPage {
   items: AdminDemoAccountDto[];
   total: number;
 }
 
-export interface CreateDemoAccountBody {
+interface CreateDemoAccountBody {
   role: DemoRole;
   label?: string;
   firstName?: string;
@@ -63,12 +63,12 @@ export interface CreateDemoAccountBody {
   withInvite?: boolean;
 }
 
-export interface CreateDemoAccountResult {
+interface CreateDemoAccountResult {
   account: AdminDemoAccountDto;
   inviteCode: string | null;
 }
 
-export interface DemoInviteResult {
+interface DemoInviteResult {
   inviteCode: string;
   inviteExpiresAt: string;
 }
@@ -90,7 +90,7 @@ export type PartnerRowExt = Omit<GenPartnerRow, 'user'> & {
   demoAccess?: boolean;
 };
 
-export type CreateExternalPartnerBody = Omit<
+type CreateExternalPartnerBody = Omit<
   components['schemas']['CreatePartnerDto'],
   'userId'
 > & {
@@ -104,7 +104,7 @@ const SERVER_ENVELOPE = 'data';
  * JSON call to `/admin/<path>` through the proxy. Unwraps the `{ data }`
  * envelope the API uses when present, throws ApiError like the typed client.
  */
-export async function proxyJson<T>(
+async function proxyJson<T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   init?: { body?: unknown; query?: Record<string, string | number | undefined> },

@@ -19,6 +19,22 @@ export interface FlagDef {
 
 export const FLAG_CATALOG: readonly FlagDef[] = [
   {
+    // Owner 2026-10-15: kill switch for the app's own crash reports. Off:
+    // the phone stops sending and the API drops what still arrives.
+    key: 'crash_reports',
+    enabled: true,
+    description: "The app's own crash reports (admin: Вылеты); off = stop",
+    app: true,
+  },
+  {
+    // Owner 2026-10-15: the app's own usage events, counted by day. Cheap
+    // (batched, counts only), so on by default.
+    key: 'app_events',
+    enabled: true,
+    description: "The app's own usage events (admin: Аналитика); off = stop",
+    app: true,
+  },
+  {
     // Owner 2026-10-15 (Instagram): authors can hide like / view counters of
     // their posts and reels, viewers can hide like counters. Cases keep
     // their bids and comments always.

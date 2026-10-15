@@ -1,14 +1,5 @@
 import { Badge, type Tone } from '@/components/ui/card';
 
-/**
- * Owner 2026-10-05 — Russian texts of «Борьба с мошенниками»
- * (apps/api/src/modules/attorney-trust, docs/ATTORNEY_TRUST.md). The owner
- * picks what to require of an attorney; what can be checked automatically is,
- * the rest waits for a person in the staff queue; «Подтвердить» ends the
- * checks for good.
- */
-export const TRUST_LEVELS = [0, 1, 2, 3] as const;
-
 export const TRUST_LEVEL_RU: Record<number, { short: string; long: string; hint: string }> = {
   0: { short: 'Заявлен', long: '0 — Заявлен', hint: 'Только присяга адвоката: штат и номер лицензии со слов.' },
   1: { short: 'Реестр', long: '1 — Реестр', hint: 'Номер лицензии совпал с реестром штата или подтверждён сотрудником.' },
@@ -20,12 +11,12 @@ export const TRUST_LEVEL_RU: Record<number, { short: string; long: string; hint:
   3: { short: 'Документы', long: '3 — Документы', hint: 'Сотрудник проверил карточку адвоката и удостоверение, плюс личность по Stripe.' },
 };
 
-export function trustLevelLabel(level: number | null | undefined): string {
+function trustLevelLabel(level: number | null | undefined): string {
   if (level == null) return '—';
   return TRUST_LEVEL_RU[level]?.long ?? `Ур. ${level}`;
 }
 
-export function trustLevelTone(level: number | null | undefined): Tone {
+function trustLevelTone(level: number | null | undefined): Tone {
   switch (level) {
     case 3:
       return 'success';
@@ -84,7 +75,7 @@ export const BADGE_STATUS_RU: Record<BadgeStatus, { text: string; hint: string }
   suspended: { text: 'Приостановлено', hint: 'Профиль приостановлен — по жалобам или администратором.' },
 };
 
-export function badgeStatusTone(status: string | null | undefined): Tone {
+function badgeStatusTone(status: string | null | undefined): Tone {
   switch (status) {
     case 'cleared':
       return 'success';
@@ -140,7 +131,7 @@ export const QUEUE_REASON_RU: Record<QueueReason, { text: string; tone: Tone }> 
 
 /** Requirements the owner can switch on (`missing`, `requirements`). */
 export const REQUIREMENTS = ['registry', 'identity', 'documents'] as const;
-export type Requirement = (typeof REQUIREMENTS)[number];
+type Requirement = (typeof REQUIREMENTS)[number];
 export const REQUIREMENT_RU: Record<Requirement, { text: string; hint: string }> = {
   registry: { text: 'Реестр', hint: 'номер лицензии совпал с реестром штата или подтверждён сотрудником' },
   identity: { text: 'Личность', hint: 'Stripe KYC на самого адвоката (имя совпало) или подтверждённая связь с фирмой' },
