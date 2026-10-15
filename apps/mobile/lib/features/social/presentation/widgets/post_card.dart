@@ -52,16 +52,16 @@ double feedCardHeight(double viewport) => math.max(440, viewport);
 /// always shows the latest local version of the post (likes/saves/edits
 /// from any screen).
 /// Room a feed video card keeps besides the video (dp): the icon row and
-/// the one text line (the author lies over the video). The video fills the
+/// the two text lines (the author lies over the video). The video fills the
 /// rest between the header and the nav bar (owner 2026-10-15).
-const double _kVideoCardChrome = 112;
+const double _kVideoCardChrome = 128;
 
 /// Owner 2026-10-15: a video in a list is at most 9:10 (our header already
 /// takes room, unlike Instagram's 4:5).
 const double _kVideoRatio = 0.9;
 
-/// Owner 2026-10-15: one line under a video's icons — the author's nick in
-/// bold, the start of the text, and «ещё» pinned at the end of the line.
+/// Owner 2026-10-15: two lines under a video's icons — the start of the
+/// text (no author name), with «ещё» at the end of the second line.
 class _VideoOneLine extends ConsumerWidget {
   const _VideoOneLine({
     required this.post,
@@ -79,9 +79,11 @@ class _VideoOneLine extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final oneLine = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final more = t.t('post.more');
+    final base = type.body.copyWith(color: colors.text);
     return Semantics(
       button: true,
-      label: t.t('post.more'),
+      label: more,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onMore,
@@ -92,30 +94,46 @@ class _VideoOneLine extends ConsumerWidget {
             AppSpacing.lg,
             AppSpacing.xs,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: post.author.username,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      if (oneLine.isNotEmpty) TextSpan(text: '  $oneLine'),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.body.copyWith(color: colors.text),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final textScaler = MediaQuery.textScalerOf(context);
+              TextPainter painter(String s) => TextPainter(
+                    text: TextSpan(text: s, style: base),
+                    textDirection: Directionality.of(context),
+                    textScaler: textScaler,
+                    maxLines: 2,
+                  )..layout(maxWidth: box.maxWidth);
+              // Whole text fits two lines: nothing to cut, «ещё» still ends
+              // the second line.
+              var shown = oneLine;
+              if (painter('$shown  $more').didExceedMaxLines) {
+                var lo = 0;
+                var hi = oneLine.length;
+                while (lo < hi) {
+                  final mid = (lo + hi + 1) ~/ 2;
+                  final cut = oneLine.substring(0, mid).trimRight();
+                  if (painter('$cut…  $more').didExceedMaxLines) {
+                    hi = mid - 1;
+                  } else {
+                    lo = mid;
+                  }
+                }
+                shown = '${oneLine.substring(0, lo).trimRight()}…';
+              }
+              return Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: shown),
+                    TextSpan(
+                      text: '  $more',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                t.t('post.more'),
-                style: type.body.copyWith(color: colors.textSecondary),
-              ),
-            ],
+                maxLines: 2,
+                style: base,
+              );
+            },
           ),
         ),
       ),
@@ -437,7 +455,7 @@ class PostCard extends ConsumerWidget {
           if (p.video != null)
             _VideoOneLine(
               post: p,
-              line: title.isNotEmpty ? title : text,
+              line: title.isNotEmpty ? '$title $text' : text,
               onMore: () => showPostTextSheet(context, p),
             )
           else
@@ -1064,7 +1082,9 @@ class _ThreadsPost extends ConsumerWidget {
                         child: GestureDetector(
                           onTap: () => openAuthorProfile(context, ref, a),
                           child: Text(
-                            a.username,
+                            // Owner 2026-10-15: like every other post — the
+                            // name on top, the role line below.
+                            a.displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: type.bodySmall.copyWith(
@@ -1082,20 +1102,19 @@ class _ThreadsPost extends ConsumerWidget {
                           gold: a.isClient,
                         ),
                       ],
-                      // Owner 2026-10-13: the time moved down, next to Save.
-                      if (promotionId != null) ...[
-                        const SizedBox(width: AppSpacing.sm),
-                        Flexible(
-                          child: Text(
-                            t.t('promote.sponsored'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.caption
-                                .copyWith(color: colors.textSecondary),
-                          ),
-                        ),
-                      ],
                     ],
+                  ),
+                  Text(
+                    promotionId != null
+                        ? t.t('promote.sponsored')
+                        : a.isClient
+                            ? '@${a.username} · ${t.t('person.client')}'
+                            : a.verified
+                                ? t.t('post.licensedAttorney')
+                                : '@${a.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                 ],
               ),

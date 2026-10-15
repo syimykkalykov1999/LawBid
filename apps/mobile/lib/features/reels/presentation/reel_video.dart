@@ -80,6 +80,12 @@ class _ReelVideoState extends State<ReelVideo> {
   VideoPlayerController? _c;
   bool _ready = false;
   bool _failed = false;
+
+  /// Owner 2026-10-15: no loading wheel flashing for a split second — it
+  /// shows only when the stream is really slow (over 1.2 s), the poster
+  /// frame fills the box until then.
+  bool _slow = false;
+  Timer? _slowTimer;
   Duration? _resumeAt;
   ReelClip? _clip;
   bool _seeking = false;
@@ -88,6 +94,18 @@ class _ReelVideoState extends State<ReelVideo> {
   void initState() {
     super.initState();
     if (widget.active || widget.warm) _open();
+    // The poster frame is on screen at once (it is cached by the list).
+    final thumb = widget.video.thumbnailUrl;
+    if (thumb != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(
+            precacheImage(CachedNetworkImageProvider(thumb), context)
+                .catchError((_) {}),
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -122,6 +140,11 @@ class _ReelVideoState extends State<ReelVideo> {
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: widget.muted),
     );
     _c = c;
+    _slowTimer?.cancel();
+    _slow = false;
+    _slowTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _c == c && !_ready) setState(() => _slow = true);
+    });
     c.addListener(_tick);
     try {
       await c.initialize();
@@ -175,6 +198,8 @@ class _ReelVideoState extends State<ReelVideo> {
     _c = null;
     _ready = false;
     _failed = false;
+    _slowTimer?.cancel();
+    _slow = false;
     _clip = null;
     _seeking = false;
     c?.removeListener(_tick);
@@ -215,6 +240,7 @@ class _ReelVideoState extends State<ReelVideo> {
               ),
             ),
           if (widget.active &&
+              _slow &&
               !_ready &&
               !_failed &&
               widget.video.playbackUrl != null)

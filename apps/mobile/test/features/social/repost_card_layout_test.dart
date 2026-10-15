@@ -51,10 +51,10 @@ void main() {
         );
         await t.pump();
         expect(t.takeException(), isNull);
-        expect(find.text('sofia.hernandez'), findsOneWidget);
+        expect(find.text('Sofia Hernandez'), findsOneWidget);
         expect(find.textContaining('james.whitfield'), findsOneWidget);
         expect(find.byIcon(AppIcons.bookmarkBorderRounded), findsOneWidget);
-        final name = t.getTopLeft(find.text('sofia.hernandez'));
+        final name = t.getTopLeft(find.text('Sofia Hernandez'));
         final line = t.getTopLeft(find.textContaining('james.whitfield'));
         expect(line.dy, greaterThan(name.dy));
         expect(line.dy - name.dy, lessThan(40 * scale));

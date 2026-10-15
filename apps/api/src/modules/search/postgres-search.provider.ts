@@ -37,6 +37,20 @@ const SEARCH_BUDGET_MS = 700;
 const MIN_EXACT = 3;
 
 /** LIKE pattern text with %, _ and \ taken literally. */
+/**
+ * Owner 2026-10-15: SQL condition "every word of [norm] starts a word of the
+ * translated practice name or of its keywords" (accents and commas
+ * ignored) — "штраф гибдд", "visa", "ажырашуу" all work.
+ */
+function practiceWordsMatch(norm: string): Prisma.Sql {
+  const words = norm.split(/\s+/).filter((w) => w.length > 0);
+  const conds = words.map(
+    (w) =>
+      Prisma.sql`public.f_unaccent(' ' || replace(lower(t.value), ',', ' ')) LIKE ${`% ${escapeLike(w)}%`}`,
+  );
+  return conds.length ? Prisma.join(conds, ' AND ') : Prisma.sql`FALSE`;
+}
+
 export function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
@@ -338,18 +352,14 @@ export class PostgresSearchProvider implements SearchProvider {
   ): Promise<{ code: string; nameEn: string; hit: string | null }[]> {
     const norm = parseSearchQuery(q).plain.toLowerCase();
     if (norm.length < 2) return [];
-    const like = `${escapeLike(norm)}%`;
-    const wordLike = `% ${escapeLike(norm)}%`;
     const rows = await this.prisma.$queryRaw<
       { code: string; name_en: string; value: string; lang: string }[]
     >`
       SELECT DISTINCT ON (pa.id) pa.code, pa.name_en, t.value, t.lang
       FROM practice_areas pa
-      JOIN i18n_keys k ON k.key = pa.i18n_key
+      JOIN i18n_keys k ON k.key IN (pa.i18n_key, pa.i18n_key || '.kw')
       JOIN i18n_translations t ON t.key_id = k.id
-      WHERE pa.is_active
-        AND (public.f_unaccent(lower(t.value)) LIKE ${like}
-          OR public.f_unaccent(' ' || lower(t.value)) LIKE ${wordLike})
+      WHERE pa.is_active AND (${practiceWordsMatch(norm)})
       ORDER BY pa.id, (t.lang = 'en') DESC, pa.sort
       LIMIT ${limit}`;
     return rows.map((r) => ({
@@ -381,17 +391,13 @@ export class PostgresSearchProvider implements SearchProvider {
     if (norm.length < 3) return [];
     const hit = this.practiceCache.get(norm);
     if (hit && Date.now() - hit.at < 600_000) return hit.ids;
-    const like = `${escapeLike(norm)}%`;
-    const wordLike = `% ${escapeLike(norm)}%`;
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       WITH hits AS (
         SELECT DISTINCT pa.id, pa.parent_id
         FROM practice_areas pa
-        JOIN i18n_keys k ON k.key = pa.i18n_key
+        JOIN i18n_keys k ON k.key IN (pa.i18n_key, pa.i18n_key || '.kw')
         JOIN i18n_translations t ON t.key_id = k.id
-        WHERE pa.is_active
-          AND (public.f_unaccent(lower(t.value)) LIKE ${like}
-            OR public.f_unaccent(' ' || lower(t.value)) LIKE ${wordLike})
+        WHERE pa.is_active AND (${practiceWordsMatch(norm)})
         LIMIT 12
       )
       SELECT id::TEXT AS id FROM hits

@@ -398,33 +398,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
-                  // Owner 2026-10-15: one button for every post — the type
-                  // follows what is attached: text only is a brief, with
-                  // photos a post (a video goes on to the reel screen).
-                  if (!_editing && !_news) ...[
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Container(
-                        key: const ValueKey('post-kind-chip'),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                          vertical: AppSpacing.xs,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.chip,
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                        ),
-                        child: Text(
-                          t.t(_hasFiles ? 'post.kind.post' : 'feed.briefs'),
-                          style: type.caption.copyWith(
-                            color: colors.text,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
+                  // Owner 2026-10-15: one button for every post; the type
+                  // (brief / post / reel) follows what is attached, silently.
                   // Owner 2026-10-01: the qualification is optional.
                   _PracticeField(
                     label: practice == null
