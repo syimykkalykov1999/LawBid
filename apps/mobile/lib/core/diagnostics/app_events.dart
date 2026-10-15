@@ -30,6 +30,9 @@ class AppEvents {
   /// Switched by the feature flag `app_events` (default on).
   static bool enabled = true;
 
+  /// The person turned usage statistics off (web cookie notice).
+  static bool optedOut = false;
+
   final SharedPreferences _prefs;
   final Dio _dio;
   Timer? _timer;
@@ -93,7 +96,7 @@ class AppEvents {
 
   void _add(String name, String? screen) {
     try {
-      if (!enabled) return;
+      if (!enabled || optedOut) return;
       final queue = _read()
         ..add({'name': name, if (screen != null) 'screen': screen});
       while (queue.length > _maxQueue) {
@@ -144,7 +147,7 @@ class AppEvents {
     _timer?.cancel();
     final queue = _read();
     if (queue.isEmpty) return;
-    if (!enabled) {
+    if (!enabled || optedOut) {
       _write([]);
       return;
     }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:lawbid/app.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
@@ -13,6 +14,7 @@ import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
@@ -29,6 +31,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// ```
 Future<void> runLawBid(AppFlavor flavor) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Owner 2026-10-15 (web): an address is the screen (`/lawyer/anna`), not
+  // `/#/lawyer/anna` — links, reload and the back button all work. A no-op
+  // on the phone.
+  usePathUrlStrategy();
   // Web is closed until it is switched on (see web_gate.dart).
   if (kIsWeb && !kWebEnabled) {
     runApp(const WebGateApp());
@@ -50,6 +56,7 @@ Future<void> runLawBid(AppFlavor flavor) async {
   CrashReporter.install(prefs, AppEnvironment.current);
   // Owner 2026-10-15: the app's own usage events (admin → Аналитика).
   AppEvents.install(prefs, AppEnvironment.current);
+  applyWebNoticeChoice(prefs);
 
   final container = ProviderContainer(
     overrides: [

@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/platform/web_download.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:path_provider/path_provider.dart';
@@ -50,6 +52,10 @@ Future<void> shareBytes(
   String filename, {
   required String mimeType,
 }) async {
+  if (kIsWeb) {
+    saveBytesInBrowser(bytes, filename, mimeType);
+    return;
+  }
   final dir = await getTemporaryDirectory();
   final file = File('${dir.path}/$filename');
   await file.writeAsBytes(bytes, flush: true);
