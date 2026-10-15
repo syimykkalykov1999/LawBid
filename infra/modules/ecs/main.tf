@@ -88,6 +88,38 @@ variable "worker_max_tasks" {
   type    = number
   default = 10
 }
+variable "cpu_architecture" {
+  type        = string
+  default     = "X86_64"
+  description = "X86_64 or ARM64 (Graviton: about 20 % cheaper per vCPU on Fargate). Switch to ARM64 only after the api, admin and worker images are built for linux/arm64."
+  validation {
+    condition     = contains(["X86_64", "ARM64"], var.cpu_architecture)
+    error_message = "cpu_architecture must be X86_64 or ARM64."
+  }
+}
+variable "worker_spot" {
+  type        = bool
+  default     = false
+  description = "Run the worker on Fargate Spot (up to 70 % cheaper): one task stays on regular Fargate, the rest are Spot (weight 1:3). Safe for the queue: an interrupted job is retried."
+}
+variable "night_scale_down" {
+  type        = bool
+  default     = false
+  description = "Quiet hours: lower the minimum task count of api and worker on a schedule and restore it in the morning."
+}
+variable "night_min_tasks" {
+  type    = number
+  default = 1
+}
+variable "night_start_cron" {
+  type        = string
+  default     = "cron(0 7 * * ? *)"
+  description = "UTC; 07:00 UTC is 03:00 US Eastern, outside the US peak."
+}
+variable "night_end_cron" {
+  type    = string
+  default = "cron(0 12 * * ? *)"
+}
 variable "alb_resource_label" {
   type        = string
   description = "<alb arn_suffix>/<api target group arn_suffix> for ALBRequestCountPerTarget scaling."
@@ -118,7 +150,7 @@ resource "aws_ecs_cluster" "this" {
 
 resource "aws_ecs_cluster_capacity_providers" "this" {
   cluster_name       = aws_ecs_cluster.this.name
-  capacity_providers = ["FARGATE"]
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
   default_capacity_provider_strategy {
     capacity_provider = "FARGATE"
     weight            = 1
@@ -203,7 +235,11 @@ locals {
 }
 
 resource "aws_ecs_task_definition" "api" {
-  family                   = "${var.name}-api"
+  family = "${var.name}-api"
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = var.api_cpu
@@ -232,7 +268,11 @@ resource "aws_ecs_task_definition" "api" {
 }
 
 resource "aws_ecs_task_definition" "worker" {
-  family                   = "${var.name}-worker"
+  family = "${var.name}-worker"
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = var.worker_cpu
@@ -282,7 +322,11 @@ resource "aws_ecs_task_definition" "worker" {
 }
 
 resource "aws_ecs_task_definition" "admin" {
-  family                   = "${var.name}-admin"
+  family = "${var.name}-admin"
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = var.admin_cpu
@@ -369,10 +413,18 @@ resource "aws_ecs_service" "worker" {
   cluster                = aws_ecs_cluster.this.id
   task_definition        = aws_ecs_task_definition.worker.arn
   desired_count          = var.min_tasks
-  launch_type            = "FARGATE"
+  launch_type            = var.worker_spot ? null : "FARGATE"
   platform_version       = "LATEST"
   enable_execute_command = false
   propagate_tags         = "SERVICE"
+  dynamic "capacity_provider_strategy" {
+    for_each = var.worker_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 3 } } : {}
+    content {
+      capacity_provider = capacity_provider_strategy.key
+      base              = capacity_provider_strategy.value.base
+      weight            = capacity_provider_strategy.value.weight
+    }
+  }
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [var.tasks_security_group_id]
@@ -427,6 +479,39 @@ resource "aws_appautoscaling_target" "svc" {
   resource_id        = "service/${aws_ecs_cluster.this.name}/${each.value.service}"
   min_capacity       = var.min_tasks
   max_capacity       = each.value.max
+}
+
+# --- quiet hours (opt-in): fewer tasks at night, back in the morning --------
+# A scheduled action moves only the minimum; the CPU and request policies
+# above still add tasks if night traffic needs them. While the night minimum
+# is active `terraform plan` shows the target's min_capacity as drift; it is
+# restored by the morning action.
+resource "aws_appautoscaling_scheduled_action" "night_down" {
+  for_each           = var.night_scale_down && var.min_tasks > var.night_min_tasks ? aws_appautoscaling_target.svc : {}
+  name               = "${var.name}-${each.key}-night-down"
+  service_namespace  = each.value.service_namespace
+  scalable_dimension = each.value.scalable_dimension
+  resource_id        = each.value.resource_id
+  schedule           = var.night_start_cron
+  timezone           = "UTC"
+  scalable_target_action {
+    min_capacity = var.night_min_tasks
+    max_capacity = each.value.max_capacity
+  }
+}
+
+resource "aws_appautoscaling_scheduled_action" "morning_up" {
+  for_each           = var.night_scale_down && var.min_tasks > var.night_min_tasks ? aws_appautoscaling_target.svc : {}
+  name               = "${var.name}-${each.key}-morning-up"
+  service_namespace  = each.value.service_namespace
+  scalable_dimension = each.value.scalable_dimension
+  resource_id        = each.value.resource_id
+  schedule           = var.night_end_cron
+  timezone           = "UTC"
+  scalable_target_action {
+    min_capacity = var.min_tasks
+    max_capacity = each.value.max_capacity
+  }
 }
 
 resource "aws_appautoscaling_policy" "cpu" {
