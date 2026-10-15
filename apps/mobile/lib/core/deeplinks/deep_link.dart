@@ -54,8 +54,7 @@ final class ReferralDeepLink extends DeepLink {
 enum ContentKind { caseItem, lawyer, post }
 
 /// `/case/:id`, `/lawyer/:username`, `/post/:id` — content that lives in
-/// files 03–05; until those screens exist the route shows a "coming soon"
-/// state (deep_link_placeholder_screen.dart) instead of failing.
+/// files 03–05 (opened by the router).
 final class ContentDeepLink extends DeepLink {
   const ContentDeepLink(this.kind, this.id);
 
