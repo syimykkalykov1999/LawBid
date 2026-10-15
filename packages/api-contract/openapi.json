@@ -26148,6 +26148,73 @@
         ]
       }
     },
+    "/users/me/case-tasks": {
+      "get": {
+        "operationId": "caseTaskBoard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardCaseTaskListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tasks of every case in work, for the Mine › Tasks board",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
     "/cases/{id}/tasks": {
       "get": {
         "operationId": "listCaseTasks",
@@ -26364,7 +26431,7 @@
             "bearer": []
           }
         ],
-        "summary": "Attorney: add a private, shared or for-client task",
+        "summary": "Add a task: the attorney any kind, the client a for-client or joint one",
         "tags": [
           "cases"
         ]
@@ -89885,6 +89952,10 @@
             "type": "string",
             "nullable": true
           },
+          "casePracticeCode": {
+            "type": "string",
+            "nullable": true
+          },
           "contactName": {
             "type": "string",
             "nullable": true
@@ -94182,6 +94253,148 @@
           "files"
         ]
       },
+      "BoardCaseTaskDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "private",
+              "shared",
+              "for_client",
+              "joint"
+            ],
+            "type": "string"
+          },
+          "createdByRole": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "enum": [
+              "open",
+              "done"
+            ],
+            "type": "string"
+          },
+          "doneAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceFileDto"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseTaskEventDto"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseTaskItemDto"
+            }
+          },
+          "itemsDone": {
+            "type": "integer"
+          },
+          "itemsTotal": {
+            "type": "integer"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseTitle": {
+            "type": "string"
+          },
+          "practiceCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "viewerRole": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "canTick": {
+            "type": "boolean",
+            "description": "The viewer may tick it (the rules of the case workspace)."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "createdByRole",
+          "title",
+          "status",
+          "closed",
+          "createdAt",
+          "fileCount",
+          "files",
+          "events",
+          "items",
+          "itemsDone",
+          "itemsTotal",
+          "caseId",
+          "caseTitle",
+          "viewerRole",
+          "canTick"
+        ]
+      },
+      "BoardCaseTaskListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardCaseTaskDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "CaseTaskDto": {
         "type": "object",
         "properties": {
@@ -94193,7 +94406,15 @@
             "enum": [
               "private",
               "shared",
-              "for_client"
+              "for_client",
+              "joint"
+            ],
+            "type": "string"
+          },
+          "createdByRole": {
+            "enum": [
+              "client",
+              "attorney"
             ],
             "type": "string"
           },
@@ -94260,6 +94481,7 @@
         "required": [
           "id",
           "kind",
+          "createdByRole",
           "title",
           "status",
           "closed",
@@ -94294,6 +94516,13 @@
               "$ref": "#/components/schemas/CaseTaskDto"
             }
           },
+          "joint": {
+            "description": "Tasks of both sides (either one ticks them).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseTaskDto"
+            }
+          },
           "private": {
             "description": "Attorney only; empty for the client.",
             "type": "array",
@@ -94306,6 +94535,7 @@
           "role",
           "forClient",
           "shared",
+          "joint",
           "private"
         ]
       },
@@ -94350,7 +94580,8 @@
             "enum": [
               "private",
               "shared",
-              "for_client"
+              "for_client",
+              "joint"
             ],
             "type": "string"
           },

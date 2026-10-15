@@ -12,6 +12,8 @@ enum CaseTaskDtoKind {
   shared('shared'),
   @JsonValue('for_client')
   forClient('for_client'),
+  @JsonValue('joint')
+  joint('joint'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

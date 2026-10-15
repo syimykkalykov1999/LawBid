@@ -49,9 +49,12 @@ export class CaseFileInputDto {
 }
 
 export class CreateCaseTaskDto {
-  @ApiProperty({ enum: ['private', 'shared', 'for_client'] })
-  @IsIn(['private', 'shared', 'for_client'])
-  kind!: 'private' | 'shared' | 'for_client';
+  /// Owner 2026-10-15: both sides can add tasks. `joint` is a task of both
+  /// (either side ticks it); the client may add `for_client` (their own
+  /// to-do, the attorney sees it) and `joint`.
+  @ApiProperty({ enum: ['private', 'shared', 'for_client', 'joint'] })
+  @IsIn(['private', 'shared', 'for_client', 'joint'])
+  kind!: 'private' | 'shared' | 'for_client' | 'joint';
 
   @ApiProperty({ maxLength: TASK_TITLE_MAX })
   @Transform(tidy)
@@ -240,8 +243,10 @@ export class CaseTaskItemDto {
 export class CaseTaskDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
-  @ApiProperty({ enum: ['private', 'shared', 'for_client'] })
-  kind!: 'private' | 'shared' | 'for_client';
+  @ApiProperty({ enum: ['private', 'shared', 'for_client', 'joint'] })
+  kind!: 'private' | 'shared' | 'for_client' | 'joint';
+  @ApiProperty({ enum: ['client', 'attorney'] })
+  createdByRole!: 'client' | 'attorney';
   @ApiProperty()
   title!: string;
   @ApiPropertyOptional({ type: String, nullable: true })
@@ -281,9 +286,31 @@ export class CaseTasksDto {
   shared!: CaseTaskDto[];
   @ApiProperty({
     type: [CaseTaskDto],
+    description: 'Tasks of both sides (either one ticks them).',
+  })
+  joint!: CaseTaskDto[];
+  @ApiProperty({
+    type: [CaseTaskDto],
     description: 'Attorney only; empty for the client.',
   })
   private!: CaseTaskDto[];
+}
+
+/// Owner 2026-10-15: one case task on the «Tasks» board (Mine), with its
+/// case and the viewer's side.
+export class BoardCaseTaskDto extends CaseTaskDto {
+  @ApiProperty({ format: 'uuid' })
+  caseId!: string;
+  @ApiProperty()
+  caseTitle!: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  practiceCode!: string | null;
+  @ApiProperty({ enum: ['client', 'attorney'] })
+  viewerRole!: 'client' | 'attorney';
+  @ApiProperty({
+    description: 'The viewer may tick it (the rules of the case workspace).',
+  })
+  canTick!: boolean;
 }
 
 export class CaseUpdateDto {

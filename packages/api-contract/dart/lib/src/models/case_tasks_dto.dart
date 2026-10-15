@@ -15,6 +15,7 @@ class CaseTasksDto {
     required this.role,
     required this.forClient,
     required this.shared,
+    required this.joint,
     required this.private,
   });
 
@@ -24,6 +25,9 @@ class CaseTasksDto {
   final CaseTasksDtoRole role;
   final List<CaseTaskDto> forClient;
   final List<CaseTaskDto> shared;
+
+  /// Tasks of both sides (either one ticks them).
+  final List<CaseTaskDto> joint;
 
   /// Attorney only; empty for the client.
   final List<CaseTaskDto> private;

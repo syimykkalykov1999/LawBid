@@ -533,6 +533,33 @@ class TaskStepDraft {
   final String? contactEmail;
 }
 
+/// Owner 2026-10-15: a task of a case in work shown on the Tasks board next
+/// to the planner's own. [kind] is `for_client` | `shared` | `joint`.
+@immutable
+class BoardCaseTask {
+  const BoardCaseTask({
+    required this.taskId,
+    required this.kind,
+    required this.viewerIsAttorney,
+    required this.createdByClient,
+    required this.canTick,
+    required this.closed,
+  });
+
+  final String taskId;
+  final String kind;
+
+  /// The viewer is the case's attorney (else its client).
+  final bool viewerIsAttorney;
+  final bool createdByClient;
+  final bool canTick;
+  final bool closed;
+
+  bool get forClient => kind == 'for_client';
+  bool get shared => kind == 'shared';
+  bool get joint => kind == 'joint';
+}
+
 @immutable
 class TaskItem {
   const TaskItem({
@@ -571,7 +598,15 @@ class TaskItem {
     this.purgeAt,
     this.canComplete = true,
     this.canEdit = true,
+    this.casePracticeCode,
+    this.boardTask,
   });
+
+  /// The case's leaf practice code (the card's colour).
+  final String? casePracticeCode;
+
+  /// Set for a task of a case's workspace (not the planner's own).
+  final BoardCaseTask? boardTask;
 
   final String id;
   final TaskKind kind;
@@ -672,6 +707,8 @@ class TaskItem {
         purgeAt: purgeAt,
         canComplete: canComplete,
         canEdit: canEdit,
+        casePracticeCode: casePracticeCode,
+        boardTask: boardTask,
       );
 
   int get checkedSteps => steps.where((s) => s.checked).length;
@@ -689,7 +726,12 @@ class TaskItem {
 
   bool isOverdue(DateTime now) {
     if (!status.active) return false;
-    if (steps.isNotEmpty) return steps.any((s) => s.isOverdue(now));
+    // Steps with their own times decide; steps without (a case task's
+    // checklist) follow the task's date while one is still open.
+    if (steps.any((s) => s.dueAt != null)) {
+      return steps.any((s) => s.isOverdue(now));
+    }
+    if (steps.isNotEmpty && steps.every((s) => s.checked)) return false;
     return dueAt != null && dueAt!.isBefore(now);
   }
 }

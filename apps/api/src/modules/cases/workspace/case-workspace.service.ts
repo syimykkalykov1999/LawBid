@@ -11,6 +11,7 @@ import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
 import { caseNotFound } from '../domain/case-state-machine';
 import type {
+  BoardCaseTaskDto,
   CaseActivityDto,
   CaseFileInputDto,
   CaseTaskDto,
@@ -215,6 +216,7 @@ export class CaseWorkspaceService {
           ).map((p): CaseTaskDto => ({
             id: p.id,
             kind: 'private',
+            createdByRole: 'attorney',
             title: p.title,
             description: p.notes,
             status: p.status === 'done' ? 'done' : 'open',
@@ -235,6 +237,7 @@ export class CaseWorkspaceService {
       role: s.role,
       forClient: dtos.filter((t) => t.kind === 'for_client'),
       shared: dtos.filter((t) => t.kind === 'shared'),
+      joint: dtos.filter((t) => t.kind === 'joint'),
       private: priv,
     };
   }
@@ -254,7 +257,8 @@ export class CaseWorkspaceService {
     }));
     return {
       id: t.id,
-      kind: t.kind as 'shared' | 'for_client',
+      kind: t.kind as 'shared' | 'for_client' | 'joint',
+      createdByRole: this.roleOf(t.created_by, s),
       title: t.title,
       description: t.description,
       status: t.status as 'open' | 'done',
@@ -286,13 +290,22 @@ export class CaseWorkspaceService {
     dto: CreateCaseTaskDto,
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId);
-    if (s.role !== 'attorney') throw this.denied('Only the attorney.');
+    // Owner 2026-10-15: both sides add tasks; the client's are their own
+    // to-do (`for_client`) or a task of both (`joint`).
+    if (
+      s.role !== 'attorney' &&
+      dto.kind !== 'for_client' &&
+      dto.kind !== 'joint'
+    ) {
+      throw this.denied('Only the attorney.');
+    }
     const due = dto.dueAt ? new Date(dto.dueAt) : null;
     // Owner 2026-10-13: the bell needs a day; the reminder is the planner's
     // own (a push at remind_at), so it lands in Planner like any task.
     const before = due ? (dto.remindBeforeMin ?? null) : null;
     const planner = {
-      attorney_id: s.attorneyId,
+      // The reminder lands in the planner of whoever set the task.
+      attorney_id: user.sub,
       kind: 'other' as const,
       title: dto.title.slice(0, 160),
       notes: dto.description ?? null,
@@ -375,12 +388,18 @@ export class CaseWorkspaceService {
   ): Promise<CaseTasksDto> {
     const s = await this.side(user, caseId);
     const t = await this.taskOf(caseId, taskId);
+    // A shared task: the attorney only; a joint one: either side; a
+    // for-client task: the client marks it done (once every line is
+    // ticked); the attorney (or the client who set it) takes the mark off.
     const allowed =
-      t.kind === 'shared'
-        ? s.role === 'attorney'
-        : done
-          ? s.role === 'client' && t.closed_at === null
-          : s.role === 'attorney';
+      t.kind === 'joint'
+        ? true
+        : t.kind === 'shared'
+          ? s.role === 'attorney'
+          : done
+            ? s.role === 'client' && t.closed_at === null
+            : s.role === 'attorney' ||
+              (s.role === 'client' && t.created_by === user.sub);
     if (!allowed) throw this.denied('You cannot change this task.');
     if (done && t.items.some((i) => i.done_at === null)) {
       throw new ConflictException({
@@ -712,6 +731,87 @@ export class CaseWorkspaceService {
       })),
     ];
     return out.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  }
+
+  // ---- board (Mine › Tasks) ------------------------------------------
+
+  /** Owner 2026-10-15: the case tasks of every case in work, for the
+   * planner board: the viewer's own side, newest first; done ones for 45
+   * days (the archive). */
+  async board(user: RequestUser): Promise<BoardCaseTaskDto[]> {
+    const since = new Date(Date.now() - 45 * 24 * 3600e3);
+    const rows = await this.prisma.caseTask.findMany({
+      where: {
+        case: {
+          deleted_at: null,
+          status: { in: ['in_progress', 'pending_completion', 'disputed'] },
+          OR: [
+            { client_id: user.sub },
+            { accepted_bid: { attorney_id: user.sub } },
+          ],
+        },
+        OR: [{ status: 'open' }, { done_at: { gte: since } }],
+      },
+      orderBy: { created_at: 'desc' },
+      take: 400,
+      include: {
+        items: { orderBy: { position: 'asc' } },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            client_id: true,
+            practice_area: { select: { code: true } },
+          },
+        },
+      },
+    });
+    return rows.map((t): BoardCaseTaskDto => {
+      const role: Role = t.case.client_id === user.sub ? 'client' : 'attorney';
+      const items = t.items.map((i): CaseTaskItemDto => ({
+        id: i.id,
+        title: i.title,
+        done: i.done_at !== null,
+        doneAt: i.done_at?.toISOString() ?? null,
+        files: [],
+      }));
+      const done = t.status === 'done';
+      const canTick =
+        t.kind === 'joint'
+          ? true
+          : t.kind === 'shared'
+            ? role === 'attorney'
+            : done
+              ? role === 'attorney' ||
+                (role === 'client' && t.created_by === user.sub)
+              : role === 'client' && t.closed_at === null;
+      return {
+        id: t.id,
+        kind: t.kind as 'shared' | 'for_client' | 'joint',
+        createdByRole: this.roleOf(t.created_by, {
+          clientId: t.case.client_id,
+        }),
+        title: t.title,
+        description: t.description,
+        status: done ? 'done' : 'open',
+        doneAt: t.done_at?.toISOString() ?? null,
+        closed: t.closed_at !== null,
+        closedAt: t.closed_at?.toISOString() ?? null,
+        dueAt: t.due_at?.toISOString() ?? null,
+        createdAt: t.created_at.toISOString(),
+        fileCount: 0,
+        files: [],
+        events: [],
+        items,
+        itemsDone: items.filter((i) => i.done).length,
+        itemsTotal: items.length,
+        caseId: t.case.id,
+        caseTitle: t.case.title,
+        practiceCode: t.case.practice_area.code,
+        viewerRole: role,
+        canTick,
+      };
+    });
   }
 
   // ---- summary -------------------------------------------------------

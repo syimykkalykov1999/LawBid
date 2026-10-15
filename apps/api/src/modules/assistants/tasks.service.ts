@@ -74,7 +74,9 @@ const MEMBER_NAMES = {
 } satisfies Prisma.AssistantMembershipDefaultArgs;
 
 const INCLUDE = {
-  case: { select: { title: true } },
+  case: {
+    select: { title: true, practice_area: { select: { code: true } } },
+  },
   steps: { orderBy: [{ position: 'asc' }, { created_at: 'asc' }] },
   places: { orderBy: [{ position: 'asc' }, { created_at: 'asc' }] },
   people: {
@@ -1359,6 +1361,7 @@ export class TasksService {
         location: t.places[0]?.address ?? null,
         caseId: t.case_id,
         caseTitle: t.case?.title ?? null,
+        casePracticeCode: t.case?.practice_area.code ?? null,
         contactName: contact?.name ?? null,
         contactPhone: contact?.phone ?? null,
         contactEmail: contact?.email ?? null,

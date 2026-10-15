@@ -18,41 +18,42 @@ part 'task_dto.g.dart';
 @JsonSerializable()
 class TaskDto {
   const TaskDto({
-    required this.createdAt,
+    required this.assignedToMe,
     required this.kind,
     required this.title,
-    required this.status,
-    required this.files,
+    required this.canDelete,
     required this.id,
-    required this.assignedToMe,
-    required this.repeat,
+    required this.files,
+    required this.status,
     required this.canEdit,
     required this.people,
     required this.places,
-    required this.keepForever,
-    required this.canComplete,
     required this.steps,
+    required this.keepForever,
+    required this.repeat,
+    required this.canComplete,
+    required this.createdAt,
     required this.priority,
-    required this.canDelete,
     this.createdByName,
     this.rescheduledTo,
-    this.doneAt,
     this.outcomeNote,
-    this.contactEmail,
+    this.doneAt,
     this.contactPhone,
     this.contactName,
+    this.casePracticeCode,
     this.caseTitle,
+    this.location,
     this.repeatUntil,
     this.remindBeforeMin,
     this.assigneeMembershipId,
     this.assigneeName,
-    this.caseId,
+    this.contactEmail,
     this.conversationId,
     this.archivedAt,
     this.dueAt,
     this.purgeAt,
     this.notes,
-    this.location,
+    this.caseId,
   });
 
   factory TaskDto.fromJson(Map<String, Object?> json) =>
@@ -66,6 +67,7 @@ class TaskDto {
   final String? location;
   final String? caseId;
   final String? caseTitle;
+  final String? casePracticeCode;
   final String? contactName;
   final String? contactPhone;
   final String? contactEmail;

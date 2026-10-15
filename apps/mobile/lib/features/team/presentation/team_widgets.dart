@@ -32,10 +32,19 @@ String activityLabel(Translator t, String action) {
 
 /// Gold pill "+ Add task" (Mine → Tasks).
 class AddTaskButton extends StatelessWidget {
-  const AddTaskButton({required this.label, required this.onTap, super.key});
+  const AddTaskButton({
+    required this.label,
+    required this.onTap,
+    this.compact = false,
+    super.key,
+  });
 
   final String label;
   final VoidCallback onTap;
+
+  /// Owner 2026-10-15: just the «+» in a gold circle (the words are the
+  /// semantic label), so the views and the filter keep their room.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -47,30 +56,48 @@ class AddTaskButton extends StatelessWidget {
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
-        child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          decoration: BoxDecoration(
-            color: colors.ctaBright,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(AppIcons.addRounded, size: 20, color: colors.onCtaBright),
-              const SizedBox(width: 4),
-              Flexible(
-                child: FitText(
-                  label,
-                  style: typography.bodySmall.copyWith(
-                    color: colors.onCtaBright,
-                    fontWeight: FontWeight.w700,
-                  ),
+        child: compact
+            ? Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: colors.ctaBright,
+                  shape: BoxShape.circle,
+                ),
+                child: AppIcon(
+                  AppIcons.addRounded,
+                  size: 22,
+                  color: colors.onCtaBright,
+                ),
+              )
+            : Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: colors.ctaBright,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppIcon(
+                      AppIcons.addRounded,
+                      size: 20,
+                      color: colors.onCtaBright,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: FitText(
+                        label,
+                        style: typography.bodySmall.copyWith(
+                          color: colors.onCtaBright,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }

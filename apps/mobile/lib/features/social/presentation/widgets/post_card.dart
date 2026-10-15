@@ -436,8 +436,11 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-12: the height the compact header frees goes to the
     // card — it fills the list's viewport, the photo takes what the text
     // leaves (square when the card is natural height).
+    // Owner 2026-10-15: a video card is exactly the room between the header
+    // and the nav bar — the video takes what the icons and the two text lines
+    // leave (a fixed guess for them let «ещё» slip under the nav bar).
     return _FeedFill(
-      height: fillHeight,
+      height: fillHeight ?? (p.video != null ? feedHeight : null),
       builder: ({required fill, required onExpand}) => Column(
         mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

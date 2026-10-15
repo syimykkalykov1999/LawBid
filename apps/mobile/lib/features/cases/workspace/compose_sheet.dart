@@ -117,8 +117,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
 
   /// The calendar and the bell: the attorney's tasks of a case and any
   /// task of the Planner.
-  bool get _timed => _task && (widget.isAttorney || _planner);
-  bool get _planner => widget.mode == ComposeMode.planner;
+  bool get _timed => _task;
 
   @override
   void dispose() {
@@ -293,11 +292,19 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
       });
     }
     final ready = _result() != null;
-    final kinds = [
-      (api.CreateCaseTaskDtoKind.forClient, t.t('cases.tasks.forClient')),
-      (api.CreateCaseTaskDtoKind.shared, t.t('cases.tasks.shared')),
-      (api.CreateCaseTaskDtoKind.private, t.t('cases.tasks.private')),
-    ];
+    // Owner 2026-10-15: both sides add tasks; the client's are their own
+    // to-do (for the client) or a task of both.
+    final kinds = widget.isAttorney
+        ? [
+            (api.CreateCaseTaskDtoKind.forClient, t.t('cases.tasks.forClient')),
+            (api.CreateCaseTaskDtoKind.shared, t.t('cases.tasks.shared')),
+            (api.CreateCaseTaskDtoKind.joint, t.t('cases.tasks.joint')),
+            (api.CreateCaseTaskDtoKind.private, t.t('cases.tasks.private')),
+          ]
+        : [
+            (api.CreateCaseTaskDtoKind.forClient, t.t('cases.tasks.yours')),
+            (api.CreateCaseTaskDtoKind.joint, t.t('cases.tasks.joint')),
+          ];
     return Padding(
       padding: EdgeInsets.only(bottom: keyboard),
       child: DraggableScrollableSheet(
@@ -361,7 +368,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                   AppSpacing.lg,
                 ),
                 children: [
-                  if (widget.mode == ComposeMode.task && widget.isAttorney) ...[
+                  if (widget.mode == ComposeMode.task) ...[
                     Wrap(
                       spacing: 8,
                       children: [
@@ -381,6 +388,8 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                             'cases.tasks.forClientHint',
                           api.CreateCaseTaskDtoKind.shared =>
                             'cases.tasks.sharedHint',
+                          api.CreateCaseTaskDtoKind.joint =>
+                            'cases.tasks.jointHint',
                           _ => 'cases.tasks.privateHint',
                         },
                       ),

@@ -6,7 +6,9 @@ import 'package:lawbid/features/cases/data/cases_local_database.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// In-memory [CasesRepository]: lists return [myCases] / empty pages;
 /// everything else records the call. Enough for screens that only list.
@@ -93,6 +95,8 @@ class FakeCasesRepository implements CasesRepository {
 /// Overrides every docs/04 dependency with fakes (no network, no disk).
 List<Override> casesOverrides({FakeCasesRepository? repo}) => [
       casesRepositoryProvider.overrideWithValue(repo ?? FakeCasesRepository()),
+      // Owner 2026-10-15: the Tasks board's case tasks — none, no network.
+      caseWorkspaceClientProvider.overrideWithValue(_NoBoardClient()),
       casesLocalDatabaseProvider.overrideWith((ref) {
         final db = CasesLocalDatabase(NativeDatabase.memory());
         ref.onDispose(db.close);
@@ -110,3 +114,16 @@ CaseDraft completeDraft() => const CaseDraft(
       primaryStateCode: 'NJ',
       step: 4,
     );
+
+/// The case workspace's API with an empty Tasks board (nothing else is used
+/// by the widget tests that list cases).
+class _NoBoardClient implements api.CasesClient {
+  @override
+  Future<api.BoardCaseTaskListEnvelope> caseTaskBoard({
+    Map<String, dynamic>? extras,
+  }) async =>
+      const api.BoardCaseTaskListEnvelope(data: []);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}

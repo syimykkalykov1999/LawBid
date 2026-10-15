@@ -2,12 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/cases/workspace/workspace_data.dart'
+    show caseWorkspaceClientProvider;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/data/seat_limit_repository.dart';
 import 'package:lawbid/features/team/data/team_repository.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -198,6 +201,47 @@ final pendingRequestsCountProvider =
 
 // --- Tasks ----------------------------------------------------------------
 
+/// Owner 2026-10-15: the tasks of the cases in work (open ones, or the
+/// finished ones for the archive), as board cards. They arrive on their own,
+/// after the planner's; a failure shows nothing instead of hiding the planner.
+final taskBoardProvider =
+    FutureProvider.autoDispose.family<List<TaskItem>, bool>(
+  (ref, done) async {
+    try {
+      final res = await ref.watch(caseWorkspaceClientProvider).caseTaskBoard();
+      return [
+        for (final t in res.data)
+          if ((t.status == api.BoardCaseTaskDtoStatus.done) == done)
+            ApiTeamRepository.boardTask(t),
+      ];
+    } on Object {
+      return const <TaskItem>[];
+    }
+  },
+  retry: _noRetry,
+);
+
+/// The planner's list with the board's cards in it, in due order. What the
+/// Tasks tab shows; the controller below stays the planner's own.
+final mergedTasksProvider = Provider.autoDispose
+    .family<AsyncValue<List<TaskItem>>, TasksKey>((ref, key) {
+  final own = ref.watch(tasksProvider(key));
+  if (key.mine) return own;
+  final board = ref.watch(taskBoardProvider(key.done)).value;
+  if (board == null || board.isEmpty) return own;
+  return own.whenData((list) {
+    final all = [...list, ...board];
+    int cmp(TaskItem a, TaskItem b) {
+      final x = key.done ? b.doneAt : a.nextDueAt;
+      final y = key.done ? a.doneAt : b.nextDueAt;
+      if (x == null || y == null) return x == y ? 0 : (x == null ? 1 : -1);
+      return x.compareTo(y);
+    }
+
+    return all..sort(cmp);
+  });
+});
+
 /// Active (calendar) or done tasks; `mine` = an assistant's Results.
 typedef TasksKey = ({bool done, bool mine});
 
@@ -223,6 +267,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
           .tasks(done: key.done, mine: key.mine),
     );
     if (ref.mounted) state = next;
+    if (!key.mine) ref.invalidate(taskBoardProvider(key.done));
   }
 
   /// Applies a status change locally first (the checkbox feels instant),
@@ -387,6 +432,7 @@ Future<({int affected, int skipped})> bulkTasks(
 /// Every task list (active, archive, an assistant's Results).
 void invalidateAllTasks(WidgetRef ref) {
   for (final done in [false, true]) {
+    ref.invalidate(taskBoardProvider(done));
     for (final mine in [false, true]) {
       ref.invalidate(tasksProvider((done: done, mine: mine)));
     }

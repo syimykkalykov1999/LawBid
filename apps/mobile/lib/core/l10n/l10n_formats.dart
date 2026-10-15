@@ -41,6 +41,10 @@ class L10nFormats {
   String dayMonth(DateTime value) =>
       DateFormat.MMMd(locale).format(_local(value));
 
+  /// `M` / `П` — the weekday's first letter (the week bars of Tasks).
+  String weekdayNarrow(DateTime value) =>
+      DateFormat('EEEEE', locale).format(_local(value));
+
   /// `3:05 PM` / `15:05`
   String time(DateTime value) => DateFormat.jm(locale).format(_local(value));
 

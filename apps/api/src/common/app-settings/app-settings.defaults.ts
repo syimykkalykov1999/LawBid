@@ -196,6 +196,14 @@ export const OWNER_INVITE_SETTINGS = {
   'invites.expiry_days': 7,
   'invites.max_pending_per_case': 10,
   'invites.max_per_day': 30,
+  // Owner 2026-10-15 (anti-spam both ways): one attorney is invited at most
+  // `invites.max_per_attorney_per_day` times a day by everyone; one client
+  // invites the same attorney at most `invites.max_per_pair_per_day` times a
+  // day; the same attorney can be invited to the same case again only
+  // `invites.reinvite_after_hours` after the earlier invite.
+  'invites.max_per_attorney_per_day': 15,
+  'invites.max_per_pair_per_day': 3,
+  'invites.reinvite_after_hours': 24,
 } as const;
 
 // Owner 2026-10-05: how many assistants an attorney may add, set in the

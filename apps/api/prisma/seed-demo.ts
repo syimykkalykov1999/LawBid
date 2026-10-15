@@ -15,6 +15,7 @@ import { seedDemoWorld } from '../src/modules/demo/demo-seed';
 import { seedDemoContent } from './seed-demo/content';
 import { seedActiveExamples } from './seed-demo/active-examples';
 import { seedMineExamples } from './seed-demo/mine-examples';
+import { seedTaskExamples } from './seed-demo/task-examples';
 import { seedCaseWorkspace } from './seed-demo/workspace';
 import { PasswordService } from '../src/modules/auth/services/password.service';
 
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
     console.log('workspace:', await seedCaseWorkspace(prisma));
     console.log('active  :', await seedActiveExamples(prisma));
     console.log('mine    :', await seedMineExamples(prisma));
+    console.log('tasks   :', await seedTaskExamples(prisma));
     // Owner 2026-10-13: the demo phones sign in with a password too, so the
     // device check does not need an SMS code (Demo1234!).
     const demoHash = await new PasswordService().hash('Demo1234!');

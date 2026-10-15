@@ -9,6 +9,9 @@ part of 'case_task_dto.dart';
 CaseTaskDto _$CaseTaskDtoFromJson(Map<String, dynamic> json) => CaseTaskDto(
   id: json['id'] as String,
   kind: CaseTaskDtoKind.fromJson(json['kind'] as String),
+  createdByRole: CaseTaskDtoCreatedByRole.fromJson(
+    json['createdByRole'] as String,
+  ),
   title: json['title'] as String,
   status: CaseTaskDtoStatus.fromJson(json['status'] as String),
   closed: json['closed'] as bool,
@@ -35,6 +38,7 @@ Map<String, dynamic> _$CaseTaskDtoToJson(CaseTaskDto instance) =>
     <String, dynamic>{
       'id': instance.id,
       'kind': instance.kind.toJson(),
+      'createdByRole': instance.createdByRole.toJson(),
       'title': instance.title,
       'description': ?instance.description,
       'status': instance.status.toJson(),

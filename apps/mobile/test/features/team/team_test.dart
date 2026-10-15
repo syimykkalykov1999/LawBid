@@ -352,7 +352,9 @@ void main() {
       await pump(tester, const TasksTab());
       await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('step-check-b')));
+      await tester.tap(find.text('expand'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('card-step-b')));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('step:u3:b:open:null'));
@@ -378,16 +380,21 @@ void main() {
         (tester) async {
       repo.active = [withSteps()];
       await pump(tester, const TasksTab());
-      expect(find.text('0 of 2'), findsOneWidget);
+      expect(find.text('0 of 2 sub-tasks'), findsOneWidget);
+      // Owner 2026-10-15: the sub-tasks open on the line under the title.
+      await tester.tap(find.text('expand'));
+      // The card's double tap holds a single tap for its window.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
       expect(find.text('Call Brown'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('step-check-s1')));
+      await tester.tap(find.byKey(const ValueKey('card-step-s1')));
       // The card's double tap holds a single tap for its window.
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('step:s:s1:done:null'));
-      expect(find.text('1 of 2'), findsOneWidget);
+      expect(find.text('1 of 2 sub-tasks'), findsOneWidget);
       // The last box finishes the whole task.
-      await tester.tap(find.byKey(const ValueKey('step-check-s2')));
+      await tester.tap(find.byKey(const ValueKey('card-step-s2')));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(find.text('Task s'), findsNothing);

@@ -9,14 +9,20 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
+import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/team/presentation/task_board_widgets.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Owner 2026-10-05: «Сегодня» (by time of day), «Все» (by day),
 /// «Архив» (finished — kept a year, then removed) and an assistant's
@@ -36,7 +42,11 @@ class TaskFilter {
     this.caseId,
     this.assignee,
     this.sort = TaskSort.time,
+    this.scope = TaskScope.all,
   });
+
+  /// Owner 2026-10-15: the chips under the views (overdue, for the client…).
+  final TaskScope scope;
 
   final TaskPeriod period;
   final String? caseId;
@@ -49,6 +59,14 @@ class TaskFilter {
       period == TaskPeriod.any &&
       caseId == null &&
       assignee == null &&
+      sort == TaskSort.time &&
+      scope == TaskScope.all;
+
+  /// Without the chips (the filter sheet's own part).
+  bool get sheetIsEmpty =>
+      period == TaskPeriod.any &&
+      caseId == null &&
+      assignee == null &&
       sort == TaskSort.time;
 
   TaskFilter copyWith({
@@ -56,12 +74,14 @@ class TaskFilter {
     String? Function()? caseId,
     String? Function()? assignee,
     TaskSort? sort,
+    TaskScope? scope,
   }) =>
       TaskFilter(
         period: period ?? this.period,
         caseId: caseId == null ? this.caseId : caseId(),
         assignee: assignee == null ? this.assignee : assignee(),
         sort: sort ?? this.sort,
+        scope: scope ?? this.scope,
       );
 }
 
@@ -99,6 +119,7 @@ List<TaskItem> applyTaskFilter(
   final out = [
     for (final t in tasks)
       if (inPeriod(t) &&
+          taskInScope(t, f.scope, now) &&
           (f.caseId == null || t.caseId == f.caseId) &&
           switch (f.assignee) {
             null => true,
@@ -127,6 +148,59 @@ List<TaskItem> applyTaskFilter(
       out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
   return out;
+}
+
+/// Owner 2026-10-15: the board's groups — overdue, today, tomorrow, this
+/// week, later, no date. [onlyNow] keeps overdue and today («Сегодня»).
+List<TaskSection> groupTasksForBoard(
+  List<TaskItem> tasks,
+  Translator t, {
+  required DateTime now,
+  bool onlyNow = false,
+}) {
+  final today = DateTime(now.year, now.month, now.day);
+  final out = <String, List<TaskItem>>{
+    '0overdue': [],
+    '1today': [],
+    '2tomorrow': [],
+    '3week': [],
+    '4later': [],
+    '5none': [],
+  };
+  for (final task in tasks) {
+    final due = task.nextDueAt?.toLocal();
+    if (due == null) {
+      out['5none']!.add(task);
+      continue;
+    }
+    final day = DateTime(due.year, due.month, due.day);
+    final diff = day.difference(today).inDays;
+    if (task.isOverdue(now) && diff < 0) {
+      out['0overdue']!.add(task);
+    } else if (diff <= 0) {
+      out['1today']!.add(task);
+    } else if (diff == 1) {
+      out['2tomorrow']!.add(task);
+    } else if (diff < 8) {
+      out['3week']!.add(task);
+    } else {
+      out['4later']!.add(task);
+    }
+  }
+  const titles = {
+    '0overdue': 'tasks.overdue',
+    '1today': 'tasks.today',
+    '2tomorrow': 'tasks.tomorrow',
+    '3week': 'tasks.thisWeek',
+    '4later': 'tasks.later',
+    '5none': 'tasks.noDate',
+  };
+  return [
+    for (final e in out.entries)
+      if (e.value.isNotEmpty &&
+          (!onlyNow || e.key == '0overdue' || e.key == '1today'))
+        (key: e.key, title: t.t(titles[e.key]!), items: e.value),
+  ];
 }
 
 /// Owner 2026-10-05: «Сегодня» by time of day — overdue, morning,
@@ -201,6 +275,12 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   final Set<String> _picked = {};
   bool _busy = false;
 
+  /// Owner 2026-10-15: the cards whose sub-tasks are open.
+  final Set<String> _expanded = {};
+
+  bool get _attorneySide =>
+      ref.read(currentUserRoleProvider) != UserRole.client;
+
   @override
   void dispose() {
     _search.dispose();
@@ -242,6 +322,9 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   /// Double tap / swipe right: the next step is checked off (or the whole
   /// task when it has no steps).
   Future<void> _quickDone(TaskItem task) async {
+    if (task.boardTask != null) {
+      return _caseTaskDone(task, done: true);
+    }
     final next = task.nextStep;
     if (task.steps.isNotEmpty) {
       if (next != null) await _toggleStep(task, next);
@@ -253,6 +336,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   /// Owner 2026-10-01: done ⇄ back to work — the status mark and "Undo"
   /// take back a checkmark set by mistake.
   Future<void> _setDone(TaskItem task, {required bool done}) async {
+    if (task.boardTask != null) return _caseTaskDone(task, done: done);
     final t = ref.read(translatorProvider);
     try {
       await ref
@@ -268,6 +352,56 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
+  }
+
+  /// Owner 2026-10-15: a task of a case's workspace — through the case's own
+  /// API (a task with a checklist opens the case, its lines are ticked there).
+  Future<void> _caseTaskDone(TaskItem task, {required bool done}) async {
+    final t = ref.read(translatorProvider);
+    final b = task.boardTask!;
+    if (done && task.steps.isNotEmpty && b.forClient && !b.viewerIsAttorney) {
+      final unchecked = task.steps.any((s) => !s.checked);
+      if (unchecked) {
+        _openCase(task);
+        return;
+      }
+    }
+    try {
+      await ref
+          .read(caseWorkspaceActionsProvider)
+          .setTaskDone(task.caseId!, b.taskId, done: done);
+      invalidateAllTasks(ref);
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        '${t.t(done ? 'tasks.status.done' : 'tasks.reopened')} · ${task.title}',
+        actionLabel: t.t('tasks.undo'),
+        onAction: () => unawaited(_caseTaskUndo(task, wasDone: done)),
+      );
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  Future<void> _caseTaskUndo(TaskItem task, {required bool wasDone}) async {
+    final t = ref.read(translatorProvider);
+    try {
+      await ref
+          .read(caseWorkspaceActionsProvider)
+          .setTaskDone(task.caseId!, task.boardTask!.taskId, done: !wasDone);
+      invalidateAllTasks(ref);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
+  /// A case task opens in the case's workspace (its Tasks tab).
+  void _openCase(TaskItem task) {
+    final id = task.caseId;
+    if (id == null) return;
+    context.push(
+      _attorneySide ? AppRoutes.workCase(id) : AppRoutes.myCase(id),
+    );
   }
 
   /// Undo: straight to the server, then the lists reload (the task has
@@ -288,6 +422,10 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   /// The status mark: a task without steps is checked / unchecked; a
   /// task with steps opens (its steps are the checkmarks).
   void _markTap(TaskItem task) {
+    if (task.boardTask != null) {
+      unawaited(_setDone(task, done: task.status.active));
+      return;
+    }
     if (task.steps.isNotEmpty) {
       showTaskSheet(context, task: task, listKey: _key);
       return;
@@ -299,6 +437,27 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   /// Owner 2026-10-01: a step's box on the card — checked ↔ open.
   Future<void> _toggleStep(TaskItem task, TaskStep step) async {
     final t = ref.read(translatorProvider);
+    final b = task.boardTask;
+    if (b != null) {
+      // A for-client checklist line: the client ticks it, the attorney may
+      // take it back; the other kinds have no lines to tick here.
+      if (!b.forClient) {
+        _openCase(task);
+        return;
+      }
+      try {
+        await ref.read(caseWorkspaceActionsProvider).setItemDone(
+              task.caseId!,
+              b.taskId,
+              step.id,
+              done: !step.checked,
+            );
+        invalidateAllTasks(ref);
+      } on Object catch (e) {
+        if (mounted) showAppSnackBar(context, errorText(t, e));
+      }
+      return;
+    }
     try {
       final updated = await ref.read(tasksProvider(_key).notifier).checkStep(
             task,
@@ -317,57 +476,40 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     }
   }
 
-  /// Owner 2026-10-05: swipe left — later: in an hour, this evening,
-  /// tomorrow morning, a day later, next week, or a chosen time. A task
-  /// with steps moves its next step.
-  Future<void> _snooze(TaskItem task) async {
+  /// Owner 2026-10-15: swipe left — tomorrow, at the same time (9:00 when
+  /// the task has none). A task with steps moves its next step. «Undo»
+  /// puts it back.
+  Future<void> _tomorrow(TaskItem task) async {
     final t = ref.read(translatorProvider);
     final now = DateTime.now();
     final base = task.nextDueAt?.toLocal();
-    final evening = DateTime(now.year, now.month, now.day, 18);
-    final tomorrow = DateTime(now.year, now.month, now.day + 1, 9);
-    final choices = <(String, DateTime?)>[
-      (t.t('tasks.snooze.hour'), now.add(const Duration(hours: 1))),
-      if (now.isBefore(evening.subtract(const Duration(minutes: 30))))
-        (t.t('tasks.snooze.evening'), evening),
-      (t.t('tasks.snooze.tomorrow'), tomorrow),
-      if (base != null)
-        (t.t('tasks.snooze.dayLater'), base.add(const Duration(days: 1))),
-      (
-        t.t('tasks.snooze.week'),
-        DateTime(
-          now.year,
-          now.month,
-          now.day + 7,
-          base?.hour ?? 9,
-          base?.minute ?? 0,
-        ),
-      ),
-      (t.t('tasks.snooze.pick'), null),
-    ];
-    final i = await showChoiceSheet(
-      context,
-      title: t.t('tasks.snooze.title'),
-      labels: [for (final c in choices) c.$1],
-      keyPrefix: 'snooze',
+    final to = DateTime(
+      now.year,
+      now.month,
+      now.day + 1,
+      base != null && (base.hour != 0 || base.minute != 0) ? base.hour : 9,
+      base != null && (base.hour != 0 || base.minute != 0) ? base.minute : 0,
     );
-    if (i == null || !mounted) return;
-    final to = choices[i].$2 ?? await pickDateTime(context, initial: base);
-    if (to == null || !mounted) return;
-    try {
-      final step = task.nextStep;
+    final step = task.nextStep;
+    Future<void> move(DateTime at) async {
       if (step != null) {
-        await ref.read(tasksProvider(_key).notifier).moveStep(task, step, to);
+        await ref.read(tasksProvider(_key).notifier).moveStep(task, step, at);
       } else {
-        await ref.read(teamRepositoryProvider).moveTask(task.id, to);
+        await ref.read(teamRepositoryProvider).moveTask(task.id, at);
         ref.invalidate(tasksProvider(_key));
       }
+    }
+
+    try {
+      await move(to);
       if (!mounted) return;
       showAppSnackBar(
         context,
-        t.t('tasks.rescheduled', {
-          'date': ref.read(l10nFormatsProvider).dateTime(to),
-        }),
+        t.t('tasks.movedTomorrow'),
+        actionLabel: t.t('tasks.undo'),
+        onAction: () {
+          if (base != null) unawaited(move(base));
+        },
       );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
@@ -519,7 +661,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     final assistant = ref.watch(isAssistantProvider);
     final canAdd = ref.watch(canDoProvider(AssistantDuty.tasks));
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final all = ref.watch(tasksProvider(_key)).value ?? const <TaskItem>[];
+    final all =
+        ref.watch(mergedTasksProvider(_key)).value ?? const <TaskItem>[];
     final views = [
       (TasksView.today, 'today', t.t('tasks.view.today')),
       (TasksView.all, 'active', t.t('tasks.view.active')),
@@ -544,59 +687,50 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         // Owner 2026-10-05: the views and "Add a task" on one row, the
         // filter under them. In long languages the words shrink or end
         // with "…"; nothing slides or wraps.
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+        : Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (widget.showViews)
-                    Flexible(
-                      flex: 3,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (final (i, (v, key, label)) in views.indexed) ...[
-                            if (i > 0) const SizedBox(width: AppSpacing.sm),
-                            Flexible(
-                              child: AppChip(
-                                key: ValueKey('tasks-view-$key'),
-                                label: label,
-                                fitLabel: true,
-                                selected: _view == v,
-                                onTap: () => setState(() {
-                                  _view = v;
-                                  _picked.clear();
-                                }),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  if (canAdd &&
-                      _view != TasksView.archive &&
-                      _view != TasksView.results) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Flexible(
-                      flex: 2,
-                      child: AddTaskButton(
-                        key: const ValueKey('tasks-add'),
-                        label: t.t('tasks.add'),
-                        onTap: _add,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              if (_view != TasksView.results) ...[
-                const SizedBox(height: AppSpacing.xs),
+              if (widget.showViews)
+                Expanded(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final (i, (v, key, label)) in views.indexed) ...[
+                        if (i > 0) const SizedBox(width: AppSpacing.sm),
+                        Flexible(
+                          child: AppChip(
+                            key: ValueKey('tasks-view-$key'),
+                            label: label,
+                            fitLabel: true,
+                            selected: _view == v,
+                            onTap: () => setState(() {
+                              _view = v;
+                              _picked.clear();
+                            }),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              // Owner 2026-10-15: the filter is an icon beside the views (gold
+              // while something is filtered), not a row of its own.
+              if (_view != TasksView.results)
                 _FilterButton(
                   t: t,
                   filter: _filter,
                   onOpen: () => _openFilter(all),
                   onClear: () => setState(() => _filter = const TaskFilter()),
+                ),
+              if (canAdd &&
+                  _view != TasksView.archive &&
+                  _view != TasksView.results) ...[
+                const SizedBox(width: AppSpacing.xs),
+                AddTaskButton(
+                  key: const ValueKey('tasks-add'),
+                  label: t.t('tasks.add'),
+                  onTap: _add,
+                  compact: true,
                 ),
               ],
             ],
@@ -657,8 +791,16 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                     onCheck: _quickDone,
                     onStepCheck: _toggleStep,
                     onMarkTap: _markTap,
-                    onSnooze: _snooze,
+                    onTomorrow: _tomorrow,
                     onReopen: (task) => _setDone(task, done: false),
+                    onOpenCase: _openCase,
+                    expanded: _expanded,
+                    onToggleSteps: (id) => setState(() {
+                      if (!_expanded.remove(id)) _expanded.add(id);
+                    }),
+                    onFilter: (f) => setState(() => _filter = f),
+                    attorneySide: _attorneySide,
+                    assistant: assistant,
                   ),
           ),
         ),
@@ -710,8 +852,14 @@ class _TaskList extends ConsumerWidget {
     required this.onCheck,
     required this.onStepCheck,
     required this.onMarkTap,
-    required this.onSnooze,
+    required this.onTomorrow,
     required this.onReopen,
+    required this.onOpenCase,
+    required this.expanded,
+    required this.onToggleSteps,
+    required this.onFilter,
+    required this.attorneySide,
+    required this.assistant,
   });
 
   final Translator t;
@@ -729,12 +877,25 @@ class _TaskList extends ConsumerWidget {
   final void Function(TaskItem) onCheck;
   final void Function(TaskItem, TaskStep) onStepCheck;
   final void Function(TaskItem) onMarkTap;
-  final void Function(TaskItem) onSnooze;
+  final void Function(TaskItem) onTomorrow;
   final void Function(TaskItem) onReopen;
+  final void Function(TaskItem) onOpenCase;
+
+  /// Owner 2026-10-15: the cards whose sub-tasks are open, and a way to
+  /// open / close one.
+  final Set<String> expanded;
+  final void Function(String id) onToggleSteps;
+
+  /// The chips / the case rings change the filter.
+  final void Function(TaskFilter) onFilter;
+
+  /// The viewer is the attorney's side (the attorney or an assistant).
+  final bool attorneySide;
+  final bool assistant;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final value = ref.watch(tasksProvider(listKey));
+    final value = ref.watch(mergedTasksProvider(listKey));
     final now = DateTime.now();
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -775,25 +936,37 @@ class _TaskList extends ConsumerWidget {
               : empty(t.t('tasks.empty'), t.t('tasks.empty.body'));
         }
         final shown = applyTaskFilter(value, filter, now: now, query: query);
-        final sections = view == TasksView.today
-            ? groupTasksForToday(shown, t, now: now)
+        final sections = archive
+            ? groupTasksByDay(shown, t, formats, now: now, done: true)
             : filter.sort != TaskSort.time
                 ? <TaskSection>[(key: 'sorted', title: '', items: shown)]
-                : groupTasksByDay(
+                : groupTasksForBoard(
                     shown,
                     t,
-                    formats,
                     now: now,
-                    done: listKey.done,
+                    onlyNow: view == TasksView.today,
                   );
-        if (sections.isEmpty || shown.isEmpty) {
-          return view == TasksView.today && filter.isEmpty
-              ? empty(t.t('tasks.today.empty'), t.t('tasks.today.emptyBody'))
-              : empty(
-                  t.t('tasks.filter.empty'),
-                  t.t('tasks.filter.emptyBody'),
-                );
-        }
+        final board = !archive && !choosing && !assistant
+            ? _BoardHeader(
+                t: t,
+                formats: formats,
+                active: value,
+                filter: filter,
+                attorneySide: attorneySide,
+                onFilter: onFilter,
+                now: now,
+              )
+            : null;
+        final chips = !archive && !choosing
+            ? _ScopeChips(
+                t: t,
+                filter: filter,
+                attorneySide: attorneySide,
+                assistant: assistant,
+                onFilter: onFilter,
+              )
+            : null;
+        final emptyBody = sections.isEmpty || shown.isEmpty;
         return ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(
@@ -803,15 +976,21 @@ class _TaskList extends ConsumerWidget {
             AppSpacing.xxl,
           ),
           children: [
-            if (!choosing && !archive)
+            if (board != null) board,
+            if (chips != null) chips,
+            if (emptyBody)
               Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                child: Text(
-                  t.t('tasks.gesturesHint'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      typography.caption.copyWith(color: colors.textSecondary),
+                padding: const EdgeInsets.only(top: AppSpacing.xl),
+                child: PullableState(
+                  child: AppEmptyState(
+                    icon: AppIcons.eventAvailableOutlined,
+                    title: view == TasksView.today && filter.isEmpty
+                        ? t.t('tasks.today.empty')
+                        : t.t('tasks.filter.empty'),
+                    message: view == TasksView.today && filter.isEmpty
+                        ? t.t('tasks.today.emptyBody')
+                        : t.t('tasks.filter.emptyBody'),
+                  ),
                 ),
               ),
             for (final (si, s) in sections.indexed) ...[
@@ -823,36 +1002,32 @@ class _TaskList extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      if (view == TasksView.today && s.key != '0overdue') ...[
-                        AppIcon(
-                          switch (s.key) {
-                            'morning' => AppIcons.wbSunnyOutlined,
-                            'afternoon' => AppIcons.lightModeOutlined,
-                            _ => AppIcons.nightlightRound,
-                          },
-                          size: 18,
-                          color: colors.goldDark,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                      ],
                       Flexible(
                         child: Text(
-                          s.title,
+                          s.title.toUpperCase(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: typography.body.copyWith(
+                          style: typography.caption.copyWith(
                             color: s.key == '0overdue'
                                 ? colors.dangerText
-                                : colors.text,
+                                : colors.textSecondary,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
                           ),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        '${s.items.length}',
-                        style: typography.caption
-                            .copyWith(color: colors.textSecondary),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7),
+                        decoration: BoxDecoration(
+                          color: colors.chip,
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Text(
+                          '${s.items.length}',
+                          style: typography.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
                       ),
                     ],
                   ),
@@ -861,7 +1036,7 @@ class _TaskList extends ConsumerWidget {
                 AppEntrance(
                   index: i,
                   child: Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                     child: _SwipeRow(
                       key: ValueKey('swipe-${task.id}'),
                       t: t,
@@ -875,39 +1050,48 @@ class _TaskList extends ConsumerWidget {
                           : (task.canComplete ? () => onCheck(task) : null),
                       rightLabel: archive
                           ? t.t('tasks.reopen')
-                          : task.steps.isEmpty
+                          : task.steps.isEmpty || task.boardTask != null
                               ? t.t('tasks.done')
                               : t.t('tasks.swipe.nextStep'),
                       onLeft: !archive && task.canEdit
-                          ? () => onSnooze(task)
+                          ? () => onTomorrow(task)
                           : null,
-                      child: TaskRow(
+                      child: TaskRingCard(
                         key: ValueKey('task-${task.id}'),
                         task: task,
                         t: t,
                         formats: formats,
                         now: now,
+                        viewerIsAttorney: attorneySide,
+                        expanded: expanded.contains(task.id),
+                        onToggleSteps: () => onToggleSteps(task.id),
                         selected: picked?.contains(task.id),
-                        onLongPress: choosing ? null : () => onPick(task),
-                        onTap: choosing
-                            ? () => onPick(task)
-                            : () => showTaskSheet(
-                                  context,
-                                  task: task,
-                                  listKey: listKey,
-                                ),
-                        onCheck:
+                        onDoubleTap:
                             choosing || !task.canComplete || !task.status.active
                                 ? null
                                 : () => onCheck(task),
-                        onStepCheck: choosing || !task.canComplete
+                        onLongPress: choosing || task.boardTask != null
                             ? null
-                            : (step) => onStepCheck(task, step),
+                            : () => onPick(task),
+                        onTap: choosing
+                            ? (task.boardTask != null
+                                ? () {}
+                                : () => onPick(task))
+                            : task.boardTask != null
+                                ? () => onOpenCase(task)
+                                : () => showTaskSheet(
+                                      context,
+                                      task: task,
+                                      listKey: listKey,
+                                    ),
                         onMarkTap: choosing ||
                                 !task.canComplete ||
                                 task.status == TaskStatus.cancelled
                             ? null
                             : () => onMarkTap(task),
+                        onStepCheck: choosing || !task.canComplete
+                            ? null
+                            : (step) => onStepCheck(task, step),
                       ),
                     ),
                   ),
@@ -918,6 +1102,163 @@ class _TaskList extends ConsumerWidget {
       default:
         return const Center(child: CircularProgressIndicator());
     }
+  }
+}
+
+/// Owner 2026-10-15: the hero and the rings of the cases, above the list.
+class _BoardHeader extends ConsumerWidget {
+  const _BoardHeader({
+    required this.t,
+    required this.formats,
+    required this.active,
+    required this.filter,
+    required this.attorneySide,
+    required this.onFilter,
+    required this.now,
+  });
+
+  final Translator t;
+  final L10nFormats formats;
+  final List<TaskItem> active;
+  final TaskFilter filter;
+  final bool attorneySide;
+  final void Function(TaskFilter) onFilter;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final done =
+        ref.watch(mergedTasksProvider((done: true, mine: false))).value ??
+            const <TaskItem>[];
+    final doneToday = done
+        .where(
+          (x) =>
+              x.doneAt != null && DateUtils.isSameDay(x.doneAt!.toLocal(), now),
+        )
+        .length;
+    // Every case with a task: how far its tasks are, open and finished.
+    final cases =
+        <String, ({String title, String? code, List<TaskItem> all})>{};
+    for (final x in [...active, ...done]) {
+      final id = x.caseId;
+      if (id == null) continue;
+      final cur = cases[id];
+      cases[id] = (
+        title: x.caseTitle ?? '',
+        code: x.casePracticeCode ?? cur?.code,
+        all: [...?cur?.all, x],
+      );
+    }
+    final openCases = [
+      for (final e in cases.entries)
+        if (e.value.all.any((x) => x.status.active)) e,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TasksHero(
+          t: t,
+          formats: formats,
+          active: active,
+          doneToday: doneToday,
+          now: now,
+        ),
+        if (openCases.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SizedBox(
+            height: 52,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: openCases.length,
+              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+              itemBuilder: (_, i) {
+                final e = openCases[i];
+                final progress = e.value.all.fold<double>(
+                      0,
+                      (a, x) => a + taskProgress(x),
+                    ) /
+                    e.value.all.length;
+                final code = e.value.code?.split('.').first;
+                return TaskCaseRing(
+                  title: e.value.title.isEmpty ? '—' : e.value.title,
+                  progress: progress,
+                  accent: code == null
+                      ? colors.goldDark
+                      : practiceAccent(code, surface: practiceCardBase(colors)),
+                  selected: filter.caseId == e.key,
+                  onTap: () => onFilter(
+                    filter.copyWith(
+                      caseId: () => filter.caseId == e.key ? null : e.key,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.sm),
+      ],
+    );
+  }
+}
+
+/// Owner 2026-10-15: the chips under the views — all, overdue, and the
+/// slices of the viewer's side.
+class _ScopeChips extends StatelessWidget {
+  const _ScopeChips({
+    required this.t,
+    required this.filter,
+    required this.attorneySide,
+    required this.assistant,
+    required this.onFilter,
+  });
+
+  final Translator t;
+  final TaskFilter filter;
+  final bool attorneySide;
+  final bool assistant;
+  final void Function(TaskFilter) onFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <(TaskScope, String)>[
+      (TaskScope.all, t.t('tasks.scope.all')),
+      (TaskScope.overdue, t.t('tasks.overdue')),
+      if (!assistant && attorneySide) ...[
+        (TaskScope.forClient, t.t('tasks.scope.forClient')),
+        (TaskScope.joint, t.t('tasks.scope.joint')),
+        (TaskScope.assistant, t.t('tasks.scope.assistant')),
+      ] else if (!assistant) ...[
+        (TaskScope.mine, t.t('tasks.scope.mine')),
+        (TaskScope.joint, t.t('tasks.scope.joint')),
+      ],
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final (i, (scope, label)) in items.indexed) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.xs),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.6,
+                ),
+                child: AppChip(
+                  key: ValueKey('tasks-scope-${scope.name}'),
+                  label: label,
+                  fitLabel: true,
+                  selected: filter.scope == scope,
+                  onTap: () => onFilter(filter.copyWith(scope: scope)),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -989,7 +1330,7 @@ class _SwipeRow extends StatelessWidget {
     final left = onLeft != null;
     final leftBg = bg(
       AppIcons.scheduleRounded,
-      t.t('tasks.snooze.short'),
+      t.t('tasks.swipe.tomorrow'),
       colors.goldTint,
       start: false,
     );
@@ -1247,7 +1588,7 @@ class _ArchiveNote extends StatelessWidget {
   }
 }
 
-/// "Filter" — or the filters in use, with ✕ to reset them.
+/// Owner 2026-10-15: the filter, an icon (gold when something is filtered).
 class _FilterButton extends StatelessWidget {
   const _FilterButton({
     required this.t,
@@ -1264,7 +1605,7 @@ class _FilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final active = !filter.sheetIsEmpty;
     final parts = [
       if (filter.period != TaskPeriod.any)
         t.t('tasks.filter.period.${filter.period.name}'),
@@ -1273,56 +1614,21 @@ class _FilterButton extends StatelessWidget {
       if (filter.sort != TaskSort.time)
         t.t('tasks.filter.sort.${filter.sort.name}'),
     ];
-    final active = parts.isNotEmpty;
-    final label = active ? parts.join(' · ') : t.t('tasks.filter.title');
-    return Row(
-      children: [
-        Flexible(
-          child: Semantics(
-            button: true,
-            label: '${t.t('tasks.filter.title')}: $label',
-            excludeSemantics: true,
-            child: InkWell(
-              key: const ValueKey('tasks-filter'),
-              onTap: onOpen,
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-              child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(minHeight: AppSizes.touchTarget),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppIcon(
-                      AppIcons.tuneRounded,
-                      size: 20,
-                      color: active ? colors.goldDark : colors.text,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: typography.bodySmall.copyWith(
-                          color: active ? colors.goldDark : colors.text,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+    return Badge(
+      isLabelVisible: active,
+      smallSize: 8,
+      backgroundColor: colors.gold,
+      child: AppIconButton(
+        key: const ValueKey('tasks-filter'),
+        icon: AppIcon(
+          AppIcons.tuneRounded,
+          color: active ? colors.goldDark : colors.text,
         ),
-        if (active)
-          AppIconButton(
-            key: const ValueKey('tasks-filter-clear'),
-            icon: const AppIcon(AppIcons.closeRounded, size: 18),
-            semanticLabel: t.t('tasks.filter.reset'),
-            onPressed: onClear,
-          ),
-      ],
+        semanticLabel: active
+            ? '${t.t('tasks.filter.title')}: ${parts.join(' · ')}'
+            : t.t('tasks.filter.title'),
+        onPressed: onOpen,
+      ),
     );
   }
 }

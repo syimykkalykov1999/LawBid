@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'case_task_dto_created_by_role.dart';
 import 'case_task_dto_kind.dart';
 import 'case_task_dto_status.dart';
 import 'case_task_event_dto.dart';
@@ -17,6 +18,7 @@ class CaseTaskDto {
   const CaseTaskDto({
     required this.id,
     required this.kind,
+    required this.createdByRole,
     required this.title,
     required this.status,
     required this.closed,
@@ -38,6 +40,7 @@ class CaseTaskDto {
 
   final String id;
   final CaseTaskDtoKind kind;
+  final CaseTaskDtoCreatedByRole createdByRole;
   final String title;
   final String? description;
   final CaseTaskDtoStatus status;
