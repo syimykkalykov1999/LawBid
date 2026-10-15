@@ -675,34 +675,7 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         ],
       SearchTab.tags => [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.md,
-                AppSpacing.screenSide,
-                0,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppIcon(
-                    AppIcons.infoOutlineRounded,
-                    size: AppSizes.iconSm,
-                    color: colors.goldDark,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      t.t('search.topics.explain'),
-                      style:
-                          type.bodySmall.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Owner 2026-10-15: no explanation line under the field.
           if (filters.topicKind != TopicKind.practices)
             ...switch (ref.watch(trendingTagsProvider)) {
               AsyncData(:final value) when value.isNotEmpty => [
