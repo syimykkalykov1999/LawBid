@@ -92980,6 +92980,11 @@
             "type": "string",
             "nullable": true
           },
+          "fallbackUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-15 (web): the same video as a plain MP4 (Bunny's «MP4\nfallback», 720p). A browser plays it without an HLS library; the phone\napps keep using [playbackUrl]. Null when the library has no MP4 copy."
+          },
           "thumbnailUrl": {
             "type": "string",
             "nullable": true

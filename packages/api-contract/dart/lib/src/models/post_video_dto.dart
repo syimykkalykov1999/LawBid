@@ -13,6 +13,7 @@ class PostVideoDto {
   const PostVideoDto({
     required this.status,
     this.playbackUrl,
+    this.fallbackUrl,
     this.thumbnailUrl,
     this.durationSec,
     this.width,
@@ -26,6 +27,11 @@ class PostVideoDto {
 
   final VideoAssetStatus status;
   final String? playbackUrl;
+
+  /// Owner 2026-10-15 (web): the same video as a plain MP4 (Bunny's «MP4.
+  /// fallback», 720p). A browser plays it without an HLS library; the phone.
+  /// apps keep using [playbackUrl]. Null when the library has no MP4 copy.
+  final String? fallbackUrl;
   final String? thumbnailUrl;
   final int? durationSec;
   final int? width;

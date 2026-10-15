@@ -9,6 +9,7 @@ part of 'post_video_dto.dart';
 PostVideoDto _$PostVideoDtoFromJson(Map<String, dynamic> json) => PostVideoDto(
   status: VideoAssetStatus.fromJson(json['status'] as String),
   playbackUrl: json['playbackUrl'] as String?,
+  fallbackUrl: json['fallbackUrl'] as String?,
   thumbnailUrl: json['thumbnailUrl'] as String?,
   durationSec: (json['durationSec'] as num?)?.toInt(),
   width: (json['width'] as num?)?.toInt(),
@@ -21,6 +22,7 @@ Map<String, dynamic> _$PostVideoDtoToJson(PostVideoDto instance) =>
     <String, dynamic>{
       'status': instance.status.toJson(),
       'playbackUrl': ?instance.playbackUrl,
+      'fallbackUrl': ?instance.fallbackUrl,
       'thumbnailUrl': ?instance.thumbnailUrl,
       'durationSec': ?instance.durationSec,
       'width': ?instance.width,

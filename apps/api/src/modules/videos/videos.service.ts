@@ -375,6 +375,7 @@ export class VideosService {
       out.set(a.id, {
         status: a.status,
         playbackUrl: sign('playlist.m3u8'),
+        fallbackUrl: sign('play_720p.mp4'),
         thumbnailUrl: sign('thumbnail.jpg'),
         durationSec: playedSec(a),
         width: a.width,

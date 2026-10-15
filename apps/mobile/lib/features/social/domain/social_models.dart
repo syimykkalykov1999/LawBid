@@ -134,6 +134,7 @@ class PostVideo {
   const PostVideo({
     required this.status,
     this.playbackUrl,
+    this.fallbackUrl,
     this.thumbnailUrl,
     this.durationSec,
     this.width,
@@ -145,6 +146,10 @@ class PostVideo {
   /// `awaiting_upload` | `processing` | `ready` | `failed` | `rejected` | `deleted`.
   final String status;
   final String? playbackUrl;
+
+  /// Owner 2026-10-15 (web): the same video as a plain MP4; a browser plays
+  /// it without an HLS library. Null when there is none.
+  final String? fallbackUrl;
   final String? thumbnailUrl;
   final int? durationSec;
   final int? width;
@@ -160,6 +165,14 @@ class PostVideo {
       trimEndMs == null ? null : Duration(milliseconds: trimEndMs!);
 
   bool get ready => status == 'ready' && playbackUrl != null;
+
+  /// What the player opens: in a browser the MP4 when there is one (Chrome
+  /// and Firefox cannot play HLS by themselves), else the HLS playlist.
+  String? playerUrl({required bool web}) =>
+      web ? (fallbackUrl ?? playbackUrl) : playbackUrl;
+
+  /// True when [playerUrl] is the MP4 copy, not the HLS playlist.
+  bool usesMp4({required bool web}) => web && fallbackUrl != null;
 
   /// Width / height; reels default to 9:16.
   double get aspectRatio => (width != null && height != null && height! > 0)

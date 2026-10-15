@@ -1020,6 +1020,7 @@ abstract final class SocialMappers {
             : PostVideo(
                 status: d.video!.status.json ?? d.video!.status.name,
                 playbackUrl: d.video!.playbackUrl,
+                fallbackUrl: d.video!.fallbackUrl,
                 thumbnailUrl: d.video!.thumbnailUrl,
                 durationSec: d.video!.durationSec,
                 width: d.video!.width,
