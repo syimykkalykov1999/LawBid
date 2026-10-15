@@ -1,7 +1,5 @@
 import 'dart:io';
-import 'dart:math' as math;
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,9 +10,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/media/video_compression.dart';
-import 'package:lawbid/features/plans/presentation/plan_offer.dart';
-import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -91,14 +87,9 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
 
   /// Owner 2026-10-07 (bug 17): counts, MB and formats from the admin.
   late final _limits = ref.read(uploadLimitsProvider)[UploadPlace.reel];
-  double? _progress;
 
-  /// Owner 2026-10-05: true while the video is re-encoded on the phone.
-  bool _compressing = false;
-  VideoCompressor? _compressor;
-  bool _publishing = false;
-  CancelToken? _cancel;
-  String? _assetId;
+  // The upload runs in the background job; nothing here is locked.
+  bool get _publishing => false;
 
   @override
   void initState() {
@@ -118,8 +109,6 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
 
   @override
   void dispose() {
-    _cancel?.cancel();
-    if (_compressing) _compressor?.cancel().ignore();
     _preview?.removeListener(_loopInCut);
     _preview?.dispose();
     _docs.dispose();
@@ -301,109 +290,28 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
       _photos.every((p) => p.fileId != null) && _docs.ready;
 
   Future<void> _publish() async {
-    final t = ref.read(translatorProvider);
     final file = _file;
     final cut = _cut;
     if (file == null || cut == null || !_insideReady) return;
-    final repo = ref.read(reelsRepositoryProvider);
-    setState(() {
-      _publishing = true;
-      _progress = 0;
-    });
-    _cancel = CancelToken();
-    try {
-      final video = await _compressed(file, cut);
-      if (!mounted || (_cancel?.isCancelled ?? true)) return;
-      final upload = await repo.createUpload(
-        sizeBytes: await video.length(),
-        durationSec: cut.sourceSec,
-        title: _title.text.trim().isEmpty ? null : _title.text.trim(),
-        trimStartMs: cut.trimmed ? cut.startMs : null,
-        trimEndMs: cut.trimmed ? cut.endMs : null,
-        coverTimeMs: cut.coverMs,
-      );
-      _assetId = upload.videoAssetId;
-      await repo.upload(
-        video,
-        upload,
-        cancel: _cancel,
-        onProgress: (v) {
-          if (mounted) setState(() => _progress = v);
-        },
-      );
-      await ref.read(socialRepositoryProvider).createPost(
-            PostDraft(
-              title: _title.text.trim().isNotEmpty
-                  ? _title.text.trim()
-                  : _text.text.trim().characters.take(60).toString(),
-              // The server needs a non-empty text; a reel without a caption
-              // reuses its title.
-              body: _text.text.trim().isNotEmpty
-                  ? _text.text.trim()
-                  : _title.text.trim(),
-              videoAssetId: upload.videoAssetId,
-              mediaFileIds: [for (final p in _photos) p.fileId!],
-              attachments: _docs.refs,
-              locationName:
-                  _place.text.trim().isEmpty ? null : _place.text.trim(),
-              commentsEnabled: _comments,
-            ),
-          );
-      if (!mounted) return;
-      // ignore: unawaited_futures
-      HapticFeedback.mediumImpact();
-      showAppSnackBar(context, t.t('reels.processing.toast'));
-      Navigator.of(context).pop();
-    } on Object catch (e) {
-      final id = _assetId;
-      if (id != null) repo.cancel(id).ignore();
-      _assetId = null;
-      if (!mounted) return;
-      setState(() {
-        _publishing = false;
-        _progress = null;
-      });
-      if (!(e is DioException && CancelToken.isCancel(e))) {
-        showErrorOrPlans(context, ref, e);
-      }
-    }
-  }
-
-  /// Owner 2026-10-05: up to Full HD (admin: media.video_max_height) on
-  /// the phone first — smaller upload, no visible loss; the original is
-  /// kept when re-encoding fails or would not make it smaller, and in the
-  /// browser (no encoder there).
-  Future<XFile> _compressed(XFile file, ReelCut cut) async {
-    if (kIsWeb) return file;
-    final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final size = _preview?.value.size ?? Size.zero;
-    final need = needsVideoCompression(
-      shortSide: math.min(size.width, size.height).round(),
-      bytes: await file.length(),
-      durationMs: cut.totalMs,
-      limits: limits,
-    );
-    if (!need || !mounted) return file;
-    setState(() {
-      _compressing = true;
-      _progress = 0;
-    });
-    final compressor = ref.read(videoCompressorProvider);
-    _compressor = compressor;
-    final out = await compressor.compress(
-      file,
-      limits: limits,
-      onProgress: (p) {
-        if (mounted) setState(() => _progress = p);
-      },
-    );
-    if (mounted) {
-      setState(() {
-        _compressing = false;
-        _progress = 0;
-      });
-    }
-    return out ?? file;
+    // Owner 2026-10-15: the form closes at once; compressing, uploading and
+    // posting go on in the background (a strip over the app shows it).
+    // ignore: unawaited_futures
+    ref.read(reelPublishJobProvider.notifier).start(
+          ReelPublishRequest(
+            file: file,
+            cut: cut,
+            previewSize: _preview?.value.size ?? Size.zero,
+            title: _title.text.trim(),
+            text: _text.text.trim(),
+            place: _place.text.trim(),
+            commentsEnabled: _comments,
+            photoIds: [for (final p in _photos) p.fileId!],
+            attachments: _docs.refs,
+          ),
+        );
+    // ignore: unawaited_futures
+    HapticFeedback.mediumImpact();
+    Navigator.of(context).pop();
   }
 
   /// Owner 2026-10-05: the part of the video the reel plays, and its cover.
@@ -616,11 +524,7 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
         leading: AppIconButton(
           icon: const AppIcon(AppIcons.closeRounded),
           semanticLabel: t.t('common.close'),
-          onPressed: () {
-            _cancel?.cancel();
-            if (_compressing) _compressor?.cancel().ignore();
-            Navigator.of(context).maybePop();
-          },
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(t.t('reels.create')),
       ),
@@ -759,26 +663,6 @@ class _CreateReelScreenState extends ConsumerState<CreateReelScreen> {
                       false) ...[
                     const SizedBox(height: AppSpacing.lg),
                     ..._insideSection(t, colors, type),
-                  ],
-                  if (_progress != null) ...[
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      t.t(
-                        _compressing ? 'reels.compressing' : 'reels.uploading',
-                        {'percent': '${(_progress! * 100).round()}'},
-                      ),
-                      style: type.bodySmall.copyWith(color: colors.text),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                        value: _progress,
-                        minHeight: 6,
-                        color: colors.gold,
-                        backgroundColor: colors.border,
-                      ),
-                    ),
                   ],
                 ],
               ),
