@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
 /// Owner 2026-10-13: the pieces the case card (feed) and the open case
 /// share, so both read the same: practice chips, State · Budget · Deadline
@@ -17,6 +18,7 @@ class CaseChipsRow extends StatelessWidget {
     required this.labels,
     this.status,
     this.dense = false,
+    this.accent,
     this.padding = const EdgeInsets.fromLTRB(
       AppSpacing.lg,
       AppSpacing.md,
@@ -36,6 +38,9 @@ class CaseChipsRow extends StatelessWidget {
   /// Owner 2026-10-14: slimmer chips on the feed card.
   final bool dense;
 
+  /// Owner 2026-10-15: the practice's colour for the main chip.
+  final Color? accent;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -49,7 +54,7 @@ class CaseChipsRow extends StatelessWidget {
             color: ok
                 ? colors.success.withValues(alpha: 0.16)
                 : main
-                    ? (dark ? colors.border : colors.navy)
+                    ? (accent ?? (dark ? colors.border : colors.navy))
                     : colors.chip,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -61,7 +66,9 @@ class CaseChipsRow extends StatelessWidget {
               color: ok
                   ? colors.successText
                   : main
-                      ? Colors.white
+                      ? (accent == null
+                          ? Colors.white
+                          : onPracticeAccent(accent!))
                       : colors.text,
             ),
           ),
@@ -221,40 +228,50 @@ class CaseText extends StatelessWidget {
             maxLines: clamp,
           )..layout(maxWidth: box.maxWidth);
           if (!painter.didExceedMaxLines) return Text(text, style: style);
-          // "more" sits at the end of the last line, over the faded text.
-          return Stack(
-            children: [
-              Text(
-                text,
-                maxLines: clamp,
-                overflow: TextOverflow.clip,
+          // Owner 2026-10-15: "more" ends the last line inside the text
+          // (nothing is drawn over it, so it reads on any theme, glass too):
+          // the longest start of the text that, followed by "… more", still
+          // fits [clamp] lines.
+          final tail = '… $moreLabel';
+          bool fits(int n) {
+            final p = TextPainter(
+              text: TextSpan(text: text.substring(0, n) + tail, style: style),
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+              maxLines: clamp,
+            )..layout(maxWidth: box.maxWidth);
+            return !p.didExceedMaxLines;
+          }
+
+          var lo = 0;
+          var hi = text.length;
+          while (lo < hi) {
+            final mid = (lo + hi + 1) ~/ 2;
+            if (fits(mid)) {
+              lo = mid;
+            } else {
+              hi = mid - 1;
+            }
+          }
+          // A couple of characters of slack: the measured and the drawn
+          // text differ by a hair (kerning at the line end).
+          final head = text.substring(0, lo > 3 ? lo - 3 : 0).trimRight();
+          return GestureDetector(
+            onTap: onMore,
+            behavior: HitTestBehavior.opaque,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '$head… '),
+                  TextSpan(
+                    text: moreLabel,
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                ],
                 style: style,
               ),
-              PositionedDirectional(
-                end: 0,
-                bottom: 0,
-                child: GestureDetector(
-                  onTap: onMore,
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    padding: const EdgeInsetsDirectional.only(start: 36),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          colors.surface.withValues(alpha: 0),
-                          colors.surface,
-                        ],
-                        stops: const [0, 0.35],
-                      ),
-                    ),
-                    child: Text(
-                      moreLabel,
-                      style: style.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              maxLines: clamp,
+            ),
           );
         },
       ),

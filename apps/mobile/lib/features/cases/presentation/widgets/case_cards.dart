@@ -9,6 +9,9 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/social/data/social_repository.dart'
+    show caseThreadId;
+import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 
@@ -211,6 +214,11 @@ class FeedCaseCard extends StatelessWidget {
       if (item.hasOwnBid) t.t('cases.card.youBid'),
     ].join(', ');
     final text = (item.description ?? item.excerpt).trim();
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent = practiceAccent(
+      item.practice.categoryCode,
+      surface: practiceCardBase(colors),
+    );
     return Semantics(
       button: true,
       label: semantics,
@@ -218,70 +226,115 @@ class FeedCaseCard extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
+          clipBehavior: Clip.hardEdge,
           decoration: BoxDecoration(
             color: colors.surface,
             // Owner 2026-10-14: a continuous list, a hairline between cards.
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          // Owner 2026-10-15: the practice's own colour — a soft glow in the
+          // bottom right corner (by Save, away from the text) and the
+          // header band with the practice chips.
+          child: Stack(
             children: [
-              CaseChipsRow(
-                labels: chips,
-                dense: true,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  0,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  0,
-                ),
-                child: Text(
-                  item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.titleMedium.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                    height: 1.2,
+              PositionedDirectional(
+                // Owner 2026-10-15: top right, away from the text.
+                end: -80,
+                top: -80,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 240,
+                    height: 240,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          accent.withValues(alpha: dark ? 0.26 : 0.2),
+                          accent.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-              CaseFigures(
-                t: t,
-                formats: formats,
-                states: [item.primaryStateCode, ...item.additionalStateCodes],
-                budget: item.budget,
-                urgency: item.urgencyInfo,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  0,
-                ),
-              ),
-              if (text.isNotEmpty)
-                CaseText(
-                  text: text,
-                  lines: 2,
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.lg,
-                    AppSpacing.sm,
-                    AppSpacing.lg,
-                    0,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ColoredBox(
+                    color: accent.withValues(alpha: dark ? 0.16 : 0.12),
+                    child: CaseChipsRow(
+                      labels: chips,
+                      dense: true,
+                      accent: accent,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                      ),
+                    ),
                   ),
-                  moreLabel: t.t('post.more'),
-                  onMore: onTap,
-                ),
-              _CaseCardRow(item: item, t: t, formats: formats),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                      AppSpacing.lg,
+                      0,
+                    ),
+                    child: Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.titleMedium.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  CaseFigures(
+                    t: t,
+                    formats: formats,
+                    states: [
+                      item.primaryStateCode,
+                      ...item.additionalStateCodes,
+                    ],
+                    budget: item.budget,
+                    urgency: item.urgencyInfo,
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                      AppSpacing.lg,
+                      0,
+                    ),
+                  ),
+                  if (text.isNotEmpty)
+                    CaseText(
+                      text: text,
+                      lines: 2,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                        AppSpacing.lg,
+                        0,
+                      ),
+                      moreLabel: t.t('post.more'),
+                      onMore: onTap,
+                    ),
+                  CaseFileLine(
+                    t: t,
+                    dossier: item.dossier,
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                      AppSpacing.lg,
+                      0,
+                    ),
+                  ),
+                  _CaseCardRow(item: item, t: t, formats: formats),
+                ],
+              ),
             ],
           ),
         ),
@@ -307,24 +360,58 @@ class _CaseCardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget stat(IconData icon, int n) => Padding(
-          padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(icon, size: 22, color: colors.text),
-              const SizedBox(width: 4),
-              Text(
-                SocialFormat.count(formats, n),
-                style: typography.bodySmall.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+    Widget stat(IconData icon, int n, {VoidCallback? onTap}) {
+      final row = Padding(
+        padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppIcon(icon, size: 22, color: colors.text),
+            const SizedBox(width: 4),
+            Text(
+              SocialFormat.count(formats, n),
+              style: typography.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
               ),
-            ],
-          ),
-        );
+            ),
+          ],
+        ),
+      );
+      if (onTap == null) return row;
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: row,
+      );
+    }
+
+    // Owner 2026-10-15: Bid sits in the icon row, left of the time; once a
+    // bid is placed the same button turns grey with "Bid ✓".
+    final bid = Container(
+      constraints: const BoxConstraints(minHeight: 28),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 2,
+      ),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: item.hasOwnBid ? colors.chip : colors.gold,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: item.hasOwnBid ? Border.all(color: colors.border) : null,
+      ),
+      child: Text(
+        item.hasOwnBid ? t.t('cases.card.bidDone') : t.t('cases.card.bid'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: typography.bodySmall.copyWith(
+          color: item.hasOwnBid ? colors.textSecondary : colors.navy,
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+        ),
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -332,77 +419,45 @@ class _CaseCardRow extends StatelessWidget {
         AppSpacing.xs,
         AppSpacing.xs,
       ),
-      // Owner 2026-10-14: the Bid button has its own row above the icons;
-      // once a bid is placed the same button turns grey with "Bid ✓".
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // The files line shares the Bid button's row (owner 2026-10-14:
-          // two cards must fit the screen).
-          Padding(
-            padding: const EdgeInsetsDirectional.only(bottom: AppSpacing.xs),
-            child: Row(
-              children: [
-                Container(
-                  constraints: const BoxConstraints(minHeight: 32),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: 4,
-                  ),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: item.hasOwnBid ? colors.chip : colors.gold,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                    border: item.hasOwnBid
-                        ? Border.all(color: colors.border)
-                        : null,
-                  ),
-                  child: Text(
-                    item.hasOwnBid
-                        ? t.t('cases.card.bidDone')
-                        : t.t('cases.card.bid'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: typography.bodySmall.copyWith(
-                      color:
-                          item.hasOwnBid ? colors.textSecondary : colors.navy,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: CaseFileLine(
-                    t: t,
-                    dossier: item.dossier,
-                    padding: const EdgeInsetsDirectional.only(
-                      start: AppSpacing.md,
-                    ),
-                  ),
-                ),
-              ],
+          stat(AppIcons.gavelRounded, item.bidsCount),
+          // Owner 2026-10-15: comments open as a sheet (like posts), not
+          // the case screen.
+          stat(
+            AppIcons.modeCommentOutlined,
+            item.commentCount,
+            onTap: () => showCommentsSheet(
+              context,
+              postId: caseThreadId(item.id),
+              commentsEnabled: true,
             ),
           ),
-          Row(
-            children: [
-              stat(AppIcons.gavelRounded, item.bidsCount),
-              stat(AppIcons.modeCommentOutlined, item.commentCount),
-              stat(AppIcons.sendOutlined, item.shareCount),
-              const Spacer(),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    SocialFormat.ago(t, formats, item.createdAt),
-                    maxLines: 1,
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
+          stat(AppIcons.sendOutlined, item.shareCount),
+          // Owner 2026-10-15: Bid and the time sit at the right edge,
+          // left of Save (Expanded + Align, not Spacer + Flexible).
+          Expanded(
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    bid,
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      SocialFormat.ago(t, formats, item.createdAt),
+                      maxLines: 1,
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ],
                 ),
               ),
-              CaseSaveButton(item: item),
-            ],
+            ),
           ),
+          CaseSaveButton(item: item),
         ],
       ),
     );

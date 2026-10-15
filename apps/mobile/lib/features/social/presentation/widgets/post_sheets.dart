@@ -163,169 +163,190 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            // Owner 2026-10-12 (Threads): Save lives in the "⋯" menu.
-            AppListRow(
-              key: const ValueKey('post-menu-save'),
-              icon: post.savedByMe
-                  ? AppIcons.bookmarkRounded
-                  : AppIcons.bookmarkBorderRounded,
-              label: t.t(post.savedByMe ? 'post.unsave' : 'post.save'),
-              showChevron: false,
-              onTap: () {
-                Navigator.of(sheet).pop();
-                ref.read(socialActionsProvider).toggleSave(post);
-              },
+            // Owner 2026-10-15: the menu sizes to its content and scrolls
+            // when the screen is short (nothing is cut off).
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Owner 2026-10-12 (Threads): Save lives in the "⋯" menu.
+                    AppListRow(
+                      key: const ValueKey('post-menu-save'),
+                      icon: post.savedByMe
+                          ? AppIcons.bookmarkRounded
+                          : AppIcons.bookmarkBorderRounded,
+                      label: t.t(post.savedByMe ? 'post.unsave' : 'post.save'),
+                      showChevron: false,
+                      onTap: () {
+                        Navigator.of(sheet).pop();
+                        ref.read(socialActionsProvider).toggleSave(post);
+                      },
+                    ),
+                    if (post.isMine) ...[
+                      // Audit 2026-10-02: an assistant edits only with
+                      // "publish" and
+                      // never deletes the attorney's posts.
+                      if (ref.read(canDoProvider(AssistantDuty.publish)))
+                        AppListRow(
+                          icon: AppIcons.editOutlined,
+                          label: t.t('post.menu.edit'),
+                          showChevron: false,
+                          onTap: () {
+                            Navigator.of(sheet).pop();
+                            showEditPostSheet(context, ref, post);
+                          },
+                        ),
+                      // Owner 2026-10-12: pin to the profile top (1..3).
+                      if (!post.isNews &&
+                          post.status == 'published' &&
+                          ref.read(canDoProvider(AssistantDuty.publish)))
+                        AppListRow(
+                          key: const ValueKey('post-menu-pin'),
+                          icon: post.pinSlot == null
+                              ? AppIcons.pushPinOutlined
+                              : AppIcons.pushPin,
+                          label: t.t(
+                            post.pinSlot == null
+                                ? 'post.menu.pin'
+                                : 'post.menu.unpin',
+                          ),
+                          showChevron: false,
+                          onTap: () async {
+                            Navigator.of(sheet).pop();
+                            if (post.pinSlot != null) {
+                              final error = await ref
+                                  .read(socialActionsProvider)
+                                  .unpinPost(post);
+                              if (error != null && context.mounted) {
+                                showAppSnackBar(context, errorText(t, error));
+                              }
+                              return;
+                            }
+                            if (context.mounted) {
+                              await showPinSlotSheet(context, ref, post);
+                            }
+                          },
+                        ),
+                      // Owner 2026-10-05: Instagram-style "Promote" (money: the
+                      // account owner, never an assistant).
+                      if (!ref.read(isAssistantProvider))
+                        AppListRow(
+                          icon: AppIcons.campaignOutlined,
+                          label: t.t('promote.menu'),
+                          showChevron: false,
+                          onTap: () {
+                            Navigator.of(sheet).pop();
+                            openPostPromotion(context, ref, post.id);
+                          },
+                        ),
+                      if (!ref.read(isAssistantProvider))
+                        AppListRow(
+                          icon: AppIcons.deleteOutlineRounded,
+                          label: t.t('post.menu.delete'),
+                          destructive: true,
+                          showChevron: false,
+                          onTap: () async {
+                            Navigator.of(sheet).pop();
+                            final ok = await showConfirmSheet(
+                              context,
+                              t: t,
+                              title: t.t('post.delete.title'),
+                              message: t.t('post.delete.message'),
+                              confirmLabel: t.t('post.menu.delete'),
+                              destructive: true,
+                            );
+                            if (!ok || !context.mounted) return;
+                            final error = await ref
+                                .read(socialActionsProvider)
+                                .deletePost(post);
+                            if (context.mounted) {
+                              showAppSnackBar(
+                                context,
+                                error == null
+                                    ? t.t('post.deleted')
+                                    : errorText(t, error),
+                              );
+                            }
+                          },
+                        ),
+                    ] else ...[
+                      // Owner 2026-10-01: the "⋯" of someone else's post — the
+                      // author's profile, unfollow, block, report ("copy link"
+                      // lives in the share sheet behind the paper plane).
+                      AppListRow(
+                        key: const ValueKey('post-menu-profile'),
+                        icon: AppIcons.personOutlineRounded,
+                        label: t.t('post.menu.profile'),
+                        showChevron: false,
+                        onTap: () {
+                          Navigator.of(sheet).pop();
+                          openAuthorProfile(context, ref, post.author);
+                        },
+                      ),
+                      if (following)
+                        AppListRow(
+                          key: const ValueKey('post-menu-unfollow'),
+                          icon: AppIcons.personOffOutlined,
+                          label: t.t('post.menu.unfollow'),
+                          showChevron: false,
+                          onTap: () async {
+                            Navigator.of(sheet).pop();
+                            final error = await ref
+                                .read(socialActionsProvider)
+                                .setFollowing(post.author.id, false);
+                            if (context.mounted) {
+                              showAppSnackBar(
+                                context,
+                                error == null
+                                    ? t.t(
+                                        'post.menu.unfollowed',
+                                        {'name': post.author.displayName},
+                                      )
+                                    : errorText(t, error),
+                              );
+                            }
+                          },
+                        ),
+                      AppListRow(
+                        key: const ValueKey('post-menu-block'),
+                        icon: AppIcons.blockFlipped,
+                        label: t.t('post.menu.block'),
+                        destructive: true,
+                        showChevron: false,
+                        onTap: () async {
+                          Navigator.of(sheet).pop();
+                          final done = await toggleBlock(
+                            context,
+                            ref,
+                            userId: post.author.id,
+                            displayName: post.author.displayName,
+                            currentlyBlocked: false,
+                          );
+                          // Their posts leave every list.
+                          if (done) refreshPostLists(ref);
+                        },
+                      ),
+                      AppListRow(
+                        key: const ValueKey('post-menu-report'),
+                        icon: AppIcons.flagOutlined,
+                        label: t.t('post.menu.report'),
+                        showChevron: false,
+                        onTap: () {
+                          Navigator.of(sheet).pop();
+                          showReportSheet(
+                            context,
+                            ref,
+                            ReportTarget.post,
+                            post.id,
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
-            if (post.isMine) ...[
-              // Audit 2026-10-02: an assistant edits only with "publish" and
-              // never deletes the attorney's posts.
-              if (ref.read(canDoProvider(AssistantDuty.publish)))
-                AppListRow(
-                  icon: AppIcons.editOutlined,
-                  label: t.t('post.menu.edit'),
-                  showChevron: false,
-                  onTap: () {
-                    Navigator.of(sheet).pop();
-                    showEditPostSheet(context, ref, post);
-                  },
-                ),
-              // Owner 2026-10-12: pin to the top of the profile (slots 1..3).
-              if (!post.isNews &&
-                  post.status == 'published' &&
-                  ref.read(canDoProvider(AssistantDuty.publish)))
-                AppListRow(
-                  key: const ValueKey('post-menu-pin'),
-                  icon: post.pinSlot == null
-                      ? AppIcons.pushPinOutlined
-                      : AppIcons.pushPin,
-                  label: t.t(
-                    post.pinSlot == null ? 'post.menu.pin' : 'post.menu.unpin',
-                  ),
-                  showChevron: false,
-                  onTap: () async {
-                    Navigator.of(sheet).pop();
-                    if (post.pinSlot != null) {
-                      final error =
-                          await ref.read(socialActionsProvider).unpinPost(post);
-                      if (error != null && context.mounted) {
-                        showAppSnackBar(context, errorText(t, error));
-                      }
-                      return;
-                    }
-                    if (context.mounted) {
-                      await showPinSlotSheet(context, ref, post);
-                    }
-                  },
-                ),
-              // Owner 2026-10-05: Instagram-style "Promote" (money: the
-              // account owner, never an assistant).
-              if (!ref.read(isAssistantProvider))
-                AppListRow(
-                  icon: AppIcons.campaignOutlined,
-                  label: t.t('promote.menu'),
-                  showChevron: false,
-                  onTap: () {
-                    Navigator.of(sheet).pop();
-                    openPostPromotion(context, ref, post.id);
-                  },
-                ),
-              if (!ref.read(isAssistantProvider))
-                AppListRow(
-                  icon: AppIcons.deleteOutlineRounded,
-                  label: t.t('post.menu.delete'),
-                  destructive: true,
-                  showChevron: false,
-                  onTap: () async {
-                    Navigator.of(sheet).pop();
-                    final ok = await showConfirmSheet(
-                      context,
-                      t: t,
-                      title: t.t('post.delete.title'),
-                      message: t.t('post.delete.message'),
-                      confirmLabel: t.t('post.menu.delete'),
-                      destructive: true,
-                    );
-                    if (!ok || !context.mounted) return;
-                    final error =
-                        await ref.read(socialActionsProvider).deletePost(post);
-                    if (context.mounted) {
-                      showAppSnackBar(
-                        context,
-                        error == null
-                            ? t.t('post.deleted')
-                            : errorText(t, error),
-                      );
-                    }
-                  },
-                ),
-            ] else ...[
-              // Owner 2026-10-01: the "⋯" of someone else's post — the
-              // author's profile, unfollow, block, report ("copy link"
-              // lives in the share sheet behind the paper plane).
-              AppListRow(
-                key: const ValueKey('post-menu-profile'),
-                icon: AppIcons.personOutlineRounded,
-                label: t.t('post.menu.profile'),
-                showChevron: false,
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  openAuthorProfile(context, ref, post.author);
-                },
-              ),
-              if (following)
-                AppListRow(
-                  key: const ValueKey('post-menu-unfollow'),
-                  icon: AppIcons.personOffOutlined,
-                  label: t.t('post.menu.unfollow'),
-                  showChevron: false,
-                  onTap: () async {
-                    Navigator.of(sheet).pop();
-                    final error = await ref
-                        .read(socialActionsProvider)
-                        .setFollowing(post.author.id, false);
-                    if (context.mounted) {
-                      showAppSnackBar(
-                        context,
-                        error == null
-                            ? t.t(
-                                'post.menu.unfollowed',
-                                {'name': post.author.displayName},
-                              )
-                            : errorText(t, error),
-                      );
-                    }
-                  },
-                ),
-              AppListRow(
-                key: const ValueKey('post-menu-block'),
-                icon: AppIcons.blockFlipped,
-                label: t.t('post.menu.block'),
-                destructive: true,
-                showChevron: false,
-                onTap: () async {
-                  Navigator.of(sheet).pop();
-                  final done = await toggleBlock(
-                    context,
-                    ref,
-                    userId: post.author.id,
-                    displayName: post.author.displayName,
-                    currentlyBlocked: false,
-                  );
-                  // Their posts leave every list (the server hides them).
-                  if (done) refreshPostLists(ref);
-                },
-              ),
-              AppListRow(
-                key: const ValueKey('post-menu-report'),
-                icon: AppIcons.flagOutlined,
-                label: t.t('post.menu.report'),
-                showChevron: false,
-                onTap: () {
-                  Navigator.of(sheet).pop();
-                  showReportSheet(context, ref, ReportTarget.post, post.id);
-                },
-              ),
-            ],
           ],
         ),
       ),

@@ -147,8 +147,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Saul Goodman'), findsOneWidget);
-    // Owner 2026-09-30 card: the like count sits next to the heart.
-    expect(find.text('2'), findsOneWidget);
+    // Owner 2026-10-15 (Instagram): no like count next to the heart.
+    expect(find.text('2'), findsNothing);
     expect(find.textContaining('#dui', findRichText: true), findsOneWidget);
   });
 
@@ -169,8 +169,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Saul Goodman'), findsOneWidget);
     // The same card as a practice post (owner 2026-10-12): counts beside
-    // the icons, the caption below the actions, no chip row.
-    expect(find.text('2'), findsOneWidget);
+    // the icons (none for likes), the caption below the actions.
+    expect(find.text('2'), findsNothing);
     expect(find.text('3'), findsOneWidget);
     expect(find.textContaining('Know your rights'), findsOneWidget);
     expect(find.text('Read more'), findsNothing);

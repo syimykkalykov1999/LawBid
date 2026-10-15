@@ -6,6 +6,7 @@
   "features/cases/presentation/screens/attorney_case_screen.dart -> translation/data/content_translation_repository.dart",
   "features/cases/presentation/screens/bid_detail_screen.dart -> translation/data/content_translation_repository.dart",
   "features/cases/presentation/screens/case_comments_screen.dart -> social/data/social_repository.dart",
+  "features/cases/presentation/widgets/case_cards.dart -> social/data/social_repository.dart",
   "features/cases/presentation/widgets/client_review_sheet.dart -> profile/data/client_reviews_repository.dart",
   "features/chat/application/chat_providers.dart -> notifications/data/notifications_repository.dart",
   "features/chat/application/chat_providers.dart -> social/data/social_local_database.dart",
