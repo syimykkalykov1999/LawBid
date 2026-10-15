@@ -9,11 +9,13 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 abstract final class CaseFormat {
   static String money(L10nFormats f, int cents) {
     final whole = cents % 100 == 0;
-    return NumberFormat.simpleCurrency(
-      locale: f.locale,
-      name: 'USD',
-      decimalDigits: whole ? 0 : 2,
-    ).format(cents / 100);
+    return f.digits(
+      NumberFormat.simpleCurrency(
+        locale: f.locale,
+        name: 'USD',
+        decimalDigits: whole ? 0 : 2,
+      ).format(cents / 100),
+    );
   }
 
   /// "$600", "$250/hr" or "Free consultation".

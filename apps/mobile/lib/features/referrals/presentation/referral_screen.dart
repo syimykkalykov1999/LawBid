@@ -110,7 +110,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen> {
           child: Column(
             children: [
               Text(
-                '$n',
+                context.digits(n),
                 style: type.titleLarge.copyWith(color: colors.text),
               ),
               Text(

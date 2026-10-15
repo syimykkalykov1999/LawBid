@@ -264,7 +264,7 @@ class _Body extends ConsumerWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${d.day.day}',
+                            f.digits(d.day.day),
                             maxLines: 1,
                             style: type.caption
                                 .copyWith(color: colors.textSecondary),

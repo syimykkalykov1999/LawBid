@@ -2973,7 +2973,7 @@ class _FeedCarouselState extends State<_FeedCarousel> {
                         borderRadius: BorderRadius.circular(AppRadii.pill),
                       ),
                       child: Text(
-                        '${_page + 1}/$count',
+                        context.digits('${_page + 1}/$count'),
                         style: type.caption.copyWith(
                           color: Colors.white,
                           fontSize: 11.5,

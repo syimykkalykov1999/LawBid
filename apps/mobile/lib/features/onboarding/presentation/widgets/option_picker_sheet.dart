@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 
@@ -602,7 +602,7 @@ class _PickerGroupCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(AppRadii.pill),
                           ),
                           child: Text(
-                            '$picked',
+                            context.digits(picked),
                             style:
                                 typography.badge.copyWith(color: colors.navy),
                           ),

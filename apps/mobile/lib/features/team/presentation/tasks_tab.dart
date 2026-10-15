@@ -972,7 +972,7 @@ class _TaskList extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(9),
                         ),
                         child: Text(
-                          '${s.items.length}',
+                          context.digits(s.items.length),
                           style: typography.caption
                               .copyWith(color: colors.textSecondary),
                         ),

@@ -702,7 +702,7 @@ class TasksHero extends StatelessWidget {
             size: 52,
             stroke: 5,
             child: Text(
-              '$doneToday/$total',
+              context.digits('$doneToday/$total'),
               maxLines: 1,
               style: type.bodySmall.copyWith(
                 color: colors.text,
@@ -871,7 +871,7 @@ class TaskCaseRing extends StatelessWidget {
                 size: 28,
                 stroke: 3,
                 child: Text(
-                  '${(progress * 100).round()}',
+                  context.digits((progress * 100).round()),
                   maxLines: 1,
                   style: type.caption.copyWith(
                     color: colors.text,

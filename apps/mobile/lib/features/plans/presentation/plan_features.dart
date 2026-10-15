@@ -15,14 +15,16 @@ abstract final class PlanFeatures {
     String currency = 'usd',
   }) {
     final code = currency.toUpperCase();
-    return cents % 100 == 0
-        ? NumberFormat.simpleCurrency(
-            locale: formats.locale,
-            name: code,
-            decimalDigits: 0,
-          ).format(cents ~/ 100)
-        : NumberFormat.simpleCurrency(locale: formats.locale, name: code)
-            .format(cents / 100);
+    return formats.digits(
+      cents % 100 == 0
+          ? NumberFormat.simpleCurrency(
+              locale: formats.locale,
+              name: code,
+              decimalDigits: 0,
+            ).format(cents ~/ 100)
+          : NumberFormat.simpleCurrency(locale: formats.locale, name: code)
+              .format(cents / 100),
+    );
   }
 
   /// The big number of the card: the price, or "Free" for a baseline.

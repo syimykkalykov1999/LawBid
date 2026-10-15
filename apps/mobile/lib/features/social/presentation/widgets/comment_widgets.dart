@@ -830,7 +830,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                             end: AppSpacing.xs,
                           ),
                           child: Text(
-                            '$n/$kCommentMaxChars',
+                            context.digits('$n/$kCommentMaxChars'),
                             style: type.caption.copyWith(
                               color: n > kCommentMaxChars * 0.9
                                   ? colors.warning

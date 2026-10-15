@@ -935,13 +935,15 @@ class SubscribeCta extends StatelessWidget {
 
 /// docs/06 §1.1 shows the tariff as "$399" — whole dollars when there are
 /// no cents (the payment history keeps the exact amounts).
-String subscriptionPrice(L10nFormats formats, int cents) => cents % 100 == 0
-    ? NumberFormat.simpleCurrency(
-        locale: formats.locale,
-        name: 'USD',
-        decimalDigits: 0,
-      ).format(cents ~/ 100)
-    : NumberFormat.simpleCurrency(
-        locale: formats.locale,
-        name: 'USD',
-      ).format(cents / 100);
+String subscriptionPrice(L10nFormats formats, int cents) => formats.digits(
+      cents % 100 == 0
+          ? NumberFormat.simpleCurrency(
+              locale: formats.locale,
+              name: 'USD',
+              decimalDigits: 0,
+            ).format(cents ~/ 100)
+          : NumberFormat.simpleCurrency(
+              locale: formats.locale,
+              name: 'USD',
+            ).format(cents / 100),
+    );

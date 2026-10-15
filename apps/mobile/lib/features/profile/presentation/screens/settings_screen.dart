@@ -102,6 +102,14 @@ class SettingsScreen extends ConsumerWidget {
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
             ),
+          // Owner 2026-10-15: a client reaches their payments from here too.
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-payments'),
+              icon: AppIcons.receiptLongOutlined,
+              label: t.t('payments.title'),
+              onTap: () => context.push(SubscriptionRoutes.payments),
+            ),
           // Owner 2026-10-05: attorney trust levels — what LawBid checked,
           // what raises the level, holds (docs/ATTORNEY_TRUST.md).
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&

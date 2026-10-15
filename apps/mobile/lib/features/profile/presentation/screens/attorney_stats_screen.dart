@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -40,7 +41,7 @@ class AttorneyStatsScreen extends ConsumerWidget {
                 ),
               ),
               Text(
-                '$value',
+                context.digits(value),
                 style: type.titleMedium.copyWith(color: colors.text),
               ),
             ],

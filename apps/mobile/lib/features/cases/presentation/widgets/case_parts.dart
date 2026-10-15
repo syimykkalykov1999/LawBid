@@ -475,7 +475,7 @@ class _CaseTextTabsState extends State<CaseTextTabs> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              '${it.count}',
+                              context.digits(it.count ?? 0),
                               style: type.caption.copyWith(
                                 color: colors.text,
                                 fontWeight: FontWeight.w600,

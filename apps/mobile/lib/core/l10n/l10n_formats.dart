@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -61,6 +62,9 @@ class L10nFormats {
   String dateTime(DateTime value) =>
       _n(DateFormat.yMMMd(locale).add_jm().format(_local(value)));
 
+  /// A ready number text (`'3/4'`, `'12'`) in the language's own digits.
+  String digits(Object value) => _n('$value');
+
   /// `1,234.5` / `1 234,5`
   String number(num value) =>
       _n(NumberFormat.decimalPattern(locale).format(value));
@@ -78,3 +82,21 @@ final l10nFormatsProvider = Provider<L10nFormats>((ref) {
       ref.watch(languageControllerProvider).value ?? AppLanguage.fallback;
   return L10nFormats(language);
 });
+
+/// `context.digits(count)` — a counter or a `done/total` text in the
+/// language's own digits, for widgets that have no `ref` at hand.
+extension L10nDigitsContext on BuildContext {
+  String digits(Object value) {
+    try {
+      final container = ProviderScope.containerOf(this);
+      // The language is always live in the app; a bare widget test that
+      // never created it gets plain digits (and no stray timers).
+      if (!container.exists(languageControllerProvider)) return '$value';
+      final code = container.read(languageControllerProvider).value?.code;
+      return code == null ? '$value' : localizeDigits('$value', code);
+    } on Object {
+      // No provider scope (a bare widget): plain digits.
+      return '$value';
+    }
+  }
+}
