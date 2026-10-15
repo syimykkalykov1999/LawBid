@@ -8,6 +8,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 /// Owner 2026-10-15: the five stages of a case, each tied to a real case
@@ -21,10 +22,8 @@ int caseStageOf(CaseStatus status, int bids) => switch (status) {
       _ => 4,
     };
 
-String caseStageLabel(Translator t, int stage) => t.t(
-      'mine.stage.of',
-      {'n': '${stage + 1}', 'stage': t.t('mine.stage.${stage + 1}')},
-    );
+String caseStageLabel(Translator t, int stage) =>
+    t.t('mine.stage.short', {'n': '${stage + 1}'});
 
 /// A client's own case in «Active».
 class ClientActiveCaseCard extends ConsumerWidget {
@@ -46,35 +45,43 @@ class ClientActiveCaseCard extends ConsumerWidget {
     );
     final choosing = c.status == CaseStatus.open && c.bidsCount > 0;
     final working = stage == 2 || stage == 3;
+    final when = formats.dayMonth(c.lastActivityAt);
+    final next = choosing
+        ? t.t('mine.next.chooseLawyer', {
+            'bids': t.plural('cases.card.bidsCount', c.bidsCount, {
+              'count': SocialFormat.count(formats, c.bidsCount),
+            }),
+          })
+        : working
+            ? t.t('mine.next.working')
+            : c.status == CaseStatus.open
+                ? t.t('mine.next.waitingBids')
+                : t.t('mine.next.done');
     return ActiveCaseCard(
       key: ValueKey('active-case-${c.id}'),
       title: c.title,
-      subtitle: '$practice · ${c.primaryStateCode}',
+      practiceName: practice,
+      stateCode: c.primaryStateCode,
+      price: c.budget.isClarifyLater
+          ? null
+          : CaseFormat.budget(t, formats, c.budget),
       categoryCode: c.practice.artCode,
       practiceCode: c.practice.code,
-      coverUrl: c.coverUrl,
+      photoUrl: c.coverUrl,
       badge: newBids,
+      statusLabel: caseStatusLabel(t, c.status),
+      statusTone: caseTone(c.status),
       stage: stage,
       stageLabel: caseStageLabel(t, stage),
-      timeText: formats.dayMonth(c.lastActivityAt),
-      next: choosing
-          ? t.t('mine.next.chooseLawyer', {
-              'bids': t.plural('cases.card.bidsCount', c.bidsCount, {
-                'count': SocialFormat.count(formats, c.bidsCount),
-              }),
-            })
-          : working
-              ? t.t('mine.next.working')
-              : c.status == CaseStatus.open
-                  ? t.t('mine.next.waitingBids')
-                  : t.t('mine.next.done'),
-      nextQuiet: !choosing && !working,
+      next: '$next · $when',
+      nextYours: choosing || stage == 3,
       onTap: () => context.push(AppRoutes.myCase(c.id)),
     );
   }
 }
 
-/// An attorney's accepted case in «Active».
+/// An attorney's accepted case in «Active» (the header is only the
+/// practice colour: the client's photos are not shown here).
 class AttorneyActiveCaseCard extends ConsumerWidget {
   const AttorneyActiveCaseCard({required this.item, super.key});
 
@@ -88,29 +95,25 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
     final stage = caseStageOf(w.status, 0).clamp(2, 4);
     final practice = w.practiceI18nKey == null
         ? ''
-        : CaseFormat.practice(
-            t,
-            w.practiceI18nKey!,
-            w.practiceNameEn ?? '',
-          );
+        : CaseFormat.practice(t, w.practiceI18nKey!, w.practiceNameEn ?? '');
     final when = w.acceptedAt ?? w.closedAt;
+    final next =
+        stage < 4 ? t.t('mine.next.workingAttorney') : t.t('mine.next.done');
     return ActiveCaseCard(
       key: ValueKey('active-work-${w.caseId}'),
       title: w.title,
-      subtitle: [
-        if (practice.isNotEmpty) practice,
-        if (w.primaryStateCode != null) w.primaryStateCode!,
-      ].join(' · '),
+      practiceName: practice,
+      stateCode: w.primaryStateCode,
+      price:
+          w.amountCents > 0 ? formats.currencyFromCents(w.amountCents) : null,
       categoryCode: w.practiceCode?.split('.').first,
       practiceCode: w.practiceCode,
-      coverUrl: w.coverUrl,
-      avatarUrl: w.clientAvatarUrl,
+      statusLabel: caseStatusLabel(t, w.status),
+      statusTone: caseTone(w.status),
       stage: stage,
       stageLabel: caseStageLabel(t, stage),
-      timeText: when == null ? '' : formats.dayMonth(when),
-      next:
-          stage < 4 ? t.t('mine.next.workingAttorney') : t.t('mine.next.done'),
-      nextQuiet: stage >= 4,
+      next: when == null ? next : '$next · ${formats.dayMonth(when)}',
+      nextYours: stage == 3,
       onTap: () => context.push(AppRoutes.workCase(w.caseId)),
     );
   }

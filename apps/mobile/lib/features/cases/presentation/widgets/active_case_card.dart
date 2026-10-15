@@ -1,55 +1,61 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
-/// Owner 2026-10-15 (variant C of the «Моё» mockup): an active case as a
-/// card with a progress scale — cover 64 (the client's first photo, else an
-/// automatic one: the practice colour, its icon and a glow), the title,
-/// «practice · state», an unread badge, five stage ticks in the practice
-/// colour, «Этап N из 5: status», the time at the right and a «what to do
-/// next» line.
+/// Owner 2026-10-15 («Моё > Активные», the approved mockup): a card like
+/// Search → Cases. A header in the practice colour (icon, «practice ·
+/// state», the price on the right; for a client with a case photo the photo
+/// fills it), a glow in the corner, the title, a status chip with the
+/// «Stage N of 5» at the right, a thin stage scale in the practice colour
+/// and one «what next» line (gold when the move is the user's).
 class ActiveCaseCard extends StatelessWidget {
   const ActiveCaseCard({
     required this.title,
-    required this.subtitle,
+    required this.practiceName,
+    required this.statusLabel,
+    required this.statusTone,
     required this.stage,
     required this.stageLabel,
-    required this.timeText,
     required this.next,
     required this.onTap,
-    this.nextQuiet = false,
+    this.stateCode,
+    this.price,
+    this.nextYours = false,
     this.categoryCode,
     this.practiceCode,
-    this.coverUrl,
+    this.photoUrl,
     this.photoCount,
-    this.avatarUrl,
     this.badge = 0,
     this.semanticLabel,
     super.key,
   });
 
   final String title;
-  final String subtitle;
+  final String practiceName;
+  final String? stateCode;
+  final String? price;
+  final String statusLabel;
+  final StatusTone statusTone;
 
-  /// 0..4 = how many ticks are lit minus one; null = a draft (no scale).
-  final int? stage;
+  /// 0..4 = the index of the current stage.
+  final int stage;
   final String stageLabel;
-  final String timeText;
   final String next;
-  final bool nextQuiet;
+
+  /// The next step is the viewer's: the line is gold.
+  final bool nextYours;
   final String? categoryCode;
   final String? practiceCode;
-  final String? coverUrl;
-  final int? photoCount;
 
-  /// The client's avatar, a small badge in the cover's corner.
-  final String? avatarUrl;
+  /// The case's first photo (clients only); null = the practice colour.
+  final String? photoUrl;
+  final int? photoCount;
   final int badge;
   final String? semanticLabel;
   final VoidCallback onTap;
 
-  static const double thumb = 64;
   static const int stages = 5;
 
   @override
@@ -60,58 +66,108 @@ class ActiveCaseCard extends StatelessWidget {
       practiceCode ?? categoryCode,
       surface: practiceCardBase(colors),
     );
-    final onAccent = onPracticeAccent(accent);
+    final withPhoto = photoUrl != null;
+    final lit = stage.clamp(0, stages - 1) + 1;
+    final place = [
+      practiceName,
+      if (stateCode != null && stateCode!.isNotEmpty) stateCode!,
+    ];
 
-    final auto = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [accent, Color.lerp(accent, Colors.black, 0.45)!],
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
+    // Owner 2026-10-15: one header height for every card; a case photo is
+    // only its dimmed background.
+    Widget header() {
+      final fg = withPhoto ? Colors.white : accent;
+      final sub = withPhoto ? Colors.white70 : colors.textSecondary;
+      final label = Row(
         children: [
-          // The glow in the corner.
-          Positioned(
-            right: -thumb * 0.25,
-            top: -thumb * 0.25,
-            width: thumb * 0.9,
-            height: thumb * 0.9,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.white.withValues(alpha: 0.28),
-                    Colors.white.withValues(alpha: 0),
+          AppIcon(practiceGlyph(categoryCode), size: 15, color: fg),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: place.first,
+                    style: TextStyle(color: fg, fontWeight: FontWeight.w600),
+                  ),
+                  if (place.length > 1)
+                    TextSpan(
+                      text: ' · ${place[1]}',
+                      style: TextStyle(color: sub),
+                    ),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.caption,
+            ),
+          ),
+          if (withPhoto && (photoCount ?? 0) > 0) ...[
+            const SizedBox(width: AppSpacing.sm),
+            const AppIcon(
+              AppIcons.imageOutlined,
+              size: 12,
+              color: Colors.white70,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              '$photoCount',
+              style: type.caption.copyWith(color: Colors.white70),
+            ),
+          ],
+          if (price != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              price!,
+              maxLines: 1,
+              style: type.bodySmall.copyWith(
+                color: withPhoto ? Colors.white : colors.goldDark,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      );
+      return Container(
+        height: 28,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.15),
+          border: Border(
+            bottom: BorderSide(color: accent.withValues(alpha: 0.25)),
+          ),
+        ),
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          fit: StackFit.expand,
+          children: [
+            if (withPhoto)
+              Positioned.fill(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: photoUrl!,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 800,
+                      placeholder: (_, __) => ColoredBox(color: accent),
+                      errorWidget: (_, __, ___) => ColoredBox(color: accent),
+                    ),
+                    ColoredBox(color: Colors.black.withValues(alpha: 0.5)),
                   ],
                 ),
               ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm + 2,
+              ),
+              child: label,
             ),
-          ),
-          Center(
-            child: AppIcon(
-              practiceGlyph(categoryCode),
-              size: AppSizes.iconLg,
-              color: onAccent,
-            ),
-          ),
-        ],
-      ),
-    );
-    final picture = coverUrl != null
-        ? CachedNetworkImage(
-            imageUrl: coverUrl!,
-            fit: BoxFit.cover,
-            memCacheWidth: 200,
-            placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
-            errorWidget: (_, __, ___) => auto,
-          )
-        : auto;
+          ],
+        ),
+      );
+    }
 
-    final lit = stage == null ? 0 : stage!.clamp(0, stages - 1) + 1;
     return Semantics(
       button: true,
       label: semanticLabel ?? '$title. $stageLabel. $next',
@@ -119,94 +175,52 @@ class ActiveCaseCard extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          // Owner 2026-10-15: edge to edge like the feed's cards.
-          padding: const EdgeInsets.all(AppSpacing.md),
+          margin: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: 4,
+          ),
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: colors.surface,
-            border: Border.symmetric(
-              horizontal: BorderSide(color: colors.border),
-            ),
+            borderRadius: BorderRadius.circular(AppRadii.card + 2),
+            border: Border.all(color: accent.withValues(alpha: 0.28)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox.square(
-                    dimension: thumb,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      clipBehavior: Clip.none,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadii.card),
-                          child: picture,
-                        ),
-                        if (avatarUrl != null)
-                          Positioned(
-                            right: -3,
-                            bottom: -3,
-                            child: Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: colors.surface,
-                                  width: 2,
-                                ),
-                              ),
-                              child: ClipOval(
-                                child: CachedNetworkImage(
-                                  imageUrl: avatarUrl!,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 72,
-                                  errorWidget: (_, __, ___) =>
-                                      ColoredBox(color: colors.skeletonBase),
-                                ),
-                              ),
-                            ),
-                          ),
-                        if ((photoCount ?? 0) > 0)
-                          Positioned(
-                            left: 4,
-                            bottom: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.6),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const AppIcon(
-                                    AppIcons.imageOutlined,
-                                    size: 11,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    '$photoCount',
-                                    style: type.caption.copyWith(
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
+              // The glow in the bottom right corner.
+              Positioned(
+                right: -64,
+                bottom: -64,
+                width: 190,
+                height: 190,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          accent.withValues(alpha: 0.26),
+                          accent.withValues(alpha: 0),
+                        ],
+                        stops: const [0, 0.68],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.sm + 2,
+                      AppSpacing.sm,
+                      AppSpacing.sm + 2,
+                      AppSpacing.sm + 2,
+                    ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
                           title,
@@ -217,95 +231,89 @@ class ActiveCaseCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.bodySmall
-                              .copyWith(color: colors.textSecondary),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            StatusPill(label: statusLabel, tone: statusTone),
+                            const SizedBox(width: AppSpacing.sm),
+                            if (badge > 0)
+                              Container(
+                                constraints: const BoxConstraints(minWidth: 18),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 5),
+                                height: 18,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: colors.gold,
+                                  borderRadius: BorderRadius.circular(9),
+                                ),
+                                child: Text(
+                                  badge > 99 ? '99+' : '$badge',
+                                  style: type.caption.copyWith(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                stageLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.end,
+                                style: type.caption
+                                    .copyWith(color: colors.textSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            for (var i = 0; i < stages; i++) ...[
+                              if (i > 0) const SizedBox(width: 3),
+                              Expanded(
+                                child: Container(
+                                  height: 3,
+                                  decoration: BoxDecoration(
+                                    color: i < lit ? accent : colors.border,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          constraints: const BoxConstraints(minHeight: 30),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: 6,
+                          ),
+                          alignment: Alignment.centerLeft,
+                          decoration: BoxDecoration(
+                            color: nextYours ? colors.goldTint : colors.chip,
+                            borderRadius: BorderRadius.circular(AppRadii.card),
+                          ),
+                          child: Text(
+                            next,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.bodySmall.copyWith(
+                              color: nextYours
+                                  ? colors.goldDark
+                                  : colors.textSecondary,
+                              fontWeight:
+                                  nextYours ? FontWeight.w600 : FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  if (badge > 0) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Container(
-                      constraints: const BoxConstraints(minWidth: 18),
-                      padding: const EdgeInsets.symmetric(horizontal: 5),
-                      height: 18,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colors.gold,
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Text(
-                        badge > 99 ? '99+' : '$badge',
-                        style: type.caption.copyWith(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Row(
-                children: [
-                  for (var i = 0; i < stages; i++) ...[
-                    if (i > 0) const SizedBox(width: 3),
-                    Expanded(
-                      child: Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: i < lit ? accent : colors.border,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      stageLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    timeText,
-                    maxLines: 1,
-                    style: type.caption.copyWith(color: colors.textSecondary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Container(
-                constraints: const BoxConstraints(minHeight: 32),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: nextQuiet ? colors.chip : colors.goldTint,
-                  borderRadius: BorderRadius.circular(AppRadii.card),
-                ),
-                child: Text(
-                  next,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.bodySmall.copyWith(
-                    color: nextQuiet ? colors.textSecondary : colors.goldDark,
-                    fontWeight: nextQuiet ? FontWeight.w500 : FontWeight.w600,
-                  ),
-                ),
               ),
             ],
           ),

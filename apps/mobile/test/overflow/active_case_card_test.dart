@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_card.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 
 import '../helpers/long_locale.dart';
 import '../helpers/ux_harness.dart';
@@ -23,24 +24,32 @@ void main() {
                     ActiveCaseCard(
                       title: 'Защита при обвинении в вождении в нетрезвом '
                           'виде и лишение водительских прав',
-                      subtitle: 'Уголовное право · Калифорния',
+                      practiceName: 'Интеллектуальная собственность',
+                      stateCode: 'CA',
+                      price: r'$1 200',
                       categoryCode: 'criminal_defense',
                       practiceCode: 'criminal_defense.dui',
-                      stage: 1,
-                      stageLabel: 'Этап 2 из 5: Выбор адвоката',
-                      timeText: '15 окт.',
-                      next: 'Выберите адвоката: 12 предложений от адвокатов',
+                      statusLabel: 'Ожидает подтверждения завершения',
+                      statusTone: StatusTone.warning,
+                      stage: 3,
+                      stageLabel: 'Этап 4 из 5: Завершение',
+                      next: 'Выберите адвоката: 12 предложений · 15 окт.',
+                      nextYours: true,
                       badge: 123,
-                      photoCount: 4,
                       onTap: () {},
                     ),
                     ActiveCaseCard(
-                      title: 'Черновик',
-                      subtitle: '',
-                      stage: null,
-                      stageLabel: 'Не опубликован',
-                      timeText: '',
-                      next: 'Дополните и опубликуйте',
+                      title: 'С фото в шапке',
+                      practiceName: 'Семейное право',
+                      stateCode: 'FL',
+                      price: r'$250/ч',
+                      statusLabel: 'В работе',
+                      statusTone: StatusTone.success,
+                      stage: 2,
+                      stageLabel: 'Этап 3 из 5: В работе',
+                      next: 'Продолжайте работу с адвокатом',
+                      photoUrl: 'https://example.test/x.jpg',
+                      photoCount: 3,
                       onTap: () {},
                     ),
                   ],
