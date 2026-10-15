@@ -110,6 +110,13 @@ export class CircuitBreaker {
     return this.openUntil > this.now();
   }
 
+  /** Back to closed with no failures counted (tests, manual recovery). */
+  reset(): void {
+    this.failures = 0;
+    this.openUntil = 0;
+    this.trial = false;
+  }
+
   /** [countsAsFailure] lets callers ignore errors that are the caller's
    * fault (a bad phone number is not Twilio being down). */
   async run<T>(

@@ -54,6 +54,18 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     expect(await settings.stringList('moderation.blocked_terms')).toEqual([]);
   });
 
+  it('owner 2026-10-15: an unchanged answer is a 304 with no body (ETag)', async () => {
+    const first = await request(baseUrl).get('/api/v1/config/bootstrap');
+    expect(first.status).toBe(200);
+    const etag = first.headers['etag'];
+    expect(etag).toBeTruthy();
+    const again = await request(baseUrl)
+      .get('/api/v1/config/bootstrap')
+      .set('If-None-Match', etag);
+    expect(again.status).toBe(304);
+    expect(again.text).toBe('');
+  });
+
   it('a body above the cap is refused with 413', async () => {
     const r = await request(baseUrl)
       .post('/api/v1/auth/otp/request')

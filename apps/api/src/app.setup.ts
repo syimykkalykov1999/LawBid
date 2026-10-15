@@ -35,6 +35,22 @@ export function shouldExposeApiDocs(nodeEnv: AppEnv['NODE_ENV']): boolean {
 }
 
 /**
+ * Owner 2026-10-15: gzip/brotli for answers over 1 KB (JSON shrinks 3-6x).
+ * Skipped for a client that sends `X-No-Compression` and for event streams.
+ */
+export function responseCompression() {
+  return compression({
+    threshold: 1024,
+    filter: (req, res) =>
+      req.headers['x-no-compression'] === undefined &&
+      !String(res.getHeader('Content-Type') ?? '').startsWith(
+        'text/event-stream',
+      ) &&
+      compression.filter(req, res),
+  });
+}
+
+/**
  * Everything main.ts applies to the Nest app before listen(), in one
  * function so test/security-hardening.e2e-spec.ts exercises the exact
  * production wiring instead of a hand-copied approximation of it.
@@ -90,17 +106,7 @@ export function configureApp(
   // Owner 2026-10-15: smaller answers (JSON 5–10x), the single biggest
   // saving on a phone's network and on traffic cost; flag HTTP_COMPRESSION.
   if (config.get<boolean>('HTTP_COMPRESSION', true)) {
-    app.use(
-      compression({
-        threshold: 1024,
-        filter: (req, res) =>
-          req.headers['x-no-compression'] === undefined &&
-          !String(res.getHeader('Content-Type') ?? '').startsWith(
-            'text/event-stream',
-          ) &&
-          compression.filter(req, res),
-      }),
-    );
+    app.use(responseCompression());
   }
 
   // docs/06 §4.1 (stage 6.1): CORS for the admin panel (`ADMIN_ORIGINS`,

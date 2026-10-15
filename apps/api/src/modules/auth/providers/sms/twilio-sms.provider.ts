@@ -21,7 +21,7 @@ export function isTwilioServiceFault(error: unknown): boolean {
 }
 
 /** One per process, shared by every provider rebuild (key changes). */
-const twilioBreaker = new CircuitBreaker('twilio', {
+export const twilioBreaker = new CircuitBreaker('twilio', {
   threshold: 5,
   openMs: 60_000,
 });
