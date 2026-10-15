@@ -13,9 +13,9 @@ import '../models/admin_promotion_row_list_envelope.dart';
 import '../models/admin_promotion_stats_envelope.dart';
 import '../models/admin_review_promotion_dto.dart';
 import '../models/case_promotion_status.dart';
-import '../models/promotion_settings_dto.dart';
 import '../models/promotion_settings_envelope.dart';
 import '../models/promotion_target.dart';
+import '../models/update_promotion_settings_dto.dart';
 
 part 'admin_promotions_client.g.dart';
 
@@ -51,7 +51,7 @@ abstract class AdminPromotionsClient {
   /// Change price / limits / on-off (super admin)
   @PUT('/admin/promotions/settings')
   Future<PromotionSettingsEnvelope> updatePromotionSettings({
-    @Body() required PromotionSettingsDto body,
+    @Body() required UpdatePromotionSettingsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

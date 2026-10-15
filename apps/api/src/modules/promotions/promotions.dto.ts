@@ -1,4 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -745,4 +750,21 @@ export class PromotionSettingsDto {
   @ApiProperty()
   @IsBoolean()
   requireSubscription!: boolean;
+}
+
+/**
+ * `PUT /admin/promotions/settings`. Every field is optional: what is not
+ * sent keeps its stored value (an older admin build sends only the fields
+ * it knows). `feedEveryN` keeps the range this endpoint always accepted
+ * (2-50); the service narrows it to 10-15 and answers 400 outside it.
+ */
+export class UpdatePromotionSettingsDto extends PartialType(
+  OmitType(PromotionSettingsDto, ['feedEveryN'] as const),
+) {
+  @ApiPropertyOptional({ type: 'integer', minimum: 2, maximum: 50 })
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(50)
+  feedEveryN?: number;
 }
