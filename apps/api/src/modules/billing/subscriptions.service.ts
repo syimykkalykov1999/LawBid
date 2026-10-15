@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  type OnModuleDestroy,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -73,7 +74,7 @@ const PAYMENTS_PAGE = 20;
  */
 import { ReferralsService } from '../referrals/referrals.service';
 @Injectable()
-export class SubscriptionsService {
+export class SubscriptionsService implements OnModuleDestroy {
   private readonly logger = new Logger(SubscriptionsService.name);
 
   private readonly portalReturnUrl: string;
@@ -101,6 +102,12 @@ export class SubscriptionsService {
     const url = config.get<string>('REDIS_URL');
     if (url)
       this.queue = new Queue(SUBSCRIPTION_JOBS_QUEUE, { connection: { url } });
+  }
+
+  /** The queue keeps its own Redis connection: close it with the app (an
+   * open one kept every e2e suite's whole module graph in memory). */
+  async onModuleDestroy(): Promise<void> {
+    await this.queue?.close();
   }
 
   /**

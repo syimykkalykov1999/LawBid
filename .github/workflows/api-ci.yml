@@ -237,11 +237,13 @@ jobs:
           echo "MinIO did not start"; cat /tmp/minio.log; exit 1
 
       - name: e2e tests (real PostgreSQL + Redis + local S3)
-        # One jest process runs every suite in turn and its heap grows past
-        # node's default limit (~2 GB) around the 60th suite.
+        # Jest keeps every finished suite's module graph in memory (40–60 MB
+        # each, no leaked handles: measured after a forced GC), so one process
+        # for ~100 suites ran out of memory (exit 134). Three fresh processes
+        # in turn keep the heap at the size of one shard.
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: npm run test:e2e --workspace apps/api -- --forceExit
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run test:e2e:sharded --workspace apps/api
 
       - name: MinIO log (only when e2e failed)
         if: failure()
