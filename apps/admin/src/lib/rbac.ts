@@ -207,6 +207,7 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Деньги',
     icon: 'wallet',
     items: [
+      { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'money', hint: 'кто заходит, воронка, отток, покупки' },
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'money', hint: 'стоимость тарифов и галочки' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'money', hint: 'планы подписок и их возможности' },
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'money', hint: 'тарифы адвокатов' },

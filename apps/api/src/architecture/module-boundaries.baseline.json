@@ -237,6 +237,7 @@
   "admin-sanctions": 5,
   "admin-search": 3,
   "admin-users": 10,
+  "analytics": 2,
   "assistants": 14,
   "attorney-trust": 10,
   "auth": 7,
@@ -294,7 +295,7 @@
   "support": 6,
   "translation": 4,
   "treasury": 4,
-  "users": 5,
+  "users": 6,
   "verification": 12,
   "videos": 2,
   "workspace": 4

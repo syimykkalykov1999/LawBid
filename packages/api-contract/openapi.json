@@ -29588,6 +29588,95 @@
         ]
       }
     },
+    "/admin/analytics": {
+      "get": {
+        "operationId": "getAnalytics",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 7,
+              "maximum": 90,
+              "default": 30,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "DAU/MAU, the sign-up funnel, retention, churn and purchases by day",
+        "tags": [
+          "admin-analytics"
+        ]
+      }
+    },
     "/practice-areas": {
       "get": {
         "operationId": "listPracticeAreas",
@@ -98051,6 +98140,180 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/DeletionPendingDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AnalyticsStepDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "signed_up",
+              "verified",
+              "role_chosen",
+              "onboarded",
+              "first_action",
+              "paid"
+            ]
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ]
+      },
+      "AnalyticsRetentionDto": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "number",
+            "description": "People who joined 7–14 days ago."
+          },
+          "d1Percent": {
+            "type": "number",
+            "description": "Came back after day 1."
+          },
+          "d7Percent": {
+            "type": "number",
+            "description": "Came back after day 7."
+          }
+        },
+        "required": [
+          "cohort",
+          "d1Percent",
+          "d7Percent"
+        ]
+      },
+      "AnalyticsChurnPartDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "number",
+            "description": "Active 30–60 days ago."
+          },
+          "lost": {
+            "type": "number",
+            "description": "Of them, not seen in the last 30 days."
+          }
+        },
+        "required": [
+          "before",
+          "lost"
+        ]
+      },
+      "AnalyticsChurnDto": {
+        "type": "object",
+        "properties": {
+          "clients": {
+            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
+          },
+          "attorneys": {
+            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
+          }
+        },
+        "required": [
+          "clients",
+          "attorneys"
+        ]
+      },
+      "AnalyticsDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "active": {
+            "type": "number",
+            "description": "People who opened the app."
+          },
+          "signups": {
+            "type": "number"
+          },
+          "subscriptionCents": {
+            "type": "number"
+          },
+          "boostCents": {
+            "type": "number"
+          },
+          "purchases": {
+            "type": "number",
+            "description": "Subscription payments and Boosts bought."
+          }
+        },
+        "required": [
+          "day",
+          "active",
+          "signups",
+          "subscriptionCents",
+          "boostCents",
+          "purchases"
+        ]
+      },
+      "AnalyticsDto": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "number"
+          },
+          "dau": {
+            "type": "number"
+          },
+          "wau": {
+            "type": "number"
+          },
+          "mau": {
+            "type": "number"
+          },
+          "stickinessPercent": {
+            "type": "number",
+            "description": "DAU as a share of MAU, in percent."
+          },
+          "funnel": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStepDto"
+            }
+          },
+          "retention": {
+            "$ref": "#/components/schemas/AnalyticsRetentionDto"
+          },
+          "churn": {
+            "$ref": "#/components/schemas/AnalyticsChurnDto"
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDayDto"
+            }
+          }
+        },
+        "required": [
+          "days",
+          "dau",
+          "wau",
+          "mau",
+          "stickinessPercent",
+          "funnel",
+          "retention",
+          "churn",
+          "daily"
+        ]
+      },
+      "AnalyticsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnalyticsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

@@ -4987,3 +4987,14 @@ model CrashReport {
   @@index([created_at])
   @@map("crash_reports")
 }
+
+// Owner 2026-10-15: one row per person per day they opened the app (DAU/MAU,
+// retention, churn). Written once a day per person from GET /users/me.
+model UserActivityDay {
+  user_id String   @db.Uuid
+  day     DateTime @db.Date
+
+  @@id([user_id, day])
+  @@index([day])
+  @@map("user_activity_days")
+}

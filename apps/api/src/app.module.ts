@@ -80,6 +80,7 @@ import { AdminConfigModule } from './modules/admin-config/admin-config.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AdminContentModule } from './modules/admin-content/admin-content.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CrashReportsModule } from './modules/crash-reports/crash-reports.module';
 import { AdminSearchModule } from './modules/admin-search/admin-search.module';
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
@@ -224,6 +225,7 @@ const isDev =
     AdminMediaModule,
     AdminSearchModule,
     CrashReportsModule,
+    AnalyticsModule,
     DocumentTemplatesModule,
     AdminBillingModule,
     AdminPayrollModule,

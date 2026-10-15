@@ -123,6 +123,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   promotion_daily: 'boost numbers by day',
   search_query_log: 'what testers searched',
   crash_reports: 'crashes of test builds',
+  user_activity_days: 'who opened the app on which day (testers)',
   search_clicks: 'results testers opened',
   search_learned_links: 'topics learned from tester clicks',
   reviews: 'reviews of attorneys',
