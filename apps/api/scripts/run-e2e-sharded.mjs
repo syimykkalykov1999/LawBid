@@ -18,6 +18,7 @@ const shards = Number(shardsArg?.split('=')[1] ?? process.env.E2E_SHARDS ?? 3);
 const rest = args.filter((a) => !a.startsWith('--shards='));
 const jest = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
+const results = [];
 let failed = 0;
 for (let i = 1; i <= shards; i += 1) {
   console.log(`\n=== e2e shard ${i}/${shards} ===`);
@@ -33,10 +34,19 @@ for (let i = 1; i <= shards; i += 1) {
     ],
     { stdio: 'inherit', env: process.env },
   );
+  results.push({ shard: i, status: r.status });
   if (r.status !== 0) {
     failed += 1;
     console.error(`e2e shard ${i}/${shards} failed (exit ${r.status})`);
   }
+}
+// The one-line verdict per shard at the very end, so the CI tail shows
+// which shard failed without scrolling through the logs.
+console.log('\n=== e2e shard summary ===');
+for (const { shard, status } of results) {
+  console.log(
+    `shard ${shard}/${shards}: ${status === 0 ? 'passed' : `FAILED (exit ${status})`}`,
+  );
 }
 if (failed > 0) {
   console.error(`\n${failed} of ${shards} e2e shards failed`);

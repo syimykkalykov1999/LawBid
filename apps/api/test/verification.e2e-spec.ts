@@ -1,5 +1,5 @@
 import type { AddressInfo, Server } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
@@ -224,8 +224,9 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     return id;
   }
 
-  const barNumber = () =>
-    `B${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
+  // Digits only: a state without its own format needs at least 3 digits, and
+  // random hex sometimes has fewer (a rare flake).
+  const barNumber = () => `B${String(randomInt(100_000_000, 999_999_999))}`;
 
   async function createDraft(auth: Record<string, string>): Promise<string> {
     const res = await api()
