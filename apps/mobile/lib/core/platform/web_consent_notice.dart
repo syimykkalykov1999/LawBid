@@ -37,6 +37,20 @@ class WebConsentNotice extends ConsumerStatefulWidget {
 class _WebConsentNoticeState extends ConsumerState<WebConsentNotice> {
   bool _answered = false;
 
+  // Shown a moment after the first screen is up: its buttons would join the
+  // browser's first focus pass, which runs before the first layout.
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      Future<void>.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) setState(() => _ready = true);
+      });
+    }
+  }
+
   void _answer(SharedPreferences prefs, {required bool accepted}) {
     if (!accepted) AppEvents.optedOut = true;
     prefs.setString(_kKey, accepted ? 'accepted' : 'declined');
@@ -47,7 +61,7 @@ class _WebConsentNoticeState extends ConsumerState<WebConsentNotice> {
   Widget build(BuildContext context) {
     if (!kIsWeb) return widget.child;
     final prefs = ref.watch(sharedPreferencesProvider);
-    if (_answered || prefs.getString(_kKey) != null) return widget.child;
+    final show = _ready && !_answered && prefs.getString(_kKey) == null;
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -55,68 +69,72 @@ class _WebConsentNoticeState extends ConsumerState<WebConsentNotice> {
       fit: StackFit.expand,
       children: [
         widget.child,
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Align(
-            // Wide window: in the corner, away from the page's buttons.
-            alignment:
-                MediaQuery.sizeOf(context).width >= kShellExtendedMinWidth
-                    ? AlignmentDirectional.bottomStart
-                    : Alignment.bottomCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Material(
-                color: colors.sheet,
-                elevation: 6,
-                borderRadius: BorderRadius.circular(AppRadii.card),
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t.t('onboarding.consents.analytics'),
-                        style: type.bodySmall.copyWith(color: colors.text),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      GestureDetector(
-                        onTap: widget.onOpenPrivacy,
-                        child: Text(
-                          t.t('legal.doc.privacy'),
-                          style: type.bodySmall.copyWith(
-                            color: colors.goldAccent,
-                            decoration: TextDecoration.underline,
+        if (!show)
+          const SizedBox.shrink()
+        else
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Align(
+              // Wide window: in the corner, away from the page's buttons.
+              alignment:
+                  MediaQuery.sizeOf(context).width >= kShellExtendedMinWidth
+                      ? AlignmentDirectional.bottomStart
+                      : Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Material(
+                  color: colors.sheet,
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.t('onboarding.consents.analytics'),
+                          style: type.bodySmall.copyWith(color: colors.text),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        GestureDetector(
+                          onTap: widget.onOpenPrivacy,
+                          child: Text(
+                            t.t('legal.doc.privacy'),
+                            style: type.bodySmall.copyWith(
+                              color: colors.goldAccent,
+                              decoration: TextDecoration.underline,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _answer(prefs, accepted: false),
-                              child: Text(t.t('common.close')),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: () => _answer(prefs, accepted: true),
-                              child: Text(
-                                t.t('onboarding.consents.disclaimer.accept'),
+                        const SizedBox(height: AppSpacing.md),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () =>
+                                    _answer(prefs, accepted: false),
+                                child: Text(t.t('common.close')),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: FilledButton(
+                                onPressed: () => _answer(prefs, accepted: true),
+                                child: Text(
+                                  t.t('onboarding.consents.disclaimer.accept'),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
