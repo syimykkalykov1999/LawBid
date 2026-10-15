@@ -87,9 +87,9 @@ abstract final class AppPageTransitions {
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: AppBackdrop(
-        child: WebPageFrame(location: state.matchedLocation, child: child),
-      ),
+      // The splash and the main shell: the shell draws its own menu and
+      // column, so no frame here.
+      child: AppBackdrop(child: child),
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
