@@ -449,7 +449,10 @@ class _TagTopicRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
-    final cat = topicCategory(tag.tag);
+    // Owner 2026-10-15: a topic without its own name-based category takes
+    // the practice its posts mostly belong to — never a grey square.
+    final named = topicCategory(tag.tag);
+    final cat = named ?? tag.categoryCode;
     final count = tag.postsCount;
     return TopicRow(
       tag: tag.tag,

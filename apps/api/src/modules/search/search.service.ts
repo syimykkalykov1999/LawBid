@@ -55,6 +55,7 @@ import {
   TRENDING_TAGS_KEY,
   type SearchProvider,
 } from './search.provider';
+import { tagCategories } from './tag-category';
 
 const PAGE = 20;
 /** Ranked results kept per query: 10 pages. */
@@ -62,7 +63,8 @@ const RANKED_MAX = 200;
 /** Ranked id lists are shared by everyone asking the same thing. */
 const RANKED_TTL_SEC = 5 * 60;
 const TAG_TOP_MAX = 500;
-const TAG_TOP_TTL_SEC = 10 * 60;
+// Owner 2026-10-15: a new post shows in "Top" within a minute ("New" is live).
+const TAG_TOP_TTL_SEC = 45;
 /** Tag "Топ" ranks the newest tagged posts only (bounded cost). */
 const TAG_TOP_CANDIDATES = 5000;
 
@@ -401,8 +403,13 @@ export class SearchService {
       WHERE t.tag_lower = ANY(${tags}::TEXT[])
       GROUP BY t.tag_lower`;
     const byTag = new Map(counts.map((c) => [c.tag, Number(c.n)]));
+    const categories = await tagCategories(this.prisma, tags);
     return tags
-      .map((tag) => ({ tag, postsCount: byTag.get(tag) ?? 0 }))
+      .map((tag) => ({
+        tag,
+        postsCount: byTag.get(tag) ?? 0,
+        categoryCode: categories.get(tag) ?? null,
+      }))
       .sort(
         (a, b) => b.postsCount - a.postsCount || a.tag.localeCompare(b.tag),
       );

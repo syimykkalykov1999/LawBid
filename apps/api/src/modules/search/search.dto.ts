@@ -307,6 +307,14 @@ export class TagDto {
     description: 'Posts in the last 7 days (trending only).',
   })
   postsCount!: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Practice category its posts mostly belong to (for the topic cover).',
+  })
+  categoryCode?: string | null;
 }
 
 export { PersonItemDto, type PeoplePage } from '../follows/follows.dto';

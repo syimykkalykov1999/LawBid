@@ -506,10 +506,13 @@ class SavedPost {
 /// docs/05 §7.5 hashtag; [postsCount] only for trending tags.
 @immutable
 class TagInfo {
-  const TagInfo({required this.tag, this.postsCount});
+  const TagInfo({required this.tag, this.postsCount, this.categoryCode});
 
   final String tag;
   final int? postsCount;
+
+  /// The practice category its posts mostly belong to (the topic cover).
+  final String? categoryCode;
 }
 
 enum TagSort { top, fresh, video }

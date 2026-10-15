@@ -107797,6 +107797,11 @@
             "type": "number",
             "nullable": true,
             "description": "Posts in the last 7 days (trending only)."
+          },
+          "categoryCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Practice category its posts mostly belong to (for the topic cover)."
           }
         },
         "required": [

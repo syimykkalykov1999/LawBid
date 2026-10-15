@@ -396,6 +396,18 @@ class PagedTileGrid<T> extends StatelessWidget {
 
 /// A practice topic / hashtag row that explains itself: our practice
 /// photo, the practice name, "#tag · N posts".
+/// A stable colour for a tag with no practice: one of the practice colours
+/// picked by the tag's text.
+String _tileCategory(String tag) {
+  final codes = kPracticeArtAssets.where((c) => !c.contains('.')).toList()
+    ..sort();
+  var h = 0;
+  for (final u in tag.codeUnits) {
+    h = (h * 31 + u) & 0x7fffffff;
+  }
+  return codes[h % codes.length];
+}
+
 class TopicRow extends StatelessWidget {
   const TopicRow({
     required this.tag,
@@ -432,11 +444,26 @@ class TopicRow extends StatelessWidget {
                 child: SizedBox.square(
                   dimension: 56,
                   child: categoryCode == null
+                      // A topic with no practiced posts yet: a tile in a
+                      // colour of the tag, with its first letter.
                       ? ColoredBox(
-                          color: colors.goldTint,
-                          child: AppIcon(
-                            AppIcons.tagRounded,
-                            color: colors.goldDark,
+                          color: practiceAccent(
+                            _tileCategory(tag),
+                            surface: practiceCardBase(colors),
+                          ),
+                          child: Center(
+                            child: Text(
+                              tag.isEmpty ? '#' : tag[0].toUpperCase(),
+                              style: type.titleMedium.copyWith(
+                                color: onPracticeAccent(
+                                  practiceAccent(
+                                    _tileCategory(tag),
+                                    surface: practiceCardBase(colors),
+                                  ),
+                                ),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         )
                       : PracticePhoto(categoryCode: categoryCode),
