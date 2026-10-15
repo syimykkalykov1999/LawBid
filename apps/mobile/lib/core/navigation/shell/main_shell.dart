@@ -6,10 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/bars/app_bottom_nav.dart';
+import 'package:lawbid/core/design_system/widgets/bars/app_side_nav.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
@@ -96,11 +98,36 @@ class _MainShellState extends ConsumerState<MainShell> {
 
     final uploading =
         ref.watch(reelPublishJobProvider).phase != ReelPublishPhase.idle;
+    // Owner 2026-10-15 (web): on a wide window the bar moves to the side.
+    final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
+    final side = layout != ShellLayout.bottom;
+    final body = DemoBannerHost(
+      child: Column(
+        children: [
+          // Owner 2026-10-15: a reel uploading in the background.
+          if (uploading)
+            const SafeArea(bottom: false, child: ReelPublishStrip()),
+          Expanded(
+            // The strip took the status bar's room; the screens below
+            // must not leave it a second time.
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: uploading,
+              child: _TabFade(
+                index: navigationShell.currentIndex,
+                child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
     return Scaffold(
       // Owner 2026-10-12: on the feed the posts run under the floating
       // nav bar (Instagram); other tabs keep their own space.
-      extendBody: navigationShell.currentIndex == 0 ||
-          ref.watch(reelPlayersOpenProvider) > 0,
+      extendBody: !side &&
+          (navigationShell.currentIndex == 0 ||
+              ref.watch(reelPlayersOpenProvider) > 0),
       // Owner 2026-10-15: every tab screen has its own Scaffold that already
       // makes room for the keyboard; this one must not shrink the body as
       // well (the screens inside were squeezed by the keyboard's height
@@ -108,34 +135,35 @@ class _MainShellState extends ConsumerState<MainShell> {
       resizeToAvoidBottomInset: false,
       // docs/ops/demo-world.md: floating «Демо-режим» banner over the tabs
       // while in a demo session (a no-op wrapper otherwise).
-      body: DemoBannerHost(
-        child: Column(
-          children: [
-            // Owner 2026-10-15: a reel uploading in the background.
-            if (uploading)
-              const SafeArea(bottom: false, child: ReelPublishStrip()),
-            Expanded(
-              // The strip took the status bar's room; the screens below
-              // must not leave it a second time.
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: uploading,
-                child: _TabFade(
-                  index: navigationShell.currentIndex,
-                  child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+      body: side
+          ? Row(
+              children: [
+                AppSideNav(
+                  tabs: tabs,
+                  currentIndex: navigationShell.currentIndex,
+                  onTabSelected: _onTabSelected,
+                  onCreatePressed: () => showCreateSheet(context, ref),
+                  extended: layout == ShellLayout.extendedRail,
+                  createLabel: translator.t('nav.create'),
                 ),
-              ),
+                Expanded(
+                  child: _ContentColumn(
+                    centred: layout == ShellLayout.extendedRail,
+                    child: body,
+                  ),
+                ),
+              ],
+            )
+          : body,
+      bottomNavigationBar: side
+          ? null
+          : AppBottomNav(
+              tabs: tabs,
+              currentIndex: navigationShell.currentIndex,
+              onTabSelected: _onTabSelected,
+              onCreatePressed: () => showCreateSheet(context, ref),
+              createSemanticLabel: translator.t('nav.create'),
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: AppBottomNav(
-        tabs: tabs,
-        currentIndex: navigationShell.currentIndex,
-        onTabSelected: _onTabSelected,
-        onCreatePressed: () => showCreateSheet(context, ref),
-        createSemanticLabel: translator.t('nav.create'),
-      ),
     );
   }
 }
@@ -183,6 +211,35 @@ class _TabFadeState extends State<_TabFade>
       opacity:
           CurvedAnimation(parent: _controller, curve: AppMotion.enterCurve),
       child: widget.child,
+    );
+  }
+}
+
+/// The content next to the side column. On a laptop-sized window it is a
+/// centred column (like Instagram's feed); the screens inside see the
+/// column's width as the screen's width, so they lay out as on a phone.
+class _ContentColumn extends StatelessWidget {
+  const _ContentColumn({required this.centred, required this.child});
+
+  final bool centred;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!centred) return child;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: kShellContentMaxWidth),
+        child: LayoutBuilder(
+          builder: (context, constraints) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }
