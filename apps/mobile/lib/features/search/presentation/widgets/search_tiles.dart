@@ -7,8 +7,6 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
-import 'package:lawbid/features/cases/presentation/widgets/compact_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
@@ -17,6 +15,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
@@ -66,7 +65,10 @@ class SearchPostTile extends ConsumerWidget {
   }
 }
 
-/// An attorney's search result case: a compact row.
+/// An attorney's search result case (owner 2026-10-15, variant C): a slim
+/// card — the practice header (colour of the practice, budget · state),
+/// the title and one line of text, then the paperclip, comments, bids and
+/// the time at the right. No client data. The glow sits top right.
 class SearchCaseTile extends ConsumerWidget {
   const SearchCaseTile({required this.item, super.key});
 
@@ -76,25 +78,204 @@ class SearchCaseTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final c = item;
-    final budget = '${CaseFormat.budget(t, f, c.budget)} · '
+    final accent = practiceAccent(
+      c.practice.categoryCode,
+      surface: practiceCardBase(colors),
+    );
+    final category = CaseFormat.practice(
+      t,
+      c.practice.categoryI18nKey ?? c.practice.i18nKey,
+      c.practice.categoryNameEn ?? c.practice.nameEn,
+    );
+    final money = '${CaseFormat.budget(t, f, c.budget)} · '
         '${c.primaryStateCode}';
-    final excerpt = c.excerpt.isNotEmpty ? c.excerpt : c.description;
+    final excerpt = (c.excerpt.isNotEmpty ? c.excerpt : c.description ?? '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
     final files = c.dossier.imagesCount + c.dossier.documentsCount;
-    return CompactCaseRow(
-      key: ValueKey('search-case-${c.id}'),
-      title: c.title,
-      description: excerpt,
-      status: StatusPill(label: budget, tone: StatusTone.gold),
-      coverUrl: c.photos.isNotEmpty ? c.photos.first.previewUrl : null,
-      coverKey: c.coverKey,
-      coverSeed: c.id,
-      categoryCode: c.practice.artCode,
-      practiceCode: c.practice.code,
-      filesCount: files > 0 ? files : c.photosCount,
-      bidsCount: c.bidsCount,
-      semanticLabel: '${c.title}. $budget',
-      onTap: () => context.push(AppRoutes.caseDetail(c.id)),
+    Widget stat(IconData icon, int n) => Padding(
+          padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(icon, size: 16, color: colors.textSecondary),
+              const SizedBox(width: 3),
+              Text(
+                SocialFormat.count(f, n),
+                style: type.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        );
+    return Semantics(
+      button: true,
+      label: '${c.title}. $money',
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: () => context.push(AppRoutes.caseDetail(c.id)),
+        child: Container(
+          key: ValueKey('search-case-${c.id}'),
+          clipBehavior: Clip.hardEdge,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.card),
+            border: Border.all(color: colors.border),
+          ),
+          child: Stack(
+            children: [
+              PositionedDirectional(
+                end: -70,
+                top: -70,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          accent.withValues(alpha: dark ? 0.26 : 0.2),
+                          accent.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ColoredBox(
+                    color: accent.withValues(alpha: dark ? 0.16 : 0.12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: 3,
+                      ),
+                      // The practice name takes up to 68% of the row, the
+                      // budget the rest (it shrinks, never cuts the name).
+                      child: LayoutBuilder(
+                        builder: (context, box) => Row(
+                          children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: box.maxWidth * 0.68,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: accent,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  category,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: type.bodySmall.copyWith(
+                                    color: onPracticeAccent(accent),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    money,
+                                    maxLines: 1,
+                                    style: type.bodySmall.copyWith(
+                                      color: colors.text,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md,
+                      AppSpacing.xs,
+                      AppSpacing.md,
+                      2,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.body.copyWith(
+                            color: colors.text,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (excerpt.isNotEmpty)
+                          Text(
+                            excerpt,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.bodySmall.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        Row(
+                          children: [
+                            stat(
+                              AppIcons.attachFileRounded,
+                              files > 0 ? files : c.photosCount,
+                            ),
+                            stat(
+                              AppIcons.chatBubbleOutlineRounded,
+                              c.commentCount,
+                            ),
+                            stat(AppIcons.gavelRounded, c.bidsCount),
+                            Expanded(
+                              child: Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    SocialFormat.ago(t, f, c.createdAt),
+                                    maxLines: 1,
+                                    style: type.caption.copyWith(
+                                      color: colors.textSecondary,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

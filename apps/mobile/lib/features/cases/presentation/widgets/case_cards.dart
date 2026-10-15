@@ -215,7 +215,10 @@ class FeedCaseCard extends StatelessWidget {
     ].join(', ');
     final text = (item.description ?? item.excerpt).trim();
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final accent = practiceAccent(item.practice.categoryCode, dark: dark);
+    final accent = practiceAccent(
+      item.practice.categoryCode,
+      surface: practiceCardBase(colors),
+    );
     return Semantics(
       button: true,
       label: semantics,
@@ -235,8 +238,9 @@ class FeedCaseCard extends StatelessWidget {
           child: Stack(
             children: [
               PositionedDirectional(
-                end: -70,
-                bottom: -70,
+                // Owner 2026-10-15: top right, away from the text.
+                end: -80,
+                top: -80,
                 child: IgnorePointer(
                   child: Container(
                     width: 240,

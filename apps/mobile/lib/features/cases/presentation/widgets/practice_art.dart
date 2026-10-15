@@ -75,10 +75,34 @@ final Map<String, double> _practiceHues = () {
   return out;
 }();
 
-Color practiceAccent(String? categoryCode, {required bool dark}) {
+/// The practice's colour on a card whose background is [surface]: lighter
+/// on a dark theme, darker on a light one, and stepped until it stands out
+/// from the surface (contrast >= 3) in every theme (Day, Night, Navy, Glass).
+Color practiceAccent(String? categoryCode, {required Color surface}) {
   final hue = _practiceHues[categoryCode] ?? 45.0;
-  return HSLColor.fromAHSL(1, hue, 0.58, dark ? 0.6 : 0.46).toColor();
+  final dark = surface.computeLuminance() < 0.4;
+  var l = dark ? 0.6 : 0.46;
+  Color at(double lightness) =>
+      HSLColor.fromAHSL(1, hue, 0.58, lightness).toColor();
+  double contrast(Color a, Color b) {
+    final x = a.computeLuminance();
+    final y = b.computeLuminance();
+    return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+  }
+
+  for (var i = 0; i < 12 && contrast(at(l), surface) < 3; i++) {
+    l = (l + (dark ? 0.03 : -0.03)).clamp(0.2, 0.85);
+  }
+  return at(l);
 }
+
+/// What a card really looks like on: its surface over the page. The Glass
+/// theme has a translucent surface on a transparent page, so it is judged
+/// over the glass gradient's solid colour.
+Color practiceCardBase(AppColorTokens colors) => Color.alphaBlend(
+      colors.surface,
+      colors.bg.a < 1 ? AppColorsGlass.barSolid : colors.bg,
+    );
 
 /// Legible text on [accent].
 Color onPracticeAccent(Color accent) {
