@@ -6,8 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
-import 'package:path_provider/path_provider.dart';
 
 /// What the one app-wide voice player is doing (OQ-040): only one note
 /// plays at a time, like Telegram.
@@ -88,6 +88,25 @@ class VoicePlayer extends Notifier<VoicePlayback> {
     return const VoicePlayback();
   }
 
+  final _prefetching = <String>{};
+
+  /// Owner 2026-10-15: a note on screen is downloaded in the background,
+  /// so the tap starts the sound at once (also readies the player).
+  void prefetch(ChatMessage m) {
+    final v = m.voice;
+    if (kIsWeb || v == null || v.url == null || v.localPath != null) return;
+    if (!_prefetching.add(m.id)) return;
+    _p; // create the player now, not on the first tap
+    unawaited(
+      _cached(m.id, v.url).then<void>(
+        (_) {},
+        onError: (Object _) {
+          _prefetching.remove(m.id);
+        },
+      ),
+    );
+  }
+
   /// Play/pause [m]; another note stops the current one.
   Future<void> toggle(ChatMessage m) async {
     final v = m.voice;
@@ -101,7 +120,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       }
       return;
     }
-    await p.stop();
+    if (p.playing || state.messageId != null) await p.stop();
     state = VoicePlayback(messageId: m.id, speed: state.speed, loading: true);
     try {
       // Web: no file system — stream the signed link (or the unsent blob).
@@ -136,8 +155,9 @@ class VoicePlayer extends Notifier<VoicePlayback> {
   /// Storage links carry no app headers ([storageDioProvider]).
   Future<String?> _cached(String messageId, String? url) async {
     if (url == null) return null;
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/voice_cache_$messageId.m4a');
+    final target = await voiceCachePath(messageId);
+    if (target == null) return null;
+    final file = File(target);
     // ignore: avoid_slow_async_io
     if (await file.exists() && await file.length() > 0) return file.path;
     final res = await ref.read(storageDioProvider).get<List<int>>(

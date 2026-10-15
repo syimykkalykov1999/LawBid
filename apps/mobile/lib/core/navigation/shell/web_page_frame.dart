@@ -9,6 +9,18 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
+/// Placed by the main shell: a screen pushed inside a tab already sits next
+/// to the shell's menu and in its column, so [WebPageFrame] does nothing.
+class InsideMainShell extends InheritedWidget {
+  const InsideMainShell({required super.child, super.key});
+
+  static bool of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<InsideMainShell>() != null;
+
+  @override
+  bool updateShouldNotify(InsideMainShell oldWidget) => false;
+}
+
 /// A column of at most [maxWidth] (all of it when null) at the top centre.
 /// The screens inside see the column's width as the screen's width, so they
 /// lay out as on a phone.
@@ -49,6 +61,7 @@ class WebPageFrame extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (InsideMainShell.of(context)) return child;
     final width = MediaQuery.sizeOf(context).width;
     final layout = shellLayoutFor(width, adaptive: adaptiveShellOn);
     if (layout == ShellLayout.bottom) return child;

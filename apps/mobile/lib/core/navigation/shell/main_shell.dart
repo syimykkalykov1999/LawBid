@@ -102,25 +102,27 @@ class _MainShellState extends ConsumerState<MainShell> {
     // Owner 2026-10-15 (web): on a wide window the bar moves to the side.
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
     final side = layout != ShellLayout.bottom;
-    final body = DemoBannerHost(
-      child: Column(
-        children: [
-          // Owner 2026-10-15: a reel uploading in the background.
-          if (uploading)
-            const SafeArea(bottom: false, child: ReelPublishStrip()),
-          Expanded(
-            // The strip took the status bar's room; the screens below
-            // must not leave it a second time.
-            child: MediaQuery.removePadding(
-              context: context,
-              removeTop: uploading,
-              child: _TabFade(
-                index: navigationShell.currentIndex,
-                child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+    final body = InsideMainShell(
+      child: DemoBannerHost(
+        child: Column(
+          children: [
+            // Owner 2026-10-15: a reel uploading in the background.
+            if (uploading)
+              const SafeArea(bottom: false, child: ReelPublishStrip()),
+            Expanded(
+              // The strip took the status bar's room; the screens below
+              // must not leave it a second time.
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: uploading,
+                child: _TabFade(
+                  index: navigationShell.currentIndex,
+                  child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
     return Scaffold(

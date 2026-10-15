@@ -158,6 +158,37 @@ class CallController extends Notifier<CallSession> {
 
   CallsRepository get _repo => ref.read(callsRepositoryProvider);
 
+  Future<List<IceServer>>? _ice;
+  DateTime? _iceAt;
+
+  /// Owner 2026-10-15: calls connected slowly — the relay (TURN) list was
+  /// fetched only after the mic was asked for, one request behind the
+  /// other. It is now fetched alongside the call request, or while the
+  /// phone rings, and reused for a few minutes.
+  Future<List<IceServer>> _iceServers() {
+    final at = _iceAt;
+    final cached = _ice;
+    if (cached != null &&
+        at != null &&
+        DateTime.now().difference(at) < const Duration(minutes: 5)) {
+      return cached;
+    }
+    final fresh = _repo.iceServers();
+    _ice = fresh;
+    _iceAt = DateTime.now();
+    fresh.ignore();
+    // A failed fetch must not stay cached.
+    unawaited(
+      fresh.then<void>(
+        (_) {},
+        onError: (Object _) {
+          if (identical(_ice, fresh)) _ice = null;
+        },
+      ),
+    );
+    return fresh;
+  }
+
   /// The live media — the call screen shows its video streams.
   CallMedia? get media => _media;
 
@@ -191,6 +222,7 @@ class CallController extends Notifier<CallSession> {
       speaker: video,
     );
     try {
+      unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
       final call = await _repo.start(conversationId, video: video);
       if (!ref.mounted) return;
       if (call.status == CallStatus.busy) {
@@ -226,8 +258,12 @@ class CallController extends Notifier<CallSession> {
     state = state.copyWith(phase: CallPhase.connecting);
     unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
     try {
+      // The answer to the server and the mic/connection run side by side:
+      // the caller's offer waits in [_earlySignals] until the media is open.
+      final acceptF = _repo.accept(call.id);
+      unawaited(acceptF.then<void>((_) {}, onError: (Object _) {}));
       await _openMedia(call.id, video: call.video);
-      final accepted = await _repo.accept(call.id);
+      final accepted = await acceptF;
       if (!ref.mounted) return;
       state = state.copyWith(call: accepted);
       _armConnectTimeout();
@@ -337,6 +373,8 @@ class CallController extends Notifier<CallSession> {
       video: call.video,
       speaker: call.video,
     );
+    // While it rings, get the relay list ready: answering connects faster.
+    unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
     // Owner 2026-10-02: "Calls" off in Settings → the call still comes
     // (the in-app screen), but without the ringing system UI or a buzz.
     if (isCategoryMuted(ref, NotifCategory.calls)) return;
@@ -360,7 +398,7 @@ class CallController extends Notifier<CallSession> {
 
   Future<void> _openMedia(String callId, {bool video = false}) async {
     if (_mediaOpen) return;
-    final servers = await _repo.iceServers();
+    final servers = await _iceServers();
     final media = ref.read(callMediaFactoryProvider)();
     _media = media;
     await media.open(

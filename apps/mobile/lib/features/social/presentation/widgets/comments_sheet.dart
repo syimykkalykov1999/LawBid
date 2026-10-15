@@ -24,11 +24,14 @@ Future<void> showCommentsSheet(
     // Over the nav bar too, like Instagram.
     useRootNavigator: true,
     useSafeArea: true,
-    backgroundColor: colors.sheet,
+    backgroundColor: sheetRouteColor(context, colors.sheet),
+    elevation: sheetDrawnByColumn(context) ? 0 : null,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
     ),
     builder: (_) => ContentColumnFrame(
+      surface: colors.sheet,
+      radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
       child: CommentsSheet(
         postId: postId,
         commentsEnabled: commentsEnabled,

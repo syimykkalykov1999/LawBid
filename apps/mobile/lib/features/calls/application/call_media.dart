@@ -106,6 +106,10 @@ class WebRtcCallMedia implements CallMedia {
     final pc = await createPeerConnection({
       'iceServers': [for (final s in iceServers) s.toJson()],
       'sdpSemantics': 'unified-plan',
+      // Gather candidates as soon as the connection exists and share one
+      // transport: the first sound is heard sooner.
+      'iceCandidatePoolSize': 2,
+      'bundlePolicy': 'max-bundle',
     });
     _pc = pc;
     for (final track in _mic!.getTracks()) {

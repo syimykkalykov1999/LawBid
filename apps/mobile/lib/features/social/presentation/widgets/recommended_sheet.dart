@@ -21,12 +21,15 @@ Future<void> showRecommendedSheet(BuildContext context) {
     constraints: contentColumnSheetConstraints(context),
     useRootNavigator: true,
     useSafeArea: true,
-    backgroundColor: colors.sheet,
+    backgroundColor: sheetRouteColor(context, colors.sheet),
+    elevation: sheetDrawnByColumn(context) ? 0 : null,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
     ),
-    builder: (_) => const ContentColumnFrame(
-      child: FractionallySizedBox(
+    builder: (_) => ContentColumnFrame(
+      surface: colors.sheet,
+      radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
+      child: const FractionallySizedBox(
         heightFactor: 0.92,
         child: GlassPanel(
           radius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),

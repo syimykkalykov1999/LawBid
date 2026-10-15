@@ -49,7 +49,8 @@ Future<T?> showAppBottomSheet<T>({
     useRootNavigator: true,
     isScrollControlled: isScrollControlled,
     constraints: contentColumnSheetConstraints(context),
-    backgroundColor: colors.sheet,
+    backgroundColor: sheetRouteColor(context, colors.sheet),
+    elevation: sheetDrawnByColumn(context) ? 0 : null,
     showDragHandle: false,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
@@ -59,6 +60,8 @@ Future<T?> showAppBottomSheet<T>({
     // Owner 2026-10-01: every sheet closes with a swipe down — also when
     // its whole body scrolls (the list used to swallow the drag).
     builder: (ctx) => ContentColumnFrame(
+      surface: colors.sheet,
+      radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
       child: GlassPanel(
         radius: const BorderRadius.vertical(
           top: Radius.circular(AppRadii.sheet),
