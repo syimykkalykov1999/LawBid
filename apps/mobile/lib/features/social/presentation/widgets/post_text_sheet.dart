@@ -98,6 +98,8 @@ class PostTextSheet extends ConsumerWidget {
                 MediaQuery.paddingOf(context).bottom + AppSpacing.xl,
               ),
               children: [
+                // Owner 2026-10-15: the topic chips live here for a video.
+                PostPracticeChips(post: post, inset: 0),
                 if (title.isNotEmpty)
                   PostBodyText(
                     body: title,

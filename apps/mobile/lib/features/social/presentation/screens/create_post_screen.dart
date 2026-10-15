@@ -360,15 +360,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     final practice = _practice;
     final missing = _triedPublish;
 
-    Widget label(String text, {bool error = false}) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Text(
-            text,
-            style: type.titleMedium
-                .copyWith(color: error ? colors.dangerText : colors.text),
-          ),
-        );
-
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -435,7 +426,6 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     const SizedBox(height: AppSpacing.lg),
                   ],
                   // Owner 2026-10-01: the qualification is optional.
-                  label(t.t('post.create.practice')),
                   _PracticeField(
                     label: practice == null
                         ? t.t('post.create.practicePick')

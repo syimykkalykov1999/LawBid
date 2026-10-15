@@ -51,13 +51,77 @@ double feedCardHeight(double viewport) => math.max(440, viewport);
 /// all comments (N)". Text-only posts render as a quote card. The card
 /// always shows the latest local version of the post (likes/saves/edits
 /// from any screen).
-/// Room a feed video card keeps besides the video: author row, action row,
-/// two caption lines and a little air (dp).
-const double _kVideoCardChrome = 240;
+/// Room a feed video card keeps besides the video (dp): the icon row and
+/// the one text line (the author lies over the video). The video fills the
+/// rest between the header and the nav bar (owner 2026-10-15).
+const double _kVideoCardChrome = 112;
 
 /// Owner 2026-10-15: a video in a list is at most 9:10 (our header already
 /// takes room, unlike Instagram's 4:5).
 const double _kVideoRatio = 0.9;
+
+/// Owner 2026-10-15: one line under a video's icons — the author's nick in
+/// bold, the start of the text, and «ещё» pinned at the end of the line.
+class _VideoOneLine extends ConsumerWidget {
+  const _VideoOneLine({
+    required this.post,
+    required this.line,
+    required this.onMore,
+  });
+
+  final Post post;
+  final String line;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final oneLine = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return Semantics(
+      button: true,
+      label: t.t('post.more'),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onMore,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: post.author.username,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      if (oneLine.isNotEmpty) TextSpan(text: '  $oneLine'),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.body.copyWith(color: colors.text),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                t.t('post.more'),
+                style: type.body.copyWith(color: colors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class PostCard extends ConsumerWidget {
   const PostCard({
@@ -252,17 +316,17 @@ class PostCard extends ConsumerWidget {
     final frameRatio = p.video == null && p.media.isNotEmpty
         ? p.media.first.listAspectRatio
         : 0.8;
-    // Owner 2026-10-15: a video is up to 4:5 but its whole card (author,
-    // video, actions, caption) must fit between the screen header and the
-    // nav bar — shorter when the screen is.
+    // Owner 2026-10-15: a video fills the screen between the header and the
+    // nav bar (author row + video + actions), cropped to the centre.
     final cardRest = feedHeight == null
         ? double.infinity
         : math.max(minPhoto, feedHeight! - _kVideoCardChrome);
     final photoBase = fillHeight != null || feedHeight != null
         ? math.max(width / frameRatio, minPhoto)
         : width / frameRatio;
-    final photoHeight =
-        p.video != null ? math.min(photoBase, cardRest) : photoBase;
+    final photoHeight = p.video != null && feedHeight != null
+        ? cardRest
+        : (p.video != null ? math.min(photoBase, cardRest) : photoBase);
     Widget photoBox(Widget child, {required bool fill, VoidCallback? onShort}) {
       if (!fill) return SizedBox(height: photoHeight, child: child);
       return Expanded(
@@ -367,8 +431,19 @@ class PostCard extends ConsumerWidget {
             _OwnMenuRow(post: p),
           photoFor(fill: fill, onShort: onExpand),
           PostActionsBar(post: p, run: run, showTime: true),
-          PostPracticeChips(post: p),
-          if (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty)
+          // Owner 2026-10-15: a video post — author, video, icons, then ONE
+          // line (nick + the start of the text) with «ещё» at its end; the
+          // text, the topic chips and the tags open in a sheet from below.
+          if (p.video != null)
+            _VideoOneLine(
+              post: p,
+              line: title.isNotEmpty ? title : text,
+              onMore: () => showPostTextSheet(context, p),
+            )
+          else
+            PostPracticeChips(post: p),
+          if (p.video == null &&
+              (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty))
             _FeedCaption(
               // A new text (translation) starts collapsed again.
               key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
@@ -382,7 +457,7 @@ class PostCard extends ConsumerWidget {
               inPlaceOnly: true,
               onMore: () => showPostTextSheet(context, p),
             ),
-          if (p.attachments.isNotEmpty)
+          if (p.video == null && p.attachments.isNotEmpty)
             _DocChips(documents: p.attachments, onOpen: open),
           const SizedBox(height: AppSpacing.md),
         ],
