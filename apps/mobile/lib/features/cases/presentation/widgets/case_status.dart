@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
 /// Semantic tone of a status (colors strictly from docs/01 §8.1 tokens).
 enum StatusTone { gold, info, success, warning, danger, neutral }
@@ -29,7 +30,14 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final c = _colorsOf(colors, tone);
+    final raw = _colorsOf(colors, tone);
+    // Owner 2026-10-15: the label stays readable (>= 4.5:1) on its own
+    // tint in every theme, Glass included.
+    final fg = readableOn(
+      raw.fg,
+      Color.alphaBlend(raw.bg, practiceCardBase(colors)),
+    );
+    final c = (fg: fg, bg: raw.bg);
     return AnimatedContainer(
       duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
       curve: AppMotion.enterCurve,

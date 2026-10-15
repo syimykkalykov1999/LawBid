@@ -1165,7 +1165,14 @@ class _SourceButton extends StatelessWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     // On a light theme the same hue is darkened to stay readable.
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final accent = dark ? tint : Color.lerp(tint, Colors.black, 0.45)!;
+    final base = practiceCardBase(colors);
+    final tile = Color.alphaBlend(tint.withValues(alpha: 0.16), base);
+    // The icon keeps >= 3:1 against its soft square in every theme.
+    final accent = readableOn(
+      dark ? tint : Color.lerp(tint, Colors.black, 0.45)!,
+      tile,
+      min: 3,
+    );
     return Semantics(
       button: true,
       label: '$label. $hint',

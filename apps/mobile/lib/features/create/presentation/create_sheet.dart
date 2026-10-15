@@ -17,6 +17,12 @@ Future<void> showCreateSheet(BuildContext context, WidgetRef ref) {
     return Future.value();
   }
   final client = ref.read(currentUserRoleProvider) == UserRole.client;
+  // Owner 2026-10-15: an attorney has one choice — «Post» — so «+» goes
+  // straight to the post screen, no sheet with a single row.
+  if (!client) {
+    context.push(AppRoutes.create);
+    return Future.value();
+  }
   return showAppBottomSheet<void>(
     context: context,
     builder: (ctx) => _CreateSheet(

@@ -65,10 +65,17 @@ class ActiveCaseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final base = practiceCardBase(colors);
     final accent = practiceAccent(
       categoryCode ?? practiceCode?.split('.').first,
-      surface: practiceCardBase(colors),
+      surface: base,
     );
+    // The header is the practice colour tinted over the card; its text,
+    // icon and price are pushed to >= 4.5:1 against that tint, in every
+    // theme (Day, Night, Navy, Glass).
+    final headerBg = Color.alphaBlend(accent.withValues(alpha: 0.22), base);
+    final headerFg = readableOn(accent, headerBg);
+    final headerPrice = readableOn(colors.goldDark, headerBg);
     final lit = stage.clamp(0, stages - 1) + 1;
     final nextStyle = type.bodySmall.copyWith(
       color: nextDanger
@@ -88,14 +95,14 @@ class ActiveCaseCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 2),
         alignment: Alignment.centerLeft,
         decoration: BoxDecoration(
-          color: accent.withValues(alpha: 0.15),
+          color: accent.withValues(alpha: 0.22),
           border: Border(
-            bottom: BorderSide(color: accent.withValues(alpha: 0.25)),
+            bottom: BorderSide(color: accent.withValues(alpha: 0.4)),
           ),
         ),
         child: Row(
           children: [
-            AppIcon(practiceGlyph(categoryCode), size: 15, color: accent),
+            AppIcon(practiceGlyph(categoryCode), size: 15, color: headerFg),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -103,7 +110,7 @@ class ActiveCaseCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: type.caption
-                    .copyWith(color: accent, fontWeight: FontWeight.w600),
+                    .copyWith(color: headerFg, fontWeight: FontWeight.w600),
               ),
             ),
             if (price != null) ...[
@@ -112,7 +119,7 @@ class ActiveCaseCard extends StatelessWidget {
                 price!,
                 maxLines: 1,
                 style: type.bodySmall.copyWith(
-                  color: colors.goldDark,
+                  color: headerPrice,
                   fontWeight: FontWeight.w700,
                 ),
               ),

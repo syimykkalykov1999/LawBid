@@ -537,7 +537,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   start: AppSpacing.lg,
-                  end: 72,
+                  // Owner 2026-10-15: the text and «Follow» reach out to the
+                  // right, 8 dp short of the icon column.
+                  end: 52,
                   bottom: moreSpace +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
@@ -622,8 +624,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           PositionedDirectional(
             start: AppSpacing.lg,
             end: AppSpacing.lg,
-            bottom: (widget.embedded ? kReelNavClearance : AppSpacing.md) +
-                MediaQuery.paddingOf(context).bottom,
+            bottom:
+                (widget.embedded ? kReelNavTop + kReelNavGap : AppSpacing.md) +
+                    MediaQuery.paddingOf(context).bottom,
             child: ReelMoreButton(
               label: t.t(reelMoreLabelKey(p)),
               onTap: () => _openInside(p),
@@ -720,7 +723,12 @@ class ReelFollowButton extends ConsumerWidget {
 /// Owner 2026-10-15: in the feed's Reels tab the video runs under the
 /// floating nav bar (46 dp plus its margins); the caption, the icon column
 /// and the «more» button stand above it.
-const kReelNavClearance = 46.0 + AppSpacing.xs + AppSpacing.md;
+const kReelNavTop = 54.0;
+const kReelNavGap = 10.0;
+
+/// Added to the usual bottom spacing (AppSpacing.md) so the last line
+/// stands [kReelNavGap] above the bar.
+const kReelNavClearance = kReelNavTop + kReelNavGap - AppSpacing.md;
 
 /// Height of the pinned button plus its gap to the bottom.
 const kReelMoreButtonSpace = 44.0 + AppSpacing.md;

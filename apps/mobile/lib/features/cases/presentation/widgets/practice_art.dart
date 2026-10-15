@@ -96,6 +96,29 @@ Color practiceAccent(String? categoryCode, {required Color surface}) {
   return at(l);
 }
 
+/// WCAG contrast ratio of two opaque colours.
+double contrastRatio(Color a, Color b) {
+  final x = a.computeLuminance();
+  final y = b.computeLuminance();
+  return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+}
+
+/// Owner 2026-10-15: [color] nudged (lighter on a dark [bg], darker on a
+/// light one) until it reads on [bg] with at least [min]:1 contrast — a
+/// practice colour on its own tinted header must never melt into it.
+Color readableOn(Color color, Color bg, {double min = 4.5}) {
+  if (contrastRatio(color, bg) >= min) return color;
+  final dark = bg.computeLuminance() < 0.4;
+  final hsl = HSLColor.fromColor(color);
+  var l = hsl.lightness;
+  for (var i = 0; i < 40; i++) {
+    l = (l + (dark ? 0.025 : -0.025)).clamp(0.0, 1.0);
+    final c = hsl.withLightness(l).toColor();
+    if (contrastRatio(c, bg) >= min) return c;
+  }
+  return dark ? Colors.white : Colors.black;
+}
+
 /// What a card really looks like on: its surface over the page. The Glass
 /// theme has a translucent surface on a transparent page, so it is judged
 /// over the glass gradient's solid colour.
