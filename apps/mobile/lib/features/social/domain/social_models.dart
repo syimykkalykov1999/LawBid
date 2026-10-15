@@ -86,6 +86,11 @@ class PostMedia {
     // Instagram-like bounds: 4:5 portrait … 1.91:1 landscape.
     return (w / h).clamp(0.8, 1.91);
   }
+
+  /// Owner 2026-10-15: in any list a photo is at most square (1:1) and at
+  /// most 1.91:1 wide; taller ones are cropped to the centre and shown
+  /// whole when opened.
+  double get listAspectRatio => aspectRatio.clamp(1.0, 1.91);
 }
 
 /// OQ-042: a real person @mentioned in a post or comment.
@@ -219,6 +224,8 @@ class Post {
     this.video,
     this.locationName,
     this.commentsEnabled = true,
+    this.likesHidden = false,
+    this.viewsHidden = false,
     this.attachments = const [],
     this.isGeneral = false,
     this.promotionId,
@@ -256,6 +263,11 @@ class Post {
 
   /// Owner 2026-10-02: false = the author turned comments off.
   final bool commentsEnabled;
+
+  /// Owner 2026-10-15: the author hid the like / view counter (the server
+  /// sends 0 to everyone else, the real number to the author).
+  final bool likesHidden;
+  final bool viewsHidden;
 
   /// Owner 2026-10-01: a reel — the post's video instead of photos.
   final PostVideo? video;
@@ -345,6 +357,8 @@ class Post {
         video: video,
         locationName: locationName,
         commentsEnabled: commentsEnabled,
+        likesHidden: likesHidden,
+        viewsHidden: viewsHidden,
         attachments: attachments,
         isGeneral: isGeneral,
         promotionId: promotionId,
@@ -506,10 +520,13 @@ class SavedPost {
 /// docs/05 §7.5 hashtag; [postsCount] only for trending tags.
 @immutable
 class TagInfo {
-  const TagInfo({required this.tag, this.postsCount});
+  const TagInfo({required this.tag, this.postsCount, this.categoryCode});
 
   final String tag;
   final int? postsCount;
+
+  /// The practice category its posts mostly belong to (the topic cover).
+  final String? categoryCode;
 }
 
 enum TagSort { top, fresh, video }

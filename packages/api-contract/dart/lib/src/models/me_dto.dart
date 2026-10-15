@@ -37,6 +37,7 @@ class MeDto {
     required this.onboarding,
     required this.profile,
     required this.missing,
+    this.hideLikeCounts = false,
   });
 
   factory MeDto.fromJson(Map<String, Object?> json) => _$MeDtoFromJson(json);
@@ -58,6 +59,7 @@ class MeDto {
   /// ISO 639-1 interface language.
   final String uiLanguage;
   final ThemePref theme;
+  final bool hideLikeCounts;
   final String? avatarFileId;
 
   /// Short-lived signed link to the avatar (1024 px JPEG).

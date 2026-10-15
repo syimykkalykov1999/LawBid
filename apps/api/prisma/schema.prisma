@@ -689,6 +689,8 @@ model User {
   password_hash           String?
   password_set_at         DateTime?               @db.Timestamptz
   ui_language             String                  @default("en")
+  /// Owner 2026-10-15: do not show like counters under other people's posts.
+  hide_like_counts        Boolean                 @default(false)
   theme                   ThemePref               @default(system)
   suspended_reason        String?
   last_active_at          DateTime?               @db.Timestamptz
@@ -1514,9 +1516,9 @@ model Case {
   deleted_at            DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', title || ' ' ||
   // description). Read-only.
-  search_tsv            Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::regconfig, ((title || ' '::text) || description))"))
+  search_tsv            Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, f_unaccent(title)), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, f_unaccent(description)), 'C'::\"char\"))"))
   // Same text with the 'simple' config: exact words in any language.
-  search_tsv_simple     Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, ((title || ' '::text) || description))"))
+  search_tsv_simple     Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, f_unaccent(title)), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, f_unaccent(description)), 'C'::\"char\"))"))
   created_at            DateTime                 @default(now()) @db.Timestamptz
   updated_at            DateTime                 @updatedAt @db.Timestamptz
 
@@ -1782,6 +1784,9 @@ model Post {
   location_lng         Float?
   /// Owner 2026-10-02: the author can turn comments off.
   comments_enabled     Boolean                  @default(true)
+  /// Owner 2026-10-15: the author hides the like / view counter from others.
+  hide_likes           Boolean                  @default(false)
+  hide_views           Boolean                  @default(false)
   /// Owner 2026-10-05: 'legal' (a law topic, news, or marked by the author)
   /// or 'general' (personal, no law topic). Viewers can hide general posts.
   content_class        String                   @default("general") @db.VarChar(16)
@@ -1806,9 +1811,9 @@ model Post {
   edited_at            DateTime?                @db.Timestamptz
   deleted_at           DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
-  search_tsv           Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::regconfig, body)"))
+  search_tsv           Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, f_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, f_unaccent(body)), 'C'::\"char\"))"))
   // Owner 2026-10-13: the same text in the language-neutral 'simple' config.
-  search_tsv_simple    Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, body)"))
+  search_tsv_simple    Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, f_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, f_unaccent(body)), 'C'::\"char\"))"))
   created_at           DateTime                 @default(now()) @db.Timestamptz
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a
@@ -3437,6 +3442,9 @@ model VideoAsset {
   trim_start_ms     Int?
   trim_end_ms       Int?
   cover_time_ms     Int?
+  /// Owner 2026-10-15: a cover picked from the gallery (a post_image file
+  /// of the owner) — replaces the frame as the reel's poster.
+  cover_file_id     String?          @db.Uuid
   upload_expires_at DateTime         @db.Timestamptz
   created_at        DateTime         @default(now()) @db.Timestamptz
   ready_at          DateTime?        @db.Timestamptz

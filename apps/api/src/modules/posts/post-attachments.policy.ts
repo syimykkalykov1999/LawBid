@@ -41,8 +41,12 @@ export class PostAttachmentsPolicy {
   async visibleFor(authorIds: string[]): Promise<Set<string>> {
     const ids = [...new Set(authorIds)];
     if (ids.length === 0) return new Set();
+    const mode = await this.mode();
+    // Owner 2026-10-15: switched off for everyone = nothing shows, even
+    // what is already attached (the button and the lists disappear).
+    if (mode === 'off_for_all') return new Set();
     const keep = await this.settings.boolean('attachments_keep_after_cancel');
-    if (keep || (await this.mode()) !== 'by_subscription') return new Set(ids);
+    if (keep || mode !== 'by_subscription') return new Set(ids);
     const ok = await Promise.all(ids.map((id) => this.canAttach(id)));
     return new Set(ids.filter((_, i) => ok[i]));
   }

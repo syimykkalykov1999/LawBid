@@ -27,6 +27,8 @@ import {
   SearchPeopleQueryDto,
   SearchPostsQueryDto,
   SearchTagsQueryDto,
+  PracticeMatchDto,
+  SuggestionDto,
   TagDto,
   TagParamDto,
   TagPostsQueryDto,
@@ -54,6 +56,30 @@ export class SearchController {
     @Query() q: SearchAttorneysQueryDto,
   ): Promise<AttorneyListPage> {
     return this.search.attorneys(user, q);
+  }
+
+  @Get('search/suggest')
+  @ApiOperation({ summary: 'Type-ahead: topics, handles, practices by prefix' })
+  @ApiEnvelopeResponse(SuggestionDto, { isArray: true })
+  @ApiErrors({ 429: [ErrorCode.RATE_LIMITED] })
+  suggest(
+    @CurrentUser() user: RequestUser,
+    @Query() q: SearchTagsQueryDto,
+  ): Promise<SuggestionDto[]> {
+    return this.search.suggest(user, q.q);
+  }
+
+  @Get('search/practices')
+  @ApiOperation({
+    summary: 'Practices whose name in any language starts with the query',
+  })
+  @ApiEnvelopeResponse(PracticeMatchDto, { isArray: true })
+  @ApiErrors({ 429: [ErrorCode.RATE_LIMITED] })
+  practices(
+    @CurrentUser() user: RequestUser,
+    @Query() q: SearchTagsQueryDto,
+  ): Promise<PracticeMatchDto[]> {
+    return this.search.practices(user, q.q);
   }
 
   @Get('search/people')

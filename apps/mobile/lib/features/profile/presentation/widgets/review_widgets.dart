@@ -71,7 +71,7 @@ class ReviewCard extends ConsumerWidget {
         if (review.fromCase)
           ReviewBadge(
             label: t.t('reviews.badge.case'),
-            icon: AppIcons.verifiedRounded,
+            icon: AppIcons.verifiedUserOutlined,
           ),
         ReviewBadge(label: t.t('reviews.role.${review.authorRole}')),
       ],
@@ -124,6 +124,7 @@ extension on ReviewCard {
                 key: const ValueKey('review-act-report'),
                 icon: AppIcons.flagOutlined,
                 label: t.t('reviews.report.action'),
+                destructive: true,
                 onTap: () => Navigator.of(sheet).pop('report'),
               ),
             const SizedBox(height: AppSpacing.md),

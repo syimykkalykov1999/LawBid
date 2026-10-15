@@ -20,8 +20,9 @@ const kPostMaxPhotos = 9;
 /// docs/05 §3.1: post text limit (server-enforced too).
 const kPostMaxChars = 2200;
 
-/// Owner 2026-10-12: a text-only post (a thread) is up to 5000 characters.
-const kThreadMaxChars = 5000;
+/// Owner 2026-10-15: a text-only brief is up to 3000 characters (the live
+/// value is `post.max_chars_brief` from the admin panel).
+const kThreadMaxChars = 3000;
 
 /// Owner 2026-09-30: the card title limit (server-enforced too).
 const kPostTitleMaxChars = 120;
@@ -200,6 +201,9 @@ abstract interface class SocialRepository {
     bool? markedLegal,
   });
   Future<void> deletePost(String id);
+
+  /// Owner 2026-10-15: hide / show the like and view counters of an own post.
+  Future<Post> setPostCounters(String id, {bool? hideLikes, bool? hideViews});
 
   /// Owner 2026-10-12: pin an own post to slot 1..3 / take it off.
   Future<Post> pinPost(String id, int slot);
@@ -494,6 +498,25 @@ class ApiSocialRepository implements SocialRepository {
                   : (markedLegal
                       ? api.PostContentClass.legal
                       : api.PostContentClass.general),
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> setPostCounters(
+    String id, {
+    bool? hideLikes,
+    bool? hideViews,
+  }) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.setPostCounters(
+            id: id,
+            body: api.PostCountersDto(
+              hideLikes: hideLikes,
+              hideViews: hideViews,
             ),
           ),
         ))
@@ -956,6 +979,8 @@ abstract final class SocialMappers {
         ],
         locationName: d.location?.name,
         commentsEnabled: d.commentsEnabled,
+        likesHidden: d.likesHidden,
+        viewsHidden: d.viewsHidden,
         tags: d.tags,
         mentions: [for (final m in d.mentions) SocialMappers.mention(m)],
         title: d.title,

@@ -307,6 +307,14 @@ export class TagDto {
     description: 'Posts in the last 7 days (trending only).',
   })
   postsCount!: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Practice category its posts mostly belong to (for the topic cover).',
+  })
+  categoryCode?: string | null;
 }
 
 export { PersonItemDto, type PeoplePage } from '../follows/follows.dto';
@@ -411,4 +419,27 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @IsOptional()
   @IsIn(POST_CONTENT_CLASSES)
   contentClass?: PostContentClass;
+}
+
+export class PracticeMatchDto {
+  @ApiProperty({ description: 'practice code, e.g. family_law.divorce' })
+  code!: string;
+
+  @ApiProperty()
+  nameEn!: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'the word that matched when it is not the English name',
+  })
+  hit!: string | null;
+}
+
+export class SuggestionDto {
+  @ApiProperty({ enum: ['tag', 'person', 'practice'] })
+  kind!: 'tag' | 'person' | 'practice';
+
+  @ApiProperty()
+  text!: string;
 }

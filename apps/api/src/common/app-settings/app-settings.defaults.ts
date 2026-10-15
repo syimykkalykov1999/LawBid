@@ -101,17 +101,35 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
   'video.max_source_duration_sec': 900,
+  // Owner 2026-10-15: text limits like other platforms — a post with
+  // photos / video / documents is up to 2200 characters (Instagram), a
+  // text-only brief up to 3000 (LinkedIn). Older posts are never cut.
+  // Owner 2026-10-15: search ranking weights, editable in the admin panel.
+  // Text: a word in the title counts `search.weight_title`, in the text
+  // `search.weight_text` (case and post search). People: priority (paid
+  // «higher in search»), verified and rating (stars) add up to one score.
+  // The defaults keep the order the app always had: priority > verified >
+  // rating.
+  'search.weight_title': 1,
+  'search.weight_text': 0.2,
+  'search.weight_priority': 1000,
+  'search.weight_verified': 100,
+  'search.weight_rating': 10,
+  'post.max_chars_media': 2200,
+  'post.max_chars_brief': 3000,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by
   // their own size) are shrunk on the phone before upload — longest side,
   // JPEG quality — no visible loss, small files. Videos are re-encoded by
   // Bunny for viewers.
-  'media.photo_max_px': 2048,
-  'media.photo_quality': 85,
+  // Owner 2026-10-15: lighter (Instagram stores 1080 px): 1440 px / 80 %.
+  'media.photo_max_px': 1440,
+  'media.photo_quality': 80,
   'media.avatar_max_px': 1024,
   // Owner 2026-10-05: reels are re-encoded on the phone before upload —
   // at most this height (1080 = Full HD, no visible loss on a phone),
   // 0 = upload as recorded. Frame rate cap keeps files small.
-  'media.video_max_height': 1080,
+  // Owner 2026-10-15: 720 p — about half the size of 1080 p, same on a phone.
+  'media.video_max_height': 720,
   'media.video_frame_rate': 30,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,

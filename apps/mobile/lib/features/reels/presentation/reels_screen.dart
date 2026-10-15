@@ -139,6 +139,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                   controller: _pages,
                   scrollDirection: Axis.vertical,
                   itemCount: items.length,
+                  // Owner 2026-10-15: the neighbours are built (and warmed).
+                  allowImplicitScrolling: true,
                   onPageChanged: (i) {
                     setState(() => _index = i);
                     if (i >= items.length - 3) _load();
@@ -147,6 +149,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     key: ValueKey(items[i].id),
                     post: items[i],
                     active: i == _index,
+                    warm: (i - _index).abs() == 1,
                     muted: muted,
                     embedded: true,
                   ),
@@ -194,6 +197,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                   controller: _pages,
                   scrollDirection: Axis.vertical,
                   itemCount: items.length,
+                  // Owner 2026-10-15: the neighbours are built (and warmed).
+                  allowImplicitScrolling: true,
                   onPageChanged: (i) {
                     setState(() => _index = i);
                     if (i >= items.length - 3) _load();
@@ -202,6 +207,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     key: ValueKey(items[i].id),
                     post: items[i],
                     active: i == _index,
+                    warm: (i - _index).abs() == 1,
                     muted: muted,
                   ),
                 ),
@@ -259,6 +265,7 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.post,
     required this.active,
     required this.muted,
+    this.warm = false,
     this.embedded = false,
     super.key,
   });
@@ -266,6 +273,9 @@ class _ReelPage extends ConsumerStatefulWidget {
   final Post post;
   final bool active;
   final bool muted;
+
+  /// The next or previous reel: its stream is opened ahead.
+  final bool warm;
 
   /// The Reels tab: the compact «Watch» strip sits right above the nav bar.
   final bool embedded;
@@ -329,7 +339,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
     // none the strip goes and the author, text and rail drop down.
     final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
-    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
+    final moreSpace = (more ? kReelMoreButtonSpace : AppSpacing.md) +
+        (widget.embedded ? kReelNavClearance : 0);
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {
@@ -404,6 +415,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   ReelVideo(
                     video: video,
                     active: widget.active && video.ready,
+                    warm: widget.warm && video.ready,
                     muted: widget.muted,
                     paused: _paused || covered,
                     onProgress: (v) => _progress.value = v,
@@ -482,7 +494,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                             ? AppIcons.favoriteRounded
                             : AppIcons.favoriteBorderRounded,
                         t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-                        p.likeCount,
+                        showLikeCount(ref, p) ? p.likeCount : null,
                         () => run(() => actions.toggleLike(p)),
                         color: p.likedByMe ? colors.danger : null,
                       ),
@@ -525,7 +537,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 ),
                 PositionedDirectional(
                   start: AppSpacing.lg,
-                  end: 72,
+                  // Owner 2026-10-15: the text and «Follow» reach out to the
+                  // right, 8 dp short of the icon column.
+                  end: 52,
                   bottom: moreSpace +
                       AppSpacing.sm +
                       MediaQuery.paddingOf(context).bottom,
@@ -610,8 +624,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           PositionedDirectional(
             start: AppSpacing.lg,
             end: AppSpacing.lg,
-            bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
-                MediaQuery.paddingOf(context).bottom,
+            bottom:
+                (widget.embedded ? kReelNavTop + kReelNavGap : AppSpacing.md) +
+                    MediaQuery.paddingOf(context).bottom,
             child: ReelMoreButton(
               label: t.t(reelMoreLabelKey(p)),
               onTap: () => _openInside(p),
@@ -680,20 +695,22 @@ class ReelFollowButton extends ConsumerWidget {
                     size: 14,
                     color: Colors.white,
                   ),
-                  const SizedBox(width: 4),
                 ],
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                // Owner 2026-10-15: once followed, only the check stays
+                // (Instagram) so the author's name keeps its room.
+                if (!following)
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -702,6 +719,16 @@ class ReelFollowButton extends ConsumerWidget {
     );
   }
 }
+
+/// Owner 2026-10-15: in the feed's Reels tab the video runs under the
+/// floating nav bar (46 dp plus its margins); the caption, the icon column
+/// and the «more» button stand above it.
+const kReelNavTop = 54.0;
+const kReelNavGap = -4.0;
+
+/// Added to the usual bottom spacing (AppSpacing.md) so the last line
+/// stands [kReelNavGap] above the bar.
+const kReelNavClearance = kReelNavTop + kReelNavGap - AppSpacing.md;
 
 /// Height of the pinned button plus its gap to the bottom.
 const kReelMoreButtonSpace = 44.0 + AppSpacing.md;

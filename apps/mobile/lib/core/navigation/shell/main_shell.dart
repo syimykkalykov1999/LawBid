@@ -12,10 +12,13 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/reels/application/reel_publish_job.dart';
+import 'package:lawbid/features/reels/presentation/reel_publish_strip.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 
 /// Shell scaffold for the 4 `StatefulShellRoute.indexedStack` branches
@@ -90,23 +93,45 @@ class _MainShellState extends ConsumerState<MainShell> {
       ..listen(badgesProvider, (_, __) {})
       ..listen(sessionServicesProvider, (_, __) {});
 
+    final uploading =
+        ref.watch(reelPublishJobProvider).phase != ReelPublishPhase.idle;
     return Scaffold(
       // Owner 2026-10-12: on the feed the posts run under the floating
       // nav bar (Instagram); other tabs keep their own space.
       extendBody: navigationShell.currentIndex == 0,
+      // Owner 2026-10-15: every tab screen has its own Scaffold that already
+      // makes room for the keyboard; this one must not shrink the body as
+      // well (the screens inside were squeezed by the keyboard's height
+      // twice and overflowed).
+      resizeToAvoidBottomInset: false,
       // docs/ops/demo-world.md: floating «Демо-режим» banner over the tabs
       // while in a demo session (a no-op wrapper otherwise).
       body: DemoBannerHost(
-        child: _TabFade(
-          index: navigationShell.currentIndex,
-          child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+        child: Column(
+          children: [
+            // Owner 2026-10-15: a reel uploading in the background.
+            if (uploading)
+              const SafeArea(bottom: false, child: ReelPublishStrip()),
+            Expanded(
+              // The strip took the status bar's room; the screens below
+              // must not leave it a second time.
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: uploading,
+                child: _TabFade(
+                  index: navigationShell.currentIndex,
+                  child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: AppBottomNav(
         tabs: tabs,
         currentIndex: navigationShell.currentIndex,
         onTabSelected: _onTabSelected,
-        onCreatePressed: () => context.push(AppRoutes.create),
+        onCreatePressed: () => showCreateSheet(context, ref),
         createSemanticLabel: translator.t('nav.create'),
       ),
     );

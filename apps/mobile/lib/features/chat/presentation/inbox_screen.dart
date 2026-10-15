@@ -388,7 +388,7 @@ class _InboxTabs extends StatelessWidget {
                       duration: d,
                       style: type.caption.copyWith(
                         color: selected ? colors.onAccent : colors.text,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                       child: Text(
                         label,

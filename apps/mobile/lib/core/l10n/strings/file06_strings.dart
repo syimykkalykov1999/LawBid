@@ -20,7 +20,7 @@ const file06Ru = <String, String>{
       'Файлы можно отправлять после принятия ставки.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Квалификация',
-  'post.create.practicePick': 'Выберите квалификацию',
+  'post.create.practicePick': 'Тема (необязательно)',
   'practice.search.hint': 'Начните вводить: арбитраж, виза, развод…',
   'state.search.hint': 'Начните вводить штат',
   'post.create.titleField': 'Заголовок',
@@ -448,7 +448,7 @@ const file06En = <String, String>{
       'Files can be sent once the bid is accepted.',
   // --- Owner 2026-09-30 (OQ-046) ---
   'post.create.practice': 'Qualification',
-  'post.create.practicePick': 'Choose a qualification',
+  'post.create.practicePick': 'Topic (optional)',
   'practice.search.hint': 'Start typing: arbitration, visa, divorce…',
   'state.search.hint': 'Start typing a state',
   'post.create.titleField': 'Title',

@@ -271,6 +271,8 @@ abstract final class CasesMappers {
         title: w.title,
         status: w.status,
         clientName: w.clientName,
+        clientAvatarUrl: w.clientAvatarUrl,
+        additionalStateCount: w.additionalStateCount,
         feeType: w.feeType,
         amountCents: w.amountCents,
         autoCloseAt: _dateOrNull(w.autoCloseAt),

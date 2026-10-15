@@ -532,7 +532,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                   if (r.caseId != null)
                     ReviewBadge(
                       label: t.t('reviews.badge.case'),
-                      icon: AppIcons.verifiedRounded,
+                      icon: AppIcons.verifiedUserOutlined,
                     ),
                   ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
                 ],
@@ -598,6 +598,7 @@ extension on _ReviewsListState {
                 key: const ValueKey('client-review-report'),
                 icon: AppIcons.flagOutlined,
                 label: t.t('reviews.report.action'),
+                destructive: true,
                 onTap: () => Navigator.of(sheet).pop('report'),
               ),
             const SizedBox(height: AppSpacing.md),

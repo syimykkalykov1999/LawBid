@@ -104,7 +104,7 @@ class _ContactVerificationCardState
         label: t.t('onboarding.contacts.status.verified'),
         color: colors.success,
         background: colors.successTint,
-        icon: AppIcons.verifiedRounded,
+        icon: AppIcons.verifiedUserOutlined,
       );
     } else if (widget.requirement == ContactRequirement.required) {
       status = _StatusPill(

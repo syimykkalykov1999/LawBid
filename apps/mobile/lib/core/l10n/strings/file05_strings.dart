@@ -52,7 +52,7 @@ const file05Ru = <String, String>{
   'post.likes.many': '{count} отметок «Нравится»',
   'post.likes.other': '{count} отметки «Нравится»',
   'post.more': 'ещё',
-  'post.create.limitHint': 'Без фото и видео можно до 5000 символов',
+  'post.create.limitHint': 'Без фото и видео можно до 3000 символов',
   'profile.tab.threads': 'Текст',
   'post.brief.published': 'Пост опубликован',
   'post.menu.pin': 'Закрепить',
@@ -73,7 +73,7 @@ const file05Ru = <String, String>{
   'post.published': 'Пост опубликован',
 
   // --- composer ---
-  'post.create.title': 'Пост в ленту',
+  'post.create.title': 'Новая публикация',
   'post.create.hint': 'Поделитесь знаниями, разбором кейса или советом…',
   'post.create.photos': 'Фото',
   'post.create.addPhoto': 'Добавить фото',
@@ -310,7 +310,7 @@ const file05En = <String, String>{
   'post.likes.one': '{count} like',
   'post.likes.other': '{count} likes',
   'post.more': 'more',
-  'post.create.limitHint': 'Without photo or video up to 5000 characters',
+  'post.create.limitHint': 'Without photo or video up to 3000 characters',
   'profile.tab.threads': 'Text',
   'post.brief.published': 'Post published',
   'post.menu.pin': 'Pin',

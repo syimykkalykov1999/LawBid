@@ -48,8 +48,7 @@ class CaseChipsRow extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     Widget chip(String label, {bool main = false, bool ok = false}) =>
         Container(
-          padding:
-              EdgeInsets.symmetric(horizontal: 10, vertical: dense ? 3 : 6),
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: dense ? 3 : 4),
           decoration: BoxDecoration(
             color: ok
                 ? colors.success.withValues(alpha: 0.16)
@@ -60,8 +59,8 @@ class CaseChipsRow extends StatelessWidget {
           ),
           child: Text(
             label,
-            maxLines: 1,
-            style: type.bodySmall.copyWith(
+            maxLines: dense ? 1 : 2,
+            style: (dense ? type.bodySmall : type.caption).copyWith(
               fontWeight: FontWeight.w600,
               color: ok
                   ? colors.successText
@@ -73,19 +72,29 @@ class CaseChipsRow extends StatelessWidget {
             ),
           ),
         );
+    final chips = [
+      if (status != null) chip(status!, ok: true),
+      for (final (i, l) in labels.indexed)
+        chip(l, main: i == 0 && status == null),
+    ];
+    // Owner 2026-10-15: the detail screens wrap the chips onto a second
+    // line instead of cutting them at the edge; the feed card keeps one
+    // scrolling line.
+    if (!dense) {
+      return Padding(
+        padding: padding,
+        child: Wrap(spacing: 6, runSpacing: 6, children: chips),
+      );
+    }
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: padding,
       physics: const ClampingScrollPhysics(),
       child: Row(
         children: [
-          if (status != null) ...[
-            chip(status!, ok: true),
-            const SizedBox(width: 6),
-          ],
-          for (final (i, l) in labels.indexed) ...[
+          for (final (i, c) in chips.indexed) ...[
             if (i > 0) const SizedBox(width: 6),
-            chip(l, main: i == 0 && status == null),
+            c,
           ],
         ],
       ),
@@ -374,7 +383,7 @@ class CaseTextTabs extends StatelessWidget {
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
         child: Row(
           children: [
             for (final (i, it) in items.indexed)
@@ -385,7 +394,9 @@ class CaseTextTabs extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => onChanged(i),
                   child: Container(
-                    margin: const EdgeInsetsDirectional.only(end: 22),
+                    // Owner 2026-10-15: smaller tabs, like Instagram — 13sp
+                    // (the active one semibold), ~44dp high, 2dp indicator.
+                    margin: const EdgeInsetsDirectional.only(end: 18),
                     padding: const EdgeInsets.only(top: 14, bottom: 10),
                     decoration: BoxDecoration(
                       border: Border(
@@ -400,8 +411,9 @@ class CaseTextTabs extends StatelessWidget {
                       children: [
                         Text(
                           it.label,
-                          style: type.body.copyWith(
-                            fontWeight: FontWeight.w600,
+                          style: type.bodySmall.copyWith(
+                            fontWeight:
+                                i == index ? FontWeight.w600 : FontWeight.w500,
                             color:
                                 i == index ? colors.text : colors.textSecondary,
                           ),

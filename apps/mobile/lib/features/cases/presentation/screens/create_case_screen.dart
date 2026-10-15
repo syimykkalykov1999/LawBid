@@ -42,12 +42,14 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
       if (mounted) Navigator.of(context).pop();
       return;
     }
-    final keep = await showAppBottomSheet<bool>(
+    // Owner 2026-10-15: no saved draft any more — just «Exit without
+    // saving?» with [Exit] / [Continue].
+    final leave = await showAppBottomSheet<bool>(
       context: context,
-      builder: (context) => _SaveDraftSheet(t: t),
+      builder: (context) => CreateCaseExitSheet(t: t),
     );
-    if (keep == null) return; // "Continue editing"
-    await _c.finishEditing(keepDraft: keep);
+    if (leave != true) return;
+    await _c.finishEditing(keepDraft: false);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -299,8 +301,9 @@ class _DraftBanner extends StatelessWidget {
   }
 }
 
-class _SaveDraftSheet extends StatelessWidget {
-  const _SaveDraftSheet({required this.t});
+/// «Exit without saving?» when the wizard is closed with something typed.
+class CreateCaseExitSheet extends StatelessWidget {
+  const CreateCaseExitSheet({required this.t, super.key});
 
   final Translator t;
 
@@ -323,34 +326,34 @@ class _SaveDraftSheet extends StatelessWidget {
             const AppSheetHandle(),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              t.t('cases.create.saveDraftTitle'),
+              t.t('cases.create.exitTitle'),
               textAlign: TextAlign.center,
               style: typography.titleMedium.copyWith(color: colors.text),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              t.t('cases.create.saveDraftMessage'),
+              t.t('cases.create.exitMessage'),
               textAlign: TextAlign.center,
               style: typography.body.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.xl),
-            AppButton(
-              label: t.t('cases.create.saveDraft'),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              label: t.t('cases.create.discardDraft'),
-              variant: AppButtonVariant.secondary,
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                t.t('cases.create.keepEditing'),
-                style: typography.button.copyWith(color: colors.text),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: t.t('cases.create.exitConfirm'),
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => Navigator.of(context).pop(true),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppButton(
+                    label: t.t('cases.create.exitStay'),
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

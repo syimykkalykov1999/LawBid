@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -97,8 +99,22 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     required this.multi,
     this.searchHint,
     this.back = false,
+    this.remoteSearch,
+    this.unknownLabel,
+    this.confirm = false,
     super.key,
   });
+
+  /// Owner 2026-10-15: asks the server which options a word in ANY language
+  /// names (value → the matching word); they join the local matches.
+  final Future<Map<String, String?>> Function(String query)? remoteSearch;
+
+  /// «Не знаю тему» under the search: returns `{''}` (no choice).
+  final String? unknownLabel;
+
+  /// One choice that stays on screen (a tick on its row) until the pinned
+  /// «Готово»; the sheet then closes only by its handle.
+  final bool confirm;
 
   /// Owner 2026-10-12: a picker opened from a menu (feed filters) has a
   /// back arrow on the left and a centred title; arrow and system Back
@@ -125,11 +141,18 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     bool multi = false,
     String? searchHint,
     bool back = false,
+    Future<Map<String, String?>> Function(String query)? remoteSearch,
+    String? unknownLabel,
+    bool confirm = false,
   }) {
     return showAppBottomSheet<Set<String>>(
       context: context,
       isScrollControlled: true,
+      closeByHandleOnly: confirm,
       builder: (_) => OptionPickerSheet(
+        remoteSearch: remoteSearch,
+        unknownLabel: unknownLabel,
+        confirm: confirm,
         title: title,
         options: options,
         initial: initial,
@@ -149,6 +172,29 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
   final _search = TextEditingController();
   String _query = '';
   final Set<String> _expanded = {};
+  final _keyboardScroll = ScrollController();
+  Map<String, String?> _remote = const {};
+  Timer? _debounce;
+
+  void _onQuery(String v) {
+    setState(() => _query = v);
+    final search = widget.remoteSearch;
+    if (search == null) return;
+    _debounce?.cancel();
+    if (v.trim().length < 2) {
+      setState(() => _remote = const {});
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      final r = await search(v.trim());
+      if (mounted && _query == v) setState(() => _remote = r);
+    });
+  }
+
+  /// Owner 2026-10-15: leaving a confirm-picker by the handle or a tap
+  /// outside keeps the choice already made (no dialog, nothing is lost).
+  void _close() =>
+      Navigator.of(context).pop(_selected.isEmpty ? null : {..._selected});
 
   /// One-of choices (an [PickerOption.exclusive] head's options) → their
   /// siblings.
@@ -161,11 +207,53 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
 
   @override
   void dispose() {
+    // The keyboard goes with the sheet (it used to hang over the page).
+    FocusManager.instance.primaryFocus?.unfocus();
+    _debounce?.cancel();
+    _keyboardScroll.dispose();
     _search.dispose();
     super.dispose();
   }
 
+  /// A subcategory → its category's value (for «Select all» semantics).
+  late final Map<String, PickerOption> _headOf = {
+    for (final g in groupOptions(widget.options))
+      if (!g.head.exclusive)
+        for (final o in g.children) o.value: g.head,
+  };
+
+  /// Children of [head] by head value.
+  List<PickerOption> _childrenOf(String head) => [
+        for (final g in groupOptions(widget.options))
+          if (g.head.value == head) ...g.children,
+      ];
+
   void _toggle(String value) {
+    // Owner 2026-10-15: with a whole category picked, every row of it shows
+    // ticked; unticking one row keeps the others.
+    final head = _headOf[value];
+    if (head != null && _selected.contains(head.value) && !widget.confirm) {
+      setState(() {
+        _selected
+          ..remove(head.value)
+          ..addAll(
+            _childrenOf(head.value)
+                .map((o) => o.value)
+                .where((v) => v != value),
+          );
+      });
+      return;
+    }
+    if (widget.confirm) {
+      setState(() {
+        if (!_selected.remove(value)) {
+          _selected
+            ..clear()
+            ..add(value);
+        }
+      });
+      return;
+    }
     if (!widget.multi) {
       Navigator.of(context).pop({value});
       return;
@@ -225,114 +313,177 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final q = _query.trim().toLowerCase();
-    final filtered = suggestOptions(widget.options, q);
+    final local = suggestOptions(widget.options, q);
+    // Any-language matches the label search missed join the list.
+    final have = {for (final o in local) o.value};
+    final filtered = [
+      ...local,
+      if (q.isNotEmpty)
+        for (final o in widget.options)
+          if (!have.contains(o.value) &&
+              (_remote.containsKey(o.value) ||
+                  (o.nested &&
+                      _remote.keys.any(
+                        (k) => !k.contains('.') && o.value.startsWith('$k.'),
+                      ))))
+            o,
+    ];
 
     // Owner 2026-09-29: draggable all the way to the top.
-    final sheet = DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      builder: (context, scrollController) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.md,
-            AppSpacing.screenSide,
-            AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Semantics(
-                header: true,
-                child: widget.back
-                    ? Row(
-                        children: [
-                          AppBackButton(
-                            semanticLabel: t.t('common.back'),
-                            onPressed: () => Navigator.of(context)
-                                .pop(OptionPickerSheet.backResult),
-                          ),
-                          Expanded(
-                            child: Text(
-                              widget.title,
-                              textAlign: TextAlign.center,
-                              style: typography.titleMedium
-                                  .copyWith(color: colors.text),
+    Widget content(BuildContext context, ScrollController scrollController) =>
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.md,
+              AppSpacing.screenSide,
+              AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.confirm)
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _close,
+                    onVerticalDragEnd: (d) {
+                      if ((d.primaryVelocity ?? 0) > 100) _close();
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.only(top: AppSpacing.sm),
+                      child: AppSheetHandle(),
+                    ),
+                  )
+                else
+                  const AppSheetHandle(),
+                Semantics(
+                  header: true,
+                  child: widget.back
+                      ? Row(
+                          children: [
+                            AppBackButton(
+                              semanticLabel: t.t('common.back'),
+                              onPressed: () => Navigator.of(context)
+                                  .pop(OptionPickerSheet.backResult),
                             ),
-                          ),
-                          // Balances the back button so the title is centred.
-                          const SizedBox(width: AppSizes.touchTarget),
-                        ],
-                      )
-                    : Text(
-                        widget.title,
-                        style:
-                            typography.titleMedium.copyWith(color: colors.text),
-                      ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _search,
-                hintText: widget.searchHint ?? t.t('common.search'),
-                semanticLabel: widget.searchHint ?? t.t('common.search'),
-                leading: AppIcon(
-                  AppIcons.searchRounded,
-                  size: AppSizes.iconSm,
-                  color: colors.textSecondary,
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Expanded(
-                child: filtered.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Text(
-                          t.t('lang.picker.empty'),
-                          textAlign: TextAlign.center,
-                          style: typography.body
-                              .copyWith(color: colors.textSecondary),
+                            Expanded(
+                              child: Text(
+                                widget.title,
+                                textAlign: TextAlign.center,
+                                style: typography.titleMedium
+                                    .copyWith(color: colors.text),
+                              ),
+                            ),
+                            // Balances the back button so the title is centred.
+                            const SizedBox(width: AppSizes.touchTarget),
+                          ],
+                        )
+                      : Text(
+                          widget.title,
+                          style: typography.titleMedium
+                              .copyWith(color: colors.text),
                         ),
-                      )
-                    : q.isEmpty && widget.options.any((o) => o.nested)
-                        ? _groupedList(scrollController, t)
-                        : ListView.separated(
-                            controller: scrollController,
-                            itemCount: filtered.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: AppSpacing.xs),
-                            itemBuilder: (context, i) {
-                              final o = filtered[i];
-                              return AppListRow(
-                                label: o.label,
-                                // Searching: say where a subcategory belongs.
-                                subtitle: q.isNotEmpty ? o.group : null,
-                                trailingText: o.sublabel,
-                                selected: _selected.contains(o.value),
-                                showChevron: false,
-                                onTap: () => _toggle(o.value),
-                              );
-                            },
-                          ),
-              ),
-              if (widget.multi) ...[
-                const SizedBox(height: AppSpacing.md),
-                AppButton(
-                  // A one-of choice is a setting, not a pick: not counted.
-                  label: _counted == 0
-                      ? t.t('common.done')
-                      : '${t.t('common.done')} · $_counted',
-                  onPressed: () => Navigator.of(context).pop(_selected),
                 ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _search,
+                  hintText: widget.searchHint ?? t.t('common.search'),
+                  semanticLabel: widget.searchHint ?? t.t('common.search'),
+                  leading: AppIcon(
+                    AppIcons.searchRounded,
+                    size: AppSizes.iconSm,
+                    color: colors.textSecondary,
+                  ),
+                  onChanged: _onQuery,
+                ),
+                // Hidden while typing (the keyboard needs the room).
+                if (widget.unknownLabel != null &&
+                    q.isEmpty &&
+                    MediaQuery.viewInsetsOf(context).bottom == 0) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  AppButton(
+                    label: widget.unknownLabel!,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => Navigator.of(context).pop({''}),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xl),
+                          child: Text(
+                            t.t('lang.picker.empty'),
+                            textAlign: TextAlign.center,
+                            style: typography.body
+                                .copyWith(color: colors.textSecondary),
+                          ),
+                        )
+                      : q.isEmpty && widget.options.any((o) => o.nested)
+                          ? _groupedList(scrollController, t)
+                          : ListView.separated(
+                              controller: scrollController,
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: AppSpacing.xs),
+                              itemBuilder: (context, i) {
+                                final o = filtered[i];
+                                return AppListRow(
+                                  label: o.label,
+                                  // Searching: say where a subcategory belongs.
+                                  subtitle: q.isNotEmpty
+                                      ? (_remote[o.value] ?? o.group)
+                                      : null,
+                                  trailingText: o.sublabel,
+                                  selected: _selected.contains(o.value),
+                                  showChevron: false,
+                                  onTap: () => _toggle(o.value),
+                                );
+                              },
+                            ),
+                ),
+                if (widget.multi || widget.confirm) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  AppButton(
+                    // A one-of choice is a setting, not a pick: not counted.
+                    label: widget.confirm || _counted == 0
+                        ? t.t('common.done')
+                        : '${t.t('common.done')} · $_counted',
+                    onPressed: widget.confirm && _selected.isEmpty
+                        ? null
+                        : () => Navigator.of(context).pop(_selected),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ),
-    );
+        );
+    // Owner 2026-10-15: with the keyboard open the sheet takes the screen
+    // below the status bar (the keyboard's room is padded inside), so the
+    // search, the list and «Готово» never overflow.
+    final media = MediaQuery.of(context);
+    // ignore: omit_local_variable_types
+    final Widget sheet = media.viewInsets.bottom > 0
+        ? SizedBox(
+            height: media.size.height - media.padding.top - AppSpacing.sm,
+            child: content(context, _keyboardScroll),
+          )
+        : DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.7,
+            minChildSize: 0.4,
+            builder: content,
+          );
+    if (widget.confirm) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _close();
+        },
+        child: sheet,
+      );
+    }
     if (!widget.back) return sheet;
     return PopScope(
       canPop: false,
@@ -373,10 +524,12 @@ class _PickerGroupCard extends StatelessWidget {
     final choice = head.exclusive
         ? group.children.where((o) => selected.contains(o.value)).firstOrNull
         : null;
+    // Whole category picked = all its rows count (owner 2026-10-15).
     final picked = head.exclusive
         ? 0
-        : (headPicked ? 1 : 0) +
-            group.children.where((o) => selected.contains(o.value)).length;
+        : headPicked
+            ? group.children.length
+            : group.children.where((o) => selected.contains(o.value)).length;
 
     return AnimatedContainer(
       duration: reduce ? Duration.zero : AppMotion.stateChange,
@@ -499,7 +652,8 @@ class _PickerGroupCard extends StatelessWidget {
                           PickerCheckRow(
                             key: ValueKey('picker-option-${o.value}'),
                             label: o.label,
-                            checked: selected.contains(o.value),
+                            checked: headPicked && !head.exclusive ||
+                                selected.contains(o.value),
                             onTap: () => onToggle(o.value),
                           ),
                       ],

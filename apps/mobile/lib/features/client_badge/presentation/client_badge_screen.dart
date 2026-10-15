@@ -174,7 +174,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               Row(
                 children: [
                   AppIcon(
-                    AppIcons.verifiedRounded,
+                    AppIcons.verifiedUserOutlined,
                     color: colors.gold,
                     size: 32,
                   ),
@@ -258,7 +258,11 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
       Widget includedCard() => card([
             Row(
               children: [
-                AppIcon(AppIcons.verifiedRounded, color: colors.gold, size: 28),
+                AppIcon(
+                  AppIcons.verifiedUserOutlined,
+                  color: colors.gold,
+                  size: 28,
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
@@ -318,7 +322,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: t.t('cbadge.pay', {'price': price}),
-                icon: AppIcons.verifiedRounded,
+                icon: AppIcons.verifiedUserOutlined,
                 isLoading: _busy,
                 onPressed: _pay,
               ),
@@ -338,7 +342,11 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
           card([
             Row(
               children: [
-                AppIcon(AppIcons.verifiedRounded, color: colors.gold, size: 28),
+                AppIcon(
+                  AppIcons.verifiedUserOutlined,
+                  color: colors.gold,
+                  size: 28,
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(

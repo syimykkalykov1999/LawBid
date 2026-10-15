@@ -52,6 +52,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// scroll up, like the feed's filters; the section tabs stay.
   final _chrome = FeedChromeController();
   Timer? _timer;
+  Timer? _suggestTimer;
+
+  /// What is typed now (for the type-ahead row), after a short pause.
+  String _suggestQ = '';
   String _query = '';
   bool _focused = false;
   SearchTab _tab = SearchTab.attorneys;
@@ -69,6 +73,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _suggestTimer?.cancel();
     _chrome.dispose();
     _controller.dispose();
     _focus.dispose();
@@ -91,6 +96,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _onText() {
     _timer?.cancel();
     final next = normalizeSearch(_controller.text);
+    // Owner 2026-10-15: type-ahead suggestions after a 150 ms pause.
+    _suggestTimer?.cancel();
+    _suggestTimer = Timer(const Duration(milliseconds: 150), () {
+      if (mounted && next != _suggestQ) setState(() => _suggestQ = next);
+    });
     if (next.length < kSearchMinChars) {
       if (_query.isNotEmpty) setState(() => _query = '');
       return;
@@ -255,6 +265,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     child: field,
                   ),
                 ),
+                if (_focused && _suggestQ.isNotEmpty)
+                  _SuggestionRow(
+                    key: ValueKey('suggest:$_suggestQ'),
+                    query: _suggestQ,
+                    onPick: _useRecent,
+                  ),
                 Expanded(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: _chrome.onScroll,
@@ -433,7 +449,10 @@ class _TagTopicRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
-    final cat = topicCategory(tag.tag);
+    // Owner 2026-10-15: a topic without its own name-based category takes
+    // the practice its posts mostly belong to — never a grey square.
+    final named = topicCategory(tag.tag);
+    final cat = named ?? tag.categoryCode;
     final count = tag.postsCount;
     return TopicRow(
       tag: tag.tag,
@@ -659,34 +678,7 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         ],
       SearchTab.tags => [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.md,
-                AppSpacing.screenSide,
-                0,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppIcon(
-                    AppIcons.infoOutlineRounded,
-                    size: AppSizes.iconSm,
-                    color: colors.goldDark,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      t.t('search.topics.explain'),
-                      style:
-                          type.bodySmall.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          // Owner 2026-10-15: no explanation line under the field.
           if (filters.topicKind != TopicKind.practices)
             ...switch (ref.watch(trendingTagsProvider)) {
               AsyncData(:final value) when value.isNotEmpty => [
@@ -950,6 +942,63 @@ class _RecentHistory extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Owner 2026-10-15: while typing, a slim row of what the server can finish
+/// the word with — topics (#), attorney handles (@) and practices; a tap
+/// searches for it.
+class _SuggestionRow extends ConsumerWidget {
+  const _SuggestionRow({required this.query, required this.onPick, super.key});
+
+  final String query;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final items = ref.watch(searchSuggestionsProvider(query)).value ??
+        const <SearchSuggestion>[];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, i) {
+          final s = items[i];
+          final label = switch (s.kind) {
+            SuggestionKind.tag => '#${s.text}',
+            SuggestionKind.person => '@${s.text}',
+            SuggestionKind.practice => s.text,
+          };
+          return Center(
+            child: GestureDetector(
+              onTap: () => onPick(s.text),
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.chip,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: type.bodySmall.copyWith(color: colors.text),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

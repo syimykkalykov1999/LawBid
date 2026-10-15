@@ -100,6 +100,7 @@ Future<void> showAttorneyMoreSheet(
           AppListRow(
             icon: AppIcons.flagOutlined,
             label: t.t('post.menu.report'),
+            destructive: true,
             showChevron: false,
             onTap: () {
               Navigator.of(sheet).pop();
@@ -951,13 +952,13 @@ class _ChipRows extends ConsumerWidget {
                 onTap: g.items.isEmpty ? null : () => _showGroup(context, g),
               ),
           ]),
-        if (profile.licensedStates.isNotEmpty)
-          row(t.t('profile.section.states'), AppIcons.accountBalanceOutlined, [
-            for (final s in profile.licensedStates) AppChip(label: s.name),
-          ]),
         if (languages.isNotEmpty)
           row(t.t('profile.section.languages'), AppIcons.translateRounded, [
             for (final l in languages) AppChip(label: l),
+          ]),
+        if (profile.licensedStates.isNotEmpty)
+          row(t.t('profile.section.states'), AppIcons.accountBalanceOutlined, [
+            for (final s in profile.licensedStates) AppChip(label: s.name),
           ]),
       ],
     );

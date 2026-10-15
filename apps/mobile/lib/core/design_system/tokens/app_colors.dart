@@ -235,4 +235,10 @@ abstract final class AppColorsFixed {
 
   /// Attorney card's nested gold border: `rgba(201,162,74,.55)`, file 07 §2.
   static const Color attorneyCardGoldBorder = Color(0x8CC9A24A);
+
+  /// Owner 2026-10-15 (mockup A): the cool accents of the post form's
+  /// «Gallery» (blue) and «Camera» (teal) tiles; the same in every theme
+  /// (darkened on a light one where they are drawn).
+  static const Color sourceGalleryBlue = Color(0xFF7FA6FF);
+  static const Color sourceCameraTeal = Color(0xFF5EC8D8);
 }

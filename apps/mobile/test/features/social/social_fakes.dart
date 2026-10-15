@@ -17,6 +17,7 @@ Post fakePost(
   bool liked = false,
   int likes = 0,
   bool withPhoto = false,
+  int photoHeight = 1080,
   PostPractice? practice,
   bool news = false,
   int comments = 0,
@@ -32,14 +33,14 @@ Post fakePost(
       ),
       body: 'Know your rights #dui',
       media: withPhoto
-          ? const [
+          ? [
               PostMedia(
                 fileId: 'f1',
                 url: 'https://example.test/1.jpg',
                 previewUrl: 'https://example.test/1_320.jpg',
                 mediumUrl: 'https://example.test/1_1080.jpg',
                 width: 1080,
-                height: 1080,
+                height: photoHeight,
               ),
             ]
           : const [],
@@ -164,6 +165,12 @@ class FakeSocialRepository implements SocialRepository {
 
 /// In-memory [SearchRepository]: records every query it is asked.
 class FakeSearchRepository implements SearchRepository {
+  @override
+  Future<Map<String, String?>> practices(String q) async => const {};
+
+  @override
+  Future<List<SearchSuggestion>> suggest(String q) async => const [];
+
   final attorneyQueries = <String>[];
   List<AttorneyRow> attorneyResults = const [];
   List<TagInfo> trendingTags = const [];

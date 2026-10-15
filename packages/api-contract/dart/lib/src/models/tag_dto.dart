@@ -8,7 +8,7 @@ part 'tag_dto.g.dart';
 
 @JsonSerializable()
 class TagDto {
-  const TagDto({required this.tag, this.postsCount});
+  const TagDto({required this.tag, this.postsCount, this.categoryCode});
 
   factory TagDto.fromJson(Map<String, Object?> json) => _$TagDtoFromJson(json);
 
@@ -17,6 +17,9 @@ class TagDto {
 
   /// Posts in the last 7 days (trending only).
   final num? postsCount;
+
+  /// Practice category its posts mostly belong to (for the topic cover).
+  final String? categoryCode;
 
   Map<String, Object?> toJson() => _$TagDtoToJson(this);
 }

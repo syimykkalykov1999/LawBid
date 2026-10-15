@@ -413,7 +413,7 @@ class _HeroBadge {
   const _HeroBadge.warning(IconData icon) : this._(icon, _BadgeKind.warning);
   const _HeroBadge.danger(IconData icon) : this._(icon, _BadgeKind.danger);
   const _HeroBadge.verified()
-      : this._(AppIcons.verifiedRounded, _BadgeKind.verified);
+      : this._(AppIcons.verifiedUserOutlined, _BadgeKind.verified);
 
   final IconData icon;
   final _BadgeKind kind;
@@ -772,7 +772,7 @@ class _Licenses extends StatelessWidget {
                           ? AppIcons.hourglassTopRounded
                           : switch (l.status) {
                               LicenseStatus.verified =>
-                                AppIcons.verifiedRounded,
+                                AppIcons.verifiedUserOutlined,
                               LicenseStatus.pending =>
                                 AppIcons.hourglassTopRounded,
                               _ => AppIcons.cancelOutlined,

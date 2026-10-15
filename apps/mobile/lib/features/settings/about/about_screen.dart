@@ -133,7 +133,10 @@ class AboutScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   point(AppIcons.gavelRounded, t.t('about.point.cases')),
-                  point(AppIcons.verifiedRounded, t.t('about.point.verified')),
+                  point(
+                    AppIcons.verifiedUserOutlined,
+                    t.t('about.point.verified'),
+                  ),
                   point(
                     AppIcons.chatBubbleOutlineRounded,
                     t.t('about.point.chat'),

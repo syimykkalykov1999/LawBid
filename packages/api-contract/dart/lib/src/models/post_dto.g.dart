@@ -35,6 +35,8 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   isMine: json['isMine'] as bool,
   createdAt: json['createdAt'] as String,
   commentsEnabled: json['commentsEnabled'] as bool? ?? true,
+  likesHidden: json['likesHidden'] as bool? ?? false,
+  viewsHidden: json['viewsHidden'] as bool? ?? false,
   location: json['location'] == null
       ? null
       : PostLocationDto.fromJson(json['location'] as Map<String, dynamic>),
@@ -57,6 +59,8 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'id': instance.id,
   'location': ?instance.location?.toJson(),
   'commentsEnabled': instance.commentsEnabled,
+  'likesHidden': instance.likesHidden,
+  'viewsHidden': instance.viewsHidden,
   'title': ?instance.title,
   'kind': instance.kind.toJson(),
   'practice': ?instance.practice?.toJson(),

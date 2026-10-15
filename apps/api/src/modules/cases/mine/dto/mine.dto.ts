@@ -130,6 +130,9 @@ export class WorkItemDto {
   @ApiProperty()
   primaryStateCode!: string;
 
+  @ApiProperty({ type: 'integer', description: 'States besides the primary.' })
+  additionalStateCount!: number;
+
   @ApiProperty()
   practiceAreaNameEn!: string;
 
@@ -146,6 +149,14 @@ export class WorkItemDto {
       'Client name; null while the subscription is inactive (contacts are locked, §8.3).',
   })
   clientName!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Client avatar (small); null while the subscription is inactive, like the name.',
+  })
+  clientAvatarUrl!: string | null;
 
   @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
   feeType!: FeeType;

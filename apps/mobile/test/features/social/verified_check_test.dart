@@ -17,14 +17,16 @@ void main() {
   testWidgets('a client with a subscription gets the gold check',
       (tester) async {
     await pump(tester, gold: true);
-    expect(find.byIcon(AppIcons.verifiedRounded), findsOneWidget);
-    final icon = tester.widget<Icon>(find.byIcon(AppIcons.verifiedRounded));
+    expect(find.byIcon(AppIcons.verifiedUserOutlined), findsOneWidget);
+    final icon = tester.widget<Icon>(
+      find.byIcon(AppIcons.verifiedUserOutlined),
+    );
     final colors = AppTheme.light().extension<AppColorTokens>()!;
     expect(icon.color, colors.goldAccent);
   });
 
   testWidgets('an attorney gets no check at all', (tester) async {
     await pump(tester, gold: false);
-    expect(find.byIcon(AppIcons.verifiedRounded), findsNothing);
+    expect(find.byIcon(AppIcons.verifiedUserOutlined), findsNothing);
   });
 }

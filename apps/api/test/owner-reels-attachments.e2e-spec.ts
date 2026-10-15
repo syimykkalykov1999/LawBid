@@ -337,4 +337,88 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
     expect(row.media).toHaveLength(1);
     expect(row.attachments[0].file_name).toBe('Checklist.pdf');
   });
+
+  it('a reel cover can be an own clean gallery image (owner 2026-10-15)', async () => {
+    const att = await attorney();
+    const other = await attorney();
+    const upload = (body: Record<string, unknown>) =>
+      api().post('/api/v1/videos/uploads').set(att.auth).send(body);
+    const mine = await file(att.id, 'post_image', { mime: 'image/jpeg' });
+    const ok = await upload({
+      sizeBytes: 1000,
+      durationSec: 60,
+      coverFileId: mine,
+    });
+    expect(ok.status).toBe(201);
+    const row = await prisma.videoAsset.findUniqueOrThrow({
+      where: { id: ok.body.data.videoAssetId as string },
+    });
+    expect(row.cover_file_id).toBe(mine);
+    // Someone else's image, a document and an unscanned image are refused.
+    const foreign = await file(other.id, 'post_image', { mime: 'image/jpeg' });
+    const doc = await file(att.id, 'post_attachment');
+    const unscanned = await file(att.id, 'post_image', {
+      mime: 'image/jpeg',
+      scan: 'pending',
+    });
+    for (const id of [foreign, doc, unscanned]) {
+      const r = await upload({
+        sizeBytes: 1000,
+        durationSec: 60,
+        coverFileId: id,
+      });
+      expect(r.status).toBe(422);
+    }
+  });
+
+  it('text limits: 2200 with files, 3000 for a text-only brief (owner 2026-10-15)', async () => {
+    const att = await attorney();
+    const photo = await file(att.id, 'post_image', { mime: 'image/jpeg' });
+    const withPhoto = await post(att.auth, {
+      body: 'x'.repeat(2201),
+      mediaFileIds: [photo],
+    });
+    expect(withPhoto.status).toBe(400);
+    const brief = await post(att.auth, { body: 'y'.repeat(3000) });
+    expect(brief.status).toBe(201);
+    const tooLong = await post(att.auth, { body: 'y'.repeat(3001) });
+    expect(tooLong.status).toBe(400);
+  });
+
+  it('a post without a topic is published as general content (owner 2026-10-15)', async () => {
+    const att = await attorney();
+    const r = await post(att.auth, {
+      body: 'Just a thought.',
+      practiceCode: undefined,
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.data.practice).toBeNull();
+    const row = await prisma.post.findUniqueOrThrow({
+      where: { id: r.body.data.id as string },
+    });
+    expect(row.practice_area_id).toBeNull();
+    // General content: found by plain text search, but not under a topic.
+    const word = `zqgeneral${randomUUID()
+      .replace(/[^a-f]/g, '')
+      .slice(0, 6)}`;
+    const g = await post(att.auth, {
+      body: `Thoughts about ${word}`,
+      practiceCode: undefined,
+    });
+    expect(g.status).toBe(201);
+    const search = (query: Record<string, string>) =>
+      api()
+        .get('/api/v1/search/posts')
+        .query({ q: word, ...query })
+        .set(att.auth);
+    const plain = await search({});
+    expect(plain.status).toBe(200);
+    expect((plain.body.data as { id: string }[]).map((x) => x.id)).toContain(
+      g.body.data.id,
+    );
+    const byTopic = await search({ practice: 'family_law' });
+    expect(
+      (byTopic.body.data as { id: string }[]).map((x) => x.id),
+    ).not.toContain(g.body.data.id);
+  });
 });

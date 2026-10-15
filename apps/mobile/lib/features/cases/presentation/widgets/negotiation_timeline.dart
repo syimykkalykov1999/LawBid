@@ -223,7 +223,7 @@ class _SystemLine extends StatelessWidget {
             width: AppSpacing.xl,
             child: AppIcon(
               positive
-                  ? AppIcons.verifiedRounded
+                  ? AppIcons.verifiedUserOutlined
                   : AppIcons.removeCircleOutlineRounded,
               size: AppSizes.iconSm,
               color: color,

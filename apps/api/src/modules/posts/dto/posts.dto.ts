@@ -180,6 +180,17 @@ export class CreatePostDto {
   @IsOptional()
   @IsBoolean()
   commentsEnabled?: boolean;
+
+  /** Owner 2026-10-15: hide the like / view counter from other people. */
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  hideLikes?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  hideViews?: boolean;
 }
 
 /** PATCH /posts/:id — the title, the text and the qualification. */
@@ -221,6 +232,19 @@ export class UpdatePostDto {
   @IsOptional()
   @IsBoolean()
   commentsEnabled?: boolean;
+}
+
+/** PATCH /posts/:id/counters (owner 2026-10-15): the author's switches. */
+export class PostCountersDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  hideLikes?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  hideViews?: boolean;
 }
 
 export class PostIdParamDto {
@@ -423,6 +447,13 @@ export class PostDto {
 
   @ApiProperty({ default: true })
   commentsEnabled!: boolean;
+
+  /** Owner 2026-10-15: the author hid this counter (counts are 0 for others). */
+  @ApiProperty({ default: false })
+  likesHidden!: boolean;
+
+  @ApiProperty({ default: false })
+  viewsHidden!: boolean;
 
   /** Owner 2026-09-30; null on older posts (the app splits the body). */
   @ApiPropertyOptional({ type: String, nullable: true })

@@ -116,12 +116,9 @@ class TrustLevelChip extends ConsumerWidget {
     );
   }
 
-  static IconData _iconFor(int level) => switch (level) {
-        0 => AppIcons.shieldOutlined,
-        1 => AppIcons.factCheckOutlined,
-        2 => AppIcons.verifiedUserOutlined,
-        _ => AppIcons.verifiedRounded,
-      };
+  // Owner 2026-10-15: one icon everywhere — a shield with a check; only its
+  // colour tells the level (grey: declared, green: verified, gold: client).
+  static IconData _iconFor(int level) => AppIcons.verifiedUserOutlined;
 }
 
 /// The icon of a trust level (chip and avatar badge).

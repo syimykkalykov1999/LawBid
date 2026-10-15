@@ -20497,6 +20497,103 @@
         ]
       }
     },
+    "/posts/{id}/counters": {
+      "patch": {
+        "operationId": "setPostCounters",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCountersDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Hide or show the like / view counter of an own post",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/posts/{id}/pin": {
       "post": {
         "operationId": "pinPost",
@@ -51054,6 +51151,162 @@
           }
         ],
         "summary": "Attorneys / people (docs/05 §7.3)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/suggest": {
+      "get": {
+        "operationId": "suggest",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Hashtag prefix, with or without \"#\".",
+            "schema": {
+              "maxLength": 31,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Type-ahead: topics, handles, practices by prefix",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/practices": {
+      "get": {
+        "operationId": "practices",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Hashtag prefix, with or without \"#\".",
+            "schema": {
+              "maxLength": 31,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeMatchListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Practices whose name in any language starts with the query",
         "tags": [
           "search"
         ]
@@ -91113,6 +91366,15 @@
             "type": "boolean",
             "default": true
           },
+          "likesHidden": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: the author hid this counter (counts are 0 for others).",
+            "default": false
+          },
+          "viewsHidden": {
+            "type": "boolean",
+            "default": false
+          },
           "title": {
             "type": "string",
             "nullable": true,
@@ -91258,6 +91520,8 @@
         "required": [
           "id",
           "commentsEnabled",
+          "likesHidden",
+          "viewsHidden",
           "kind",
           "contentClass",
           "author",
@@ -91368,6 +91632,15 @@
             "type": "boolean",
             "description": "Default true; false = nobody can comment.",
             "default": true
+          },
+          "hideLikes": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: hide the like / view counter from other people.",
+            "default": false
+          },
+          "hideViews": {
+            "type": "boolean",
+            "default": false
           }
         },
         "required": [
@@ -91423,6 +91696,17 @@
         "required": [
           "body"
         ]
+      },
+      "PostCountersDto": {
+        "type": "object",
+        "properties": {
+          "hideLikes": {
+            "type": "boolean"
+          },
+          "hideViews": {
+            "type": "boolean"
+          }
+        }
       },
       "PostDeletedDto": {
         "type": "object",
@@ -91598,6 +91882,11 @@
             "description": "Owner 2026-10-05: the cover = the frame at this moment.",
             "minimum": 0,
             "maximum": 3600000
+          },
+          "coverFileId": {
+            "type": "string",
+            "description": "Owner 2026-10-15: or a cover picked from the gallery (the id of the\nowner's uploaded `post_image` file). Wins over [coverTimeMs].",
+            "format": "uuid"
           }
         },
         "required": [
@@ -94744,6 +95033,10 @@
           "primaryStateCode": {
             "type": "string"
           },
+          "additionalStateCount": {
+            "type": "integer",
+            "description": "States besides the primary."
+          },
           "practiceAreaNameEn": {
             "type": "string"
           },
@@ -94758,6 +95051,11 @@
             "type": "string",
             "nullable": true,
             "description": "Client name; null while the subscription is inactive (contacts are locked, §8.3)."
+          },
+          "clientAvatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Client avatar (small); null while the subscription is inactive, like the name."
           },
           "feeType": {
             "allOf": [
@@ -94793,6 +95091,7 @@
           "title",
           "status",
           "primaryStateCode",
+          "additionalStateCount",
           "practiceAreaNameEn",
           "practiceAreaI18nKey",
           "practiceAreaCode",
@@ -95172,6 +95471,10 @@
               }
             ]
           },
+          "hideLikeCounts": {
+            "type": "boolean",
+            "default": false
+          },
           "avatarFileId": {
             "type": "string",
             "nullable": true,
@@ -95233,6 +95536,7 @@
           "phoneVerified",
           "uiLanguage",
           "theme",
+          "hideLikeCounts",
           "avatarFileId",
           "avatarUrl",
           "requiredConsentsGranted",
@@ -95356,6 +95660,10 @@
               "navy",
               "glass"
             ]
+          },
+          "hideLikeCounts": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: hide like counters under other people's posts."
           },
           "email": {
             "type": "string",
@@ -107671,6 +107979,82 @@
           "data"
         ]
       },
+      "SuggestionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "tag",
+              "person",
+              "practice"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ]
+      },
+      "SuggestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PracticeMatchDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "practice code, e.g. family_law.divorce"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "hit": {
+            "type": "string",
+            "nullable": true,
+            "description": "the word that matched when it is not the English name"
+          }
+        },
+        "required": [
+          "code",
+          "nameEn",
+          "hit"
+        ]
+      },
+      "PracticeMatchListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeMatchDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "TagDto": {
         "type": "object",
         "properties": {
@@ -107682,6 +108066,11 @@
             "type": "number",
             "nullable": true,
             "description": "Posts in the last 7 days (trending only)."
+          },
+          "categoryCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Practice category its posts mostly belong to (for the topic cover)."
           }
         },
         "required": [

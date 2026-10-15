@@ -360,7 +360,8 @@ void main() {
     await tester.pump(kDoubleTapTimeout);
     await tester.pump();
     expect(social.followCalls, [('att-1', true)]);
-    expect(find.text('Вы подписаны'), findsOneWidget);
+    // Owner 2026-10-15: once followed only the check stays.
+    expect(find.bySemanticsLabel('Вы подписаны'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

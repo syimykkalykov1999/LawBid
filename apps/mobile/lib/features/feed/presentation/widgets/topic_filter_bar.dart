@@ -409,17 +409,6 @@ class TopicFilterBar extends ConsumerWidget {
                   legalOnly ? FeedContentMode.all : FeedContentMode.legalOnly,
                 ),
               ),
-              // Owner 2026-10-13: "Briefs" — only text-only posts.
-              pill(
-                key: const ValueKey('feed-briefs'),
-                label: t.t('feed.briefs'),
-                selected: briefsOnly,
-                onTap: () => _setContent(
-                  context,
-                  ref,
-                  briefsOnly ? FeedContentMode.all : FeedContentMode.briefsOnly,
-                ),
-              ),
             ],
             if (showNotSure) ...[
               pill(

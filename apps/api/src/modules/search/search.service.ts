@@ -55,6 +55,7 @@ import {
   TRENDING_TAGS_KEY,
   type SearchProvider,
 } from './search.provider';
+import { tagCategories } from './tag-category';
 
 const PAGE = 20;
 /** Ranked results kept per query: 10 pages. */
@@ -62,7 +63,8 @@ const RANKED_MAX = 200;
 /** Ranked id lists are shared by everyone asking the same thing. */
 const RANKED_TTL_SEC = 5 * 60;
 const TAG_TOP_MAX = 500;
-const TAG_TOP_TTL_SEC = 10 * 60;
+// Owner 2026-10-15: a new post shows in "Top" within a minute ("New" is live).
+const TAG_TOP_TTL_SEC = 45;
 /** Tag "Топ" ranks the newest tagged posts only (bounded cost). */
 const TAG_TOP_CANDIDATES = 5000;
 
@@ -281,13 +283,11 @@ export class SearchService {
       return { items: [], nextCursor: null };
     }
     const span = PERIOD_MS[dto.period ?? 'all'];
-    const rows = await this.provider.searchCases(q, {
+    const params = {
       attorneyId: user.sub,
       practiceAreaId: dto.practiceAreaId,
       state: dto.state?.toUpperCase(),
       since: span ? new Date(Date.now() - span) : undefined,
-      cursor: dto.cursor ? decodeCursor(dto.cursor) : undefined,
-      limit: PAGE,
       practiceCategory: dto.practiceCategory,
       budgetMinCents:
         dto.budgetMin === undefined ? undefined : dto.budgetMin * 100,
@@ -300,24 +300,67 @@ export class SearchService {
       urgencyThresholds: dto.minUrgency
         ? await loadUrgencyThresholds(this.settings)
         : undefined,
-    });
-    const page = rows.slice(0, PAGE);
-    // §7.6: the provider's rows still pass the single access check.
-    const visible = await this.access.visibleCaseIds(
-      user.sub,
-      page.map((r) => r.id),
+    };
+    // Owner 2026-10-15: by relevance (a word in the title outranks one in
+    // the text), the ranked ids of this attorney's query kept for a few
+    // minutes and paged by position; filters are part of the key.
+    const ids = await this.ranked(
+      'cs',
+      {
+        q,
+        ...params,
+        since: dto.period ?? 'all',
+        urgencyThresholds: undefined,
+        thresholds: params.urgencyThresholds,
+      },
+      () => this.provider.searchCasesRanked(q, params, RANKED_MAX),
     );
-    const last = page[page.length - 1];
+    const { slice, next } = this.pageOf(ids, dto.cursor);
+    // §7.6: the provider's rows still pass the single access check.
+    const visible = await this.access.visibleCaseIds(user.sub, slice);
     return {
       items: await this.casesFeed.hydrate(
-        page.map((r) => r.id).filter((id) => visible.has(id)),
+        slice.filter((id) => visible.has(id)),
         user.sub,
       ),
-      nextCursor:
-        rows.length > PAGE && last
-          ? encodeCursor({ createdAt: last.created_at, id: last.id })
-          : null,
+      nextCursor: next,
     };
+  }
+
+  /** GET /search/practices: the topic picker's any-language search. */
+  async practices(
+    user: RequestUser,
+    rawQ: string,
+  ): Promise<{ code: string; nameEn: string; hit: string | null }[]> {
+    await this.limits.consume('search', user.sub);
+    const q = normalizeQuery(rawQ);
+    if (q.length < 2) return [];
+    return this.provider.practiceMatches(q, 25);
+  }
+
+  /** GET /search/suggest: type-ahead for the search field. */
+  async suggest(
+    user: RequestUser,
+    rawQ: string,
+  ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]> {
+    await this.limits.consume('search', user.sub);
+    const q = normalizeQuery(rawQ);
+    if (q.length < 1) return [];
+    const hash = createHash('sha256').update(q).digest('base64url');
+    const hit = await this.redis.get(`search:suggest:${hash}`);
+    if (hit)
+      return JSON.parse(hit) as {
+        kind: 'tag' | 'person' | 'practice';
+        text: string;
+      }[];
+    const items = await this.provider.suggest(q, 4);
+    await this.redis.set(
+      `search:suggest:${hash}`,
+      JSON.stringify(items),
+      'EX',
+      60,
+    );
+    return items;
   }
 
   async postsByText(
@@ -371,8 +414,13 @@ export class SearchService {
       WHERE t.tag_lower = ANY(${tags}::TEXT[])
       GROUP BY t.tag_lower`;
     const byTag = new Map(counts.map((c) => [c.tag, Number(c.n)]));
+    const categories = await tagCategories(this.prisma, tags);
     return tags
-      .map((tag) => ({ tag, postsCount: byTag.get(tag) ?? 0 }))
+      .map((tag) => ({
+        tag,
+        postsCount: byTag.get(tag) ?? 0,
+        categoryCode: categories.get(tag) ?? null,
+      }))
       .sort(
         (a, b) => b.postsCount - a.postsCount || a.tag.localeCompare(b.tag),
       );

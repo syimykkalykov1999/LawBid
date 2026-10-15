@@ -53,12 +53,17 @@ class ReelVideo extends StatefulWidget {
     required this.active,
     this.muted = true,
     this.paused = false,
+    this.warm = false,
     this.onProgress,
     super.key,
   });
 
   final PostVideo video;
   final bool active;
+
+  /// Owner 2026-10-15: the next/previous reel opens its stream ahead and
+  /// waits at the first frame, so swiping to it starts at once.
+  final bool warm;
   final bool muted;
 
   /// The viewer paused it (tap on the reel).
@@ -75,6 +80,12 @@ class _ReelVideoState extends State<ReelVideo> {
   VideoPlayerController? _c;
   bool _ready = false;
   bool _failed = false;
+
+  /// Owner 2026-10-15: no loading wheel flashing for a split second — it
+  /// shows only when the stream is really slow (over 1.2 s), the poster
+  /// frame fills the box until then.
+  bool _slow = false;
+  Timer? _slowTimer;
   Duration? _resumeAt;
   ReelClip? _clip;
   bool _seeking = false;
@@ -82,7 +93,19 @@ class _ReelVideoState extends State<ReelVideo> {
   @override
   void initState() {
     super.initState();
-    if (widget.active) _open();
+    if (widget.active || widget.warm) _open();
+    // The poster frame is on screen at once (it is cached by the list).
+    final thumb = widget.video.thumbnailUrl;
+    if (thumb != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(
+            precacheImage(CachedNetworkImageProvider(thumb), context)
+                .catchError((_) {}),
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -90,7 +113,7 @@ class _ReelVideoState extends State<ReelVideo> {
     super.didUpdateWidget(old);
     // Off screen: free the player so it stops buffering (data + memory);
     // coming back re-opens it at the same spot.
-    if (!widget.active && _c != null) {
+    if (!widget.active && !widget.warm && _c != null) {
       final at = _c!.value.isInitialized ? _c!.value.position : null;
       _close();
       _resumeAt = at;
@@ -104,7 +127,7 @@ class _ReelVideoState extends State<ReelVideo> {
       _resumeAt = at;
     }
     if (widget.video.playbackUrl != old.video.playbackUrl) _close();
-    if (widget.active && _c == null) _open();
+    if ((widget.active || widget.warm) && _c == null) _open();
     _apply();
   }
 
@@ -117,6 +140,11 @@ class _ReelVideoState extends State<ReelVideo> {
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: widget.muted),
     );
     _c = c;
+    _slowTimer?.cancel();
+    _slow = false;
+    _slowTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _c == c && !_ready) setState(() => _slow = true);
+    });
     c.addListener(_tick);
     try {
       await c.initialize();
@@ -170,6 +198,8 @@ class _ReelVideoState extends State<ReelVideo> {
     _c = null;
     _ready = false;
     _failed = false;
+    _slowTimer?.cancel();
+    _slow = false;
     _clip = null;
     _seeking = false;
     c?.removeListener(_tick);
@@ -210,6 +240,7 @@ class _ReelVideoState extends State<ReelVideo> {
               ),
             ),
           if (widget.active &&
+              _slow &&
               !_ready &&
               !_failed &&
               widget.video.playbackUrl != null)

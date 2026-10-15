@@ -19,6 +19,15 @@ export interface FlagDef {
 
 export const FLAG_CATALOG: readonly FlagDef[] = [
   {
+    // Owner 2026-10-15 (Instagram): authors can hide like / view counters of
+    // their posts and reels, viewers can hide like counters. Cases keep
+    // their bids and comments always.
+    key: 'hide_counts',
+    enabled: true,
+    description: 'Hideable like / view counters on posts and reels',
+    app: true,
+  },
+  {
     // Owner 2026-10-14: offer packs bought on top of the monthly limit.
     key: 'bid_packs',
     enabled: false,

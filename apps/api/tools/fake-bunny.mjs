@@ -63,9 +63,13 @@ async function transcode(guid) {
     await mkdir(out, { recursive: true });
     await run('ffmpeg', [
       '-y', '-i', input,
-      '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac',
-      '-hls_time', '4', '-hls_playlist_type', 'vod',
+      // Owner 2026-10-15: light like a real CDN's first rung — 720 px wide,
+      // ~1.5 Mbit/s, 2 s segments — so a reel starts after a short fetch.
+      '-vf', "scale='min(720,iw)':-2",
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-maxrate', '1500k', '-bufsize', '3000k',
+      '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac', '-b:a', '96k',
+      '-hls_time', '2', '-hls_playlist_type', 'vod',
       '-hls_segment_filename', join(out, 'seg%03d.ts'),
       join(out, 'playlist.m3u8'),
     ]);

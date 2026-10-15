@@ -10,6 +10,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -81,7 +82,7 @@ class CasePhotosPicker extends ConsumerWidget {
               ),
             ),
             Text(
-              '${photos.length} / $maxFiles',
+              ltrIsolate('${photos.length} / $maxFiles'),
               style: type.caption.copyWith(color: colors.textSecondary),
             ),
           ],

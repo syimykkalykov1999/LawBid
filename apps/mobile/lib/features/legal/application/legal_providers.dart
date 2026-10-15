@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/legal/data/legal_repository.dart';
 import 'package:lawbid/features/legal/domain/legal_documents.dart';
@@ -28,8 +29,28 @@ final legalSettingsProvider = FutureProvider<LegalSettings>((ref) async {
 /// The texts to show right now: the server's when loaded, the fallback
 /// while loading. Screens read this instead of handling the async state.
 final legalTextsProvider = Provider<LegalTexts>((ref) {
+  final t = ref.watch(translatorProvider);
   final loaded = ref.watch(legalSettingsProvider).value;
-  return loaded?.texts ?? LegalTexts.fallback(ref.watch(translatorProvider));
+  if (loaded == null) return LegalTexts.fallback(t);
+  // Owner 2026-10-15: the owner edits these texts in English and Russian
+  // only; in every other language the server sends the English one. While
+  // that is still the unedited default, show the app's own translation
+  // (`legal.fallback.*`, 85 languages) instead of English.
+  final lang = ref.watch(languageControllerProvider).value ?? AppLanguage.en;
+  if (lang == AppLanguage.en || lang == AppLanguage.ru) return loaded.texts;
+  const en = StaticTranslatorEn();
+  String pick(String served, String key) =>
+      served == en.t(key) ? t.t(key) : served;
+  final x = loaded.texts;
+  return LegalTexts(
+    caseCreate: pick(x.caseCreate, 'legal.fallback.caseCreate'),
+    attorneyUnverified:
+        pick(x.attorneyUnverified, 'legal.fallback.attorneyUnverified'),
+    supportNote: pick(x.supportNote, 'legal.fallback.supportNote'),
+    partnerDisclosure:
+        pick(x.partnerDisclosure, 'legal.fallback.partnerDisclosure'),
+    partnerTerms: x.partnerTerms,
+  );
 });
 
 /// Owner 2026-10-05 (legal documents): the language the document texts are

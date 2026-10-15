@@ -16,6 +16,7 @@ class UpdateProfileDto {
     this.lastName,
     this.uiLanguage,
     this.theme,
+    this.hideLikeCounts,
     this.email,
   });
 
@@ -29,6 +30,9 @@ class UpdateProfileDto {
   final String? lastName;
   final String? uiLanguage;
   final UpdateProfileDtoTheme? theme;
+
+  /// Owner 2026-10-15: hide like counters under other people's posts.
+  final bool? hideLikeCounts;
 
   /// Owner 2026-10-13: e-mail is a plain required profile field — format.
   /// only, no code is sent and it is not verified. Shared with the other.

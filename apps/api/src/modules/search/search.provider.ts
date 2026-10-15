@@ -35,6 +35,12 @@ export interface CaseSearchParams {
   minUrgency?: CaseMinUrgency;
   hasDeadline?: boolean;
   urgencyThresholds?: UrgencyThresholds;
+  /** Whole words only (no prefix on the last word), provider-internal. */
+  textExact?: boolean;
+  /** Practices the text names in another language, provider-internal. */
+  textPractices?: string[];
+  /** Extra `AND …` SQL (the typo fallback), provider-internal. */
+  extraSql?: import('@prisma/client').Prisma.Sql;
 }
 
 /** OQ-036 Posts filters. */
@@ -92,5 +98,21 @@ export interface SearchProvider {
     filters?: PostSearchFilters,
   ): Promise<string[]>;
   /** Hashtags (lowercase, without '#') starting with [prefix]. */
+  /** Cases for a text query ranked by relevance (ids), with a typo fallback. */
+  searchCasesRanked(
+    q: string,
+    params: Omit<CaseSearchParams, 'cursor' | 'limit'>,
+    max: number,
+  ): Promise<string[]>;
+  /** Type-ahead: topics, attorney handles and practice names by prefix. */
+  suggest(
+    prefix: string,
+    perKind: number,
+  ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]>;
   searchTags(prefix: string, limit: number): Promise<string[]>;
+  /** Practices whose name in ANY language has a word starting with [q]. */
+  practiceMatches(
+    q: string,
+    limit: number,
+  ): Promise<{ code: string; nameEn: string; hit: string | null }[]>;
 }

@@ -36,10 +36,16 @@ Future<T?> showAppBottomSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   bool isScrollControlled = false,
+  // Owner 2026-10-15: a long picker scrolls without closing — only its
+  // handle closes it.
+  bool closeByHandleOnly = false,
 }) {
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   return showModalBottomSheet<T>(
     context: context,
+    // Owner 2026-10-15: every sheet opens over the floating nav bar, never
+    // under it (the last row of a menu was hidden behind it).
+    useRootNavigator: true,
     isScrollControlled: isScrollControlled,
     backgroundColor: colors.sheet,
     showDragHandle: false,
@@ -54,7 +60,9 @@ Future<T?> showAppBottomSheet<T>({
       radius: const BorderRadius.vertical(
         top: Radius.circular(AppRadii.sheet),
       ),
-      child: PullDownToClose(child: builder(ctx)),
+      child: closeByHandleOnly
+          ? builder(ctx)
+          : PullDownToClose(child: builder(ctx)),
     ),
   );
 }

@@ -164,7 +164,7 @@ class _Header extends StatelessWidget {
           Row(
             children: [
               AppIcon(
-                AppIcons.verifiedRounded,
+                AppIcons.verifiedUserOutlined,
                 size: AppSizes.iconSm,
                 color: me.public.badge ? colors.success : colors.textSecondary,
               ),
@@ -205,7 +205,7 @@ class _StatusCard extends StatelessWidget {
     };
     final (icon, fg, tone) = switch (status) {
       TrustStaffStatus.cleared => (
-          AppIcons.verifiedRounded,
+          AppIcons.verifiedUserOutlined,
           colors.success,
           AppMedallionTone.success
         ),

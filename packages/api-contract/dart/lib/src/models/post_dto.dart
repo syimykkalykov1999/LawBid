@@ -43,6 +43,8 @@ class PostDto {
     required this.isMine,
     required this.createdAt,
     this.commentsEnabled = true,
+    this.likesHidden = false,
+    this.viewsHidden = false,
     this.location,
     this.title,
     this.practice,
@@ -59,6 +61,10 @@ class PostDto {
   final String id;
   final PostLocationDto? location;
   final bool commentsEnabled;
+
+  /// Owner 2026-10-15: the author hid this counter (counts are 0 for others).
+  final bool likesHidden;
+  final bool viewsHidden;
 
   /// Owner 2026-09-30; null on older posts (the app splits the body).
   final String? title;

@@ -19,6 +19,7 @@ import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_inner.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Post skeletons for list loading states.
@@ -68,6 +69,7 @@ class PostsFeedView extends ConsumerWidget {
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
+          prefetch: prefetchPost,
           itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
           // §2.3: "Пока в ленте пусто" + recommended attorneys to follow.
           empty: ListView(
@@ -118,6 +120,7 @@ class LatestPostsView extends ConsumerWidget {
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
+          prefetch: prefetchPost,
           itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
           empty: AppEmptyState(
             icon: AppIcons.mapOutlined,
@@ -181,6 +184,7 @@ class FilteredPostsView extends ConsumerWidget {
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
+          prefetch: prefetchPost,
           itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
           empty: AppEmptyState(
             icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
@@ -253,6 +257,7 @@ class TopicPostsView extends ConsumerWidget {
           edgeToEdge: true,
           skeleton: const PostListSkeleton(),
           itemKey: (p) => p.id,
+          prefetch: prefetchPost,
           itemBuilder: (context, p, _) => PostCard(post: p, feedHeight: height),
           empty: AppEmptyState(
             icon: AppIcons.tagRounded,

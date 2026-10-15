@@ -51,6 +51,96 @@ double feedCardHeight(double viewport) => math.max(440, viewport);
 /// all comments (N)". Text-only posts render as a quote card. The card
 /// always shows the latest local version of the post (likes/saves/edits
 /// from any screen).
+/// Room a feed video card keeps besides the video (dp): the icon row and
+/// the two text lines (the author lies over the video). The video fills the
+/// rest between the header and the nav bar (owner 2026-10-15).
+const double _kVideoCardChrome = 128;
+
+/// Owner 2026-10-15: a video in a list is at most 9:10 (our header already
+/// takes room, unlike Instagram's 4:5).
+const double _kVideoRatio = 0.9;
+
+/// Owner 2026-10-15: two lines under a video's icons — the start of the
+/// text (no author name), with «ещё» at the end of the second line.
+class _VideoOneLine extends ConsumerWidget {
+  const _VideoOneLine({
+    required this.post,
+    required this.line,
+    required this.onMore,
+  });
+
+  final Post post;
+  final String line;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final oneLine = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final more = t.t('post.more');
+    final base = type.body.copyWith(color: colors.text);
+    return Semantics(
+      button: true,
+      label: more,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onMore,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.xs,
+          ),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final textScaler = MediaQuery.textScalerOf(context);
+              TextPainter painter(String s) => TextPainter(
+                    text: TextSpan(text: s, style: base),
+                    textDirection: Directionality.of(context),
+                    textScaler: textScaler,
+                    maxLines: 2,
+                  )..layout(maxWidth: box.maxWidth);
+              // Whole text fits two lines: nothing to cut, «ещё» still ends
+              // the second line.
+              var shown = oneLine;
+              if (painter('$shown  $more').didExceedMaxLines) {
+                var lo = 0;
+                var hi = oneLine.length;
+                while (lo < hi) {
+                  final mid = (lo + hi + 1) ~/ 2;
+                  final cut = oneLine.substring(0, mid).trimRight();
+                  if (painter('$cut…  $more').didExceedMaxLines) {
+                    hi = mid - 1;
+                  } else {
+                    lo = mid;
+                  }
+                }
+                shown = '${oneLine.substring(0, lo).trimRight()}…';
+              }
+              return Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: shown),
+                    TextSpan(
+                      text: '  $more',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+                maxLines: 2,
+                style: base,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class PostCard extends ConsumerWidget {
   const PostCard({
     required this.post,
@@ -238,9 +328,23 @@ class PostCard extends ConsumerWidget {
     // leave, and only a tiny leftover (under 30% of the screen) lets the
     // card grow instead.
     final minPhoto = MediaQuery.sizeOf(context).height * 0.3;
-    final photoHeight = fillHeight != null || feedHeight != null
-        ? math.max(width * 1.25, minPhoto)
-        : width * 1.25;
+    // Owner 2026-10-15 (like Instagram): the frame follows the first photo's
+    // shape, at most 4:5 tall and 1.91:1 wide (PostMedia.aspectRatio is
+    // bounded); anything longer is cropped to the centre, whole when opened.
+    final frameRatio = p.video == null && p.media.isNotEmpty
+        ? p.media.first.listAspectRatio
+        : 0.8;
+    // Owner 2026-10-15: a video fills the screen between the header and the
+    // nav bar (author row + video + actions), cropped to the centre.
+    final cardRest = feedHeight == null
+        ? double.infinity
+        : math.max(minPhoto, feedHeight! - _kVideoCardChrome);
+    final photoBase = fillHeight != null || feedHeight != null
+        ? math.max(width / frameRatio, minPhoto)
+        : width / frameRatio;
+    final photoHeight = p.video != null && feedHeight != null
+        ? cardRest
+        : (p.video != null ? math.min(photoBase, cardRest) : photoBase);
     Widget photoBox(Widget child, {required bool fill, VoidCallback? onShort}) {
       if (!fill) return SizedBox(height: photoHeight, child: child);
       return Expanded(
@@ -345,8 +449,19 @@ class PostCard extends ConsumerWidget {
             _OwnMenuRow(post: p),
           photoFor(fill: fill, onShort: onExpand),
           PostActionsBar(post: p, run: run, showTime: true),
-          PostPracticeChips(post: p),
-          if (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty)
+          // Owner 2026-10-15: a video post — author, video, icons, then ONE
+          // line (nick + the start of the text) with «ещё» at its end; the
+          // text, the topic chips and the tags open in a sheet from below.
+          if (p.video != null)
+            _VideoOneLine(
+              post: p,
+              line: title.isNotEmpty ? '$title $text' : text,
+              onMore: () => showPostTextSheet(context, p),
+            )
+          else
+            PostPracticeChips(post: p),
+          if (p.video == null &&
+              (title.isNotEmpty || text.isNotEmpty || hashtags.isNotEmpty))
             _FeedCaption(
               // A new text (translation) starts collapsed again.
               key: ValueKey('${p.id}:${title.hashCode}:${text.hashCode}'),
@@ -360,7 +475,7 @@ class PostCard extends ConsumerWidget {
               inPlaceOnly: true,
               onMore: () => showPostTextSheet(context, p),
             ),
-          if (p.attachments.isNotEmpty)
+          if (p.video == null && p.attachments.isNotEmpty)
             _DocChips(documents: p.attachments, onOpen: open),
           const SizedBox(height: AppSpacing.md),
         ],
@@ -499,7 +614,7 @@ class PostCard extends ConsumerWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppRadii.card - 2),
               child: AspectRatio(
-                aspectRatio: 4 / 5,
+                aspectRatio: _kVideoRatio,
                 child: InlineReel(
                   post: p,
                   onOpen: () => ReelsScreen.open(context, from: p),
@@ -542,7 +657,7 @@ class PostCard extends ConsumerWidget {
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
         PostActionsBar(post: p, run: run, boost: false, reactions: false),
-        if (p.likeCount > 0)
+        if (p.likeCount > 0 && showLikeCount(ref, p))
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -705,7 +820,7 @@ class _InstagramPost extends ConsumerWidget {
           _OwnMenuRow(post: p),
         if (p.video != null)
           AspectRatio(
-            aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
+            aspectRatio: p.video!.aspectRatio.clamp(_kVideoRatio, 1.91),
             child: InlineReel(
               post: p,
               onOpen: () => ReelsScreen.open(context, from: p),
@@ -716,6 +831,7 @@ class _InstagramPost extends ConsumerWidget {
           // gallery (swipe, zoom), double tap = like.
           PostMediaCarousel(
             media: p.media,
+            inList: !inDetail,
             semanticLabel: t.t('post.media.label'),
             onDoubleTap: () => run(() => actions.like(p)),
             // Owner 2026-10-07: in someone's feed of posts a tap opens
@@ -753,7 +869,7 @@ class _InstagramPost extends ConsumerWidget {
           // Owner 2026-10-07: the comment button opens the comments sheet,
           // inside the post too.
         ),
-        if (p.likeCount > 0)
+        if (p.likeCount > 0 && showLikeCount(ref, p))
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -966,7 +1082,9 @@ class _ThreadsPost extends ConsumerWidget {
                         child: GestureDetector(
                           onTap: () => openAuthorProfile(context, ref, a),
                           child: Text(
-                            a.username,
+                            // Owner 2026-10-15: like every other post — the
+                            // name on top, the role line below.
+                            a.displayName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: type.bodySmall.copyWith(
@@ -984,20 +1102,19 @@ class _ThreadsPost extends ConsumerWidget {
                           gold: a.isClient,
                         ),
                       ],
-                      // Owner 2026-10-13: the time moved down, next to Save.
-                      if (promotionId != null) ...[
-                        const SizedBox(width: AppSpacing.sm),
-                        Flexible(
-                          child: Text(
-                            t.t('promote.sponsored'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.caption
-                                .copyWith(color: colors.textSecondary),
-                          ),
-                        ),
-                      ],
                     ],
+                  ),
+                  Text(
+                    promotionId != null
+                        ? t.t('promote.sponsored')
+                        : a.isClient
+                            ? '@${a.username} · ${t.t('person.client')}'
+                            : a.verified
+                                ? t.t('post.licensedAttorney')
+                                : '@${a.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -1853,7 +1970,7 @@ class VerifiedCheck extends StatelessWidget {
     return Semantics(
       label: label,
       child: AppIcon(
-        AppIcons.verifiedRounded,
+        AppIcons.verifiedUserOutlined,
         size: size,
         color: colors.goldAccent,
       ),
@@ -2143,11 +2260,15 @@ class PostMediaCarousel extends StatefulWidget {
     required this.semanticLabel,
     this.compact = false,
     this.fill = false,
+    this.inList = false,
     this.onTap,
     this.onPage,
     this.showDots = true,
     super.key,
   });
+
+  /// In a list (not the opened post): at most square.
+  final bool inList;
 
   /// The visible photo changed (the feed card draws its own indicators).
   final ValueChanged<int>? onPage;
@@ -2247,7 +2368,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                       child: img(BoxFit.cover, m.previewUrl, '${m.fileId}:320'),
                     ),
                     ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
-                    img(BoxFit.contain, m.mediumUrl, '${m.fileId}:1080'),
+                    img(BoxFit.cover, m.mediumUrl, '${m.fileId}:1080'),
                   ],
                 ),
               );
@@ -2276,7 +2397,13 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
       child: widget.fill
           ? gallery
           : AspectRatio(
-              aspectRatio: widget.compact ? 2 : media.first.aspectRatio,
+              // PostMedia.aspectRatio is already bounded 4:5 … 1.91:1; longer
+              // photos are cropped to the centre (cover), whole when opened.
+              aspectRatio: widget.compact
+                  ? 2
+                  : widget.inList
+                      ? media.first.listAspectRatio
+                      : media.first.aspectRatio,
               child: gallery,
             ),
     );
