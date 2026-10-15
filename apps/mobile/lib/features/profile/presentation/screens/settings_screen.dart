@@ -154,7 +154,7 @@ class SettingsScreen extends ConsumerWidget {
           if (ref.watch(currentUserRoleProvider) == UserRole.client)
             AppListRow(
               key: const ValueKey('settings-client-badge'),
-              icon: AppIcons.verifiedRounded,
+              icon: AppIcons.verifiedUserOutlined,
               label: t.t('cbadge.title'),
               onTap: () => context.push(AppRoutes.clientBadge),
             ),

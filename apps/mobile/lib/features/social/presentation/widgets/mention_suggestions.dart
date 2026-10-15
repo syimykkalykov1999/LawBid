@@ -167,7 +167,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                               ),
                               if (p.client?.verified ?? false)
                                 AppIcon(
-                                  AppIcons.verifiedRounded,
+                                  AppIcons.verifiedUserOutlined,
                                   size: 16,
                                   color: colors.goldAccent,
                                 ),

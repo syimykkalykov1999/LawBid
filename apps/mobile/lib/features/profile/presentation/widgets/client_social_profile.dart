@@ -532,7 +532,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
                   if (r.caseId != null)
                     ReviewBadge(
                       label: t.t('reviews.badge.case'),
-                      icon: AppIcons.verifiedRounded,
+                      icon: AppIcons.verifiedUserOutlined,
                     ),
                   ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
                 ],

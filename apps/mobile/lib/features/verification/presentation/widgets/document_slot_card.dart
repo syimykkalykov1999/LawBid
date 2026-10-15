@@ -262,7 +262,7 @@ class _AttachedRow extends StatelessWidget {
         child: Row(
           children: [
             AppIcon(
-              AppIcons.verifiedRounded,
+              AppIcons.verifiedUserOutlined,
               size: AppSizes.iconSm,
               color: colors.success,
             ),

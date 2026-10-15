@@ -118,7 +118,7 @@ class VerifiedBadge extends StatelessWidget {
       label: semanticLabel,
       excludeSemantics: true,
       child: AppIcon(
-        AppIcons.verifiedRounded,
+        AppIcons.verifiedUserOutlined,
         size: size,
         color: colors.goldAccent,
       ),

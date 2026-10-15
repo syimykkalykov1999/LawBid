@@ -1970,7 +1970,7 @@ class VerifiedCheck extends StatelessWidget {
     return Semantics(
       label: label,
       child: AppIcon(
-        AppIcons.verifiedRounded,
+        AppIcons.verifiedUserOutlined,
         size: size,
         color: colors.goldAccent,
       ),

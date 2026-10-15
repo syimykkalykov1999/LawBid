@@ -71,7 +71,7 @@ class ReviewCard extends ConsumerWidget {
         if (review.fromCase)
           ReviewBadge(
             label: t.t('reviews.badge.case'),
-            icon: AppIcons.verifiedRounded,
+            icon: AppIcons.verifiedUserOutlined,
           ),
         ReviewBadge(label: t.t('reviews.role.${review.authorRole}')),
       ],
