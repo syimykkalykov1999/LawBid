@@ -6,15 +6,23 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/cases/application/cases_providers.dart'
+    show casesRepositoryProvider;
+import 'package:lawbid/features/cases/domain/case_models.dart'
+    show MyCasesFilter, WorkFilter;
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
     show ActionSheetItem, showActionSheet;
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/team/application/team_providers.dart'
-    show invalidateAllTasks, teamRepositoryProvider;
+    show
+        invalidateAllTasks,
+        isAssistantProvider,
+        taskPeopleProvider,
+        teamRepositoryProvider;
 import 'package:lawbid/features/team/domain/team_models.dart'
-    show TaskDraft, TaskKind, TaskStepDraft;
+    show TaskDraft, TaskKind, TaskPersonSource, TaskPriority, TaskStepDraft;
 import 'package:lawbid/features/team/presentation/task_pickers.dart'
-    show showChoiceSheet, taskRemindChoices, taskRemindLabel;
+    show showChoiceSheet, taskPriorityLabel, taskRemindChoices, taskRemindLabel;
 import 'package:lawbid/features/team/presentation/task_sheet.dart'
     show pickDateTime;
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -30,7 +38,20 @@ class ComposeResult {
     this.dueAt,
     this.remindBeforeMin,
     this.openFull = false,
+    this.caseId,
+    this.caseTitle,
+    this.priority,
+    this.assigneeMembershipId,
+    this.assigneeName,
   });
+
+  /// Owner 2026-10-15 (the Planner's «+»): the case it is about, how urgent
+  /// it is and who does it — the same fields the card shows.
+  final String? caseId;
+  final String? caseTitle;
+  final TaskPriority? priority;
+  final String? assigneeMembershipId;
+  final String? assigneeName;
 
   final String title;
   final String text;
@@ -109,6 +130,11 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
   int _focused = 0;
   DateTime? _due;
   int? _remind;
+  String? _caseId;
+  String? _caseTitle;
+  TaskPriority _priority = TaskPriority.normal;
+  String? _assigneeId;
+  String? _assigneeName;
   final _sheet = DraggableScrollableController();
   bool _keyboardWas = false;
 
@@ -118,6 +144,7 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
   /// The calendar and the bell: the attorney's tasks of a case and any
   /// task of the Planner.
   bool get _timed => _task;
+  bool get _planner => widget.mode == ComposeMode.planner;
 
   @override
   void dispose() {
@@ -246,6 +273,83 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     if (i != null && mounted) setState(() => _remind = taskRemindChoices[i]);
   }
 
+  /// The cases a planner task can be about: the client's own, or the ones
+  /// the attorney works on.
+  Future<void> _pickCase() async {
+    final t = ref.read(translatorProvider);
+    final repo = ref.read(casesRepositoryProvider);
+    final options = <(String, String)>[];
+    try {
+      if (widget.isAttorney) {
+        final page = await repo.myWork(WorkFilter.active);
+        for (final w in page.items) {
+          options.add((w.caseId, w.title));
+        }
+      } else {
+        final page = await repo.myCases(MyCasesFilter.active);
+        for (final c in page.items) {
+          options.add((c.id, c.title));
+        }
+      }
+    } on Object {
+      // No list: nothing to pick.
+    }
+    if (!mounted) return;
+    final i = await showChoiceSheet(
+      context,
+      title: t.t('tasks.filter.case'),
+      labels: [
+        t.t('tasks.filter.all'),
+        for (final o in options) o.$2,
+      ],
+      selected:
+          _caseId == null ? 0 : 1 + options.indexWhere((o) => o.$1 == _caseId),
+      keyPrefix: 'compose-case',
+    );
+    if (i == null || !mounted) return;
+    setState(() {
+      _caseId = i == 0 ? null : options[i - 1].$1;
+      _caseTitle = i == 0 ? null : options[i - 1].$2;
+    });
+  }
+
+  Future<void> _pickPriority() async {
+    final t = ref.read(translatorProvider);
+    final i = await showChoiceSheet(
+      context,
+      title: t.t('tasks.priority.title'),
+      labels: [for (final p in TaskPriority.values) taskPriorityLabel(t, p)],
+      selected: TaskPriority.values.indexOf(_priority),
+      keyPrefix: 'compose-priority',
+    );
+    if (i != null && mounted) {
+      setState(() => _priority = TaskPriority.values[i]);
+    }
+  }
+
+  Future<void> _pickAssignee() async {
+    final t = ref.read(translatorProvider);
+    final team = [
+      for (final s in await ref.read(taskPeopleProvider('').future))
+        if (s.source == TaskPersonSource.assistant && s.membershipId != null) s,
+    ];
+    if (!mounted || team.isEmpty) return;
+    final i = await showChoiceSheet(
+      context,
+      title: t.t('tasks.assignee.title'),
+      labels: [t.t('tasks.assignee.me'), for (final a in team) a.name],
+      selected: _assigneeId == null
+          ? 0
+          : 1 + team.indexWhere((a) => a.membershipId == _assigneeId),
+      keyPrefix: 'compose-assignee',
+    );
+    if (i == null || !mounted) return;
+    setState(() {
+      _assigneeId = i == 0 ? null : team[i - 1].membershipId;
+      _assigneeName = i == 0 ? null : team[i - 1].name;
+    });
+  }
+
   ComposeResult? _result() {
     final plain = [
       for (final l in _lines)
@@ -269,6 +373,11 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
       kind: widget.mode == ComposeMode.task ? _kind : null,
       dueAt: _timed ? _due : null,
       remindBeforeMin: _timed && _due != null ? _remind : null,
+      caseId: _planner ? _caseId : null,
+      caseTitle: _planner ? _caseTitle : null,
+      priority: _planner && _priority != TaskPriority.normal ? _priority : null,
+      assigneeMembershipId: _planner ? _assigneeId : null,
+      assigneeName: _planner ? _assigneeName : null,
     );
   }
 
@@ -514,6 +623,68 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                         ],
                       ),
                     ),
+                  if (_planner &&
+                      (_caseId != null ||
+                          _priority != TaskPriority.normal ||
+                          _assigneeId != null))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (_caseId != null)
+                            InputChip(
+                              avatar: AppIcon(
+                                AppIcons.workOutlineRounded,
+                                size: 16,
+                                color: colors.text,
+                              ),
+                              label: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 200),
+                                child: Text(
+                                  _caseTitle ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              onPressed: _pickCase,
+                              onDeleted: () => setState(() {
+                                _caseId = null;
+                                _caseTitle = null;
+                              }),
+                            ),
+                          if (_priority != TaskPriority.normal)
+                            InputChip(
+                              avatar: AppIcon(
+                                AppIcons.flagOutlined,
+                                size: 16,
+                                color: colors.dangerText,
+                              ),
+                              label: Text(taskPriorityLabel(t, _priority)),
+                              onPressed: _pickPriority,
+                              onDeleted: () => setState(
+                                () => _priority = TaskPriority.normal,
+                              ),
+                            ),
+                          if (_assigneeId != null)
+                            InputChip(
+                              avatar: AppIcon(
+                                AppIcons.personOutlineRounded,
+                                size: 16,
+                                color: colors.text,
+                              ),
+                              label: Text(_assigneeName ?? ''),
+                              onPressed: _pickAssignee,
+                              onDeleted: () => setState(() {
+                                _assigneeId = null;
+                                _assigneeName = null;
+                              }),
+                            ),
+                        ],
+                      ),
+                    ),
                   for (final (i, f) in _files.indexed)
                     _PickedTile(
                       file: f,
@@ -540,44 +711,92 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
               ),
               child: Row(
                 children: [
-                  if (_task)
-                    IconButton(
-                      tooltip: t.t('cases.compose.checklist'),
-                      onPressed: _toggleCheck,
-                      icon: AppIcon(
-                        AppIcons.checkCircleOutlineRounded,
-                        color: _lines.isNotEmpty &&
-                                _focused < _lines.length &&
-                                _lines[_focused].check
-                            ? colors.goldDark
-                            : colors.text,
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          if (_task)
+                            IconButton(
+                              tooltip: t.t('cases.compose.checklist'),
+                              onPressed: _toggleCheck,
+                              icon: AppIcon(
+                                AppIcons.checkCircleOutlineRounded,
+                                color: _lines.isNotEmpty &&
+                                        _focused < _lines.length &&
+                                        _lines[_focused].check
+                                    ? colors.goldDark
+                                    : colors.text,
+                              ),
+                            ),
+                          IconButton(
+                            tooltip: t.t('cases.compose.attach'),
+                            onPressed: _attachMenu,
+                            icon: AppIcon(
+                              AppIcons.attachFileRounded,
+                              color: colors.text,
+                            ),
+                          ),
+                          if (_timed) ...[
+                            IconButton(
+                              tooltip: t.t('cases.compose.due'),
+                              onPressed: _pickDue,
+                              icon: AppIcon(
+                                AppIcons.eventOutlined,
+                                color: _due != null
+                                    ? colors.goldDark
+                                    : colors.text,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: t.t('cases.compose.remind'),
+                              onPressed: _pickRemind,
+                              icon: AppIcon(
+                                AppIcons.notificationsActiveOutlined,
+                                color: _remind != null
+                                    ? colors.goldDark
+                                    : colors.text,
+                              ),
+                            ),
+                          ],
+                          if (_planner) ...[
+                            IconButton(
+                              tooltip: t.t('tasks.filter.case'),
+                              onPressed: _pickCase,
+                              icon: AppIcon(
+                                AppIcons.workOutlineRounded,
+                                color: _caseId != null
+                                    ? colors.goldDark
+                                    : colors.text,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: t.t('tasks.priority.title'),
+                              onPressed: _pickPriority,
+                              icon: AppIcon(
+                                AppIcons.flagOutlined,
+                                color: _priority != TaskPriority.normal
+                                    ? colors.goldDark
+                                    : colors.text,
+                              ),
+                            ),
+                            if (widget.isAttorney &&
+                                !ref.watch(isAssistantProvider))
+                              IconButton(
+                                tooltip: t.t('tasks.assignee.title'),
+                                onPressed: _pickAssignee,
+                                icon: AppIcon(
+                                  AppIcons.personAddAlt1Rounded,
+                                  color: _assigneeId != null
+                                      ? colors.goldDark
+                                      : colors.text,
+                                ),
+                              ),
+                          ],
+                        ],
                       ),
                     ),
-                  IconButton(
-                    tooltip: t.t('cases.compose.attach'),
-                    onPressed: _attachMenu,
-                    icon:
-                        AppIcon(AppIcons.attachFileRounded, color: colors.text),
                   ),
-                  if (_timed) ...[
-                    IconButton(
-                      tooltip: t.t('cases.compose.due'),
-                      onPressed: _pickDue,
-                      icon: AppIcon(
-                        AppIcons.eventOutlined,
-                        color: _due != null ? colors.goldDark : colors.text,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: t.t('cases.compose.remind'),
-                      onPressed: _pickRemind,
-                      icon: AppIcon(
-                        AppIcons.notificationsActiveOutlined,
-                        color: _remind != null ? colors.goldDark : colors.text,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
                   if (widget.moreLabel != null)
                     IconButton(
                       tooltip: widget.moreLabel,
@@ -747,6 +966,9 @@ Future<void> createPlannerTaskFrom(WidgetRef ref, ComposeResult r) async {
       kind: TaskKind.other,
       title: r.title,
       notes: r.text.isEmpty ? null : r.text,
+      caseId: r.caseId,
+      priority: r.priority ?? TaskPriority.normal,
+      assigneeMembershipId: r.assigneeMembershipId,
       dueAt: r.dueAt,
       remindBeforeMin: r.dueAt == null ? null : r.remindBeforeMin,
       fileIds: ids,

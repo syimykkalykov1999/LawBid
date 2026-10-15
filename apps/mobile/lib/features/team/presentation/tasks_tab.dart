@@ -637,11 +637,6 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final all =
         ref.watch(mergedTasksProvider(_key)).value ?? const <TaskItem>[];
-    final views = [
-      (TasksView.all, 'active', t.t('tasks.view.active')),
-      (TasksView.archive, 'done', t.t('tasks.view.done')),
-      if (assistant) (TasksView.results, 'results', t.t('tasks.results')),
-    ];
     final header = _choosing
         ? _ChoosingBar(
             t: t,
@@ -662,29 +657,27 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         // with "…"; nothing slides or wraps.
         : Row(
             children: [
-              if (widget.showViews)
-                Expanded(
-                  child: Row(
-                    children: [
-                      for (final (i, (v, key, label)) in views.indexed) ...[
-                        if (i > 0) const SizedBox(width: AppSpacing.xs),
-                        Flexible(
-                          child: MiniChip(
-                            key: ValueKey('tasks-view-$key'),
-                            label: label,
-                            selected: _view == v,
-                            onTap: () => setState(() {
-                              _view = v;
-                              _picked.clear();
-                            }),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                )
-              else
-                const Spacer(),
+              // Owner 2026-10-15: one row — all, overdue, the slices of the
+              // viewer's side, then the archive; «+» stays at the end.
+              Expanded(
+                child: _TopChips(
+                  t: t,
+                  filter: _filter,
+                  view: _view,
+                  showViews: widget.showViews,
+                  attorneySide: _attorneySide,
+                  assistant: assistant,
+                  onScope: (scope) => setState(() {
+                    _view = TasksView.all;
+                    _picked.clear();
+                    _filter = _filter.copyWith(scope: scope);
+                  }),
+                  onView: (v) => setState(() {
+                    _view = v;
+                    _picked.clear();
+                  }),
+                ),
+              ),
               if (canAdd &&
                   _view != TasksView.archive &&
                   _view != TasksView.results) ...[
@@ -920,15 +913,6 @@ class _TaskList extends ConsumerWidget {
                 now: now,
               )
             : null;
-        final chips = !archive && !choosing
-            ? _ScopeChips(
-                t: t,
-                filter: filter,
-                attorneySide: attorneySide,
-                assistant: assistant,
-                onFilter: onFilter,
-              )
-            : null;
         final emptyBody = sections.isEmpty || shown.isEmpty;
         return ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -940,7 +924,6 @@ class _TaskList extends ConsumerWidget {
           ),
           children: [
             if (board != null) board,
-            if (chips != null) chips,
             if (emptyBody)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xl),
@@ -1166,52 +1149,77 @@ class _BoardHeader extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-15: the chips under the views — all, overdue, and the
-/// slices of the viewer's side.
-class _ScopeChips extends StatelessWidget {
-  const _ScopeChips({
+/// Owner 2026-10-15: the top row — all, overdue and the slices of the
+/// viewer's side, then the archive (finished tasks); scrolls when a
+/// language is long, compact chips, never stretched.
+class _TopChips extends StatelessWidget {
+  const _TopChips({
     required this.t,
     required this.filter,
+    required this.view,
+    required this.showViews,
     required this.attorneySide,
     required this.assistant,
-    required this.onFilter,
+    required this.onScope,
+    required this.onView,
   });
 
   final Translator t;
   final TaskFilter filter;
+  final TasksView view;
+  final bool showViews;
   final bool attorneySide;
   final bool assistant;
-  final void Function(TaskFilter) onFilter;
+  final void Function(TaskScope) onScope;
+  final void Function(TasksView) onView;
 
   @override
   Widget build(BuildContext context) {
-    final items = <(TaskScope, String)>[
-      (TaskScope.all, t.t('tasks.scope.all')),
-      (TaskScope.overdue, t.t('tasks.overdue')),
-      if (!assistant && attorneySide) ...[
-        (TaskScope.forClient, t.t('tasks.scope.forClient')),
-        (TaskScope.joint, t.t('tasks.scope.joint')),
-        (TaskScope.assistant, t.t('tasks.scope.assistant')),
-      ] else if (!assistant) ...[
-        (TaskScope.mine, t.t('tasks.scope.mine')),
-        (TaskScope.joint, t.t('tasks.scope.joint')),
+    final onBoard = view != TasksView.archive && view != TasksView.results;
+    (String, String, bool, VoidCallback) scope(
+      String key,
+      String label,
+      TaskScope sc,
+    ) =>
+        (key, label, onBoard && filter.scope == sc, () => onScope(sc));
+    final items = <(String, String, bool, VoidCallback)>[
+      if (showViews) ...[
+        scope('all', t.t('tasks.scope.all'), TaskScope.all),
+        scope('overdue', t.t('tasks.overdue'), TaskScope.overdue),
+        if (!assistant && attorneySide) ...[
+          scope('forClient', t.t('tasks.scope.forClient'), TaskScope.forClient),
+          scope('joint', t.t('tasks.scope.joint'), TaskScope.joint),
+          scope('assistant', t.t('tasks.scope.assistant'), TaskScope.assistant),
+        ] else if (!assistant) ...[
+          scope('mine', t.t('tasks.scope.mine'), TaskScope.mine),
+          scope('joint', t.t('tasks.scope.joint'), TaskScope.joint),
+        ],
+        (
+          'done',
+          t.t('tasks.view.done'),
+          view == TasksView.archive,
+          () => onView(TasksView.archive),
+        ),
+        if (assistant)
+          (
+            'results',
+            t.t('tasks.results'),
+            view == TasksView.results,
+            () => onView(TasksView.results),
+          ),
       ],
     ];
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-      // Owner 2026-10-15: all the chips in one row — they shrink (with an
-      // ellipsis) before they ever scroll or stretch.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          for (final (i, (scope, label)) in items.indexed) ...[
+          for (final (i, (key, label, selected, onTap)) in items.indexed) ...[
             if (i > 0) const SizedBox(width: AppSpacing.xs),
-            Flexible(
-              child: MiniChip(
-                key: ValueKey('tasks-scope-${scope.name}'),
-                label: label,
-                selected: filter.scope == scope,
-                onTap: () => onFilter(filter.copyWith(scope: scope)),
-              ),
+            MiniChip(
+              key: ValueKey('tasks-view-$key'),
+              label: label,
+              selected: selected,
+              onTap: onTap,
             ),
           ],
         ],
