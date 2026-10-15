@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -63,6 +64,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
           key: ValueKey('active'),
           filter: MyCasesFilter.inProgress,
           search: MineSearch(),
+          cards: true,
         ),
       // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
       _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
@@ -128,11 +130,15 @@ class _ClientCasesGrid extends ConsumerWidget {
   const _ClientCasesGrid({
     required this.filter,
     required this.search,
+    this.cards = false,
     super.key,
   });
 
   final MyCasesFilter filter;
   final MineSearch search;
+
+  /// «Active»: cards with the progress scale instead of compact rows.
+  final bool cards;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -165,11 +171,16 @@ class _ClientCasesGrid extends ConsumerWidget {
             : null,
       ),
       // Owner 2026-10-07 (bug 16): compact rows; swipe left for actions.
-      rowOf: (c) => MyCaseRow(
-        item: c,
-        swipe: true,
-        newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
-      ),
+      rowOf: (c) => cards
+          ? ClientActiveCaseCard(
+              item: c,
+              newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
+            )
+          : MyCaseRow(
+              item: c,
+              swipe: true,
+              newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
+            ),
     );
   }
 }
@@ -270,6 +281,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           key: ValueKey('active'),
           filter: WorkFilter.active,
           search: MineSearch(),
+          cards: true,
         ),
     };
     return Column(
@@ -351,10 +363,18 @@ class _BidsGrid extends ConsumerWidget {
 }
 
 class _WorkGrid extends ConsumerWidget {
-  const _WorkGrid({required this.filter, required this.search, super.key});
+  const _WorkGrid({
+    required this.filter,
+    required this.search,
+    this.cards = false,
+    super.key,
+  });
 
   final WorkFilter filter;
   final MineSearch search;
+
+  /// «Active»: cards with the progress scale instead of tiles.
+  final bool cards;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -379,14 +399,17 @@ class _WorkGrid extends ConsumerWidget {
               : 'mine.work.completedEmpty',
         ),
       ),
-      tileOf: (w) => MineTileData(
-        title: w.title,
-        statusLabel: caseStatusLabel(t, w.status),
-        statusTone: caseTone(w.status),
-        coverUrl: w.coverUrl,
-        practiceCode: w.practiceCode,
-        onTap: () => context.push(AppRoutes.workCase(w.caseId)),
-      ),
+      rowOf: cards ? (w) => AttorneyActiveCaseCard(item: w) : null,
+      tileOf: cards
+          ? null
+          : (w) => MineTileData(
+                title: w.title,
+                statusLabel: caseStatusLabel(t, w.status),
+                statusTone: caseTone(w.status),
+                coverUrl: w.coverUrl,
+                practiceCode: w.practiceCode,
+                onTap: () => context.push(AppRoutes.workCase(w.caseId)),
+              ),
     );
   }
 }

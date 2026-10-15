@@ -30,46 +30,77 @@ class ReelPublishStrip extends ConsumerWidget {
       _ => t.t('reels.upload.failed'),
     };
     final failed = s.phase == ReelPublishPhase.failed;
+    final done = s.phase == ReelPublishPhase.done;
+    // Owner 2026-10-15: compact, like Instagram — 44 dp, a 32 dp preview,
+    // 13 sp text and a thin progress line.
     return Material(
       color: colors.surface,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenSide,
-              vertical: AppSpacing.xs,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(
-                      color: failed ? colors.danger : colors.text,
+          SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screenSide,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: colors.goldTint,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: AppIcon(
+                      failed
+                          ? AppIcons.errorOutlineRounded
+                          : done
+                              ? AppIcons.checkRounded
+                              : AppIcons.playArrowRounded,
+                      size: 18,
+                      color: failed ? colors.danger : colors.goldDark,
                     ),
                   ),
-                ),
-                if (failed)
-                  TextButton(
-                    onPressed: job.retry,
-                    child: Text(t.t('error.retry')),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.bodySmall.copyWith(
+                        color: failed ? colors.danger : colors.text,
+                      ),
+                    ),
                   ),
-                if (failed || s.phase == ReelPublishPhase.done)
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: t.t('common.close'),
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: job.dismiss,
-                  )
-                else
-                  TextButton(
-                    onPressed: job.cancel,
-                    child: Text(t.t('common.cancel')),
-                  ),
-              ],
+                  if (failed)
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: job.retry,
+                      child: Text(t.t('error.retry')),
+                    ),
+                  if (failed || done)
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: t.t('common.close'),
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: job.dismiss,
+                    )
+                  else
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: job.cancel,
+                      child: Text(t.t('common.cancel')),
+                    ),
+                ],
+              ),
             ),
           ),
           if (s.busy)
@@ -78,7 +109,9 @@ class ReelPublishStrip extends ConsumerWidget {
               minHeight: 2,
               color: colors.gold,
               backgroundColor: colors.border,
-            ),
+            )
+          else
+            Divider(height: 1, color: colors.border),
         ],
       ),
     );

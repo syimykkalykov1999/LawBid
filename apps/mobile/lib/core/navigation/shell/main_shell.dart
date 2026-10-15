@@ -17,6 +17,7 @@ import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 import 'package:lawbid/features/reels/presentation/reel_publish_strip.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 
@@ -92,6 +93,8 @@ class _MainShellState extends ConsumerState<MainShell> {
       ..listen(badgesProvider, (_, __) {})
       ..listen(sessionServicesProvider, (_, __) {});
 
+    final uploading =
+        ref.watch(reelPublishJobProvider).phase != ReelPublishPhase.idle;
     return Scaffold(
       // Owner 2026-10-12: on the feed the posts run under the floating
       // nav bar (Instagram); other tabs keep their own space.
@@ -102,11 +105,18 @@ class _MainShellState extends ConsumerState<MainShell> {
         child: Column(
           children: [
             // Owner 2026-10-15: a reel uploading in the background.
-            const SafeArea(bottom: false, child: ReelPublishStrip()),
+            if (uploading)
+              const SafeArea(bottom: false, child: ReelPublishStrip()),
             Expanded(
-              child: _TabFade(
-                index: navigationShell.currentIndex,
-                child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+              // The strip took the status bar's room; the screens below
+              // must not leave it a second time.
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: uploading,
+                child: _TabFade(
+                  index: navigationShell.currentIndex,
+                  child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+                ),
               ),
             ),
           ],
