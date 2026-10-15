@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -1013,7 +1014,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                     image: w.authorAvatarUrl == null
                         ? null
                         : DecorationImage(
-                            image: NetworkImage(w.authorAvatarUrl!),
+                            image: appNetworkImage(w.authorAvatarUrl!, 120),
                             fit: BoxFit.cover,
                           ),
                   ),
@@ -1140,8 +1141,8 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                   onTap: () => _openPhoto(i),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadii.field),
-                    child: Image.network(
-                      w.photos[i].previewUrl,
+                    child: Image(
+                      image: appNetworkImage(w.photos[i].previewUrl, 288),
                       width: 96,
                       height: 96,
                       fit: BoxFit.cover,

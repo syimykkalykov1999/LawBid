@@ -389,6 +389,16 @@ export const envSchema = z
     // worker. Set false on API tasks once the dedicated worker service
     // (node dist/src/worker.js) runs; worker.ts ignores this flag.
     JOBS_ENABLED: envBoolean(true),
+    // Owner 2026-10-15 (speed, no cost): answers over 1 KB are gzip/brotli
+    // compressed (JSON shrinks 5–10x on a phone's network). Set false to
+    // switch it off without a release.
+    HTTP_COMPRESSION: envBoolean(true),
+    // Owner 2026-10-15: ETag on JSON answers (the phone gets 304 when
+    // nothing changed). false = no tags, a safe off-switch.
+    HTTP_ETAG: envBoolean(true),
+    // Owner 2026-10-15: a database call slower than this many ms is written
+    // to the log (operation name and time only, never the values). 0 = off.
+    DB_SLOW_QUERY_MS: z.coerce.number().int().min(0).default(300),
     // docs/02 §3.3 monthly disposable-domain refresh: plain text, one
     // domain per line, '#' comments (the open disposable-email-domains
     // blocklist by default).

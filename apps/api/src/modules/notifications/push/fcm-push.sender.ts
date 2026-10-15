@@ -1,3 +1,4 @@
+import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { Inject, Injectable } from '@nestjs/common';
 import { JWT } from 'google-auth-library';
 import type Redis from 'ioredis';
@@ -28,6 +29,9 @@ export class FcmTemporaryError extends Error {}
  */
 import { normalizePem } from '../../../common/secrets/provider-registry';
 import { SecretsService } from '../../../common/secrets/secrets.service';
+/** One per process: five temporary FCM failures in a row pause it a minute. */
+const fcmBreaker = new CircuitBreaker('fcm', { threshold: 5, openMs: 60_000 });
+
 @Injectable()
 export class FcmPushSender implements PushSender {
   private readonly jwt: JWT;
@@ -210,6 +214,12 @@ export class DynamicPushSender implements PushSender {
         ),
       };
     }
-    return this.cached.sender.send(message, dedupeKey);
+    // Owner 2026-10-15: while FCM keeps failing the sender pauses a minute
+    // (the push queue retries later) instead of piling up slow calls.
+    const sender = this.cached.sender;
+    return fcmBreaker.run(
+      () => sender.send(message, dedupeKey),
+      (e) => e instanceof FcmTemporaryError,
+    );
   }
 }

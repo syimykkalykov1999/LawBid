@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -92,10 +93,9 @@ class MineTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               if (data.coverUrl != null)
-                Image.network(
-                  data.coverUrl!,
+                Image(
+                  image: appNetworkImage(data.coverUrl!, 360),
                   fit: BoxFit.cover,
-                  cacheWidth: 360,
                   errorBuilder: (_, __, ___) => art,
                 )
               else

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -306,7 +307,8 @@ class TaskRow extends ConsumerWidget {
                                 borderRadius: BorderRadius.circular(6),
                                 image: f.mime.startsWith('image/')
                                     ? DecorationImage(
-                                        image: NetworkImage(f.previewUrl),
+                                        image:
+                                            appNetworkImage(f.previewUrl, 600),
                                         fit: BoxFit.cover,
                                       )
                                     : null,
@@ -457,7 +459,10 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                 child: SizedBox.square(
                   dimension: 44,
                   child: f.mime.startsWith('image/')
-                      ? Image.network(f.previewUrl, fit: BoxFit.cover)
+                      ? Image(
+                          image: appNetworkImage(f.previewUrl, 600),
+                          fit: BoxFit.cover,
+                        )
                       : ColoredBox(
                           color: colors.chip,
                           child: const AppIcon(AppIcons.descriptionOutlined),

@@ -114,6 +114,25 @@ variable "min_tasks" {
   default     = 2
   description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
 }
+variable "cpu_architecture" {
+  type        = string
+  default     = "X86_64"
+  description = "ARM64 (Graviton) is about 20 % cheaper; needs linux/arm64 images."
+}
+variable "worker_spot" {
+  type        = bool
+  default     = false
+  description = "Worker on Fargate Spot (one task stays on regular Fargate)."
+}
+variable "night_scale_down" {
+  type        = bool
+  default     = false
+  description = "Lower the minimum task count at night (07:00-12:00 UTC)."
+}
+variable "night_min_tasks" {
+  type    = number
+  default = 1
+}
 variable "admin_tasks" {
   type    = number
   default = 2
@@ -375,6 +394,10 @@ module "ecs" {
   worker_cpu                       = var.worker_cpu
   worker_memory                    = var.worker_memory
   clamav_image                     = var.clamav_image
+  cpu_architecture                 = var.cpu_architecture
+  worker_spot                      = var.worker_spot
+  night_scale_down                 = var.night_scale_down
+  night_min_tasks                  = var.night_min_tasks
   tags                             = local.tags
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -848,7 +849,7 @@ class AttorneyLine extends StatelessWidget {
         AppAvatar(
           imageProvider: attorney.avatarUrl == null
               ? null
-              : NetworkImage(attorney.avatarUrl!),
+              : appNetworkImage(attorney.avatarUrl!, 160),
           initials: initialsOf(attorney.firstName, attorney.lastName),
         ),
         const SizedBox(width: AppSpacing.md),

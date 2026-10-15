@@ -1,6 +1,15 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { demoContext } from '../common/demo/demo-context';
+import {
+  slowQueryExtension,
+  slowQueryThresholdMs,
+} from './slow-query.extension';
 import { softDeleteExtension } from './soft-delete.extension';
 
 /**
@@ -35,8 +44,16 @@ export class DemoDatabaseUnavailableError extends Error {
 
 type ExtendedClient = ReturnType<typeof extend>;
 
+const slowLog = new Logger('SlowQuery');
+
 function extend(client: PrismaClient) {
-  return client.$extends(softDeleteExtension());
+  return client
+    .$extends(softDeleteExtension())
+    .$extends(
+      slowQueryExtension(slowQueryThresholdMs(), (q) =>
+        slowLog.warn(`${q.operation} took ${q.ms} ms`),
+      ),
+    );
 }
 
 /** `postgresql://u@h:26257/lawbid?x=y` → `postgresql://u@h:26257/lawbid_demo?x=y` */

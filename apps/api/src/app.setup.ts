@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule } from '@nestjs/swagger';
 import * as Sentry from '@sentry/nestjs';
 import express from 'express';
+import compression from 'compression';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppSettingsService } from './common/app-settings/app-settings.service';
@@ -31,6 +32,22 @@ export interface ConfigureAppOptions {
  * including staging, where the mobile team uses them. */
 export function shouldExposeApiDocs(nodeEnv: AppEnv['NODE_ENV']): boolean {
   return nodeEnv !== 'production';
+}
+
+/**
+ * Owner 2026-10-15: gzip/brotli for answers over 1 KB (JSON shrinks 3-6x).
+ * Skipped for a client that sends `X-No-Compression` and for event streams.
+ */
+export function responseCompression() {
+  return compression({
+    threshold: 1024,
+    filter: (req, res) =>
+      req.headers['x-no-compression'] === undefined &&
+      !String(res.getHeader('Content-Type') ?? '').startsWith(
+        'text/event-stream',
+      ) &&
+      compression.filter(req, res),
+  });
 }
 
 /**
@@ -80,6 +97,17 @@ export function configureApp(
           : false,
     }),
   );
+
+  // Owner 2026-10-15: every JSON answer carries an ETag, so the phone asks
+  // "has it changed?" and gets an empty 304 instead of the whole answer.
+  // HTTP_ETAG=false stops tagging (the phone then simply downloads again).
+  if (!config.get<boolean>('HTTP_ETAG', true)) app.set('etag', false);
+
+  // Owner 2026-10-15: smaller answers (JSON 5–10x), the single biggest
+  // saving on a phone's network and on traffic cost; flag HTTP_COMPRESSION.
+  if (config.get<boolean>('HTTP_COMPRESSION', true)) {
+    app.use(responseCompression());
+  }
 
   // docs/06 §4.1 (stage 6.1): CORS for the admin panel (`ADMIN_ORIGINS`,
   // with credentials) and the future client web app (`web.allowed_origins`

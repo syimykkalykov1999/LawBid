@@ -1,4 +1,9 @@
 import {
+  decodeRankedCursor,
+  encodeRankedCursor,
+  rankedAfter,
+} from '../../common/pagination/ranked-cursor';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -358,21 +363,43 @@ export class DocumentTemplatesService {
     where: Prisma.DocumentTemplateWhereInput,
     q: TemplatesQueryDto,
   ): Promise<Page<Row>> {
-    const offset = decodeOffset(q.cursor);
-    const orderBy: Prisma.DocumentTemplateOrderByWithRelationInput[] =
-      q.sort === 'new'
-        ? [{ created_at: 'desc' }, { id: 'desc' }]
-        : [{ download_count: 'desc' }, { created_at: 'desc' }, { id: 'desc' }];
+    // 2026-10-15: popular pages by a keyset cursor (no rows read and thrown
+    // away); an `o:N` offset cursor from an older app still works.
+    const isNew = q.sort === 'new';
+    const key = q.cursor ? decodeRankedCursor(q.cursor) : undefined;
+    const offset = key ? 0 : decodeOffset(q.cursor);
+    const orderBy: Prisma.DocumentTemplateOrderByWithRelationInput[] = isNew
+      ? [{ created_at: 'desc' }, { id: 'desc' }]
+      : [{ download_count: 'desc' }, { created_at: 'desc' }, { id: 'desc' }];
+    const after: Prisma.DocumentTemplateWhereInput | undefined = !key
+      ? undefined
+      : isNew
+        ? {
+            OR: [
+              { created_at: { lt: key.createdAt } },
+              { created_at: key.createdAt, id: { lt: key.id } },
+            ],
+          }
+        : rankedAfter('download_count', 'desc', key);
     const rows = await this.prisma.documentTemplate.findMany({
-      where,
+      where: after ? { AND: [where, after] } : where,
       orderBy,
-      skip: offset,
+      ...(offset > 0 ? { skip: offset } : {}),
       take: PAGE + 1,
       include: { file: true, practice_area: true },
     });
+    const items = rows.slice(0, PAGE);
+    const last = items[items.length - 1];
     return {
-      items: rows.slice(0, PAGE),
-      nextCursor: rows.length > PAGE ? encodeOffset(offset + PAGE) : null,
+      items,
+      nextCursor:
+        rows.length > PAGE && last
+          ? encodeRankedCursor({
+              rank: isNew ? 0 : last.download_count,
+              createdAt: last.created_at,
+              id: last.id,
+            })
+          : null,
     };
   }
 
@@ -530,10 +557,6 @@ function defaultName(title: string, mime: string): string {
 function withExt(name: string, mime: string): string {
   const base = name.replace(/\.[A-Za-z0-9]{1,5}$/, '');
   return `${base}.${EXT[mime] ?? 'pdf'}`;
-}
-
-function encodeOffset(n: number): string {
-  return Buffer.from(`o:${n}`).toString('base64url');
 }
 
 function decodeOffset(cursor?: string): number {
