@@ -229,6 +229,8 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
 
   @override
   void dispose() {
+    // The keyboard goes with the sheet (it used to hang over the page).
+    FocusManager.instance.primaryFocus?.unfocus();
     _debounce?.cancel();
     _keyboardScroll.dispose();
     _search.dispose();

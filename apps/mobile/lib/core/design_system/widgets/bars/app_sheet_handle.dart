@@ -44,7 +44,6 @@ Future<T?> showAppBottomSheet<T>({
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
-    enableDrag: !closeByHandleOnly,
     backgroundColor: colors.sheet,
     showDragHandle: false,
     shape: const RoundedRectangleBorder(

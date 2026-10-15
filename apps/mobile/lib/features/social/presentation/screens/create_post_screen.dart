@@ -110,6 +110,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   int get _maxMedia => _canAttach ? _limits.maxPhotos : 1;
   late String? _practice = widget.editing?.practice?.code;
+
+  /// «Не знаю тему» was chosen (no qualification, on purpose).
+  bool _unknownTopic = false;
   late bool _pickedNews = widget.editing?.isNews ?? widget.news;
 
   /// Owner 2026-10-06: News is off for now — every new post is a post.
@@ -247,8 +250,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (picked == null || picked.isEmpty) return;
     // ignore: unawaited_futures
     HapticFeedback.selectionClick();
-    // «Не знаю тему» comes back as '': a post without a qualification.
-    setState(() => _practice = picked.first.isEmpty ? null : picked.first);
+    // «Не знаю тему» comes back as '': a post without a qualification,
+    // and the field says so.
+    setState(() {
+      _unknownTopic = picked.first.isEmpty;
+      _practice = _unknownTopic ? null : picked.first;
+    });
   }
 
   /// Owner 2026-10-12: no photos or documents = a thread (5000 characters),
@@ -403,7 +410,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   // Owner 2026-10-01: the qualification is optional.
                   _PracticeField(
                     label: practice == null
-                        ? t.t('post.create.practicePick')
+                        ? t.t(
+                            _unknownTopic
+                                ? 'cases.create.practice.notSure'
+                                : 'post.create.practicePick',
+                          )
                         : practiceLabel(ref, practice),
                     sublabel: practice == null || isPracticeCategory(practice)
                         ? null
@@ -411,7 +422,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     icon: practiceGlyph(
                       practice == null ? null : practiceCategoryOf(practice),
                     ),
-                    empty: practice == null,
+                    empty: practice == null && !_unknownTopic,
                     error: false,
                     onTap: _pickPractice,
                   ),
