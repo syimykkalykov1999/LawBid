@@ -182,12 +182,16 @@ class BoostButton extends ConsumerWidget {
   const BoostButton({
     required this.postId,
     this.target = PromotionTarget.post,
+    this.onDark = false,
     super.key,
   });
 
   /// The post's id, or the case's with [target] = case.
   final String postId;
   final PromotionTarget target;
+
+  /// Over a video: white text on a dark plate, readable on any frame.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -230,9 +234,15 @@ class BoostButton extends ConsumerWidget {
             vertical: 2,
           ),
           decoration: BoxDecoration(
-            color: live ? colors.goldTint : null,
+            color: onDark
+                ? Colors.black54
+                : live
+                    ? colors.goldTint
+                    : null,
             borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: colors.goldStroke),
+            border: Border.all(
+              color: onDark ? Colors.white70 : colors.goldStroke,
+            ),
           ),
           // Small: as wide as its text, centred in its 28 px height.
           child: Align(
@@ -249,7 +259,7 @@ class BoostButton extends ConsumerWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: type.bodySmall.copyWith(
-                color: colors.boostInk(),
+                color: onDark ? Colors.white : colors.boostInk(),
                 fontWeight: FontWeight.w700,
                 fontSize: 13,
               ),

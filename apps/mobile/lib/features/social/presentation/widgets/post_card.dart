@@ -1883,7 +1883,7 @@ class AuthorHeader extends ConsumerWidget {
             boostPostId != null &&
             !ref.watch(isAssistantProvider)) ...[
           const SizedBox(width: 12),
-          BoostButton(postId: boostPostId!),
+          BoostButton(postId: boostPostId!, onDark: onDark),
         ],
         if (showFollow) ...[
           const SizedBox(width: 12),

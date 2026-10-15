@@ -1,16 +1,20 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
   type CaseCandidate,
   type CaseViewer,
+  CASE_WEIGHTS,
   caseScore,
 } from './cases.scoring';
 import {
   type PeopleViewer,
+  PEOPLE_WEIGHTS,
   type PersonCandidate,
   personScore,
 } from './people.scoring';
@@ -18,6 +22,7 @@ import {
   type PostAuthor,
   type PostCandidate,
   type PostKind,
+  POST_WEIGHTS,
   type PostViewer,
   hotRaw,
   postScore,
@@ -112,7 +117,22 @@ export class RecommendationsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** The admin's weights for [kind] (the built-in ones when unset). */
+  private async weights<T extends Record<string, number>>(
+    kind: 'case' | 'people' | 'post',
+    base: T,
+  ): Promise<T> {
+    const s = this.settings;
+    if (!s) return base;
+    const out: Record<string, number> = {};
+    for (const k of Object.keys(base)) {
+      out[k] = await s.number(`reco.${kind}.${k}` as AppSettingKey);
+    }
+    return out as T;
+  }
 
   // --- viewer signals ----------------------------------------------------
 
@@ -217,9 +237,10 @@ export class RecommendationsService {
         this.peopleCandidates(viewerId, { suggest: true }),
       ]);
       const now = Date.now();
+      const w = await this.weights('people', PEOPLE_WEIGHTS);
       const scored: Scored<PersonCandidate>[] = candidates.map((c) => ({
         item: c,
-        score: personScore(c, viewer, now),
+        score: personScore(c, viewer, now, w),
       }));
       return diversify(scored, {
         key: (c) => c.categories[0] ?? c.id,
@@ -246,7 +267,8 @@ export class RecommendationsService {
       this.peopleCandidates(viewerId, { ids }),
     ]);
     const now = Date.now();
-    for (const c of candidates) out.set(c.id, personScore(c, viewer, now));
+    const w = await this.weights('people', PEOPLE_WEIGHTS);
+    for (const c of candidates) out.set(c.id, personScore(c, viewer, now, w));
     return out;
   }
 
@@ -391,13 +413,21 @@ export class RecommendationsService {
           seen,
         };
         const now = Date.now();
+        const w = await this.weights('post', POST_WEIGHTS);
         const hotMax = Math.max(0, ...candidates.map((c) => hotRaw(c, now)));
         const scored: Scored<PostCandidate>[] = candidates
           // Own posts are not "discovery".
           .filter((c) => c.authorId !== viewerId)
           .map((c) => ({
             item: c,
-            score: postScore(c, authors.get(c.authorId), viewer, hotMax, now),
+            score: postScore(
+              c,
+              authors.get(c.authorId),
+              viewer,
+              hotMax,
+              now,
+              w,
+            ),
           }));
         return diversify(scored, {
           key: (c) => c.authorId,
@@ -500,6 +530,7 @@ export class RecommendationsService {
         });
         const byClient = new Map(clients.map((c) => [c.user_id, c]));
         const now = Date.now();
+        const w = await this.weights('case', CASE_WEIGHTS);
         const scored: Scored<CaseCandidate & { category: string }>[] = rows.map(
           (r) => {
             const client = byClient.get(r.client_id);
@@ -524,7 +555,7 @@ export class RecommendationsService {
               clientRatingAvg: Number(client?.rating_avg ?? 0),
               clientRatingCount: client?.rating_count ?? 0,
             };
-            return { item: c, score: caseScore(c, viewer, now) };
+            return { item: c, score: caseScore(c, viewer, now, w) };
           },
         );
         return diversify(scored, {

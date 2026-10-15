@@ -413,4 +413,56 @@ describe('Boost (e2e, owner 2026-10-15)', () => {
     expect(ext.status).toBe(201);
     expect(ext.body.data.status).toBe('pending_payment');
   });
+
+  it('the payment history says what a payment was for', async () => {
+    await setSettings({});
+    const u = await user('attorney');
+    const p = await post(u.id);
+    const pay = await prisma.payment.create({
+      data: {
+        user_id: u.id,
+        amount_cents: 1500,
+        currency: 'usd',
+        status: 'succeeded',
+        paid_at: new Date(),
+      },
+    });
+    await prisma.casePromotion.create({
+      data: {
+        target_type: 'post',
+        post_id: p.id,
+        user_id: u.id,
+        days: 3,
+        price_cents_per_day: 500,
+        total_cents: 1500,
+        status: 'active',
+        starts_at: new Date(),
+        ends_at: new Date(Date.now() + 3 * 86_400_000),
+        payment_id: pay.id,
+      },
+    });
+    const plain = await prisma.payment.create({
+      data: {
+        user_id: u.id,
+        amount_cents: 39900,
+        currency: 'usd',
+        status: 'succeeded',
+        paid_at: new Date(Date.now() - 1000),
+      },
+    });
+    const res = await api().get('/api/v1/subscriptions/payments').set(u.auth);
+    expect(res.status).toBe(200);
+    const items = res.body.data as {
+      id: string;
+      kind: string;
+      boostTarget?: string | null;
+      boostDays?: number | null;
+    }[];
+    expect(items.find((x) => x.id === pay.id)).toMatchObject({
+      kind: 'boost',
+      boostTarget: 'post',
+      boostDays: 3,
+    });
+    expect(items.find((x) => x.id === plain.id)?.kind).toBe('subscription');
+  });
 });

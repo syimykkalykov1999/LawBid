@@ -102,8 +102,9 @@ export function personScore(
   c: PersonCandidate,
   v: PeopleViewer,
   now: number,
+  weights: Record<keyof typeof PEOPLE_WEIGHTS, number> = PEOPLE_WEIGHTS,
 ): number {
-  const base = weighted(PEOPLE_WEIGHTS, personFeatures(c, v, now));
+  const base = weighted(weights, personFeatures(c, v, now));
   const day = Math.floor(now / DAY_MS);
   const jitter = (hash01(`${v.id}:${c.id}:${day}`) - 0.5) * 2 * PEOPLE_JITTER;
   return base + jitter;

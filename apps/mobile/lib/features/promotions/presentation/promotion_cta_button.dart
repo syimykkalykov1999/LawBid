@@ -57,24 +57,30 @@ class PromotionCtaButton extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final fg = onDark ? Colors.white : colors.boostInk();
     final border = onDark ? Colors.white70 : colors.goldStroke;
-    return Semantics(
-      button: true,
-      child: AppPressable(
-        onTap: () => _tap(context, ref),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 40),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: onDark ? Colors.black38 : colors.goldTint,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: border),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            t.t('boost.cta.${cta.type}'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: type.body.copyWith(color: fg, fontWeight: FontWeight.w700),
+    // Compact: as wide as its text, at the start edge.
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      widthFactor: 1,
+      heightFactor: 1,
+      child: Semantics(
+        button: true,
+        child: AppPressable(
+          onTap: () => _tap(context, ref),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 36),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: onDark ? Colors.black38 : colors.goldTint,
+              borderRadius: BorderRadius.circular(AppRadii.pill),
+              border: Border.all(color: border),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              t.t('boost.cta.${cta.type}'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.body.copyWith(color: fg, fontWeight: FontWeight.w700),
+            ),
           ),
         ),
       ),

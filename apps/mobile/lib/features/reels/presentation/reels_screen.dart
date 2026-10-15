@@ -570,6 +570,18 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Owner 2026-10-15: the advertiser's button.
+                      if (p.promotionId != null && p.promotionCta != null) ...[
+                        PromotionCtaButton(
+                          promotionId: p.promotionId!,
+                          cta: p.promotionCta!,
+                          authorId: p.author.id,
+                          onDark: true,
+                          onProfile: () =>
+                              openAuthorProfile(context, ref, p.author),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
                       // The shared author row: Follow at its right edge.
                       AuthorHeader(
                         author: p.author,
@@ -590,18 +602,6 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                                         ? t.t('post.licensedAttorney')
                                         : '@${p.author.username}'),
                       ),
-                      // Owner 2026-10-15: the advertiser's button.
-                      if (p.promotionId != null && p.promotionCta != null) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        PromotionCtaButton(
-                          promotionId: p.promotionId!,
-                          cta: p.promotionCta!,
-                          authorId: p.author.id,
-                          onDark: true,
-                          onProfile: () =>
-                              openAuthorProfile(context, ref, p.author),
-                        ),
-                      ],
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         // A short caption; the whole text is inside (the
