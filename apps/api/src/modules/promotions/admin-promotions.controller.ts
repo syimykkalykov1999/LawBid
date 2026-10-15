@@ -34,6 +34,7 @@ import {
   AdminPromotionsQueryDto,
   AdminPromotionStatsDto,
   PromotionSettingsDto,
+  UpdatePromotionSettingsDto,
 } from './promotions.dto';
 import type { PromotionSettings } from './promotions.settings';
 
@@ -80,7 +81,7 @@ export class AdminPromotionsController {
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   updatePromotionSettings(
     @CurrentAdmin() admin: AdminActor,
-    @Body() dto: PromotionSettingsDto,
+    @Body() dto: UpdatePromotionSettingsDto,
   ): Promise<PromotionSettings> {
     return this.promotions.updateSettings(admin, dto);
   }

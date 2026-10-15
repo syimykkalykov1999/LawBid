@@ -65568,7 +65568,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PromotionSettingsDto"
+                "$ref": "#/components/schemas/UpdatePromotionSettingsDto"
               }
             }
           }
@@ -117259,6 +117259,123 @@
         "required": [
           "data"
         ]
+      },
+      "UpdatePromotionSettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "priceCentsPerDay": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 1000000
+          },
+          "maxDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "maxActivePerCase": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1,
+            "default": 1
+          },
+          "postsEnabled": {
+            "type": "boolean"
+          },
+          "cpmCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Price of 1 000 impressions."
+          },
+          "minDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 1000000
+          },
+          "maxDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 10000000
+          },
+          "budgetPresetsCents": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "durationPresets": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "reelEveryN": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 15
+          },
+          "reelsEnabled": {
+            "type": "boolean"
+          },
+          "boostEnabled": {
+            "type": "boolean"
+          },
+          "attorneysEnabled": {
+            "type": "boolean"
+          },
+          "clientsEnabled": {
+            "type": "boolean"
+          },
+          "ctaEnabled": {
+            "type": "boolean"
+          },
+          "ctaTypes": {
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "more",
+                "message",
+                "profile",
+                "download",
+                "call"
+              ]
+            },
+            "type": "array"
+          },
+          "caseFeedSlots": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "frequencyCapPerDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "impressionsPerPerson": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "autoApprove": {
+            "type": "boolean"
+          },
+          "requireSubscription": {
+            "type": "boolean"
+          },
+          "feedEveryN": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 50
+          }
+        }
       },
       "AdminPromotionActionResultDto": {
         "type": "object",

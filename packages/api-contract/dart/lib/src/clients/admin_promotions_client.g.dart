@@ -128,7 +128,7 @@ class _AdminPromotionsClient implements AdminPromotionsClient {
 
   @override
   Future<PromotionSettingsEnvelope> updatePromotionSettings({
-    required PromotionSettingsDto body,
+    required UpdatePromotionSettingsDto body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
