@@ -1,3 +1,4 @@
+import { CircuitBreaker } from '../../common/resilience/resilience';
 import {
   Injectable,
   Optional,
@@ -31,6 +32,12 @@ export interface BunnyVideo {
 
 const API = 'https://video.bunnycdn.com';
 const TIMEOUT_MS = 8000;
+
+/** One per process: Bunny failing five calls in a row pauses it a minute. */
+const bunnyBreaker = new CircuitBreaker('bunny', {
+  threshold: 5,
+  openMs: 60_000,
+});
 
 /**
  * Owner 2026-10-01 — the few Bunny Stream calls we need. Keys are read on
@@ -155,6 +162,21 @@ export class BunnyStreamClient {
     allow404 = false,
   ): Promise<Response> {
     assertNotDemo('Video upload');
+    // Owner 2026-10-15: while Bunny keeps failing, calls pause for a minute
+    // instead of tying up connections (4xx answers are ours, not an outage).
+    return bunnyBreaker.run(
+      () => this.callOnce(k, method, path, body, allow404),
+      (e) => !/HTTP 4\d\d/.test(e instanceof Error ? e.message : ''),
+    );
+  }
+
+  private async callOnce(
+    k: BunnyKeys,
+    method: string,
+    path: string,
+    body: unknown,
+    allow404: boolean,
+  ): Promise<Response> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {

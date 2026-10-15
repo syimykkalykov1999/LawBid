@@ -4,6 +4,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule } from '@nestjs/swagger';
 import * as Sentry from '@sentry/nestjs';
 import express from 'express';
+import compression from 'compression';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppSettingsService } from './common/app-settings/app-settings.service';
@@ -80,6 +81,22 @@ export function configureApp(
           : false,
     }),
   );
+
+  // Owner 2026-10-15: smaller answers (JSON 5–10x), the single biggest
+  // saving on a phone's network and on traffic cost; flag HTTP_COMPRESSION.
+  if (config.get<boolean>('HTTP_COMPRESSION', true)) {
+    app.use(
+      compression({
+        threshold: 1024,
+        filter: (req, res) =>
+          req.headers['x-no-compression'] === undefined &&
+          !String(res.getHeader('Content-Type') ?? '').startsWith(
+            'text/event-stream',
+          ) &&
+          compression.filter(req, res),
+      }),
+    );
+  }
 
   // docs/06 §4.1 (stage 6.1): CORS for the admin panel (`ADMIN_ORIGINS`,
   // with credentials) and the future client web app (`web.allowed_origins`
