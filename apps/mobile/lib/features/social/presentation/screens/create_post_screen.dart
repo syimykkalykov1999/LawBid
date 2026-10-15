@@ -669,20 +669,20 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         ),
                       ),
                     const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      t.t(
-                        _video != null
-                            ? 'post.video.reelHint'
-                            : _photos.length > 1
-                                ? 'post.create.reorderHint'
-                                : _photos.isNotEmpty
-                                    ? 'post.media.postHint'
-                                    : (video
-                                        ? 'post.media.briefHint'
-                                        : 'post.create.photosHint'),
+                    if (_video != null || _photos.isNotEmpty || !video)
+                      Text(
+                        t.t(
+                          _video != null
+                              ? 'post.video.reelHint'
+                              : _photos.length > 1
+                                  ? 'post.create.reorderHint'
+                                  : _photos.isNotEmpty
+                                      ? 'post.media.postHint'
+                                      : 'post.create.photosHint',
+                        ),
+                        style:
+                            type.caption.copyWith(color: colors.textSecondary),
                       ),
-                      style: type.caption.copyWith(color: colors.textSecondary),
-                    ),
                     if (ref.watch(postAttachmentsAllowedProvider).value ??
                         false) ...[
                       const SizedBox(height: AppSpacing.lg),
@@ -755,7 +755,12 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     controller: _text,
                     maxChars: _maxChars,
                     limitHint: _hasFiles ? t.t('post.create.limitHint') : null,
-                    hint: t.t('post.create.oneFieldHint'),
+                    hint: _video != null || _hasFiles
+                        ? t.t('post.create.hintCaption')
+                        : t.t(
+                            'post.create.hintBrief',
+                            {'max': '$kThreadMaxChars'},
+                          ),
                   ),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: _text,

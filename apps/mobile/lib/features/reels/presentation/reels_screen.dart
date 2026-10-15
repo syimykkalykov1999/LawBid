@@ -339,7 +339,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
     // none the strip goes and the author, text and rail drop down.
     final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
-    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
+    final moreSpace = (more ? kReelMoreButtonSpace : AppSpacing.md) +
+        (widget.embedded ? kReelNavClearance : 0);
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
       if (e != null && context.mounted) {
@@ -621,7 +622,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           PositionedDirectional(
             start: AppSpacing.lg,
             end: AppSpacing.lg,
-            bottom: (widget.embedded ? AppSpacing.xs : AppSpacing.md) +
+            bottom: (widget.embedded ? kReelNavClearance : AppSpacing.md) +
                 MediaQuery.paddingOf(context).bottom,
             child: ReelMoreButton(
               label: t.t(reelMoreLabelKey(p)),
@@ -691,20 +692,22 @@ class ReelFollowButton extends ConsumerWidget {
                     size: 14,
                     color: Colors.white,
                   ),
-                  const SizedBox(width: 4),
                 ],
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.caption.copyWith(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                // Owner 2026-10-15: once followed, only the check stays
+                // (Instagram) so the author's name keeps its room.
+                if (!following)
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -713,6 +716,11 @@ class ReelFollowButton extends ConsumerWidget {
     );
   }
 }
+
+/// Owner 2026-10-15: in the feed's Reels tab the video runs under the
+/// floating nav bar (46 dp plus its margins); the caption, the icon column
+/// and the «more» button stand above it.
+const kReelNavClearance = 46.0 + AppSpacing.xs + AppSpacing.md;
 
 /// Height of the pinned button plus its gap to the bottom.
 const kReelMoreButtonSpace = 44.0 + AppSpacing.md;

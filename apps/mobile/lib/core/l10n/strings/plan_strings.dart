@@ -147,6 +147,9 @@ const planRu = <String, String>{
   'mine.next.dispute': 'Идёт спор: ответьте в чате или в поддержке',
   'mine.next.agreePrice': 'Договоритесь о цене',
   'mine.price.negotiable': 'Договорная',
+  'post.create.hintBrief':
+      'Первая строка станет заголовком брифа. Пишите подробно — до {max} знаков',
+  'post.create.hintCaption': 'Подпись к посту…',
   'post.src.gallery': 'Галерея',
   'post.src.camera': 'Камера',
   'post.src.cameraPhoto': 'Снять фото',
@@ -312,6 +315,9 @@ const planEn = <String, String>{
   'mine.next.dispute': 'Dispute in progress: reply in chat or support',
   'mine.next.agreePrice': 'Agree on a price',
   'mine.price.negotiable': 'Negotiable',
+  'post.create.hintBrief':
+      "The first line becomes the brief's title. Write in detail, up to {max} characters",
+  'post.create.hintCaption': 'Write a caption for your post…',
   'post.src.gallery': 'Gallery',
   'post.src.camera': 'Camera',
   'post.src.cameraPhoto': 'Take a photo',
