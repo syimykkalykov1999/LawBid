@@ -20,3 +20,5 @@ b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-re
 
 # Owner 2026-10-14: an i18n key of a practice area in an e2e test, not a secret.
 e0ca2b9e1318d1417c5e4aaace2b297b0d15148f:apps/api/test/owner-firms.e2e-spec.ts:generic-api-key:210
+# i18nKey field name, not a secret
+ac627bb4e800fc525c963e5bcd26efd5233e9c0d:apps/mobile/lib/features/cases/presentation/widgets/case_wizard_steps.dart:generic-api-key:113
