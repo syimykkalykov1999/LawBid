@@ -91,6 +91,10 @@ final _idPattern = RegExp(r'^[A-Za-z0-9-]{1,64}$');
 /// docs/01_FOUNDATION_AUTH.md §12: "3-30 символов, латиница, цифры, `_` и `.`".
 final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
 
+/// A dev web server (http://localhost:…) — the only plain http link taken.
+bool _isLoopback(String host) =>
+    host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
+
 /// Parses [uri] into a [DeepLink], or null when it isn't one of ours.
 ///
 /// Accepted forms (both route identically):
@@ -106,7 +110,7 @@ DeepLink? parseDeepLink(Uri uri, {required String host}) {
       if (uri.host.isNotEmpty) uri.host.toLowerCase(),
       ...uri.pathSegments,
     ];
-  } else if (scheme == 'https') {
+  } else if (scheme == 'https' || (scheme == 'http' && _isLoopback(uri.host))) {
     final linkHost = uri.host.toLowerCase();
     final expected = host.toLowerCase();
     if (linkHost != expected && linkHost != 'www.$expected') return null;
