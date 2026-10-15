@@ -17,6 +17,11 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import {
+  decodeRankedCursor,
+  encodeRankedCursor,
+  rankedAfter,
+} from '../../common/pagination/ranked-cursor';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -282,12 +287,18 @@ export class ReviewsService {
     // Owner 2026-10-01 (Google-style): rating / helpful orders page by
     // offset; date orders keep the keyset cursor.
     if (sort !== 'newest' && sort !== 'oldest') {
-      const offset = query.cursor ? Number(query.cursor) || 0 : 0;
+      // 2026-10-15: a keyset cursor (no rows read and thrown away); a plain
+      // number from an older app still means an offset.
+      const key = query.cursor ? decodeRankedCursor(query.cursor) : undefined;
+      const offset = query.cursor && !key ? Number(query.cursor) || 0 : 0;
+      const field = sort === 'helpful' ? 'helpful_count' : 'rating';
+      const dir = sort === 'lowest' ? 'asc' : 'desc';
       const rows = await this.prisma.review.findMany({
         where: {
           attorney_id: attorneyId,
           status: 'published',
           ...(query.rating !== undefined ? { rating: query.rating } : {}),
+          ...(key ? rankedAfter(field, dir, key) : {}),
         },
         orderBy:
           sort === 'highest'
@@ -299,14 +310,23 @@ export class ReviewsService {
                   { created_at: 'desc' },
                   { id: 'desc' },
                 ],
-        skip: offset,
+        ...(offset > 0 ? { skip: offset } : {}),
         take: limit + 1,
         include: { client: CLIENT_NAME },
       });
       const page = rows.slice(0, limit);
+      const last = page[page.length - 1];
       return {
         items: await this.withViewer(page, viewerId),
-        nextCursor: rows.length > limit ? String(offset + limit) : null,
+        nextCursor:
+          rows.length > limit && last
+            ? encodeRankedCursor({
+                rank:
+                  field === 'helpful_count' ? last.helpful_count : last.rating,
+                createdAt: last.created_at,
+                id: last.id,
+              })
+            : null,
       };
     }
     const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
