@@ -68,6 +68,11 @@ describe('PostAttachmentsPolicy', () => {
     );
   });
 
+  it('off for all: files already attached are hidden too', async () => {
+    const p = make({ mode: 'off_for_all' });
+    expect((await p.visibleFor(['a', 'b'])).size).toBe(0);
+  });
+
   it('on for all: everybody', async () => {
     expect(await make({ mode: 'on_for_all' }).canAttach('u')).toBe(true);
   });
