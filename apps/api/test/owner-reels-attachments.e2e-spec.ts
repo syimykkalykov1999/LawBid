@@ -370,4 +370,18 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
       expect(r.status).toBe(422);
     }
   });
+
+  it('text limits: 2200 with files, 3000 for a text-only brief (owner 2026-10-15)', async () => {
+    const att = await attorney();
+    const photo = await file(att.id, 'post_image', { mime: 'image/jpeg' });
+    const withPhoto = await post(att.auth, {
+      body: 'x'.repeat(2201),
+      mediaFileIds: [photo],
+    });
+    expect(withPhoto.status).toBe(400);
+    const brief = await post(att.auth, { body: 'y'.repeat(3000) });
+    expect(brief.status).toBe(201);
+    const tooLong = await post(att.auth, { body: 'y'.repeat(3001) });
+    expect(tooLong.status).toBe(400);
+  });
 });

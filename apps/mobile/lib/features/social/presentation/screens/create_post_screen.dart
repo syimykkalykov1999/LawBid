@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -412,9 +413,20 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   /// Owner 2026-10-12: no photos or documents = a thread (5000 characters),
   /// with files a post (2200); the counter under the field follows.
-  bool get _hasFiles => _photos.isNotEmpty || _docs.items.isNotEmpty;
+  bool get _hasFiles =>
+      _photos.isNotEmpty || _docs.items.isNotEmpty || _video != null;
 
-  int get _maxChars => _hasFiles ? kPostMaxChars : kThreadMaxChars;
+  /// Owner 2026-10-15: 2200 with photos / video / files (Instagram), 3000
+  /// for a text-only brief (LinkedIn); both from the admin panel.
+  int get _briefMax => ref
+      .read(featureFlagsControllerProvider)
+      .configInt('post.max_chars_brief', kThreadMaxChars);
+
+  int get _maxChars => _hasFiles
+      ? ref
+          .read(featureFlagsControllerProvider)
+          .configInt('post.max_chars_media', kPostMaxChars)
+      : _briefMax;
 
   bool get _ready =>
       _text.text.characters.length <= _maxChars &&
@@ -775,7 +787,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         ? t.t('post.create.hintCaption')
                         : t.t(
                             'post.create.hintBrief',
-                            {'max': '$kThreadMaxChars'},
+                            {'max': '$_briefMax'},
                           ),
                   ),
                   ValueListenableBuilder<TextEditingValue>(

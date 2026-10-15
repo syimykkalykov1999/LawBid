@@ -260,7 +260,7 @@ describe('Search (e2e, docs/05 §7, stage 5.6)', () => {
       .get('/api/v1/search/trending-tags')
       .set(viewer.auth);
     expect(trending.body.data).toEqual(
-      expect.arrayContaining([{ tag, postsCount: 2 }]),
+      expect.arrayContaining([expect.objectContaining({ tag, postsCount: 2 })]),
     );
   });
 

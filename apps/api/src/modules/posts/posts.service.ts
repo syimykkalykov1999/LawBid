@@ -1,3 +1,4 @@
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   BadRequestException,
   ConflictException,
@@ -31,7 +32,6 @@ import {
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
 import {
-  POST_BODY_MAX_WITH_FILES,
   POSTS_PAGE_DEFAULT,
   type CreatePostDto,
   type UpdatePostDto,
@@ -89,6 +89,7 @@ export class PostsService {
     private readonly videos: VideosService,
     private readonly notifications: NotificationsService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
+    private readonly settings: AppSettingsService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
@@ -98,6 +99,13 @@ export class PostsService {
    * post (older apps and approved assistant requests keep working). */
   async newsEnabled(): Promise<boolean> {
     return (await this.flags?.isEnabled(NEWS_FLAG, false)) ?? false;
+  }
+
+  /** The text limit of a post with files, or of a text-only brief. */
+  private async maxChars(withFiles: boolean): Promise<number> {
+    return this.settings.number(
+      withFiles ? 'post.max_chars_media' : 'post.max_chars_brief',
+    );
   }
 
   /** POST /posts (§3.1). */
@@ -117,17 +125,19 @@ export class PostsService {
     const practice = dto.practiceCode
       ? await this.practiceByCode(dto.practiceCode)
       : null;
-    // Owner 2026-10-12: only a text-only thread may be longer than 2200.
-    if (
-      dto.body.length > POST_BODY_MAX_WITH_FILES &&
-      ((dto.mediaFileIds?.length ?? 0) > 0 ||
-        (dto.attachments?.length ?? 0) > 0 ||
-        dto.videoAssetId)
-    ) {
+    // Owner 2026-10-15: a post with photos, a video or documents is up to
+    // `post.max_chars_media` (2200); a text-only brief up to
+    // `post.max_chars_brief` (3000). Both are set in the admin panel.
+    const hasFiles =
+      (dto.mediaFileIds?.length ?? 0) > 0 ||
+      (dto.attachments?.length ?? 0) > 0 ||
+      !!dto.videoAssetId;
+    const maxChars = await this.maxChars(hasFiles);
+    if (dto.body.length > maxChars) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
-        message: `A post with files is up to ${POST_BODY_MAX_WITH_FILES} characters.`,
-        details: { field: 'body' },
+        message: `A ${hasFiles ? 'post with files' : 'brief'} is up to ${maxChars} characters.`,
+        details: { field: 'body', maxChars },
       });
     }
     // Owner 2026-10-13: documents and extra photos need the right to
@@ -440,18 +450,20 @@ export class PostsService {
     });
     if (!current) throw postNotFound();
     const body = dto.body;
-    if (body.length > POST_BODY_MAX_WITH_FILES) {
-      const files =
-        (await this.prisma.postMedia.count({ where: { post_id: id } })) +
-        (await this.prisma.postAttachment.count({ where: { post_id: id } })) +
-        (current.video_asset_id ? 1 : 0);
-      if (files > 0) {
-        throw new BadRequestException({
-          code: ErrorCode.VALIDATION_ERROR,
-          message: `A post with files is up to ${POST_BODY_MAX_WITH_FILES} characters.`,
-          details: { field: 'body' },
-        });
-      }
+    // Older posts longer than today's limit are never cut: only an edit
+    // that makes the text longer than both the limit and the old text is
+    // refused.
+    const files =
+      (await this.prisma.postMedia.count({ where: { post_id: id } })) +
+      (await this.prisma.postAttachment.count({ where: { post_id: id } })) +
+      (current.video_asset_id ? 1 : 0);
+    const maxChars = await this.maxChars(files > 0);
+    if (body.length > maxChars && body.length > current.body.length) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `A ${files > 0 ? 'post with files' : 'brief'} is up to ${maxChars} characters.`,
+        details: { field: 'body', maxChars },
+      });
     }
     const title = dto.title ?? current.title;
     const practice = dto.practiceCode

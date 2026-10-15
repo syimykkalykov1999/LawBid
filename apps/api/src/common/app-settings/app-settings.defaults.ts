@@ -101,6 +101,11 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
   'video.max_source_duration_sec': 900,
+  // Owner 2026-10-15: text limits like other platforms — a post with
+  // photos / video / documents is up to 2200 characters (Instagram), a
+  // text-only brief up to 3000 (LinkedIn). Older posts are never cut.
+  'post.max_chars_media': 2200,
+  'post.max_chars_brief': 3000,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by
   // their own size) are shrunk on the phone before upload — longest side,
   // JPEG quality — no visible loss, small files. Videos are re-encoded by
