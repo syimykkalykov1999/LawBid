@@ -1,3 +1,4 @@
+import { AnalyticsService } from '../../analytics/analytics.service';
 import {
   Body,
   Controller,
@@ -88,6 +89,7 @@ export class UsersController {
     private readonly onboarding: OnboardingService,
     private readonly reauth: ReauthVerifier,
     private readonly identifiers: AccountIdentifiersService,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   // --- Onboarding (docs/01_FOUNDATION_AUTH.md §11, stage 1.7) ---
@@ -96,6 +98,8 @@ export class UsersController {
   @ApiEnvelopeResponse(MeDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
   async me(@CurrentUser() user: RequestUser): Promise<MeDto> {
+    // Owner 2026-10-15: the app was opened today (DAU/MAU).
+    this.analytics.touch(user.sub);
     return this.onboarding.getMe(user.sub);
   }
 

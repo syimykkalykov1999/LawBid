@@ -207,6 +207,7 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Деньги',
     icon: 'wallet',
     items: [
+      { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'money', hint: 'кто заходит, воронка, отток, покупки' },
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'money', hint: 'стоимость тарифов и галочки' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'money', hint: 'планы подписок и их возможности' },
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'money', hint: 'тарифы адвокатов' },
@@ -249,6 +250,7 @@ export const GROUPS: readonly SectionGroup[] = [
     icon: 'sliders-horizontal',
     items: [
       { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
+      { href: '/crashes', label: 'Вылеты', icon: 'bug', area: 'settings', hint: 'ошибки приложения: где, на каких телефонах' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', hint: 'флаги, скрытые функции' },
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'settings', hint: 'лимиты, версии приложения' },
       { href: '/storage', label: 'Хранилище', icon: 'hard-drives', area: 'settings', hint: 'место, очистка, лимиты' },

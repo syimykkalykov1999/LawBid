@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/deeplinks/deep_link_routes.dart';
+import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
@@ -89,15 +90,18 @@ GoRouter appRouter(Ref ref) {
     initialLocation: AppRoutes.splash,
     observers: [routeObserver],
     refreshListenable: refresh,
-    redirect: (context, state) => AppRouterGuard.redirect(
-      state.matchedLocation,
-      GuardSnapshot(
-        startup: ref.read(appStartupProvider),
-        hasSession: ref.read(sessionControllerProvider) != null,
-        user: ref.read(currentUserControllerProvider),
-        assistant: _assistantGate(ref),
-      ),
-    ),
+    redirect: (context, state) {
+      CrashReporter.setRoute(state.matchedLocation);
+      return AppRouterGuard.redirect(
+        state.matchedLocation,
+        GuardSnapshot(
+          startup: ref.read(appStartupProvider),
+          hasSession: ref.read(sessionControllerProvider) != null,
+          user: ref.read(currentUserControllerProvider),
+          assistant: _assistantGate(ref),
+        ),
+      );
+    },
     routes: [
       GoRoute(
         path: AppRoutes.splash,

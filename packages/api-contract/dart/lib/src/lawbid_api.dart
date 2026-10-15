@@ -36,6 +36,7 @@ import 'clients/invites_client.dart';
 import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/users_client.dart';
+import 'clients/admin_analytics_client.dart';
 import 'clients/practice_areas_client.dart';
 import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
@@ -46,6 +47,8 @@ import 'clients/admin_media_client.dart';
 import 'clients/admin_search_client.dart';
 import 'clients/search_client.dart';
 import 'clients/follows_client.dart';
+import 'clients/crash_reports_client.dart';
+import 'clients/admin_crashes_client.dart';
 import 'clients/document_templates_client.dart';
 import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
@@ -142,6 +145,7 @@ class LawbidApi {
   AdminContactIssuesClient? _adminContactIssues;
   AdminCaseDisputesClient? _adminCaseDisputes;
   UsersClient? _users;
+  AdminAnalyticsClient? _adminAnalytics;
   PracticeAreasClient? _practiceAreas;
   AttorneysClient? _attorneys;
   ProfilesClient? _profiles;
@@ -152,6 +156,8 @@ class LawbidApi {
   AdminSearchClient? _adminSearch;
   SearchClient? _search;
   FollowsClient? _follows;
+  CrashReportsClient? _crashReports;
+  AdminCrashesClient? _adminCrashes;
   DocumentTemplatesClient? _documentTemplates;
   AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
@@ -290,6 +296,9 @@ class LawbidApi {
 
   UsersClient get users => _users ??= UsersClient(_dio, baseUrl: _baseUrl);
 
+  AdminAnalyticsClient get adminAnalytics =>
+      _adminAnalytics ??= AdminAnalyticsClient(_dio, baseUrl: _baseUrl);
+
   PracticeAreasClient get practiceAreas =>
       _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);
 
@@ -317,6 +326,12 @@ class LawbidApi {
 
   FollowsClient get follows =>
       _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
+
+  CrashReportsClient get crashReports =>
+      _crashReports ??= CrashReportsClient(_dio, baseUrl: _baseUrl);
+
+  AdminCrashesClient get adminCrashes =>
+      _adminCrashes ??= AdminCrashesClient(_dio, baseUrl: _baseUrl);
 
   DocumentTemplatesClient get documentTemplates =>
       _documentTemplates ??= DocumentTemplatesClient(_dio, baseUrl: _baseUrl);

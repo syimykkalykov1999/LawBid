@@ -36,6 +36,19 @@ variable "s3_cors_allowed_origins" {
   default     = ["https://syimykkalykov1999.github.io"]
   description = "Web origins allowed to upload to / read from the S3 buckets directly (presigned POST / signed GET)."
 }
+variable "create_database" {
+  type        = bool
+  default     = false
+  description = "Create the RDS PostgreSQL with daily backups (modules/postgres). Off: the launch database is any managed PostgreSQL (infra/README.md)."
+}
+variable "database_instance_class" {
+  type    = string
+  default = "db.t4g.medium"
+}
+variable "database_backup_retention_days" {
+  type    = number
+  default = 14
+}
 variable "domain" { type = string }
 variable "api_host" { type = string }
 variable "admin_host" { type = string }
@@ -268,6 +281,19 @@ module "redis" {
   tags                       = local.tags
 }
 
+module "postgres" {
+  count                      = var.create_database ? 1 : 0
+  source                     = "../postgres"
+  name                       = local.name
+  vpc_id                     = module.network.vpc_id
+  subnet_ids                 = module.network.private_subnet_ids
+  allowed_security_group_ids = [aws_security_group.tasks.id]
+  kms_key_arn                = module.kms.key_arn
+  instance_class             = var.database_instance_class
+  backup_retention_days      = var.database_backup_retention_days
+  tags                       = local.tags
+}
+
 module "secrets" {
   source      = "../secrets"
   name        = local.name
@@ -450,5 +476,7 @@ output "ses_dns" {
     dkim_tokens        = module.ses.dkim_tokens
   }
 }
+output "database_endpoint" { value = one(module.postgres[*].endpoint) }
+output "database_instance_id" { value = one(module.postgres[*].instance_id) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
 output "budget_name" { value = module.budget.budget_name }

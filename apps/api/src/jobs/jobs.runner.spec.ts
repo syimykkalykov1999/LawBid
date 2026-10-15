@@ -225,7 +225,7 @@ describe('JobsRunner', () => {
     // + daily treasury.daily (profit and reserve).
     // Owner 2026-10-06: + daily country-partners.sweep.
     // Owner 2026-10-15: + nightly search.learn and search.tag-topics (5 min).
-    expect(upserts).toHaveLength(49);
+    expect(upserts).toHaveLength(50);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

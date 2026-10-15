@@ -33,6 +33,7 @@ import {
 import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
+import { CrashReportsService } from '../modules/crash-reports/crash-reports.service';
 import { SearchLogService } from '../modules/search/search-log.service';
 import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
@@ -120,6 +121,7 @@ export class JobsModule {
         TrendingTagsJob,
         SearchLogService,
         SearchSynonymsService,
+        CrashReportsService,
         NotificationsRetentionJob,
         OpsMetricsJob,
         OpsGuardJob,
