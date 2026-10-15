@@ -64,6 +64,10 @@ abstract final class AppSizes {
   /// The topic chips row under the feed header (owner 2026-10-15: the first
   /// card is sized with it on screen, so its icons clear the nav bar).
   static const double feedFilterRow = 40;
+
+  /// Owner 2026-10-15: what the floating nav bar still takes of a card's
+  /// last lines (its caption) beyond the bottom inset.
+  static const double feedNavSlack = 50;
   static const double feedWordmark = 26;
 
   /// Segmented tabs (owner 2026-09-29): row height.

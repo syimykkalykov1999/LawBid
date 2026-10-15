@@ -159,6 +159,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
                   topInset -
                   AppSizes.feedHeader -
                   AppSizes.feedFilterRow -
+                  AppSizes.feedNavSlack -
                   bottomInset,
             );
             return NotificationListener<ScrollNotification>(
