@@ -31,6 +31,9 @@ const bool kAdaptiveShell =
 @visibleForTesting
 bool? adaptiveShellOverride;
 
+/// Whether the adaptive layout is on (tests may force it).
+bool get adaptiveShellOn => adaptiveShellOverride ?? kAdaptiveShell;
+
 /// The layout for a window [width] wide.
 ShellLayout shellLayoutFor(double width, {bool adaptive = kAdaptiveShell}) {
   if (!adaptive || width < kShellRailMinWidth) return ShellLayout.bottom;
@@ -51,7 +54,7 @@ ShellLayout shellLayoutFor(double width, {bool adaptive = kAdaptiveShell}) {
 }) {
   final layout = shellLayoutFor(
     windowWidth,
-    adaptive: adaptive ?? adaptiveShellOverride ?? kAdaptiveShell,
+    adaptive: adaptive ?? adaptiveShellOn,
   );
   // Sign-in and onboarding: no side menu, a narrow column in the middle.
   if (auth && layout != ShellLayout.bottom) {

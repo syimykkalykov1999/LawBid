@@ -50,8 +50,7 @@ class WebPageFrame extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final width = MediaQuery.sizeOf(context).width;
-    final layout = shellLayoutFor(width,
-        adaptive: adaptiveShellOverride ?? kAdaptiveShell);
+    final layout = shellLayoutFor(width, adaptive: adaptiveShellOn);
     if (layout == ShellLayout.bottom) return child;
     if (isAuthLocation(location)) {
       return ContentColumn(maxWidth: kAuthColumnMaxWidth, child: child);
