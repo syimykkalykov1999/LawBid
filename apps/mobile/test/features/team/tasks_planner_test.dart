@@ -301,8 +301,7 @@ void main() {
         makeTask('t', dueAt: today.add(const Duration(hours: 20))),
         makeTask('n'),
       ];
-      await pump(tester, const TasksTab());
-      await tester.tap(find.byKey(const ValueKey('tasks-view-today')));
+      await pump(tester, const TasksTab(initialView: TasksView.today));
       await tester.pumpAndSettle();
       // Owner 2026-10-15: «Today» is the overdue and today's groups.
       expect(find.text('OVERDUE'), findsOneWidget);

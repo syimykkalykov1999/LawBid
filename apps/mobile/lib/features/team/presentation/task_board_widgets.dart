@@ -364,7 +364,7 @@ class TaskRingCard extends StatelessWidget {
                 context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             opacity: muted ? 0.72 : 1,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+              padding: const EdgeInsets.fromLTRB(10, 8, 2, 8),
               decoration: BoxDecoration(
                 color: picked ? colors.goldTint : colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.card),
@@ -383,17 +383,17 @@ class TaskRingCard extends StatelessWidget {
                   TaskRing(
                     progress: taskProgress(task),
                     color: ringColor,
-                    size: 46,
+                    size: 40,
                     stroke: 3,
                     child: picked
                         ? AppIcon(AppIcons.checkRounded, color: colors.gold)
                         : AppIcon(
                             taskKindIcon(task.kind),
-                            size: 20,
+                            size: 18,
                             color: iconColor,
                           ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -684,7 +684,7 @@ class TasksHero extends StatelessWidget {
         t.t('tasks.hero.free'),
     ].join('. ');
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(AppRadii.card + 2),
@@ -695,8 +695,8 @@ class TasksHero extends StatelessWidget {
           TaskRing(
             progress: total == 0 ? 0 : doneToday / total,
             color: accent,
-            size: 64,
-            stroke: 6,
+            size: 52,
+            stroke: 5,
             child: Text(
               '$doneToday/$total',
               maxLines: 1,
@@ -785,7 +785,7 @@ class _WeekBar extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            height: 22,
+            height: 16,
             decoration: BoxDecoration(
               color: colors.chip,
               borderRadius: BorderRadius.circular(6),
@@ -846,8 +846,8 @@ class TaskCaseRing extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          width: 128,
-          padding: const EdgeInsets.all(8),
+          width: 116,
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(12),
@@ -861,7 +861,7 @@ class TaskCaseRing extends StatelessWidget {
               TaskRing(
                 progress: progress,
                 color: accent,
-                size: 32,
+                size: 28,
                 stroke: 3,
                 child: Text(
                   '${(progress * 100).round()}',
@@ -886,6 +886,61 @@ class TaskCaseRing extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-15: a compact chip (30 dp, 13 sp) for the views and the
+/// slices of the board; the chosen one is filled with the text colour.
+class MiniChip extends StatelessWidget {
+  const MiniChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final bg = selected ? colors.text : colors.chip;
+    final fg = selected
+        ? onPracticeAccent(colors.text)
+        : readableOn(colors.textSecondary, practiceCardBase(colors));
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          height: 30,
+          constraints: const BoxConstraints(minWidth: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Center(
+            widthFactor: 1,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.bodySmall.copyWith(
+                color: fg,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ),

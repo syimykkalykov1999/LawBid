@@ -628,32 +628,6 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     }
   }
 
-  Future<void> _openFilter(List<TaskItem> all) async {
-    final t = ref.read(translatorProvider);
-    final cases = <String, String>{
-      for (final x in all)
-        if (x.caseId != null) x.caseId!: x.caseTitle ?? '',
-    };
-    final team = <String, String>{
-      for (final x in all)
-        if (x.assigneeMembershipId != null)
-          x.assigneeMembershipId!: x.assigneeName ?? '',
-    };
-    final next = await showAppBottomSheet<TaskFilter>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _FilterSheet(
-        t: t,
-        initial: _filter,
-        cases: cases,
-        team: team,
-        assistant: ref.read(isAssistantProvider),
-        archive: _view == TasksView.archive,
-      ),
-    );
-    if (next != null && mounted) setState(() => _filter = next);
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -664,7 +638,6 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     final all =
         ref.watch(mergedTasksProvider(_key)).value ?? const <TaskItem>[];
     final views = [
-      (TasksView.today, 'today', t.t('tasks.view.today')),
       (TasksView.all, 'active', t.t('tasks.view.active')),
       (TasksView.archive, 'done', t.t('tasks.view.done')),
       if (assistant) (TasksView.results, 'results', t.t('tasks.results')),
@@ -688,20 +661,17 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         // filter under them. In long languages the words shrink or end
         // with "…"; nothing slides or wraps.
         : Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               if (widget.showViews)
                 Expanded(
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       for (final (i, (v, key, label)) in views.indexed) ...[
-                        if (i > 0) const SizedBox(width: AppSpacing.sm),
+                        if (i > 0) const SizedBox(width: AppSpacing.xs),
                         Flexible(
-                          child: AppChip(
+                          child: MiniChip(
                             key: ValueKey('tasks-view-$key'),
                             label: label,
-                            fitLabel: true,
                             selected: _view == v,
                             onTap: () => setState(() {
                               _view = v;
@@ -712,16 +682,9 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                       ],
                     ],
                   ),
-                ),
-              // Owner 2026-10-15: the filter is an icon beside the views (gold
-              // while something is filtered), not a row of its own.
-              if (_view != TasksView.results)
-                _FilterButton(
-                  t: t,
-                  filter: _filter,
-                  onOpen: () => _openFilter(all),
-                  onClear: () => setState(() => _filter = const TaskFilter()),
-                ),
+                )
+              else
+                const Spacer(),
               if (canAdd &&
                   _view != TasksView.archive &&
                   _view != TasksView.results) ...[
@@ -1236,27 +1199,22 @@ class _ScopeChips extends StatelessWidget {
     ];
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final (i, (scope, label)) in items.indexed) ...[
-              if (i > 0) const SizedBox(width: AppSpacing.xs),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width * 0.6,
-                ),
-                child: AppChip(
-                  key: ValueKey('tasks-scope-${scope.name}'),
-                  label: label,
-                  fitLabel: true,
-                  selected: filter.scope == scope,
-                  onTap: () => onFilter(filter.copyWith(scope: scope)),
-                ),
+      // Owner 2026-10-15: all the chips in one row — they shrink (with an
+      // ellipsis) before they ever scroll or stretch.
+      child: Row(
+        children: [
+          for (final (i, (scope, label)) in items.indexed) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.xs),
+            Flexible(
+              child: MiniChip(
+                key: ValueKey('tasks-scope-${scope.name}'),
+                label: label,
+                selected: filter.scope == scope,
+                onTap: () => onFilter(filter.copyWith(scope: scope)),
               ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -1580,215 +1538,6 @@ class _ArchiveNote extends StatelessWidget {
                 text,
                 style: typography.caption.copyWith(color: colors.text),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Owner 2026-10-15: the filter, an icon (gold when something is filtered).
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({
-    required this.t,
-    required this.filter,
-    required this.onOpen,
-    required this.onClear,
-  });
-
-  final Translator t;
-  final TaskFilter filter;
-  final VoidCallback onOpen;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final active = !filter.sheetIsEmpty;
-    final parts = [
-      if (filter.period != TaskPeriod.any)
-        t.t('tasks.filter.period.${filter.period.name}'),
-      if (filter.caseId != null) t.t('tasks.filter.byCase'),
-      if (filter.assignee != null) t.t('tasks.filter.byAssignee'),
-      if (filter.sort != TaskSort.time)
-        t.t('tasks.filter.sort.${filter.sort.name}'),
-    ];
-    return Badge(
-      isLabelVisible: active,
-      smallSize: 8,
-      backgroundColor: colors.gold,
-      child: AppIconButton(
-        key: const ValueKey('tasks-filter'),
-        icon: AppIcon(
-          AppIcons.tuneRounded,
-          color: active ? colors.goldDark : colors.text,
-        ),
-        semanticLabel: active
-            ? '${t.t('tasks.filter.title')}: ${parts.join(' · ')}'
-            : t.t('tasks.filter.title'),
-        onPressed: onOpen,
-      ),
-    );
-  }
-}
-
-class _FilterSheet extends StatefulWidget {
-  const _FilterSheet({
-    required this.t,
-    required this.initial,
-    required this.cases,
-    required this.team,
-    required this.assistant,
-    required this.archive,
-  });
-
-  final Translator t;
-  final TaskFilter initial;
-  final Map<String, String> cases;
-  final Map<String, String> team;
-  final bool assistant;
-  final bool archive;
-
-  @override
-  State<_FilterSheet> createState() => _FilterSheetState();
-}
-
-class _FilterSheetState extends State<_FilterSheet> {
-  late TaskFilter _f = widget.initial;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = widget.t;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget head(String key) => Padding(
-          padding: const EdgeInsets.only(
-            top: AppSpacing.md,
-            bottom: AppSpacing.sm,
-          ),
-          child: Text(
-            t.t(key),
-            style: typography.body.copyWith(
-              color: colors.text,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        );
-    Widget chips<T>(
-      List<(T, String)> items,
-      T selected,
-      void Function(T) onPick,
-      String keyPrefix,
-    ) =>
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          children: [
-            for (final (v, label) in items)
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width - 48,
-                ),
-                child: AppChip(
-                  key: ValueKey('$keyPrefix-$v'),
-                  label: label,
-                  fitLabel: true,
-                  selected: v == selected,
-                  onTap: () => setState(() => onPick(v)),
-                ),
-              ),
-          ],
-        );
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
-        ),
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            0,
-            AppSpacing.screenSide,
-            AppSpacing.lg,
-          ),
-          children: [
-            Text(
-              t.t('tasks.filter.title'),
-              style: typography.titleMedium.copyWith(color: colors.text),
-            ),
-            if (!widget.archive) ...[
-              head('tasks.filter.period'),
-              chips(
-                [
-                  for (final p in TaskPeriod.values)
-                    (p, t.t('tasks.filter.period.${p.name}')),
-                ],
-                _f.period,
-                (v) => _f = _f.copyWith(period: v),
-                'filter-period',
-              ),
-            ],
-            if (widget.cases.isNotEmpty) ...[
-              head('tasks.filter.case'),
-              chips<String?>(
-                [
-                  (null, t.t('tasks.filter.all')),
-                  for (final e in widget.cases.entries)
-                    (e.key, e.value.isEmpty ? '—' : e.value),
-                ],
-                _f.caseId,
-                (v) => _f = _f.copyWith(caseId: () => v),
-                'filter-case',
-              ),
-            ],
-            head('tasks.filter.assignee'),
-            chips<String?>(
-              [
-                (null, t.t('tasks.filter.all')),
-                if (widget.assistant)
-                  ('mine', t.t('tasks.filter.assignedToMe'))
-                else
-                  ('me', t.t('tasks.filter.notAssigned')),
-                if (!widget.assistant)
-                  for (final e in widget.team.entries) (e.key, e.value),
-              ],
-              _f.assignee,
-              (v) => _f = _f.copyWith(assignee: () => v),
-              'filter-assignee',
-            ),
-            head('tasks.filter.sort'),
-            chips(
-              [
-                for (final s in TaskSort.values)
-                  (s, t.t('tasks.filter.sort.${s.name}')),
-              ],
-              _f.sort,
-              (v) => _f = _f.copyWith(sort: v),
-              'filter-sort',
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    key: const ValueKey('filter-reset'),
-                    label: t.t('tasks.filter.reset'),
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () =>
-                        Navigator.of(context).pop(const TaskFilter()),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: AppButton(
-                    key: const ValueKey('filter-apply'),
-                    label: t.t('tasks.filter.apply'),
-                    onPressed: () => Navigator.of(context).pop(_f),
-                  ),
-                ),
-              ],
             ),
           ],
         ),

@@ -421,7 +421,7 @@ const file06Ru = <String, String>{
   'feed.state.pick': 'Выберите штат',
   'feed.state.empty': 'В этом штате пока нет публикаций',
   'feed.filters': 'Фильтры',
-  'cases.comments.title': 'Комментарии',
+  'cases.comments.title': 'Вопросы по кейсу',
   'cases.comments.owner': 'Автор кейса',
   'cases.comments.hint':
       'Видят автор кейса и адвокаты, которым он доступен. Контакты передаются только после принятия бида.',
@@ -850,7 +850,7 @@ const file06En = <String, String>{
   'feed.state.pick': 'Choose state',
   'feed.state.empty': 'No posts from this state yet',
   'feed.filters': 'Filters',
-  'cases.comments.title': 'Comments',
+  'cases.comments.title': 'Case questions',
   'cases.comments.owner': 'Case owner',
   'cases.comments.hint':
       'Visible to the case owner and attorneys who can see the case. Contacts are shared only after a bid is accepted.',

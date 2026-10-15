@@ -621,6 +621,8 @@ class CommentComposer extends ConsumerStatefulWidget {
 }
 
 class _CommentComposerState extends ConsumerState<CommentComposer> {
+  bool get _isCase => widget.postId.startsWith(kCaseThreadPrefix);
+
   final _text = TextEditingController();
   bool _sending = false;
 
@@ -793,7 +795,10 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                         textCapitalization: TextCapitalization.sentences,
                         style: type.body.copyWith(color: colors.text),
                         decoration: InputDecoration(
-                          hintText: t.t('comment.hint'),
+                          // Owner 2026-10-15: under a case: «Ask a question…».
+                          hintText: _isCase
+                              ? t.t('cases.comments.ask')
+                              : t.t('comment.hint'),
                           isDense: true,
                           filled: true,
                           fillColor: colors.bg,
@@ -845,7 +850,9 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
                             color: enabled ? colors.gold : colors.textSecondary,
                           ),
                           isLoading: _sending,
-                          semanticLabel: t.t('comment.send'),
+                          semanticLabel: _isCase
+                              ? t.t('cases.comments.send')
+                              : t.t('comment.send'),
                           onPressed: enabled ? _send : null,
                         );
                       },

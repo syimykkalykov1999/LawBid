@@ -4,6 +4,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
@@ -365,7 +366,7 @@ class CaseTabItem {
 }
 
 /// Text tabs with a gold underline, no frames (like Posts / Reels / Cases).
-class CaseTextTabs extends StatelessWidget {
+class CaseTextTabs extends StatefulWidget {
   const CaseTextTabs({
     required this.items,
     required this.index,
@@ -378,7 +379,40 @@ class CaseTextTabs extends StatelessWidget {
   final ValueChanged<int> onChanged;
 
   @override
+  State<CaseTextTabs> createState() => _CaseTextTabsState();
+}
+
+class _CaseTextTabsState extends State<CaseTextTabs> {
+  late List<GlobalKey> _keys =
+      List.generate(widget.items.length, (_) => GlobalKey());
+
+  @override
+  void didUpdateWidget(CaseTextTabs old) {
+    super.didUpdateWidget(old);
+    if (_keys.length != widget.items.length) {
+      _keys = List.generate(widget.items.length, (_) => GlobalKey());
+    }
+    // Owner 2026-10-15: the chosen tab slides to the middle, never cut off.
+    if (old.index != widget.index) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx =
+            _keys[widget.index.clamp(0, _keys.length - 1)].currentContext;
+        if (ctx != null && ctx.mounted) {
+          Scrollable.ensureVisible(
+            ctx,
+            alignment: 0.5,
+            duration: const Duration(milliseconds: 200),
+          );
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final items = widget.items;
+    final index = widget.index;
+    final onChanged = widget.onChanged;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return DecoratedBox(
@@ -392,6 +426,7 @@ class CaseTextTabs extends StatelessWidget {
           children: [
             for (final (i, it) in items.indexed)
               Semantics(
+                key: _keys[i],
                 button: true,
                 selected: i == index,
                 child: GestureDetector(
@@ -432,11 +467,18 @@ class CaseTextTabs extends StatelessWidget {
                         ],
                         if (it.count != null && it.count! > 0) ...[
                           const SizedBox(width: 5),
-                          Text(
-                            '${it.count}',
-                            style: type.bodySmall.copyWith(
-                              color: colors.textSecondary,
-                              fontWeight: FontWeight.w600,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: colors.chip,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${it.count}',
+                              style: type.caption.copyWith(
+                                color: colors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -447,6 +489,194 @@ class CaseTextTabs extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-15 («Экран кейса», the approved mockup): the head of a case
+/// for both sides — a header tinted with the practice colour (icon and name,
+/// the status), the title in two lines at most, the deadline / budget / state
+/// as chips, and the five-stage scale with «Stage N of 5: name».
+class CaseHero extends StatelessWidget {
+  const CaseHero({
+    required this.t,
+    required this.formats,
+    required this.practiceName,
+    required this.categoryCode,
+    required this.statusLabel,
+    required this.statusTone,
+    required this.title,
+    required this.states,
+    required this.budget,
+    required this.urgency,
+    required this.stage,
+    required this.publishedAt,
+    super.key,
+  });
+
+  final Translator t;
+  final L10nFormats formats;
+  final String practiceName;
+  final String? categoryCode;
+  final String statusLabel;
+  final StatusTone statusTone;
+  final String title;
+  final List<String> states;
+  final CaseBudget budget;
+  final CaseUrgencyInfo urgency;
+
+  /// 0..4 (the Active card's scale).
+  final int stage;
+  final DateTime publishedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final base = practiceCardBase(colors);
+    final accent = practiceAccent(categoryCode, surface: base);
+    final top = Color.alphaBlend(accent.withValues(alpha: 0.2), base);
+    final fg = readableOn(accent, top);
+    final money = budget.isClarifyLater
+        ? t.t('cases.facts.negotiable')
+        : CaseFormat.money(formats, budget.amountCents!);
+    final deadline = CaseUrgencyText.label(t, formats, urgency);
+    Widget fact(IconData icon, String text) => Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          decoration: BoxDecoration(
+            color: colors.text.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(icon, size: 14, color: colors.textSecondary),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.caption.copyWith(color: colors.text),
+                ),
+              ),
+            ],
+          ),
+        );
+    final lit = stage.clamp(0, 4) + 1;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [top, base],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              AppIcon(practiceGlyph(categoryCode), size: 15, color: fg),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Text(
+                  practiceName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.caption
+                      .copyWith(color: fg, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.5,
+                ),
+                child: StatusPill(label: statusLabel, tone: statusTone),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: type.titleMedium.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+                height: 1.25,
+              ),
+            ),
+          ),
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              fact(AppIcons.scheduleRounded, deadline),
+              fact(AppIcons.sellOutlined, money),
+              fact(AppIcons.placeOutlined, CaseFigures.statesText(states)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var i = 0; i < 5; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Expanded(
+                  child: Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: i < lit ? accent : colors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 5),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  t.t('cases.hero.stage', {
+                    'n': '$lit',
+                    'name': t.t('cases.stage.${lit - 1}'),
+                  }),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.caption.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  t.t('cases.hero.published', {
+                    'date': formats.dayMonth(publishedAt),
+                  }),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

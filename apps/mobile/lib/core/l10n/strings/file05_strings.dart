@@ -242,9 +242,9 @@ const file05Ru = <String, String>{
   'notif.list.post_like': '{name} отметил(-а) ваш пост',
   'notif.list.post_like.many': '{name} и ещё {others} отметили ваш пост',
   'notif.list.post_comment': '{name} прокомментировал(-а) ваш пост',
-  'notif.list.case_comment': '{name} прокомментировал(-а) ваш кейс',
+  'notif.list.case_comment': '{name} задал(-а) вопрос по вашему кейсу',
   'notif.list.case_comment.many':
-      '{name} и ещё {others} прокомментировали ваш кейс',
+      '{name} и ещё {others} задали вопросы по вашему кейсу',
   'notif.list.comment_reply': '{name} ответил(-а) на ваш комментарий',
   'notif.list.comment_like': '{name} отметил(-а) ваш комментарий',
   'notif.list.comment_like.many':
@@ -497,9 +497,9 @@ const file05En = <String, String>{
   'notif.list.post_like': '{name} liked your post',
   'notif.list.post_like.many': '{name} and {others} others liked your post',
   'notif.list.post_comment': '{name} commented on your post',
-  'notif.list.case_comment': '{name} commented on your case',
+  'notif.list.case_comment': '{name} asked a question about your case',
   'notif.list.case_comment.many':
-      '{name} and {others} more commented on your case',
+      '{name} and {others} more asked questions about your case',
   'notif.list.comment_reply': '{name} replied to your comment',
   'notif.list.comment_like': '{name} liked your comment',
   'notif.list.comment_like.many':

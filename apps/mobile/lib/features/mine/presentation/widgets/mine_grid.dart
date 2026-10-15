@@ -483,33 +483,34 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
       child: Row(
         children: [
           Expanded(
-              child: FlipSearchBar(
-            key: const ValueKey('mine-search'),
-            controller: _text,
-            focusNode: _focus,
-            semanticLabel: t.t('mine.search.hint'),
-            cancelLabel: t.t('common.cancel'),
-            clearLabel: t.t('search.clear'),
-            showCancel: false,
-            hints: [t.t('mine.search.hint')],
-            leading: Badge(
-              isLabelVisible: count > 0,
-              label: Text('$count'),
-              backgroundColor: colors.gold,
-              textColor: colors.navy,
-              child: AppIconButton(
-                key: const ValueKey('mine-filters'),
-                icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
-                semanticLabel: t.t('mine.search.filters'),
-                onPressed: _filters,
+            child: FlipSearchBar(
+              key: const ValueKey('mine-search'),
+              controller: _text,
+              focusNode: _focus,
+              semanticLabel: t.t('mine.search.hint'),
+              cancelLabel: t.t('common.cancel'),
+              clearLabel: t.t('search.clear'),
+              showCancel: false,
+              hints: [t.t('mine.search.hint')],
+              leading: Badge(
+                isLabelVisible: count > 0,
+                label: Text('$count'),
+                backgroundColor: colors.gold,
+                textColor: colors.navy,
+                child: AppIconButton(
+                  key: const ValueKey('mine-filters'),
+                  icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
+                  semanticLabel: t.t('mine.search.filters'),
+                  onPressed: _filters,
+                ),
+              ),
+              trailing: AppIconButton(
+                icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
+                semanticLabel: t.t('mine.search.hint'),
+                onPressed: _focus.requestFocus,
               ),
             ),
-            trailing: AppIconButton(
-              icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-              semanticLabel: t.t('mine.search.hint'),
-              onPressed: _focus.requestFocus,
-            ),
-          ),),
+          ),
           if (widget.action != null) ...[
             const SizedBox(width: AppSpacing.sm),
             widget.action!,

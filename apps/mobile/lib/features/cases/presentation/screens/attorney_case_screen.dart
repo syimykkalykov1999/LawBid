@@ -10,6 +10,8 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
+    show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
@@ -232,8 +234,6 @@ class _BodyState extends ConsumerState<_Body> {
   Widget build(BuildContext context) {
     final t = widget.t;
     final formats = widget.formats;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = widget.kase;
     final category = CaseFormat.practice(
       t,
@@ -246,34 +246,22 @@ class _BodyState extends ConsumerState<_Body> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
       children: [
-        CaseChipsRow(
-          labels: [category, if (leaf != category) leaf],
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.md,
-            AppSpacing.lg,
-            0,
-          ),
-          child: Text(
-            c.title,
-            style: typography.titleMedium.copyWith(
-              color: colors.text,
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-              height: 1.22,
-            ),
-          ),
-        ),
-        CaseFigures(
+        CaseHero(
           t: t,
           formats: formats,
+          practiceName: [category, if (leaf != category) leaf].join(' · '),
+          categoryCode: c.practice.artCode,
+          statusLabel: c.ownBidId != null
+              ? t.t('cases.hero.bidSent')
+              : caseStatusLabel(t, c.status),
+          statusTone: c.ownBidId != null ? StatusTone.info : caseTone(c.status),
+          title: c.title,
           states: [c.primaryStateCode, ...c.additionalStateCodes],
           budget: c.budget,
           urgency: c.urgencyInfo,
+          stage: caseStageOf(c.status, c.bidsCount),
+          publishedAt: c.createdAt,
         ),
-        const SizedBox(height: AppSpacing.md),
         CaseTextTabs(
           items: [
             CaseTabItem(t.t('cases.tab.overview')),

@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
@@ -31,8 +32,19 @@ class CaseWorkspaceBody extends ConsumerStatefulWidget {
     required this.urgency,
     required this.overview,
     required this.onRefresh,
+    required this.categoryCode,
+    required this.statusTone,
+    required this.stage,
+    required this.publishedAt,
     super.key,
   });
+
+  /// The case head (owner 2026-10-15): the practice colour, the status tone,
+  /// the stage 0..4 and the day it was published.
+  final String? categoryCode;
+  final StatusTone statusTone;
+  final int stage;
+  final DateTime publishedAt;
 
   final String caseId;
   final bool isAttorney;
@@ -78,7 +90,6 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final ws = ref.watch(caseWorkspaceProvider(widget.caseId)).value;
     final files = ws?.files.length ?? 0;
     final open = ws?.openTasks ?? 0;
@@ -107,30 +118,19 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
             children: [
-              CaseChipsRow(labels: widget.chips, status: widget.statusLabel),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                  0,
-                ),
-                child: Text(
-                  widget.title,
-                  style: type.titleMedium.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 18,
-                    height: 1.22,
-                  ),
-                ),
-              ),
-              CaseFigures(
+              CaseHero(
                 t: t,
                 formats: formats,
+                practiceName: widget.chips.join(' · '),
+                categoryCode: widget.categoryCode,
+                statusLabel: widget.statusLabel,
+                statusTone: widget.statusTone,
+                title: widget.title,
                 states: widget.states,
                 budget: widget.budget,
                 urgency: widget.urgency,
+                stage: widget.stage,
+                publishedAt: widget.publishedAt,
               ),
               const SizedBox(height: AppSpacing.md),
               CaseTextTabs(
