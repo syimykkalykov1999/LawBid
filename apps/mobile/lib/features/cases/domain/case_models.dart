@@ -560,6 +560,7 @@ class WorkItem {
     required this.feeType,
     required this.amountCents,
     this.clientAvatarUrl,
+    this.additionalStateCount = 0,
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
@@ -584,6 +585,9 @@ class WorkItem {
 
   /// The client's small avatar (null while locked, like the name).
   final String? clientAvatarUrl;
+
+  /// States besides the primary one.
+  final int additionalStateCount;
   final FeeType feeType;
   final int amountCents;
   final DateTime? autoCloseAt;

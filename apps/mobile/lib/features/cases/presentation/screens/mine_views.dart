@@ -62,7 +62,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       // Owner 2026-10-13: the accepted cases come first, one tap to work.
       _ClientTab.active => const _ClientCasesGrid(
           key: ValueKey('active'),
-          filter: MyCasesFilter.inProgress,
+          filter: MyCasesFilter.active,
           search: MineSearch(),
           cards: true,
         ),

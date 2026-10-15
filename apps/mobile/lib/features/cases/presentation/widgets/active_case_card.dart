@@ -22,6 +22,7 @@ class ActiveCaseCard extends StatelessWidget {
     this.stateCode,
     this.price,
     this.nextYours = false,
+    this.nextDate,
     this.categoryCode,
     this.practiceCode,
     this.badge = 0,
@@ -40,6 +41,9 @@ class ActiveCaseCard extends StatelessWidget {
   final int stage;
   final String stageLabel;
   final String next;
+
+  /// Always visible at the right of the one-line «what next».
+  final String? nextDate;
 
   /// The next step is the viewer's: the line is gold.
   final bool nextYours;
@@ -61,6 +65,10 @@ class ActiveCaseCard extends StatelessWidget {
       surface: practiceCardBase(colors),
     );
     final lit = stage.clamp(0, stages - 1) + 1;
+    final nextStyle = type.bodySmall.copyWith(
+      color: nextYours ? colors.goldDark : colors.textSecondary,
+      fontWeight: nextYours ? FontWeight.w600 : FontWeight.w500,
+    );
 
     // Owner 2026-10-15: one header for every card, in the practice colour
     // (no photos): the icon and the practice at the left, «price · state»
@@ -98,14 +106,6 @@ class ActiveCaseCard extends StatelessWidget {
                   color: colors.goldDark,
                   fontWeight: FontWeight.w700,
                 ),
-              ),
-            ],
-            if (stateCode != null && stateCode!.isNotEmpty) ...[
-              const SizedBox(width: 6),
-              Text(
-                price != null ? '· $stateCode' : stateCode!,
-                maxLines: 1,
-                style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ],
           ],
@@ -171,45 +171,69 @@ class ActiveCaseCard extends StatelessWidget {
                           title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: type.body.copyWith(
+                          style: type.bodySmall.copyWith(
                             color: colors.text,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Row(
+                        // Owner 2026-10-15: status chip, new-bids badge and
+                        // the state, with «Stage N of 5» at the end; on a
+                        // narrow screen the stage drops to the next line.
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          runSpacing: 4,
                           children: [
-                            StatusPill(label: statusLabel, tone: statusTone),
-                            const SizedBox(width: AppSpacing.sm),
-                            if (badge > 0)
-                              Container(
-                                constraints: const BoxConstraints(minWidth: 18),
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 5),
-                                height: 18,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: colors.gold,
-                                  borderRadius: BorderRadius.circular(9),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                StatusPill(
+                                  label: statusLabel,
+                                  tone: statusTone,
                                 ),
-                                child: Text(
-                                  badge > 99 ? '99+' : '$badge',
-                                  style: type.caption.copyWith(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.w700,
+                                if (badge > 0) ...[
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Container(
+                                    constraints:
+                                        const BoxConstraints(minWidth: 18),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                    ),
+                                    height: 18,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: colors.gold,
+                                      borderRadius: BorderRadius.circular(9),
+                                    ),
+                                    child: Text(
+                                      badge > 99 ? '99+' : '$badge',
+                                      style: type.caption.copyWith(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                            const SizedBox(width: AppSpacing.sm),
-                            Expanded(
-                              child: Text(
-                                stageLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.end,
-                                style: type.caption
-                                    .copyWith(color: colors.textSecondary),
-                              ),
+                                ],
+                                if (stateCode != null &&
+                                    stateCode!.isNotEmpty) ...[
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Text(
+                                    stateCode!,
+                                    maxLines: 1,
+                                    style: type.caption.copyWith(
+                                      color: colors.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Text(
+                              stageLabel,
+                              maxLines: 1,
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
                             ),
                           ],
                         ),
@@ -242,17 +266,28 @@ class ActiveCaseCard extends StatelessWidget {
                             color: nextYours ? colors.goldTint : colors.chip,
                             borderRadius: BorderRadius.circular(AppRadii.card),
                           ),
-                          child: Text(
-                            next,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.bodySmall.copyWith(
-                              color: nextYours
-                                  ? colors.goldDark
-                                  : colors.textSecondary,
-                              fontWeight:
-                                  nextYours ? FontWeight.w600 : FontWeight.w500,
-                            ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  next,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: nextStyle,
+                                ),
+                              ),
+                              if (nextDate != null && nextDate!.isNotEmpty) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  nextDate!,
+                                  maxLines: 1,
+                                  style: nextStyle.copyWith(
+                                    color: colors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ],

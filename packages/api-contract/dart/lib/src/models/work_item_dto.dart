@@ -17,6 +17,7 @@ class WorkItemDto {
     required this.title,
     required this.status,
     required this.primaryStateCode,
+    required this.additionalStateCount,
     required this.practiceAreaNameEn,
     required this.practiceAreaI18nKey,
     required this.practiceAreaCode,
@@ -38,6 +39,9 @@ class WorkItemDto {
   final String title;
   final CaseStatus status;
   final String primaryStateCode;
+
+  /// States besides the primary.
+  final int additionalStateCount;
   final String practiceAreaNameEn;
   final String practiceAreaI18nKey;
 

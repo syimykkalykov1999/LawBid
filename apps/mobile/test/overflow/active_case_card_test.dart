@@ -33,7 +33,9 @@ void main() {
                       statusTone: StatusTone.warning,
                       stage: 3,
                       stageLabel: 'Этап 4 из 5: Завершение',
-                      next: 'Выберите адвоката: 12 предложений · 15 окт.',
+                      next:
+                          'Wählen Sie eine Anwältin oder einen Anwalt aus: 12 Angebote',
+                      nextDate: '15. Okt.',
                       nextYours: true,
                       badge: 123,
                       onTap: () {},

@@ -95028,6 +95028,10 @@
           "primaryStateCode": {
             "type": "string"
           },
+          "additionalStateCount": {
+            "type": "integer",
+            "description": "States besides the primary."
+          },
           "practiceAreaNameEn": {
             "type": "string"
           },
@@ -95082,6 +95086,7 @@
           "title",
           "status",
           "primaryStateCode",
+          "additionalStateCount",
           "practiceAreaNameEn",
           "practiceAreaI18nKey",
           "practiceAreaCode",

@@ -130,6 +130,9 @@ export class WorkItemDto {
   @ApiProperty()
   primaryStateCode!: string;
 
+  @ApiProperty({ type: 'integer', description: 'States besides the primary.' })
+  additionalStateCount!: number;
+
   @ApiProperty()
   practiceAreaNameEn!: string;
 

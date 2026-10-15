@@ -228,6 +228,7 @@ export class MineService {
               auto_close_at: true,
               closed_at: true,
               primary_state_code: true,
+              states: { select: { is_primary: true } },
               practice_area: {
                 select: { name_en: true, i18n_key: true, code: true },
               },
@@ -270,6 +271,7 @@ export class MineService {
             title: k.title,
             status: k.status,
             primaryStateCode: k.primary_state_code,
+            additionalStateCount: k.states.filter((x) => !x.is_primary).length,
             practiceAreaNameEn: k.practice_area.name_en,
             practiceAreaI18nKey: k.practice_area.i18n_key,
             practiceAreaCode: k.practice_area.code,

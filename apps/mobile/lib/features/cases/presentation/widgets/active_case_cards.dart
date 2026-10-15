@@ -73,7 +73,8 @@ class ClientActiveCaseCard extends ConsumerWidget {
       statusTone: caseTone(c.status),
       stage: stage,
       stageLabel: caseStageLabel(t, stage),
-      next: '$next · $when',
+      next: next,
+      nextDate: when,
       nextYours: choosing || stage == 3,
       onTap: () => context.push(AppRoutes.myCase(c.id)),
     );
@@ -103,7 +104,9 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       key: ValueKey('active-work-${w.caseId}'),
       title: w.title,
       practiceName: practice,
-      stateCode: w.primaryStateCode,
+      stateCode: w.primaryStateCode == null
+          ? null
+          : CaseFormat.place(null, w.primaryStateCode!, w.additionalStateCount),
       price:
           w.amountCents > 0 ? formats.currencyFromCents(w.amountCents) : null,
       categoryCode: w.practiceCode?.split('.').first,
@@ -112,7 +115,8 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       statusTone: caseTone(w.status),
       stage: stage,
       stageLabel: caseStageLabel(t, stage),
-      next: when == null ? next : '$next · ${formats.dayMonth(when)}',
+      next: next,
+      nextDate: when == null ? null : formats.dayMonth(when),
       nextYours: stage == 3,
       onTap: () => context.push(AppRoutes.workCase(w.caseId)),
     );
