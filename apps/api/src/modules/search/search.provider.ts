@@ -108,4 +108,9 @@ export interface SearchProvider {
     perKind: number,
   ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]>;
   searchTags(prefix: string, limit: number): Promise<string[]>;
+  /** Practices whose name in ANY language has a word starting with [q]. */
+  practiceMatches(
+    q: string,
+    limit: number,
+  ): Promise<{ code: string; nameEn: string; hit: string | null }[]>;
 }

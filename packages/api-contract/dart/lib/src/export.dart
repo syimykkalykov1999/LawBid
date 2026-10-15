@@ -998,6 +998,8 @@ export 'models/person_item_list_envelope.dart';
 export 'models/attorney_list_item_list_envelope.dart';
 export 'models/suggestion_dto.dart';
 export 'models/suggestion_list_envelope.dart';
+export 'models/practice_match_dto.dart';
+export 'models/practice_match_list_envelope.dart';
 export 'models/tag_dto.dart';
 export 'models/tag_list_envelope.dart';
 export 'models/latest_posts_sort.dart';

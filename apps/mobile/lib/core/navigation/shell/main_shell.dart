@@ -12,6 +12,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
@@ -106,7 +107,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         tabs: tabs,
         currentIndex: navigationShell.currentIndex,
         onTabSelected: _onTabSelected,
-        onCreatePressed: () => context.push(AppRoutes.create),
+        onCreatePressed: () => showCreateSheet(context, ref),
         createSemanticLabel: translator.t('nav.create'),
       ),
     );

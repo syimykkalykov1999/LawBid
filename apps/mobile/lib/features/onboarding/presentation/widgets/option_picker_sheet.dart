@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -97,8 +99,22 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     required this.multi,
     this.searchHint,
     this.back = false,
+    this.remoteSearch,
+    this.unknownLabel,
+    this.confirm = false,
     super.key,
   });
+
+  /// Owner 2026-10-15: asks the server which options a word in ANY language
+  /// names (value → the matching word); they join the local matches.
+  final Future<Map<String, String?>> Function(String query)? remoteSearch;
+
+  /// «Не знаю тему» under the search: returns `{''}` (no choice).
+  final String? unknownLabel;
+
+  /// One choice that stays on screen (a tick on its row) until the pinned
+  /// «Готово»; the sheet then closes only by its handle.
+  final bool confirm;
 
   /// Owner 2026-10-12: a picker opened from a menu (feed filters) has a
   /// back arrow on the left and a centred title; arrow and system Back
@@ -125,11 +141,18 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     bool multi = false,
     String? searchHint,
     bool back = false,
+    Future<Map<String, String?>> Function(String query)? remoteSearch,
+    String? unknownLabel,
+    bool confirm = false,
   }) {
     return showAppBottomSheet<Set<String>>(
       context: context,
       isScrollControlled: true,
+      closeByHandleOnly: confirm,
       builder: (_) => OptionPickerSheet(
+        remoteSearch: remoteSearch,
+        unknownLabel: unknownLabel,
+        confirm: confirm,
         title: title,
         options: options,
         initial: initial,
@@ -149,6 +172,50 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
   final _search = TextEditingController();
   String _query = '';
   final Set<String> _expanded = {};
+  Map<String, String?> _remote = const {};
+  Timer? _debounce;
+
+  void _onQuery(String v) {
+    setState(() => _query = v);
+    final search = widget.remoteSearch;
+    if (search == null) return;
+    _debounce?.cancel();
+    if (v.trim().length < 2) {
+      setState(() => _remote = const {});
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 300), () async {
+      final r = await search(v.trim());
+      if (mounted && _query == v) setState(() => _remote = r);
+    });
+  }
+
+  /// Leaving a confirm-picker with a choice made asks first.
+  Future<void> _close() async {
+    if (_selected.isEmpty) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final t = ref.read(translatorProvider);
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.t('practices.unsaved.title')),
+        content: Text(t.t('practices.unsaved.body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(t.t('practices.unsaved.stay')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(t.t('practices.unsaved.leave')),
+          ),
+        ],
+      ),
+    );
+    if ((leave ?? false) && mounted) Navigator.of(context).pop();
+  }
 
   /// One-of choices (an [PickerOption.exclusive] head's options) → their
   /// siblings.
@@ -161,11 +228,22 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
   void _toggle(String value) {
+    if (widget.confirm) {
+      setState(() {
+        if (!_selected.remove(value)) {
+          _selected
+            ..clear()
+            ..add(value);
+        }
+      });
+      return;
+    }
     if (!widget.multi) {
       Navigator.of(context).pop({value});
       return;
@@ -225,7 +303,21 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final q = _query.trim().toLowerCase();
-    final filtered = suggestOptions(widget.options, q);
+    final local = suggestOptions(widget.options, q);
+    // Any-language matches the label search missed join the list.
+    final have = {for (final o in local) o.value};
+    final filtered = [
+      ...local,
+      if (q.isNotEmpty)
+        for (final o in widget.options)
+          if (!have.contains(o.value) &&
+              (_remote.containsKey(o.value) ||
+                  (o.nested &&
+                      _remote.keys.any(
+                        (k) => !k.contains('.') && o.value.startsWith('$k.'),
+                      ))))
+            o,
+    ];
 
     // Owner 2026-09-29: draggable all the way to the top.
     final sheet = DraggableScrollableSheet(
@@ -244,7 +336,20 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AppSheetHandle(),
+              if (widget.confirm)
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _close,
+                  onVerticalDragEnd: (d) {
+                    if ((d.primaryVelocity ?? 0) > 100) _close();
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.only(top: AppSpacing.sm),
+                    child: AppSheetHandle(),
+                  ),
+                )
+              else
+                const AppSheetHandle(),
               Semantics(
                 header: true,
                 child: widget.back
@@ -283,8 +388,16 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                   size: AppSizes.iconSm,
                   color: colors.textSecondary,
                 ),
-                onChanged: (v) => setState(() => _query = v),
+                onChanged: _onQuery,
               ),
+              if (widget.unknownLabel != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: widget.unknownLabel!,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => Navigator.of(context).pop({''}),
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               Expanded(
                 child: filtered.isEmpty
@@ -309,7 +422,9 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                               return AppListRow(
                                 label: o.label,
                                 // Searching: say where a subcategory belongs.
-                                subtitle: q.isNotEmpty ? o.group : null,
+                                subtitle: q.isNotEmpty
+                                    ? (_remote[o.value] ?? o.group)
+                                    : null,
                                 trailingText: o.sublabel,
                                 selected: _selected.contains(o.value),
                                 showChevron: false,
@@ -318,14 +433,16 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                             },
                           ),
               ),
-              if (widget.multi) ...[
+              if (widget.multi || widget.confirm) ...[
                 const SizedBox(height: AppSpacing.md),
                 AppButton(
                   // A one-of choice is a setting, not a pick: not counted.
-                  label: _counted == 0
+                  label: widget.confirm || _counted == 0
                       ? t.t('common.done')
                       : '${t.t('common.done')} · $_counted',
-                  onPressed: () => Navigator.of(context).pop(_selected),
+                  onPressed: widget.confirm && _selected.isEmpty
+                      ? null
+                      : () => Navigator.of(context).pop(_selected),
                 ),
               ],
             ],

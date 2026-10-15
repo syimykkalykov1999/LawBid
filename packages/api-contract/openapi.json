@@ -51234,6 +51234,84 @@
         ]
       }
     },
+    "/search/practices": {
+      "get": {
+        "operationId": "practices",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Hashtag prefix, with or without \"#\".",
+            "schema": {
+              "maxLength": 31,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeMatchListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Practices whose name in any language starts with the query",
+        "tags": [
+          "search"
+        ]
+      }
+    },
     "/search/people": {
       "get": {
         "operationId": "people",
@@ -107913,6 +107991,45 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SuggestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PracticeMatchDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "practice code, e.g. family_law.divorce"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "hit": {
+            "type": "string",
+            "nullable": true,
+            "description": "the word that matched when it is not the English name"
+          }
+        },
+        "required": [
+          "code",
+          "nameEn",
+          "hit"
+        ]
+      },
+      "PracticeMatchListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeMatchDto"
             }
           },
           "meta": {

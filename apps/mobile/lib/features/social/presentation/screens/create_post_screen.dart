@@ -16,6 +16,7 @@ import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/create_reel_screen.dart';
+import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -56,6 +57,8 @@ class CreatePostScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<CreatePostScreen> createState() => _CreatePostScreenState();
 }
+
+const bool _showLegalSwitch = false;
 
 class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// Owner 2026-10-07: one field, like Threads: the first line is the
@@ -237,11 +240,15 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       searchHint: t.t('practice.search.hint'),
       initial: {if (_practice != null) _practice!},
       options: practiceOptions(ref),
+      confirm: true,
+      unknownLabel: t.t('cases.create.practice.notSure'),
+      remoteSearch: (q) => ref.read(practiceMatchesProvider(q).future),
     );
     if (picked == null || picked.isEmpty) return;
     // ignore: unawaited_futures
     HapticFeedback.selectionClick();
-    setState(() => _practice = picked.first);
+    // «Не знаю тему» comes back as '': a post without a qualification.
+    setState(() => _practice = picked.first.isEmpty ? null : picked.first);
   }
 
   /// Owner 2026-10-12: no photos or documents = a thread (5000 characters),
@@ -400,6 +407,33 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
+                  // Owner 2026-10-15: one button for every post — the type
+                  // follows what is attached: text only is a brief, with
+                  // photos a post (a video goes on to the reel screen).
+                  if (!_editing && !_news) ...[
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Container(
+                        key: const ValueKey('post-kind-chip'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.xs,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.chip,
+                          borderRadius: BorderRadius.circular(AppRadii.pill),
+                        ),
+                        child: Text(
+                          t.t(_hasFiles ? 'post.kind.post' : 'feed.briefs'),
+                          style: type.caption.copyWith(
+                            color: colors.text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
                   // Owner 2026-10-01: the qualification is optional.
                   label(t.t('post.create.practice')),
                   _PracticeField(
@@ -418,7 +452,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   // Owner 2026-10-05: no topic = a general (personal) post
                   // unless the author says it is about law.
-                  if (practice == null && !_news) ...[
+                  // Owner 2026-10-15: no "about law" switch on the form.
+                  if (_showLegalSwitch && practice == null && !_news) ...[
                     const SizedBox(height: AppSpacing.sm),
                     MergeSemantics(
                       child: Row(

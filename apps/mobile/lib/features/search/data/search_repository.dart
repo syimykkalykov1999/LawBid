@@ -205,6 +205,10 @@ abstract interface class SearchRepository {
   /// Owner 2026-10-15: type-ahead — topics, attorney handles and practice
   /// names starting with [q].
   Future<List<SearchSuggestion>> suggest(String q);
+
+  /// Owner 2026-10-15: practices whose name in ANY language starts with
+  /// [q] (code → the word that matched, when not the English name).
+  Future<Map<String, String?>> practices(String q);
 }
 
 enum SuggestionKind { tag, person, practice }
@@ -218,6 +222,12 @@ class SearchSuggestion {
 
 class ApiSearchRepository implements SearchRepository {
   ApiSearchRepository(Dio dio) : _search = api.SearchClient(dio);
+
+  @override
+  Future<Map<String, String?>> practices(String q) async {
+    final env = await guardApiCall(() => _search.practices(q: q));
+    return {for (final m in env.data) m.code: m.hit};
+  }
 
   @override
   Future<List<SearchSuggestion>> suggest(String q) async {

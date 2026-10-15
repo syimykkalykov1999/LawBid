@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,8 +14,10 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
+import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 
 typedef DraftChange = void Function(CaseDraft Function(CaseDraft d) change);
@@ -65,12 +69,24 @@ class PracticeStep extends ConsumerStatefulWidget {
 class _PracticeStepState extends ConsumerState<PracticeStep> {
   final _search = TextEditingController();
   String _query = '';
+  String _remoteQuery = '';
+  Timer? _debounce;
   String? _openCategory;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _search.dispose();
     super.dispose();
+  }
+
+  void _onQuery(String v) {
+    setState(() => _query = v);
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => mounted ? setState(() => _remoteQuery = v) : null,
+    );
   }
 
   void _pick(PracticeLeaf leaf) => widget.onChange(
@@ -98,13 +114,23 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
             for (final l in c.children)
               if (l.i18nKey.endsWith('not_sure_or_other')) l,
         ].firstOrNull;
+        // Any-language search (owner 2026-10-15): the server says which
+        // practices a word in ANY language names; they join the matches.
+        final remote = q.isEmpty
+            ? const <String, String?>{}
+            : (ref.watch(practiceMatchesProvider(_remoteQuery)).value ??
+                const <String, String?>{});
+        bool byRemote(PracticeCategory c, PracticeLeaf l) =>
+            (l.code != null && remote.containsKey(l.code)) ||
+            remote.containsKey(practiceCodeOf(c.i18nKey));
         final matches = q.isEmpty
             ? const <(PracticeCategory, PracticeLeaf)>[]
             : [
                 for (final c in categories)
                   for (final l in c.children)
                     if (name(l.i18nKey, l.nameEn).toLowerCase().contains(q) ||
-                        name(c.i18nKey, c.nameEn).toLowerCase().contains(q))
+                        name(c.i18nKey, c.nameEn).toLowerCase().contains(q) ||
+                        byRemote(c, l))
                       (c, l),
               ];
         return ListView(
@@ -125,7 +151,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               hintText: t.t('cases.create.practice.searchHint'),
               leading: const AppIcon(AppIcons.searchRounded),
               textInputAction: TextInputAction.search,
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: _onQuery,
             ),
             const SizedBox(height: AppSpacing.lg),
             if (notSure != null && q.isEmpty) ...[
@@ -152,7 +178,9 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: _LeafTile(
                     label: name(l.i18nKey, l.nameEn),
-                    caption: name(c.i18nKey, c.nameEn),
+                    caption: remote[l.code] ??
+                        remote[practiceCodeOf(c.i18nKey)] ??
+                        name(c.i18nKey, c.nameEn),
                     selected: widget.draft.practiceAreaId == l.id,
                     onTap: () => _pick(l),
                   ),

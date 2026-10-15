@@ -14,6 +14,7 @@ import '../models/person_item_list_envelope.dart';
 import '../models/post_content_class.dart';
 import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
+import '../models/practice_match_list_envelope.dart';
 import '../models/role2.dart';
 import '../models/sort2.dart';
 import '../models/sort3.dart';
@@ -47,6 +48,15 @@ abstract class SearchClient {
   /// [q] - Hashtag prefix, with or without "#".
   @GET('/search/suggest')
   Future<SuggestionListEnvelope> suggest({
+    @Query('q') required String q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Practices whose name in any language starts with the query.
+  ///
+  /// [q] - Hashtag prefix, with or without "#".
+  @GET('/search/practices')
+  Future<PracticeMatchListEnvelope> practices({
     @Query('q') required String q,
     @Extras() Map<String, dynamic>? extras,
   });

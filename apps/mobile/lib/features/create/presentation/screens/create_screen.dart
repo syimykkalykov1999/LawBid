@@ -35,7 +35,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   @override
   Widget build(BuildContext context) {
     final attorney = ref.watch(currentUserRoleProvider) != UserRole.client;
-    return switch (_kind) {
+    // Owner 2026-10-15: the "+" sheet already chose; only an assistant (a
+    // post or a task for the attorney) still sees the chooser.
+    final kind = _kind ?? (ref.watch(isAssistantProvider) ? null : _Kind.post);
+    return switch (kind) {
       _Kind.caseKind => const CreateCaseScreen(),
       _Kind.post => const CreatePostScreen(),
       _Kind.task => const TaskEditorScreen(),

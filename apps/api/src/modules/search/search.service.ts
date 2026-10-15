@@ -327,6 +327,17 @@ export class SearchService {
     };
   }
 
+  /** GET /search/practices: the topic picker's any-language search. */
+  async practices(
+    user: RequestUser,
+    rawQ: string,
+  ): Promise<{ code: string; nameEn: string; hit: string | null }[]> {
+    await this.limits.consume('search', user.sub);
+    const q = normalizeQuery(rawQ);
+    if (q.length < 2) return [];
+    return this.provider.practiceMatches(q, 25);
+  }
+
   /** GET /search/suggest: type-ahead for the search field. */
   async suggest(
     user: RequestUser,

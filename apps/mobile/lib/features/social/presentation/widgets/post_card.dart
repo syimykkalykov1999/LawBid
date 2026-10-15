@@ -241,9 +241,8 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-15 (like Instagram): the frame follows the first photo's
     // shape, at most 4:5 tall and 1.91:1 wide (PostMedia.aspectRatio is
     // bounded); anything longer is cropped to the centre, whole when opened.
-    final frameRatio = p.video == null && p.media.isNotEmpty
-        ? p.media.first.aspectRatio
-        : 0.8;
+    final frameRatio =
+        p.video == null && p.media.isNotEmpty ? p.media.first.aspectRatio : 0.8;
     final photoHeight = fillHeight != null || feedHeight != null
         ? math.max(width / frameRatio, minPhoto)
         : width / frameRatio;

@@ -124,6 +124,10 @@ const planRu = <String, String>{
   'post.menu.showViews': 'Показать число просмотров',
   'settings.hideLikes': 'Скрывать число лайков',
   'settings.hideLikes.hint': 'Под чужими постами и рилсами',
+  'create.sheet.post': 'Пост',
+  'create.sheet.postSub': 'Фото, видео или только текст',
+  'create.sheet.case': 'Кейс',
+  'create.sheet.caseSub': 'Опишите задачу, адвокаты откликнутся',
 };
 
 const planEn = <String, String>{
@@ -245,4 +249,8 @@ const planEn = <String, String>{
   'post.menu.showViews': 'Show view count',
   'settings.hideLikes': 'Hide like counts',
   'settings.hideLikes.hint': "Under other people's posts and reels",
+  'create.sheet.post': 'Post',
+  'create.sheet.postSub': 'Photo, video or just text',
+  'create.sheet.case': 'Case',
+  'create.sheet.caseSub': 'Describe your task, attorneys will respond',
 };

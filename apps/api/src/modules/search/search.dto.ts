@@ -421,6 +421,21 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   contentClass?: PostContentClass;
 }
 
+export class PracticeMatchDto {
+  @ApiProperty({ description: 'practice code, e.g. family_law.divorce' })
+  code!: string;
+
+  @ApiProperty()
+  nameEn!: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'the word that matched when it is not the English name',
+  })
+  hit!: string | null;
+}
+
 export class SuggestionDto {
   @ApiProperty({ enum: ['tag', 'person', 'practice'] })
   kind!: 'tag' | 'person' | 'practice';

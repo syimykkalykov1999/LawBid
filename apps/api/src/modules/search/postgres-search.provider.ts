@@ -327,6 +327,43 @@ export class PostgresSearchProvider implements SearchProvider {
     return typo.map((r) => r.id);
   }
 
+  /**
+   * Owner 2026-10-15: the topic picker's search on any language — "развод",
+   * "divorce" and "ажырашуу" all find Divorce. [hit] is the word that
+   * matched when it is not the English name, so the picker can say why.
+   */
+  async practiceMatches(
+    q: string,
+    limit: number,
+  ): Promise<{ code: string; nameEn: string; hit: string | null }[]> {
+    const norm = parseSearchQuery(q).plain.toLowerCase();
+    if (norm.length < 2) return [];
+    const like = `${escapeLike(norm)}%`;
+    const wordLike = `% ${escapeLike(norm)}%`;
+    const rows = await this.prisma.$queryRaw<
+      { code: string; name_en: string; value: string; lang: string }[]
+    >`
+      SELECT DISTINCT ON (pa.id) pa.code, pa.name_en, t.value, t.lang
+      FROM practice_areas pa
+      JOIN i18n_keys k ON k.key = pa.i18n_key
+      JOIN i18n_translations t ON t.key_id = k.id
+      WHERE pa.is_active
+        AND (public.f_unaccent(lower(t.value)) LIKE ${like}
+          OR public.f_unaccent(' ' || lower(t.value)) LIKE ${wordLike})
+      ORDER BY pa.id, (t.lang = 'en') DESC, pa.sort
+      LIMIT ${limit}`;
+    return rows.map((r) => ({
+      code: r.code,
+      nameEn: r.name_en,
+      hit:
+        r.lang === 'en'
+          ? null
+          : (r.value
+              .split(/[\s,/-]+/)
+              .find((w) => w.toLowerCase().startsWith(norm)) ?? r.value),
+    }));
+  }
+
   private readonly practiceCache = new Map<
     string,
     { at: number; ids: string[] }
