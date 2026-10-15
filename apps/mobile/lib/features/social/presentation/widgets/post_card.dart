@@ -1157,6 +1157,19 @@ class _ThreadsPost extends ConsumerWidget {
                 ],
               ),
             ),
+            // Owner 2026-10-15: Follow on someone else's brief too, the same
+            // small pill as on photo and video posts, right of the name.
+            if (!p.isMine) ...[
+              const SizedBox(width: AppSpacing.sm),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 120),
+                child: FollowButton(
+                  attorneyId: a.id,
+                  initial: a.isFollowing,
+                  outlined: true,
+                ),
+              ),
+            ],
             // Owner 2026-10-14: on my own post Boost sits here, right of the
             // username (where Follow sits on someone else's).
             if (p.isMine && !ref.watch(isAssistantProvider)) ...[

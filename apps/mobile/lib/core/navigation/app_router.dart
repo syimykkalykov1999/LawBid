@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -89,6 +90,10 @@ GoRouter appRouter(Ref ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
+    // Owner 2026-10-15 (web): a typed or shared address (/lawyer/anna) first
+    // goes through the splash like every start; DeepLinkController opens it
+    // right after (and after sign-in).
+    overridePlatformDefaultLocation: kIsWeb,
     observers: [routeObserver],
     refreshListenable: refresh,
     redirect: (context, state) {
