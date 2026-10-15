@@ -17,6 +17,7 @@ CreatePromotionDto _$CreatePromotionDtoFromJson(Map<String, dynamic> json) =>
               json['audience'] as Map<String, dynamic>,
             ),
       promoCode: json['promoCode'] as String?,
+      extend: json['extend'] as bool?,
       goal: json['goal'] == null
           ? null
           : CreatePromotionDtoGoal.fromJson(json['goal'] as String),
@@ -33,6 +34,7 @@ Map<String, dynamic> _$CreatePromotionDtoToJson(CreatePromotionDto instance) =>
       'audience': ?instance.audience?.toJson(),
       'useCredits': instance.useCredits,
       'promoCode': ?instance.promoCode,
+      'extend': ?instance.extend,
       'goal': ?instance.goal?.toJson(),
       'ctaType': ?instance.ctaType?.toJson(),
       'ctaValue': ?instance.ctaValue,

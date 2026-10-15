@@ -48,6 +48,7 @@ class PromoteSheet extends ConsumerStatefulWidget {
     required this.target,
     required this.id,
     required this.state,
+    this.extend = false,
     super.key,
   });
 
@@ -55,16 +56,25 @@ class PromoteSheet extends ConsumerStatefulWidget {
   final String id;
   final CasePromotionState state;
 
+  /// Owner 2026-10-15: add days to a running boost; they start when it ends.
+  final bool extend;
+
   static Future<void> show(
     BuildContext context, {
     required PromotionTarget target,
     required String id,
     required CasePromotionState state,
+    bool extend = false,
   }) =>
       showAppBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        builder: (_) => PromoteSheet(target: target, id: id, state: state),
+        builder: (_) => PromoteSheet(
+          target: target,
+          id: id,
+          state: state,
+          extend: extend,
+        ),
       );
 
   @override
@@ -220,6 +230,7 @@ class _PromoteSheetState extends ConsumerState<PromoteSheet> {
             goal: _goal,
             ctaType: _isPost ? _cta : null,
             ctaValue: _ctaValue,
+            extend: widget.extend,
           );
       if (!mounted) return;
       ref

@@ -114950,6 +114950,10 @@
             "minLength": 1,
             "maxLength": 40
           },
+          "extend": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: extend a running boost — the new days start when it ends."
+          },
           "goal": {
             "type": "string",
             "enum": [

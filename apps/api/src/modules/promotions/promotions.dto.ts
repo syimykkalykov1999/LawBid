@@ -142,6 +142,14 @@ export class CreatePromotionDto {
   @MaxLength(40)
   promoCode?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-15: extend a running boost — the new days start when it ends.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  extend?: boolean;
+
   @ApiPropertyOptional({ enum: PROMOTION_GOALS })
   @IsOptional()
   @IsIn(PROMOTION_GOALS)

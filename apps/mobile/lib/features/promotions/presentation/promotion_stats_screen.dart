@@ -63,7 +63,11 @@ class _Body extends ConsumerWidget {
 
   final PromotionStats stats;
 
-  Future<void> _repeat(BuildContext context, WidgetRef ref) async {
+  Future<void> _repeat(
+    BuildContext context,
+    WidgetRef ref, {
+    bool extend = false,
+  }) async {
     final p = stats.promotion;
     final target = p.target;
     final tid = (target == PromotionTarget.post ? p.postId : p.caseId) ?? '';
@@ -73,11 +77,17 @@ class _Body extends ConsumerWidget {
           .read(promotionsRepositoryProvider)
           .state(tid, target: target);
       if (!context.mounted) return;
-      if (!state.quote.enabled || !state.canPromote) {
+      if (!state.quote.enabled || (!state.canPromote && !extend)) {
         showAppSnackBar(context, t.t('promote.unavailable'));
         return;
       }
-      await PromoteSheet.show(context, target: target, id: tid, state: state);
+      await PromoteSheet.show(
+        context,
+        target: target,
+        id: tid,
+        state: state,
+        extend: extend,
+      );
       ref
         ..invalidate(myPromotionsProvider)
         ..invalidate(promotionStatsProvider(p.id));
@@ -267,6 +277,13 @@ class _Body extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.xl),
+        if (p.status == PromotionStatus.active) ...[
+          AppButton(
+            label: t.t('boost.extend'),
+            onPressed: () => _repeat(context, ref, extend: true),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         if (p.isRunning)
           PromotionActions(
             promotion: p,

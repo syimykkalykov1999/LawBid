@@ -18,6 +18,7 @@ class CreatePromotionDto {
     this.dailyBudgetCents,
     this.audience,
     this.promoCode,
+    this.extend,
     this.goal,
     this.ctaType,
     this.ctaValue,
@@ -35,6 +36,9 @@ class CreatePromotionDto {
   /// Spend free days earned through referrals first.
   final bool useCredits;
   final String? promoCode;
+
+  /// Owner 2026-10-15: extend a running boost — the new days start when it ends.
+  final bool? extend;
   final CreatePromotionDtoGoal? goal;
 
   /// The button under a promoted post (posts only).

@@ -42,6 +42,7 @@ class _FakeRepo extends PromotionsRepository {
     String? goal,
     String? ctaType,
     String? ctaValue,
+    bool extend = false,
   }) async {
     bought = {
       'goal': goal,
@@ -49,6 +50,7 @@ class _FakeRepo extends PromotionsRepository {
       'ctaValue': ctaValue,
       'days': days,
       'target': target,
+      'extend': extend,
     };
     return const PromotionPurchase(
       status: PromotionStatus.active,

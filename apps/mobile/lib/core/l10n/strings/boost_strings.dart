@@ -103,6 +103,7 @@ const boostRu = <String, String>{
   'boost.stat.byDay': 'По дням',
   'boost.stat.noDays': 'Данные появятся после первых показов.',
   'boost.repeat': 'Повторить',
+  'boost.extend': 'Продлить',
   'boost.stats.open': 'Статистика',
 };
 
@@ -209,5 +210,6 @@ const boostEn = <String, String>{
   'boost.stat.byDay': 'By day',
   'boost.stat.noDays': 'Numbers appear after the first views.',
   'boost.repeat': 'Repeat',
+  'boost.extend': 'Extend',
   'boost.stats.open': 'Stats',
 };

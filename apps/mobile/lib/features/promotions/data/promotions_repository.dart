@@ -60,6 +60,7 @@ class PromotionsRepository {
     String? goal,
     String? ctaType,
     String? ctaValue,
+    bool extend = false,
   }) async {
     final body = api.CreatePromotionDto(
       days: days,
@@ -83,6 +84,7 @@ class PromotionsRepository {
           ? null
           : api.CreatePromotionDtoCtaType.fromJson(ctaType),
       ctaValue: ctaValue,
+      extend: extend ? true : null,
     );
     const extras = {RequestFlags.createsResource: true};
     final d = (await guardApiCall(

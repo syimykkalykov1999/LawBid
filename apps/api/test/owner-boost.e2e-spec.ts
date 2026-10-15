@@ -6,6 +6,8 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { PostsService } from '../src/modules/posts/posts.service';
+import type { RequestUser } from '../src/modules/auth/decorators/current-user.decorator';
 import { PromotionDeliveryService } from '../src/modules/promotions/promotion-delivery.service';
 
 /**
@@ -337,5 +339,78 @@ describe('Boost (e2e, owner 2026-10-15)', () => {
     expect(top.promoted).toBe(true);
     expect(new Date(top.promotedUntil ?? 0).getTime()).toBe(endsAt.getTime());
     expect(items.find((i) => i.id === plain.id)!.promoted).toBe(false);
+  });
+
+  it('a boosted reel comes 1 per 12 among the reels, and a running boost can be extended', async () => {
+    await setSettings({ reelEveryN: 12 });
+    const viewer = await user('attorney');
+    const author = await user('attorney');
+    const adOwner = await user('attorney');
+    const mkVideo = async (ownerId: string, n: number) => {
+      const asset = await prisma.videoAsset.create({
+        data: {
+          owner_user_id: ownerId,
+          library_id: 'lib',
+          external_id: `e2e-${randomUUID()}`,
+          status: 'ready',
+          upload_expires_at: new Date(Date.now() + 86_400_000),
+          ready_at: new Date(),
+        },
+      });
+      return prisma.post.create({
+        data: {
+          author_id: ownerId,
+          title: `Reel ${n}`,
+          body: 'A reel',
+          video_asset_id: asset.id,
+          created_at: new Date(Date.now() - n * 1000),
+        },
+      });
+    };
+    for (let i = 0; i < 24; i++) await mkVideo(author.id, i + 1);
+    const adPost = await mkVideo(adOwner.id, 100);
+    const promo = await prisma.casePromotion.create({
+      data: {
+        target_type: 'post',
+        post_id: adPost.id,
+        user_id: adOwner.id,
+        days: 3,
+        price_cents_per_day: 500,
+        total_cents: 1500,
+        status: 'active',
+        starts_at: new Date(Date.now() - 3_600_000),
+        ends_at: new Date(Date.now() + 2 * 86_400_000),
+        cta_type: 'profile',
+      },
+    });
+    delivery.invalidate();
+    // The video flag and provider are off in the test env: the same service
+    // the /reels route calls.
+    const res = await app
+      .get(PostsService)
+      .listReels({ sub: viewer.id, role: 'attorney' } as RequestUser, {
+        limit: 20,
+      });
+    const items = res.items as unknown as {
+      id: string;
+      promotionId?: string | null;
+      promotionCta?: { type: string } | null;
+    }[];
+    const ads = items.map((p, i) => ({ p, i })).filter((x) => x.p.promotionId);
+    expect(ads).toHaveLength(1);
+    expect(ads[0].i).toBe(11); // the 12th place
+    expect(ads[0].p.promotionId).toBe(promo.id);
+    expect(ads[0].p.promotionCta).toMatchObject({ type: 'profile' });
+
+    // Extend: a running boost cannot be bought again, but can be extended.
+    const buy = (body: Record<string, unknown>) =>
+      api()
+        .post(`/api/v1/posts/${adPost.id}/promotions`)
+        .set({ ...adOwner.auth, 'Idempotency-Key': randomUUID() })
+        .send({ days: 2, dailyBudgetCents: 500, ...body });
+    await buy({}).expect(409);
+    const ext = await buy({ extend: true });
+    expect(ext.status).toBe(201);
+    expect(ext.body.data.status).toBe('pending_payment');
   });
 });

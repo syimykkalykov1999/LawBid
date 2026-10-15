@@ -375,7 +375,22 @@ export class PromotionsService {
           },
           select: { id: true },
         });
-        if (active) throw alreadyActive();
+        if (active) {
+          // Extending a running boost is allowed; a boost waiting for review
+          // is not running yet.
+          const running = dto.extend
+            ? await tx.casePromotion.findFirst({
+                where: {
+                  ...targetWhere(target),
+                  user_id: userId,
+                  status: 'active',
+                  ends_at: { gt: now },
+                },
+                select: { id: true },
+              })
+            : null;
+          if (!running) throw alreadyActive();
+        }
         // An earlier unpaid checkout of this target gives its credits back.
         const stale = await tx.casePromotion.findMany({
           where: {
@@ -404,6 +419,18 @@ export class PromotionsService {
         });
         const free = q.totalCents === 0;
         const startNow = free && !review;
+        // An extension starts when the running boost ends.
+        const begin = startNow
+          ? await this.startAfterRunning(
+              tx,
+              {
+                id: '',
+                post_id: type === 'post' ? id : null,
+                case_id: type === 'case' ? id : null,
+              } as CasePromotion,
+              now,
+            )
+          : now;
         const created = await tx.casePromotion.create({
           data: {
             target_type: type,
@@ -426,9 +453,9 @@ export class PromotionsService {
                 ? 'pending_review'
                 : 'active'
               : 'pending_payment',
-            starts_at: startNow ? now : null,
+            starts_at: startNow ? begin : null,
             ends_at: startNow
-              ? new Date(now.getTime() + dto.days * DAY_MS)
+              ? new Date(begin.getTime() + dto.days * DAY_MS)
               : null,
             promo_code_id: promo?.id ?? null,
           },
