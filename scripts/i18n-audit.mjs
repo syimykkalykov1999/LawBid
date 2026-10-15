@@ -102,4 +102,15 @@ else {
   show('keys used in code but missing from the workbook', report.missingInCode);
   show('strings written into widgets (not translated)', report.hardcoded);
 }
+// Owner 2026-10-15: every topic is searchable by everyday keywords.
+{
+  const keys = new Set(rows.map((r) => r.key));
+  const noKw = [...keys].filter(
+    (k) => /^practice\.[a-z0-9_]+(\.[a-z0-9_]+)?$/.test(k) && !k.endsWith('.kw') && k !== 'practice.search.hint' && !keys.has(k + '.kw'),
+  );
+  if (noKw.length) {
+    console.log('topics without keywords (' + noKw.length + '):', noKw.slice(0, 10).join(', '));
+    report.missingInCode.push(...noKw.map((k) => k + '.kw'));
+  }
+}
 if (ci && (report.empty.length || report.placeholder.length || report.missingInCode.length)) process.exit(1);
