@@ -5,7 +5,7 @@
  */
 
 /** The API takes at most this many ids per request. */
-export const BULK_BATCH = 500;
+const BULK_BATCH = 500;
 /** "Select everything matching the filter" stops here. */
 export const SELECT_ALL_CAP = 2000;
 

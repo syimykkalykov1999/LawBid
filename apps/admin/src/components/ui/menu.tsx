@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-export interface MenuItem {
+interface MenuItem {
   label: string;
   icon?: React.ComponentType<{ size?: number; className?: string }>;
   onSelect: () => void;

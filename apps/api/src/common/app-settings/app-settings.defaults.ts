@@ -45,8 +45,6 @@ export const FILE_03_SETTINGS = {
   'files.max_size_mb': 10,
 } as const;
 
-export type File03SettingKey = keyof typeof FILE_03_SETTINGS;
-
 // docs/04_CASES_BIDS.md §14 (stage 4.1 migration also inserts it): after
 // this many confirmed "can't reach the client" reports the client account
 // is suspended (§8.4).

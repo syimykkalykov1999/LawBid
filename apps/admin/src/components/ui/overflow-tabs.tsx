@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-export interface OverflowTab {
+interface OverflowTab {
   href: string;
   label: string;
   icon?: React.ComponentType<{ size?: number; weight?: 'regular' | 'fill'; className?: string }>;

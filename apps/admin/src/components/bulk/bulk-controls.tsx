@@ -30,7 +30,7 @@ export function useSelection(resetKey: string) {
   };
 }
 
-export function SelectBox({
+function SelectBox({
   state,
   onChange,
   label,
@@ -185,7 +185,7 @@ export function AuthorFilterButton({ onPick, active }: { onPick: () => void; act
   );
 }
 
-export interface BulkRunOptions {
+interface BulkRunOptions {
   ids: string[];
   /** "Удалить" — the verb of the dialog title and button. */
   verb: string;

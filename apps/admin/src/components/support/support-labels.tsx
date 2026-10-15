@@ -5,12 +5,10 @@ import type { Me } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 
 export type TicketRow = components['schemas']['AdminSupportTicketRowDto'];
-export type TicketDetail = components['schemas']['AdminSupportTicketDetailDto'];
 export type TicketMessage = components['schemas']['AdminSupportMessageDto'];
 export type SupportMacro = components['schemas']['SupportMacroDto'];
 export type DeskSettings = components['schemas']['SupportDeskSettingsDto'];
 export type SupportAgent = components['schemas']['SupportAgentDto'];
-export type StaffStats = components['schemas']['SupportStaffStatsDto'];
 export type TicketStatus = TicketRow['status'];
 export type TicketPriority = TicketRow['priority'];
 export type TicketCategory = TicketRow['category'];
@@ -73,7 +71,7 @@ export function initials(name: string): string {
 }
 
 /** «до ответа 25 мин» / «просрочено 10 мин»; null when no answer is due. */
-export function slaText(dueAt: string | null | undefined, now = Date.now()): { text: string; late: boolean; soon: boolean } | null {
+function slaText(dueAt: string | null | undefined, now = Date.now()): { text: string; late: boolean; soon: boolean } | null {
   if (!dueAt) return null;
   const min = Math.round((new Date(dueAt).getTime() - now) / 60_000);
   if (min < 0) return { text: `просрочено ${durationText(-min)}`, late: true, soon: false };

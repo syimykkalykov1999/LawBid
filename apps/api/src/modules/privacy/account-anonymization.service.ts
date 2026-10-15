@@ -4,7 +4,6 @@ import {
   CounterAggregator,
   profileEntity,
 } from '../counters/counter-aggregator.service';
-import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -363,5 +362,3 @@ export class AccountAnonymizationService {
     return true;
   }
 }
-
-export type AnonymizationTx = Prisma.TransactionClient;

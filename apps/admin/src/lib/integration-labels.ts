@@ -3,7 +3,7 @@
  * sends English text (provider-registry); the admin maps it by provider id /
  * field name and falls back to the server text for anything unknown.
  */
-export const PROVIDER_RU: Record<string, { label: string; description: string; warning?: string }> = {
+const PROVIDER_RU: Record<string, { label: string; description: string; warning?: string }> = {
   bunny_stream: {
     label: 'Bunny Stream (видео)',
     description: 'Видео в постах: загрузка прямо с телефона, обработка, CDN.',

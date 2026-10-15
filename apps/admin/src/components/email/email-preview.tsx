@@ -14,7 +14,7 @@ function withPaper(html: string): string {
   return html.replace(/^(\s*<!doctype[^>]*>)?/i, (m) => `${m}${PAPER}`);
 }
 
-export interface RenderedEmail {
+interface RenderedEmail {
   subject: string;
   text: string;
   html?: string | null;

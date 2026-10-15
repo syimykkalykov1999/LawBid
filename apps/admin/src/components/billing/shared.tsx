@@ -11,15 +11,11 @@ import { can } from '@/lib/rbac';
 import { usd } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-export type BillingUser = components['schemas']['AdminBillingUserDto'];
+type BillingUser = components['schemas']['AdminBillingUserDto'];
 export type SubscriptionRow = components['schemas']['AdminBillingSubscriptionRowDto'];
 export type ContractGrant = components['schemas']['ContractGrantDto'];
 export type PromoCode = components['schemas']['PromoCodeDto'];
 export type AdminPayment = components['schemas']['AdminPaymentDto'];
-export type Refund = components['schemas']['RefundDto'];
-
-/** Prices (billing.constants on the server). */
-export const PRICES = { monthlyCents: 39_900, seatCents: 10_000, yearlyCents: 959_000, maxSeats: 10 } as const;
 
 /** Money pages open to the super admin only; others get 403 from the API. */
 export function useBillingRole() {
@@ -220,11 +216,6 @@ export function elapsed(startIso: string, endIso: string, now = Date.now()): num
 
 export function daysLeft(endIso: string, now = Date.now()): number {
   return Math.max(0, Math.ceil((new Date(endIso).getTime() - now) / 86_400_000));
-}
-
-/** Monthly price for a plan + seats (for previews). */
-export function planPriceCents(plan: 'monthly' | 'yearly', seats: number): number {
-  return plan === 'yearly' ? PRICES.yearlyCents : PRICES.monthlyCents + PRICES.seatCents * seats;
 }
 
 /** Dollars text field → integer cents (null if not a positive amount). */

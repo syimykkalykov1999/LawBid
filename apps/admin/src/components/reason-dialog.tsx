@@ -7,7 +7,7 @@ import { Label, Select, Textarea } from '@/components/ui/input';
 import { useMe } from '@/lib/hooks';
 import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
-export interface ReasonOptions {
+interface ReasonOptions {
   title: string;
   description?: string;
   label?: string;
@@ -28,7 +28,7 @@ export interface ReasonOptions {
   area?: string;
 }
 
-export type ReasonResult = { text: string; choice?: string } | null;
+type ReasonResult = { text: string; choice?: string } | null;
 
 /**
  * One promise-based dialog for every "enter a reason" step (docs/06 §2.1

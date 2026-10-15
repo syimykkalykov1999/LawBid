@@ -121,9 +121,9 @@ export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'tru
  * sections only the super admin opens,
  * `money` for money/audit sections the deputy may read, or `admins` for
  * admin management (super admin or a granted manager). */
-export type SectionArea = string;
+type SectionArea = string;
 
-export interface Section {
+interface Section {
   href: string;
   label: string;
   /** Phosphor icon name, resolved in shell/icons.ts. */
@@ -138,7 +138,7 @@ export interface Section {
  * allowed tab and shows the rest as tabs. Rights stay per tab (per page):
  * a tab without the right is not shown, a section with no allowed tab is
  * not in the menu, and its URLs answer 404 — exactly as before. */
-export interface SectionGroup {
+interface SectionGroup {
   key: string;
   label: string;
   /** Phosphor icon name for the section itself. */

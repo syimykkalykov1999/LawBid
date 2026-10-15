@@ -4,22 +4,19 @@ import type { Tone } from '@/components/ui/card';
 import { ApiError } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 
-export type Lead = components['schemas']['OutreachLeadRowDto'];
+type Lead = components['schemas']['OutreachLeadRowDto'];
 export type LeadDetail = components['schemas']['OutreachLeadDetailDto'];
 export type LeadStatus = components['schemas']['OutreachLeadStatus'];
 export type LeadKind = components['schemas']['OutreachLeadKind'];
 export type CallOutcome = components['schemas']['OutreachCallOutcome'];
-export type OutreachPartner = components['schemas']['OutreachPartnerDto'];
+type OutreachPartner = components['schemas']['OutreachPartnerDto'];
 export type OutreachContext = components['schemas']['OutreachContextDto'];
 export type OutreachTemplate = components['schemas']['OutreachTemplateDto'];
 export type OutreachSettings = components['schemas']['OutreachSettingsDto'];
-export type OutreachStats = components['schemas']['OutreachStatsDto'];
 export type ImportReport = components['schemas']['OutreachImportReportDto'];
-export type ContactBlockReason = components['schemas']['OutreachContactBlockReason'];
-export type Suppressions = components['schemas']['OutreachSuppressionsDto'];
 
 /** Owner 2026-10-05 (legal): why a call / an email is refused right now. */
-export const CONTACT_BLOCK: Record<string, string> = {
+const CONTACT_BLOCK: Record<string, string> = {
   dnc: 'лид в списке «не беспокоить»',
   client_disabled: 'работа с клиентами-физлицами выключена',
   hours: 'местное время вне окна звонков',

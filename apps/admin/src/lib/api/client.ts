@@ -90,7 +90,7 @@ publicApi.use({
   },
 });
 
-export const ERROR_TEXT: Record<string, string> = {
+const ERROR_TEXT: Record<string, string> = {
   AUTH_OTP_INVALID: 'Неверный код.',
   AUTH_OTP_EXPIRED: 'Код истёк — запросите новый.',
   AUTH_OTP_LOCKED: 'Слишком много попыток. Подождите и запросите новый код.',

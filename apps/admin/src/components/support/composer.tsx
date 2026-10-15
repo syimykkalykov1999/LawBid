@@ -9,7 +9,7 @@ import { TICKET_STATUS } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 import { STATUSES, type SupportMacro, type TicketStatus } from './support-labels';
 
-export type ComposerMode = 'reply' | 'note';
+type ComposerMode = 'reply' | 'note';
 
 export interface ComposerSubmit {
   body: string;

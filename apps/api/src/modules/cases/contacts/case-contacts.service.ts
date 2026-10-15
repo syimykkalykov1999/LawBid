@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { ContactIssueReport, Prisma } from '@prisma/client';
+import type { ContactIssueReport } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { SessionRevocationService } from '../../auth/services/session-revocation.service';
 import { CaseLifecycleService } from '../lifecycle/case-lifecycle.service';
@@ -327,6 +327,3 @@ export function toReportDto(r: ContactIssueReport): ContactIssueReportDto {
     createdAt: r.created_at.toISOString(),
   };
 }
-
-/** Narrow re-export so controllers don't import Prisma for the type. */
-export type ContactIssueTx = Prisma.TransactionClient;
