@@ -148,6 +148,43 @@ jobs:
         working-directory: apps/mobile
         run: flutter build apk --debug
 
+  build-web:
+    name: Build check — Web (wasm, no deploy)
+    needs: analyze-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Owner 2026-10-15 (web, step 1): the same app builds for the browser
+      # (WebAssembly). Build check only: nothing is published, and the
+      # bundle stays closed unless WEB_ENABLED is set at deploy time.
+      - name: Build web (build-check only — no deploy)
+        working-directory: apps/mobile
+        run: >-
+          flutter build web --wasm -t lib/main_dev.dart
+          --dart-define-from-file=config/dev.example.json
+          --dart-define=WEB_ENABLED=true
+
+      - name: The web bundle has its database files
+        working-directory: apps/mobile
+        run: |
+          test -s build/web/sqlite3.wasm
+          test -s build/web/drift_worker.js
+          test -s build/web/main.dart.wasm
+
   build-ios:
     name: Build check — iOS (debug, unsigned)
     needs: analyze-and-test

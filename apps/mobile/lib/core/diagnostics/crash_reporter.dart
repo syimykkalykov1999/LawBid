@@ -122,6 +122,7 @@ class CrashReporter {
   Future<Map<String, String>> _deviceInfo() async {
     final cached = _device;
     if (cached != null) return cached;
+    if (kIsWeb) return _device = {'deviceModel': 'browser', 'osVersion': 'web'};
     var model = 'unknown';
     var os = Platform.operatingSystemVersion;
     try {
@@ -156,7 +157,7 @@ class CrashReporter {
             for (final r in take)
               {
                 ...r,
-                'platform': Platform.operatingSystem,
+                'platform': kIsWeb ? 'web' : Platform.operatingSystem,
                 'appVersion': AppVersion.current,
                 'build': '1',
                 'flavor': _env.flavor.name,

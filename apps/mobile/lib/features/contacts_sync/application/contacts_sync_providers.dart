@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -23,6 +24,8 @@ final contactsSyncStatusProvider =
 typedef PhoneBookReader = Future<List<String>?> Function();
 
 Future<List<String>?> readPhoneBook() async {
+  // A browser cannot read the phone book.
+  if (kIsWeb) return null;
   if (!await FlutterContacts.requestPermission(readonly: true)) return null;
   final contacts = await FlutterContacts.getContacts(withProperties: true);
   return [

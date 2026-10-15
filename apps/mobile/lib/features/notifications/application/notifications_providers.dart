@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_badge_plus/app_badge_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/network/dio_client.dart';
@@ -69,6 +70,7 @@ class BadgesNotifier extends Notifier<Badges> {
   }
 
   static Future<void> _appIcon(int n) async {
+    if (kIsWeb) return; // no launcher badge in a browser
     try {
       if (await AppBadgePlus.isSupported()) await AppBadgePlus.updateBadge(n);
     } on Object {

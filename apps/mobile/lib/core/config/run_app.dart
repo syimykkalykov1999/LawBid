@@ -12,6 +12,7 @@ import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
@@ -27,6 +28,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// ```
 Future<void> runLawBid(AppFlavor flavor) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Web is closed until it is switched on (see web_gate.dart).
+  if (kIsWeb && !kWebEnabled) {
+    runApp(const WebGateApp());
+    return;
+  }
   AppEnvironment.current = AppEnvironment.forFlavor(flavor);
 
   // Real installed version for X-App-Version (docs/01_FOUNDATION_AUTH.md

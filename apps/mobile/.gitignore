@@ -48,4 +48,3 @@ app.*.map.json
 .widget_preview/
 
 # Browser preview shell, made by tool/web_preview/build.sh.
-/web/

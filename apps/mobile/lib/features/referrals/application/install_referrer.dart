@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:android_play_install_referrer/android_play_install_referrer.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -73,7 +74,8 @@ String? parseReferralCodeFromReferrer(String? referrer) {
 /// on devices without Google Play.
 Future<void> captureInstallReferrer(ProviderContainer container) async {
   try {
-    if (!Platform.isAndroid) return;
+    // Web takes the referral code from the page address instead.
+    if (kIsWeb || !Platform.isAndroid) return;
     final store = container.read(pendingReferralStoreProvider);
     if (store.referrerChecked) return;
     await store.markReferrerChecked();
