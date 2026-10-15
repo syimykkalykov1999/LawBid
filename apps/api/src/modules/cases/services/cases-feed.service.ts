@@ -56,10 +56,13 @@ const PRIORITY_CLIENT_SQL = clientsWithEntitlementSql(
 type CaseWithPracticeArea = Case & {
   practice_area: PracticeArea & { parent: PracticeArea | null };
   states: { state_code: string; is_primary: boolean }[];
+  _count?: { extra_practices: number };
 };
 
 const CASE_WITH_PRACTICE_AREA_INCLUDE = {
   practice_area: { include: { parent: true } },
+  // Owner 2026-10-15: «+N» topics on the card.
+  _count: { select: { extra_practices: true } },
   states: { select: { state_code: true, is_primary: true } },
 } as const;
 
@@ -440,7 +443,8 @@ export class CasesFeedService {
       ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
-    const promoted = new Set(await this.activePromotedCaseIds(ids));
+    const promotedEnds = await this.activePromotedEnds(ids);
+    const promoted = new Set(promotedEnds.keys());
     const priorityClients = await this.priorityClientIds(
       rows.map((r) => r.client_id),
     );
@@ -471,6 +475,7 @@ export class CasesFeedService {
           categoryI18nKey: category.i18n_key,
           categoryNameEn: category.name_en,
         },
+        extraPracticeCount: c._count?.extra_practices ?? 0,
         primaryStateCode: c.primary_state_code,
         additionalStateCodes: c.states
           .filter((s) => !s.is_primary)
@@ -493,6 +498,7 @@ export class CasesFeedService {
         isSaved: savedIds.has(c.id),
         shareCount: Math.max(0, c.share_count + (pendingShares.get(c.id) ?? 0)),
         promoted: promoted.has(c.id),
+        promotedUntil: promotedEnds.get(c.id)?.toISOString() ?? null,
         priorityClient: priorityClients.has(c.client_id),
         dossier: {
           imagesCount: files.get(c.id)?.images ?? 0,
@@ -518,6 +524,29 @@ export class CasesFeedService {
     } catch {
       return new Set();
     }
+  }
+
+  /** caseId → the end of its running promotion (best effort). */
+  private async activePromotedEnds(ids: string[]): Promise<Map<string, Date>> {
+    const out = new Map<string, Date>();
+    if (ids.length === 0) return out;
+    try {
+      const now = new Date();
+      const rows = await this.prisma.casePromotion.findMany({
+        where: {
+          status: 'active',
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+          case_id: { in: ids },
+        },
+        select: { case_id: true, ends_at: true },
+      });
+      for (const r of rows)
+        if (r.case_id && r.ends_at) out.set(r.case_id, r.ends_at);
+    } catch {
+      // The badge just loses its date.
+    }
+    return out;
   }
 
   /** Cases with a running paid/granted promotion (owner 2026-10-02),

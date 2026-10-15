@@ -13,6 +13,7 @@ import {
 import { CaseIdParamDto } from '../dto/case-requests.dto';
 import { CaseWorkspaceService } from './case-workspace.service';
 import {
+  BoardCaseTaskDto,
   CaseActivityDto,
   CaseTaskIdParamDto,
   CaseTasksDto,
@@ -59,6 +60,15 @@ export class CaseWorkspaceController {
     return this.ws.listFiles(u, p.id);
   }
 
+  @Get('users/me/case-tasks')
+  @ApiOperation({
+    summary: 'Tasks of every case in work, for the Mine › Tasks board',
+  })
+  @ApiEnvelopeResponse(BoardCaseTaskDto, { isArray: true })
+  caseTaskBoard(@CurrentUser() u: RequestUser) {
+    return this.ws.board(u);
+  }
+
   @Get('cases/:id/tasks')
   @ApiOperation({
     summary: 'Tasks of an accepted case (private ones: attorney only)',
@@ -71,7 +81,8 @@ export class CaseWorkspaceController {
 
   @Post('cases/:id/tasks')
   @ApiOperation({
-    summary: 'Attorney: add a private, shared or for-client task',
+    summary:
+      'Add a task: the attorney any kind, the client a for-client or joint one',
   })
   @ApiEnvelopeResponse(CaseTasksDto)
   @ApiErrors(ERR)

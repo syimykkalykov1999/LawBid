@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -24,7 +25,7 @@ import type {
   AdminPromotionRowDto,
   AdminPromotionsQueryDto,
   AdminPromotionStatsDto,
-  PromotionSettingsDto,
+  UpdatePromotionSettingsDto,
 } from './promotions.dto';
 import { PromotionsService, toPromotionDto } from './promotions.service';
 import {
@@ -74,10 +75,26 @@ export class AdminPromotionsService {
 
   async updateSettings(
     admin: AdminActor,
-    dto: PromotionSettingsDto,
+    dto: UpdatePromotionSettingsDto,
   ): Promise<PromotionSettings> {
-    // Normalised the same way it is read (presets inside min/max, …).
-    const next: PromotionSettings = parsePromotionSettings({ ...dto });
+    if (
+      dto.feedEveryN !== undefined &&
+      (dto.feedEveryN < 10 || dto.feedEveryN > 15)
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'feedEveryN must be between 10 and 15.',
+      });
+    }
+    // A field that is not sent keeps its stored value; the result is
+    // normalised the same way it is read (presets inside min/max, …).
+    const sent = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined),
+    );
+    const next: PromotionSettings = parsePromotionSettings({
+      ...(await this.promotions.settings()),
+      ...sent,
+    });
     const value = next as unknown as Prisma.InputJsonValue;
     await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({

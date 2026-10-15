@@ -35,6 +35,10 @@ export const CRON_JOBS = {
   feedReco: 'feed.reco',
   /** docs/05 §7.2: popular tags every 10 minutes. */
   trendingTags: 'search.trending-tags',
+  /** Owner 2026-10-15: nightly "query → topic" learning from clicks. */
+  searchLearn: 'search.learn',
+  /** Owner 2026-10-15: topics of texts that name none (every 5 minutes). */
+  searchTagTopics: 'search.tag-topics',
   /** docs/05 stage 5.8: notifications older than retention_days. */
   notificationsRetention: 'notifications.retention',
   /** docs/06 §5.1: anonymize accounts past the 14-day grace period. */
@@ -142,6 +146,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.countersReconcile, pattern: '50 4 * * *' },
   { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.trendingTags, pattern: '5-55/10 * * * *' },
+  { name: CRON_JOBS.searchLearn, pattern: '30 3 * * *' },
+  { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },
   { name: CRON_JOBS.journalRetention, pattern: '30 2 1 * *' },

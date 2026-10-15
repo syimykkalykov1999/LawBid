@@ -6,6 +6,7 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
@@ -132,7 +133,7 @@ Future<void> showPinSlotSheet(BuildContext context, WidgetRef ref, Post post) {
                               border: Border.all(color: colors.gold),
                             ),
                             child: Text(
-                              '$slot',
+                              context.digits(slot),
                               style:
                                   type.titleMedium.copyWith(color: colors.text),
                             ),

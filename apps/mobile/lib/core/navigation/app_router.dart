@@ -48,12 +48,14 @@ import 'package:lawbid/features/profile/presentation/screens/review_form_screen.
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/promotions/presentation/my_promotions_screen.dart';
+import 'package:lawbid/features/promotions/presentation/promotion_stats_screen.dart';
 import 'package:lawbid/features/referrals/presentation/referral_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
+import 'package:lawbid/features/settings/saved/saved_screen.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/presentation/support_list_screen.dart';
@@ -389,6 +391,14 @@ GoRouter appRouter(Ref ref) {
             AppPageTransitions.push(state, const MyPromotionsScreen()),
       ),
       GoRoute(
+        path: AppRoutes.promotionStatsPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          PromotionStatsScreen(id: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.partner,
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
@@ -399,6 +409,12 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) =>
             AppPageTransitions.push(state, const AboutScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.saved,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) =>
+            AppPageTransitions.push(state, const SavedScreen()),
       ),
       GoRoute(
         path: AppRoutes.dataExport,

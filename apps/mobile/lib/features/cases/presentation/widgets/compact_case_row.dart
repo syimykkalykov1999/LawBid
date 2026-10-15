@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
@@ -110,7 +111,7 @@ class CompactCaseRow extends StatelessWidget {
             ),
             const SizedBox(width: 3),
             Text(
-              '$n',
+              context.digits(n),
               style: type.bodySmall.copyWith(
                 color: strong ? colors.goldDark : colors.textSecondary,
                 fontWeight: strong ? FontWeight.w700 : FontWeight.w500,

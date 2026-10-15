@@ -146,6 +146,7 @@ dev_dependencies:
   very_good_analysis: ^6.0.0
   golden_toolkit: ^0.15.0
 
+  fake_async: any
 flutter:
   uses-material-design: true
   # Plain `flutter run` / `flutter build` without --flavor builds the dev

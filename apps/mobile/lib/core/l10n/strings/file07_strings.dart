@@ -3,7 +3,7 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
-  'feed.topics.notSure': 'Не уверены в квалификации',
+  'feed.topics.notSure': 'Тема не указана',
   'search.more': 'Показать ещё',
   'cases.feed.emptyFiltered': 'Нет открытых кейсов по этому фильтру',
   'feed.filters.clear': 'Сбросить фильтры',
@@ -390,7 +390,8 @@ const file07Ru = <String, String>{
   'duty.files': 'Файлы',
   'duty.files.hint': 'Отправлять документы и фото в чатах',
   'duty.cases': 'Кейсы',
-  'duty.cases.hint': 'Просматривать, сохранять, комментировать (с одобрением)',
+  'duty.cases.hint':
+      'Просматривать, сохранять, задавать вопросы (с одобрением)',
   'duty.bid_drafts': 'Черновики ставок',
   'duty.bid_drafts.hint': 'Готовить ставки — отправляет адвокат',
   'duty.posts': 'Публикации',
@@ -429,7 +430,7 @@ const file07Ru = <String, String>{
   'team.note': 'Комментарий помощнику (необязательно)',
   'team.request.post': 'Публикация',
   'team.request.comment': 'Комментарий к посту',
-  'team.request.case_comment': 'Комментарий к кейсу',
+  'team.request.case_comment': 'Вопрос по кейсу',
   'team.request.profile_edit': 'Правка профиля',
   'team.request.pending': 'Ждёт',
   'team.request.approved': 'Одобрено',
@@ -463,7 +464,7 @@ const file07Ru = <String, String>{
   'act.report.create': 'отправил(а) жалобу',
   'act.request.post': 'просит опубликовать пост',
   'act.request.comment': 'просит оставить комментарий',
-  'act.request.case_comment': 'просит прокомментировать кейс',
+  'act.request.case_comment': 'просит задать вопрос по кейсу',
   'act.request.profile_edit': 'предлагает правку профиля',
   'act.task.create': 'поставил(а) задачу',
   'act.task.cancelled': 'отменил(а) задачу',
@@ -590,7 +591,7 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
-  'feed.topics.notSure': 'Not sure of the qualification',
+  'feed.topics.notSure': 'Topic not specified',
   'search.more': 'Show more',
   'cases.feed.emptyFiltered': 'No open cases for this filter',
   'feed.filters.clear': 'Clear filters',
@@ -976,7 +977,7 @@ const file07En = <String, String>{
   'duty.files': 'Files',
   'duty.files.hint': 'Send documents and photos in chats',
   'duty.cases': 'Cases',
-  'duty.cases.hint': 'Browse, save, comment (with approval)',
+  'duty.cases.hint': 'Browse, save, ask questions (with approval)',
   'duty.bid_drafts': 'Bid drafts',
   'duty.bid_drafts.hint': 'Prepare bids — the attorney sends',
   'duty.posts': 'Publications',
@@ -1015,7 +1016,7 @@ const file07En = <String, String>{
   'team.note': 'Note to the assistant (optional)',
   'team.request.post': 'Publication',
   'team.request.comment': 'Post comment',
-  'team.request.case_comment': 'Case comment',
+  'team.request.case_comment': 'Case question',
   'team.request.profile_edit': 'Profile edit',
   'team.request.pending': 'Pending',
   'team.request.approved': 'Approved',
@@ -1049,7 +1050,7 @@ const file07En = <String, String>{
   'act.report.create': 'sent a report',
   'act.request.post': 'asks to publish a post',
   'act.request.comment': 'asks to comment',
-  'act.request.case_comment': 'asks to comment a case',
+  'act.request.case_comment': 'asks a question on a case',
   'act.request.profile_edit': 'suggests a profile edit',
   'act.task.create': 'set a task',
   'act.task.cancelled': 'cancelled a task',

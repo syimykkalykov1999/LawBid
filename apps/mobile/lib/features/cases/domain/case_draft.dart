@@ -35,6 +35,33 @@ class CaseDraftFile {
   int get hashCode => Object.hash(fileId, name);
 }
 
+/// Owner 2026-10-15: one more topic of the case (the first is the draft's
+/// own `practice*` fields).
+@immutable
+class CaseDraftPractice {
+  const CaseDraftPractice({
+    required this.id,
+    required this.i18nKey,
+    required this.nameEn,
+    this.code,
+  });
+
+  final String id;
+  final String i18nKey;
+  final String nameEn;
+  final String? code;
+
+  Map<String, Object?> toJson() =>
+      {'id': id, 'i18nKey': i18nKey, 'nameEn': nameEn, 'code': code};
+
+  @override
+  bool operator ==(Object other) =>
+      other is CaseDraftPractice && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
 /// Owner 2026-10-04: what the urgency control shows (and sends) until the
 /// client picks.
 const String kDefaultCaseUrgency = 'flexible';
@@ -61,7 +88,11 @@ class CaseDraft {
     this.urgency,
     this.deadlineAt,
     this.deadlineKind,
+    this.extraPractices = const [],
   });
+
+  /// Owner 2026-10-15: topics 2..N (up to `case.max_practices` in all).
+  final List<CaseDraftPractice> extraPractices;
 
   /// The leaf code (`family_law.divorce`) — previews the covers.
   final String? practiceCode;
@@ -98,6 +129,7 @@ class CaseDraft {
 
   bool get isEmpty =>
       practiceAreaId == null &&
+      extraPractices.isEmpty &&
       title.trim().isEmpty &&
       description.trim().isEmpty &&
       city.trim().isEmpty &&
@@ -150,11 +182,17 @@ class CaseDraft {
     String? deadlineAt,
     String? deadlineKind,
     bool clearDeadline = false,
+    List<CaseDraftPractice>? extraPractices,
+    bool clearPractice = false,
   }) =>
       CaseDraft(
-        practiceAreaId: practiceAreaId ?? this.practiceAreaId,
-        practiceI18nKey: practiceI18nKey ?? this.practiceI18nKey,
-        practiceNameEn: practiceNameEn ?? this.practiceNameEn,
+        practiceAreaId:
+            clearPractice ? null : (practiceAreaId ?? this.practiceAreaId),
+        practiceI18nKey:
+            clearPractice ? null : (practiceI18nKey ?? this.practiceI18nKey),
+        practiceNameEn:
+            clearPractice ? null : (practiceNameEn ?? this.practiceNameEn),
+        extraPractices: extraPractices ?? this.extraPractices,
         title: title ?? this.title,
         description: description ?? this.description,
         primaryStateCode: primaryStateCode ?? this.primaryStateCode,
@@ -165,7 +203,8 @@ class CaseDraft {
             clearBudgetDollars ? null : (budgetDollars ?? this.budgetDollars),
         step: step ?? this.step,
         files: files ?? this.files,
-        practiceCode: practiceCode ?? this.practiceCode,
+        practiceCode:
+            clearPractice ? null : (practiceCode ?? this.practiceCode),
         coverKey: clearCoverKey ? null : (coverKey ?? this.coverKey),
         urgency: urgency ?? this.urgency,
         deadlineAt: clearDeadline ? null : (deadlineAt ?? this.deadlineAt),
@@ -187,6 +226,7 @@ class CaseDraft {
         'step': step,
         'files': [for (final f in files) f.toJson()],
         'practiceCode': practiceCode,
+        'extraPractices': [for (final p in extraPractices) p.toJson()],
         'coverKey': coverKey,
         'urgency': urgency,
         'deadlineAt': deadlineAt,
@@ -223,6 +263,16 @@ class CaseDraft {
               ),
         ],
         practiceCode: m['practiceCode'] as String?,
+        extraPractices: [
+          for (final p in (m['extraPractices'] as List<dynamic>? ?? []))
+            if (p is Map && p['id'] is String && p['i18nKey'] is String)
+              CaseDraftPractice(
+                id: p['id'] as String,
+                i18nKey: p['i18nKey'] as String,
+                nameEn: (p['nameEn'] as String?) ?? '',
+                code: p['code'] as String?,
+              ),
+        ],
         coverKey: m['coverKey'] as String?,
         urgency: m['urgency'] as String?,
         deadlineAt: m['deadlineAt'] as String?,

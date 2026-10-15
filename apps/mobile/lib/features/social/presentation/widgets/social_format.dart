@@ -63,7 +63,8 @@ abstract final class SocialFormat {
             : (floor1(n / 1000000000), 1000000000);
     final whole = v < 10 ? v : v.floorToDouble();
     // Owner 2026-10-14: localized — 1.2K / 1,2 тыс. / 1,2 Mio. / ١٫٢ ألف.
-    return NumberFormat.compact(locale: f.locale).format(whole * unit);
+    return f
+        .digits(NumberFormat.compact(locale: f.locale).format(whole * unit));
   }
 
   /// A plural label ("12 345 likes") with its number made compact

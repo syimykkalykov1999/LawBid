@@ -1,5 +1,5 @@
 import { type CountryScope, userInScope } from '../countries/country-scope';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -145,7 +145,14 @@ export class AdminTrustService {
     if (gatesChanged) {
       // Owner 2026-10-05 06:07: rules apply at once; attorneys who now
       // miss something are told.
-      void this.trust.recomputeAll(200, { notifyNewlyRequired: true });
+      void this.trust
+        .recomputeAll(200, { notifyNewlyRequired: true })
+        .catch((e) =>
+          new Logger(AdminTrustService.name).warn(
+            { err: String(e) },
+            'background trust recompute failed',
+          ),
+        );
     }
     return this.settingsDto();
   }

@@ -1,4 +1,13 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -24,6 +33,7 @@ import {
   PersonItemDto,
   SearchAttorneysQueryDto,
   SearchCasesQueryDto,
+  SearchClickDto,
   SearchPeopleQueryDto,
   SearchPostsQueryDto,
   SearchTagsQueryDto,
@@ -34,6 +44,7 @@ import {
   TagPostsQueryDto,
   LatestPostsQueryDto,
 } from './search.dto';
+import { SearchLogService } from './search-log.service';
 import { SearchService } from './search.service';
 
 /** docs/05 §7, §15 "Поиск" (stage 5.6). */
@@ -42,7 +53,10 @@ import { SearchService } from './search.service';
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller()
 export class SearchController {
-  constructor(private readonly search: SearchService) {}
+  constructor(
+    private readonly search: SearchService,
+    private readonly searchLog: SearchLogService,
+  ) {}
 
   @Get('search/attorneys')
   @ApiOperation({ summary: 'Attorneys / people (docs/05 §7.3)' })
@@ -164,6 +178,25 @@ export class SearchController {
       q.cursor,
       q.state,
       q.videoOnly,
+    );
+  }
+
+  @Post('search/clicks')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'A result opened after a query (owner 2026-10-15): the search learns topics from these',
+  })
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  async click(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SearchClickDto,
+  ): Promise<void> {
+    await this.searchLog.recordClick(
+      user.sub,
+      dto.q,
+      dto.targetType,
+      dto.targetId,
     );
   }
 

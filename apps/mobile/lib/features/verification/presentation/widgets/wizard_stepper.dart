@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 
 /// Wizard progress header (docs/03 §8 "шаги с прогресс-баром"): a gold
 /// rail that fills as the attorney advances, numbered medallions (done =
@@ -198,7 +199,7 @@ class _StepDot extends StatelessWidget {
       child: state == _DotState.done
           ? AppIcon(AppIcons.checkRounded, size: AppSizes.iconSm - 4, color: fg)
           : Text(
-              '${index + 1}',
+              context.digits(index + 1),
               style: typography.caption.copyWith(color: fg),
               textScaler: TextScaler.noScaling,
             ),

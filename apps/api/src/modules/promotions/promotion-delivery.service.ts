@@ -22,6 +22,8 @@ export interface LivePromotion {
   targetImpressions: number | null;
   startsAt: Date;
   endsAt: Date;
+  ctaType: string | null;
+  ctaValue: string | null;
 }
 
 /** What the audience filter knows about a viewer. */
@@ -133,6 +135,8 @@ export class PromotionDeliveryService {
         target_impressions: true,
         starts_at: true,
         ends_at: true,
+        cta_type: true,
+        cta_value: true,
       },
       orderBy: { starts_at: 'asc' },
       take: 500,
@@ -152,6 +156,8 @@ export class PromotionDeliveryService {
         targetImpressions: r.target_impressions,
         startsAt: r.starts_at ?? now,
         endsAt: r.ends_at ?? now,
+        ctaType: r.cta_type,
+        ctaValue: r.cta_value,
       }));
     this.live.set(target, { at: Date.now(), rows: list });
     return list;
@@ -300,6 +306,10 @@ export class PromotionDeliveryService {
           // A parallel request created it: count the impression only.
         }
       }
+      await this.bumpDaily(id, today, {
+        impressions: 1,
+        reach: newPerson ? 1 : 0,
+      });
       const p = await this.prisma.casePromotion.update({
         where: { id },
         data: {
@@ -363,6 +373,35 @@ export class PromotionDeliveryService {
       where: { id: promotionId },
       data: { clicks: { increment: 1 } },
     });
+    await this.bumpDaily(promotionId, dayKey(), { clicks: 1 }).catch(
+      () => undefined,
+    );
     return true;
+  }
+
+  /** The numbers of one day, for the bars on the stats screen. */
+  private async bumpDaily(
+    id: string,
+    day: string,
+    d: { impressions?: number; reach?: number; clicks?: number },
+  ): Promise<void> {
+    const impressions = d.impressions ?? 0;
+    const reach = d.reach ?? 0;
+    const clicks = d.clicks ?? 0;
+    await this.prisma.promotionDaily.upsert({
+      where: { promotion_id_day_key: { promotion_id: id, day_key: day } },
+      create: {
+        promotion_id: id,
+        day_key: day,
+        impressions,
+        reach,
+        clicks,
+      },
+      update: {
+        impressions: { increment: impressions },
+        reach: { increment: reach },
+        clicks: { increment: clicks },
+      },
+    });
   }
 }

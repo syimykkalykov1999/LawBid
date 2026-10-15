@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
@@ -43,7 +43,7 @@ final avatarUploadRepositoryProvider = Provider<AvatarUploadRepository>(
 
 /// "Now" for time-window rules (14-day review edit, 30-day username
 /// cooldown) — overridable so tests are deterministic.
-final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+final clockProvider = appClockProvider;
 
 // --- Gate ------------------------------------------------------------------
 

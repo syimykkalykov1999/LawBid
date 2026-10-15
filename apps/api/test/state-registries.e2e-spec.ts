@@ -4,7 +4,7 @@ import {
   type Server as HttpServer,
 } from 'node:http';
 import type { AddressInfo, Server } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type Redis from 'ioredis';
@@ -164,7 +164,9 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
       .set(a.auth)
       .expect(201);
     const requestId = (draft.body as Body).data.id as string;
-    const bar = `${prefix}${randomUUID().slice(0, 8).toUpperCase()}`;
+    // Digits only after the prefix: a state without its own format needs at
+    // least 3 digits, and random hex sometimes has fewer (a 1-in-30 flake).
+    const bar = `${prefix}${String(randomInt(10_000_000, 99_999_999))}`;
     await api()
       .post(`/api/v1/verification/requests/${requestId}/licenses`)
       .set(a.auth)

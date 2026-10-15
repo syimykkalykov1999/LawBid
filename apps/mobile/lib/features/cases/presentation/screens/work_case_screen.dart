@@ -13,6 +13,8 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
     show routeSubscriptionError;
+import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
+    show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
@@ -203,6 +205,10 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
       budget: c.budget,
       urgency: c.urgencyInfo,
       onRefresh: _refresh,
+      categoryCode: c.practice.artCode,
+      statusTone: caseTone(c.status),
+      stage: caseStageOf(c.status, c.bidsCount),
+      publishedAt: c.createdAt,
       overview: [
         if (pending)
           Padding(

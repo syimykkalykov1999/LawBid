@@ -33,6 +33,8 @@ import {
 import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
+import { SearchLogService } from '../modules/search/search-log.service';
+import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
@@ -116,6 +118,8 @@ export class JobsModule {
         CountersReconcileJob,
         FeedRecoJob,
         TrendingTagsJob,
+        SearchLogService,
+        SearchSynonymsService,
         NotificationsRetentionJob,
         OpsMetricsJob,
         OpsGuardJob,

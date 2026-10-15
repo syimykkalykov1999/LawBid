@@ -41,7 +41,9 @@ class PageQuery extends MineFilterFields {
   limit?: number;
 }
 
-export const MY_BIDS_FILTERS = ['active', 'finished'] as const;
+// Owner 2026-10-15: `completed` = accepted bids of finished cases plus the
+// declined / withdrawn / expired ones (one «Completed» chip).
+export const MY_BIDS_FILTERS = ['active', 'finished', 'completed'] as const;
 export type MyBidsFilter = (typeof MY_BIDS_FILTERS)[number];
 
 /** GET /users/me/bids (docs/04 §11.2 "Мои биды", §15). */

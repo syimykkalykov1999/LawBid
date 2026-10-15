@@ -108,7 +108,8 @@ export function caseScore(
   c: CaseCandidate,
   v: CaseViewer,
   now: number,
+  weights: Record<keyof typeof CASE_WEIGHTS, number> = CASE_WEIGHTS,
 ): number {
-  const base = weighted(CASE_WEIGHTS, caseFeatures(c, v, now));
+  const base = weighted(weights, caseFeatures(c, v, now));
   return v.bidOn.has(c.id) ? base * ALREADY_BID_FACTOR : base;
 }

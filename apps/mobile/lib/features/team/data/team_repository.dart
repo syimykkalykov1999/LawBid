@@ -215,6 +215,7 @@ class ApiTeamRepository implements TeamRepository {
         location: t.location,
         caseId: t.caseId,
         caseTitle: t.caseTitle,
+        casePracticeCode: t.casePracticeCode,
         contactName: t.contactName,
         contactPhone: t.contactPhone,
         contactEmail: t.contactEmail,
@@ -277,6 +278,52 @@ class ApiTeamRepository implements TeamRepository {
             ),
         ],
       );
+
+  /// Owner 2026-10-15: a task of a case's workspace as a board card.
+  static TaskItem boardTask(api.BoardCaseTaskDto t) {
+    final done = t.status == api.BoardCaseTaskDtoStatus.done;
+    final kind = t.kind.json ?? 'joint';
+    return TaskItem(
+      id: 'case:${t.id}',
+      kind: switch (kind) {
+        'for_client' => TaskKind.documents,
+        'shared' => TaskKind.review,
+        _ => TaskKind.other,
+      },
+      title: t.title,
+      notes: t.description,
+      dueAt: _date(t.dueAt),
+      caseId: t.caseId,
+      caseTitle: t.caseTitle,
+      casePracticeCode: t.practiceCode,
+      status: done ? TaskStatus.done : TaskStatus.open,
+      canDelete: false,
+      createdAt: _date(t.createdAt) ?? DateTime.now(),
+      doneAt: _date(t.doneAt),
+      archivedAt: done ? _date(t.doneAt) : null,
+      steps: [
+        for (final i in t.items)
+          TaskStep(
+            id: i.id,
+            title: i.title,
+            status: i.done ? TaskStatus.done : TaskStatus.open,
+            doneAt: _date(i.doneAt),
+          ),
+      ],
+      canComplete: t.canTick,
+      canEdit: false,
+      boardTask: BoardCaseTask(
+        taskId: t.id,
+        kind: kind,
+        viewerIsAttorney:
+            t.viewerRole == api.BoardCaseTaskDtoViewerRole.attorney,
+        createdByClient:
+            t.createdByRole == api.BoardCaseTaskDtoCreatedByRole.client,
+        canTick: t.canTick,
+        closed: t.closed,
+      ),
+    );
+  }
 
   static api.TaskStepInputDto _stepInput(TaskStepDraft s) =>
       api.TaskStepInputDto(

@@ -23,7 +23,15 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 /// profile's 3-column grid of squares (a tap opens them as a feed from
 /// there) and cases as compact rows.
 class SearchPostTile extends ConsumerWidget {
-  const SearchPostTile({required this.post, this.feed, super.key});
+  const SearchPostTile({
+    required this.post,
+    this.feed,
+    this.onOpened,
+    super.key,
+  });
+
+  /// Owner 2026-10-15: told when the tile opens (the search learns).
+  final VoidCallback? onOpened;
 
   /// Owner 2026-10-07: the results this tile sits among — a tap opens
   /// them as a feed starting here (Instagram).
@@ -41,6 +49,7 @@ class SearchPostTile extends ConsumerWidget {
           : 'search.kind.post',
     );
     void open() {
+      onOpened?.call();
       // Owner 2026-10-13: a video tile opens the Reels player.
       if (post.video != null) {
         ReelsScreen.open(context, from: post);
@@ -70,9 +79,12 @@ class SearchPostTile extends ConsumerWidget {
 /// the title and one line of text, then the paperclip, comments, bids and
 /// the time at the right. No client data. The glow sits top right.
 class SearchCaseTile extends ConsumerWidget {
-  const SearchCaseTile({required this.item, super.key});
+  const SearchCaseTile({required this.item, this.onOpened, super.key});
 
   final FeedCase item;
+
+  /// Owner 2026-10-15: told when the tile opens (the search learns).
+  final VoidCallback? onOpened;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -119,7 +131,10 @@ class SearchCaseTile extends ConsumerWidget {
       label: '${c.title}. $money',
       excludeSemantics: true,
       child: AppPressable(
-        onTap: () => context.push(AppRoutes.caseDetail(c.id)),
+        onTap: () {
+          onOpened?.call();
+          context.push(AppRoutes.caseDetail(c.id));
+        },
         child: Container(
           key: ValueKey('search-case-${c.id}'),
           clipBehavior: Clip.hardEdge,
@@ -414,6 +429,7 @@ class TopicRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.categoryCode,
+    this.onOpened,
     super.key,
   });
 
@@ -421,6 +437,9 @@ class TopicRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final String? categoryCode;
+
+  /// Owner 2026-10-15: told when the row opens (the search learns).
+  final VoidCallback? onOpened;
 
   @override
   Widget build(BuildContext context) {
@@ -431,7 +450,10 @@ class TopicRow extends StatelessWidget {
       label: '$title, $subtitle',
       excludeSemantics: true,
       child: AppPressable(
-        onTap: () => context.push(SocialRoutes.tag(tag)),
+        onTap: () {
+          onOpened?.call();
+          context.push(SocialRoutes.tag(tag));
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenSide,

@@ -68,6 +68,7 @@ const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
     in_progress: { in: ['in_progress', 'pending_completion', 'disputed'] },
     archived: 'archived',
     closed: 'closed',
+    completed: { in: ['closed', 'archived'] },
   };
 
 const PRACTICE_AREA_SELECT = {
@@ -77,22 +78,34 @@ const PRACTICE_AREA_SELECT = {
   i18n_key: true,
 } satisfies Prisma.PracticeAreaSelect;
 
+/** Owner 2026-10-15: topics 2..N of a case, in a stable order. */
+const EXTRA_PRACTICES_INCLUDE = {
+  select: { practice_area: { select: PRACTICE_AREA_SELECT } },
+  orderBy: { practice_area: { sort: 'asc' } },
+} satisfies Prisma.Case$extra_practicesArgs;
+
 const CASE_DETAIL_INCLUDE = {
   practice_area: { select: PRACTICE_AREA_SELECT },
+  extra_practices: EXTRA_PRACTICES_INCLUDE,
   states: { select: { state_code: true, is_primary: true } },
 } satisfies Prisma.CaseInclude;
 
+type PracticeRef = {
+  id: string;
+  code: string;
+  name_en: string;
+  i18n_key: string;
+};
+
 type CaseWithDetails = Case & {
-  practice_area: {
-    id: string;
-    code: string;
-    name_en: string;
-    i18n_key: string;
-  };
+  practice_area: PracticeRef;
+  /** Topics 2..N (owner 2026-10-15); absent = none. */
+  extra_practices?: { practice_area: PracticeRef }[];
   states: Pick<CaseState, 'state_code' | 'is_primary'>[];
 };
 
 type CaseWithPracticeAndStates = Case & {
+  extra_practices?: { practice_area: PracticeRef }[];
   practice_area: {
     id: string;
     code: string;
@@ -208,6 +221,12 @@ function toCaseDto(
       nameEn: kase.practice_area.name_en,
       i18nKey: kase.practice_area.i18n_key,
     },
+    extraPracticeAreas: (kase.extra_practices ?? []).map((e) => ({
+      id: e.practice_area.id,
+      code: e.practice_area.code,
+      nameEn: e.practice_area.name_en,
+      i18nKey: e.practice_area.i18n_key,
+    })),
     primaryStateCode: kase.primary_state_code,
     states: kase.states.map((s) => ({
       stateCode: s.state_code,
@@ -246,6 +265,7 @@ function toSummaryDto(
       nameEn: kase.practice_area.name_en,
       i18nKey: kase.practice_area.i18n_key,
     },
+    extraPracticeCount: kase.extra_practices?.length ?? 0,
     primaryStateCode: kase.primary_state_code,
     additionalStateCount: kase.states.filter((s) => !s.is_primary).length,
     city: kase.city,
@@ -315,6 +335,10 @@ export class CasesService {
     validateCaseStates(states);
     await this.assertValidStateCodes(states.map((s) => s.stateCode));
     const practiceArea = await this.assertLeafPracticeArea(dto.practiceAreaId);
+    const extraAreas = await this.assertExtraPracticeAreas(
+      dto.practiceAreaId,
+      dto.extraPracticeAreaIds ?? [],
+    );
     const budgetCents = budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
     const urgency = urgencyColumnsOf(dto, null);
 
@@ -356,6 +380,14 @@ export class CasesService {
           is_primary: s.isPrimary,
         })),
       });
+      if (extraAreas.length > 0) {
+        await tx.caseExtraPractice.createMany({
+          data: extraAreas.map((a) => ({
+            case_id: kase.id,
+            practice_area_id: a.id,
+          })),
+        });
+      }
       await this.photos.attach(tx, kase.id, photoIds);
       await this.journal.append(tx, {
         caseId: kase.id,
@@ -365,6 +397,7 @@ export class CasesService {
         payload: {
           title: kase.title,
           practiceAreaId: kase.practice_area_id,
+          extraPracticeAreaIds: extraAreas.map((a) => a.id),
           states: states as unknown as Prisma.InputJsonArray,
           budgetMode: kase.budget_mode,
           budgetCents: kase.budget_cents,
@@ -401,6 +434,7 @@ export class CasesService {
       {
         ...created,
         practice_area: practiceArea,
+        extra_practices: extraAreas.map((a) => ({ practice_area: a })),
         states: statesRows(states),
       },
       await this.thresholds(),
@@ -426,16 +460,19 @@ export class CasesService {
       budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
     }
 
-    const hasPracticeChange = dto.practiceAreaId !== undefined;
+    const hasExtraChange = dto.extraPracticeAreaIds !== undefined;
+    const hasPracticeChange =
+      dto.practiceAreaId !== undefined || hasExtraChange;
     const hasStatesChange =
       dto.primaryStateCode !== undefined ||
       dto.additionalStateCodes !== undefined;
 
     // Validated outside the transaction (read-only lookups); the
     // transaction itself re-checks bids_count before writing.
-    const practiceArea = hasPracticeChange
-      ? await this.assertLeafPracticeArea(dto.practiceAreaId as string)
-      : null;
+    const practiceArea =
+      dto.practiceAreaId !== undefined
+        ? await this.assertLeafPracticeArea(dto.practiceAreaId)
+        : null;
     // Owner 2026-10-05: files can be added/removed while the case is open.
     if (dto.photoFileIds) {
       await this.photos.assertAttachable(user.sub, dto.photoFileIds, caseId);
@@ -450,6 +487,15 @@ export class CasesService {
         },
       });
       if (!current || current.client_id !== user.sub) throw caseNotFound();
+      // Owner 2026-10-15: topics 2..N. Sent alone, they keep the first topic;
+      // sent with a new first topic, a repeat of it is dropped.
+      const nextPrimary = dto.practiceAreaId ?? current.practice_area_id;
+      const extraAreas = hasExtraChange
+        ? await this.assertExtraPracticeAreas(
+            nextPrimary,
+            dto.extraPracticeAreaIds ?? [],
+          )
+        : null;
       const currentFiles = current.photos.map((p) => p.file_id);
       const filesChanged =
         dto.photoFileIds !== undefined &&
@@ -523,7 +569,7 @@ export class CasesService {
         Object.assign(extra, urgencyDiff(dto, current, diff));
       }
       if (
-        hasPracticeChange &&
+        dto.practiceAreaId !== undefined &&
         dto.practiceAreaId !== current.practice_area_id
       ) {
         extra.practice_area_id = dto.practiceAreaId;
@@ -554,6 +600,22 @@ export class CasesService {
         action: 'client_edit',
         extra,
       });
+
+      if (extraAreas) {
+        diff.extraPracticeAreaIds = {
+          old: null,
+          new: extraAreas.map((a) => a.id),
+        };
+        await tx.caseExtraPractice.deleteMany({ where: { case_id: caseId } });
+        if (extraAreas.length > 0) {
+          await tx.caseExtraPractice.createMany({
+            data: extraAreas.map((a) => ({
+              case_id: caseId,
+              practice_area_id: a.id,
+            })),
+          });
+        }
+      }
 
       if (filesChanged) {
         await tx.casePhoto.deleteMany({ where: { case_id: caseId } });
@@ -608,10 +670,15 @@ export class CasesService {
       where: { case_id: caseId },
       select: { state_code: true, is_primary: true },
     });
+    const finalExtras = await this.prisma.caseExtraPractice.findMany({
+      where: { case_id: caseId },
+      ...EXTRA_PRACTICES_INCLUDE,
+    });
     return toCaseDto(
       {
         ...updated,
         practice_area: finalPracticeArea,
+        extra_practices: finalExtras,
         states: finalStates,
       },
       await this.thresholds(),
@@ -929,6 +996,45 @@ export class CasesService {
     return area;
   }
 
+  /**
+   * Owner 2026-10-15: up to `case.max_practices` topics in all (the admin
+   * sets it). The extras are leaves too, distinct, and never the first topic.
+   */
+  private async assertExtraPracticeAreas(
+    primaryId: string,
+    ids: string[],
+  ): Promise<PracticeRef[]> {
+    const unique = [...new Set(ids)].filter((id) => id !== primaryId);
+    if (unique.length === 0) return [];
+    const max = Math.max(
+      1,
+      (await this.settings?.number('case.max_practices')) ?? 3,
+    );
+    if (unique.length + 1 > max) {
+      throw validationError(`A case can have up to ${max} topics.`, {
+        field: 'extraPracticeAreaIds',
+        max,
+      });
+    }
+    const areas = await this.prisma.practiceArea.findMany({
+      where: {
+        id: { in: unique },
+        is_active: true,
+        parent_id: { not: null },
+        parent: { is_active: true },
+      },
+      select: PRACTICE_AREA_SELECT,
+      orderBy: { sort: 'asc' },
+    });
+    if (areas.length !== unique.length) {
+      throw validationError(
+        'extraPracticeAreaIds must be active specializations (leaves).',
+        { field: 'extraPracticeAreaIds' },
+      );
+    }
+    return areas;
+  }
+
   private async practiceAreaOf(
     id: string,
   ): Promise<{ id: string; code: string; name_en: string; i18n_key: string }> {
@@ -939,15 +1045,24 @@ export class CasesService {
   }
 
   async toFullDto(kase: Case): Promise<CaseDto> {
-    const [practiceArea, states] = await Promise.all([
+    const [practiceArea, extras, states] = await Promise.all([
       this.practiceAreaOf(kase.practice_area_id),
+      this.prisma.caseExtraPractice.findMany({
+        where: { case_id: kase.id },
+        ...EXTRA_PRACTICES_INCLUDE,
+      }),
       this.prisma.caseState.findMany({
         where: { case_id: kase.id },
         select: { state_code: true, is_primary: true },
       }),
     ]);
     return toCaseDto(
-      { ...kase, practice_area: practiceArea, states },
+      {
+        ...kase,
+        practice_area: practiceArea,
+        extra_practices: extras,
+        states,
+      },
       await this.thresholds(),
     );
   }

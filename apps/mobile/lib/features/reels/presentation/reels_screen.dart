@@ -3,17 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
-import 'package:lawbid/features/reels/presentation/reel_detail_screen.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
@@ -51,8 +51,11 @@ class ReelsScreen extends ConsumerStatefulWidget {
   final List<Post> initial;
   final int initialIndex;
 
+  /// Owner 2026-10-15: pushed on the tab's own navigator, so the bottom nav
+  /// bar stays (as on the Reels tab); from a screen already over the tabs
+  /// there is no bar, and the player takes the whole screen.
   static Future<void> open(BuildContext context, {Post? from}) =>
-      Navigator.of(context, rootNavigator: true).push(
+      Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ReelsScreen(initial: [if (from != null) from]),
         ),
@@ -71,19 +74,31 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   bool _loading = false;
   Object? _error;
   int _index = 0;
+  late final ReelPlayersOpen _open = ref.read(reelPlayersOpenProvider.notifier);
+  bool _counted = false;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
     _load();
+    if (!widget.embedded) {
+      _counted = true;
+      Future.microtask(_open.opened);
+    }
   }
 
   @override
   void dispose() {
     _pages.dispose();
+    if (_counted) Future.microtask(_open.closed);
     super.dispose();
   }
+
+  /// The bottom nav bar is on screen under this player (it is a tab's page,
+  /// not a screen over the tabs).
+  bool get _underNavBar =>
+      Navigator.of(context) != Navigator.of(context, rootNavigator: true);
 
   Future<void> _load() async {
     if (_loading || !_more) return;
@@ -209,6 +224,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     active: i == _index,
                     warm: (i - _index).abs() == 1,
                     muted: muted,
+                    embedded: _underNavBar,
                   ),
                 ),
               SafeArea(
@@ -323,7 +339,11 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
 
   /// The inner page; the reel waits paused and plays on when back (see
   /// `covered` in [build]).
-  Future<void> _openInside(Post p) => ReelDetailScreen.open(context, p);
+  Future<void> _openInside(Post p) => showPostAttachmentsSheet(
+        context,
+        media: p.media,
+        documents: p.attachments,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -353,9 +373,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     // it; back on the reel it plays on, unless the viewer paused it.
     final covered = !(ModalRoute.of(context)?.isCurrent ?? true);
     final video = p.video;
+    // The title is not drawn twice when the text starts with it.
+    final title = (p.title ?? '').trim();
+    final body = p.body.trim();
     final caption = [
-      if ((p.title ?? '').trim().isNotEmpty) p.title!.trim(),
-      if (p.body.trim().isNotEmpty) p.body.trim(),
+      if (title.isNotEmpty && !body.startsWith(title)) title,
+      if (body.isNotEmpty) body,
     ].join('\n');
     const shadow = [Shadow(blurRadius: 8, color: Colors.black54)];
 
@@ -547,6 +570,18 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Owner 2026-10-15: the advertiser's button.
+                      if (p.promotionId != null && p.promotionCta != null) ...[
+                        PromotionCtaButton(
+                          promotionId: p.promotionId!,
+                          cta: p.promotionCta!,
+                          authorId: p.author.id,
+                          onDark: true,
+                          onProfile: () =>
+                              openAuthorProfile(context, ref, p.author),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
                       // The shared author row: Follow at its right edge.
                       AuthorHeader(
                         author: p.author,
@@ -557,13 +592,15 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         followMaxWidth: 140,
                         showFollow: !p.isMine,
                         boostPostId: p.isMine ? p.id : null,
-                        subtitle: p.locationName ??
-                            (p.author.isClient
-                                ? '@${p.author.username} · '
-                                    '${t.t('person.client')}'
-                                : p.author.verified
-                                    ? t.t('post.licensedAttorney')
-                                    : '@${p.author.username}'),
+                        subtitle: p.promotionId != null
+                            ? t.t('promote.sponsored')
+                            : p.locationName ??
+                                (p.author.isClient
+                                    ? '@${p.author.username} · '
+                                        '${t.t('person.client')}'
+                                    : p.author.verified
+                                        ? t.t('post.licensedAttorney')
+                                        : '@${p.author.username}'),
                       ),
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
@@ -817,6 +854,7 @@ class _ReelCaption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (text.trim().isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, box) {
         final painter = TextPainter(

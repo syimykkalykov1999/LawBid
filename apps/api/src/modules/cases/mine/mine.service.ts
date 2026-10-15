@@ -133,8 +133,26 @@ export class MineService {
         attorney_id: user.sub,
         // Owner 2026-09-30: search and filters in "Mine".
         ...(hasMineFilter(search) ? { case: mineCaseWhere(search) } : {}),
-        status: filter === 'active' ? 'active' : { in: FINISHED_BIDS },
-        ...keyset(cursor),
+        AND: [
+          filter === 'completed'
+            ? {
+                OR: [
+                  {
+                    status: {
+                      in: FINISHED_BIDS.filter((x) => x !== 'accepted'),
+                    },
+                  },
+                  {
+                    status: 'accepted',
+                    case: { status: { in: ['closed', 'archived'] } },
+                  },
+                ],
+              }
+            : {
+                status: filter === 'active' ? 'active' : { in: FINISHED_BIDS },
+              },
+          keyset(cursor),
+        ],
       },
       orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,

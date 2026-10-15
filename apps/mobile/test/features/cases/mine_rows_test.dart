@@ -91,68 +91,25 @@ void main() {
     );
     await tester.pumpWidget(wrap(const Scaffold(body: ClientMineView())));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cases'));
-    await tester.pumpAndSettle();
     return repo;
   }
 
-  testWidgets('"My cases" are compact rows with Boost on open ones',
+  testWidgets('"Cases" are cards: Active and Completed chips, no row swipes',
       (tester) async {
     await pumpCases(tester, [
       _case('a', CaseStatus.open, bids: 3),
       _case('b', CaseStatus.inProgress),
     ]);
-    expect(find.byKey(const ValueKey('my-case-a')), findsOneWidget);
-    expect(find.byKey(const ValueKey('my-case-b')), findsOneWidget);
+    // Owner 2026-10-15: one list of cards, the chips Active · Completed.
+    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('Completed'), findsOneWidget);
+    expect(find.byKey(const ValueKey('active-case-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('active-case-b')), findsOneWidget);
     expect(find.text('Case a'), findsOneWidget);
-    // Boost on the open case's card only.
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('my-case-a')),
-        matching: find.text('Boost'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('my-case-b')),
-        matching: find.text('Boost'),
-      ),
-      findsNothing,
-    );
-    // An in-progress case has nothing to swipe to.
-    expect(find.byKey(const ValueKey('my-case-swipe-b')), findsNothing);
-  });
-
-  testWidgets('swipe left offers close and delete; delete asks first',
-      (tester) async {
-    final repo = await pumpCases(tester, [_case('a', CaseStatus.open)]);
-    await tester.drag(
-      find.byKey(const ValueKey('my-case-a')),
-      const Offset(-200, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('my-case-close-a')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('my-case-delete-a')));
-    await tester.pumpAndSettle();
-    // The confirm sheet: nothing is deleted until confirmed.
-    expect(find.text('Delete the case?'), findsOneWidget);
-    expect(repo.deleted, isEmpty);
-    await tester.tap(find.text('Delete').last);
-    await tester.pumpAndSettle();
-    expect(repo.deleted, ['a']);
+    // The rows (and their swipe actions) are gone.
     expect(find.byKey(const ValueKey('my-case-a')), findsNothing);
-  });
-
-  testWidgets('a swipe right on a closed row is left to the tabs',
-      (tester) async {
-    await pumpCases(tester, [_case('a', CaseStatus.open)]);
-    await tester.drag(
-      find.byKey(const ValueKey('my-case-a')),
-      const Offset(200, 0),
-    );
+    await tester.tap(find.text('Completed'));
     await tester.pumpAndSettle();
-    // TabSwipe went back to the planner.
-    expect(find.byKey(const ValueKey('my-case-a')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

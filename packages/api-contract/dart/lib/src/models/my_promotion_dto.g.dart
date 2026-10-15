@@ -34,6 +34,9 @@ MyPromotionDto _$MyPromotionDtoFromJson(Map<String, dynamic> json) =>
               json['audience'] as Map<String, dynamic>,
             ),
       cancelReason: json['cancelReason'] as String?,
+      goal: json['goal'] as String?,
+      ctaType: json['ctaType'] as String?,
+      ctaValue: json['ctaValue'] as String?,
     );
 
 Map<String, dynamic> _$MyPromotionDtoToJson(MyPromotionDto instance) =>
@@ -54,6 +57,9 @@ Map<String, dynamic> _$MyPromotionDtoToJson(MyPromotionDto instance) =>
       'targetImpressions': ?instance.targetImpressions,
       'audience': ?instance.audience?.toJson(),
       'cancelReason': ?instance.cancelReason,
+      'goal': ?instance.goal,
+      'ctaType': ?instance.ctaType,
+      'ctaValue': ?instance.ctaValue,
       'createdAt': instance.createdAt.toIso8601String(),
       'title': instance.title,
     };

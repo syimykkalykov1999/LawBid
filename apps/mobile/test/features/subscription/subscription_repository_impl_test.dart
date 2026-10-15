@@ -213,6 +213,7 @@ void main() {
               'status': 'succeeded',
               'paidAt': '2026-10-06T12:00:00.000Z',
               'failureCode': null,
+              'kind': 'subscription',
               'createdAt': '2026-10-06T12:00:00.000Z',
             },
             {
@@ -222,6 +223,7 @@ void main() {
               'status': 'failed',
               'paidAt': null,
               'failureCode': 'card_declined',
+              'kind': 'subscription',
               'createdAt': '2026-11-06T12:00:00.000Z',
             },
           ],

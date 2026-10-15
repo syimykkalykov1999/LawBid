@@ -15,10 +15,10 @@ class ActiveCaseCard extends StatelessWidget {
     required this.practiceName,
     required this.statusLabel,
     required this.statusTone,
-    required this.stage,
-    required this.stageLabel,
     required this.next,
     required this.onTap,
+    this.stage,
+    this.stageLabel,
     this.stateCode,
     this.price,
     this.nextYours = false,
@@ -38,9 +38,11 @@ class ActiveCaseCard extends StatelessWidget {
   final String statusLabel;
   final StatusTone statusTone;
 
-  /// 0..4 = the index of the current stage.
-  final int stage;
-  final String stageLabel;
+  /// 0..4 = the index of the current stage; null = no scale (Mine lists).
+  final int? stage;
+
+  /// At the end of the status row: «Stage N of 5», or the date of a Mine card.
+  final String? stageLabel;
   final String next;
 
   /// Always visible at the right of the one-line «what next».
@@ -76,7 +78,7 @@ class ActiveCaseCard extends StatelessWidget {
     final headerBg = Color.alphaBlend(accent.withValues(alpha: 0.22), base);
     final headerFg = readableOn(accent, headerBg);
     final headerPrice = readableOn(colors.goldDark, headerBg);
-    final lit = stage.clamp(0, stages - 1) + 1;
+    final lit = (stage ?? 0).clamp(0, stages - 1) + 1;
     final nextStyle = type.bodySmall.copyWith(
       color: nextDanger
           ? colors.dangerText
@@ -131,7 +133,7 @@ class ActiveCaseCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: semanticLabel ?? '$title. $stageLabel. $next',
+      label: semanticLabel ?? '$title. ${stageLabel ?? ''}. $next',
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
@@ -245,32 +247,35 @@ class ActiveCaseCard extends StatelessWidget {
                                 ],
                               ],
                             ),
-                            Text(
-                              stageLabel,
-                              maxLines: 1,
-                              style: type.caption
-                                  .copyWith(color: colors.textSecondary),
-                            ),
+                            if (stageLabel != null)
+                              Text(
+                                stageLabel!,
+                                maxLines: 1,
+                                style: type.caption
+                                    .copyWith(color: colors.textSecondary),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            for (var i = 0; i < stages; i++) ...[
-                              if (i > 0) const SizedBox(width: 3),
-                              Expanded(
-                                child: Container(
-                                  height: 3,
-                                  decoration: BoxDecoration(
-                                    color: i < lit ? accent : colors.border,
-                                    borderRadius: BorderRadius.circular(2),
+                        if (stage != null) ...[
+                          Row(
+                            children: [
+                              for (var i = 0; i < stages; i++) ...[
+                                if (i > 0) const SizedBox(width: 3),
+                                Expanded(
+                                  child: Container(
+                                    height: 3,
+                                    decoration: BoxDecoration(
+                                      color: i < lit ? accent : colors.border,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
-                          ],
-                        ),
-                        const SizedBox(height: 6),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
                         Container(
                           constraints: const BoxConstraints(minHeight: 30),
                           padding: const EdgeInsets.symmetric(

@@ -882,6 +882,8 @@ export class TaskDto {
   @ApiPropertyOptional({ type: String, nullable: true }) caseId!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) caseTitle!:
     string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) casePracticeCode!:
+    string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) contactName!:
     string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) contactPhone!:

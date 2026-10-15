@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
+import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VideosModule } from '../videos/videos.module';
 import { BunnyWebhookController } from './bunny-webhook.controller';
@@ -23,6 +24,7 @@ import { PostsService } from './posts.service';
     NotificationsModule,
     VideosModule,
     FeatureFlagsModule,
+    PromotionsCoreModule,
   ],
   controllers: [PostsController, PostVideosController, BunnyWebhookController],
   providers: [

@@ -415,7 +415,7 @@ class TaskRow extends StatelessWidget {
                           color: colors.textSecondary,
                         ),
                         Text(
-                          '${task.files.length}',
+                          context.digits(task.files.length),
                           style: typography.caption
                               .copyWith(color: colors.textSecondary),
                         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
@@ -12,7 +13,8 @@ import '../helpers/ux_harness.dart';
 /// Owner 2026-10-15: with the keyboard open (320 dp of it) nothing may
 /// overflow — screens with an input, longest strings of every language,
 /// 360 dp, font 1.0 / 1.3, left-to-right and right-to-left.
-void main() {
+Future<void> main() async {
+  await initializeDateFormatting();
   late List<Override> base;
   setUp(() async {
     SharedPreferences.setMockInitialValues({});

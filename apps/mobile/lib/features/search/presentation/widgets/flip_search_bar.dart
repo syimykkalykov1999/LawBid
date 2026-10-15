@@ -26,7 +26,7 @@ class FlipSearchBar extends StatefulWidget {
     this.showCancel = true,
     this.keepCancel = false,
     this.onCancel,
-    this.height = 44,
+    this.height = 36,
     super.key,
   });
 
@@ -57,7 +57,8 @@ class FlipSearchBar extends StatefulWidget {
   final bool keepCancel;
   final VoidCallback? onCancel;
 
-  /// Field height (owner 2026-10-01: 44 visible — the old 51 looked huge; the tap area stays 48).
+  /// Field height. Owner 2026-10-15: Instagram's 36 (text 14) in every search
+  /// bar of the app; the tap area stays 48.
   final double height;
 
   @override
@@ -206,8 +207,10 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                               key: ValueKey(hint),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: type.body
-                                  .copyWith(color: colors.textSecondary),
+                              style: type.body.copyWith(
+                                color: colors.textSecondary,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -221,7 +224,8 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                         focusNode: widget.focusNode,
                         textInputAction: TextInputAction.search,
                         onSubmitted: widget.onSubmitted,
-                        style: type.body.copyWith(color: colors.text),
+                        style: type.body
+                            .copyWith(color: colors.text, fontSize: 14),
                         cursorColor: colors.goldDark,
                         // The whole 48 px row is the tap target
                         // (docs/01 §8.4).

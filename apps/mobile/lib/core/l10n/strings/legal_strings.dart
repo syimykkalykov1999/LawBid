@@ -57,7 +57,7 @@ const legalRu = <String, String>{
   'dmca.error.checks': 'Отметьте оба подтверждения.',
   'dmca.target.post': 'Жалоба на публикацию',
   'dmca.target.comment': 'Жалоба на комментарий',
-  'dmca.target.case_comment': 'Жалоба на комментарий к кейсу',
+  'dmca.target.case_comment': 'Жалоба на вопрос по кейсу',
   'dmca.target.message': 'Жалоба на сообщение',
   'about.dmca': 'Авторские права (DMCA)',
   'cases.accept.unverifiedLine':
@@ -116,7 +116,7 @@ const legalEn = <String, String>{
   'dmca.error.checks': 'Tick both statements.',
   'dmca.target.post': 'Complaint about a post',
   'dmca.target.comment': 'Complaint about a comment',
-  'dmca.target.case_comment': 'Complaint about a case comment',
+  'dmca.target.case_comment': 'Complaint about a case question',
   'dmca.target.message': 'Complaint about a message',
   'about.dmca': 'Copyright (DMCA)',
   'cases.accept.unverifiedLine':

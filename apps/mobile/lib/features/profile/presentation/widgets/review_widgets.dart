@@ -419,7 +419,7 @@ class ReviewSummaryPanel extends ConsumerWidget {
                                 SizedBox(
                                   width: AppSpacing.md,
                                   child: Text(
-                                    '$stars',
+                                    context.digits(stars),
                                     textScaler: TextScaler.noScaling,
                                     style: typography.caption
                                         .copyWith(color: colors.textSecondary),

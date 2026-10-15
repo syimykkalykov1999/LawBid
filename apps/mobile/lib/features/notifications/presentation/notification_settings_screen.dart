@@ -9,8 +9,10 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/notifications/application/notification_sounds.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/notifications/presentation/new_case_alerts_section.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -158,6 +160,8 @@ class _NotificationSettingsScreenState
                 AppSpacing.screenSide + MediaQuery.paddingOf(context).bottom,
               ),
               children: [
+                const _SystemSwitchCard(),
+                const SizedBox(height: AppSpacing.lg),
                 Text(
                   t.t('notif.settings.categories'),
                   style: type.titleMedium.copyWith(color: colors.text),
@@ -339,6 +343,122 @@ class _NotificationSettingsScreenState
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-15: what the phone itself says about this app's
+/// notifications. Off → a plain explanation and a button to the phone's
+/// settings; on or off, «Try it» posts a local notification through the
+/// app's channel (the sound is the channel's).
+class _SystemSwitchCard extends ConsumerStatefulWidget {
+  const _SystemSwitchCard();
+
+  @override
+  ConsumerState<_SystemSwitchCard> createState() => _SystemSwitchCardState();
+}
+
+class _SystemSwitchCardState extends ConsumerState<_SystemSwitchCard>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Back from the phone's settings: read the switch again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(systemNotificationsEnabledProvider);
+    }
+  }
+
+  Future<void> _try() async {
+    final t = ref.read(translatorProvider);
+    final sys = ref.read(systemNotificationsProvider);
+    var ok = await sys.enabled();
+    if (!ok) ok = await sys.request();
+    if (ok) {
+      await sys.showTest(
+        t.t('notif.system.test.title'),
+        t.t('notif.system.test.body'),
+      );
+    }
+    ref.invalidate(systemNotificationsEnabledProvider);
+    if (!ok && mounted) await sys.openSettings();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final on = ref.watch(systemNotificationsEnabledProvider).value ?? true;
+    final danger = readableOn(colors.danger, colors.surface);
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: on ? colors.border : danger),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              AppIcon(
+                on
+                    ? AppIcons.notificationsNoneRounded
+                    : AppIcons.notificationsOffOutlined,
+                color: on ? colors.text : danger,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  t.t(on ? 'notif.system.on' : 'notif.system.off'),
+                  style: type.body.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (!on) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              t.t('notif.system.offBody'),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          if (!on) ...[
+            AppButton(
+              key: const ValueKey('notif-system-open'),
+              label: t.t('notif.system.open'),
+              height: AppSizes.touchTarget,
+              onPressed: () =>
+                  ref.read(systemNotificationsProvider).openSettings(),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          AppButton(
+            key: const ValueKey('notif-system-test'),
+            label: t.t('notif.system.test'),
+            variant: AppButtonVariant.secondary,
+            height: AppSizes.touchTarget,
+            onPressed: _try,
+          ),
+        ],
       ),
     );
   }

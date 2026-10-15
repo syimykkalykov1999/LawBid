@@ -123,7 +123,8 @@ export function postScore(
   v: PostViewer,
   hotMax: number,
   now: number,
+  weights: Record<keyof typeof POST_WEIGHTS, number> = POST_WEIGHTS,
 ): number {
-  const base = weighted(POST_WEIGHTS, postFeatures(p, author, v, hotMax, now));
+  const base = weighted(weights, postFeatures(p, author, v, hotMax, now));
   return v.seen.has(p.id) ? base * SEEN_FACTOR : base;
 }

@@ -183,7 +183,7 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           Row(
             children: [
               ProfileAvatar(
-                size: 86,
+                size: AppSizes.profileAvatar,
                 url: p.avatarUrl,
                 initials:
                     initialsOf(p.firstName, p.lastName, fallback: p.username),
@@ -231,23 +231,6 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   gold: true,
                 ),
               ],
-            ],
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              AppIcon(
-                AppIcons.locationOnOutlined,
-                size: AppSpacing.lg,
-                color: colors.goldStroke,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  '${t.t('person.client')} · ${p.state.name}',
-                  style: type.bodySmall.copyWith(color: colors.textSecondary),
-                ),
-              ),
             ],
           ),
           if (blocked) ...[

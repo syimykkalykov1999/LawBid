@@ -293,6 +293,12 @@ export class CaseFeedItemDto {
   @ApiProperty({ type: CasePracticeAreaDto })
   practiceArea!: CasePracticeAreaDto;
 
+  @ApiProperty({
+    type: 'integer',
+    description: 'Topics besides the first: «+N».',
+  })
+  extraPracticeCount!: number;
+
   @ApiProperty({ example: 'NJ' })
   primaryStateCode!: string;
 
@@ -376,6 +382,10 @@ export class CaseFeedItemDto {
   /** Owner 2026-10-02: a running paid case promotion ("Promoted" badge). */
   @ApiProperty({ description: 'Promoted by its client right now.' })
   promoted!: boolean;
+
+  /** Owner 2026-10-15: the last paid day, «Реклама · до {date}». */
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  promotedUntil?: string | null;
 
   @ApiProperty({
     description:

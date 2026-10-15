@@ -17,6 +17,9 @@
  * admin (prices, plans, templates, keys, staff).
  */
 export const KEEP_TABLES: Readonly<Record<string, string>> = {
+  search_synonym_groups:
+    'the search dictionary: words per topic (admin edits it)',
+  search_synonym_terms: 'its words and phrases',
   _prisma_migrations: 'migration history',
   app_config: 'settings and cost caps (seed + admin)',
   feature_flags: 'feature switches (seed + admin)',
@@ -102,6 +105,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // cases and bids
   cases: 'cases',
   case_states: 'case states',
+  case_extra_practices: 'case extra topics',
   bids: 'bids',
   bid_offers: 'bid offers',
   bid_drafts: 'bid drafts',
@@ -116,6 +120,10 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   case_invites: 'case invites',
   case_promotions: 'paid case / post boosts',
   promotion_views: 'boost impressions',
+  promotion_daily: 'boost numbers by day',
+  search_query_log: 'what testers searched',
+  search_clicks: 'results testers opened',
+  search_learned_links: 'topics learned from tester clicks',
   reviews: 'reviews of attorneys',
   review_helpful_votes: 'their votes',
   client_reviews: 'reviews of clients',

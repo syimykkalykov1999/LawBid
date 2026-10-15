@@ -96,13 +96,17 @@ describe('Feed (e2e, docs/05 §2.2, stage 5.3)', () => {
       .query({ limit: 12, ...(cursor ? { cursor } : {}) })
       .set(auth);
     expect(r.status).toBe(200);
+    // Paid promoted posts (left by other suites) are not organic items.
+    const organic = (
+      r.body.data as {
+        id: string;
+        promotionId?: string;
+        author: { id: string };
+      }[]
+    ).filter((p) => !p.promotionId);
     return {
-      ids: (r.body.data as { id: string; author: { id: string } }[]).map(
-        (p) => p.id,
-      ),
-      authors: (r.body.data as { author: { id: string } }[]).map(
-        (p) => p.author.id,
-      ),
+      ids: organic.map((p) => p.id),
+      authors: organic.map((p) => p.author.id),
       next: r.body.meta?.nextCursor as string | null,
     };
   };

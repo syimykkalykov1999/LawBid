@@ -7,6 +7,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show ScanOutcome, sha256Hex, sniffImageMime;
+import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -1039,6 +1040,12 @@ abstract final class SocialMappers {
             ),
         ],
         promotionId: d.promotionId,
+        promotionCta: d.promotionCta == null
+            ? null
+            : PromotionCta(
+                type: d.promotionCta!.type.json ?? 'more',
+                value: d.promotionCta!.value,
+              ),
       );
 
   static Comment comment(api.CommentDto d) => Comment(

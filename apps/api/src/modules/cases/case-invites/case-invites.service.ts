@@ -140,11 +140,64 @@ export class CaseInvitesService {
     }
 
     const now = new Date();
-    const [maxPending, maxPerDay, expiryDays] = await Promise.all([
+    const [
+      maxPending,
+      maxPerDay,
+      expiryDays,
+      maxPerAttorney,
+      maxPerPair,
+      reinviteHours,
+    ] = await Promise.all([
       this.settings.number('invites.max_pending_per_case'),
       this.settings.number('invites.max_per_day'),
       this.settings.number('invites.expiry_days'),
+      this.settings.number('invites.max_per_attorney_per_day'),
+      this.settings.number('invites.max_per_pair_per_day'),
+      this.settings.number('invites.reinvite_after_hours'),
     ]);
+    const dayAgo = new Date(now.getTime() - DAY_MS);
+    // Owner 2026-10-15 (anti-spam both ways): an attorney is not flooded by
+    // invites (from anyone, nor from one client over and over), and the same
+    // case is not offered again at once after a decline or an expiry.
+    const [toAttorneyToday, toPairToday, previous] = await Promise.all([
+      this.prisma.caseInvite.count({
+        where: { attorney_id: attorneyId, created_at: { gt: dayAgo } },
+      }),
+      this.prisma.caseInvite.count({
+        where: {
+          attorney_id: attorneyId,
+          client_id: user.sub,
+          created_at: { gt: dayAgo },
+        },
+      }),
+      this.prisma.caseInvite.findUnique({
+        where: {
+          case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
+        },
+      }),
+    ]);
+    // A still pending invite is answered with «already invited» below.
+    const tooSoon =
+      !!previous &&
+      statusOf(previous, kase.status, now) !== 'pending' &&
+      reinviteHours > 0 &&
+      now.getTime() - previous.created_at.getTime() < reinviteHours * 3_600_000;
+    if (
+      (maxPerAttorney > 0 && toAttorneyToday >= maxPerAttorney) ||
+      (maxPerPair > 0 && toPairToday >= maxPerPair) ||
+      tooSoon
+    ) {
+      throw new HttpException(
+        {
+          code: ErrorCode.INVITE_LIMIT_REACHED,
+          message: tooSoon
+            ? 'This attorney was invited to this case a moment ago. Try again later.'
+            : 'This attorney has received many invitations today. Try again tomorrow.',
+          details: { maxPerAttorney, maxPerPair, reinviteHours },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const [pendingOnCase, sentToday] = await Promise.all([
       this.prisma.caseInvite.count({
         where: { case_id: caseId, status: 'pending', expires_at: { gt: now } },

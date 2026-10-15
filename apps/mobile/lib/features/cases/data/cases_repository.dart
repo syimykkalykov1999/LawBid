@@ -215,6 +215,9 @@ class ApiCasesRepository implements CasesRepository {
       () => _cases.createCase(
         body: api.CreateCaseDto(
           practiceAreaId: draft.practiceAreaId!,
+          extraPracticeAreaIds: draft.extraPractices.isEmpty
+              ? null
+              : [for (final p in draft.extraPractices) p.id],
           title: draft.title.trim(),
           description: draft.description.trim(),
           primaryStateCode: draft.primaryStateCode!,
@@ -265,6 +268,14 @@ class ApiCasesRepository implements CasesRepository {
           practiceAreaId: draft.practiceAreaId != original.practice.id
               ? draft.practiceAreaId
               : null,
+          // Owner 2026-10-15: sent only when the topics changed (empty =
+          // just the first).
+          extraPracticeAreaIds: _sameIds(
+            [for (final p in draft.extraPractices) p.id],
+            [for (final p in original.extraPractices) p.id],
+          )
+              ? null
+              : [for (final p in draft.extraPractices) p.id],
           primaryStateCode: statesChanged ? draft.primaryStateCode : null,
           additionalStateCodes: statesChanged ? states : null,
           // An empty string clears the city (null would mean "unchanged").
@@ -347,6 +358,7 @@ class ApiCasesRepository implements CasesRepository {
           MyCasesFilter.inProgress => api.Filter.inProgress,
           MyCasesFilter.archived => api.Filter.archived,
           MyCasesFilter.closed => api.Filter.closed,
+          MyCasesFilter.completed => api.Filter.completed,
         },
         q: _q(search),
         practice: search.practice,
@@ -553,9 +565,11 @@ class ApiCasesRepository implements CasesRepository {
         q: _q(search),
         practice: search.practice,
         state: search.state,
-        filter: filter == MyBidsFilter.active
-            ? api.Filter2.active
-            : api.Filter2.finished,
+        filter: switch (filter) {
+          MyBidsFilter.active => api.Filter2.active,
+          MyBidsFilter.finished => api.Filter2.finished,
+          MyBidsFilter.completed => api.Filter2.completed,
+        },
       ),
     );
     return CursorPage(
@@ -712,3 +726,6 @@ class ApiCasesRepository implements CasesRepository {
             .data,
       );
 }
+
+bool _sameIds(List<String> a, List<String> b) =>
+    a.length == b.length && a.toSet().containsAll(b);

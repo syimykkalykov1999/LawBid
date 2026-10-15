@@ -287,6 +287,17 @@ export class PaymentDto {
     string | null;
   @ApiProperty({ type: String, nullable: true }) failureCode!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
+
+  /** Owner 2026-10-15: what it paid for. */
+  @ApiProperty({ enum: ['subscription', 'boost'] })
+  kind!: string;
+
+  /** For a boost: what was boosted (`post` | `case`) and for how many days. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  boostTarget?: string | null;
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  boostDays?: number | null;
 }
 
 export interface PaymentsPage {

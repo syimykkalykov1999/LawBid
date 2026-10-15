@@ -9,11 +9,13 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 abstract final class CaseFormat {
   static String money(L10nFormats f, int cents) {
     final whole = cents % 100 == 0;
-    return NumberFormat.simpleCurrency(
-      locale: f.locale,
-      name: 'USD',
-      decimalDigits: whole ? 0 : 2,
-    ).format(cents / 100);
+    return f.digits(
+      NumberFormat.simpleCurrency(
+        locale: f.locale,
+        name: 'USD',
+        decimalDigits: whole ? 0 : 2,
+      ).format(cents / 100),
+    );
   }
 
   /// "$600", "$250/hr" or "Free consultation".
@@ -45,6 +47,10 @@ abstract final class CaseFormat {
   }
 
   /// Practice name through its i18n key, English name as the fallback.
+  /// Owner 2026-10-15: «Family law +2» — the first topic and how many more.
+  static String withMore(String name, int extra) =>
+      extra > 0 ? '$name +$extra' : name;
+
   static String practice(Translator t, String i18nKey, String nameEn) {
     final v = t.t(i18nKey);
     return v == i18nKey ? nameEn : v;

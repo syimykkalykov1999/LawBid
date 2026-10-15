@@ -126,6 +126,10 @@ export class CaseAccessPolicy {
         EXISTS (SELECT 1 FROM attorney_practice_areas ap
                 WHERE ap.attorney_id = ${a}::UUID
                   AND (ap.practice_area_id = c.practice_area_id
+                       -- Owner 2026-10-15: any of the case's topics counts.
+                       OR EXISTS (SELECT 1 FROM case_extra_practices x
+                                  WHERE x.case_id = c.id
+                                    AND x.practice_area_id = ap.practice_area_id)
                        OR (pa.code = ${NOT_SURE_OR_OTHER_CODE}
                            AND ap.practice_area_id IN (
                              SELECT id FROM practice_areas

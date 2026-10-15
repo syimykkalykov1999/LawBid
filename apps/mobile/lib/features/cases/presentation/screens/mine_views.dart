@@ -14,22 +14,25 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
-// Owner 2026-10-02: three tabs on top — Planner · Cases (Open · In progress ·
-// Completed · Archive inside) · Saved.
-enum _ClientTab { active, planner, cases, saved }
+// Owner 2026-10-15: two tabs per role. Client: Cases (Active · Completed
+// inside) · Tasks; the client's Saved moved to Settings.
+enum _ClientTab { cases, planner }
 
-enum _CaseSection { open, inProgress, completed, archived }
+enum _CaseSection { active, completed }
 
-// Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
-// Completed · Finished · Saved inside) and the Planner (tasks calendar).
-// Owner 2026-10-01: Planner first, My bids second.
-enum _AttorneyTab { active, planner, bids }
+// Attorney: Cases (Active · Bids · Completed inside, Saved behind the
+// bookmark right of the search) · Tasks. «Bids» holds Waiting and
+// Invitations.
+enum _AttorneyTab { cases, planner }
 
-enum _BidsSection { active, invites, work, completed, finished, saved }
+enum _BidsSection { active, bids, completed }
+
+enum _BidKind { waiting, invites }
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
 /// Completed and Saved (posts). Cases show as compact rows (owner
@@ -44,84 +47,95 @@ class ClientMineView extends ConsumerStatefulWidget {
 }
 
 class _ClientMineViewState extends ConsumerState<ClientMineView> {
-  _ClientTab _tab = _ClientTab.active;
-  _CaseSection _section = _CaseSection.open;
+  _ClientTab _tab = _ClientTab.cases;
+  _CaseSection _section = _CaseSection.active;
   MineSearch _search = const MineSearch();
+  final _chrome = FeedChromeController(revealOnUp: true);
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final filter = switch (_section) {
-      _CaseSection.open => MyCasesFilter.open,
-      _CaseSection.inProgress => MyCasesFilter.inProgress,
-      _CaseSection.completed => MyCasesFilter.closed,
-      // Audit 2026-10-04: archived cases were unreachable from Mine.
-      _CaseSection.archived => MyCasesFilter.archived,
-    };
+    final active = _section == _CaseSection.active;
     final body = switch (_tab) {
-      // Owner 2026-10-13: the accepted cases come first, one tap to work.
-      _ClientTab.active => const _ClientCasesGrid(
-          key: ValueKey('active'),
-          filter: MyCasesFilter.active,
-          search: MineSearch(),
-          cards: true,
-        ),
       // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
       _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
-      _ClientTab.saved => const SavedPostsList(key: ValueKey('saved')),
       _ClientTab.cases => Column(
           key: const ValueKey('cases'),
           children: [
-            MineSearchBar(
-              search: _search,
-              onChanged: (v) => setState(() => _search = v),
+            // Owner 2026-10-15: search and chips go away on scroll down and
+            // come back on scroll up.
+            ChromeCollapse(
+              child: Column(
+                children: [
+                  MineSearchBar(
+                    search: _search,
+                    onChanged: (v) => setState(() => _search = v),
+                  ),
+                  MineActiveFilters(
+                    search: _search,
+                    onChanged: (v) => setState(() => _search = v),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  FilterChips<_CaseSection>(
+                    key: const ValueKey('case-sections'),
+                    value: _section,
+                    options: [
+                      (_CaseSection.active, t.t('mine.filter.active')),
+                      (_CaseSection.completed, t.t('mine.tab.completed')),
+                    ],
+                    onChanged: (v) => setState(() => _section = v),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+              ),
             ),
-            MineActiveFilters(
-              search: _search,
-              onChanged: (v) => setState(() => _search = v),
+            Expanded(
+              child: _ClientCasesGrid(
+                key: ValueKey(_section),
+                // Owner 2026-10-15: «Active» = open and in work (the stage
+                // scale); «Completed» = closed and archived.
+                filter: active ? MyCasesFilter.active : MyCasesFilter.completed,
+                search: _search,
+                cards: true,
+                scale: active,
+              ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            FilterChips<_CaseSection>(
-              key: const ValueKey('case-sections'),
-              value: _section,
-              options: [
-                (_CaseSection.open, t.t('mine.tab.open')),
-                (_CaseSection.inProgress, t.t('mine.tab.inWork')),
-                (_CaseSection.completed, t.t('mine.tab.completed')),
-                (_CaseSection.archived, t.t('cases.mine.archived')),
-              ],
-              onChanged: (v) => setState(() => _section = v),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Expanded(child: _ClientCasesGrid(filter: filter, search: _search)),
           ],
         ),
     };
-    return Column(
-      children: [
-        PillTabs<_ClientTab>(
-          value: _tab,
-          tabs: [
-            (_ClientTab.active, t.t('mine.tab.activeCases')),
-            (_ClientTab.planner, t.t('mine.tab.tasks')),
-            (_ClientTab.cases, t.t('mine.tab.cases')),
-            (_ClientTab.saved, t.t('mine.tab.saved')),
-          ],
-          onChanged: (v) => setState(() => _tab = v),
-        ),
-        Expanded(
-          child: TabSwipe<_ClientTab>(
+    return FeedChrome(
+      controller: _chrome,
+      child: Column(
+        children: [
+          PillTabs<_ClientTab>(
             value: _tab,
-            values: _ClientTab.values,
+            tabs: [
+              (_ClientTab.cases, t.t('mine.tab.cases')),
+              (_ClientTab.planner, t.t('mine.tab.tasks')),
+            ],
             onChanged: (v) => setState(() => _tab = v),
-            child: AnimatedSwitcher(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              child: body,
+          ),
+          Expanded(
+            child: TabSwipe<_ClientTab>(
+              value: _tab,
+              values: _ClientTab.values,
+              onChanged: (v) => setState(() => _tab = v),
+              child: AnimatedSwitcher(
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                child: body,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -131,14 +145,18 @@ class _ClientCasesGrid extends ConsumerWidget {
     required this.filter,
     required this.search,
     this.cards = false,
+    this.scale = true,
     super.key,
   });
 
   final MyCasesFilter filter;
   final MineSearch search;
 
-  /// «Active»: cards with the progress scale instead of compact rows.
+  /// «Active» and «My cases»: cards instead of compact rows.
   final bool cards;
+
+  /// The progress scale on a card («Active» only).
+  final bool scale;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -148,7 +166,7 @@ class _ClientCasesGrid extends ConsumerWidget {
     final n = ref.read(mineCasesProvider(key).notifier);
     final ids = value.value?.items.map((c) => c.id).join(',') ?? '';
     final seen = ref.watch(seenBidCountsProvider(ids)).value ?? const {};
-    final firstOpen = filter == MyCasesFilter.open && search.isEmpty;
+    final firstOpen = filter == MyCasesFilter.active && search.isEmpty;
     return MinePagedGrid<CaseSummary>(
       value: value,
       onRefresh: n.refresh,
@@ -175,6 +193,7 @@ class _ClientCasesGrid extends ConsumerWidget {
       rowOf: (c) => cards
           ? ClientActiveCaseCard(
               item: c,
+              scale: scale,
               newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
             )
           : MyCaseRow(
@@ -196,18 +215,41 @@ class AttorneyMineView extends ConsumerStatefulWidget {
 }
 
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
-  _AttorneyTab _tab = _AttorneyTab.active;
+  _AttorneyTab _tab = _AttorneyTab.cases;
   _BidsSection _section = _BidsSection.active;
+  _BidKind _kind = _BidKind.waiting;
+  bool _saved = false;
   MineSearch _search = const MineSearch();
+  final _chrome = FeedChromeController(revealOnUp: true);
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final invites = _section == _BidsSection.bids && _kind == _BidKind.invites;
     final search = Column(
       children: [
         MineSearchBar(
           search: _search,
           onChanged: (v) => setState(() => _search = v),
+          // Owner 2026-10-15: «Saved» is a bookmark right of the search.
+          action: AppIconButton(
+            key: const ValueKey('mine-saved-toggle'),
+            icon: AppIcon(
+              _saved
+                  ? AppIcons.bookmarkRounded
+                  : AppIcons.bookmarkBorderRounded,
+              color: _saved ? colors.goldDark : colors.text,
+            ),
+            semanticLabel: t.t('mine.tab.saved'),
+            onPressed: () => setState(() => _saved = !_saved),
+          ),
         ),
         MineActiveFilters(
           search: _search,
@@ -217,56 +259,79 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
     );
     final sections = Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: FilterChips<_BidsSection>(
-        key: const ValueKey('bids-sections'),
-        value: _section,
-        options: [
-          (_BidsSection.active, t.t('mine.filter.active')),
-          (_BidsSection.invites, t.t('invites.section')),
-          (_BidsSection.work, t.t('mine.tab.inWork')),
-          (_BidsSection.completed, t.t('mine.tab.completed')),
-          (_BidsSection.finished, t.t('cases.mine.finished')),
-          (_BidsSection.saved, t.t('mine.tab.saved')),
+      child: Column(
+        children: [
+          FilterChips<_BidsSection>(
+            key: const ValueKey('bids-sections'),
+            value: _section,
+            options: [
+              (_BidsSection.active, t.t('mine.filter.active')),
+              (_BidsSection.bids, t.t('mine.bids.title')),
+              (_BidsSection.completed, t.t('mine.tab.completed')),
+            ],
+            onChanged: (v) => setState(() => _section = v),
+          ),
+          // «Bids» holds the bids waiting for the client and the invitations.
+          if (_section == _BidsSection.bids) ...[
+            const SizedBox(height: AppSpacing.sm),
+            FilterChips<_BidKind>(
+              key: const ValueKey('bids-kinds'),
+              value: _kind,
+              options: [
+                (_BidKind.waiting, t.t('mine.bids.waiting')),
+                (_BidKind.invites, t.t('invites.section')),
+              ],
+              onChanged: (v) => setState(() => _kind = v),
+            ),
+          ],
         ],
-        onChanged: (v) => setState(() => _section = v),
       ),
     );
-    final Widget grid = switch (_section) {
-      // Bids waiting for the client.
-      _BidsSection.active => _BidsGrid(
-          key: const ValueKey('active'),
-          filter: MyBidsFilter.active,
-          search: _search,
-        ),
-      // Owner 2026-10-05: cases clients offered to this attorney.
-      _BidsSection.invites => const InvitesList(key: ValueKey('invites')),
-      // Audit 2026-10-04: declined / withdrawn / expired bids (accepted
-      // ones are under In progress).
-      _BidsSection.finished => _BidsGrid(
-          key: const ValueKey('finished'),
-          filter: MyBidsFilter.finished,
-          search: _search,
-        ),
-      _BidsSection.work || _BidsSection.completed => _WorkGrid(
-          key: ValueKey(_section.name),
-          filter: _section == _BidsSection.work
-              ? WorkFilter.active
-              : WorkFilter.closed,
-          search: _search,
-        ),
-      _BidsSection.saved => _AttorneySaved(
-          key: const ValueKey('saved'),
-          search: _search,
-          searchBar: const SizedBox.shrink(),
-        ),
-    };
+    final Widget grid = _saved
+        ? _AttorneySaved(
+            key: const ValueKey('saved'),
+            search: _search,
+            searchBar: const SizedBox.shrink(),
+          )
+        : switch (_section) {
+            // The cases in work.
+            _BidsSection.active => _WorkGrid(
+                key: const ValueKey('active'),
+                filter: WorkFilter.active,
+                search: _search,
+                cards: true,
+              ),
+            _BidsSection.bids when invites =>
+              const InvitesList(key: ValueKey('invites')),
+            // Bids waiting for the client.
+            _BidsSection.bids => _BidsGrid(
+                key: const ValueKey('waiting'),
+                filter: MyBidsFilter.active,
+                search: _search,
+              ),
+            // Chosen and finished, declined, withdrawn, expired — everything
+            // that is over.
+            _BidsSection.completed => _BidsGrid(
+                key: const ValueKey('completed'),
+                filter: MyBidsFilter.completed,
+                search: _search,
+              ),
+          };
     final body = switch (_tab) {
-      _AttorneyTab.bids => Column(
-          key: const ValueKey('bids'),
+      _AttorneyTab.cases => Column(
+          key: const ValueKey('cases'),
           children: [
-            search,
-            sections,
-            const SizedBox(height: AppSpacing.sm),
+            // Owner 2026-10-15: search, bookmark and chips hide on scroll
+            // down and return on scroll up.
+            ChromeCollapse(
+              child: Column(
+                children: [
+                  search,
+                  if (!_saved) sections,
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+              ),
+            ),
             Expanded(
               child: AnimatedSwitcher(
                 duration: context.reduceMotion
@@ -278,37 +343,34 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           ],
         ),
       _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
-      _AttorneyTab.active => const _WorkGrid(
-          key: ValueKey('active'),
-          filter: WorkFilter.active,
-          search: MineSearch(),
-          cards: true,
-        ),
     };
-    return Column(
-      children: [
-        PillTabs<_AttorneyTab>(
-          value: _tab,
-          tabs: [
-            (_AttorneyTab.active, t.t('mine.tab.activeCases')),
-            (_AttorneyTab.planner, t.t('mine.tab.tasks')),
-            (_AttorneyTab.bids, t.t('mine.tab.myBids')),
-          ],
-          onChanged: (v) => setState(() => _tab = v),
-        ),
-        Expanded(
-          child: TabSwipe<_AttorneyTab>(
+    return FeedChrome(
+      controller: _chrome,
+      child: Column(
+        children: [
+          PillTabs<_AttorneyTab>(
             value: _tab,
-            values: _AttorneyTab.values,
+            tabs: [
+              (_AttorneyTab.cases, t.t('mine.tab.cases')),
+              (_AttorneyTab.planner, t.t('mine.tab.tasks')),
+            ],
             onChanged: (v) => setState(() => _tab = v),
-            child: AnimatedSwitcher(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              child: body,
+          ),
+          Expanded(
+            child: TabSwipe<_AttorneyTab>(
+              value: _tab,
+              values: _AttorneyTab.values,
+              onChanged: (v) => setState(() => _tab = v),
+              child: AnimatedSwitcher(
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                child: body,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -348,17 +410,8 @@ class _BidsGrid extends ConsumerWidget {
               )
             : null,
       ),
-      tileOf: (b) {
-        final (label, tone) = bidStatusOf(t, b.bid, PartyRole.attorney);
-        return MineTileData(
-          title: b.caseTitle,
-          statusLabel: label,
-          statusTone: tone,
-          coverUrl: b.coverUrl,
-          practiceCode: b.casePracticeCode,
-          onTap: () => context.push(AppRoutes.bid(b.bid.id)),
-        );
-      },
+      edgeToEdge: true,
+      rowOf: (b) => AttorneyBidCard(item: b),
     );
   }
 }

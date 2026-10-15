@@ -24227,7 +24227,8 @@
                 "open",
                 "in_progress",
                 "archived",
-                "closed"
+                "closed",
+                "completed"
               ]
             }
           },
@@ -26147,6 +26148,73 @@
         ]
       }
     },
+    "/users/me/case-tasks": {
+      "get": {
+        "operationId": "caseTaskBoard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardCaseTaskListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tasks of every case in work, for the Mine › Tasks board",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
     "/cases/{id}/tasks": {
       "get": {
         "operationId": "listCaseTasks",
@@ -26363,7 +26431,7 @@
             "bearer": []
           }
         ],
-        "summary": "Attorney: add a private, shared or for-client task",
+        "summary": "Add a task: the attorney any kind, the client a for-client or joint one",
         "tags": [
           "cases"
         ]
@@ -28158,7 +28226,8 @@
               "type": "string",
               "enum": [
                 "active",
-                "finished"
+                "finished",
+                "completed"
               ]
             }
           }
@@ -34999,6 +35068,2992 @@
         "summary": "Step 2: verify the uploaded image; it is attachable once scanStatus = clean",
         "tags": [
           "admin-media"
+        ]
+      }
+    },
+    "/admin/search/synonyms": {
+      "get": {
+        "operationId": "listSynonyms",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Part of a key or of a phrase.",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "lang",
+            "required": false,
+            "in": "query",
+            "description": "Only groups with a phrase in this language.",
+            "schema": {
+              "pattern": "^[a-z]{2,3}(-[a-z0-9]{2,8})?$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynonymGroupListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Synonym groups with their phrases",
+        "tags": [
+          "admin-search"
+        ]
+      },
+      "post": {
+        "operationId": "createSynonym",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSynonymGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynonymGroupEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add a group of words (live at once)",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/synonyms/test": {
+      "get": {
+        "operationId": "testSynonyms",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 100,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynonymTestEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "What a search for this text would understand",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/synonyms/import": {
+      "post": {
+        "operationId": "importSynonyms",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSynonymsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSynonymsResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Bulk add groups and phrases (the multilingual dictionary file)",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/synonyms/{id}": {
+      "patch": {
+        "operationId": "updateSynonym",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[0-9a-f-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSynonymGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynonymGroupEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change a group: topic, on/off, its phrases",
+        "tags": [
+          "admin-search"
+        ]
+      },
+      "delete": {
+        "operationId": "removeSynonym",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[0-9a-f-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Delete a group with its phrases",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/synonyms/{id}/terms": {
+      "post": {
+        "operationId": "addSynonymTerm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[0-9a-f-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddSynonymTermDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SynonymGroupEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add one phrase to a group",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/overview": {
+      "get": {
+        "operationId": "searchOverview",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 30,
+              "default": 7,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Queries, empty ones and opened results",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/no-results": {
+      "get": {
+        "operationId": "searchNoResults",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 30,
+              "default": 7,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchQueryStatListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Queries that found nothing, most frequent first",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/top": {
+      "get": {
+        "operationId": "searchTop",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 30,
+              "default": 7,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchQueryStatListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "What people search for most",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/admin/search/learned": {
+      "get": {
+        "operationId": "searchLearned",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchLearnedLinkListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Query → topic links learned from clicks",
+        "tags": [
+          "admin-search"
+        ]
+      }
+    },
+    "/search/attorneys": {
+      "get": {
+        "operationId": "attorneys",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Search text, at least 2 characters (§7.1).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "practiceAreaId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          },
+          {
+            "name": "minRating",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 5,
+              "type": "number"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 10,
+              "example": "en",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorneys / people (docs/05 §7.3)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/suggest": {
+      "get": {
+        "operationId": "suggest",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Hashtag prefix, with or without \"#\".",
+            "schema": {
+              "maxLength": 31,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Type-ahead: topics, handles, practices by prefix",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/practices": {
+      "get": {
+        "operationId": "practices",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Hashtag prefix, with or without \"#\".",
+            "schema": {
+              "maxLength": 31,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PracticeMatchListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Practices whose name in any language starts with the query",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/people": {
+      "get": {
+        "operationId": "people",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Search text, at least 2 characters (§7.1).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "practiceAreaId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          },
+          {
+            "name": "minRating",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 5,
+              "type": "number"
+            }
+          },
+          {
+            "name": "language",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 10,
+              "example": "en",
+              "type": "string"
+            }
+          },
+          {
+            "name": "role",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "attorney",
+                "client"
+              ]
+            }
+          },
+          {
+            "name": "verifiedOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only people with the check mark (verified).",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "People: attorneys and clients by @username / name (OQ-026)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/cases": {
+      "get": {
+        "operationId": "cases",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Search text, at least 2 characters (§7.1).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "practiceAreaId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "NY",
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "practiceCategory",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^[a-z0-9_]{2,64}(\\.[a-z0-9_]{2,64})?$",
+              "example": "family_law",
+              "type": "string"
+            }
+          },
+          {
+            "name": "budgetMin",
+            "required": false,
+            "in": "query",
+            "description": "Whole dollars.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "budgetMax",
+            "required": false,
+            "in": "query",
+            "description": "Whole dollars.",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "name": "budgetUnknown",
+            "required": false,
+            "in": "query",
+            "description": "Only cases with \"clarify later\".",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "noBids",
+            "required": false,
+            "in": "query",
+            "description": "Only cases nobody has bid on yet.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "minUrgency",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).",
+            "schema": {
+              "$ref": "#/components/schemas/MinUrgency"
+            }
+          },
+          {
+            "name": "hasDeadline",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseFeedItemListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cases visible to the attorney (docs/05 §7.4)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/posts": {
+      "get": {
+        "operationId": "posts",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Search text, at least 2 characters (§7.1).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "description": "Audit 2026-10-01: a qualification code — its posts (and its subcategories); older posts without one by `tag`.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "description": "Only posts with this hashtag (topic).",
+            "schema": {
+              "pattern": "^[\\p{L}\\p{N}_]{1,30}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "Only posts of attorneys licensed in this state.",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "IL",
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "withPhotos",
+            "required": false,
+            "in": "query",
+            "description": "Only posts with photos.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "briefsOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only text-only posts (Briefs).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "relevance",
+              "type": "string",
+              "enum": [
+                "relevance",
+                "newest",
+                "popular"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Posts, full text (docs/05 §7.5)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/tags": {
+      "get": {
+        "operationId": "tags",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "Hashtag prefix, with or without \"#\".",
+            "schema": {
+              "maxLength": 31,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Hashtags by prefix (docs/05 §7.5)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/trending-tags": {
+      "get": {
+        "operationId": "trending",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Top hashtags of 7 days (docs/05 §7.2)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/tags/{tag}/posts": {
+      "get": {
+        "operationId": "tagPosts",
+        "parameters": [
+          {
+            "name": "tag",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "maxLength": 31,
+              "example": "dui",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "top",
+              "type": "string",
+              "enum": [
+                "top",
+                "new"
+              ]
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "Only posts of attorneys licensed in this state (newest first).",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "IL",
+              "type": "string"
+            }
+          },
+          {
+            "name": "videoOnly",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-02: only reels (posts with a video), newest first.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Posts of a hashtag, top or new (docs/05 §7.5)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/clicks": {
+      "post": {
+        "operationId": "click",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchClickDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A result opened after a query (owner 2026-10-15): the search learns topics from these",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/search/latest-posts": {
+      "get": {
+        "operationId": "latestPosts",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "IL",
+              "type": "string"
+            }
+          },
+          {
+            "name": "states",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-06: several states at once (comma-separated) — posts of\nattorneys licensed in any of them. Joins `state` when both are sent.",
+            "schema": {
+              "maxLength": 180,
+              "pattern": "^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$",
+              "example": "IL,NY",
+              "type": "string"
+            }
+          },
+          {
+            "name": "practices",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of\nthese qualifications (comma-separated; a category includes its\nsubcategories).",
+            "schema": {
+              "maxLength": 4000,
+              "pattern": "^[a-z0-9_.]{2,120}(,[a-z0-9_.]{2,120}){0,99}$",
+              "example": "immigration,traffic.tickets",
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-09-30: a practice category or subcategory code; a\ncategory includes its subcategories.",
+            "schema": {
+              "maxLength": 120,
+              "example": "civil_litigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "required": false,
+            "in": "query",
+            "description": "Older posts without a qualification match by their topic hashtag.",
+            "schema": {
+              "maxLength": 31,
+              "example": "civillitigation",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-09-30: only News (or only regular posts).",
+            "schema": {
+              "$ref": "#/components/schemas/PostKind"
+            }
+          },
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "24h",
+                "7d",
+                "30d",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "withPhotos",
+            "required": false,
+            "in": "query",
+            "description": "Only posts with photos.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "briefsOnly",
+            "required": false,
+            "in": "query",
+            "description": "Only text-only posts (Briefs).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).",
+            "schema": {
+              "$ref": "#/components/schemas/LatestPostsSort"
+            }
+          },
+          {
+            "name": "contentClass",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-05: only legal or only general (personal) posts — the\n\"Posts\" topic lists general ones. Absent = the viewer's feed setting.",
+            "schema": {
+              "$ref": "#/components/schemas/PostContentClass"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Newest posts, by state (OQ-034), qualification and News (owner 2026-09-30)",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/attorneys/{id}/follow": {
+      "post": {
+        "operationId": "followAttorney",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error: FOLLOW_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Follow an attorney (idempotent, docs/05 §6.1)",
+        "tags": [
+          "follows"
+        ]
+      },
+      "delete": {
+        "operationId": "unfollowAttorney",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unfollow (idempotent)",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
+    "/attorneys/{id}/followers": {
+      "get": {
+        "operationId": "listFollowers",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney followers — attorneys and clients (OQ-026)",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
+    "/attorneys/{id}/following": {
+      "get": {
+        "operationId": "listFollowing",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whom a user follows — attorneys and clients (OQ-038)",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
+    "/users/me/following": {
+      "get": {
+        "operationId": "listMyFollowing",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My follows (docs/05 §6.2)",
+        "tags": [
+          "follows"
+        ]
+      }
+    },
+    "/suggestions/attorneys": {
+      "get": {
+        "operationId": "listSuggestedAttorneys",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recommended attorneys (docs/05 §6.3)",
+        "tags": [
+          "follows"
         ]
       }
     },
@@ -50518,1837 +53573,6 @@
         ]
       }
     },
-    "/attorneys/{id}/follow": {
-      "post": {
-        "operationId": "followAttorney",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Error: FOLLOW_NOT_ALLOWED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Follow an attorney (idempotent, docs/05 §6.1)",
-        "tags": [
-          "follows"
-        ]
-      },
-      "delete": {
-        "operationId": "unfollowAttorney",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Unfollow (idempotent)",
-        "tags": [
-          "follows"
-        ]
-      }
-    },
-    "/attorneys/{id}/followers": {
-      "get": {
-        "operationId": "listFollowers",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonItemListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Attorney followers — attorneys and clients (OQ-026)",
-        "tags": [
-          "follows"
-        ]
-      }
-    },
-    "/attorneys/{id}/following": {
-      "get": {
-        "operationId": "listFollowing",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonItemListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Whom a user follows — attorneys and clients (OQ-038)",
-        "tags": [
-          "follows"
-        ]
-      }
-    },
-    "/users/me/following": {
-      "get": {
-        "operationId": "listMyFollowing",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "My follows (docs/05 §6.2)",
-        "tags": [
-          "follows"
-        ]
-      }
-    },
-    "/suggestions/attorneys": {
-      "get": {
-        "operationId": "listSuggestedAttorneys",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "in": "query",
-            "description": "Page size.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 50,
-              "default": 20,
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Recommended attorneys (docs/05 §6.3)",
-        "tags": [
-          "follows"
-        ]
-      }
-    },
-    "/search/attorneys": {
-      "get": {
-        "operationId": "attorneys",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          },
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "description": "Search text, at least 2 characters (§7.1).",
-            "schema": {
-              "maxLength": 100,
-              "type": "string"
-            }
-          },
-          {
-            "name": "practiceAreaId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "state",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minLength": 2,
-              "maxLength": 2,
-              "example": "NY",
-              "type": "string"
-            }
-          },
-          {
-            "name": "minRating",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 0,
-              "maximum": 5,
-              "type": "number"
-            }
-          },
-          {
-            "name": "language",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maxLength": 10,
-              "example": "en",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AttorneyListItemListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Attorneys / people (docs/05 §7.3)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/suggest": {
-      "get": {
-        "operationId": "suggest",
-        "parameters": [
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "description": "Hashtag prefix, with or without \"#\".",
-            "schema": {
-              "maxLength": 31,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuggestionListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Type-ahead: topics, handles, practices by prefix",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/practices": {
-      "get": {
-        "operationId": "practices",
-        "parameters": [
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "description": "Hashtag prefix, with or without \"#\".",
-            "schema": {
-              "maxLength": 31,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PracticeMatchListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Practices whose name in any language starts with the query",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/people": {
-      "get": {
-        "operationId": "people",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          },
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "description": "Search text, at least 2 characters (§7.1).",
-            "schema": {
-              "maxLength": 100,
-              "type": "string"
-            }
-          },
-          {
-            "name": "practiceAreaId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "state",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minLength": 2,
-              "maxLength": 2,
-              "example": "NY",
-              "type": "string"
-            }
-          },
-          {
-            "name": "minRating",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 0,
-              "maximum": 5,
-              "type": "number"
-            }
-          },
-          {
-            "name": "language",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maxLength": 10,
-              "example": "en",
-              "type": "string"
-            }
-          },
-          {
-            "name": "role",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "attorney",
-                "client"
-              ]
-            }
-          },
-          {
-            "name": "verifiedOnly",
-            "required": false,
-            "in": "query",
-            "description": "Only people with the check mark (verified).",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PersonItemListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "People: attorneys and clients by @username / name (OQ-026)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/cases": {
-      "get": {
-        "operationId": "cases",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          },
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "description": "Search text, at least 2 characters (§7.1).",
-            "schema": {
-              "maxLength": 100,
-              "type": "string"
-            }
-          },
-          {
-            "name": "practiceAreaId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "name": "state",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minLength": 2,
-              "maxLength": 2,
-              "example": "NY",
-              "type": "string"
-            }
-          },
-          {
-            "name": "period",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "all",
-              "type": "string",
-              "enum": [
-                "24h",
-                "7d",
-                "30d",
-                "all"
-              ]
-            }
-          },
-          {
-            "name": "practiceCategory",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "pattern": "^[a-z0-9_]{2,64}(\\.[a-z0-9_]{2,64})?$",
-              "example": "family_law",
-              "type": "string"
-            }
-          },
-          {
-            "name": "budgetMin",
-            "required": false,
-            "in": "query",
-            "description": "Whole dollars.",
-            "schema": {
-              "minimum": 0,
-              "type": "number"
-            }
-          },
-          {
-            "name": "budgetMax",
-            "required": false,
-            "in": "query",
-            "description": "Whole dollars.",
-            "schema": {
-              "minimum": 0,
-              "type": "number"
-            }
-          },
-          {
-            "name": "budgetUnknown",
-            "required": false,
-            "in": "query",
-            "description": "Only cases with \"clarify later\".",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "noBids",
-            "required": false,
-            "in": "query",
-            "description": "Only cases nobody has bid on yet.",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "minUrgency",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).",
-            "schema": {
-              "$ref": "#/components/schemas/MinUrgency"
-            }
-          },
-          {
-            "name": "hasDeadline",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CaseFeedItemListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Cases visible to the attorney (docs/05 §7.4)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/posts": {
-      "get": {
-        "operationId": "posts",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          },
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "description": "Search text, at least 2 characters (§7.1).",
-            "schema": {
-              "maxLength": 100,
-              "type": "string"
-            }
-          },
-          {
-            "name": "practice",
-            "required": false,
-            "in": "query",
-            "description": "Audit 2026-10-01: a qualification code — its posts (and its subcategories); older posts without one by `tag`.",
-            "schema": {
-              "maxLength": 120,
-              "type": "string"
-            }
-          },
-          {
-            "name": "tag",
-            "required": false,
-            "in": "query",
-            "description": "Only posts with this hashtag (topic).",
-            "schema": {
-              "pattern": "^[\\p{L}\\p{N}_]{1,30}$",
-              "type": "string"
-            }
-          },
-          {
-            "name": "state",
-            "required": false,
-            "in": "query",
-            "description": "Only posts of attorneys licensed in this state.",
-            "schema": {
-              "minLength": 2,
-              "maxLength": 2,
-              "example": "IL",
-              "type": "string"
-            }
-          },
-          {
-            "name": "period",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "all",
-              "type": "string",
-              "enum": [
-                "24h",
-                "7d",
-                "30d",
-                "all"
-              ]
-            }
-          },
-          {
-            "name": "withPhotos",
-            "required": false,
-            "in": "query",
-            "description": "Only posts with photos.",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "briefsOnly",
-            "required": false,
-            "in": "query",
-            "description": "Only text-only posts (Briefs).",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "relevance",
-              "type": "string",
-              "enum": [
-                "relevance",
-                "newest",
-                "popular"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PostListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR, SEARCH_QUERY_TOO_SHORT",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Posts, full text (docs/05 §7.5)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/tags": {
-      "get": {
-        "operationId": "tags",
-        "parameters": [
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "description": "Hashtag prefix, with or without \"#\".",
-            "schema": {
-              "maxLength": 31,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TagListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Hashtags by prefix (docs/05 §7.5)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/trending-tags": {
-      "get": {
-        "operationId": "trending",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TagListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Top hashtags of 7 days (docs/05 §7.2)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/tags/{tag}/posts": {
-      "get": {
-        "operationId": "tagPosts",
-        "parameters": [
-          {
-            "name": "tag",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "maxLength": 31,
-              "example": "dui",
-              "type": "string"
-            }
-          },
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          },
-          {
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "top",
-              "type": "string",
-              "enum": [
-                "top",
-                "new"
-              ]
-            }
-          },
-          {
-            "name": "state",
-            "required": false,
-            "in": "query",
-            "description": "Only posts of attorneys licensed in this state (newest first).",
-            "schema": {
-              "minLength": 2,
-              "maxLength": 2,
-              "example": "IL",
-              "type": "string"
-            }
-          },
-          {
-            "name": "videoOnly",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-10-02: only reels (posts with a video), newest first.",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PostListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Posts of a hashtag, top or new (docs/05 §7.5)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
-    "/search/latest-posts": {
-      "get": {
-        "operationId": "latestPosts",
-        "parameters": [
-          {
-            "name": "cursor",
-            "required": false,
-            "in": "query",
-            "description": "meta.nextCursor of the previous page.",
-            "schema": {
-              "maxLength": 300,
-              "type": "string"
-            }
-          },
-          {
-            "name": "state",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minLength": 2,
-              "maxLength": 2,
-              "example": "IL",
-              "type": "string"
-            }
-          },
-          {
-            "name": "states",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-10-06: several states at once (comma-separated) — posts of\nattorneys licensed in any of them. Joins `state` when both are sent.",
-            "schema": {
-              "maxLength": 180,
-              "pattern": "^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$",
-              "example": "IL,NY",
-              "type": "string"
-            }
-          },
-          {
-            "name": "practices",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of\nthese qualifications (comma-separated; a category includes its\nsubcategories).",
-            "schema": {
-              "maxLength": 4000,
-              "pattern": "^[a-z0-9_.]{2,120}(,[a-z0-9_.]{2,120}){0,99}$",
-              "example": "immigration,traffic.tickets",
-              "type": "string"
-            }
-          },
-          {
-            "name": "practice",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-09-30: a practice category or subcategory code; a\ncategory includes its subcategories.",
-            "schema": {
-              "maxLength": 120,
-              "example": "civil_litigation",
-              "type": "string"
-            }
-          },
-          {
-            "name": "tag",
-            "required": false,
-            "in": "query",
-            "description": "Older posts without a qualification match by their topic hashtag.",
-            "schema": {
-              "maxLength": 31,
-              "example": "civillitigation",
-              "type": "string"
-            }
-          },
-          {
-            "name": "kind",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-09-30: only News (or only regular posts).",
-            "schema": {
-              "$ref": "#/components/schemas/PostKind"
-            }
-          },
-          {
-            "name": "period",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "all",
-              "type": "string",
-              "enum": [
-                "24h",
-                "7d",
-                "30d",
-                "all"
-              ]
-            }
-          },
-          {
-            "name": "withPhotos",
-            "required": false,
-            "in": "query",
-            "description": "Only posts with photos.",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "briefsOnly",
-            "required": false,
-            "in": "query",
-            "description": "Only text-only posts (Briefs).",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "description": "popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).",
-            "schema": {
-              "$ref": "#/components/schemas/LatestPostsSort"
-            }
-          },
-          {
-            "name": "contentClass",
-            "required": false,
-            "in": "query",
-            "description": "Owner 2026-10-05: only legal or only general (personal) posts — the\n\"Posts\" topic lists general ones. Absent = the viewer's feed setting.",
-            "schema": {
-              "$ref": "#/components/schemas/PostContentClass"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PostListEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Newest posts, by state (OQ-034), qualification and News (owner 2026-09-30)",
-        "tags": [
-          "search"
-        ]
-      }
-    },
     "/contacts/sync": {
       "get": {
         "operationId": "status",
@@ -63782,6 +65006,93 @@
         ]
       }
     },
+    "/promotions/{id}/stats": {
+      "get": {
+        "operationId": "promotionStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionStatsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One promotion with its numbers by day",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
     "/promotions/{id}/stop": {
       "post": {
         "operationId": "stopPromotion",
@@ -64257,7 +65568,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PromotionSettingsDto"
+                "$ref": "#/components/schemas/UpdatePromotionSettingsDto"
               }
             }
           }
@@ -88562,6 +89873,23 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Owner 2026-10-15: what it paid for.",
+            "enum": [
+              "subscription",
+              "boost"
+            ]
+          },
+          "boostTarget": {
+            "type": "string",
+            "nullable": true,
+            "description": "For a boost: what was boosted (`post` | `case`) and for how many days."
+          },
+          "boostDays": {
+            "type": "integer",
+            "nullable": true
           }
         },
         "required": [
@@ -88571,7 +89899,8 @@
           "status",
           "paidAt",
           "failureCode",
-          "createdAt"
+          "createdAt",
+          "kind"
         ]
       },
       "PaymentListEnvelope": {
@@ -89880,6 +91209,10 @@
             "nullable": true
           },
           "caseTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "casePracticeCode": {
             "type": "string",
             "nullable": true
           },
@@ -91346,6 +92679,28 @@
           "role"
         ]
       },
+      "PostPromotionCtaDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "more",
+              "message",
+              "profile",
+              "download",
+              "call"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
       "PostDto": {
         "type": "object",
         "properties": {
@@ -91515,6 +92870,16 @@
             "nullable": true,
             "description": "Owner 2026-10-05: set on a paid promoted post in the feed — the app\nshows «Реклама» and reports the open to POST /promotions/:id/click.",
             "format": "uuid"
+          },
+          "promotionCta": {
+            "nullable": true,
+            "description": "Owner 2026-10-15: the button of a promoted post (null = none).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostPromotionCtaDto"
+              }
+            ]
           }
         },
         "required": [
@@ -92292,6 +93657,13 @@
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
+          "extraPracticeAreas": {
+            "description": "Topics 2..N of the case (owner 2026-10-15).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeAreaRefDto"
+            }
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NY"
@@ -92411,6 +93783,7 @@
           "title",
           "description",
           "practiceArea",
+          "extraPracticeAreas",
           "primaryStateCode",
           "states",
           "budgetMode",
@@ -92428,6 +93801,15 @@
             "type": "string",
             "format": "uuid",
             "description": "A leaf (specialization)."
+          },
+          "extraPracticeAreaIds": {
+            "maxItems": 9,
+            "description": "Topics 2..N (leaves); at most `case.max_practices` in all with the first.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "title": {
             "type": "string",
@@ -92558,6 +93940,15 @@
             "type": "string",
             "format": "uuid",
             "description": "A leaf (specialization)."
+          },
+          "extraPracticeAreaIds": {
+            "maxItems": 9,
+            "description": "Topics 2..N (leaves); at most `case.max_practices` in all with the first.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "primaryStateCode": {
             "type": "string",
@@ -92709,6 +94100,10 @@
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
+          "extraPracticeCount": {
+            "type": "integer",
+            "description": "Topics besides the first (owner 2026-10-15): «+N»."
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NY"
@@ -92793,6 +94188,7 @@
           "id",
           "title",
           "practiceArea",
+          "extraPracticeCount",
           "primaryStateCode",
           "additionalStateCount",
           "status",
@@ -92922,6 +94318,10 @@
           "practiceArea": {
             "$ref": "#/components/schemas/CasePracticeAreaDto"
           },
+          "extraPracticeCount": {
+            "type": "integer",
+            "description": "Topics besides the first: «+N»."
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NJ"
@@ -93023,6 +94423,12 @@
             "type": "boolean",
             "description": "Promoted by its client right now."
           },
+          "promotedUntil": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-15: the last paid day, «Реклама · до {date}».",
+            "format": "date-time"
+          },
           "priorityClient": {
             "type": "boolean",
             "description": "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page)."
@@ -93041,6 +94447,7 @@
           "title",
           "excerpt",
           "practiceArea",
+          "extraPracticeCount",
           "primaryStateCode",
           "additionalStateCodes",
           "status",
@@ -93138,6 +94545,10 @@
           "practiceArea": {
             "$ref": "#/components/schemas/CasePracticeAreaDto"
           },
+          "extraPracticeCount": {
+            "type": "integer",
+            "description": "Topics besides the first: «+N»."
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NJ"
@@ -93239,6 +94650,12 @@
             "type": "boolean",
             "description": "Promoted by its client right now."
           },
+          "promotedUntil": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-15: the last paid day, «Реклама · до {date}».",
+            "format": "date-time"
+          },
           "priorityClient": {
             "type": "boolean",
             "description": "Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page)."
@@ -93301,6 +94718,7 @@
           "title",
           "excerpt",
           "practiceArea",
+          "extraPracticeCount",
           "primaryStateCode",
           "additionalStateCodes",
           "status",
@@ -94139,6 +95557,148 @@
           "files"
         ]
       },
+      "BoardCaseTaskDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "private",
+              "shared",
+              "for_client",
+              "joint"
+            ],
+            "type": "string"
+          },
+          "createdByRole": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "enum": [
+              "open",
+              "done"
+            ],
+            "type": "string"
+          },
+          "doneAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceFileDto"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseTaskEventDto"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseTaskItemDto"
+            }
+          },
+          "itemsDone": {
+            "type": "integer"
+          },
+          "itemsTotal": {
+            "type": "integer"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseTitle": {
+            "type": "string"
+          },
+          "practiceCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "viewerRole": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "canTick": {
+            "type": "boolean",
+            "description": "The viewer may tick it (the rules of the case workspace)."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "createdByRole",
+          "title",
+          "status",
+          "closed",
+          "createdAt",
+          "fileCount",
+          "files",
+          "events",
+          "items",
+          "itemsDone",
+          "itemsTotal",
+          "caseId",
+          "caseTitle",
+          "viewerRole",
+          "canTick"
+        ]
+      },
+      "BoardCaseTaskListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardCaseTaskDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "CaseTaskDto": {
         "type": "object",
         "properties": {
@@ -94150,7 +95710,15 @@
             "enum": [
               "private",
               "shared",
-              "for_client"
+              "for_client",
+              "joint"
+            ],
+            "type": "string"
+          },
+          "createdByRole": {
+            "enum": [
+              "client",
+              "attorney"
             ],
             "type": "string"
           },
@@ -94217,6 +95785,7 @@
         "required": [
           "id",
           "kind",
+          "createdByRole",
           "title",
           "status",
           "closed",
@@ -94251,6 +95820,13 @@
               "$ref": "#/components/schemas/CaseTaskDto"
             }
           },
+          "joint": {
+            "description": "Tasks of both sides (either one ticks them).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CaseTaskDto"
+            }
+          },
           "private": {
             "description": "Attorney only; empty for the client.",
             "type": "array",
@@ -94263,6 +95839,7 @@
           "role",
           "forClient",
           "shared",
+          "joint",
           "private"
         ]
       },
@@ -94307,7 +95884,8 @@
             "enum": [
               "private",
               "shared",
-              "for_client"
+              "for_client",
+              "joint"
             ],
             "type": "string"
           },
@@ -94665,6 +96243,13 @@
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
+          "extraPracticeAreas": {
+            "description": "Topics 2..N of the case (owner 2026-10-15).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeAreaRefDto"
+            }
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NY"
@@ -94805,6 +96390,7 @@
           "title",
           "description",
           "practiceArea",
+          "extraPracticeAreas",
           "primaryStateCode",
           "states",
           "budgetMode",
@@ -98822,6 +100408,761 @@
           "mime",
           "sizeBytes",
           "sha256"
+        ]
+      },
+      "SynonymTermDto": {
+        "type": "object",
+        "properties": {
+          "lang": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[a-z0-9]{2,8})?$",
+            "example": "ru",
+            "description": "Language code of the phrase."
+          },
+          "term": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "example": "расторжение брака"
+          }
+        },
+        "required": [
+          "lang",
+          "term"
+        ]
+      },
+      "SynonymGroupDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "example": "divorce"
+          },
+          "practiceCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Code of the practice area the group points at."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "seed",
+              "admin",
+              "import"
+            ]
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SynonymTermDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "enabled",
+          "source",
+          "terms"
+        ]
+      },
+      "SynonymGroupListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SynonymGroupDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SynonymTestDto": {
+        "type": "object",
+        "properties": {
+          "groupKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "practiceCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "groupKeys",
+          "practiceCodes"
+        ]
+      },
+      "SynonymTestEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SynonymTestDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreateSynonymGroupDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{1,118}$",
+            "example": "divorce",
+            "description": "Short unique name."
+          },
+          "practiceCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Practice area code the group points at."
+          },
+          "terms": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SynonymTermDto"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "terms"
+        ]
+      },
+      "SynonymGroupEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SynonymGroupDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ImportSynonymsResultDto": {
+        "type": "object",
+        "properties": {
+          "groupsCreated": {
+            "type": "number"
+          },
+          "groupsUpdated": {
+            "type": "number"
+          },
+          "termsAdded": {
+            "type": "number"
+          },
+          "unknownPractices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "groupsCreated",
+          "groupsUpdated",
+          "termsAdded",
+          "unknownPractices"
+        ]
+      },
+      "ImportSynonymGroupDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{1,118}$",
+            "example": "divorce"
+          },
+          "practice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "example": "family_law.divorce"
+          },
+          "terms": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "en": [
+                "divorce"
+              ],
+              "ru": [
+                "развод",
+                "расторжение брака"
+              ]
+            }
+          }
+        },
+        "required": [
+          "key",
+          "terms"
+        ]
+      },
+      "ImportSynonymsDto": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportSynonymGroupDto"
+            }
+          }
+        },
+        "required": [
+          "groups"
+        ]
+      },
+      "ImportSynonymsResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ImportSynonymsResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateSynonymGroupDto": {
+        "type": "object",
+        "properties": {
+          "practiceCode": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "A practice code, or null to detach."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "terms": {
+            "maxItems": 500,
+            "description": "Replaces the whole list of phrases.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SynonymTermDto"
+            }
+          }
+        }
+      },
+      "AddSynonymTermDto": {
+        "type": "object",
+        "properties": {
+          "lang": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[a-z0-9]{2,8})?$",
+            "example": "ru",
+            "description": "Language code of the phrase."
+          },
+          "term": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "example": "расторжение брака"
+          }
+        },
+        "required": [
+          "lang",
+          "term"
+        ]
+      },
+      "SearchOverviewDto": {
+        "type": "object",
+        "properties": {
+          "queries": {
+            "type": "number",
+            "description": "Queries in the period."
+          },
+          "noResults": {
+            "type": "number",
+            "description": "Of them found nothing."
+          },
+          "clicks": {
+            "type": "number",
+            "description": "Results opened after a query."
+          }
+        },
+        "required": [
+          "queries",
+          "noResults",
+          "clicks"
+        ]
+      },
+      "SearchOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SearchOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SearchQueryStatDto": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "people": {
+            "type": "number",
+            "description": "Different people who asked."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "q",
+          "count",
+          "people",
+          "scopes",
+          "lastAt"
+        ]
+      },
+      "SearchQueryStatListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchQueryStatDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SearchLearnedLinkDto": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string"
+          },
+          "practiceCode": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "description": "People who opened it after this query."
+          }
+        },
+        "required": [
+          "q",
+          "practiceCode",
+          "score"
+        ]
+      },
+      "SearchLearnedLinkListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchLearnedLinkDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AttorneyListItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "verifiedBadge": {
+            "type": "boolean"
+          },
+          "trustLevel": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Trust level."
+          },
+          "identityRejected": {
+            "type": "boolean"
+          },
+          "rating": {
+            "$ref": "#/components/schemas/RatingDto"
+          },
+          "states": {
+            "description": "Verified license state codes.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "practiceI18nKeys": {
+            "description": "i18n keys of the first practices (docs/05 §7.3).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isFollowing": {
+            "type": "boolean",
+            "description": "The viewer follows this attorney."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "contacts"
+            ],
+            "description": "Why this person is suggested, when worth a caption: \"contacts\" = in my address book."
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "verifiedBadge",
+          "trustLevel",
+          "rating",
+          "states",
+          "practiceI18nKeys",
+          "isFollowing"
+        ]
+      },
+      "AttorneyListItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttorneyListItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SuggestionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "tag",
+              "person",
+              "practice"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ]
+      },
+      "SuggestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestionDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PracticeMatchDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "practice code, e.g. family_law.divorce"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "hit": {
+            "type": "string",
+            "nullable": true,
+            "description": "the word that matched when it is not the English name"
+          }
+        },
+        "required": [
+          "code",
+          "nameEn",
+          "hit"
+        ]
+      },
+      "PracticeMatchListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeMatchDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ClientListItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateCode": {
+            "type": "string",
+            "example": "NY"
+          },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "OQ-029 final: blue check = the client confirmed a phone number."
+          },
+          "isFollowing": {
+            "type": "boolean",
+            "description": "Does the viewer follow this client (false when not known)."
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "firstName",
+          "lastName",
+          "avatarUrl",
+          "stateCode",
+          "verifiedBadge",
+          "isFollowing"
+        ]
+      },
+      "PersonItemDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PersonRole"
+              }
+            ]
+          },
+          "attorney": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AttorneyListItemDto"
+              }
+            ]
+          },
+          "client": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ClientListItemDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "PersonItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TagDto": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "description": "Lowercase, without \"#\"."
+          },
+          "postsCount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Posts in the last 7 days (trending only)."
+          },
+          "categoryCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Practice category its posts mostly belong to (for the topic cover)."
+          }
+        },
+        "required": [
+          "tag"
+        ]
+      },
+      "TagListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SearchClickDto": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100,
+            "description": "The text that was searched."
+          },
+          "targetType": {
+            "enum": [
+              "case",
+              "post",
+              "attorney",
+              "practice"
+            ],
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Id of the opened result (a code for a practice)."
+          }
+        },
+        "required": [
+          "q",
+          "targetType",
+          "targetId"
+        ]
+      },
+      "LatestPostsSort": {
+        "type": "string",
+        "enum": [
+          "newest",
+          "popular",
+          "for_you"
         ]
       },
       "TemplateAudience": {
@@ -107792,316 +110133,6 @@
           "reason"
         ]
       },
-      "AttorneyListItemDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "username": {
-            "type": "string"
-          },
-          "firstName": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastName": {
-            "type": "string",
-            "nullable": true
-          },
-          "avatarUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "verifiedBadge": {
-            "type": "boolean"
-          },
-          "trustLevel": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 3,
-            "description": "Trust level."
-          },
-          "identityRejected": {
-            "type": "boolean"
-          },
-          "rating": {
-            "$ref": "#/components/schemas/RatingDto"
-          },
-          "states": {
-            "description": "Verified license state codes.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "practiceI18nKeys": {
-            "description": "i18n keys of the first practices (docs/05 §7.3).",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "isFollowing": {
-            "type": "boolean",
-            "description": "The viewer follows this attorney."
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "contacts"
-            ],
-            "description": "Why this person is suggested, when worth a caption: \"contacts\" = in my address book."
-          }
-        },
-        "required": [
-          "id",
-          "username",
-          "verifiedBadge",
-          "trustLevel",
-          "rating",
-          "states",
-          "practiceI18nKeys",
-          "isFollowing"
-        ]
-      },
-      "ClientListItemDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "username": {
-            "type": "string"
-          },
-          "firstName": {
-            "type": "string",
-            "nullable": true
-          },
-          "lastName": {
-            "type": "string",
-            "nullable": true
-          },
-          "avatarUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "stateCode": {
-            "type": "string",
-            "example": "NY"
-          },
-          "verifiedBadge": {
-            "type": "boolean",
-            "description": "OQ-029 final: blue check = the client confirmed a phone number."
-          },
-          "isFollowing": {
-            "type": "boolean",
-            "description": "Does the viewer follow this client (false when not known)."
-          }
-        },
-        "required": [
-          "id",
-          "username",
-          "firstName",
-          "lastName",
-          "avatarUrl",
-          "stateCode",
-          "verifiedBadge",
-          "isFollowing"
-        ]
-      },
-      "PersonItemDto": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PersonRole"
-              }
-            ]
-          },
-          "attorney": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AttorneyListItemDto"
-              }
-            ]
-          },
-          "client": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ClientListItemDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "role"
-        ]
-      },
-      "PersonItemListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PersonItemDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AttorneyListItemListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AttorneyListItemDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "SuggestionDto": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "enum": [
-              "tag",
-              "person",
-              "practice"
-            ],
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "text"
-        ]
-      },
-      "SuggestionListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SuggestionDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "PracticeMatchDto": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string",
-            "description": "practice code, e.g. family_law.divorce"
-          },
-          "nameEn": {
-            "type": "string"
-          },
-          "hit": {
-            "type": "string",
-            "nullable": true,
-            "description": "the word that matched when it is not the English name"
-          }
-        },
-        "required": [
-          "code",
-          "nameEn",
-          "hit"
-        ]
-      },
-      "PracticeMatchListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PracticeMatchDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "TagDto": {
-        "type": "object",
-        "properties": {
-          "tag": {
-            "type": "string",
-            "description": "Lowercase, without \"#\"."
-          },
-          "postsCount": {
-            "type": "number",
-            "nullable": true,
-            "description": "Posts in the last 7 days (trending only)."
-          },
-          "categoryCode": {
-            "type": "string",
-            "nullable": true,
-            "description": "Practice category its posts mostly belong to (for the topic cover)."
-          }
-        },
-        "required": [
-          "tag"
-        ]
-      },
-      "TagListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TagDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "LatestPostsSort": {
-        "type": "string",
-        "enum": [
-          "newest",
-          "popular",
-          "for_you"
-        ]
-      },
       "ContactSyncStatusDto": {
         "type": "object",
         "properties": {
@@ -114199,6 +116230,13 @@
           },
           "casesEnabled": {
             "type": "boolean"
+          },
+          "ctaTypes": {
+            "description": "Owner 2026-10-15: the buttons an advertiser may pick (empty = none).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -114222,7 +116260,8 @@
           "estReachMin",
           "estReachMax",
           "postsEnabled",
-          "casesEnabled"
+          "casesEnabled",
+          "ctaTypes"
         ]
       },
       "PromotionTarget": {
@@ -114384,6 +116423,18 @@
             "type": "string",
             "nullable": true
           },
+          "goal": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaType": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaValue": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -114516,6 +116567,35 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 40
+          },
+          "extend": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: extend a running boost — the new days start when it ends."
+          },
+          "goal": {
+            "type": "string",
+            "enum": [
+              "views",
+              "clicks",
+              "messages",
+              "followers"
+            ]
+          },
+          "ctaType": {
+            "type": "string",
+            "enum": [
+              "more",
+              "message",
+              "profile",
+              "download",
+              "call"
+            ],
+            "description": "The button under a promoted post (posts only)."
+          },
+          "ctaValue": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "https link (more, download) or a phone (call)."
           }
         },
         "required": [
@@ -114615,6 +116695,18 @@
             "type": "string",
             "nullable": true
           },
+          "goal": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaType": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaValue": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -114646,6 +116738,67 @@
             "items": {
               "$ref": "#/components/schemas/MyPromotionDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PromotionDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "example": "2026-10-15"
+          },
+          "impressions": {
+            "type": "integer"
+          },
+          "reach": {
+            "type": "integer"
+          },
+          "clicks": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "impressions",
+          "reach",
+          "clicks"
+        ]
+      },
+      "PromotionStatsDto": {
+        "type": "object",
+        "properties": {
+          "promotion": {
+            "$ref": "#/components/schemas/MyPromotionDto"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromotionDayDto"
+            }
+          },
+          "spentCents": {
+            "type": "integer",
+            "description": "Spent so far, cents."
+          }
+        },
+        "required": [
+          "promotion",
+          "days",
+          "spentCents"
+        ]
+      },
+      "PromotionStatsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromotionStatsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -114770,6 +116923,18 @@
             ]
           },
           "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "goal": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaType": {
+            "type": "string",
+            "nullable": true
+          },
+          "ctaValue": {
             "type": "string",
             "nullable": true
           },
@@ -114996,8 +117161,42 @@
           },
           "feedEveryN": {
             "type": "integer",
-            "minimum": 2,
-            "maximum": 50
+            "minimum": 10,
+            "maximum": 15
+          },
+          "reelEveryN": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 15
+          },
+          "reelsEnabled": {
+            "type": "boolean"
+          },
+          "boostEnabled": {
+            "type": "boolean"
+          },
+          "attorneysEnabled": {
+            "type": "boolean"
+          },
+          "clientsEnabled": {
+            "type": "boolean"
+          },
+          "ctaEnabled": {
+            "type": "boolean"
+          },
+          "ctaTypes": {
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "more",
+                "message",
+                "profile",
+                "download",
+                "call"
+              ]
+            },
+            "type": "array"
           },
           "caseFeedSlots": {
             "type": "integer",
@@ -115033,6 +117232,13 @@
           "budgetPresetsCents",
           "durationPresets",
           "feedEveryN",
+          "reelEveryN",
+          "reelsEnabled",
+          "boostEnabled",
+          "attorneysEnabled",
+          "clientsEnabled",
+          "ctaEnabled",
+          "ctaTypes",
           "caseFeedSlots",
           "frequencyCapPerDay",
           "impressionsPerPerson",
@@ -115053,6 +117259,123 @@
         "required": [
           "data"
         ]
+      },
+      "UpdatePromotionSettingsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "priceCentsPerDay": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 1000000
+          },
+          "maxDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "maxActivePerCase": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1,
+            "default": 1
+          },
+          "postsEnabled": {
+            "type": "boolean"
+          },
+          "cpmCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Price of 1 000 impressions."
+          },
+          "minDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 1000000
+          },
+          "maxDailyBudgetCents": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 10000000
+          },
+          "budgetPresetsCents": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "durationPresets": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "reelEveryN": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 15
+          },
+          "reelsEnabled": {
+            "type": "boolean"
+          },
+          "boostEnabled": {
+            "type": "boolean"
+          },
+          "attorneysEnabled": {
+            "type": "boolean"
+          },
+          "clientsEnabled": {
+            "type": "boolean"
+          },
+          "ctaEnabled": {
+            "type": "boolean"
+          },
+          "ctaTypes": {
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "enum": [
+                "more",
+                "message",
+                "profile",
+                "download",
+                "call"
+              ]
+            },
+            "type": "array"
+          },
+          "caseFeedSlots": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "frequencyCapPerDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "impressionsPerPerson": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "autoApprove": {
+            "type": "boolean"
+          },
+          "requireSubscription": {
+            "type": "boolean"
+          },
+          "feedEveryN": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 50
+          }
+        }
       },
       "AdminPromotionActionResultDto": {
         "type": "object",

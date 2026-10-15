@@ -1,4 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -18,6 +23,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
+  PROMOTION_CTA_TYPES,
+  PROMOTION_GOALS,
   PROMOTION_STATUSES,
   PROMOTION_TARGETS,
   type PromotionStatus,
@@ -139,6 +146,37 @@ export class CreatePromotionDto {
   @MinLength(1)
   @MaxLength(40)
   promoCode?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-15: extend a running boost — the new days start when it ends.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  extend?: boolean;
+
+  @ApiPropertyOptional({ enum: PROMOTION_GOALS })
+  @IsOptional()
+  @IsIn(PROMOTION_GOALS)
+  goal?: string;
+
+  @ApiPropertyOptional({
+    enum: PROMOTION_CTA_TYPES,
+    description: 'The button under a promoted post (posts only).',
+  })
+  @IsOptional()
+  @IsIn(PROMOTION_CTA_TYPES)
+  ctaType?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description: 'https link (more, download) or a phone (call).',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(500)
+  ctaValue?: string;
 }
 
 export class PromotionQuoteDto {
@@ -209,6 +247,10 @@ export class PromotionQuoteDto {
 
   @ApiProperty()
   casesEnabled!: boolean;
+
+  /** Owner 2026-10-15: the buttons an advertiser may pick (empty = none). */
+  @ApiProperty({ type: String, isArray: true })
+  ctaTypes!: string[];
 }
 
 export class CasePromotionDto {
@@ -264,14 +306,45 @@ export class CasePromotionDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   cancelReason!: string | null;
 
+  @ApiPropertyOptional({ type: String, nullable: true })
+  goal!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  ctaType!: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  ctaValue!: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+}
+
+/** The numbers of one day of a promotion (UTC date). */
+export class PromotionDayDto {
+  @ApiProperty({ example: '2026-10-15' })
+  day!: string;
+  @ApiProperty({ type: 'integer' })
+  impressions!: number;
+  @ApiProperty({ type: 'integer' })
+  reach!: number;
+  @ApiProperty({ type: 'integer' })
+  clicks!: number;
 }
 
 /** A row of "My promotions" (owner 2026-10-05). */
 export class MyPromotionDto extends CasePromotionDto {
   @ApiProperty({ description: 'Case title / post title or text start.' })
   title!: string;
+}
+
+/** One promotion with its numbers by day (owner 2026-10-15). */
+export class PromotionStatsDto {
+  @ApiProperty({ type: () => MyPromotionDto })
+  promotion!: MyPromotionDto;
+  @ApiProperty({ type: [PromotionDayDto] })
+  days!: PromotionDayDto[];
+  @ApiProperty({ type: 'integer', description: 'Spent so far, cents.' })
+  spentCents!: number;
 }
 
 export class MyPromotionsQueryDto {
@@ -614,11 +687,43 @@ export class PromotionSettingsDto {
   @IsInt({ each: true })
   durationPresets!: number[];
 
-  @ApiProperty({ type: 'integer', minimum: 2, maximum: 50 })
+  @ApiProperty({ type: 'integer', minimum: 10, maximum: 15 })
   @IsInt()
-  @Min(2)
-  @Max(50)
+  @Min(10)
+  @Max(15)
   feedEveryN!: number;
+
+  @ApiProperty({ type: 'integer', minimum: 10, maximum: 15 })
+  @IsInt()
+  @Min(10)
+  @Max(15)
+  reelEveryN!: number;
+
+  @ApiProperty()
+  @IsBoolean()
+  reelsEnabled!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  boostEnabled!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  attorneysEnabled!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  clientsEnabled!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  ctaEnabled!: boolean;
+
+  @ApiProperty({ type: String, isArray: true })
+  @IsArray()
+  @ArrayMaxSize(8)
+  @IsIn(PROMOTION_CTA_TYPES, { each: true })
+  ctaTypes!: string[];
 
   @ApiProperty({ type: 'integer', minimum: 0, maximum: 10 })
   @IsInt()
@@ -645,4 +750,21 @@ export class PromotionSettingsDto {
   @ApiProperty()
   @IsBoolean()
   requireSubscription!: boolean;
+}
+
+/**
+ * `PUT /admin/promotions/settings`. Every field is optional: what is not
+ * sent keeps its stored value (an older admin build sends only the fields
+ * it knows). `feedEveryN` keeps the range this endpoint always accepted
+ * (2-50); the service narrows it to 10-15 and answers 400 outside it.
+ */
+export class UpdatePromotionSettingsDto extends PartialType(
+  OmitType(PromotionSettingsDto, ['feedEveryN'] as const),
+) {
+  @ApiPropertyOptional({ type: 'integer', minimum: 2, maximum: 50 })
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(50)
+  feedEveryN?: number;
 }

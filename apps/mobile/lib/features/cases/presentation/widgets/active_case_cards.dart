@@ -27,10 +27,19 @@ String caseStageLabel(Translator t, int stage) =>
 
 /// A client's own case in «Active».
 class ClientActiveCaseCard extends ConsumerWidget {
-  const ClientActiveCaseCard({required this.item, this.newBids = 0, super.key});
+  const ClientActiveCaseCard({
+    required this.item,
+    this.newBids = 0,
+    this.scale = true,
+    super.key,
+  });
 
   final CaseSummary item;
   final int newBids;
+
+  /// «My cases» (owner 2026-10-15): the same card without the stage scale,
+  /// the date of the last activity at the end of the status row.
+  final bool scale;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,10 +47,13 @@ class ClientActiveCaseCard extends ConsumerWidget {
     final formats = ref.watch(l10nFormatsProvider);
     final c = item;
     final stage = caseStageOf(c.status, c.bidsCount);
-    final practice = CaseFormat.practice(
-      t,
-      c.practice.categoryI18nKey ?? c.practice.i18nKey,
-      c.practice.categoryNameEn ?? c.practice.nameEn,
+    final practice = CaseFormat.withMore(
+      CaseFormat.practice(
+        t,
+        c.practice.categoryI18nKey ?? c.practice.i18nKey,
+        c.practice.categoryNameEn ?? c.practice.nameEn,
+      ),
+      c.extraPracticeCount,
     );
     final choosing = c.status == CaseStatus.open && c.bidsCount > 0;
     final working = stage == 2 || stage == 3;
@@ -57,7 +69,7 @@ class ClientActiveCaseCard extends ConsumerWidget {
                 ? t.t('mine.next.agreePrice')
                 : choosing
                     ? t.t('mine.next.chooseLawyer', {
-                        'bids': t.plural('cases.card.bidsCount', c.bidsCount, {
+                        'bids': t.t('cases.card.bidsCount', {
                           'count': SocialFormat.count(formats, c.bidsCount),
                         }),
                       })
@@ -77,13 +89,13 @@ class ClientActiveCaseCard extends ConsumerWidget {
           : CaseFormat.budget(t, formats, c.budget),
       categoryCode: c.practice.artCode,
       practiceCode: c.practice.code,
-      badge: newBids,
+      badge: c.status == CaseStatus.open ? newBids : 0,
       statusLabel: caseStatusLabel(t, c.status),
       statusTone: caseTone(c.status),
-      stage: stage,
-      stageLabel: caseStageLabel(t, stage),
+      stage: scale ? stage : null,
+      stageLabel: scale ? caseStageLabel(t, stage) : when,
       next: next,
-      nextDate: when,
+      nextDate: scale ? when : null,
       nextYours: choosing || pending || (noPrice && stage == 2),
       nextDanger: disputed,
       onTap: () => context.push(AppRoutes.myCase(c.id)),
@@ -137,6 +149,57 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       nextDate: when == null ? null : formats.dayMonth(when),
       nextDanger: disputed,
       onTap: () => context.push(AppRoutes.workCase(w.caseId)),
+    );
+  }
+}
+
+/// Owner 2026-10-15 («Мои биды»): an attorney's bid as a card — the header in
+/// the practice colour with the bid price, the bid status, the date and one
+/// «what next» line (gold when the move is the attorney's).
+class AttorneyBidCard extends ConsumerWidget {
+  const AttorneyBidCard({required this.item, super.key});
+
+  final MyBid item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final formats = ref.watch(l10nFormatsProvider);
+    final b = item;
+    final (label, tone) = bidStatusOf(t, b.bid, PartyRole.attorney);
+    final yours =
+        b.bid.status == BidStatus.active && b.bid.turn == PartyRole.attorney;
+    final next = switch (b.bid.status) {
+      BidStatus.active when yours => t.t('mine.bidNext.yourTurn'),
+      BidStatus.active => t.t('mine.bidNext.waitingClient'),
+      BidStatus.accepted => t.t('mine.bidNext.done'),
+      BidStatus.rejectedByClient => t.t('mine.bidNext.rejected'),
+      BidStatus.rejectedAuto => t.t('mine.bidNext.expired'),
+      BidStatus.withdrawn => t.t('mine.bidNext.withdrawn'),
+      _ => t.t('mine.bidNext.failed'),
+    };
+    final when = formats.dayMonth(b.bid.decidedAt ?? b.bid.createdAt);
+    return ActiveCaseCard(
+      key: ValueKey('bid-card-${b.bid.id}'),
+      title: b.caseTitle,
+      practiceName: CaseFormat.practice(
+        t,
+        b.casePracticeI18nKey,
+        b.casePracticeNameEn,
+      ),
+      stateCode: b.primaryStateCode,
+      price: b.bid.amountCents > 0
+          ? formats.currencyFromCents(b.bid.amountCents)
+          : t.t('mine.price.negotiable'),
+      categoryCode: b.casePracticeCode?.split('.').first,
+      practiceCode: b.casePracticeCode,
+      statusLabel: label,
+      statusTone: tone,
+      stageLabel: when,
+      next: next,
+      nextYours: yours,
+      nextDanger: b.bid.status == BidStatus.rejectedByClient,
+      onTap: () => context.push(AppRoutes.bid(b.bid.id)),
     );
   }
 }

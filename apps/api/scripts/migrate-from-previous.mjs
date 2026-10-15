@@ -164,7 +164,11 @@ function resolvePrevious(current) {
 
   const headSet = migrationsAtRef('HEAD');
   if (headSet && isStrictPrefix(headSet, current)) {
-    return { ref: 'HEAD', set: headSet, how: 'HEAD (uncommitted new migrations)' };
+    return {
+      ref: 'HEAD',
+      set: headSet,
+      how: 'HEAD (uncommitted new migrations)',
+    };
   }
   // A feature branch that merged the default branch in: the last commit
   // touching migrations is the merge, whose first parent is the branch's
@@ -235,8 +239,14 @@ function stagePrevious(prev, stageDir) {
   );
   const prefix = REPO_PREFIX();
   for (const name of prev.set) {
-    const sql = git('show', `${prev.ref}:${prefix}prisma/migrations/${name}/migration.sql`);
-    const current = readFileSync(join(MIGRATIONS_DIR, name, 'migration.sql'), 'utf8').trim();
+    const sql = git(
+      'show',
+      `${prev.ref}:${prefix}prisma/migrations/${name}/migration.sql`,
+    );
+    const current = readFileSync(
+      join(MIGRATIONS_DIR, name, 'migration.sql'),
+      'utf8',
+    ).trim();
     if (sql !== current) {
       fail(
         `migration ${name} differs from its version at ${prev.ref}: ` +
@@ -285,12 +295,13 @@ async function seedPrevious(db) {
             ('${u[0]}', 'email', 'prev-client@example.com', now(), now()),
             ('${u[1]}', 'phone', '+12025550101', now(), now())`,
   ]);
-  const hasChain = (
-    await db.$queryRawUnsafe(
-      `SELECT 1 FROM information_schema.columns
+  const hasChain =
+    (
+      await db.$queryRawUnsafe(
+        `SELECT 1 FROM information_schema.columns
        WHERE table_name = 'sessions' AND column_name = 'session_chain_id'`,
-    )
-  ).length > 0;
+      )
+    ).length > 0;
   const sessionRows = [];
   for (let i = 0; i < 12; i++) {
     const user = u[i % 2];
@@ -325,10 +336,18 @@ async function main() {
   // fresh baseline; a previous set written for another engine cannot be
   // replayed here, so there is nothing to upgrade from.
   const providerOf = (toml) => /provider\s*=\s*"(\w+)"/.exec(toml ?? '')?.[1];
-  const prevLock = tryGit('show', `${prev.ref}:./prisma/migrations/migration_lock.toml`);
-  const nowLock = readFileSync(join(MIGRATIONS_DIR, 'migration_lock.toml'), 'utf8');
+  const prevLock = tryGit(
+    'show',
+    `${prev.ref}:./prisma/migrations/migration_lock.toml`,
+  );
+  const nowLock = readFileSync(
+    join(MIGRATIONS_DIR, 'migration_lock.toml'),
+    'utf8',
+  );
   if (prevLock && providerOf(prevLock) !== providerOf(nowLock)) {
-    log(`${prev.ref} used ${providerOf(prevLock)}, now ${providerOf(nowLock)}; nothing to upgrade`);
+    log(
+      `${prev.ref} used ${providerOf(prevLock)}, now ${providerOf(nowLock)}; nothing to upgrade`,
+    );
     return;
   }
   // A PR that adds no migration (MIGRATE_PREV_REF = its base) has nothing
@@ -366,7 +385,9 @@ async function main() {
     log(`created throwaway database ${dbName}`);
 
     const prevSchema = stagePrevious(prev, stageDir);
-    prisma(['migrate', 'deploy', '--schema', prevSchema], { DATABASE_URL: url });
+    prisma(['migrate', 'deploy', '--schema', prevSchema], {
+      DATABASE_URL: url,
+    });
     log('previous migration set applied');
 
     const db = new PrismaClient({ datasourceUrl: url });
@@ -438,7 +459,9 @@ async function main() {
     rmSync(stageDir, { recursive: true, force: true });
     if (created && !KEEP) {
       // Only ever the database this run created (exact name).
-      await admin.$executeRawUnsafe(`DROP DATABASE IF EXISTS "${dbName}" CASCADE`);
+      await admin.$executeRawUnsafe(
+        `DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`,
+      );
       log(`dropped ${dbName}`);
     } else if (created) {
       log(`--keep: left ${dbName} in place`);

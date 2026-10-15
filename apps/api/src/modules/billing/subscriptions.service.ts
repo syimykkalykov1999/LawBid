@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  type OnModuleDestroy,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -73,7 +74,7 @@ const PAYMENTS_PAGE = 20;
  */
 import { ReferralsService } from '../referrals/referrals.service';
 @Injectable()
-export class SubscriptionsService {
+export class SubscriptionsService implements OnModuleDestroy {
   private readonly logger = new Logger(SubscriptionsService.name);
 
   private readonly portalReturnUrl: string;
@@ -101,6 +102,12 @@ export class SubscriptionsService {
     const url = config.get<string>('REDIS_URL');
     if (url)
       this.queue = new Queue(SUBSCRIPTION_JOBS_QUEUE, { connection: { url } });
+  }
+
+  /** The queue keeps its own Redis connection: close it with the app (an
+   * open one kept every e2e suite's whole module graph in memory). */
+  async onModuleDestroy(): Promise<void> {
+    await this.queue?.close();
   }
 
   /**
@@ -948,8 +955,24 @@ export class SubscriptionsService {
     });
     const page = rows.slice(0, PAYMENTS_PAGE);
     const last = page[page.length - 1];
+    // Owner 2026-10-15: a Boost payment says so (target and days).
+    const boosts = page.length
+      ? await this.prisma.casePromotion.findMany({
+          where: { payment_id: { in: page.map((p) => p.id) } },
+          select: { payment_id: true, target_type: true, days: true },
+        })
+      : [];
+    const boostOf = new Map(boosts.map((b) => [b.payment_id, b]));
     return {
-      items: page.map(presentPayment),
+      items: page.map((p) => {
+        const b = boostOf.get(p.id);
+        return {
+          ...presentPayment(p),
+          kind: b ? 'boost' : 'subscription',
+          boostTarget: b?.target_type ?? null,
+          boostDays: b?.days ?? null,
+        };
+      }),
       nextCursor:
         rows.length > PAYMENTS_PAGE && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
@@ -1192,5 +1215,6 @@ export function presentPayment(p: Payment): PaymentDto {
     paidAt: p.paid_at?.toISOString() ?? null,
     failureCode: p.failure_code,
     createdAt: p.created_at.toISOString(),
+    kind: 'subscription',
   };
 }

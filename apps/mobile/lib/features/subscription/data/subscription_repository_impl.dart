@@ -67,6 +67,8 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
         paidAt: p.paidAt,
         failureCode: p.failureCode,
         createdAt: p.createdAt,
+        boostTarget: p.kind.json == 'boost' ? (p.boostTarget ?? 'post') : null,
+        boostDays: p.boostDays,
       );
 
   @override

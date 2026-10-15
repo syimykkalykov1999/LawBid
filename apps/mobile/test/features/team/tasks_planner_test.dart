@@ -243,7 +243,7 @@ void main() {
       expect(repo.calls, contains('status:s1:done:null'));
     });
 
-    testWidgets('swipe left — later (one hour)', (tester) async {
+    testWidgets('swipe left — tomorrow, with Undo', (tester) async {
       repo.active = [
         makeTask('s2', dueAt: DateTime.now().add(const Duration(hours: 1))),
       ];
@@ -253,9 +253,9 @@ void main() {
         const Offset(-500, 0),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('snooze-0')));
-      await tester.pumpAndSettle();
+      // Owner 2026-10-15: no sheet — straight to tomorrow.
       expect(repo.calls, contains('move:s2'));
+      expect(find.text('Moved to tomorrow'), findsOneWidget);
     });
 
     testWidgets('long press picks several; delete asks first', (tester) async {
@@ -293,7 +293,7 @@ void main() {
       expect(repo.calls.last, 'bulk:status:b3');
     });
 
-    testWidgets('«Сегодня» groups by time of day', (tester) async {
+    testWidgets('«Сегодня» keeps the overdue and today groups', (tester) async {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       repo.active = [
@@ -301,11 +301,11 @@ void main() {
         makeTask('t', dueAt: today.add(const Duration(hours: 20))),
         makeTask('n'),
       ];
-      await pump(tester, const TasksTab());
-      await tester.tap(find.byKey(const ValueKey('tasks-view-today')));
+      await pump(tester, const TasksTab(initialView: TasksView.today));
       await tester.pumpAndSettle();
-      expect(find.text('Overdue'), findsWidgets);
-      expect(find.text('Evening'), findsOneWidget);
+      // Owner 2026-10-15: «Today» is the overdue and today's groups.
+      expect(find.text('OVERDUE'), findsOneWidget);
+      expect(find.text('TODAY'), findsOneWidget);
       expect(find.text('Task n'), findsNothing);
     });
 

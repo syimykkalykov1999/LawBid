@@ -443,3 +443,23 @@ export class SuggestionDto {
   @ApiProperty()
   text!: string;
 }
+
+/** Owner 2026-10-15: a result the person opened after a query (the search
+ * learns "query → topic" from these). */
+export class SearchClickDto {
+  @ApiProperty({ description: 'The text that was searched.' })
+  @IsString()
+  @Length(3, 100)
+  q!: string;
+
+  @ApiProperty({ enum: ['case', 'post', 'attorney', 'practice'] })
+  @IsIn(['case', 'post', 'attorney', 'practice'])
+  targetType!: 'case' | 'post' | 'attorney' | 'practice';
+
+  @ApiProperty({
+    description: 'Id of the opened result (a code for a practice).',
+  })
+  @IsString()
+  @Length(1, 64)
+  targetId!: string;
+}

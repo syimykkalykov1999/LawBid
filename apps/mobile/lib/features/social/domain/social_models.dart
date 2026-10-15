@@ -1,5 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 
 /// docs/05 §2.4 post author: an attorney's public identity.
 @immutable
@@ -229,6 +230,7 @@ class Post {
     this.attachments = const [],
     this.isGeneral = false,
     this.promotionId,
+    this.promotionCta,
     this.repostCount = 0,
     this.repostedByMe = false,
     this.repostedBy,
@@ -254,6 +256,9 @@ class Post {
   /// Owner 2026-10-05: set on a paid promoted post in the feed — the card
   /// says «Реклама» and an open is reported for the owner's stats.
   final String? promotionId;
+
+  /// Owner 2026-10-15: the button under a promoted post (null = none).
+  final PromotionCta? promotionCta;
 
   /// Owner 2026-10-05: up to 9 documents readers download.
   final List<PostAttachment> attachments;
@@ -310,12 +315,9 @@ class Post {
 
   bool get pendingReview => isMine && status == 'hidden';
 
-  /// Owner 2026-10-13: the inside of a post (tabs: Overview, Documents,
-  /// Photos, Info) exists only when it has something to show — documents,
-  /// or photos beyond the first of a post. A reel's video is the reel
-  /// itself. Without it a tap on the card opens nothing (like Instagram).
-  bool get hasInner =>
-      attachments.isNotEmpty || (video == null && media.length > 1);
+  /// Owner 2026-10-15: no inner page any more — only documents have a place
+  /// to open (a sheet from below). Photos swipe in the card itself.
+  bool get hasInner => attachments.isNotEmpty;
 
   Post copyWith({
     String? title,
@@ -362,6 +364,7 @@ class Post {
         attachments: attachments,
         isGeneral: isGeneral,
         promotionId: promotionId,
+        promotionCta: promotionCta,
         repostCount: repostCount ?? this.repostCount,
         repostedByMe: repostedByMe ?? this.repostedByMe,
         repostedBy: repostedBy,

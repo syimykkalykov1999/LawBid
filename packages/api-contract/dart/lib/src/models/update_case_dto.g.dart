@@ -11,6 +11,9 @@ UpdateCaseDto _$UpdateCaseDtoFromJson(Map<String, dynamic> json) =>
       title: json['title'] as String?,
       description: json['description'] as String?,
       practiceAreaId: json['practiceAreaId'] as String?,
+      extraPracticeAreaIds: (json['extraPracticeAreaIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       primaryStateCode: json['primaryStateCode'] as String?,
       additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>?)
           ?.map((e) => e as String)
@@ -40,6 +43,7 @@ Map<String, dynamic> _$UpdateCaseDtoToJson(UpdateCaseDto instance) =>
       'title': ?instance.title,
       'description': ?instance.description,
       'practiceAreaId': ?instance.practiceAreaId,
+      'extraPracticeAreaIds': ?instance.extraPracticeAreaIds,
       'primaryStateCode': ?instance.primaryStateCode,
       'additionalStateCodes': ?instance.additionalStateCodes,
       'city': ?instance.city,

@@ -21,6 +21,7 @@ class CaseFeedItemDto {
     required this.title,
     required this.excerpt,
     required this.practiceArea,
+    required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCodes,
     required this.status,
@@ -42,6 +43,7 @@ class CaseFeedItemDto {
     this.urgencyLevel,
     this.deadlineAt,
     this.deadlineKind,
+    this.promotedUntil,
   });
 
   factory CaseFeedItemDto.fromJson(Map<String, Object?> json) =>
@@ -53,6 +55,9 @@ class CaseFeedItemDto {
   /// Owner 2026-09-30: first ~180 characters of the description.
   final String excerpt;
   final CasePracticeAreaDto practiceArea;
+
+  /// Topics besides the first: «+N».
+  final int extraPracticeCount;
   final String primaryStateCode;
   final List<String> additionalStateCodes;
   final String? city;
@@ -96,6 +101,9 @@ class CaseFeedItemDto {
 
   /// Promoted by its client right now.
   final bool promoted;
+
+  /// Owner 2026-10-15: the last paid day, «Реклама · до {date}».
+  final DateTime? promotedUntil;
 
   /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
   final bool priorityClient;

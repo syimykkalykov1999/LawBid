@@ -55,6 +55,8 @@ import {
   TRENDING_TAGS_KEY,
   type SearchProvider,
 } from './search.provider';
+import { SearchLogService } from './search-log.service';
+import { SYNONYMS_VERSION_KEY } from './search-synonyms.service';
 import { tagCategories } from './tag-category';
 
 const PAGE = 20;
@@ -147,6 +149,8 @@ export class SearchService {
     @Optional() private readonly contentFilter?: ContentFilterService,
     // Owner 2026-10-13: personal ranking (tie-break in People, "for you").
     @Optional() private readonly recommendations?: RecommendationsService,
+    // Owner 2026-10-15: what people search for (admin's "no results").
+    @Optional() private readonly queryLog?: SearchLogService,
   ) {}
 
   /** Owner 2026-10-05: a "Legal only" viewer never sees general posts. */
@@ -217,6 +221,8 @@ export class SearchService {
         if (c) items.push({ role, attorney: null, client: c });
       }
     }
+    if (!dto.cursor)
+      this.queryLog?.logQuery(user.sub, 'people', q, items.length);
     return { items, nextCursor: next };
   }
 
@@ -261,6 +267,8 @@ export class SearchService {
       this.provider.searchAttorneys(q, filters, RANKED_MAX),
     );
     const { slice, next } = this.pageOf(ids, dto.cursor);
+    if (!dto.cursor)
+      this.queryLog?.logQuery(user.sub, 'people', q, slice.length);
     return {
       items: await this.follows.present(slice, user.sub),
       nextCursor: next,
@@ -318,6 +326,9 @@ export class SearchService {
     const { slice, next } = this.pageOf(ids, dto.cursor);
     // §7.6: the provider's rows still pass the single access check.
     const visible = await this.access.visibleCaseIds(user.sub, slice);
+    if (!dto.cursor) {
+      this.queryLog?.logQuery(user.sub, 'cases', q, visible.size);
+    }
     return {
       items: await this.casesFeed.hydrate(
         slice.filter((id) => visible.has(id)),
@@ -388,6 +399,7 @@ export class SearchService {
       () => this.provider.searchPosts(q, RANKED_MAX, filters),
     );
     const { slice, next } = this.pageOf(ids, cursor);
+    if (!cursor) this.queryLog?.logQuery(user.sub, 'posts', q, slice.length);
     return {
       items: await this.presentPosts(slice, user.sub),
       nextCursor: next,
@@ -711,13 +723,15 @@ export class SearchService {
     return rows.map((r) => r.id);
   }
 
-  private ranked(
+  private async ranked(
     kind: string,
     params: Record<string, unknown>,
     load: () => Promise<string[]>,
   ): Promise<string[]> {
+    // The dictionary's version: an admin's edit starts a fresh result list.
+    const syn = (await this.redis.get(SYNONYMS_VERSION_KEY)) ?? '0';
     const hash = createHash('sha256')
-      .update(JSON.stringify(params))
+      .update(JSON.stringify({ ...params, syn }))
       .digest('base64url');
     return this.cached(`search:${kind}:${hash}`, RANKED_TTL_SEC, load);
   }

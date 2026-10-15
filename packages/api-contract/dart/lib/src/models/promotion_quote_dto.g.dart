@@ -33,6 +33,9 @@ PromotionQuoteDto _$PromotionQuoteDtoFromJson(Map<String, dynamic> json) =>
       estReachMax: (json['estReachMax'] as num).toInt(),
       postsEnabled: json['postsEnabled'] as bool,
       casesEnabled: json['casesEnabled'] as bool,
+      ctaTypes: (json['ctaTypes'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$PromotionQuoteDtoToJson(PromotionQuoteDto instance) =>
@@ -58,4 +61,5 @@ Map<String, dynamic> _$PromotionQuoteDtoToJson(PromotionQuoteDto instance) =>
       'estReachMax': instance.estReachMax,
       'postsEnabled': instance.postsEnabled,
       'casesEnabled': instance.casesEnabled,
+      'ctaTypes': instance.ctaTypes,
     };

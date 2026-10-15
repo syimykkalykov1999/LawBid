@@ -88,7 +88,11 @@ class CaseSummary {
     this.coverKey,
     this.urgency,
     this.urgencyDetail,
+    this.extraPracticeCount = 0,
   });
+
+  /// Owner 2026-10-15: topics besides the first — «+N» on the card.
+  final int extraPracticeCount;
 
   /// Owner 2026-10-04: the chosen app cover (`art:N` / `icon:name`).
   final String? coverKey;
@@ -169,7 +173,11 @@ class OwnerCase {
     this.coverKey,
     this.urgency,
     this.urgencyDetail,
+    this.extraPractices = const [],
   });
+
+  /// Owner 2026-10-15: topics 2..N of the case (the first is [practice]).
+  final List<PracticeRef> extraPractices;
 
   /// Audit 2026-10-04: when the "still relevant?" prompt went out for this
   /// open case (null = not asked); the owner can answer on the case.
@@ -395,7 +403,9 @@ class FeedCase {
     this.inMyLicensedStates = true,
     this.bidAllowed = true,
     this.promoted = false,
+    this.promotedUntil,
     this.priorityClient = false,
+    this.extraPracticeCount = 0,
     this.completionRequestedBy,
     this.acceptedBidIsMine = false,
     this.coverKey,
@@ -427,6 +437,9 @@ class FeedCase {
   /// Owner 2026-10-02: a paid promotion keeps this case near the top.
   final bool promoted;
 
+  /// Owner 2026-10-15: the last paid day, «Реклама · до {date}».
+  final DateTime? promotedUntil;
+
   /// Owner 2026-10-05 (plan builder): the client's plan puts the case
   /// first in the feed (shown with a small «Приоритет» mark).
   final bool priorityClient;
@@ -451,6 +464,9 @@ class FeedCase {
 
   /// OQ-037: completed shares.
   final int shareCount;
+
+  /// Owner 2026-10-15: topics besides the first — «+N» on the card.
+  final int extraPracticeCount;
 
   final String id;
   final String title;
@@ -764,7 +780,7 @@ class HistoryExport {
 /// Filters of "Мои кейсы" (docs/04 §11.1).
 /// Owner 2026-09-30: `open` and `inProgress` are the Mine tabs; `active`
 /// (both) stays for the profile grid and search.
-enum MyCasesFilter { active, open, inProgress, archived, closed }
+enum MyCasesFilter { active, open, inProgress, archived, closed, completed }
 
 /// Owner 2026-09-30: search and filters of the "Mine" lists.
 @immutable
@@ -805,6 +821,6 @@ class MineSearch {
 /// Sort of a case's bid list (docs/04 §5.2).
 enum BidsSort { newest, lowestPrice, highestRating }
 
-enum MyBidsFilter { active, finished }
+enum MyBidsFilter { active, finished, completed }
 
 enum WorkFilter { active, closed }

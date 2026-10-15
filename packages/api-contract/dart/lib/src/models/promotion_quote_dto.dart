@@ -30,6 +30,7 @@ class PromotionQuoteDto {
     required this.estReachMax,
     required this.postsEnabled,
     required this.casesEnabled,
+    required this.ctaTypes,
   });
 
   factory PromotionQuoteDto.fromJson(Map<String, Object?> json) =>
@@ -72,6 +73,9 @@ class PromotionQuoteDto {
   final int estReachMax;
   final bool postsEnabled;
   final bool casesEnabled;
+
+  /// Owner 2026-10-15: the buttons an advertiser may pick (empty = none).
+  final List<String> ctaTypes;
 
   Map<String, Object?> toJson() => _$PromotionQuoteDtoToJson(this);
 }

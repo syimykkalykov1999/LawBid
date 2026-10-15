@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   Optional,
 } from '@nestjs/common';
 import type { Post, Prisma } from '@prisma/client';
@@ -64,6 +65,8 @@ function badCursor(): BadRequestException {
  */
 @Injectable()
 export class FeedService implements FeedProvider {
+  private readonly log = new Logger(FeedService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenter: PostPresenter,
@@ -111,6 +114,8 @@ export class FeedService implements FeedProvider {
         where: {
           ...VISIBLE_POST_WHERE,
           ...only,
+          // Videos have their own counter in the reels.
+          video_asset_id: null,
           id: { in: wanted.map((c) => c.postId!) },
         },
       });
@@ -124,6 +129,9 @@ export class FeedService implements FeedProvider {
       const ads = presented.map((dto, i) => ({
         ...dto,
         promotionId: picked[i].id,
+        promotionCta: picked[i].ctaType
+          ? { type: picked[i].ctaType, value: picked[i].ctaValue }
+          : null,
       }));
       const items = [...page.items];
       ads.forEach((ad, i) => {
@@ -134,7 +142,9 @@ export class FeedService implements FeedProvider {
         picked.map((c) => c.id),
       );
       return { ...page, items };
-    } catch {
+    } catch (e) {
+      // Promoted posts are best effort; say why one did not come.
+      this.log.warn({ err: String(e) }, 'promoted posts skipped');
       return page;
     }
   }

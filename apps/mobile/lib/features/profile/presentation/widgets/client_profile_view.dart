@@ -130,7 +130,7 @@ class _ClientBody extends ConsumerWidget {
       Row(
         children: [
           ProfileAvatar(
-            size: 86,
+            size: AppSizes.profileAvatar,
             url: avatarUrl,
             initials: initialsOf(
               profile.firstName,
@@ -156,24 +156,6 @@ class _ClientBody extends ConsumerWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Row(
-                  children: [
-                    AppIcon(
-                      AppIcons.locationOnOutlined,
-                      size: AppSpacing.lg,
-                      color: colors.goldStroke,
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Flexible(
-                      child: Text(
-                        profile.state.name,
-                        style: typography.bodySmall
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

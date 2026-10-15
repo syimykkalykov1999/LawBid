@@ -597,7 +597,7 @@ class _HeaderCard extends ConsumerWidget {
 
   final PublicAttorneyProfile profile;
 
-  static const _avatar = 76.0; // + ring and gap = 86 like Instagram
+  static const _avatar = AppSizes.profileAvatar;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

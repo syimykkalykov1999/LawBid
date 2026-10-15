@@ -31,6 +31,9 @@ class MyPromotionDto {
     this.targetImpressions,
     this.audience,
     this.cancelReason,
+    this.goal,
+    this.ctaType,
+    this.ctaValue,
   });
 
   factory MyPromotionDto.fromJson(Map<String, Object?> json) =>
@@ -58,6 +61,9 @@ class MyPromotionDto {
   final int? targetImpressions;
   final PromotionAudienceDto? audience;
   final String? cancelReason;
+  final String? goal;
+  final String? ctaType;
+  final String? ctaValue;
   final DateTime createdAt;
 
   /// Case title / post title or text start.

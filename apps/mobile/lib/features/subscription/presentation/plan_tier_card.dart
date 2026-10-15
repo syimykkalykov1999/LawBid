@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/plans/domain/plan_models.dart';
 import 'package:lawbid/features/plans/presentation/discount_price.dart';
@@ -337,7 +338,7 @@ class AssistantSeatsControl extends StatelessWidget {
             SizedBox(
               width: 26,
               child: Text(
-                '$seats',
+                context.digits(seats),
                 key: const ValueKey('seats-value'),
                 textAlign: TextAlign.center,
                 style: typography.titleMedium.copyWith(color: colors.text),

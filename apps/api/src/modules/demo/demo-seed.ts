@@ -187,7 +187,7 @@ async function loadRefs(prisma: PrismaClient): Promise<Refs> {
   const byCode = new Map(areas.map((a) => [a.code, a]));
 
   const plan = plans.find((p) => p.interval === 'month') ?? plans[0] ?? null;
-  let priceCents = 9900;
+  let priceCents = 39900;
   const kinds = [plan?.price_kind, 'monthly'].filter(
     (k): k is string => typeof k === 'string' && k.length > 0,
   );

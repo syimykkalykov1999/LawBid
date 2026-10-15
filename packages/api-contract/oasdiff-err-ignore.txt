@@ -55,3 +55,11 @@ POST /cases/{id}/promotions the response property `data/promotion/caseId` became
 POST /cases/{id}/promotions the response property `data/promotion/caseId` became optional for the status `201`
 # Legal PR (2026-10-05): joining the partner program now requires accepting the partner rules; old app builds get a 400 and are told to update
 POST /partners/me/join added required request body
+# 2026-10-15: both sides can add tasks; a task of both is kind `joint`. The generated Dart client maps any unknown kind to CaseTaskDtoKind.$unknown, so an app built before this value ignores it instead of failing
+GET /cases/{id}/tasks added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/close added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/done added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/items/{itemId}/done added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/reopen added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/submissions added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -71,7 +72,15 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
   String _query = '';
   String _remoteQuery = '';
   Timer? _debounce;
-  String? _openCategory;
+  // Owner 2026-10-15: every group opens and closes on its own arrow; the
+  // group of a chosen topic starts open.
+  final Set<String> _open = {};
+  bool _seeded = false;
+
+  /// Owner 2026-10-15: up to this many topics (admin: `case.max_practices`).
+  int get _max => ref
+      .read(featureFlagsControllerProvider)
+      .configInt('case.max_practices', 3);
 
   @override
   void dispose() {
@@ -89,14 +98,68 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
     );
   }
 
-  void _pick(PracticeLeaf leaf) => widget.onChange(
-        (d) => d.copyWith(
-          practiceAreaId: leaf.id,
-          practiceI18nKey: leaf.i18nKey,
-          practiceNameEn: leaf.nameEn,
-          practiceCode: leaf.code,
+  bool _isChosen(String id) =>
+      widget.draft.practiceAreaId == id ||
+      widget.draft.extraPractices.any((p) => p.id == id);
+
+  /// Owner 2026-10-15: a second tap takes a topic off; up to [_max] topics;
+  /// «Not sure» excludes the others (and they it).
+  void _toggle(PracticeLeaf leaf, {bool notSure = false}) {
+    final d = widget.draft;
+    var all = <CaseDraftPractice>[
+      if (d.practiceAreaId != null)
+        CaseDraftPractice(
+          id: d.practiceAreaId!,
+          i18nKey: d.practiceI18nKey ?? '',
+          nameEn: d.practiceNameEn ?? '',
+          code: d.practiceCode,
         ),
+      ...d.extraPractices,
+    ];
+    if (all.any((p) => p.id == leaf.id)) {
+      all = [
+        for (final p in all)
+          if (p.id != leaf.id) p,
+      ];
+    } else {
+      final pick = CaseDraftPractice(
+        id: leaf.id,
+        i18nKey: leaf.i18nKey,
+        nameEn: leaf.nameEn,
+        code: leaf.code,
       );
+      if (notSure) {
+        all = [pick];
+      } else {
+        // «Not sure» is not a topic to combine with others.
+        all = [
+          for (final p in all)
+            if (!p.i18nKey.endsWith('not_sure_or_other')) p,
+        ];
+        if (all.length >= _max) {
+          showAppSnackBar(
+            context,
+            ref
+                .read(translatorProvider)
+                .t('cases.create.practice.upTo', {'n': '$_max'}),
+          );
+          return;
+        }
+        all = [...all, pick];
+      }
+    }
+    widget.onChange(
+      (d) => all.isEmpty
+          ? d.copyWith(clearPractice: true, extraPractices: const [])
+          : d.copyWith(
+              practiceAreaId: all.first.id,
+              practiceI18nKey: all.first.i18nKey,
+              practiceNameEn: all.first.nameEn,
+              practiceCode: all.first.code,
+              extraPractices: all.skip(1).toList(),
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +171,12 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
       onRetry: () => ref.invalidate(practiceTreeProvider),
       builder: (categories) {
         String name(String key, String en) => CaseFormat.practice(t, key, en);
+        if (!_seeded) {
+          _seeded = true;
+          for (final c in categories) {
+            if (c.children.any((l) => _isChosen(l.id))) _open.add(c.id);
+          }
+        }
         final q = _query.trim().toLowerCase();
         final notSure = [
           for (final c in categories)
@@ -145,6 +214,22 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               title: t.t('cases.create.practice.title'),
               subtitle: t.t('cases.create.practice.subtitle'),
             ),
+            // Owner 2026-10-15: how many topics fit.
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Text(
+                t.t('cases.create.practice.upTo', {'n': '$_max'}),
+                key: const ValueKey('practice-up-to'),
+                style: Theme.of(context)
+                    .extension<AppTypographyTokens>()!
+                    .caption
+                    .copyWith(
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+              ),
+            ),
             AppTextField(
               controller: _search,
               label: t.t('cases.create.practice.search'),
@@ -159,8 +244,8 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
                 label: t.t('cases.create.practice.notSure'),
                 caption: t.t('cases.create.practice.notSureHint'),
                 icon: AppIcons.helpOutlineRounded,
-                selected: widget.draft.practiceAreaId == notSure.id,
-                onTap: () => _pick(notSure),
+                selected: _isChosen(notSure.id),
+                onTap: () => _toggle(notSure, notSure: true),
               ),
               const SizedBox(height: AppSpacing.lg),
             ],
@@ -181,26 +266,26 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
                     caption: remote[l.code] ??
                         remote[practiceCodeOf(c.i18nKey)] ??
                         name(c.i18nKey, c.nameEn),
-                    selected: widget.draft.practiceAreaId == l.id,
-                    onTap: () => _pick(l),
+                    selected: _isChosen(l.id),
+                    onTap: () => _toggle(l),
                   ),
                 )
             else
               for (final c in categories)
                 _CategoryTile(
                   label: name(c.i18nKey, c.nameEn),
-                  open: _openCategory == c.id ||
-                      c.children
-                          .any((l) => l.id == widget.draft.practiceAreaId),
+                  open: _open.contains(c.id),
                   onToggle: () => setState(
-                    () => _openCategory = _openCategory == c.id ? null : c.id,
+                    () => _open.contains(c.id)
+                        ? _open.remove(c.id)
+                        : _open.add(c.id),
                   ),
                   children: [
                     for (final l in c.children)
                       _LeafTile(
                         label: name(l.i18nKey, l.nameEn),
-                        selected: widget.draft.practiceAreaId == l.id,
-                        onTap: () => _pick(l),
+                        selected: _isChosen(l.id),
+                        onTap: () => _toggle(l),
                         dense: true,
                       ),
                   ],

@@ -84,11 +84,25 @@ class PaymentCard extends StatelessWidget {
     );
     final date = formats.date(payment.paidAt ?? payment.createdAt);
     final status = t.t('payments.status.${payment.status.name}');
+    // Owner 2026-10-15: what it paid for — the subscription, or a Boost
+    // (of a post / a case, for N days).
+    final what = payment.isBoost
+        ? [
+            t.t('payments.kind.boost'),
+            t.t(
+              payment.boostTarget == 'case'
+                  ? 'promote.mine.case'
+                  : 'promote.mine.post',
+            ),
+            if (payment.boostDays != null)
+              t.t('promote.days', {'days': '${payment.boostDays}'}),
+          ].join(' · ')
+        : t.t('subscription.title');
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Semantics(
         container: true,
-        label: '$amount, $date, $status',
+        label: '$what, $amount, $date, $status',
         child: AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,6 +132,13 @@ class PaymentCard extends StatelessWidget {
                                 .copyWith(color: colors.text),
                           ),
                           const SizedBox(height: AppSpacing.xs / 2),
+                          Text(
+                            what,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: typography.bodySmall
+                                .copyWith(color: colors.text),
+                          ),
                           Text(
                             date,
                             style: typography.caption

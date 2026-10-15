@@ -146,11 +146,8 @@ void main() {
       expect(launched.single.host, 'checkout.stripe.com');
       // Back: "Your plan" on the Team card, the seat summary in the card.
       expect(find.text('Your plan'), findsWidgets);
-      expect(find.byKey(const ValueKey('current-plan')), findsOneWidget);
-      expect(
-        find.text('Assistants: 3 · 2 included, 1 extra'),
-        findsOneWidget,
-      );
+      // Owner 2026-10-15: no second «Your plan» card; the Team card has it.
+      expect(find.byKey(const ValueKey('current-plan')), findsNothing);
     });
 
     testWidgets('no plans from the server: the legacy tiers', (tester) async {

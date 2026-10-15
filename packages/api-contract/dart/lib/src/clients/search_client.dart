@@ -16,6 +16,7 @@ import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
 import '../models/practice_match_list_envelope.dart';
 import '../models/role2.dart';
+import '../models/search_click_dto.dart';
 import '../models/sort2.dart';
 import '../models/sort3.dart';
 import '../models/suggestion_list_envelope.dart';
@@ -171,6 +172,13 @@ abstract class SearchClient {
     @Query('cursor') String? cursor,
     @Query('state') String? state,
     @Query('videoOnly') bool? videoOnly,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A result opened after a query (owner 2026-10-15): the search learns topics from these
+  @POST('/search/clicks')
+  Future<void> click({
+    @Body() required SearchClickDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -2,7 +2,7 @@ import {
   AddressBook, Article, Bank, Devices, Books, Briefcase, ClockCounterClockwise, CrownSimple, DownloadSimple, EnvelopeSimple,
   FileText, FilmStrip, Flag, Gauge, Gavel, HandCoins, Handshake, Key, Lifebuoy, Megaphone, Receipt, RocketLaunch,
   Scales, SealCheck, ShareNetwork, ShieldCheck, SlidersHorizontal, Ticket, ToggleRight, Translate,
-  Prohibit, Stack, Tag, Users, UsersThree, Wallet, BriefcaseMetal, Trophy, Lock, GlobeHemisphereWest, HardDrives, Heartbeat, Paperclip,
+  MagnifyingGlass, Prohibit, Stack, Tag, Users, UsersThree, Wallet, BriefcaseMetal, Trophy, Lock, GlobeHemisphereWest, HardDrives, Heartbeat, Paperclip,
   type Icon,
 } from '@phosphor-icons/react';
 
@@ -17,4 +17,5 @@ export const ICONS: Record<string, Icon> = {
   tag: Tag, 'hand-coins': HandCoins, stack: Stack, wallet: Wallet,
   'briefcase-metal': BriefcaseMetal, trophy: Trophy, lock: Lock, globe: GlobeHemisphereWest, 'hard-drives': HardDrives, paperclip: Paperclip,
   heartbeat: Heartbeat,
+  'magnifying-glass': MagnifyingGlass,
 };

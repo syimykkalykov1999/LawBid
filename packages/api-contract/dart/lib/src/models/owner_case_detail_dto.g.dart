@@ -14,6 +14,9 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
       practiceArea: PracticeAreaRefDto.fromJson(
         json['practiceArea'] as Map<String, dynamic>,
       ),
+      extraPracticeAreas: (json['extraPracticeAreas'] as List<dynamic>)
+          .map((e) => PracticeAreaRefDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       primaryStateCode: json['primaryStateCode'] as String,
       states: (json['states'] as List<dynamic>)
           .map((e) => CaseStateDto.fromJson(e as Map<String, dynamic>))
@@ -63,6 +66,9 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'title': instance.title,
       'description': instance.description,
       'practiceArea': instance.practiceArea.toJson(),
+      'extraPracticeAreas': instance.extraPracticeAreas
+          .map((e) => e.toJson())
+          .toList(),
       'primaryStateCode': instance.primaryStateCode,
       'states': instance.states.map((e) => e.toJson()).toList(),
       'city': ?instance.city,

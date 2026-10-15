@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
@@ -204,7 +205,7 @@ class _LevelDot extends StatelessWidget {
         border: Border.all(color: reached ? c.border : colors.border),
       ),
       child: Text(
-        '$level',
+        context.digits(level),
         style: typography.caption.copyWith(
           color: reached ? c.fg : colors.textSecondary,
           fontWeight: FontWeight.w700,

@@ -565,6 +565,9 @@ function Toggle({ title, text, checked, onChange, disabled }: { title: string; t
 function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const [boostEnabled, setBoostEnabled] = useState(initial.boostEnabled);
+  const [attorneysEnabled, setAttorneysEnabled] = useState(initial.attorneysEnabled);
+  const [clientsEnabled, setClientsEnabled] = useState(initial.clientsEnabled);
   const [enabled, setEnabled] = useState(initial.enabled);
   const [postsEnabled, setPostsEnabled] = useState(initial.postsEnabled);
   const [autoApprove, setAutoApprove] = useState(initial.autoApprove);
@@ -577,6 +580,10 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [durations, setDurations] = useState(initial.durationPresets.join(', '));
   const [maxDays, setMaxDays] = useState(String(initial.maxDays));
   const [everyN, setEveryN] = useState(String(initial.feedEveryN));
+  const [reelN, setReelN] = useState(String(initial.reelEveryN));
+  const [reelsEnabled, setReelsEnabled] = useState(initial.reelsEnabled);
+  const [ctaEnabled, setCtaEnabled] = useState(initial.ctaEnabled);
+  const [ctaTypes, setCtaTypes] = useState<Settings['ctaTypes']>(initial.ctaTypes);
   const [caseSlots, setCaseSlots] = useState(String(initial.caseFeedSlots));
   const [cap, setCap] = useState(String(initial.frequencyCapPerDay));
   const [perPerson, setPerPerson] = useState(String(initial.impressionsPerPerson));
@@ -591,14 +598,18 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     const md = Number(maxDays);
     const en = Number(everyN);
     const cs = Number(caseSlots);
+    const rn = Number(reelN);
     const fc = Number(cap);
     const pp = Number(perPerson);
     if (p == null || p < 50 || c == null || c < 1 || mn == null || mn < 50 || mx == null || mx < mn) return null;
     if (!ps || !ds || !ps.length || !ds.length) return null;
     if (!Number.isInteger(md) || md < 1 || md > 365) return null;
-    if (!Number.isInteger(en) || en < 2 || en > 50 || !Number.isInteger(cs) || cs < 0 || cs > 10) return null;
+    if (!Number.isInteger(en) || en < 10 || en > 15 || !Number.isInteger(rn) || rn < 10 || rn > 15 || !Number.isInteger(cs) || cs < 0 || cs > 10) return null;
     if (!Number.isInteger(fc) || fc < 1 || fc > 50 || !(pp >= 1 && pp <= 10)) return null;
     return {
+      boostEnabled,
+      attorneysEnabled,
+      clientsEnabled,
       enabled,
       postsEnabled,
       autoApprove,
@@ -612,6 +623,10 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
       budgetPresetsCents: ps.filter((x) => x >= mn && x <= mx),
       durationPresets: ds.filter((x) => x <= md),
       feedEveryN: en,
+      reelEveryN: rn,
+      reelsEnabled,
+      ctaEnabled,
+      ctaTypes,
       caseFeedSlots: cs,
       frequencyCapPerDay: fc,
       impressionsPerPerson: pp,
@@ -650,8 +665,13 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           }}
         >
           <div className="divide-y divide-line border-b border-line pb-2">
+            <Toggle title="Кнопки Boost: всё приложение" text="Главный выключатель. Выключено — кнопка «Продвигать» пропадает у всех сразу, без обновления приложения. Уже идущие продвижения доработают срок." checked={boostEnabled} onChange={setBoostEnabled} disabled={!canEdit} />
+            <Toggle title="Кнопки Boost у адвокатов" text="Выключено — адвокаты не видят кнопку на своих постах, видео и делах." checked={attorneysEnabled} onChange={setAttorneysEnabled} disabled={!canEdit || !boostEnabled} />
+            <Toggle title="Кнопки Boost у клиентов" text="Выключено — клиенты не видят кнопку на своих постах, видео и делах." checked={clientsEnabled} onChange={setClientsEnabled} disabled={!canEdit || !boostEnabled} />
             <Toggle title="Продвижение постов" text="Любой клиент или адвокат может продвинуть свой пост. Пост показывается в ленте с пометкой «Реклама»." checked={postsEnabled} onChange={setPostsEnabled} disabled={!canEdit} />
             <Toggle title="Продвижение кейсов" text="Клиент поднимает свой открытый кейс вверх ленты адвокатов. Уже идущие продвижения доработают свой срок." checked={enabled} onChange={setEnabled} disabled={!canEdit} />
+            <Toggle title="Продвижение видео (рилсы)" text="Кнопка «Продвигать» на видео и реклама среди рилсов с пометкой «Реклама» (свой счётчик, отдельно от ленты)." checked={reelsEnabled} onChange={setReelsEnabled} disabled={!canEdit} />
+            <Toggle title="Кнопка под рекламой" text="Рекламодатель выбирает кнопку: сайт, профиль, скачать, позвонить. У кейсов клиента только «Откликнуться»." checked={ctaEnabled} onChange={setCtaEnabled} disabled={!canEdit} />
             <Toggle title="Автопроверка" text="Включено: продвижение стартует сразу после оплаты, если на контент нет открытых жалоб. Выключено: каждое продвижение ждёт проверки сотрудника." checked={autoApprove} onChange={setAutoApprove} disabled={!canEdit} />
             <Toggle title="Только по подписке" text="Выключено (как в Instagram): продвигать может любой. Включено: только те, у кого в плане есть «Продвижение»." checked={requireSub} onChange={setRequireSub} disabled={!canEdit} />
           </div>
@@ -683,8 +703,11 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
 
           <h3 className="mt-5 font-medium text-heading">Показ в ленте</h3>
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Реклама каждый N-й пост" htmlFor="ps-every" hint="От 2 до 50. Больше число, реже реклама.">
-              <Input id="ps-every" type="number" min={2} max={50} value={everyN} disabled={!canEdit} onChange={(e) => setEveryN(e.target.value)} />
+            <Field label="Реклама: 1 на N постов в ленте" htmlFor="ps-every" hint="От 10 до 15. Больше число, реже реклама.">
+              <Input id="ps-every" type="number" min={10} max={15} value={everyN} disabled={!canEdit} onChange={(e) => setEveryN(e.target.value)} />
+            </Field>
+            <Field label="Реклама: 1 на N рилсов" htmlFor="ps-reel" hint="От 10 до 15, свой счётчик.">
+              <Input id="ps-reel" type="number" min={10} max={15} value={reelN} disabled={!canEdit} onChange={(e) => setReelN(e.target.value)} />
             </Field>
             <Field label="Мест для кейсов вверху" htmlFor="ps-slots" hint="В ленте адвоката, 0–10.">
               <Input id="ps-slots" type="number" min={0} max={10} value={caseSlots} disabled={!canEdit} onChange={(e) => setCaseSlots(e.target.value)} />
@@ -695,6 +718,28 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             <Field label="Показов на человека (для оценки)" htmlFor="ps-pp" hint="Обычно 1.5–2.">
               <Input id="ps-pp" inputMode="decimal" value={perPerson} disabled={!canEdit} onChange={(e) => setPerPerson(e.target.value)} />
             </Field>
+          </div>
+          <h3 className="mt-5 font-medium text-heading">Кнопки под рекламой</h3>
+          <div className="mt-3 flex flex-wrap gap-4 text-sm">
+            {([
+              ['more', 'Сайт (https)'],
+              ['message', 'Сообщение'],
+              ['profile', 'Профиль'],
+              ['download', 'Скачать'],
+              ['call', 'Позвонить'],
+            ] as const).map(([k, label]) => (
+              <label key={k} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={ctaTypes.includes(k)}
+                  disabled={!canEdit || !ctaEnabled}
+                  onChange={(e) =>
+                    setCtaTypes((cur) => (e.target.checked ? [...cur, k] : cur.filter((x) => x !== k)))
+                  }
+                />
+                {label}
+              </label>
+            ))}
           </div>
           {example ? <p className="mt-4 rounded-[var(--radius-md)] bg-surface-2 px-3 py-2 text-sm text-muted">{example}</p> : null}
 

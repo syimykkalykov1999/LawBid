@@ -179,7 +179,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // 2026-09-29). Dimmed on tabs that have no filters yet.
     final filterButton = Badge(
       isLabelVisible: filters.activeCount > 0,
-      label: Text('${filters.activeCount}'),
+      label: Text(ref.watch(l10nFormatsProvider).number(filters.activeCount)),
       backgroundColor: colors.gold,
       textColor: colors.navy,
       child: AppIconButton(
@@ -355,7 +355,14 @@ class _Results extends ConsumerWidget {
           value: ref.watch(peopleSearchProvider(key)),
           t: t,
           itemKey: (r) => r.id,
-          itemBuilder: (context, r, _) => PersonTile(row: r),
+          itemBuilder: (context, r, _) => PersonTile(
+            row: r,
+            onOpened: () => ref.read(searchRepositoryProvider).opened(
+                  query,
+                  SearchOpened.attorney,
+                  r.id,
+                ),
+          ),
           // The row carries its own side padding (same as Suggested).
           edgeToEdge: true,
           empty: nothing,
@@ -369,7 +376,12 @@ class _Results extends ConsumerWidget {
         final n = ref.read(caseSearchProvider(key).notifier);
         return PagedTileGrid<FeedCase>(
           value: ref.watch(caseSearchProvider(key)),
-          itemBuilder: (c) => SearchCaseTile(item: c),
+          itemBuilder: (c) => SearchCaseTile(
+            item: c,
+            onOpened: () => ref
+                .read(searchRepositoryProvider)
+                .opened(query, SearchOpened.valueCase, c.id),
+          ),
           rows: true,
           empty: nothing,
           onRefresh: n.refresh,
@@ -382,6 +394,9 @@ class _Results extends ConsumerWidget {
           itemBuilder: (p) => SearchPostTile(
             post: p,
             feed: ref.read(postSearchProvider(key)).value?.items,
+            onOpened: () => ref
+                .read(searchRepositoryProvider)
+                .opened(query, SearchOpened.post, p.id),
           ),
           empty: nothing,
           onRefresh: n.refresh,
@@ -409,7 +424,8 @@ class _Results extends ConsumerWidget {
               : ListView(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   children: [
-                    for (final c in practices) _PracticeTopicRow(code: c),
+                    for (final c in practices)
+                      _PracticeTopicRow(code: c, query: query),
                     if (filters.topicKind != TopicKind.practices)
                       for (final tag in _sortedTags(filters, tags))
                         if (!practices.contains(categoryForTopicTag(tag.tag)))
@@ -423,9 +439,10 @@ class _Results extends ConsumerWidget {
 
 /// A practice as a topic: our photo, its name, "#tag".
 class _PracticeTopicRow extends ConsumerWidget {
-  const _PracticeTopicRow({required this.code});
+  const _PracticeTopicRow({required this.code, this.query = ''});
 
   final String code;
+  final String query;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -435,6 +452,9 @@ class _PracticeTopicRow extends ConsumerWidget {
       categoryCode: code,
       title: topicName(ref, code),
       subtitle: t.t('search.topics.practiceSub', {'tag': topicTagFor(code)}),
+      onOpened: () => ref
+          .read(searchRepositoryProvider)
+          .opened(query, SearchOpened.practice, code),
     );
   }
 }

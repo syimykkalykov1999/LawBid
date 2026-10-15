@@ -43,6 +43,9 @@ import 'clients/clients_client.dart';
 import 'clients/blocks_client.dart';
 import 'clients/admin_content_client.dart';
 import 'clients/admin_media_client.dart';
+import 'clients/admin_search_client.dart';
+import 'clients/search_client.dart';
+import 'clients/follows_client.dart';
 import 'clients/document_templates_client.dart';
 import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
@@ -64,8 +67,6 @@ import 'clients/feed_client.dart';
 import 'clients/client_reviews_client.dart';
 import 'clients/admin_review_appeals_client.dart';
 import 'clients/reports_client.dart';
-import 'clients/follows_client.dart';
-import 'clients/search_client.dart';
 import 'clients/contacts_sync_client.dart';
 import 'clients/presence_client.dart';
 import 'clients/admin_integrations_client.dart';
@@ -148,6 +149,9 @@ class LawbidApi {
   BlocksClient? _blocks;
   AdminContentClient? _adminContent;
   AdminMediaClient? _adminMedia;
+  AdminSearchClient? _adminSearch;
+  SearchClient? _search;
+  FollowsClient? _follows;
   DocumentTemplatesClient? _documentTemplates;
   AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
@@ -169,8 +173,6 @@ class LawbidApi {
   ClientReviewsClient? _clientReviews;
   AdminReviewAppealsClient? _adminReviewAppeals;
   ReportsClient? _reports;
-  FollowsClient? _follows;
-  SearchClient? _search;
   ContactsSyncClient? _contactsSync;
   PresenceClient? _presence;
   AdminIntegrationsClient? _adminIntegrations;
@@ -308,6 +310,14 @@ class LawbidApi {
   AdminMediaClient get adminMedia =>
       _adminMedia ??= AdminMediaClient(_dio, baseUrl: _baseUrl);
 
+  AdminSearchClient get adminSearch =>
+      _adminSearch ??= AdminSearchClient(_dio, baseUrl: _baseUrl);
+
+  SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
+
+  FollowsClient get follows =>
+      _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
+
   DocumentTemplatesClient get documentTemplates =>
       _documentTemplates ??= DocumentTemplatesClient(_dio, baseUrl: _baseUrl);
 
@@ -371,11 +381,6 @@ class LawbidApi {
 
   ReportsClient get reports =>
       _reports ??= ReportsClient(_dio, baseUrl: _baseUrl);
-
-  FollowsClient get follows =>
-      _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
-
-  SearchClient get search => _search ??= SearchClient(_dio, baseUrl: _baseUrl);
 
   ContactsSyncClient get contactsSync =>
       _contactsSync ??= ContactsSyncClient(_dio, baseUrl: _baseUrl);

@@ -56,7 +56,14 @@ String interpolate(String template, Map<String, String>? params) {
   if (params == null) return template;
   var value = template;
   for (final entry in params.entries) {
-    value = value.replaceAll('{${entry.key}}', entry.value);
+    final slot = '{${entry.key}}';
+    // "closes automatically {date}." with no date: no dangling " .".
+    if (entry.value.isEmpty) value = value.replaceAll(' $slot', '');
+    // "19 окт. 2026 г." + the sentence's own full stop is one full stop.
+    if (entry.value.endsWith('.') && !entry.value.endsWith('..')) {
+      value = value.replaceAll('$slot.', entry.value);
+    }
+    value = value.replaceAll(slot, entry.value);
   }
   return value;
 }

@@ -67,6 +67,12 @@ export class CaseDto {
   @ApiProperty({ type: PracticeAreaRefDto })
   practiceArea!: PracticeAreaRefDto;
 
+  @ApiProperty({
+    type: [PracticeAreaRefDto],
+    description: 'Topics 2..N of the case (owner 2026-10-15).',
+  })
+  extraPracticeAreas!: PracticeAreaRefDto[];
+
   @ApiProperty({ example: 'NY' })
   primaryStateCode!: string;
 
@@ -176,6 +182,12 @@ export class CaseSummaryDto {
 
   @ApiProperty({ type: PracticeAreaRefDto })
   practiceArea!: PracticeAreaRefDto;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Topics besides the first (owner 2026-10-15): «+N».',
+  })
+  extraPracticeCount!: number;
 
   @ApiProperty({ example: 'NY' })
   primaryStateCode!: string;

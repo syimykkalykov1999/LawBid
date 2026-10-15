@@ -14,6 +14,7 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       practiceArea: CasePracticeAreaDto.fromJson(
         json['practiceArea'] as Map<String, dynamic>,
       ),
+      extraPracticeCount: (json['extraPracticeCount'] as num).toInt(),
       primaryStateCode: json['primaryStateCode'] as String,
       additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>)
           .map((e) => e as String)
@@ -45,6 +46,9 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       deadlineKind: json['deadlineKind'] == null
           ? null
           : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
+      promotedUntil: json['promotedUntil'] == null
+          ? null
+          : DateTime.parse(json['promotedUntil'] as String),
     );
 
 Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
@@ -53,6 +57,7 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'title': instance.title,
       'excerpt': instance.excerpt,
       'practiceArea': instance.practiceArea.toJson(),
+      'extraPracticeCount': instance.extraPracticeCount,
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCodes': instance.additionalStateCodes,
       'city': ?instance.city,
@@ -72,6 +77,7 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'shareCount': instance.shareCount,
       'isSaved': instance.isSaved,
       'promoted': instance.promoted,
+      'promotedUntil': ?instance.promotedUntil?.toIso8601String(),
       'priorityClient': instance.priorityClient,
       'dossier': instance.dossier.toJson(),
     };

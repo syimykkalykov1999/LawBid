@@ -18,7 +18,6 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_inner.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
@@ -302,64 +301,52 @@ class PostScreen extends ConsumerWidget {
     final post = ref.watch(postProvider(postId));
     final deleted =
         ref.watch(deletedPostsProvider.select((d) => d.contains(postId)));
-    // Owner 2026-10-13: a photo / reel post opens as the inner card (own
-    // header, tabs); a text thread and News keep their screen.
-    final loaded = post.value;
-    final inner = !deleted &&
-        loaded != null &&
-        !PostCard.isThreadsStyle(loaded) &&
-        !loaded.isNews;
+    // Owner 2026-10-15: no inner card with tabs — the post opens as a plain
+    // page (a link, a notification) with the same card as in the feed.
     return Scaffold(
       backgroundColor: colors.bg,
-      appBar: inner
-          ? null
-          : AppTopBar(
-              leading: AppBackButton(
-                semanticLabel: t.t('common.back'),
-                onPressed: () => _leave(context),
-              ),
-            ),
-      body: inner
-          ? SafeArea(
-              bottom: false,
-              child: PostInnerCard(post: loaded, onBack: () => _leave(context)),
+      appBar: AppTopBar(
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => _leave(context),
+        ),
+      ),
+      body: deleted
+          ? AppEmptyState(
+              icon: AppIcons.hideSourceRounded,
+              message: t.t('post.unavailable'),
             )
-          : deleted
-              ? AppEmptyState(
-                  icon: AppIcons.hideSourceRounded,
-                  message: t.t('post.unavailable'),
-                )
-              : AsyncDetailBody<Post>(
-                  value: post,
-                  t: t,
-                  onRetry: () => ref.invalidate(postProvider(postId)),
-                  builder: (p) => PostCard.isThreadsStyle(p)
-                      ? _ThreadDetail(post: p, fromProfile: fromProfile)
-                      : RefreshIndicator(
-                          color: colors.gold,
-                          onRefresh: () async =>
-                              ref.invalidate(postProvider(postId)),
-                          child: ListView(
-                            padding: EdgeInsets.only(
-                              bottom: MediaQuery.paddingOf(context).bottom +
-                                  AppSpacing.xl,
-                            ),
-                            children: [
-                              PostCard(
-                                post: p,
-                                inDetail: true,
-                                fromProfile: fromProfile,
-                              ),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.screenSide,
-                                ),
-                                child: PostDisclaimer(),
-                              ),
-                            ],
-                          ),
+          : AsyncDetailBody<Post>(
+              value: post,
+              t: t,
+              onRetry: () => ref.invalidate(postProvider(postId)),
+              builder: (p) => PostCard.isThreadsStyle(p)
+                  ? _ThreadDetail(post: p, fromProfile: fromProfile)
+                  : RefreshIndicator(
+                      color: colors.gold,
+                      onRefresh: () async =>
+                          ref.invalidate(postProvider(postId)),
+                      child: ListView(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.paddingOf(context).bottom +
+                              AppSpacing.xl,
                         ),
-                ),
+                        children: [
+                          PostCard(
+                            post: p,
+                            inDetail: true,
+                            fromProfile: fromProfile,
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.screenSide,
+                            ),
+                            child: PostDisclaimer(),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
     );
   }
 }
@@ -749,8 +736,8 @@ class ProfilePostsGrid extends ConsumerWidget {
                 return PostGridTile(
                   post: p,
                   semanticLabel: t.t('post.open'),
-                  // Owner 2026-10-13: every video in the app starts by itself.
-                  autoplay: true,
+                  // Owner 2026-10-15: in a profile a video is only its cover; a
+                  // tap opens it (search keeps its own autoplay).
                   // Owner 2026-10-07: their posts as a feed from here.
                   onTap: () => PostsFeedScreen.open(
                     context,

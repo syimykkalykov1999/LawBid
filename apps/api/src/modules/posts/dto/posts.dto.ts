@@ -558,6 +558,17 @@ export class PostDto {
    * shows «Реклама» and reports the open to POST /promotions/:id/click. */
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   promotionId?: string | null;
+
+  /** Owner 2026-10-15: the button of a promoted post (null = none). */
+  @ApiPropertyOptional({ type: () => PostPromotionCtaDto, nullable: true })
+  promotionCta?: PostPromotionCtaDto | null;
+}
+
+export class PostPromotionCtaDto {
+  @ApiProperty({ enum: ['more', 'message', 'profile', 'download', 'call'] })
+  type!: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  value!: string | null;
 }
 
 export class PostDeletedDto {

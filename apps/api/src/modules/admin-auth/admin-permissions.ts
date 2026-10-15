@@ -84,6 +84,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   'practice-areas': 'content',
   'document-templates': 'content',
   media: 'media',
+  // Owner 2026-10-15: Поиск → Синонимы, запросы без результатов.
+  search: 'content',
   bids: 'cases',
   cases: 'cases',
   'case-disputes': 'cases',

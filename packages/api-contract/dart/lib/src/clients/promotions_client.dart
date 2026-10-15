@@ -12,6 +12,7 @@ import '../models/create_promotion_result_envelope.dart';
 import '../models/my_promotion_list_envelope.dart';
 import '../models/promotion_click_result_envelope.dart';
 import '../models/promotion_quote_envelope.dart';
+import '../models/promotion_stats_envelope.dart';
 import '../models/promotion_target.dart';
 
 part 'promotions_client.g.dart';
@@ -65,6 +66,13 @@ abstract class PromotionsClient {
   @GET('/me/promotions')
   Future<MyPromotionListEnvelope> listMyPromotions({
     @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// One promotion with its numbers by day
+  @GET('/promotions/{id}/stats')
+  Future<PromotionStatsEnvelope> promotionStats({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'promotion_settings_dto_cta_types.dart';
+
 part 'promotion_settings_dto.g.dart';
 
 @JsonSerializable()
@@ -19,6 +21,13 @@ class PromotionSettingsDto {
     required this.budgetPresetsCents,
     required this.durationPresets,
     required this.feedEveryN,
+    required this.reelEveryN,
+    required this.reelsEnabled,
+    required this.boostEnabled,
+    required this.attorneysEnabled,
+    required this.clientsEnabled,
+    required this.ctaEnabled,
+    required this.ctaTypes,
     required this.caseFeedSlots,
     required this.frequencyCapPerDay,
     required this.impressionsPerPerson,
@@ -43,6 +52,13 @@ class PromotionSettingsDto {
   final List<int> budgetPresetsCents;
   final List<int> durationPresets;
   final int feedEveryN;
+  final int reelEveryN;
+  final bool reelsEnabled;
+  final bool boostEnabled;
+  final bool attorneysEnabled;
+  final bool clientsEnabled;
+  final bool ctaEnabled;
+  final List<PromotionSettingsDtoCtaTypes> ctaTypes;
   final int caseFeedSlots;
   final int frequencyCapPerDay;
   final num impressionsPerPerson;

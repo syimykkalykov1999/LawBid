@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_frames.dart';
@@ -1119,7 +1120,7 @@ class _PhotoTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
                 child: Text(
-                  '${index + 1}',
+                  context.digits(index + 1),
                   style: type.caption.copyWith(color: Colors.white),
                 ),
               ),

@@ -265,6 +265,19 @@ describe('Client → attorney case invites (e2e, owner 2026-10-05)', () => {
     });
     expect(n.payload).toMatchObject({ caseId, inviteId: first.id });
 
+    // Owner 2026-10-15 (anti-spam): the same case is not offered to the same
+    // attorney again at once after a decline.
+    const tooSoon = await invite(client.auth, caseId, {
+      attorneyId: attorney.id,
+    });
+    expect(tooSoon.status).toBe(429);
+    expect(tooSoon.body.error.code).toBe('INVITE_LIMIT_REACHED');
+    const backdate = () =>
+      prisma.caseInvite.update({
+        where: { id: String(first.id) },
+        data: { created_at: new Date(Date.now() - 2 * 24 * 3600_000) },
+      });
+    await backdate();
     const second = await invite(client.auth, caseId, {
       attorneyId: attorney.id,
     });
@@ -285,6 +298,7 @@ describe('Client → attorney case invites (e2e, owner 2026-10-05)', () => {
     expect(late.body.error.code).toBe('INVITE_INVALID_STATE');
 
     // Expiry: an unanswered invite past expires_at can't be answered.
+    await backdate();
     await invite(client.auth, caseId, { attorneyId: attorney.id });
     await prisma.caseInvite.update({
       where: { id: String(first.id) },
@@ -353,6 +367,46 @@ describe('Client → attorney case invites (e2e, owner 2026-10-05)', () => {
     const r4 = await invite(client.auth, caseId, { attorneyId: extra.id });
     expect(r4.status).toBe(429);
     expect(r4.body.error.code).toBe('INVITE_LIMIT_REACHED');
+  });
+
+  it('anti-spam: one attorney is not flooded, and one client does not repeat', async () => {
+    // invites.max_per_attorney_per_day (15): from many clients.
+    const busy = await user('attorney');
+    for (let i = 0; i < 15; i++) {
+      const c = await prisma.user.create({ data: { role: 'client' } });
+      const k = await kase(c.id);
+      await prisma.caseInvite.create({
+        data: {
+          case_id: k,
+          client_id: c.id,
+          attorney_id: busy.id,
+          expires_at: new Date(Date.now() + 3600_000),
+        },
+      });
+    }
+    const caller = await user('client');
+    const callerCase = await kase(caller.id);
+    const flooded = await invite(caller.auth, callerCase, {
+      attorneyId: busy.id,
+    });
+    expect(flooded.status).toBe(429);
+    expect(flooded.body.error.code).toBe('INVITE_LIMIT_REACHED');
+
+    // invites.max_per_pair_per_day (3): one client, one attorney, any cases.
+    const client = await user('client');
+    const attorney = await user('attorney');
+    for (let i = 0; i < 3; i++) {
+      const k = await kase(client.id);
+      expect(
+        (await invite(client.auth, k, { attorneyId: attorney.id })).status,
+      ).toBe(201);
+    }
+    const fourth = await kase(client.id);
+    const repeated = await invite(client.auth, fourth, {
+      attorneyId: attorney.id,
+    });
+    expect(repeated.status).toBe(429);
+    expect(repeated.body.error.code).toBe('INVITE_LIMIT_REACHED');
   });
 
   it('admin case card lists the invites; the dashboard counts them', async () => {

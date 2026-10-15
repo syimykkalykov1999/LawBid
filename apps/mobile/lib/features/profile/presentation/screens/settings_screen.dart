@@ -22,8 +22,6 @@ import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show hideLikeCountsProvider;
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -103,6 +101,14 @@ class SettingsScreen extends ConsumerWidget {
               icon: AppIcons.workspacePremiumOutlined,
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
+            ),
+          // Owner 2026-10-15: a client reaches their payments from here too.
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-payments'),
+              icon: AppIcons.receiptLongOutlined,
+              label: t.t('payments.title'),
+              onTap: () => context.push(SubscriptionRoutes.payments),
             ),
           // Owner 2026-10-05: attorney trust levels — what LawBid checked,
           // what raises the level, holds (docs/ATTORNEY_TRUST.md).
@@ -224,6 +230,14 @@ class SettingsScreen extends ConsumerWidget {
                   t.t(pm.isPartner ? 'partner.hint' : 'partner.join.hint'),
               onTap: () => context.push(AppRoutes.partner),
             ),
+          // Owner 2026-10-15: the client's Saved moved here from «Mine».
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-saved'),
+              icon: AppIcons.bookmarkBorderRounded,
+              label: t.t('mine.tab.saved'),
+              onTap: () => context.push(AppRoutes.saved),
+            ),
           AppListRow(
             icon: AppIcons.historyRounded,
             label: t.t('settings.caseHistory'),
@@ -253,11 +267,6 @@ class SettingsScreen extends ConsumerWidget {
           ),
           // Owner 2026-10-01: online / last seen in chats (reciprocal).
           const _ActivityStatusRow(),
-          // Owner 2026-10-15: hide like counters under others' posts.
-          if (ref
-              .watch(featureFlagsControllerProvider)
-              .isEnabled('hide_counts'))
-            const _HideLikesRow(),
         ],
       ),
       AppListSection(
@@ -388,25 +397,6 @@ class _ActivityStatusRow extends ConsumerWidget {
               }
             }
           : null,
-    );
-  }
-}
-
-class _HideLikesRow extends ConsumerWidget {
-  const _HideLikesRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final on = ref.watch(hideLikeCountsProvider);
-    return AppListRow(
-      key: const ValueKey('settings-hide-likes'),
-      icon: AppIcons.visibilityOffOutlined,
-      label: t.t('settings.hideLikes'),
-      subtitle: t.t('settings.hideLikes.hint'),
-      trailingText: t.t(on ? 'common.on' : 'common.off'),
-      showChevron: false,
-      onTap: () => ref.read(hideLikeCountsProvider.notifier).set(hide: !on),
     );
   }
 }

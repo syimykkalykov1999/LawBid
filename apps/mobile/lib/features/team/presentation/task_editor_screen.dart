@@ -829,7 +829,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                   ),
                   if (_maxFiles > 0)
                     Text(
-                      '${_files.length}/$_maxFiles',
+                      context.digits('${_files.length}/$_maxFiles'),
                       key: const ValueKey('task-files-count'),
                       style: typography.bodySmall.copyWith(
                         color: _filesFull

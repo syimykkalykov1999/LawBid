@@ -69,15 +69,20 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       ),
       data: (d) {
         final lists = widget.isAttorney
-            ? [d.forClient, d.shared, d.private]
-            : [d.forClient, d.shared];
+            ? [d.forClient, d.shared, d.joint, d.private]
+            : [d.forClient, d.joint, d.shared];
         final labels = widget.isAttorney
             ? [
                 t.t('cases.tasks.forClient'),
                 t.t('cases.tasks.shared'),
+                t.t('cases.tasks.joint'),
                 t.t('cases.tasks.private'),
               ]
-            : [t.t('cases.tasks.yours'), t.t('cases.tasks.lawyerProgress')];
+            : [
+                t.t('cases.tasks.yours'),
+                t.t('cases.tasks.joint'),
+                t.t('cases.tasks.lawyerProgress'),
+              ];
         final idx = _filter.clamp(0, lists.length - 1);
         final shown = lists[idx];
         return Column(
@@ -95,38 +100,37 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                     onChanged: (i) => setState(() => _filter = i),
                   ),
                 ),
-                if (widget.isAttorney)
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      right: AppSpacing.lg,
-                      top: AppSpacing.sm,
-                    ),
-                    child: GestureDetector(
-                      onTap: _create,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.chip,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AppIcon(AppIcons.addRounded, size: 14),
-                            const SizedBox(width: 4),
-                            Text(
-                              t.t('cases.tasks.add'),
-                              style: type.bodySmall
-                                  .copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                        ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    right: AppSpacing.lg,
+                    top: AppSpacing.sm,
+                  ),
+                  child: GestureDetector(
+                    onTap: _create,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.chip,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const AppIcon(AppIcons.addRounded, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            t.t('cases.tasks.add'),
+                            style: type.bodySmall
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ),
                     ),
                   ),
+                ),
               ],
             ),
             if (shown.isEmpty)
@@ -208,6 +212,7 @@ class TaskRow extends ConsumerWidget {
 
   bool get _canTick {
     if (task.kind == api.CaseTaskDtoKind.private) return false;
+    if (task.kind == api.CaseTaskDtoKind.joint) return true;
     if (task.kind == api.CaseTaskDtoKind.shared) return isAttorney;
     // For client: the client ticks (only once every line is ticked, so a
     // task with a checklist opens its sheet instead); the attorney unticks.

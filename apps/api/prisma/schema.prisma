@@ -1219,6 +1219,21 @@ model State {
 // parent_id is null for a category. code is UQ and follows the §3.2
 // generation rule (see prisma/seed/practice-areas.util.ts). Cases and
 // attorney selections always reference leaves (enforced in services).
+// Owner 2026-10-15: a case may name up to `case.max_practices` topics. The
+// first stays in `cases.practice_area_id` (every existing case is already
+// «an array of one»); the others are rows here. Attorneys of any of the
+// topics see the case.
+model CaseExtraPractice {
+  case_id          String       @db.Uuid
+  case             Case         @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  practice_area_id String       @db.Uuid
+  practice_area    PracticeArea @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+
+  @@id([case_id, practice_area_id])
+  @@index([practice_area_id, case_id])
+  @@map("case_extra_practices")
+}
+
 model PracticeArea {
   id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   parent_id String? @db.Uuid
@@ -1235,9 +1250,11 @@ model PracticeArea {
   attorney_practice_areas  AttorneyPracticeArea[]
   new_case_alert_practices NewCaseAlertPractice[]
 
-  cases              Case[]
-  posts              Post[]
-  document_templates DocumentTemplate[]
+  cases                 Case[]
+  posts                 Post[]
+  document_templates    DocumentTemplate[]
+  case_extra_practices  CaseExtraPractice[]
+  search_synonym_groups SearchSynonymGroup[]
 
   @@index([parent_id])
   @@map("practice_areas")
@@ -1478,6 +1495,9 @@ model Case {
   // Leaf specialization only (enforced in the case service, file 04).
   practice_area_id      String                   @db.Uuid
   practice_area         PracticeArea             @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  // Owner 2026-10-15: for "not sure / other": the topic the text names.
+  inferred_practice_id  String?                  @db.Uuid
+  topic_scanned_at      DateTime?                @db.Timestamptz(6)
   // Denormalized primary state for indexes; must match the is_primary
   // case_states row (service invariant, §4.D).
   primary_state_code    String                   @db.Char(2)
@@ -1523,6 +1543,8 @@ model Case {
   updated_at            DateTime                 @updatedAt @db.Timestamptz
 
   states              CaseState[]
+  // Owner 2026-10-15: topics 2..N of a case (the first is `practice_area_id`).
+  extra_practices     CaseExtraPractice[]
   // Owner 2026-09-30 (OQ-031): 0–9 photos; owner + accepted attorney only.
   photos              CasePhoto[]
   attorney_tasks      AttorneyTask[]
@@ -1773,6 +1795,9 @@ model Post {
   title                String?
   practice_area_id     String?                  @db.Uuid
   practice_area        PracticeArea?            @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+  // Owner 2026-10-15: the topic the text itself names (search only).
+  inferred_practice_id String?                  @db.Uuid
+  topic_scanned_at     DateTime?                @db.Timestamptz(6)
   kind                 PostKind                 @default(post)
   /// Owner 2026-10-01: the post's video (Bunny Stream), one per post.
   video_asset_id       String?                  @unique @db.Uuid
@@ -3843,6 +3868,12 @@ model CasePromotion {
   reach               Int       @default(0)
   clicks              Int       @default(0)
   audience            Json?
+  // Owner 2026-10-15 (Boost): what the advertiser wants (views | clicks |
+  // messages | followers) and the button under the ad: more | message |
+  // profile | download | call, with its link / phone in cta_value.
+  goal                String?   @db.VarChar(12)
+  cta_type            String?   @db.VarChar(12)
+  cta_value           String?   @db.VarChar(500)
   // Refunded part (admin cancel with refund).
   refunded_cents      Int       @default(0)
   // Who approved it (null = automatic) and when.
@@ -3852,6 +3883,7 @@ model CasePromotion {
   updated_at          DateTime  @updatedAt @db.Timestamptz
 
   views PromotionView[]
+  daily PromotionDaily[]
 
   @@index([status, ends_at])
   @@index([case_id])
@@ -3863,6 +3895,20 @@ model CasePromotion {
 
 // Owner 2026-10-05: who saw a promotion — unique reach, the per-person
 // daily frequency cap and clicks. One row per (promotion, viewer).
+// Owner 2026-10-15: a promotion's numbers by day (UTC date) — the bars of
+// its statistics.
+model PromotionDaily {
+  promotion_id String        @db.Uuid
+  promotion    CasePromotion @relation(fields: [promotion_id], references: [id], onDelete: Cascade)
+  day_key      String        @db.VarChar(10)
+  impressions  Int           @default(0)
+  reach        Int           @default(0)
+  clicks       Int           @default(0)
+
+  @@id([promotion_id, day_key])
+  @@map("promotion_daily")
+}
+
 model PromotionView {
   promotion_id  String        @db.Uuid
   promotion     CasePromotion @relation(fields: [promotion_id], references: [id], onDelete: Cascade)
@@ -4838,4 +4884,81 @@ model FirmMember {
 
   @@id([firm_id, attorney_id])
   @@map("firm_members")
+}
+
+// -----------------------------------------------------------------------
+// Owner 2026-10-15: search that understands everyday words. A group is one
+// meaning (optionally tied to a practice area) with its words and phrases
+// per language; a query naming any of them finds rows of that practice.
+// -----------------------------------------------------------------------
+model SearchSynonymGroup {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key              String        @unique @db.VarChar(120)
+  practice_area_id String?       @db.Uuid
+  practice_area    PracticeArea? @relation(fields: [practice_area_id], references: [id], onDelete: SetNull)
+  enabled          Boolean       @default(true)
+  source           String        @default("admin") @db.VarChar(12)
+  created_at       DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime      @updatedAt @db.Timestamptz(6)
+
+  terms SearchSynonymTerm[]
+
+  @@index([practice_area_id])
+  @@map("search_synonym_groups")
+}
+
+model SearchSynonymTerm {
+  id       String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id String             @db.Uuid
+  group    SearchSynonymGroup @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  lang     String             @db.VarChar(12)
+  term     String             @db.VarChar(120)
+
+  @@unique([group_id, lang, term])
+  @@index([term])
+  @@map("search_synonym_terms")
+}
+
+/// What people typed and how many rows it found (first page), for the
+/// admin's "no results" list. Old rows are purged by the nightly job.
+model SearchQueryLog {
+  id         BigInt   @id @default(autoincrement())
+  user_id    String?  @db.Uuid
+  q          String   @db.VarChar(100)
+  scope      String   @db.VarChar(12)
+  lang       String?  @db.VarChar(12)
+  results    Int
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@index([q])
+  @@index([user_id, created_at])
+  @@map("search_query_log")
+}
+
+/// A result the person opened after a query: the nightly job learns
+/// "query → topic" from these.
+model SearchClick {
+  id               BigInt   @id @default(autoincrement())
+  user_id          String   @db.Uuid
+  q                String   @db.VarChar(100)
+  target_type      String   @db.VarChar(12)
+  target_id        String   @db.VarChar(64)
+  practice_area_id String?  @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@index([q])
+  @@map("search_clicks")
+}
+
+/// "query → topic" links learned from clicks (rebuilt nightly).
+model SearchLearnedLink {
+  q                String   @db.VarChar(100)
+  practice_area_id String   @db.Uuid
+  score            Int
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([q, practice_area_id])
+  @@map("search_learned_links")
 }

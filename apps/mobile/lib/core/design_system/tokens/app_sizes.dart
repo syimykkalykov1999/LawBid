@@ -60,6 +60,14 @@ abstract final class AppSizes {
   /// wordmark "LawBid" instead of the scales logo, and a lower bar.
   static const double feedHeaderLogo = 96;
   static const double feedHeader = 40;
+
+  /// The topic chips row under the feed header (owner 2026-10-15: the first
+  /// card is sized with it on screen, so its icons clear the nav bar).
+  static const double feedFilterRow = 40;
+
+  /// Owner 2026-10-15: what the floating nav bar still takes of a card's
+  /// last lines (its caption) beyond the bottom inset.
+  static const double feedNavSlack = 50;
   static const double feedWordmark = 26;
 
   /// Segmented tabs (owner 2026-09-29): row height.
@@ -79,6 +87,10 @@ abstract final class AppSizes {
   /// Pagination footer spinner.
   static const double footerSpinner = 20;
   static const double footerSpinnerStroke = 2;
+
+  /// Owner 2026-10-15: one profile photo size in every profile (own, other,
+  /// client, attorney), Instagram's — 76 plus the ring is about 86.
+  static const double profileAvatar = 76;
 
   /// Author/avatar size on content (post/case) cards.
   static const double cardAvatar = 40;

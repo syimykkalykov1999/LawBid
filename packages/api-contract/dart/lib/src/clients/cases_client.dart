@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/board_case_task_list_envelope.dart';
 import '../models/case_activity_list_envelope.dart';
 import '../models/case_bid_item_list_envelope.dart';
 import '../models/case_deleted_envelope.dart';
@@ -227,6 +228,12 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Tasks of every case in work, for the Mine › Tasks board
+  @GET('/users/me/case-tasks')
+  Future<BoardCaseTaskListEnvelope> caseTaskBoard({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Tasks of an accepted case (private ones: attorney only)
   @GET('/cases/{id}/tasks')
   Future<CaseTasksEnvelope> listCaseTasks({
@@ -234,7 +241,7 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Attorney: add a private, shared or for-client task
+  /// Add a task: the attorney any kind, the client a for-client or joint one
   @POST('/cases/{id}/tasks')
   Future<CaseTasksEnvelope> createCaseTask({
     @Path('id') required String id,

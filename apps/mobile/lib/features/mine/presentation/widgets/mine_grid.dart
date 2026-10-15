@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -12,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show CountPill;
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -232,6 +234,8 @@ class MinePagedGrid<T> extends ConsumerWidget {
           onRefresh: pull,
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
+              // The search and chips above hide on scroll down.
+              FeedChrome.maybeOf(context)?.onScroll(n);
               if (n.metrics.extentAfter < 600 && value.canLoadMore) {
                 onLoadMore();
               }
@@ -351,11 +355,15 @@ class MineSearchBar extends ConsumerStatefulWidget {
   const MineSearchBar({
     required this.search,
     required this.onChanged,
+    this.action,
     super.key,
   });
 
   final MineSearch search;
   final ValueChanged<MineSearch> onChanged;
+
+  /// Owner 2026-10-15: a button right of the field (the attorney's «Saved»).
+  final Widget? action;
 
   @override
   ConsumerState<MineSearchBar> createState() => _MineSearchBarState();
@@ -476,32 +484,42 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
         AppSpacing.screenSide,
         0,
       ),
-      child: FlipSearchBar(
-        key: const ValueKey('mine-search'),
-        controller: _text,
-        focusNode: _focus,
-        semanticLabel: t.t('mine.search.hint'),
-        cancelLabel: t.t('common.cancel'),
-        clearLabel: t.t('search.clear'),
-        showCancel: false,
-        hints: [t.t('mine.search.hint')],
-        leading: Badge(
-          isLabelVisible: count > 0,
-          label: Text('$count'),
-          backgroundColor: colors.gold,
-          textColor: colors.navy,
-          child: AppIconButton(
-            key: const ValueKey('mine-filters'),
-            icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
-            semanticLabel: t.t('mine.search.filters'),
-            onPressed: _filters,
+      child: Row(
+        children: [
+          Expanded(
+            child: FlipSearchBar(
+              key: const ValueKey('mine-search'),
+              controller: _text,
+              focusNode: _focus,
+              semanticLabel: t.t('mine.search.hint'),
+              cancelLabel: t.t('common.cancel'),
+              clearLabel: t.t('search.clear'),
+              showCancel: false,
+              hints: [t.t('mine.search.hint')],
+              leading: Badge(
+                isLabelVisible: count > 0,
+                label: Text(ref.watch(l10nFormatsProvider).number(count)),
+                backgroundColor: colors.gold,
+                textColor: colors.navy,
+                child: AppIconButton(
+                  key: const ValueKey('mine-filters'),
+                  icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
+                  semanticLabel: t.t('mine.search.filters'),
+                  onPressed: _filters,
+                ),
+              ),
+              trailing: AppIconButton(
+                icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
+                semanticLabel: t.t('mine.search.hint'),
+                onPressed: _focus.requestFocus,
+              ),
+            ),
           ),
-        ),
-        trailing: AppIconButton(
-          icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-          semanticLabel: t.t('mine.search.hint'),
-          onPressed: _focus.requestFocus,
-        ),
+          if (widget.action != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            widget.action!,
+          ],
+        ],
       ),
     );
   }

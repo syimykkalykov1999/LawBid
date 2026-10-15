@@ -7,6 +7,8 @@ import { PostsModule } from '../posts/posts.module';
 import { ProfilesModule } from '../profiles/profiles.module';
 import { PostgresSearchProvider } from './postgres-search.provider';
 import { SearchController } from './search.controller';
+import { SearchLogService } from './search-log.service';
+import { SearchSynonymsService } from './search-synonyms.service';
 import { SEARCH_PROVIDER } from './search.provider';
 import { SearchService } from './search.service';
 
@@ -25,7 +27,10 @@ import { SearchService } from './search.service';
   controllers: [SearchController],
   providers: [
     SearchService,
+    SearchSynonymsService,
+    SearchLogService,
     { provide: SEARCH_PROVIDER, useClass: PostgresSearchProvider },
   ],
+  exports: [SearchSynonymsService, SearchLogService],
 })
 export class SearchModule {}

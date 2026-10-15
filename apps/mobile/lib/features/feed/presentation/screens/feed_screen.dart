@@ -150,10 +150,17 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         controller: _chrome,
         child: LayoutBuilder(
           builder: (context, box) {
-            // Cards are sized for the scrolled state: the slim header only
-            // floats over them; the floating nav bar is a bottom inset.
+            // Owner 2026-10-15: a card is sized for the screen with the topic
+            // chips still on it (the top of the list), so the first card's
+            // icon row never hides under the floating nav bar; scrolled, the
+            // chips go and the next card peeks in a little more.
             _chrome.cardHeight = feedCardHeight(
-              box.maxHeight - topInset - AppSizes.feedHeader - bottomInset,
+              box.maxHeight -
+                  topInset -
+                  AppSizes.feedHeader -
+                  AppSizes.feedFilterRow -
+                  AppSizes.feedNavSlack -
+                  bottomInset,
             );
             return NotificationListener<ScrollNotification>(
               onNotification: (n) =>

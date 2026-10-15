@@ -115,6 +115,40 @@ export const OWNER_MEDIA_SETTINGS = {
   'search.weight_priority': 1000,
   'search.weight_verified': 100,
   'search.weight_rating': 10,
+  // Owner 2026-10-15: how many different people must open the same topic
+  // after a query before the search learns "query → topic" (nightly).
+  'search.learn_min_users': 3,
+  // Owner 2026-10-15: the recommendation weights of Search (cases for
+  // attorneys, people and «you may know», posts and reels) — editable in
+  // the admin panel; the sum need not be 1.
+  'reco.case.practice': 0.28,
+  'reco.case.state': 0.18,
+  'reco.case.fresh': 0.16,
+  'reco.case.budget': 0.1,
+  'reco.case.competition': 0.1,
+  'reco.case.urgency': 0.08,
+  'reco.case.client': 0.06,
+  'reco.case.demand': 0.04,
+  'reco.people.contact': 0.2,
+  'reco.people.state': 0.144,
+  'reco.people.practice': 0.176,
+  'reco.people.mutual': 0.128,
+  'reco.people.followsMe': 0.064,
+  'reco.people.quality': 0.112,
+  'reco.people.activity': 0.08,
+  'reco.people.affinity': 0.056,
+  'reco.people.identity': 0.024,
+  'reco.people.popularity': 0.016,
+  'reco.post.hot': 0.28,
+  'reco.post.interest': 0.22,
+  'reco.post.social': 0.14,
+  'reco.post.fresh': 0.12,
+  'reco.post.language': 0.06,
+  'reco.post.authorQuality': 0.06,
+  'reco.post.state': 0.06,
+  'reco.post.affinity': 0.06,
+  // Owner 2026-10-15: topics a case can name (the first + the rest).
+  'case.max_practices': 3,
   'post.max_chars_media': 2200,
   'post.max_chars_brief': 3000,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by
@@ -194,6 +228,14 @@ export const OWNER_INVITE_SETTINGS = {
   'invites.expiry_days': 7,
   'invites.max_pending_per_case': 10,
   'invites.max_per_day': 30,
+  // Owner 2026-10-15 (anti-spam both ways): one attorney is invited at most
+  // `invites.max_per_attorney_per_day` times a day by everyone; one client
+  // invites the same attorney at most `invites.max_per_pair_per_day` times a
+  // day; the same attorney can be invited to the same case again only
+  // `invites.reinvite_after_hours` after the earlier invite.
+  'invites.max_per_attorney_per_day': 15,
+  'invites.max_per_pair_per_day': 3,
+  'invites.reinvite_after_hours': 24,
 } as const;
 
 // Owner 2026-10-05: how many assistants an attorney may add, set in the
