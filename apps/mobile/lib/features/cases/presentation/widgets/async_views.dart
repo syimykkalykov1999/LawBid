@@ -80,8 +80,13 @@ class PagedListBody<T> extends ConsumerWidget {
     this.skeleton,
     this.header,
     this.edgeToEdge = false,
+    this.prefetch,
     super.key,
   });
+
+  /// Owner 2026-10-15: called for the next few items while an item is
+  /// built (images get downloaded and decoded before they scroll in).
+  final void Function(BuildContext context, T item)? prefetch;
 
   /// Owner 2026-09-30: feed cards span the full screen width (Instagram
   /// style); the header keeps the usual side padding.
@@ -181,10 +186,23 @@ class PagedListBody<T> extends ConsumerWidget {
                   ),
                   child: header,
                 ),
-          itemBuilder: (context, item, index) => AppEntrance(
-            index: index < 8 ? index + 1 : 0,
-            child: itemBuilder(context, item, index),
-          ),
+          itemBuilder: (context, item, index) {
+            if (prefetch != null) {
+              final items = value.items;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!context.mounted) return;
+                for (var k = index + 1;
+                    k <= index + 3 && k < items.length;
+                    k++) {
+                  prefetch!(context, items[k]);
+                }
+              });
+            }
+            return AppEntrance(
+              index: index < 8 ? index + 1 : 0,
+              child: itemBuilder(context, item, index),
+            );
+          },
         ),
       AsyncError(:final error) => KeyedSubtree(
           key: const ValueKey('error'),
