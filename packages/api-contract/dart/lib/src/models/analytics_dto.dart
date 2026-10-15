@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'analytics_churn_dto.dart';
 import 'analytics_day_dto.dart';
+import 'analytics_events_dto.dart';
 import 'analytics_retention_dto.dart';
 import 'analytics_step_dto.dart';
 
@@ -23,6 +24,7 @@ class AnalyticsDto {
     required this.retention,
     required this.churn,
     required this.daily,
+    required this.events,
   });
 
   factory AnalyticsDto.fromJson(Map<String, Object?> json) =>
@@ -39,6 +41,7 @@ class AnalyticsDto {
   final AnalyticsRetentionDto retention;
   final AnalyticsChurnDto churn;
   final List<AnalyticsDayDto> daily;
+  final AnalyticsEventsDto events;
 
   Map<String, Object?> toJson() => _$AnalyticsDtoToJson(this);
 }
