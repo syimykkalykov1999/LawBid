@@ -118,6 +118,12 @@ const planRu = <String, String>{
   'error.api.FIRM_ALREADY_MEMBER':
       'Адвокат уже состоит в фирме или приглашён в неё.',
   'error.api.FIRM_FULL': 'В фирме уже максимум адвокатов.',
+  'post.menu.hideLikes': 'Скрыть число лайков',
+  'post.menu.showLikes': 'Показать число лайков',
+  'post.menu.hideViews': 'Скрыть число просмотров',
+  'post.menu.showViews': 'Показать число просмотров',
+  'settings.hideLikes': 'Скрывать число лайков',
+  'settings.hideLikes.hint': 'Под чужими постами и рилсами',
 };
 
 const planEn = <String, String>{
@@ -233,4 +239,10 @@ const planEn = <String, String>{
   'error.api.FIRM_ALREADY_MEMBER':
       'This lawyer is already in a firm or invited to one.',
   'error.api.FIRM_FULL': 'The firm already has the maximum number of lawyers.',
+  'post.menu.hideLikes': 'Hide like count',
+  'post.menu.showLikes': 'Show like count',
+  'post.menu.hideViews': 'Hide view count',
+  'post.menu.showViews': 'Show view count',
+  'settings.hideLikes': 'Hide like counts',
+  'settings.hideLikes.hint': "Under other people's posts and reels",
 };

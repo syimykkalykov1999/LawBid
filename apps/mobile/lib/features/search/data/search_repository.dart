@@ -365,21 +365,25 @@ class ApiSearchRepository implements SearchRepository {
   Future<List<TagInfo>> tags(String q) async =>
       (await guardApiCall(() => _search.tags(q: q)))
           .data
-          .map((d) => TagInfo(
-                tag: d.tag,
-                postsCount: d.postsCount?.toInt(),
-                categoryCode: d.categoryCode,
-              ),)
+          .map(
+            (d) => TagInfo(
+              tag: d.tag,
+              postsCount: d.postsCount?.toInt(),
+              categoryCode: d.categoryCode,
+            ),
+          )
           .toList();
 
   @override
   Future<List<TagInfo>> trending() async =>
       (await guardApiCall(_search.trending))
           .data
-          .map((d) => TagInfo(
-                tag: d.tag,
-                postsCount: d.postsCount?.toInt(),
-                categoryCode: d.categoryCode,
-              ),)
+          .map(
+            (d) => TagInfo(
+              tag: d.tag,
+              postsCount: d.postsCount?.toInt(),
+              categoryCode: d.categoryCode,
+            ),
+          )
           .toList();
 }

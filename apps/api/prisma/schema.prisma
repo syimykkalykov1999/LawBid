@@ -689,6 +689,8 @@ model User {
   password_hash           String?
   password_set_at         DateTime?               @db.Timestamptz
   ui_language             String                  @default("en")
+  /// Owner 2026-10-15: do not show like counters under other people's posts.
+  hide_like_counts        Boolean                 @default(false)
   theme                   ThemePref               @default(system)
   suspended_reason        String?
   last_active_at          DateTime?               @db.Timestamptz
@@ -1782,6 +1784,9 @@ model Post {
   location_lng         Float?
   /// Owner 2026-10-02: the author can turn comments off.
   comments_enabled     Boolean                  @default(true)
+  /// Owner 2026-10-15: the author hides the like / view counter from others.
+  hide_likes           Boolean                  @default(false)
+  hide_views           Boolean                  @default(false)
   /// Owner 2026-10-05: 'legal' (a law topic, news, or marked by the author)
   /// or 'general' (personal, no law topic). Viewers can hide general posts.
   content_class        String                   @default("general") @db.VarChar(16)

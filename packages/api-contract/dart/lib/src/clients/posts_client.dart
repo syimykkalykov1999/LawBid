@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/create_post_dto.dart';
 import '../models/pin_post_dto.dart';
 import '../models/post_attachments_allowed_envelope.dart';
+import '../models/post_counters_dto.dart';
 import '../models/post_deleted_envelope.dart';
 import '../models/post_envelope.dart';
 import '../models/post_kind.dart';
@@ -53,6 +54,14 @@ abstract class PostsClient {
   @DELETE('/posts/{id}')
   Future<PostDeletedEnvelope> deletePost({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hide or show the like / view counter of an own post
+  @PATCH('/posts/{id}/counters')
+  Future<PostEnvelope> setPostCounters({
+    @Path('id') required String id,
+    @Body() required PostCountersDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

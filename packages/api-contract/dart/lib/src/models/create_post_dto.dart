@@ -18,6 +18,8 @@ class CreatePostDto {
     required this.body,
     this.kind = PostKind.post,
     this.commentsEnabled = true,
+    this.hideLikes = false,
+    this.hideViews = false,
     this.practiceCode,
     this.contentClass,
     this.mediaFileIds,
@@ -60,6 +62,10 @@ class CreatePostDto {
 
   /// Default true; false = nobody can comment.
   final bool commentsEnabled;
+
+  /// Owner 2026-10-15: hide the like / view counter from other people.
+  final bool hideLikes;
+  final bool hideViews;
 
   Map<String, Object?> toJson() => _$CreatePostDtoToJson(this);
 }

@@ -174,6 +174,9 @@ export class MeDto {
   @ApiProperty({ enum: ThemePref, enumName: 'ThemePref' })
   theme!: ThemePref;
 
+  @ApiProperty({ default: false })
+  hideLikeCounts!: boolean;
+
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   avatarFileId!: string | null;
 

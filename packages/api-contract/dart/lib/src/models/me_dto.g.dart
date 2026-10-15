@@ -35,6 +35,7 @@ MeDto _$MeDtoFromJson(Map<String, dynamic> json) => MeDto(
   missing: (json['missing'] as List<dynamic>)
       .map((e) => MissingRequirement.fromJson(e as String))
       .toList(),
+  hideLikeCounts: json['hideLikeCounts'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$MeDtoToJson(MeDto instance) => <String, dynamic>{
@@ -49,6 +50,7 @@ Map<String, dynamic> _$MeDtoToJson(MeDto instance) => <String, dynamic>{
   'phoneVerified': instance.phoneVerified,
   'uiLanguage': instance.uiLanguage,
   'theme': instance.theme.toJson(),
+  'hideLikeCounts': instance.hideLikeCounts,
   'avatarFileId': ?instance.avatarFileId,
   'avatarUrl': ?instance.avatarUrl,
   'requiredConsentsGranted': instance.requiredConsentsGranted,

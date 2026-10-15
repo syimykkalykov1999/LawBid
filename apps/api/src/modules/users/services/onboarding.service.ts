@@ -74,6 +74,7 @@ function passwordMissing(user: User): boolean {
 }
 
 export interface MeView {
+  hideLikeCounts: boolean;
   id: string;
   role: User['role'];
   status: User['status'];
@@ -175,6 +176,7 @@ export class OnboardingService {
       phoneVerified: user.phone_verified_at !== null,
       uiLanguage: user.ui_language,
       theme: user.theme,
+      hideLikeCounts: user.hide_like_counts,
       avatarFileId: user.avatar_file_id,
       avatarUrl,
       requiredConsentsGranted: consentsOk,
@@ -243,6 +245,7 @@ export class OnboardingService {
           last_name: dto.lastName?.trim(),
           ui_language: dto.uiLanguage,
           theme: dto.theme,
+          hide_like_counts: dto.hideLikeCounts,
           avatar_file_id: dto.avatarFileId,
           ...(email !== undefined && email !== before.email
             ? { email, email_verified_at: null }

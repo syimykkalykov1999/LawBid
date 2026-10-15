@@ -542,7 +542,7 @@ class PostCard extends ConsumerWidget {
           ),
         // Owner 2026-10-07: the comment button opens the comments sheet.
         PostActionsBar(post: p, run: run, boost: false, reactions: false),
-        if (p.likeCount > 0)
+        if (p.likeCount > 0 && showLikeCount(ref, p))
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
@@ -753,7 +753,7 @@ class _InstagramPost extends ConsumerWidget {
           // Owner 2026-10-07: the comment button opens the comments sheet,
           // inside the post too.
         ),
-        if (p.likeCount > 0)
+        if (p.likeCount > 0 && showLikeCount(ref, p))
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,

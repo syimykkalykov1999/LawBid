@@ -219,6 +219,8 @@ class Post {
     this.video,
     this.locationName,
     this.commentsEnabled = true,
+    this.likesHidden = false,
+    this.viewsHidden = false,
     this.attachments = const [],
     this.isGeneral = false,
     this.promotionId,
@@ -256,6 +258,11 @@ class Post {
 
   /// Owner 2026-10-02: false = the author turned comments off.
   final bool commentsEnabled;
+
+  /// Owner 2026-10-15: the author hid the like / view counter (the server
+  /// sends 0 to everyone else, the real number to the author).
+  final bool likesHidden;
+  final bool viewsHidden;
 
   /// Owner 2026-10-01: a reel — the post's video instead of photos.
   final PostVideo? video;
@@ -345,6 +352,8 @@ class Post {
         video: video,
         locationName: locationName,
         commentsEnabled: commentsEnabled,
+        likesHidden: likesHidden,
+        viewsHidden: viewsHidden,
         attachments: attachments,
         isGeneral: isGeneral,
         promotionId: promotionId,

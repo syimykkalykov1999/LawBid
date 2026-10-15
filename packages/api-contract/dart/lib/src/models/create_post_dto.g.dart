@@ -14,6 +14,8 @@ CreatePostDto _$CreatePostDtoFromJson(Map<String, dynamic> json) =>
           ? PostKind.post
           : PostKind.fromJson(json['kind'] as String),
       commentsEnabled: json['commentsEnabled'] as bool? ?? true,
+      hideLikes: json['hideLikes'] as bool? ?? false,
+      hideViews: json['hideViews'] as bool? ?? false,
       practiceCode: json['practiceCode'] as String?,
       contentClass: json['contentClass'] == null
           ? null
@@ -44,4 +46,6 @@ Map<String, dynamic> _$CreatePostDtoToJson(CreatePostDto instance) =>
       'videoAssetId': ?instance.videoAssetId,
       'location': ?instance.location?.toJson(),
       'commentsEnabled': instance.commentsEnabled,
+      'hideLikes': instance.hideLikes,
+      'hideViews': instance.hideViews,
     };

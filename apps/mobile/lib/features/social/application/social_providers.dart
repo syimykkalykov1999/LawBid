@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
@@ -632,6 +634,22 @@ class SocialActions {
 
   /// Owner 2026-10-12: pin to slot 1..3 / unpin; the profile lists reload
   /// (pinned posts lead them).
+  /// Owner 2026-10-15 (Instagram): the author hides / shows the like and
+  /// view counters of an own post.
+  Future<Object?> setCounters(
+    Post post, {
+    bool? hideLikes,
+    bool? hideViews,
+  }) =>
+      _guard('counters:${post.id}', () async {
+        final updated = await _repo.setPostCounters(
+          post.id,
+          hideLikes: hideLikes,
+          hideViews: hideViews,
+        );
+        _ref.read(postOverridesProvider.notifier).put(updated);
+      });
+
   Future<Object?> pinPost(Post post, int slot) =>
       _guard('pin:${post.id}', () async {
         final updated = await _repo.pinPost(post.id, slot);
@@ -748,3 +766,31 @@ class SocialActions {
 }
 
 final socialActionsProvider = Provider<SocialActions>(SocialActions.new);
+
+/// Owner 2026-10-15 (Instagram): a viewer can hide like counters under other
+/// people's posts; kept on the phone.
+class HideLikeCounts extends Notifier<bool> {
+  static const _key = 'social.hide_like_counts';
+
+  @override
+  bool build() => ref.read(localKvStoreProvider).getString(_key) == '1';
+
+  Future<void> set({required bool hide}) async {
+    state = hide;
+    await ref.read(localKvStoreProvider).setString(_key, hide ? '1' : '0');
+  }
+}
+
+final hideLikeCountsProvider =
+    NotifierProvider<HideLikeCounts, bool>(HideLikeCounts.new);
+
+/// Whether to draw [post]'s like counter for this viewer: the author always
+/// sees it; others unless the author hid it or the viewer hides them all
+/// (while the `hide_counts` flag is on).
+bool showLikeCount(WidgetRef ref, Post post) {
+  if (post.isMine) return true;
+  if (!ref.watch(featureFlagsControllerProvider).isEnabled('hide_counts')) {
+    return true;
+  }
+  return !post.likesHidden && !ref.watch(hideLikeCountsProvider);
+}

@@ -482,7 +482,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                             ? AppIcons.favoriteRounded
                             : AppIcons.favoriteBorderRounded,
                         t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-                        p.likeCount,
+                        showLikeCount(ref, p) ? p.likeCount : null,
                         () => run(() => actions.toggleLike(p)),
                         color: p.likedByMe ? colors.danger : null,
                       ),

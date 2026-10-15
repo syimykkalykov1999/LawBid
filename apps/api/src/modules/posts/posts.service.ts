@@ -35,6 +35,7 @@ import {
   POSTS_PAGE_DEFAULT,
   type CreatePostDto,
   type UpdatePostDto,
+  type PostCountersDto,
   type PostDto,
   type PostPage,
   type PostReposterDto,
@@ -215,6 +216,8 @@ export class PostsService {
               location_lat: dto.location?.lat ?? null,
               location_lng: dto.location?.lng ?? null,
               comments_enabled: dto.commentsEnabled ?? true,
+              hide_likes: dto.hideLikes ?? false,
+              hide_views: dto.hideViews ?? false,
             },
           })
           .catch((e: unknown) => {
@@ -406,6 +409,27 @@ export class PostsService {
 
   /** PATCH /posts/:id — title, text and qualification; hashtags
    * recomputed, "Изменено". */
+  /** Owner 2026-10-15: the author hides / shows the like and view counters. */
+  async setCounters(
+    user: RequestUser,
+    id: string,
+    dto: PostCountersDto,
+  ): Promise<PostDto> {
+    const current = await this.prisma.post.findFirst({
+      where: { id, author_id: user.sub, deleted_at: null },
+      select: { id: true },
+    });
+    if (!current) throw postNotFound();
+    await this.prisma.post.update({
+      where: { id },
+      data: {
+        ...(dto.hideLikes === undefined ? {} : { hide_likes: dto.hideLikes }),
+        ...(dto.hideViews === undefined ? {} : { hide_views: dto.hideViews }),
+      },
+    });
+    return this.get(user, id);
+  }
+
   async update(
     user: RequestUser,
     id: string,

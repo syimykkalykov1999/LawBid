@@ -321,6 +321,8 @@ export class PostPresenter {
             }
           : null,
         commentsEnabled: p.comments_enabled,
+        likesHidden: p.hide_likes,
+        viewsHidden: p.hide_views,
         media: (mediaByPost.get(p.id) ?? []).flatMap((m) => {
           const u = urls.get(m.file_id);
           return u
@@ -352,11 +354,18 @@ export class PostPresenter {
         tags: tagsByPost.get(p.id) ?? [],
         mentions: this.mentions.pick(p.body, mentioned),
         status: p.status,
-        likeCount: clamp(p.like_count + (pLike.get(p.id) ?? 0)),
+        // Owner 2026-10-15: a hidden counter is shown to its author only.
+        likeCount:
+          p.hide_likes && p.author_id !== viewerId
+            ? 0
+            : clamp(p.like_count + (pLike.get(p.id) ?? 0)),
         commentCount: clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
         saveCount: clamp(p.save_count + (pSave.get(p.id) ?? 0)),
         shareCount: clamp(p.share_count + (pShare.get(p.id) ?? 0)),
-        viewCount: clamp(p.view_count + (pView.get(p.id) ?? 0)),
+        viewCount:
+          p.hide_views && p.author_id !== viewerId
+            ? 0
+            : clamp(p.view_count + (pView.get(p.id) ?? 0)),
         repostCount: repostCounts.get(p.id) ?? 0,
         likedByMe: liked.has(p.id),
         repostedByMe: reposted.has(p.id),

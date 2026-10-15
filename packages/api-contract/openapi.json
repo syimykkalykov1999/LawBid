@@ -20497,6 +20497,103 @@
         ]
       }
     },
+    "/posts/{id}/counters": {
+      "patch": {
+        "operationId": "setPostCounters",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCountersDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: POST_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Hide or show the like / view counter of an own post",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/posts/{id}/pin": {
       "post": {
         "operationId": "pinPost",
@@ -91191,6 +91288,15 @@
             "type": "boolean",
             "default": true
           },
+          "likesHidden": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: the author hid this counter (counts are 0 for others).",
+            "default": false
+          },
+          "viewsHidden": {
+            "type": "boolean",
+            "default": false
+          },
           "title": {
             "type": "string",
             "nullable": true,
@@ -91336,6 +91442,8 @@
         "required": [
           "id",
           "commentsEnabled",
+          "likesHidden",
+          "viewsHidden",
           "kind",
           "contentClass",
           "author",
@@ -91446,6 +91554,15 @@
             "type": "boolean",
             "description": "Default true; false = nobody can comment.",
             "default": true
+          },
+          "hideLikes": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: hide the like / view counter from other people.",
+            "default": false
+          },
+          "hideViews": {
+            "type": "boolean",
+            "default": false
           }
         },
         "required": [
@@ -91501,6 +91618,17 @@
         "required": [
           "body"
         ]
+      },
+      "PostCountersDto": {
+        "type": "object",
+        "properties": {
+          "hideLikes": {
+            "type": "boolean"
+          },
+          "hideViews": {
+            "type": "boolean"
+          }
+        }
       },
       "PostDeletedDto": {
         "type": "object",
@@ -95250,6 +95378,10 @@
               }
             ]
           },
+          "hideLikeCounts": {
+            "type": "boolean",
+            "default": false
+          },
           "avatarFileId": {
             "type": "string",
             "nullable": true,
@@ -95311,6 +95443,7 @@
           "phoneVerified",
           "uiLanguage",
           "theme",
+          "hideLikeCounts",
           "avatarFileId",
           "avatarUrl",
           "requiredConsentsGranted",
@@ -95434,6 +95567,10 @@
               "navy",
               "glass"
             ]
+          },
+          "hideLikeCounts": {
+            "type": "boolean",
+            "description": "Owner 2026-10-15: hide like counters under other people's posts."
           },
           "email": {
             "type": "string",

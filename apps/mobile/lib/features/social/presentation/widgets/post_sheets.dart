@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -228,6 +229,50 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                             }
                           },
                         ),
+                      // Owner 2026-10-15 (Instagram): hide the like / view counters.
+                      if (ref
+                          .read(featureFlagsControllerProvider)
+                          .isEnabled('hide_counts')) ...[
+                        AppListRow(
+                          key: const ValueKey('post-menu-hide-likes'),
+                          icon: post.likesHidden
+                              ? AppIcons.visibilityOutlined
+                              : AppIcons.visibilityOffOutlined,
+                          label: t.t(
+                            post.likesHidden
+                                ? 'post.menu.showLikes'
+                                : 'post.menu.hideLikes',
+                          ),
+                          showChevron: false,
+                          onTap: () {
+                            Navigator.of(sheet).pop();
+                            ref.read(socialActionsProvider).setCounters(
+                                  post,
+                                  hideLikes: !post.likesHidden,
+                                );
+                          },
+                        ),
+                        if (post.video != null)
+                          AppListRow(
+                            key: const ValueKey('post-menu-hide-views'),
+                            icon: post.viewsHidden
+                                ? AppIcons.visibilityOutlined
+                                : AppIcons.visibilityOffOutlined,
+                            label: t.t(
+                              post.viewsHidden
+                                  ? 'post.menu.showViews'
+                                  : 'post.menu.hideViews',
+                            ),
+                            showChevron: false,
+                            onTap: () {
+                              Navigator.of(sheet).pop();
+                              ref.read(socialActionsProvider).setCounters(
+                                    post,
+                                    hideViews: !post.viewsHidden,
+                                  );
+                            },
+                          ),
+                      ],
                       // Owner 2026-10-05: Instagram-style "Promote" (money: the
                       // account owner, never an assistant).
                       if (!ref.read(isAssistantProvider))

@@ -40,6 +40,7 @@ import {
   SavedPostItemDto,
   SavedPostsQueryDto,
   UpdatePostDto,
+  PostCountersDto,
   type PostPage,
 } from './dto/posts.dto';
 import { PostEngagementService } from './post-engagement.service';
@@ -129,6 +130,22 @@ export class PostsController {
     @Body() dto: UpdatePostDto,
   ): Promise<PostDto> {
     return this.posts.update(user, p.id, dto);
+  }
+
+  // Owner 2026-10-15: every author (clients post too) switches their own
+  // counters, like Instagram's "Hide like count".
+  @Patch('posts/:id/counters')
+  @ApiOperation({
+    summary: 'Hide or show the like / view counter of an own post',
+  })
+  @ApiEnvelopeResponse(PostDto)
+  @ApiErrors({ 404: [E.POST_NOT_FOUND] })
+  setPostCounters(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PostIdParamDto,
+    @Body() dto: PostCountersDto,
+  ): Promise<PostDto> {
+    return this.posts.setCounters(user, p.id, dto);
   }
 
   // OQ-048: publications are the attorney's — an assistant never deletes.

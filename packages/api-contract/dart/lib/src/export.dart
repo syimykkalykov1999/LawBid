@@ -480,6 +480,7 @@ export 'models/post_attachment_input_dto.dart';
 export 'models/create_post_dto.dart';
 export 'models/post_envelope.dart';
 export 'models/update_post_dto.dart';
+export 'models/post_counters_dto.dart';
 export 'models/post_deleted_dto.dart';
 export 'models/post_deleted_envelope.dart';
 export 'models/pin_post_dto.dart';
