@@ -384,4 +384,18 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
     const tooLong = await post(att.auth, { body: 'y'.repeat(3001) });
     expect(tooLong.status).toBe(400);
   });
+
+  it('a post without a topic is published as general content (owner 2026-10-15)', async () => {
+    const att = await attorney();
+    const r = await post(att.auth, {
+      body: 'Just a thought.',
+      practiceCode: undefined,
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.data.practice).toBeNull();
+    const row = await prisma.post.findUniqueOrThrow({
+      where: { id: r.body.data.id as string },
+    });
+    expect(row.practice_area_id).toBeNull();
+  });
 });

@@ -397,7 +397,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       initial: {if (_practice != null) _practice!},
       options: practiceOptions(ref),
       confirm: true,
-      unknownLabel: t.t('cases.create.practice.notSure'),
+      unknownLabel: t.t('post.create.noTopic'),
       remoteSearch: (q) => ref.read(practiceMatchesProvider(q).future),
     );
     if (picked == null || picked.isEmpty) return;
@@ -728,7 +728,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     label: practice == null
                         ? t.t(
                             _unknownTopic
-                                ? 'cases.create.practice.notSure'
+                                ? 'post.create.noTopic'
                                 : 'post.create.practicePick',
                           )
                         : practiceLabel(ref, practice),

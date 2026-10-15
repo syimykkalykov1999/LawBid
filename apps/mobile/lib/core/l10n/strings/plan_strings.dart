@@ -150,6 +150,7 @@ const planRu = <String, String>{
   'post.create.hintBrief':
       'Первая строка станет заголовком брифа. Пишите подробно — до {max} знаков',
   'post.create.hintCaption': 'Подпись к посту…',
+  'post.create.noTopic': 'Без темы',
   'post.src.galleryHint': 'Фото и видео',
   'post.src.cameraHint': 'Снять сейчас',
   'video.edit.uploadCover': 'Загрузить из галереи',
@@ -325,6 +326,7 @@ const planEn = <String, String>{
   'post.create.hintBrief':
       "The first line becomes the brief's title. Write in detail, up to {max} characters",
   'post.create.hintCaption': 'Write a caption for your post…',
+  'post.create.noTopic': 'No topic',
   'post.src.galleryHint': 'Photos and video',
   'post.src.cameraHint': 'Take it now',
   'video.edit.uploadCover': 'Upload from gallery',
