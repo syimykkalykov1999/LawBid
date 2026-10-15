@@ -559,6 +559,7 @@ class WorkItem {
     required this.clientName,
     required this.feeType,
     required this.amountCents,
+    this.clientAvatarUrl,
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
@@ -580,6 +581,9 @@ class WorkItem {
 
   /// Null while the subscription is inactive (§8.3).
   final String? clientName;
+
+  /// The client's small avatar (null while locked, like the name).
+  final String? clientAvatarUrl;
   final FeeType feeType;
   final int amountCents;
   final DateTime? autoCloseAt;

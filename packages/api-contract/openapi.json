@@ -95043,6 +95043,11 @@
             "nullable": true,
             "description": "Client name; null while the subscription is inactive (contacts are locked, §8.3)."
           },
+          "clientAvatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Client avatar (small); null while the subscription is inactive, like the name."
+          },
           "feeType": {
             "allOf": [
               {

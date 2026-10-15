@@ -23,6 +23,7 @@ class WorkItemDto {
     required this.feeType,
     required this.amountCents,
     this.clientName,
+    this.clientAvatarUrl,
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
@@ -45,6 +46,9 @@ class WorkItemDto {
 
   /// Client name; null while the subscription is inactive (contacts are locked, §8.3).
   final String? clientName;
+
+  /// Client avatar (small); null while the subscription is inactive, like the name.
+  final String? clientAvatarUrl;
   final FeeType feeType;
   final int amountCents;
   final String? autoCloseAt;

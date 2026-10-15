@@ -4,6 +4,7 @@ import {
   mineCaseWhere,
   type MineFilterFields,
 } from './mine-filters';
+import { FilesService } from '../../files/files.service';
 import { CasePhotosService } from '../services/case-photos.service';
 import {
   ConflictException,
@@ -87,6 +88,7 @@ export class MineService {
     private readonly access: CaseAccessPolicy,
     private readonly subscriptions: SubscriptionAccessService,
     private readonly photos: CasePhotosService,
+    private readonly files: FilesService,
   ) {}
 
   /** GET /users/me/cases/:id (owner only; deleted cases are 404). */
@@ -229,7 +231,13 @@ export class MineService {
               practice_area: {
                 select: { name_en: true, i18n_key: true, code: true },
               },
-              client: { select: { first_name: true, last_name: true } },
+              client: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  avatar_file_id: true,
+                },
+              },
             },
           },
         },
@@ -244,6 +252,13 @@ export class MineService {
       ),
       user.sub,
     );
+    // Owner 2026-10-15: the client's small avatar on the card — shown
+    // under the same rule as the name (locked without a subscription).
+    const avatars = active
+      ? await this.files.avatarUrlsMany(
+          page.map((b) => b.accepted_for_case?.client.avatar_file_id ?? null),
+        )
+      : new Map<string, { url256: string | null }>();
     return {
       items: page.flatMap((b) => {
         const k = b.accepted_for_case;
@@ -262,6 +277,9 @@ export class MineService {
               ? [k.client.first_name, k.client.last_name]
                   .filter(Boolean)
                   .join(' ') || null
+              : null,
+            clientAvatarUrl: k.client.avatar_file_id
+              ? (avatars.get(k.client.avatar_file_id)?.url256 ?? null)
               : null,
             feeType: b.fee_type,
             amountCents: b.amount_cents,

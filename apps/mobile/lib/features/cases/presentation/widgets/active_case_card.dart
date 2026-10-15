@@ -23,6 +23,7 @@ class ActiveCaseCard extends StatelessWidget {
     this.practiceCode,
     this.coverUrl,
     this.photoCount,
+    this.avatarUrl,
     this.badge = 0,
     this.semanticLabel,
     super.key,
@@ -41,6 +42,9 @@ class ActiveCaseCard extends StatelessWidget {
   final String? practiceCode;
   final String? coverUrl;
   final int? photoCount;
+
+  /// The client's avatar, a small badge in the cover's corner.
+  final String? avatarUrl;
   final int badge;
   final String? semanticLabel;
   final VoidCallback onTap;
@@ -133,11 +137,37 @@ class ActiveCaseCard extends StatelessWidget {
                     dimension: thumb,
                     child: Stack(
                       fit: StackFit.expand,
+                      clipBehavior: Clip.none,
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(AppRadii.card),
                           child: picture,
                         ),
+                        if (avatarUrl != null)
+                          Positioned(
+                            right: -3,
+                            bottom: -3,
+                            child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: colors.surface,
+                                  width: 2,
+                                ),
+                              ),
+                              child: ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  memCacheWidth: 72,
+                                  errorWidget: (_, __, ___) =>
+                                      ColoredBox(color: colors.skeletonBase),
+                                ),
+                              ),
+                            ),
+                          ),
                         if ((photoCount ?? 0) > 0)
                           Positioned(
                             left: 4,

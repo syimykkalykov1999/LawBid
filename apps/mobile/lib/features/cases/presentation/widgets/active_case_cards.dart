@@ -104,6 +104,7 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       categoryCode: w.practiceCode?.split('.').first,
       practiceCode: w.practiceCode,
       coverUrl: w.coverUrl,
+      avatarUrl: w.clientAvatarUrl,
       stage: stage,
       stageLabel: caseStageLabel(t, stage),
       timeText: when == null ? '' : formats.dayMonth(when),
