@@ -459,9 +459,8 @@ export class PostgresSearchProvider implements SearchProvider {
   ): Promise<T[]> {
     try {
       const [, , result] = await this.prisma.$transaction([
-        this.prisma.$executeRawUnsafe(
-          `SET LOCAL statement_timeout = ${Math.floor(ms)}`,
-        ),
+        this.prisma
+          .$executeRaw`SELECT set_config('statement_timeout', ${String(Math.floor(ms))}, true)`,
         this.prisma
           .$executeRaw`SELECT set_config('pg_trgm.word_similarity_threshold', ${loose ? TYPO_THRESHOLD : '0.6'}, true)`,
         query() as unknown as Prisma.PrismaPromise<T[]>,
