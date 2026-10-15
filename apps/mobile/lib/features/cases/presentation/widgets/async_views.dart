@@ -141,8 +141,10 @@ class PagedListBody<T> extends ConsumerWidget {
       AsyncData(:final value) => AppPaginatedListView<T>(
           key: const ValueKey('data'),
           items: value.items,
+          // Owner 2026-10-15: the last card clears the floating nav bar
+          // (the shell reports it as the bottom padding on the feed tab).
           padding: edgeToEdge
-              ? EdgeInsets.zero
+              ? EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom)
               : const EdgeInsets.fromLTRB(
                   AppSpacing.screenSide,
                   AppSpacing.sm,

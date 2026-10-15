@@ -189,6 +189,24 @@ void main() {
   });
 
   testWidgets(
+      'a very tall photo (1:4) never makes the card taller than 4:5, '
+      'like Instagram', (tester) async {
+    final repo = FakeSocialRepository(
+      posts: [fakePost('p1', withPhoto: true, photoHeight: 4320)],
+    );
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final size = tester.getSize(find.byType(PostMediaCarousel));
+    expect(size.height, lessThanOrEqualTo(size.width * 1.25 + 0.5));
+  });
+
+  testWidgets(
       "someone else's post ⋯: profile, block, report — no copy link "
       '(the paper plane shares)', (tester) async {
     final repo = FakeSocialRepository(posts: [fakePost('p1')]);

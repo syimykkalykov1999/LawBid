@@ -238,9 +238,15 @@ class PostCard extends ConsumerWidget {
     // leave, and only a tiny leftover (under 30% of the screen) lets the
     // card grow instead.
     final minPhoto = MediaQuery.sizeOf(context).height * 0.3;
+    // Owner 2026-10-15 (like Instagram): the frame follows the first photo's
+    // shape, at most 4:5 tall and 1.91:1 wide (PostMedia.aspectRatio is
+    // bounded); anything longer is cropped to the centre, whole when opened.
+    final frameRatio = p.video == null && p.media.isNotEmpty
+        ? p.media.first.aspectRatio
+        : 0.8;
     final photoHeight = fillHeight != null || feedHeight != null
-        ? math.max(width * 1.25, minPhoto)
-        : width * 1.25;
+        ? math.max(width / frameRatio, minPhoto)
+        : width / frameRatio;
     Widget photoBox(Widget child, {required bool fill, VoidCallback? onShort}) {
       if (!fill) return SizedBox(height: photoHeight, child: child);
       return Expanded(
@@ -2247,7 +2253,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                       child: img(BoxFit.cover, m.previewUrl, '${m.fileId}:320'),
                     ),
                     ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
-                    img(BoxFit.contain, m.mediumUrl, '${m.fileId}:1080'),
+                    img(BoxFit.cover, m.mediumUrl, '${m.fileId}:1080'),
                   ],
                 ),
               );
@@ -2276,6 +2282,8 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
       child: widget.fill
           ? gallery
           : AspectRatio(
+              // PostMedia.aspectRatio is already bounded 4:5 … 1.91:1; longer
+              // photos are cropped to the centre (cover), whole when opened.
               aspectRatio: widget.compact ? 2 : media.first.aspectRatio,
               child: gallery,
             ),
