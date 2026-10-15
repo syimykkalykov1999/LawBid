@@ -290,6 +290,72 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
     ).toBe('sent');
   });
 
+  it('owner 2026-10-15: each category switches on its own; all off leaves only system', async () => {
+    const u = await user('attorney');
+    const cases: [string, 'bid_accepted' | 'case_closed' | 'new_follower'][] = [
+      ['bids', 'bid_accepted'],
+      ['cases', 'case_closed'],
+      ['social', 'new_follower'],
+    ];
+    const send = async (type: string, key: string) => {
+      const n = await notifications.emit({
+        type: type as never,
+        recipientId: u.id,
+        payload: {
+          caseId: randomUUID(),
+          bidId: randomUUID(),
+          userId: randomUUID(),
+        },
+      });
+      return dispatcher.dispatch(
+        { kind: 'notification', notificationId: n!.id, push: true },
+        key,
+      );
+    };
+    const set = (category: string, on: boolean) =>
+      prisma.notificationSetting.upsert({
+        where: {
+          user_id_category: { user_id: u.id, category: category as never },
+        },
+        create: {
+          user_id: u.id,
+          category: category as never,
+          push_enabled: on,
+        },
+        update: { push_enabled: on },
+      });
+    // Everything on: all three are pushed.
+    for (const [c] of cases) await set(c, true);
+    for (const [c, type] of cases)
+      expect(await send(type, `on-${c}`)).toBe('sent');
+    // One category off: only that one is silent.
+    for (const [off] of cases) {
+      await set(off, false);
+      for (const [c, type] of cases) {
+        expect(await send(type, `one-${off}-${c}`)).toBe(
+          c === off ? 'disabled' : 'sent',
+        );
+      }
+      await set(off, true);
+    }
+    // All off: nothing but the system.
+    for (const [c] of cases) await set(c, false);
+    for (const [c, type] of cases) {
+      expect(await send(type, `off-${c}`)).toBe('disabled');
+    }
+    const sys = await notifications.emit({
+      type: 'verification_update',
+      recipientId: u.id,
+      payload: {},
+    });
+    expect(
+      await dispatcher.dispatch(
+        { kind: 'notification', notificationId: sys!.id, push: true },
+        'off-system',
+      ),
+    ).toBe('sent');
+  });
+
   it('badge = unread messages + unread notifications, new_message not twice', async () => {
     const client = await user('client');
     const att = await user('attorney');

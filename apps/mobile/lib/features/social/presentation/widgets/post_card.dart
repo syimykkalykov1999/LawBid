@@ -480,7 +480,7 @@ class PostCard extends ConsumerWidget {
               sponsored: post.promotionId != null,
               compact: true,
             )
-          else if (fromProfile && p.isMine)
+          else if (fromProfile)
             _OwnMenuRow(post: p),
           photoFor(fill: fill, onShort: onExpand),
           PostActionsBar(post: p, run: run, showTime: true),
@@ -602,10 +602,8 @@ class PostCard extends ConsumerWidget {
       children: [
         if (!fromProfile)
           _AuthorRow(post: p, sponsored: post.promotionId != null)
-        else if (p.isMine)
-          _OwnMenuRow(post: p)
         else
-          const SizedBox(height: AppSpacing.md),
+          _OwnMenuRow(post: p),
         if (p.tags.isNotEmpty || p.practice != null || p.isNews)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -869,7 +867,7 @@ class _InstagramPost extends ConsumerWidget {
       children: [
         if (!fromProfile)
           _AuthorRow(post: p, sponsored: promotionId != null)
-        else if (p.isMine)
+        else
           _OwnMenuRow(post: p),
         if (p.video != null)
           AspectRatio(
@@ -1221,33 +1219,6 @@ class _ThreadsPost extends ConsumerWidget {
       );
     }
 
-    Widget pinLine() => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 36,
-                child: Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: AppIcon(
-                    AppIcons.pushPin,
-                    size: 14,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Text(
-                t.t('post.pinned'),
-                style: type.caption.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        );
-
     final avatar = GestureDetector(
       onTap: () => openAuthorProfile(context, ref, a),
       child: IdentityAvatar(
@@ -1391,7 +1362,6 @@ class _ThreadsPost extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (showPin && p.pinSlot != null) pinLine(),
             Row(
               children: [
                 avatar,
@@ -1424,7 +1394,6 @@ class _ThreadsPost extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (showPin && p.pinSlot != null) pinLine(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1742,6 +1711,9 @@ class _AuthorRow extends ConsumerWidget {
 
 /// Owner 2026-10-12: in the author's own feed of posts (no author row) the
 /// "…" menu stays reachable (pin, edit, delete), with "Pinned" on the left.
+/// Owner 2026-10-15 (Instagram): the head of a card in someone's own posts
+/// feed — their @username on the left and the «…» menu; no «Pinned» label
+/// (the pin lives only on the profile grid).
 class _OwnMenuRow extends ConsumerWidget {
   const _OwnMenuRow({required this.post});
 
@@ -1759,18 +1731,17 @@ class _OwnMenuRow extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          if (post.pinSlot != null) ...[
-            AppIcon(AppIcons.pushPin, size: 14, color: colors.textSecondary),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              t.t('post.pinned'),
-              style: type.caption.copyWith(
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
+          Expanded(
+            child: Text(
+              post.author.username,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.body.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ],
-          const Spacer(),
+          ),
           AppIconButton(
             icon: const AppIcon(AppIcons.moreHorizRounded),
             semanticLabel: t.t('post.menu'),

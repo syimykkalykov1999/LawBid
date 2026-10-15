@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   Optional,
 } from '@nestjs/common';
 import type { Post, Prisma } from '@prisma/client';
@@ -64,6 +65,8 @@ function badCursor(): BadRequestException {
  */
 @Injectable()
 export class FeedService implements FeedProvider {
+  private readonly log = new Logger(FeedService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenter: PostPresenter,
@@ -139,7 +142,9 @@ export class FeedService implements FeedProvider {
         picked.map((c) => c.id),
       );
       return { ...page, items };
-    } catch {
+    } catch (e) {
+      // Promoted posts are best effort; say why one did not come.
+      this.log.warn({ err: String(e) }, 'promoted posts skipped');
       return page;
     }
   }

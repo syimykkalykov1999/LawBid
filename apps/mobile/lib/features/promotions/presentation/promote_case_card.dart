@@ -239,7 +239,13 @@ class BoostButton extends ConsumerWidget {
             widthFactor: 1,
             heightFactor: 1,
             child: Text(
-              t.t(pending ? 'promote.completePayment' : 'promote.cta'),
+              t.t(
+                pending
+                    ? 'promote.completePayment'
+                    : live
+                        ? 'boost.stats.open'
+                        : 'promote.cta',
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: type.bodySmall.copyWith(

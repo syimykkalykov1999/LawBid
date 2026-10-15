@@ -3,7 +3,7 @@
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
-  'feed.topics.notSure': 'Не уверены в квалификации',
+  'feed.topics.notSure': 'Тема не указана',
   'search.more': 'Показать ещё',
   'cases.feed.emptyFiltered': 'Нет открытых кейсов по этому фильтру',
   'feed.filters.clear': 'Сбросить фильтры',
@@ -591,7 +591,7 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
-  'feed.topics.notSure': 'Not sure of the qualification',
+  'feed.topics.notSure': 'Topic not specified',
   'search.more': 'Show more',
   'cases.feed.emptyFiltered': 'No open cases for this filter',
   'feed.filters.clear': 'Clear filters',
