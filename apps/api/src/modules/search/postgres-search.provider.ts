@@ -357,12 +357,18 @@ export class PostgresSearchProvider implements SearchProvider {
     const rows = await this.prisma.$queryRaw<
       { code: string; name_en: string; value: string; lang: string }[]
     >`
-      SELECT DISTINCT ON (pa.id) pa.code, pa.name_en, t.value, t.lang
-      FROM practice_areas pa
-      JOIN i18n_keys k ON k.key IN (pa.i18n_key, pa.i18n_key || '.kw')
-      JOIN i18n_translations t ON t.key_id = k.id
-      WHERE pa.is_active AND (${practiceWordsMatch(norm)})
-      ORDER BY pa.id, (t.lang = 'en') DESC, pa.sort
+      SELECT code, name_en, value, lang FROM (
+        SELECT DISTINCT ON (pa.id) pa.code, pa.name_en, t.value, t.lang,
+               (k.key = pa.i18n_key) AS by_name, pa.sort
+        FROM practice_areas pa
+        JOIN i18n_keys k ON k.key IN (pa.i18n_key, pa.i18n_key || '.kw')
+        JOIN i18n_translations t ON t.key_id = k.id
+        WHERE pa.is_active AND (${practiceWordsMatch(norm)})
+        ORDER BY pa.id, (k.key = pa.i18n_key) DESC, (t.lang = 'en') DESC
+      ) m
+      -- Owner 2026-10-15: a match on the topic's NAME comes before one on
+      -- its keywords ("got" lists topics named so before "got arrested").
+      ORDER BY by_name DESC, sort
       LIMIT ${limit}`;
     return rows.map((r) => ({
       code: r.code,

@@ -191,32 +191,10 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
     });
   }
 
-  /// Leaving a confirm-picker with a choice made asks first.
-  Future<void> _close() async {
-    if (_selected.isEmpty) {
-      Navigator.of(context).pop();
-      return;
-    }
-    final t = ref.read(translatorProvider);
-    final leave = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t.t('practices.unsaved.title')),
-        content: Text(t.t('practices.unsaved.body')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(t.t('practices.unsaved.stay')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(t.t('practices.unsaved.leave')),
-          ),
-        ],
-      ),
-    );
-    if ((leave ?? false) && mounted) Navigator.of(context).pop();
-  }
+  /// Owner 2026-10-15: leaving a confirm-picker by the handle or a tap
+  /// outside keeps the choice already made (no dialog, nothing is lost).
+  void _close() =>
+      Navigator.of(context).pop(_selected.isEmpty ? null : {..._selected});
 
   /// One-of choices (an [PickerOption.exclusive] head's options) → their
   /// siblings.
@@ -497,6 +475,15 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
             minChildSize: 0.4,
             builder: content,
           );
+    if (widget.confirm) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _close();
+        },
+        child: sheet,
+      );
+    }
     if (!widget.back) return sheet;
     return PopScope(
       canPop: false,

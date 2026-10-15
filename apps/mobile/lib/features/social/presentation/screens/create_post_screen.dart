@@ -405,86 +405,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
-                  // Owner 2026-10-15: one button for every post; the type
-                  // (brief / post / reel) follows what is attached, silently.
-                  // Owner 2026-10-01: the qualification is optional.
-                  _PracticeField(
-                    label: practice == null
-                        ? t.t(
-                            _unknownTopic
-                                ? 'cases.create.practice.notSure'
-                                : 'post.create.practicePick',
-                          )
-                        : practiceLabel(ref, practice),
-                    sublabel: practice == null || isPracticeCategory(practice)
-                        ? null
-                        : practiceLabel(ref, practiceCategoryOf(practice)),
-                    icon: practiceGlyph(
-                      practice == null ? null : practiceCategoryOf(practice),
-                    ),
-                    empty: practice == null && !_unknownTopic,
-                    error: false,
-                    onTap: _pickPractice,
-                  ),
-                  // Owner 2026-10-05: no topic = a general (personal) post
-                  // unless the author says it is about law.
-                  // Owner 2026-10-15: no "about law" switch on the form.
-                  if (_showLegalSwitch && practice == null && !_news) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    MergeSemantics(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  t.t('post.create.legal'),
-                                  style: type.body,
-                                ),
-                                const SizedBox(height: AppSpacing.xs),
-                                Text(
-                                  t.t('post.create.legalHint'),
-                                  style: type.caption
-                                      .copyWith(color: colors.textSecondary),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Switch.adaptive(
-                            key: const ValueKey('post-legal-switch'),
-                            value: _legal,
-                            activeTrackColor: colors.gold,
-                            onChanged: (v) => setState(() => _legal = v),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.lg),
-                  PostTextField(
-                    controller: _text,
-                    maxChars: _maxChars,
-                    limitHint: _hasFiles ? t.t('post.create.limitHint') : null,
-                    hint: t.t('post.create.oneFieldHint'),
-                  ),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _text,
-                    builder: (context, _, __) => missing && _parts.$1.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: AppSpacing.xs),
-                            child: Text(
-                              t.t('post.create.required'),
-                              style:
-                                  type.caption.copyWith(color: colors.danger),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                  // OQ-042: "@…" suggests people to mention.
-                  MentionSuggestions(controller: _text),
-                  const SizedBox(height: AppSpacing.lg),
+                  // Owner 2026-10-15: photos or videos come first, then the
+                  // topic, then the text.
                   if (!_editing) ...[
                     Row(
                       children: [
@@ -570,6 +492,87 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                       ),
                     ],
                   ],
+                  const SizedBox(height: AppSpacing.lg),
+                  // Owner 2026-10-15: one button for every post; the type
+                  // (brief / post / reel) follows what is attached, silently.
+                  // Owner 2026-10-01: the qualification is optional.
+                  _PracticeField(
+                    label: practice == null
+                        ? t.t(
+                            _unknownTopic
+                                ? 'cases.create.practice.notSure'
+                                : 'post.create.practicePick',
+                          )
+                        : practiceLabel(ref, practice),
+                    sublabel: practice == null || isPracticeCategory(practice)
+                        ? null
+                        : practiceLabel(ref, practiceCategoryOf(practice)),
+                    icon: practiceGlyph(
+                      practice == null ? null : practiceCategoryOf(practice),
+                    ),
+                    empty: practice == null && !_unknownTopic,
+                    error: false,
+                    onTap: _pickPractice,
+                  ),
+                  // Owner 2026-10-05: no topic = a general (personal) post
+                  // unless the author says it is about law.
+                  // Owner 2026-10-15: no "about law" switch on the form.
+                  if (_showLegalSwitch && practice == null && !_news) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    MergeSemantics(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.t('post.create.legal'),
+                                  style: type.body,
+                                ),
+                                const SizedBox(height: AppSpacing.xs),
+                                Text(
+                                  t.t('post.create.legalHint'),
+                                  style: type.caption
+                                      .copyWith(color: colors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Switch.adaptive(
+                            key: const ValueKey('post-legal-switch'),
+                            value: _legal,
+                            activeTrackColor: colors.gold,
+                            onChanged: (v) => setState(() => _legal = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.lg),
+                  PostTextField(
+                    controller: _text,
+                    maxChars: _maxChars,
+                    limitHint: _hasFiles ? t.t('post.create.limitHint') : null,
+                    hint: t.t('post.create.oneFieldHint'),
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _text,
+                    builder: (context, _, __) => missing && _parts.$1.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.xs),
+                            child: Text(
+                              t.t('post.create.required'),
+                              style:
+                                  type.caption.copyWith(color: colors.danger),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  // OQ-042: "@…" suggests people to mention.
+                  MentionSuggestions(controller: _text),
+                  const SizedBox(height: AppSpacing.lg),
                   const SizedBox(height: AppSpacing.xl),
                   const PostDisclaimer(),
                 ],

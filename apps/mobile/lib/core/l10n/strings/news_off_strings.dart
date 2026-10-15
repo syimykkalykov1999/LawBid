@@ -11,7 +11,7 @@ const newsOffRu = <String, String>{
   'feed.legal.mine': 'Только мои темы',
   'feed.legal.mineEmpty':
       'Отметьте темы в «Выберите темы» — здесь появятся их юр. посты',
-  'post.create.media': 'Фото и видео',
+  'post.create.media': 'Фото или видео',
   'post.create.mediaHint': 'До 9 фото или одно видео.',
   'notif.view.important': 'Важные',
   'notif.view.other': 'Остальные',
@@ -40,7 +40,7 @@ const newsOffEn = <String, String>{
   'feed.legal.mine': 'Only my topics',
   'feed.legal.mineEmpty':
       'Pick topics in “Choose topics” to see their legal posts here',
-  'post.create.media': 'Photos and videos',
+  'post.create.media': 'Photos or videos',
   'post.create.mediaHint': 'Up to 9 photos or one video.',
   'notif.view.important': 'Important',
   'notif.view.other': 'Other',

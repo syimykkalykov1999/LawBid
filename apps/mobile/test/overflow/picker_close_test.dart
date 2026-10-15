@@ -46,4 +46,44 @@ void main() {
     expect(barriers, isEmpty);
     expect(find.byType(OptionPickerSheet), findsNothing);
   });
+
+  testWidgets('a tap outside keeps the topic already picked, no overlay left',
+      (tester) async {
+    useNarrowPhone(tester);
+    Set<String>? result;
+    await tester.pumpWidget(
+      uxApp(
+        Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async => result = await OptionPickerSheet.show(
+                context,
+                title: 'Qualification',
+                confirm: true,
+                initial: const {},
+                options: const [
+                  PickerOption(value: 'a', label: 'Alpha'),
+                  PickerOption(value: 'b', label: 'Beta'),
+                ],
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+        theme: AppTheme.dark(),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alpha'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(180, 20)); // the scrim above the sheet
+    await tester.pumpAndSettle();
+    expect(result, {'a'});
+    expect(find.byType(OptionPickerSheet), findsNothing);
+    final barriers = tester
+        .widgetList<ModalBarrier>(find.byType(ModalBarrier))
+        .where((b) => b.color != null && b.color != Colors.transparent);
+    expect(barriers, isEmpty);
+  });
 }
