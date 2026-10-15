@@ -8,6 +8,7 @@ import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
 
 import 'package:lawbid/core/network/auth_interceptor.dart';
+import 'package:lawbid/core/network/etag_cache_interceptor.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
@@ -41,6 +42,11 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(LegalReacceptInterceptor(ref));
   dio.interceptors.add(IdempotencyInterceptor());
   dio.interceptors.add(AuthInterceptor(ref, dio));
+  // After Auth (it needs the bearer to key the cache per user), before Retry
+  // (a retried GET asks again with the tag). Off: --dart-define=ETAG_CACHE=false.
+  if (const bool.fromEnvironment('ETAG_CACHE', defaultValue: true)) {
+    dio.interceptors.add(EtagCacheInterceptor());
+  }
   dio.interceptors.add(RetryInterceptor(dio));
   // Last on purpose: feeds the offline banner's reachability signal from
   // real traffic, seeing only failures the retries could not fix

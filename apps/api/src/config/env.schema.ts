@@ -393,6 +393,9 @@ export const envSchema = z
     // compressed (JSON shrinks 5–10x on a phone's network). Set false to
     // switch it off without a release.
     HTTP_COMPRESSION: envBoolean(true),
+    // Owner 2026-10-15: ETag on JSON answers (the phone gets 304 when
+    // nothing changed). false = no tags, a safe off-switch.
+    HTTP_ETAG: envBoolean(true),
     // Owner 2026-10-15: a database call slower than this many ms is written
     // to the log (operation name and time only, never the values). 0 = off.
     DB_SLOW_QUERY_MS: z.coerce.number().int().min(0).default(300),

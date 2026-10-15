@@ -82,6 +82,11 @@ export function configureApp(
     }),
   );
 
+  // Owner 2026-10-15: every JSON answer carries an ETag, so the phone asks
+  // "has it changed?" and gets an empty 304 instead of the whole answer.
+  // HTTP_ETAG=false stops tagging (the phone then simply downloads again).
+  if (!config.get<boolean>('HTTP_ETAG', true)) app.set('etag', false);
+
   // Owner 2026-10-15: smaller answers (JSON 5–10x), the single biggest
   // saving on a phone's network and on traffic cost; flag HTTP_COMPRESSION.
   if (config.get<boolean>('HTTP_COMPRESSION', true)) {
