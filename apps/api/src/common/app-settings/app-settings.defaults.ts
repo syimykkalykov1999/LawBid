@@ -458,6 +458,7 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.retention_assistant_activity_days': 365,
   'storage.retention_snapshots_days': 730,
   'storage.retention_post_views_days': 365,
+  'storage.retention_app_events_days': 90,
   'storage.growth_alert_percent': 20,
 };
 

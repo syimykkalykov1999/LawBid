@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
   CrashDetailDto,
   CrashGroupDto,
@@ -39,12 +40,20 @@ export function crashFingerprint(message: string, stack: string): string {
 /** Owner 2026-10-15: own crash intake — free, in our database. */
 @Injectable()
 export class CrashReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly flags?: FeatureFlagsService,
+  ) {}
 
   async ingest(
     reports: CrashReportInDto[],
     deviceKey: string | null,
   ): Promise<number> {
+    // Owner 2026-10-15: kill switch (flag `crash_reports`, on by default):
+    // the batch is accepted and dropped, the phone just clears its queue.
+    if (this.flags && !(await this.flags.isEnabled('crash_reports', true))) {
+      return 0;
+    }
     const rows = reports.slice(0, 10).map((r) => ({
       fingerprint: crashFingerprint(r.message, r.stack),
       message: r.message.slice(0, 500),

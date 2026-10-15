@@ -124,6 +124,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   search_query_log: 'what testers searched',
   crash_reports: 'crashes of test builds',
   user_activity_days: 'who opened the app on which day (testers)',
+  app_event_days: 'app event counts by day (testers)',
   search_clicks: 'results testers opened',
   search_learned_links: 'topics learned from tester clicks',
   reviews: 'reviews of attorneys',
