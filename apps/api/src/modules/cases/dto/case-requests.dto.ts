@@ -74,6 +74,18 @@ export class CreateCaseDto {
   @IsUUID('all')
   practiceAreaId!: string;
 
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Topics 2..N (leaves); at most `case.max_practices` in all with the first.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(9)
+  @IsUUID('all', { each: true })
+  extraPracticeAreaIds?: string[];
+
   @ApiProperty({ minLength: TITLE_MIN, maxLength: TITLE_MAX })
   @Transform(trim)
   @IsString()
@@ -231,6 +243,18 @@ export class UpdateCaseDto {
   @IsUUID('all')
   practiceAreaId?: string;
 
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Topics 2..N (leaves); at most `case.max_practices` in all with the first.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(9)
+  @IsUUID('all', { each: true })
+  extraPracticeAreaIds?: string[];
+
   @ApiPropertyOptional({ pattern: '^[A-Z0-9]{2}$', example: 'NY' })
   @IsOptional()
   @IsString()
@@ -334,14 +358,16 @@ export class UpdateCaseDto {
 
 // Owner 2026-09-30: `open` and `in_progress` split the old `active`
 // for the Mine tabs; `active` stays for older app builds.
+// Owner 2026-10-15: `completed` = closed + archived (one «Completed» chip).
 export type MyCasesFilter =
-  'active' | 'open' | 'in_progress' | 'archived' | 'closed';
+  'active' | 'open' | 'in_progress' | 'archived' | 'closed' | 'completed';
 export const MY_CASES_FILTERS: readonly MyCasesFilter[] = [
   'active',
   'open',
   'in_progress',
   'archived',
   'closed',
+  'completed',
 ];
 
 /** GET /users/me/cases (docs/04 §11.1, §15). */

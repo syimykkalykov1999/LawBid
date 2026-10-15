@@ -150,6 +150,8 @@ abstract final class AppRoutes {
   static const dataExport = '/profile/settings/data-export';
   // Owner 2026-10-02: About LawBid + the website link.
   static const about = '/profile/settings/about';
+  // Owner 2026-10-15: the client's saved posts, moved here from «Mine».
+  static const saved = '/profile/settings/saved';
   static const referral = '/profile/settings/referral';
   // Owner 2026-10-05: my promoted posts / cases (reach, clicks, stop).
   static const myPromotions = '/profile/settings/promotions';

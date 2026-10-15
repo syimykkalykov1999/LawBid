@@ -13,6 +13,9 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
       description: json['description'] as String,
       primaryStateCode: json['primaryStateCode'] as String,
       budgetMode: BudgetMode.fromJson(json['budgetMode'] as String),
+      extraPracticeAreaIds: (json['extraPracticeAreaIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
@@ -37,6 +40,7 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
     <String, dynamic>{
       'practiceAreaId': instance.practiceAreaId,
+      'extraPracticeAreaIds': ?instance.extraPracticeAreaIds,
       'title': instance.title,
       'description': instance.description,
       'primaryStateCode': instance.primaryStateCode,

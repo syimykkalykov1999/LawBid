@@ -13,6 +13,9 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   practiceArea: PracticeAreaRefDto.fromJson(
     json['practiceArea'] as Map<String, dynamic>,
   ),
+  extraPracticeAreas: (json['extraPracticeAreas'] as List<dynamic>)
+      .map((e) => PracticeAreaRefDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   primaryStateCode: json['primaryStateCode'] as String,
   states: (json['states'] as List<dynamic>)
       .map((e) => CaseStateDto.fromJson(e as Map<String, dynamic>))
@@ -52,6 +55,9 @@ Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
   'title': instance.title,
   'description': instance.description,
   'practiceArea': instance.practiceArea.toJson(),
+  'extraPracticeAreas': instance.extraPracticeAreas
+      .map((e) => e.toJson())
+      .toList(),
   'primaryStateCode': instance.primaryStateCode,
   'states': instance.states.map((e) => e.toJson()).toList(),
   'city': ?instance.city,

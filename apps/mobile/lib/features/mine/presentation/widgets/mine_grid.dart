@@ -351,11 +351,15 @@ class MineSearchBar extends ConsumerStatefulWidget {
   const MineSearchBar({
     required this.search,
     required this.onChanged,
+    this.action,
     super.key,
   });
 
   final MineSearch search;
   final ValueChanged<MineSearch> onChanged;
+
+  /// Owner 2026-10-15: a button right of the field (the attorney's «Saved»).
+  final Widget? action;
 
   @override
   ConsumerState<MineSearchBar> createState() => _MineSearchBarState();
@@ -476,32 +480,41 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
         AppSpacing.screenSide,
         0,
       ),
-      child: FlipSearchBar(
-        key: const ValueKey('mine-search'),
-        controller: _text,
-        focusNode: _focus,
-        semanticLabel: t.t('mine.search.hint'),
-        cancelLabel: t.t('common.cancel'),
-        clearLabel: t.t('search.clear'),
-        showCancel: false,
-        hints: [t.t('mine.search.hint')],
-        leading: Badge(
-          isLabelVisible: count > 0,
-          label: Text('$count'),
-          backgroundColor: colors.gold,
-          textColor: colors.navy,
-          child: AppIconButton(
-            key: const ValueKey('mine-filters'),
-            icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
-            semanticLabel: t.t('mine.search.filters'),
-            onPressed: _filters,
-          ),
-        ),
-        trailing: AppIconButton(
-          icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-          semanticLabel: t.t('mine.search.hint'),
-          onPressed: _focus.requestFocus,
-        ),
+      child: Row(
+        children: [
+          Expanded(
+              child: FlipSearchBar(
+            key: const ValueKey('mine-search'),
+            controller: _text,
+            focusNode: _focus,
+            semanticLabel: t.t('mine.search.hint'),
+            cancelLabel: t.t('common.cancel'),
+            clearLabel: t.t('search.clear'),
+            showCancel: false,
+            hints: [t.t('mine.search.hint')],
+            leading: Badge(
+              isLabelVisible: count > 0,
+              label: Text('$count'),
+              backgroundColor: colors.gold,
+              textColor: colors.navy,
+              child: AppIconButton(
+                key: const ValueKey('mine-filters'),
+                icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
+                semanticLabel: t.t('mine.search.filters'),
+                onPressed: _filters,
+              ),
+            ),
+            trailing: AppIconButton(
+              icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
+              semanticLabel: t.t('mine.search.hint'),
+              onPressed: _focus.requestFocus,
+            ),
+          ),),
+          if (widget.action != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            widget.action!,
+          ],
+        ],
       ),
     );
   }

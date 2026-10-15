@@ -15,6 +15,7 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
   practiceArea: CasePracticeAreaDto.fromJson(
     json['practiceArea'] as Map<String, dynamic>,
   ),
+  extraPracticeCount: (json['extraPracticeCount'] as num).toInt(),
   primaryStateCode: json['primaryStateCode'] as String,
   additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>)
       .map((e) => e as String)
@@ -70,6 +71,7 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'title': instance.title,
   'excerpt': instance.excerpt,
   'practiceArea': instance.practiceArea.toJson(),
+  'extraPracticeCount': instance.extraPracticeCount,
   'primaryStateCode': instance.primaryStateCode,
   'additionalStateCodes': instance.additionalStateCodes,
   'city': ?instance.city,

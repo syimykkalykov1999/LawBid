@@ -102,6 +102,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // cases and bids
   cases: 'cases',
   case_states: 'case states',
+  case_extra_practices: 'case extra topics',
   bids: 'bids',
   bid_offers: 'bid offers',
   bid_drafts: 'bid drafts',

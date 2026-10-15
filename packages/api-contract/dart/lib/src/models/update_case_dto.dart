@@ -16,6 +16,7 @@ class UpdateCaseDto {
     this.title,
     this.description,
     this.practiceAreaId,
+    this.extraPracticeAreaIds,
     this.primaryStateCode,
     this.additionalStateCodes,
     this.city,
@@ -36,6 +37,9 @@ class UpdateCaseDto {
 
   /// A leaf (specialization).
   final String? practiceAreaId;
+
+  /// Topics 2..N (leaves); at most `case.max_practices` in all with the first.
+  final List<String>? extraPracticeAreaIds;
   final String? primaryStateCode;
   final List<String>? additionalStateCodes;
   final String? city;

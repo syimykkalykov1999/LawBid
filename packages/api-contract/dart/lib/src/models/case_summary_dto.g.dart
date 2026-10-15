@@ -13,6 +13,7 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       practiceArea: PracticeAreaRefDto.fromJson(
         json['practiceArea'] as Map<String, dynamic>,
       ),
+      extraPracticeCount: (json['extraPracticeCount'] as num).toInt(),
       primaryStateCode: json['primaryStateCode'] as String,
       additionalStateCount: (json['additionalStateCount'] as num).toInt(),
       status: CaseStatus.fromJson(json['status'] as String),
@@ -44,6 +45,7 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
       'coverUrl': ?instance.coverUrl,
       'title': instance.title,
       'practiceArea': instance.practiceArea.toJson(),
+      'extraPracticeCount': instance.extraPracticeCount,
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCount': instance.additionalStateCount,
       'city': ?instance.city,

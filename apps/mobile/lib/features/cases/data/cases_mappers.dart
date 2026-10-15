@@ -31,6 +31,7 @@ abstract final class CasesMappers {
         coverUrl: c.coverUrl,
         title: c.title,
         practice: practiceRef(c.practiceArea),
+        extraPracticeCount: c.extraPracticeCount,
         primaryStateCode: c.primaryStateCode,
         additionalStateCount: c.additionalStateCount,
         city: c.city,
@@ -54,6 +55,7 @@ abstract final class CasesMappers {
         title: c.title,
         description: c.description,
         practice: practiceRef(c.practiceArea),
+        extraPractices: [for (final p in c.extraPracticeAreas) practiceRef(p)],
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: [
           for (final s in c.states)
@@ -164,6 +166,7 @@ abstract final class CasesMappers {
         title: c.title,
         excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
+        extraPracticeCount: c.extraPracticeCount,
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,
@@ -202,6 +205,7 @@ abstract final class CasesMappers {
         title: c.title,
         excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
+        extraPracticeCount: c.extraPracticeCount,
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,

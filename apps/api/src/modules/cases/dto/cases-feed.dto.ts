@@ -293,6 +293,12 @@ export class CaseFeedItemDto {
   @ApiProperty({ type: CasePracticeAreaDto })
   practiceArea!: CasePracticeAreaDto;
 
+  @ApiProperty({
+    type: 'integer',
+    description: 'Topics besides the first: «+N».',
+  })
+  extraPracticeCount!: number;
+
   @ApiProperty({ example: 'NJ' })
   primaryStateCode!: string;
 

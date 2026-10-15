@@ -23,6 +23,7 @@ class CaseDetailForAttorneyDto {
     required this.title,
     required this.excerpt,
     required this.practiceArea,
+    required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCodes,
     required this.status,
@@ -64,6 +65,9 @@ class CaseDetailForAttorneyDto {
   /// Owner 2026-09-30: first ~180 characters of the description.
   final String excerpt;
   final CasePracticeAreaDto practiceArea;
+
+  /// Topics besides the first: «+N».
+  final int extraPracticeCount;
   final String primaryStateCode;
   final List<String> additionalStateCodes;
   final String? city;

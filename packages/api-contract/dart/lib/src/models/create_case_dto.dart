@@ -18,6 +18,7 @@ class CreateCaseDto {
     required this.description,
     required this.primaryStateCode,
     required this.budgetMode,
+    this.extraPracticeAreaIds,
     this.additionalStateCodes,
     this.city,
     this.photoFileIds,
@@ -34,6 +35,9 @@ class CreateCaseDto {
 
   /// A leaf (specialization).
   final String practiceAreaId;
+
+  /// Topics 2..N (leaves); at most `case.max_practices` in all with the first.
+  final List<String>? extraPracticeAreaIds;
   final String title;
   final String description;
   final String primaryStateCode;

@@ -45,6 +45,10 @@ abstract final class CaseFormat {
   }
 
   /// Practice name through its i18n key, English name as the fallback.
+  /// Owner 2026-10-15: «Family law +2» — the first topic and how many more.
+  static String withMore(String name, int extra) =>
+      extra > 0 ? '$name +$extra' : name;
+
   static String practice(Translator t, String i18nKey, String nameEn) {
     final v = t.t(i18nKey);
     return v == i18nKey ? nameEn : v;

@@ -10,6 +10,8 @@ enum Filter2 {
   active('active'),
   @JsonValue('finished')
   finished('finished'),
+  @JsonValue('completed')
+  completed('completed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -106,6 +106,10 @@ export class SubscriptionAlertsService {
       FROM c
       JOIN chosen ch ON ch.practice_area_id = c.practice_area_id
                      OR ch.practice_area_id = c.parent_id
+                     -- Owner 2026-10-15: any of the case's other topics.
+                     OR ch.practice_area_id IN (
+                       SELECT x.practice_area_id FROM case_extra_practices x
+                       WHERE x.case_id = c.id)
                      -- Audit 2026-10-01: like the case feed (§4.1), "Not
                      -- sure" cases also go to General Practice attorneys.
                      OR (c.code = 'general_practice.not_sure_or_other'

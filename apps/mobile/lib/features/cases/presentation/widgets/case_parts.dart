@@ -230,8 +230,9 @@ class CaseText extends StatelessWidget {
         builder: (context, box) {
           final clamp = lines;
           if (clamp == null) return Text(text, style: style);
+          final measured = DefaultTextStyle.of(context).style.merge(style);
           final painter = TextPainter(
-            text: TextSpan(text: text, style: style),
+            text: TextSpan(text: text, style: measured),
             textDirection: Directionality.of(context),
             textScaler: MediaQuery.textScalerOf(context),
             maxLines: clamp,
@@ -244,7 +245,10 @@ class CaseText extends StatelessWidget {
           final tail = '… $moreLabel';
           bool fits(int n) {
             final p = TextPainter(
-              text: TextSpan(text: text.substring(0, n) + tail, style: style),
+              text: TextSpan(
+                text: text.substring(0, n) + tail,
+                style: measured,
+              ),
               textDirection: Directionality.of(context),
               textScaler: MediaQuery.textScalerOf(context),
               maxLines: clamp,

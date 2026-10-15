@@ -119,11 +119,19 @@ export function buildVisibleCasesSql(
   const extraFilter = extra ?? Prisma.empty;
   // Narrows (never widens) the per-branch practice match to the leaves of
   // one category.
+  // Owner 2026-10-15: a case may name several topics (the first in
+  // cases.practice_area_id, the rest in case_extra_practices); a filter on
+  // a topic matches any of them.
   const categoryFilter = practiceCategory
-    ? Prisma.sql`AND c.practice_area_id IN (
+    ? Prisma.sql`AND (c.practice_area_id IN (
         SELECT leaf.id FROM practice_areas leaf
         JOIN practice_areas cat ON cat.id = leaf.parent_id
-        WHERE cat.code = ${practiceCategory})`
+        WHERE cat.code = ${practiceCategory})
+      OR EXISTS (
+        SELECT 1 FROM case_extra_practices x
+        JOIN practice_areas leaf ON leaf.id = x.practice_area_id
+        JOIN practice_areas cat ON cat.id = leaf.parent_id
+        WHERE x.case_id = c.id AND cat.code = ${practiceCategory}))`
     : Prisma.empty;
   const searchFilter = Prisma.sql`${
     text
@@ -136,14 +144,42 @@ export function buildVisibleCasesSql(
     ? Prisma.sql`AND ${inStates(Prisma.sql`c.primary_state_code`, codes)}`
     : Prisma.empty;
   const primaryPracticeFilter = practiceAreaId
-    ? Prisma.sql`AND c.practice_area_id = ${practiceAreaId}::UUID`
+    ? Prisma.sql`AND (c.practice_area_id = ${practiceAreaId}::UUID
+        OR EXISTS (SELECT 1 FROM case_extra_practices x
+          WHERE x.case_id = c.id AND x.practice_area_id = ${practiceAreaId}::UUID))`
     : Prisma.empty;
   const secondaryStateFilter = codes.length
     ? Prisma.sql`AND ${inStates(Prisma.sql`cs.state_code`, codes)}`
     : Prisma.empty;
   const secondaryPracticeFilter = practiceAreaId
-    ? Prisma.sql`AND c.practice_area_id = ${practiceAreaId}::UUID`
+    ? Prisma.sql`AND (c.practice_area_id = ${practiceAreaId}::UUID
+        OR EXISTS (SELECT 1 FROM case_extra_practices x
+          WHERE x.case_id = c.id AND x.practice_area_id = ${practiceAreaId}::UUID))`
     : Prisma.empty;
+  // (state, topic) pairs and topics this attorney is licensed / listed for
+  // (a general-practice attorney also sees «Not sure / Other»).
+  const stateTopics = Prisma.sql`
+          SELECT l.state_code, ap.practice_area_id
+          FROM attorney_licenses l
+          JOIN attorney_practice_areas ap ON ap.attorney_id = l.attorney_id
+          WHERE l.attorney_id = ${attorneyId}::UUID AND l.license_status = 'verified'
+          UNION
+          SELECT l.state_code, pa2.id
+          FROM attorney_licenses l
+          JOIN attorney_practice_areas ap ON ap.attorney_id = l.attorney_id
+          JOIN practice_areas pa ON pa.id = ap.practice_area_id
+          JOIN practice_areas pa2 ON pa2.code = ${NOT_SURE_OR_OTHER_CODE}
+          WHERE l.attorney_id = ${attorneyId}::UUID AND l.license_status = 'verified'
+            AND pa.code = ${GENERAL_PRACTICE_CODE}`;
+  const attorneyTopics = Prisma.sql`
+          SELECT practice_area_id FROM attorney_practice_areas
+          WHERE attorney_id = ${attorneyId}::UUID
+          UNION
+          SELECT pa2.id
+          FROM attorney_practice_areas ap
+          JOIN practice_areas pa ON pa.id = ap.practice_area_id
+          JOIN practice_areas pa2 ON pa2.code = ${NOT_SURE_OR_OTHER_CODE}
+          WHERE ap.attorney_id = ${attorneyId}::UUID AND pa.code = ${GENERAL_PRACTICE_CODE}`;
   const cursorFilter = cursor
     ? Prisma.sql`AND (created_at < ${cursor.createdAt}
         OR (created_at = ${cursor.createdAt} AND id < ${cursor.id}::UUID))`
@@ -168,20 +204,11 @@ export function buildVisibleCasesSql(
     SELECT id, created_at FROM (
       SELECT c.id, c.created_at FROM cases c
       WHERE c.status = 'open' AND c.deleted_at IS NULL
-        AND (c.primary_state_code, c.practice_area_id) IN (
-          SELECT l.state_code, ap.practice_area_id
-          FROM attorney_licenses l
-          JOIN attorney_practice_areas ap ON ap.attorney_id = l.attorney_id
-          WHERE l.attorney_id = ${attorneyId}::UUID AND l.license_status = 'verified'
-          UNION
-          SELECT l.state_code, pa2.id
-          FROM attorney_licenses l
-          JOIN attorney_practice_areas ap ON ap.attorney_id = l.attorney_id
-          JOIN practice_areas pa ON pa.id = ap.practice_area_id
-          JOIN practice_areas pa2 ON pa2.code = ${NOT_SURE_OR_OTHER_CODE}
-          WHERE l.attorney_id = ${attorneyId}::UUID AND l.license_status = 'verified'
-            AND pa.code = ${GENERAL_PRACTICE_CODE}
-        )
+        AND ((c.primary_state_code, c.practice_area_id) IN (${stateTopics})
+          OR EXISTS (
+            SELECT 1 FROM case_extra_practices x
+            WHERE x.case_id = c.id
+              AND (c.primary_state_code, x.practice_area_id) IN (${stateTopics})))
         ${primaryStateFilter}
         ${primaryPracticeFilter}
         ${categoryFilter}
@@ -195,16 +222,10 @@ export function buildVisibleCasesSql(
           SELECT state_code FROM attorney_licenses
           WHERE attorney_id = ${attorneyId}::UUID AND license_status = 'verified')
         AND c.status = 'open' AND c.deleted_at IS NULL
-        AND c.practice_area_id IN (
-          SELECT practice_area_id FROM attorney_practice_areas
-          WHERE attorney_id = ${attorneyId}::UUID
-          UNION
-          SELECT pa2.id
-          FROM attorney_practice_areas ap
-          JOIN practice_areas pa ON pa.id = ap.practice_area_id
-          JOIN practice_areas pa2 ON pa2.code = ${NOT_SURE_OR_OTHER_CODE}
-          WHERE ap.attorney_id = ${attorneyId}::UUID AND pa.code = ${GENERAL_PRACTICE_CODE}
-        )
+        AND (c.practice_area_id IN (${attorneyTopics})
+          OR EXISTS (
+            SELECT 1 FROM case_extra_practices x
+            WHERE x.case_id = c.id AND x.practice_area_id IN (${attorneyTopics})))
         ${secondaryStateFilter}
         ${secondaryPracticeFilter}
         ${categoryFilter}

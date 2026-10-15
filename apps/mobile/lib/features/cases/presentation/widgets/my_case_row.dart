@@ -65,10 +65,13 @@ class MyCaseRow extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final c = item;
-    final practice = CaseFormat.practice(
-      t,
-      c.practice.categoryI18nKey ?? c.practice.i18nKey,
-      c.practice.categoryNameEn ?? c.practice.nameEn,
+    final practice = CaseFormat.withMore(
+      CaseFormat.practice(
+        t,
+        c.practice.categoryI18nKey ?? c.practice.i18nKey,
+        c.practice.categoryNameEn ?? c.practice.nameEn,
+      ),
+      c.extraPracticeCount,
     );
     final open = c.status == CaseStatus.open;
     final row = CompactCaseRow(

@@ -115,6 +115,8 @@ export const OWNER_MEDIA_SETTINGS = {
   'search.weight_priority': 1000,
   'search.weight_verified': 100,
   'search.weight_rating': 10,
+  // Owner 2026-10-15: topics a case can name (the first + the rest).
+  'case.max_practices': 3,
   'post.max_chars_media': 2200,
   'post.max_chars_brief': 3000,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by

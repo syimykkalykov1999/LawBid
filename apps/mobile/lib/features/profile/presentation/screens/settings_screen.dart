@@ -224,6 +224,14 @@ class SettingsScreen extends ConsumerWidget {
                   t.t(pm.isPartner ? 'partner.hint' : 'partner.join.hint'),
               onTap: () => context.push(AppRoutes.partner),
             ),
+          // Owner 2026-10-15: the client's Saved moved here from «Mine».
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-saved'),
+              icon: AppIcons.bookmarkBorderRounded,
+              label: t.t('mine.tab.saved'),
+              onTap: () => context.push(AppRoutes.saved),
+            ),
           AppListRow(
             icon: AppIcons.historyRounded,
             label: t.t('settings.caseHistory'),

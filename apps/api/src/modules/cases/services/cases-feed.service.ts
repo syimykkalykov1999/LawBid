@@ -56,10 +56,13 @@ const PRIORITY_CLIENT_SQL = clientsWithEntitlementSql(
 type CaseWithPracticeArea = Case & {
   practice_area: PracticeArea & { parent: PracticeArea | null };
   states: { state_code: string; is_primary: boolean }[];
+  _count?: { extra_practices: number };
 };
 
 const CASE_WITH_PRACTICE_AREA_INCLUDE = {
   practice_area: { include: { parent: true } },
+  // Owner 2026-10-15: «+N» topics on the card.
+  _count: { select: { extra_practices: true } },
   states: { select: { state_code: true, is_primary: true } },
 } as const;
 
@@ -471,6 +474,7 @@ export class CasesFeedService {
           categoryI18nKey: category.i18n_key,
           categoryNameEn: category.name_en,
         },
+        extraPracticeCount: c._count?.extra_practices ?? 0,
         primaryStateCode: c.primary_state_code,
         additionalStateCodes: c.states
           .filter((s) => !s.is_primary)

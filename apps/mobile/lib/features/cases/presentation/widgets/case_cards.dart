@@ -197,7 +197,11 @@ class FeedCaseCard extends StatelessWidget {
       item.practice.i18nKey,
       item.practice.nameEn,
     );
-    final chips = [category, if (leaf != category) leaf];
+    final chips = [
+      if (leaf == category)
+        CaseFormat.withMore(category, item.extraPracticeCount)
+      else ...[category, CaseFormat.withMore(leaf, item.extraPracticeCount)],
+    ];
     final semantics = [
       category,
       item.title,
@@ -486,8 +490,10 @@ class ClientCaseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final practice =
-        CaseFormat.practice(t, item.practice.i18nKey, item.practice.nameEn);
+    final practice = CaseFormat.withMore(
+      CaseFormat.practice(t, item.practice.i18nKey, item.practice.nameEn),
+      item.extraPracticeCount,
+    );
     final place = CaseFormat.place(
       item.city,
       item.primaryStateCode,

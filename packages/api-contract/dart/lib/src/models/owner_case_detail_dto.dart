@@ -23,6 +23,7 @@ class OwnerCaseDetailDto {
     required this.title,
     required this.description,
     required this.practiceArea,
+    required this.extraPracticeAreas,
     required this.primaryStateCode,
     required this.states,
     required this.budgetMode,
@@ -57,6 +58,9 @@ class OwnerCaseDetailDto {
   final String title;
   final String description;
   final PracticeAreaRefDto practiceArea;
+
+  /// Topics 2..N of the case (owner 2026-10-15).
+  final List<PracticeAreaRefDto> extraPracticeAreas;
   final String primaryStateCode;
   final List<CaseStateDto> states;
   final String? city;

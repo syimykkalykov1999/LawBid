@@ -24227,7 +24227,8 @@
                 "open",
                 "in_progress",
                 "archived",
-                "closed"
+                "closed",
+                "completed"
               ]
             }
           },
@@ -28158,7 +28159,8 @@
               "type": "string",
               "enum": [
                 "active",
-                "finished"
+                "finished",
+                "completed"
               ]
             }
           }
@@ -92292,6 +92294,13 @@
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
+          "extraPracticeAreas": {
+            "description": "Topics 2..N of the case (owner 2026-10-15).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeAreaRefDto"
+            }
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NY"
@@ -92411,6 +92420,7 @@
           "title",
           "description",
           "practiceArea",
+          "extraPracticeAreas",
           "primaryStateCode",
           "states",
           "budgetMode",
@@ -92428,6 +92438,15 @@
             "type": "string",
             "format": "uuid",
             "description": "A leaf (specialization)."
+          },
+          "extraPracticeAreaIds": {
+            "maxItems": 9,
+            "description": "Topics 2..N (leaves); at most `case.max_practices` in all with the first.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "title": {
             "type": "string",
@@ -92558,6 +92577,15 @@
             "type": "string",
             "format": "uuid",
             "description": "A leaf (specialization)."
+          },
+          "extraPracticeAreaIds": {
+            "maxItems": 9,
+            "description": "Topics 2..N (leaves); at most `case.max_practices` in all with the first.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "primaryStateCode": {
             "type": "string",
@@ -92709,6 +92737,10 @@
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
+          "extraPracticeCount": {
+            "type": "integer",
+            "description": "Topics besides the first (owner 2026-10-15): «+N»."
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NY"
@@ -92793,6 +92825,7 @@
           "id",
           "title",
           "practiceArea",
+          "extraPracticeCount",
           "primaryStateCode",
           "additionalStateCount",
           "status",
@@ -92922,6 +92955,10 @@
           "practiceArea": {
             "$ref": "#/components/schemas/CasePracticeAreaDto"
           },
+          "extraPracticeCount": {
+            "type": "integer",
+            "description": "Topics besides the first: «+N»."
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NJ"
@@ -93041,6 +93078,7 @@
           "title",
           "excerpt",
           "practiceArea",
+          "extraPracticeCount",
           "primaryStateCode",
           "additionalStateCodes",
           "status",
@@ -93137,6 +93175,10 @@
           },
           "practiceArea": {
             "$ref": "#/components/schemas/CasePracticeAreaDto"
+          },
+          "extraPracticeCount": {
+            "type": "integer",
+            "description": "Topics besides the first: «+N»."
           },
           "primaryStateCode": {
             "type": "string",
@@ -93301,6 +93343,7 @@
           "title",
           "excerpt",
           "practiceArea",
+          "extraPracticeCount",
           "primaryStateCode",
           "additionalStateCodes",
           "status",
@@ -94665,6 +94708,13 @@
           "practiceArea": {
             "$ref": "#/components/schemas/PracticeAreaRefDto"
           },
+          "extraPracticeAreas": {
+            "description": "Topics 2..N of the case (owner 2026-10-15).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PracticeAreaRefDto"
+            }
+          },
           "primaryStateCode": {
             "type": "string",
             "example": "NY"
@@ -94805,6 +94855,7 @@
           "title",
           "description",
           "practiceArea",
+          "extraPracticeAreas",
           "primaryStateCode",
           "states",
           "budgetMode",

@@ -382,6 +382,15 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
       budgetDollars:
           c.budget.amountCents == null ? null : c.budget.amountCents! ~/ 100,
       practiceCode: c.practice.code,
+      extraPractices: [
+        for (final p in c.extraPractices)
+          CaseDraftPractice(
+            id: p.id,
+            i18nKey: p.i18nKey,
+            nameEn: p.nameEn,
+            code: p.code,
+          ),
+      ],
       coverKey: c.coverKey,
       urgency: c.urgency?.json,
       deadlineAt: c.urgencyInfo.deadline == null

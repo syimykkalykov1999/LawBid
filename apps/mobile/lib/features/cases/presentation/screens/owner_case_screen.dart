@@ -470,8 +470,12 @@ class _OwnerCaseBody extends ConsumerWidget {
         padding: kDetailPadding,
         children: [
           CaseHeader(
-            practice:
-                CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn),
+            // Owner 2026-10-15: every topic of the case, comma-separated.
+            practice: [
+              CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn),
+              for (final p in c.extraPractices)
+                CaseFormat.practice(t, p.i18nKey, p.nameEn),
+            ].join(', '),
             title: c.title,
             status: c.status,
             meta: t.t(

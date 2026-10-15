@@ -80,7 +80,11 @@ class _VideoOneLine extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final oneLine = line.replaceAll(RegExp(r'\s+'), ' ').trim();
     final more = t.t('post.more');
-    final base = type.body.copyWith(color: colors.text);
+    // Measured with the same style the Text draws (DefaultTextStyle merged),
+    // or «ещё» can fall to a third line and be clipped (owner 2026-10-15).
+    final base = DefaultTextStyle.of(context)
+        .style
+        .merge(type.body.copyWith(color: colors.text));
     return Semantics(
       button: true,
       label: more,
@@ -2187,10 +2191,11 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     if (_expanded) return text;
     return LayoutBuilder(
       builder: (context, box) {
+        final measured = DefaultTextStyle.of(context).style.merge(style);
         final painter = TextPainter(
           text: TextSpan(
             text: widget.leading == null ? _body : '${widget.leading} $_body',
-            style: style,
+            style: measured,
           ),
           maxLines: widget.collapsedLines,
           textDirection: Directionality.of(context),
@@ -2208,7 +2213,7 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
               ? bodyText
               : '${bodyText.substring(0, n).trimRight()}…';
           final p = TextPainter(
-            text: TextSpan(text: '$lead$shown $moreLabel', style: style),
+            text: TextSpan(text: '$lead$shown $moreLabel', style: measured),
             maxLines: widget.collapsedLines,
             textDirection: Directionality.of(context),
             textScaler: MediaQuery.textScalerOf(context),

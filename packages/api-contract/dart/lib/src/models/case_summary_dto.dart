@@ -19,6 +19,7 @@ class CaseSummaryDto {
     required this.id,
     required this.title,
     required this.practiceArea,
+    required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCount,
     required this.status,
@@ -45,6 +46,9 @@ class CaseSummaryDto {
   final String? coverUrl;
   final String title;
   final PracticeAreaRefDto practiceArea;
+
+  /// Topics besides the first (owner 2026-10-15): «+N».
+  final int extraPracticeCount;
   final String primaryStateCode;
 
   /// States besides the primary.

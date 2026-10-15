@@ -1219,6 +1219,21 @@ model State {
 // parent_id is null for a category. code is UQ and follows the §3.2
 // generation rule (see prisma/seed/practice-areas.util.ts). Cases and
 // attorney selections always reference leaves (enforced in services).
+// Owner 2026-10-15: a case may name up to `case.max_practices` topics. The
+// first stays in `cases.practice_area_id` (every existing case is already
+// «an array of one»); the others are rows here. Attorneys of any of the
+// topics see the case.
+model CaseExtraPractice {
+  case_id          String       @db.Uuid
+  case             Case         @relation(fields: [case_id], references: [id], onDelete: Cascade)
+  practice_area_id String       @db.Uuid
+  practice_area    PracticeArea @relation(fields: [practice_area_id], references: [id], onDelete: Restrict)
+
+  @@id([case_id, practice_area_id])
+  @@index([practice_area_id, case_id])
+  @@map("case_extra_practices")
+}
+
 model PracticeArea {
   id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   parent_id String? @db.Uuid
@@ -1235,9 +1250,10 @@ model PracticeArea {
   attorney_practice_areas  AttorneyPracticeArea[]
   new_case_alert_practices NewCaseAlertPractice[]
 
-  cases              Case[]
-  posts              Post[]
-  document_templates DocumentTemplate[]
+  cases                Case[]
+  posts                Post[]
+  document_templates   DocumentTemplate[]
+  case_extra_practices CaseExtraPractice[]
 
   @@index([parent_id])
   @@map("practice_areas")
@@ -1523,6 +1539,8 @@ model Case {
   updated_at            DateTime                 @updatedAt @db.Timestamptz
 
   states              CaseState[]
+  // Owner 2026-10-15: topics 2..N of a case (the first is `practice_area_id`).
+  extra_practices     CaseExtraPractice[]
   // Owner 2026-09-30 (OQ-031): 0–9 photos; owner + accepted attorney only.
   photos              CasePhoto[]
   attorney_tasks      AttorneyTask[]
