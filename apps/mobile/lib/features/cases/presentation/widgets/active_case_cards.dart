@@ -53,17 +53,19 @@ class ClientActiveCaseCard extends ConsumerWidget {
         ? t.t('mine.next.dispute')
         : pending
             ? t.t('mine.next.confirmDone')
-            : choosing
-                ? t.t('mine.next.chooseLawyer', {
-                    'bids': t.plural('cases.card.bidsCount', c.bidsCount, {
-                      'count': SocialFormat.count(formats, c.bidsCount),
-                    }),
-                  })
-                : working
-                    ? t.t('mine.next.working')
-                    : c.status == CaseStatus.open
-                        ? t.t('mine.next.waitingBids')
-                        : t.t('mine.next.done');
+            : noPrice && stage == 2
+                ? t.t('mine.next.agreePrice')
+                : choosing
+                    ? t.t('mine.next.chooseLawyer', {
+                        'bids': t.plural('cases.card.bidsCount', c.bidsCount, {
+                          'count': SocialFormat.count(formats, c.bidsCount),
+                        }),
+                      })
+                    : working
+                        ? t.t('mine.next.working')
+                        : c.status == CaseStatus.open
+                            ? t.t('mine.next.waitingBids')
+                            : t.t('mine.next.done');
     return ActiveCaseCard(
       key: ValueKey('active-case-${c.id}'),
       title: c.title,
@@ -82,7 +84,7 @@ class ClientActiveCaseCard extends ConsumerWidget {
       stageLabel: caseStageLabel(t, stage),
       next: next,
       nextDate: when,
-      nextYours: choosing || pending,
+      nextYours: choosing || pending || (noPrice && stage == 2),
       nextDanger: disputed,
       onTap: () => context.push(AppRoutes.myCase(c.id)),
     );
