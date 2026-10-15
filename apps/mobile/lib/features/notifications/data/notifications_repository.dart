@@ -191,7 +191,11 @@ abstract interface class NotificationsRepository {
     List<String>? practiceAreaIds,
     bool? urgentOnly,
   });
-  Future<void> registerPushToken(String token, {required bool ios});
+  Future<void> registerPushToken(
+    String token, {
+    required bool ios,
+    bool web = false,
+  });
   Future<void> deletePushToken(String token);
 }
 
@@ -365,14 +369,20 @@ class ApiNotificationsRepository implements NotificationsRepository {
       );
 
   @override
-  Future<void> registerPushToken(String token, {required bool ios}) =>
+  Future<void> registerPushToken(
+    String token, {
+    required bool ios,
+    bool web = false,
+  }) =>
       guardApiCall(
         () => _api.registerPushToken(
           body: api.PushTokenDto(
             token: token,
-            platform: ios
-                ? api.PushTokenDtoPlatform.ios
-                : api.PushTokenDtoPlatform.android,
+            platform: web
+                ? api.PushTokenDtoPlatform.web
+                : ios
+                    ? api.PushTokenDtoPlatform.ios
+                    : api.PushTokenDtoPlatform.android,
           ),
         ),
       );

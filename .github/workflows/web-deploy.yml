@@ -12,6 +12,9 @@
 #   WEB_DISTRIBUTION_ID    terraform output `web_distribution_id`
 #   WEB_API_BASE_URL       e.g. https://api.<domain>/api/v1
 #   WEB_DEEP_LINK_HOST     the host links open on (the web host)
+#   FIREBASE_WEB_*         (optional) API_KEY, APP_ID, SENDER_ID, PROJECT_ID,
+#                          AUTH_DOMAIN, VAPID_KEY of the Firebase web app: push
+#                          in the browser; without them the web has no push
 name: Web deploy
 
 on:
@@ -59,6 +62,30 @@ jobs:
           --dart-define=WEB_ENABLED=true
           --dart-define=API_BASE_URL=${{ secrets.WEB_API_BASE_URL }}
           --dart-define=DEEP_LINK_HOST=${{ secrets.WEB_DEEP_LINK_HOST }}
+          --dart-define=FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}
+          --dart-define=FIREBASE_WEB_APP_ID=${{ secrets.FIREBASE_WEB_APP_ID }}
+          --dart-define=FIREBASE_WEB_SENDER_ID=${{ secrets.FIREBASE_WEB_SENDER_ID }}
+          --dart-define=FIREBASE_WEB_PROJECT_ID=${{ secrets.FIREBASE_WEB_PROJECT_ID }}
+          --dart-define=FIREBASE_WEB_AUTH_DOMAIN=${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
+          --dart-define=FIREBASE_WEB_VAPID_KEY=${{ secrets.FIREBASE_WEB_VAPID_KEY }}
+
+      # The push worker needs the same keys (it cannot read the build's).
+      - name: Fill the push worker's keys
+        working-directory: apps/mobile/build/web
+        env:
+          K1: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          K2: ${{ secrets.FIREBASE_WEB_APP_ID }}
+          K3: ${{ secrets.FIREBASE_WEB_SENDER_ID }}
+          K4: ${{ secrets.FIREBASE_WEB_PROJECT_ID }}
+        run: |
+          if [ -n "$K1" ]; then
+            sed -i \
+              -e "s|__FIREBASE_WEB_API_KEY__|$K1|" \
+              -e "s|__FIREBASE_WEB_APP_ID__|$K2|" \
+              -e "s|__FIREBASE_WEB_SENDER_ID__|$K3|" \
+              -e "s|__FIREBASE_WEB_PROJECT_ID__|$K4|" \
+              firebase-messaging-sw.js
+          fi
 
       - name: The bundle has what the app needs
         working-directory: apps/mobile

@@ -38,9 +38,15 @@ variable "api_origin" {
 }
 
 variable "extra_connect_src" {
-  type        = list(string)
-  default     = []
-  description = "More hosts the page may call (storage, video, socket)."
+  type = list(string)
+  default = [
+    # Push (Firebase Cloud Messaging for the web)
+    "https://fcmregistrations.googleapis.com",
+    "https://fcm.googleapis.com",
+    "https://firebaseinstallations.googleapis.com",
+    "https://www.googleapis.com",
+  ]
+  description = "More hosts the page may call (push, storage, video, socket)."
 }
 
 locals {
