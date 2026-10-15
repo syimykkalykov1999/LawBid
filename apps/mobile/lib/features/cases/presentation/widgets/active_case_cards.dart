@@ -46,25 +46,32 @@ class ClientActiveCaseCard extends ConsumerWidget {
     final choosing = c.status == CaseStatus.open && c.bidsCount > 0;
     final working = stage == 2 || stage == 3;
     final when = formats.dayMonth(c.lastActivityAt);
-    final next = choosing
-        ? t.t('mine.next.chooseLawyer', {
-            'bids': t.plural('cases.card.bidsCount', c.bidsCount, {
-              'count': SocialFormat.count(formats, c.bidsCount),
-            }),
-          })
-        : working
-            ? t.t('mine.next.working')
-            : c.status == CaseStatus.open
-                ? t.t('mine.next.waitingBids')
-                : t.t('mine.next.done');
+    final disputed = c.status == CaseStatus.disputed;
+    final pending = c.status == CaseStatus.pendingCompletion;
+    final noPrice = c.budget.isClarifyLater;
+    final next = disputed
+        ? t.t('mine.next.dispute')
+        : pending
+            ? t.t('mine.next.confirmDone')
+            : choosing
+                ? t.t('mine.next.chooseLawyer', {
+                    'bids': t.plural('cases.card.bidsCount', c.bidsCount, {
+                      'count': SocialFormat.count(formats, c.bidsCount),
+                    }),
+                  })
+                : working
+                    ? t.t('mine.next.working')
+                    : c.status == CaseStatus.open
+                        ? t.t('mine.next.waitingBids')
+                        : t.t('mine.next.done');
     return ActiveCaseCard(
       key: ValueKey('active-case-${c.id}'),
       title: c.title,
       practiceName: practice,
       stateCode:
           CaseFormat.place(null, c.primaryStateCode, c.additionalStateCount),
-      price: c.budget.isClarifyLater
-          ? null
+      price: noPrice
+          ? t.t('mine.price.negotiable')
           : CaseFormat.budget(t, formats, c.budget),
       categoryCode: c.practice.artCode,
       practiceCode: c.practice.code,
@@ -75,7 +82,8 @@ class ClientActiveCaseCard extends ConsumerWidget {
       stageLabel: caseStageLabel(t, stage),
       next: next,
       nextDate: when,
-      nextYours: choosing || stage == 3,
+      nextYours: choosing || pending,
+      nextDanger: disputed,
       onTap: () => context.push(AppRoutes.myCase(c.id)),
     );
   }
@@ -98,8 +106,15 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
         ? ''
         : CaseFormat.practice(t, w.practiceI18nKey!, w.practiceNameEn ?? '');
     final when = w.acceptedAt ?? w.closedAt;
-    final next =
-        stage < 4 ? t.t('mine.next.workingAttorney') : t.t('mine.next.done');
+    final disputed = w.status == CaseStatus.disputed;
+    final pending = w.status == CaseStatus.pendingCompletion;
+    final next = disputed
+        ? t.t('mine.next.dispute')
+        : pending
+            ? t.t('mine.next.awaitClient')
+            : stage < 4
+                ? t.t('mine.next.workingAttorney')
+                : t.t('mine.next.done');
     return ActiveCaseCard(
       key: ValueKey('active-work-${w.caseId}'),
       title: w.title,
@@ -107,8 +122,9 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       stateCode: w.primaryStateCode == null
           ? null
           : CaseFormat.place(null, w.primaryStateCode!, w.additionalStateCount),
-      price:
-          w.amountCents > 0 ? formats.currencyFromCents(w.amountCents) : null,
+      price: w.amountCents > 0
+          ? formats.currencyFromCents(w.amountCents)
+          : t.t('mine.price.negotiable'),
       categoryCode: w.practiceCode?.split('.').first,
       practiceCode: w.practiceCode,
       statusLabel: caseStatusLabel(t, w.status),
@@ -117,7 +133,7 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       stageLabel: caseStageLabel(t, stage),
       next: next,
       nextDate: when == null ? null : formats.dayMonth(when),
-      nextYours: stage == 3,
+      nextDanger: disputed,
       onTap: () => context.push(AppRoutes.workCase(w.caseId)),
     );
   }

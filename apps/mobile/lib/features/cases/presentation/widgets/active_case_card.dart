@@ -22,6 +22,7 @@ class ActiveCaseCard extends StatelessWidget {
     this.stateCode,
     this.price,
     this.nextYours = false,
+    this.nextDanger = false,
     this.nextDate,
     this.categoryCode,
     this.practiceCode,
@@ -47,6 +48,10 @@ class ActiveCaseCard extends StatelessWidget {
 
   /// The next step is the viewer's: the line is gold.
   final bool nextYours;
+
+  /// The next-step line in the danger colour (a dispute).
+  final bool nextDanger;
+
   final String? categoryCode;
   final String? practiceCode;
 
@@ -61,13 +66,17 @@ class ActiveCaseCard extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final accent = practiceAccent(
-      practiceCode ?? categoryCode,
+      categoryCode ?? practiceCode?.split('.').first,
       surface: practiceCardBase(colors),
     );
     final lit = stage.clamp(0, stages - 1) + 1;
     final nextStyle = type.bodySmall.copyWith(
-      color: nextYours ? colors.goldDark : colors.textSecondary,
-      fontWeight: nextYours ? FontWeight.w600 : FontWeight.w500,
+      color: nextDanger
+          ? colors.dangerText
+          : nextYours
+              ? colors.goldDark
+              : colors.textSecondary,
+      fontWeight: nextYours || nextDanger ? FontWeight.w600 : FontWeight.w500,
     );
 
     // Owner 2026-10-15: one header for every card, in the practice colour
@@ -276,7 +285,9 @@ class ActiveCaseCard extends StatelessWidget {
                                   style: nextStyle,
                                 ),
                               ),
-                              if (nextDate != null && nextDate!.isNotEmpty) ...[
+                              if (!nextDanger &&
+                                  nextDate != null &&
+                                  nextDate!.isNotEmpty) ...[
                                 const SizedBox(width: AppSpacing.sm),
                                 Text(
                                   nextDate!,
