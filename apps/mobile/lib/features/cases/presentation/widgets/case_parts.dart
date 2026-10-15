@@ -228,40 +228,50 @@ class CaseText extends StatelessWidget {
             maxLines: clamp,
           )..layout(maxWidth: box.maxWidth);
           if (!painter.didExceedMaxLines) return Text(text, style: style);
-          // "more" sits at the end of the last line, over the faded text.
-          return Stack(
-            children: [
-              Text(
-                text,
-                maxLines: clamp,
-                overflow: TextOverflow.clip,
+          // Owner 2026-10-15: "more" ends the last line inside the text
+          // (nothing is drawn over it, so it reads on any theme, glass too):
+          // the longest start of the text that, followed by "… more", still
+          // fits [clamp] lines.
+          final tail = '… $moreLabel';
+          bool fits(int n) {
+            final p = TextPainter(
+              text: TextSpan(text: text.substring(0, n) + tail, style: style),
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+              maxLines: clamp,
+            )..layout(maxWidth: box.maxWidth);
+            return !p.didExceedMaxLines;
+          }
+
+          var lo = 0;
+          var hi = text.length;
+          while (lo < hi) {
+            final mid = (lo + hi + 1) ~/ 2;
+            if (fits(mid)) {
+              lo = mid;
+            } else {
+              hi = mid - 1;
+            }
+          }
+          // A couple of characters of slack: the measured and the drawn
+          // text differ by a hair (kerning at the line end).
+          final head = text.substring(0, lo > 3 ? lo - 3 : 0).trimRight();
+          return GestureDetector(
+            onTap: onMore,
+            behavior: HitTestBehavior.opaque,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '$head… '),
+                  TextSpan(
+                    text: moreLabel,
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                ],
                 style: style,
               ),
-              PositionedDirectional(
-                end: 0,
-                bottom: 0,
-                child: GestureDetector(
-                  onTap: onMore,
-                  behavior: HitTestBehavior.opaque,
-                  child: Container(
-                    padding: const EdgeInsetsDirectional.only(start: 36),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          colors.surface.withValues(alpha: 0),
-                          colors.surface,
-                        ],
-                        stops: const [0, 0.35],
-                      ),
-                    ),
-                    child: Text(
-                      moreLabel,
-                      style: style.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              maxLines: clamp,
+            ),
           );
         },
       ),
