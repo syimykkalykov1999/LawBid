@@ -219,9 +219,14 @@ describe('Key sets + payroll (e2e)', () => {
       .get('/api/v1/admin/payroll/employees')
       .set(support.auth)
       .expect(404);
-    const denied = await prisma.auditLog.findFirst({
-      where: { admin_id: support.userId, action: 'admin.access_denied' },
-    });
+    // The audit row is written in the background: wait for it.
+    let denied = null;
+    for (let i = 0; i < 40 && !denied; i += 1) {
+      denied = await prisma.auditLog.findFirst({
+        where: { admin_id: support.userId, action: 'admin.access_denied' },
+      });
+      if (!denied) await new Promise((r) => setTimeout(r, 100));
+    }
     expect(denied).not.toBeNull();
 
     const add = async (name: string, amountCents: number) =>

@@ -115,6 +115,9 @@ export const OWNER_MEDIA_SETTINGS = {
   'search.weight_priority': 1000,
   'search.weight_verified': 100,
   'search.weight_rating': 10,
+  // Owner 2026-10-15: how many different people must open the same topic
+  // after a query before the search learns "query → topic" (nightly).
+  'search.learn_min_users': 3,
   // Owner 2026-10-15: the recommendation weights of Search (cases for
   // attorneys, people and «you may know», posts and reels) — editable in
   // the admin panel; the sum need not be 1.

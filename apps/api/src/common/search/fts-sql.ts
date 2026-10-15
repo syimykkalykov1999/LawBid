@@ -19,8 +19,10 @@ export function ftsMatch(
   const a = Prisma.raw(alias);
   // Owner 2026-10-15: a query in any language also finds rows filed under
   // the practice it names in another language (practiceIdsFor).
+  // Owner 2026-10-15: also the topic its own words name (inferred_practice_id).
   const byPractice = practiceIds.length
-    ? Prisma.sql`OR ${a}.practice_area_id = ANY(${practiceIds}::UUID[])`
+    ? Prisma.sql`OR ${a}.practice_area_id = ANY(${practiceIds}::UUID[])
+        OR ${a}.inferred_practice_id = ANY(${practiceIds}::UUID[])`
     : Prisma.empty;
   return Prisma.sql`(${a}.search_tsv @@ to_tsquery('english', public.f_unaccent(${tsquery}))
       OR ${a}.search_tsv_simple @@ to_tsquery('simple', public.f_unaccent(${tsquery})) ${byPractice})`;

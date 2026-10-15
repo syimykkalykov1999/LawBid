@@ -171,6 +171,12 @@ class FakeSearchRepository implements SearchRepository {
   @override
   Future<List<SearchSuggestion>> suggest(String q) async => const [];
 
+  final opened_ = <(String, SearchOpened, String)>[];
+
+  @override
+  void opened(String q, SearchOpened type, String id) =>
+      opened_.add((q, type, id));
+
   final attorneyQueries = <String>[];
   List<AttorneyRow> attorneyResults = const [];
   List<TagInfo> trendingTags = const [];

@@ -12,6 +12,7 @@ import {
   typoMatch,
 } from '../../common/search/fts-sql';
 import { parseSearchQuery } from '../../common/search/search-query';
+import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
 import {
   buildPracticeCasesSql,
@@ -68,6 +69,8 @@ export class PostgresSearchProvider implements SearchProvider {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-15: everyday words and phrases → topics.
+    @Optional() private readonly synonyms?: SearchSynonymsService,
   ) {}
 
   /** The admin's ranking weights (defaults when unset). */
@@ -130,6 +133,14 @@ export class PostgresSearchProvider implements SearchProvider {
     const w = await this.weights();
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
+    // Owner 2026-10-15: "развод" / "муж бьёт" → attorneys of that topic.
+    const synPractices = (await this.synonyms?.resolve(q))?.practiceIds ?? [];
+    const bySynonym = synPractices.length
+      ? Prisma.sql`UNION
+        (SELECT ap.attorney_id FROM attorney_practice_areas ap
+          WHERE ap.practice_area_id = ANY(${synPractices}::UUID[])
+          LIMIT ${BRANCH_CAP})`
+      : Prisma.empty;
     const filters = Prisma.sql`
       ${
         f.practiceAreaId
@@ -212,6 +223,7 @@ export class PostgresSearchProvider implements SearchProvider {
             AND l.license_status = 'verified'
           WHERE lower(s.name) LIKE ${prefix} OR lower(s.code) = ${q}
           LIMIT ${BRANCH_CAP})
+        ${bySynonym}
       ),
       people AS (
         SELECT u.id, 'attorney' AS role, a.username_lower AS uname,
@@ -423,6 +435,16 @@ export class PostgresSearchProvider implements SearchProvider {
    * needs ≥3 letters; the result is cached for ten minutes.
    */
   async practiceIdsFor(q: string): Promise<string[]> {
+    const names = await this.practiceIdsByName(q);
+    // The dictionary is live (admin edits, learned clicks), so it is
+    // merged outside the ten-minute name cache.
+    const syn = await this.synonyms?.resolve(q);
+    return syn?.practiceIds.length
+      ? [...new Set([...names, ...syn.practiceIds])]
+      : names;
+  }
+
+  private async practiceIdsByName(q: string): Promise<string[]> {
     const norm = parseSearchQuery(q).plain.toLowerCase();
     if (norm.length < 3) return [];
     const hit = this.practiceCache.get(norm);

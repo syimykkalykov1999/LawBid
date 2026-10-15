@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:lawbid/core/network/api_error.dart';
@@ -209,7 +211,13 @@ abstract interface class SearchRepository {
   /// Owner 2026-10-15: practices whose name in ANY language starts with
   /// [q] (code → the word that matched, when not the English name).
   Future<Map<String, String?>> practices(String q);
+
+  /// Owner 2026-10-15: the person opened a result of [q] — the search
+  /// learns "query → topic" from it. Never throws and never waits.
+  void opened(String q, SearchOpened type, String id);
 }
+
+enum SearchOpened { valueCase, post, attorney, practice }
 
 enum SuggestionKind { tag, person, practice }
 
@@ -246,6 +254,29 @@ class ApiSearchRepository implements SearchRepository {
   }
 
   final api.SearchClient _search;
+
+  @override
+  void opened(String q, SearchOpened type, String id) {
+    final query = q.trim();
+    if (query.length < 3) return;
+    unawaited(
+      _search
+          .click(
+            body: api.SearchClickDto(
+              q: query.length > 100 ? query.substring(0, 100) : query,
+              targetType: switch (type) {
+                SearchOpened.valueCase =>
+                  api.SearchClickDtoTargetType.valueCase,
+                SearchOpened.post => api.SearchClickDtoTargetType.post,
+                SearchOpened.attorney => api.SearchClickDtoTargetType.attorney,
+                SearchOpened.practice => api.SearchClickDtoTargetType.practice,
+              },
+              targetId: id,
+            ),
+          )
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
+  }
 
   @override
   Future<CursorPage<AttorneyRow>> attorneys(

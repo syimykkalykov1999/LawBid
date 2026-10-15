@@ -80,6 +80,7 @@ import { AdminConfigModule } from './modules/admin-config/admin-config.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AdminContentModule } from './modules/admin-content/admin-content.module';
+import { AdminSearchModule } from './modules/admin-search/admin-search.module';
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
 import { DocumentTemplatesModule } from './modules/document-templates/document-templates.module';
 import { AdminBillingModule } from './modules/admin-billing/admin-billing.module';
@@ -220,6 +221,7 @@ const isDev =
     AdminContentModule,
     // Audit 2026-10-02: reels + stickers in the admin panel.
     AdminMediaModule,
+    AdminSearchModule,
     DocumentTemplatesModule,
     AdminBillingModule,
     AdminPayrollModule,

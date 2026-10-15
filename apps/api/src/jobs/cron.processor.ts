@@ -23,6 +23,8 @@ import {
 import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
+import { SearchLogService } from '../modules/search/search-log.service';
+import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
@@ -100,6 +102,8 @@ export class CronProcessor {
     @Optional() private readonly costAutoscale?: CostAutoscaleService,
     @Optional() private readonly treasury?: TreasuryService,
     @Optional() private readonly countryPartners?: CountryPartnersService,
+    @Optional() private readonly searchLog?: SearchLogService,
+    @Optional() private readonly searchSynonyms?: SearchSynonymsService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -142,6 +146,10 @@ export class CronProcessor {
         return this.feedReco.run();
       case CRON_JOBS.trendingTags:
         return this.trendingTags.run();
+      case CRON_JOBS.searchLearn:
+        return this.searchLog?.learn();
+      case CRON_JOBS.searchTagTopics:
+        return this.searchSynonyms?.tagRecent();
       case CRON_JOBS.notificationsRetention:
         return this.notificationsRetention.run();
       case CRON_JOBS.privacyAnonymize:

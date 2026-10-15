@@ -31,10 +31,18 @@ String practiceLabel(Translator t, String key) {
 /// "★ 4.7 · 112 reviews", then the practices ("+N" when they do not fit),
 /// and a small outlined Follow on the side.
 class AttorneyTile extends ConsumerWidget {
-  const AttorneyTile({required this.row, this.showFollow = true, super.key});
+  const AttorneyTile({
+    required this.row,
+    this.showFollow = true,
+    this.onOpened,
+    super.key,
+  });
 
   final AttorneyRow row;
   final bool showFollow;
+
+  /// Owner 2026-10-15: told when the tile opens the profile (search).
+  final VoidCallback? onOpened;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -43,8 +51,10 @@ class AttorneyTile extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final me = ref.watch(currentUserIdProvider);
     return AppPressable(
-      onTap: () =>
-          openProfile(context, ref, id: row.id, username: row.username),
+      onTap: () {
+        onOpened?.call();
+        openProfile(context, ref, id: row.id, username: row.username);
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.screenSide,
@@ -528,9 +538,12 @@ String fitPracticeList(
 /// OQ-026: a client row in People search / followers — avatar, name,
 /// @username, state; opens the client mini-profile.
 class ClientTile extends ConsumerWidget {
-  const ClientTile({required this.row, super.key});
+  const ClientTile({required this.row, this.onOpened, super.key});
 
   final ClientRow row;
+
+  /// Owner 2026-10-15: told when the tile opens the profile (search).
+  final VoidCallback? onOpened;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -539,13 +552,16 @@ class ClientTile extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final me = ref.watch(currentUserIdProvider);
     return AppPressable(
-      onTap: () => openProfile(
-        context,
-        ref,
-        id: row.id,
-        username: row.username,
-        isClient: true,
-      ),
+      onTap: () {
+        onOpened?.call();
+        openProfile(
+          context,
+          ref,
+          id: row.id,
+          username: row.username,
+          isClient: true,
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.screenSide,
@@ -621,15 +637,25 @@ class ClientTile extends ConsumerWidget {
 
 /// Either role's row (People search, followers).
 class PersonTile extends StatelessWidget {
-  const PersonTile({required this.row, this.showFollow = true, super.key});
+  const PersonTile({
+    required this.row,
+    this.showFollow = true,
+    this.onOpened,
+    super.key,
+  });
 
   final PersonRow row;
   final bool showFollow;
+  final VoidCallback? onOpened;
 
   @override
   Widget build(BuildContext context) => row.attorney != null
-      ? AttorneyTile(row: row.attorney!, showFollow: showFollow)
-      : ClientTile(row: row.client!);
+      ? AttorneyTile(
+          row: row.attorney!,
+          showFollow: showFollow,
+          onOpened: onOpened,
+        )
+      : ClientTile(row: row.client!, onOpened: onOpened);
 }
 
 const Color _followBlue = Color(0xFF0095F6);
