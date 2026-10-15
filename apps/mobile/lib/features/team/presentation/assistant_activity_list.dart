@@ -33,7 +33,7 @@ class AssistantActivityList extends ConsumerWidget {
     }
     return RefreshIndicator(
       color: colors.gold,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.sheet,
       onRefresh: () => ref.read(teamActivityProvider.notifier).refresh(),
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {

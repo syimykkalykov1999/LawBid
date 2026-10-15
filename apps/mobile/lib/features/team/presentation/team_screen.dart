@@ -39,7 +39,7 @@ class TeamScreen extends ConsumerWidget {
         onRetry: () => ref.invalidate(teamProvider),
         builder: (info) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: () => ref.read(teamProvider.notifier).refresh(),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),

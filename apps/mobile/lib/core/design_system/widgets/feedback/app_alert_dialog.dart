@@ -25,7 +25,11 @@ class AppAlertDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: backgroundColor,
+      // A see-through colour (Glass's surface) would show the screen behind
+      // the dialog: only a solid one is taken, otherwise the theme's sheet.
+      backgroundColor: backgroundColor != null && backgroundColor!.a < 1
+          ? null
+          : backgroundColor,
       icon: icon,
       title: title,
       content: content,

@@ -108,6 +108,38 @@ void main() {
     });
   }
 
+  testWidgets(
+      "photo/video post row sits like a brief's: icon on the text edge, time in the row, Save at the far edge",
+      (t) async {
+    t.view.physicalSize = const Size(360, 740);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: PostActionsBar(
+            post: post(mine: false, video: true),
+            run: (f) async => f(),
+            showTime: true,
+          ),
+        ),
+        theme: AppTheme.dark(),
+        size: const Size(360, 740),
+        overrides: uxOverrides(),
+      ),
+    );
+    await t.pump();
+    final like = t.getRect(find.byIcon(AppIcons.favoriteBorderRounded));
+    final save = t.getRect(find.byIcon(AppIcons.bookmarkBorderRounded));
+    // The text edge is 14 dp from the screen's edge.
+    expect(like.left, closeTo(14, 1));
+    expect(360 - save.right, closeTo(14, 3));
+    // The time is in the same row as Save, left of it.
+    final time = t.getRect(find.text('2d'));
+    expect((time.center.dy - save.center.dy).abs(), lessThan(6));
+    expect(time.right, lessThan(save.left));
+  });
+
   testWidgets('Boost sits in the Follow slot on my own post only', (t) async {
     t.view.physicalSize = const Size(360, 740);
     t.view.devicePixelRatio = 1;

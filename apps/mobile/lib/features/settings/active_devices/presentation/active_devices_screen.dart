@@ -46,7 +46,7 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AppAlertDialog(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         title: Text(title),
         content: Text(body),
         actions: [
@@ -223,7 +223,7 @@ class _DevicesList extends StatelessWidget {
     if (list.items.isEmpty && !list.hasMore) {
       return RefreshIndicator(
         color: colors.gold,
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         onRefresh: onRefresh,
         child: AppEmptyState(
           icon: AppIcons.devicesRounded,

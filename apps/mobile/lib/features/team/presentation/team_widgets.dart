@@ -663,7 +663,7 @@ class _LiabilityDialogState extends State<_LiabilityDialog> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return AppAlertDialog(
-      backgroundColor: colors.surface,
+      backgroundColor: colors.sheet,
       icon: AppIcon(AppIcons.gavelRounded, color: colors.gold),
       title: Text(t.t('liability.title')),
       content: SingleChildScrollView(

@@ -113,7 +113,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
         final shift = wide ? 1 : 0;
         final main = RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),

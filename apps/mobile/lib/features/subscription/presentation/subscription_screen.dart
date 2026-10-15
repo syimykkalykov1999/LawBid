@@ -114,7 +114,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         title: Text(title),
         content: Text(body),
         actions: [
@@ -273,7 +273,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         onRetry: () => ref.invalidate(subscriptionOverviewProvider),
         builder: (o) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),

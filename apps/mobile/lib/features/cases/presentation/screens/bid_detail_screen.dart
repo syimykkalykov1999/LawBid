@@ -186,7 +186,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
         onRetry: () => ref.invalidate(bidProvider(widget.bidId)),
         builder: (b) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: () async {
             ref.invalidate(bidProvider(widget.bidId));
             await ref.read(bidProvider(widget.bidId).future);

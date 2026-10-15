@@ -60,7 +60,7 @@ class _VerificationWizardScreenState
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         title: Text(title),
         content: Text(body),
         actions: [

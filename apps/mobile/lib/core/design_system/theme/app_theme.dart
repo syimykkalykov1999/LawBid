@@ -53,7 +53,10 @@ abstract final class AppTheme {
         onSecondary: colors.navy,
         error: colors.danger,
         onError: colors.onAccent,
-        surface: colors.surface,
+        // Owner 2026-10-15: Glass's own surface is see-through; every Material
+        // popup (menus, dropdowns, pickers, sheets) that takes its colour from
+        // here must be solid, so it uses the sheet colour in Glass.
+        surface: colors.isGlass ? colors.sheet : colors.surface,
         onSurface: colors.text,
       ),
       extensions: <ThemeExtension<dynamic>>[colors, typography],
@@ -176,6 +179,31 @@ abstract final class AppTheme {
         cancelButtonStyle: TextButton.styleFrom(foregroundColor: colors.text),
         confirmButtonStyle:
             TextButton.styleFrom(foregroundColor: colors.accent),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colors.sheet,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.field),
+          side: BorderSide(color: colors.border),
+        ),
+        textStyle: typography.body.copyWith(color: colors.text),
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(colors.sheet),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll(colors.sheet),
+          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        ),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        // The pull-to-refresh circle sits on this colour: solid in every theme.
+        refreshBackgroundColor: colors.sheet,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

@@ -269,7 +269,7 @@ class _DeclineDialogState extends ConsumerState<_DeclineDialog> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return AppAlertDialog(
-      backgroundColor: colors.surface,
+      backgroundColor: colors.sheet,
       title: Text(t.t('invites.decline.title')),
       content: AppTextField(
         key: const ValueKey('invite-decline-reason'),

@@ -136,7 +136,7 @@ class _RequestDialogState extends ConsumerState<_RequestDialog> {
     final n = int.tryParse(_seats.text.trim()) ?? 0;
     final ok = n >= widget.min && n <= _max && !_busy;
     return AppAlertDialog(
-      backgroundColor: colors.surface,
+      backgroundColor: colors.sheet,
       title: Text(t.t('team.limit.request.title')),
       content: SingleChildScrollView(
         child: Column(

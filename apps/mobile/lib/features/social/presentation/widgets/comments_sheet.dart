@@ -22,7 +22,7 @@ Future<void> showCommentsSheet(
     // Over the nav bar too, like Instagram.
     useRootNavigator: true,
     useSafeArea: true,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
     ),

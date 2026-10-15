@@ -315,7 +315,7 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
         onRetry: _refresh,
         builder: (c) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: _workspace(context, c, t, formats, colors, pending),
         ),

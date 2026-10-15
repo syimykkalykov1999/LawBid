@@ -726,7 +726,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         Expanded(
           child: RefreshIndicator(
             color: colors.gold,
-            backgroundColor: colors.surface,
+            backgroundColor: colors.sheet,
             onRefresh: () async {
               await ref.read(tasksProvider(_key).notifier).refresh();
               if (_view == TasksView.results) {

@@ -64,7 +64,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
         Expanded(
           child: RefreshIndicator(
             color: colors.gold,
-            backgroundColor: colors.surface,
+            backgroundColor: colors.sheet,
             onRefresh: () => ref.read(teamRequestsProvider.notifier).refresh(),
             child: _requests(t, formats),
           ),
