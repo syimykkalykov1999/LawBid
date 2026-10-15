@@ -99,6 +99,7 @@ import 'clients/trust_client.dart';
 import 'clients/admin_trust_client.dart';
 import 'clients/countries_client.dart';
 import 'clients/admin_countries_client.dart';
+import 'clients/public_client.dart';
 import 'clients/reviews_client.dart';
 import 'clients/admin_fraud_client.dart';
 import 'clients/admin_country_partners_client.dart';
@@ -209,6 +210,7 @@ class LawbidApi {
   AdminTrustClient? _adminTrust;
   CountriesClient? _countries;
   AdminCountriesClient? _adminCountries;
+  PublicClient? _public;
   ReviewsClient? _reviews;
   AdminFraudClient? _adminFraud;
   AdminCountryPartnersClient? _adminCountryPartners;
@@ -480,6 +482,8 @@ class LawbidApi {
 
   AdminCountriesClient get adminCountries =>
       _adminCountries ??= AdminCountriesClient(_dio, baseUrl: _baseUrl);
+
+  PublicClient get public => _public ??= PublicClient(_dio, baseUrl: _baseUrl);
 
   ReviewsClient get reviews =>
       _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);

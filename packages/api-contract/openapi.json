@@ -78376,6 +78376,102 @@
         ]
       }
     },
+    "/public/directory/attorneys": {
+      "get": {
+        "operationId": "listPublicAttorneys",
+        "parameters": [
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "State of a verified license.",
+            "schema": {
+              "pattern": "^[A-Za-z]{2}$",
+              "example": "CA",
+              "type": "string"
+            }
+          },
+          {
+            "name": "practice",
+            "required": false,
+            "in": "query",
+            "description": "Practice area code (a category covers its specializations).",
+            "schema": {
+              "maxLength": 80,
+              "pattern": "^[a-z0-9_.]+$",
+              "example": "family_law",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified attorneys, best first; the public facts of their profile. `meta.nextCursor` for the next page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAttorneyListEnvelope"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/cases/{caseId}/review": {
       "post": {
         "operationId": "create",
@@ -124931,6 +125027,113 @@
         },
         "required": [
           "isActive"
+        ]
+      },
+      "PublicPracticeDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "family_law.divorce"
+          },
+          "name": {
+            "type": "string",
+            "example": "Divorce"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "PublicAttorneyDto": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "anna.lee"
+          },
+          "displayName": {
+            "type": "string",
+            "example": "Anna Lee"
+          },
+          "bio": {
+            "type": "string",
+            "nullable": true
+          },
+          "firmNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "languages": {
+            "example": [
+              "en",
+              "ru"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ratingAvg": {
+            "type": "number",
+            "example": 4.8
+          },
+          "ratingCount": {
+            "type": "number",
+            "example": 12
+          },
+          "trustBadge": {
+            "type": "boolean",
+            "description": "The blue check: license and identity confirmed."
+          },
+          "practiceAreas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicPracticeDto"
+            }
+          },
+          "licensedStates": {
+            "example": [
+              "CA",
+              "NY"
+            ],
+            "description": "States of verified licenses.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "username",
+          "displayName",
+          "firmNames",
+          "languages",
+          "ratingAvg",
+          "ratingCount",
+          "trustBadge",
+          "practiceAreas",
+          "licensedStates"
+        ]
+      },
+      "PublicAttorneyListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAttorneyDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "ReviewAuthorRole": {
