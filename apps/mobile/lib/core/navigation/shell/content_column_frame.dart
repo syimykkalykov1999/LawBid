@@ -1,6 +1,7 @@
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 
@@ -10,9 +11,21 @@ double _windowWidth(BuildContext context) {
   return view.physicalSize.width / view.devicePixelRatio;
 }
 
+bool _onAuthRoute(BuildContext context) {
+  try {
+    final uri = GoRouter.of(context).routeInformationProvider.value.uri;
+    return isAuthLocation(uri.path);
+  } on Object {
+    return false;
+  }
+}
+
 /// Max width for a sheet's route on web (null: the phone's own width).
 BoxConstraints? contentColumnSheetConstraints(BuildContext context) {
-  final w = contentColumnBounds(_windowWidth(context)).maxWidth;
+  final w = contentColumnBounds(
+    _windowWidth(context),
+    auth: _onAuthRoute(context),
+  ).maxWidth;
   return w == null ? null : BoxConstraints(maxWidth: w);
 }
 
@@ -25,7 +38,10 @@ class ContentColumnFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final b = contentColumnBounds(_windowWidth(context));
+    final b = contentColumnBounds(
+      _windowWidth(context),
+      auth: _onAuthRoute(context),
+    );
     if (b.shift == 0) return child;
     final rtl = Directionality.of(context) == TextDirection.rtl;
     return Transform.translate(

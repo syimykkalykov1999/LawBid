@@ -13,6 +13,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
@@ -147,8 +148,10 @@ class _MainShellState extends ConsumerState<MainShell> {
                   createLabel: translator.t('nav.create'),
                 ),
                 Expanded(
-                  child: _ContentColumn(
-                    centred: layout == ShellLayout.extendedRail,
+                  child: ContentColumn(
+                    maxWidth: layout == ShellLayout.extendedRail
+                        ? kShellContentMaxWidth
+                        : null,
                     child: body,
                   ),
                 ),
@@ -211,35 +214,6 @@ class _TabFadeState extends State<_TabFade>
       opacity:
           CurvedAnimation(parent: _controller, curve: AppMotion.enterCurve),
       child: widget.child,
-    );
-  }
-}
-
-/// The content next to the side column. On a laptop-sized window it is a
-/// centred column (like Instagram's feed); the screens inside see the
-/// column's width as the screen's width, so they lay out as on a phone.
-class _ContentColumn extends StatelessWidget {
-  const _ContentColumn({required this.centred, required this.child});
-
-  final bool centred;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!centred) return child;
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: kShellContentMaxWidth),
-        child: LayoutBuilder(
-          builder: (context, constraints) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              size: Size(constraints.maxWidth, constraints.maxHeight),
-            ),
-            child: child,
-          ),
-        ),
-      ),
     );
   }
 }

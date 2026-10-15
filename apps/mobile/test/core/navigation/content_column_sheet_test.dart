@@ -41,7 +41,10 @@ void main() {
       showAppBottomSheet<void>(
         context: ctx,
         builder: (_) => const SizedBox(
-            width: double.infinity, height: 200, key: Key('sheet-body')),
+          width: double.infinity,
+          height: 200,
+          key: Key('sheet-body'),
+        ),
       ),
     );
     await t.pumpAndSettle();

@@ -47,11 +47,21 @@ ShellLayout shellLayoutFor(double width, {bool adaptive = kAdaptiveShell}) {
 ({double shift, double? maxWidth}) contentColumnBounds(
   double windowWidth, {
   bool? adaptive,
+  bool auth = false,
 }) {
-  switch (shellLayoutFor(
+  final layout = shellLayoutFor(
     windowWidth,
     adaptive: adaptive ?? adaptiveShellOverride ?? kAdaptiveShell,
-  )) {
+  );
+  // Sign-in and onboarding: no side menu, a narrow column in the middle.
+  if (auth && layout != ShellLayout.bottom) {
+    return (
+      shift: 0,
+      maxWidth:
+          windowWidth < kAuthColumnMaxWidth ? windowWidth : kAuthColumnMaxWidth,
+    );
+  }
+  switch (layout) {
     case ShellLayout.bottom:
       return (shift: 0, maxWidth: null);
     case ShellLayout.rail:
@@ -68,6 +78,17 @@ ShellLayout shellLayoutFor(double width, {bool adaptive = kAdaptiveShell}) {
   }
 }
 
+/// The sign-in and onboarding column.
+const double kAuthColumnMaxWidth = 480;
+
 /// The side column widths, as in the side nav.
 const double kShellRailWidth = 76;
 const double kShellExtendedWidth = 220;
+
+/// Locations that show no side menu on the web: the welcome screen,
+/// sign-in and the onboarding steps.
+bool isAuthLocation(String location) =>
+    location == '/welcome' ||
+    location == '/splash' ||
+    location.startsWith('/auth/') ||
+    location.startsWith('/onboarding/');
