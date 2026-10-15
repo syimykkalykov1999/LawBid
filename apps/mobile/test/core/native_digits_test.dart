@@ -13,7 +13,7 @@ Future<void> main() async {
   final asciiDigit = RegExp('[0-9]');
   const own = ['ne', 'mr', 'bn', 'ar', 'fa', 'ps', 'my'];
 
-  test('digits map to the language\'s own digits', () {
+  test("digits map to the language's own digits", () {
     expect(localizeDigits('Step 1 of 5 · 2026', 'ne'), 'Step १ of ५ · २०२६');
     expect(localizeDigits('12:30', 'ar'), '١٢:٣٠');
     expect(localizeDigits('12:30', 'fa'), '۱۲:۳۰');

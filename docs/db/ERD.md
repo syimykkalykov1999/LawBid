@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-159 tables.
+166 tables.
 
 ```mermaid
 erDiagram
@@ -25,6 +25,7 @@ erDiagram
     String password_hash "nullable"
     DateTime password_set_at "nullable"
     String ui_language
+    Boolean hide_like_counts
     enum_ThemePref theme
     String suspended_reason "nullable"
     DateTime last_active_at "nullable"
@@ -210,6 +211,10 @@ erDiagram
     String country_code FK
     String iso_code "nullable"
   }
+  case_extra_practices {
+    String case_id PK,FK
+    String practice_area_id PK,FK
+  }
   practice_areas {
     String id PK
     String parent_id FK "nullable"
@@ -334,6 +339,8 @@ erDiagram
     String title
     String description
     String practice_area_id FK
+    String inferred_practice_id "nullable"
+    DateTime topic_scanned_at "nullable"
     String primary_state_code FK
     String city "nullable"
     enum_BudgetMode budget_mode
@@ -468,6 +475,8 @@ erDiagram
     String body
     String title "nullable"
     String practice_area_id FK "nullable"
+    String inferred_practice_id "nullable"
+    DateTime topic_scanned_at "nullable"
     enum_PostKind kind
     String video_asset_id FK,UK "nullable"
     String language "nullable"
@@ -475,6 +484,8 @@ erDiagram
     Float location_lat "nullable"
     Float location_lng "nullable"
     Boolean comments_enabled
+    Boolean hide_likes
+    Boolean hide_views
     String content_class
     Boolean content_class_locked
     enum_ContentStatus status
@@ -1267,6 +1278,7 @@ erDiagram
     Int trim_start_ms "nullable"
     Int trim_end_ms "nullable"
     Int cover_time_ms "nullable"
+    String cover_file_id "nullable"
     DateTime upload_expires_at
     DateTime created_at
     DateTime ready_at "nullable"
@@ -1496,11 +1508,21 @@ erDiagram
     Int reach
     Int clicks
     Json audience "nullable"
+    String goal "nullable"
+    String cta_type "nullable"
+    String cta_value "nullable"
     Int refunded_cents
     String reviewed_by "nullable"
     DateTime reviewed_at "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  promotion_daily {
+    String promotion_id PK,FK
+    String day_key PK
+    Int impressions
+    Int reach
+    Int clicks
   }
   promotion_views {
     String promotion_id PK,FK
@@ -2024,6 +2046,45 @@ erDiagram
     String status
     DateTime created_at
   }
+  search_synonym_groups {
+    String id PK
+    String key UK
+    String practice_area_id FK "nullable"
+    Boolean enabled
+    String source
+    DateTime created_at
+    DateTime updated_at
+  }
+  search_synonym_terms {
+    String id PK
+    String group_id FK
+    String lang
+    String term
+  }
+  search_query_log {
+    BigInt id PK
+    String user_id "nullable"
+    String q
+    String scope
+    String lang "nullable"
+    Int results
+    DateTime created_at
+  }
+  search_clicks {
+    BigInt id PK
+    String user_id
+    String q
+    String target_type
+    String target_id
+    String practice_area_id "nullable"
+    DateTime created_at
+  }
+  search_learned_links {
+    String q PK
+    String practice_area_id PK
+    Int score
+    DateTime updated_at
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -2039,6 +2100,8 @@ erDiagram
   i18n_bundle_versions |o--|| i18n_languages : "lang"
   country_waitlist }o--|| countries : "country_code"
   states }o--|| countries : "country_code"
+  case_extra_practices }o--|| cases : "case_id"
+  case_extra_practices }o--|| practice_areas : "practice_area_id"
   practice_areas }o--o| practice_areas : "parent_id"
   client_profiles |o--|| users : "user_id"
   client_profiles }o--|| states : "state_code"
@@ -2198,6 +2261,7 @@ erDiagram
   partner_commissions }o--|| partners : "partner_id"
   outreach_leads }o--o| partners : "partner_id"
   outreach_activities }o--|| outreach_leads : "lead_id"
+  promotion_daily }o--|| case_promotions : "promotion_id"
   promotion_views }o--|| case_promotions : "promotion_id"
   sticker_packs }o--o| users : "owner_user_id"
   stickers }o--|| sticker_packs : "pack_id"
@@ -2218,4 +2282,6 @@ erDiagram
   contact_matches }o--|| users : "matched_id"
   contact_sync_settings |o--|| users : "user_id"
   firm_members }o--|| firms : "firm_id"
+  search_synonym_groups }o--o| practice_areas : "practice_area_id"
+  search_synonym_terms }o--|| search_synonym_groups : "group_id"
 ```

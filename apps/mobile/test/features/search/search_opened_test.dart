@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -13,9 +12,8 @@ import '../../helpers/fake_http_adapter.dart';
 void main() {
   test('opening a case sends the query and the case', () async {
     final adapter = FakeHttpAdapter((_) async => jsonBody(null, 204));
-    final repo = ApiSearchRepository(Dio()..httpClientAdapter = adapter);
-
-    repo.opened('  развод с мужем ', SearchOpened.valueCase, 'case-1');
+    ApiSearchRepository(Dio()..httpClientAdapter = adapter)
+        .opened('  развод с мужем ', SearchOpened.valueCase, 'case-1');
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(adapter.requests, hasLength(1));
@@ -31,9 +29,8 @@ void main() {
 
   test('a short query is not worth reporting', () async {
     final adapter = FakeHttpAdapter((_) async => jsonBody(null, 204));
-    final repo = ApiSearchRepository(Dio()..httpClientAdapter = adapter);
-
-    repo.opened('ab', SearchOpened.post, 'p1');
+    ApiSearchRepository(Dio()..httpClientAdapter = adapter)
+        .opened('ab', SearchOpened.post, 'p1');
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
     expect(adapter.requests, isEmpty);
@@ -43,9 +40,8 @@ void main() {
     final adapter = FakeHttpAdapter(
       (_) async => apiError(500, 'INTERNAL_ERROR'),
     );
-    final repo = ApiSearchRepository(Dio()..httpClientAdapter = adapter);
-
-    repo.opened('divorce lawyer', SearchOpened.attorney, 'a1');
+    ApiSearchRepository(Dio()..httpClientAdapter = adapter)
+        .opened('divorce lawyer', SearchOpened.attorney, 'a1');
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     expect(adapter.requests, hasLength(1));

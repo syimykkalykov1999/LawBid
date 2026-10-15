@@ -59,7 +59,6 @@ Future<void> main() async {
                   tags: const [],
                   likeCount: 3,
                   commentCount: 1,
-                  shareCount: 0,
                   likedByMe: false,
                   savedByMe: false,
                   isMine: false,

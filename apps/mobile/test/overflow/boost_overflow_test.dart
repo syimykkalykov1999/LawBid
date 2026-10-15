@@ -64,7 +64,6 @@ const _quote = PromotionQuote(
   maxDays: 14,
   enabled: true,
   dailyBudgetCents: 500,
-  minDailyBudgetCents: 100,
   maxDailyBudgetCents: 5000,
   budgetPresetsCents: [500, 1000, 2000],
   durationPresets: [3, 7, 14],

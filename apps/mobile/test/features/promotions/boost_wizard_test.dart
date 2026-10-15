@@ -5,7 +5,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
-import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/data/promotions_repository.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
@@ -70,7 +69,6 @@ const _quote = PromotionQuote(
   maxDays: 14,
   enabled: true,
   dailyBudgetCents: 500,
-  minDailyBudgetCents: 100,
   maxDailyBudgetCents: 5000,
   budgetPresetsCents: [500, 1000],
   durationPresets: [3, 7],
@@ -97,7 +95,6 @@ Future<void> main() async {
         theme: AppTheme.dark(),
         size: narrowPhone,
         overrides: uxOverrides(
-          translator: const StaticTranslatorEn(),
           extra: [
             promotionsRepositoryProvider.overrideWithValue(repo),
             l10nFormatsProvider
