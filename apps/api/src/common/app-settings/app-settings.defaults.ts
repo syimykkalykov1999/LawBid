@@ -104,6 +104,17 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-15: text limits like other platforms — a post with
   // photos / video / documents is up to 2200 characters (Instagram), a
   // text-only brief up to 3000 (LinkedIn). Older posts are never cut.
+  // Owner 2026-10-15: search ranking weights, editable in the admin panel.
+  // Text: a word in the title counts `search.weight_title`, in the text
+  // `search.weight_text` (case and post search). People: priority (paid
+  // «higher in search»), verified and rating (stars) add up to one score.
+  // The defaults keep the order the app always had: priority > verified >
+  // rating.
+  'search.weight_title': 1,
+  'search.weight_text': 0.2,
+  'search.weight_priority': 1000,
+  'search.weight_verified': 100,
+  'search.weight_rating': 10,
   'post.max_chars_media': 2200,
   'post.max_chars_brief': 3000,
   // Owner 2026-10-05: photos (posts, reels, cases, reviews; avatars by

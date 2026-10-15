@@ -397,5 +397,28 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
       where: { id: r.body.data.id as string },
     });
     expect(row.practice_area_id).toBeNull();
+    // General content: found by plain text search, but not under a topic.
+    const word = `zqgeneral${randomUUID()
+      .replace(/[^a-f]/g, '')
+      .slice(0, 6)}`;
+    const g = await post(att.auth, {
+      body: `Thoughts about ${word}`,
+      practiceCode: undefined,
+    });
+    expect(g.status).toBe(201);
+    const search = (query: Record<string, string>) =>
+      api()
+        .get('/api/v1/search/posts')
+        .query({ q: word, ...query })
+        .set(att.auth);
+    const plain = await search({});
+    expect(plain.status).toBe(200);
+    expect((plain.body.data as { id: string }[]).map((x) => x.id)).toContain(
+      g.body.data.id,
+    );
+    const byTopic = await search({ practice: 'family_law' });
+    expect(
+      (byTopic.body.data as { id: string }[]).map((x) => x.id),
+    ).not.toContain(g.body.data.id);
   });
 });

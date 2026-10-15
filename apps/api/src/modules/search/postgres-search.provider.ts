@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { HIDDEN_TAG_PREFIX, hiddenTagOf } from '../posts/hidden-tags';
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ftsMatch,
+  DEFAULT_TEXT_WEIGHTS,
   ftsRank,
   TYPO_THRESHOLD,
   typoMatch,
@@ -63,7 +65,32 @@ export function escapeLike(s: string): string {
  */
 @Injectable()
 export class PostgresSearchProvider implements SearchProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly settings?: AppSettingsService,
+  ) {}
+
+  /** The admin's ranking weights (defaults when unset). */
+  private async weights() {
+    const s = this.settings;
+    if (!s) {
+      return {
+        text: DEFAULT_TEXT_WEIGHTS,
+        priority: 1000,
+        verified: 100,
+        rating: 10,
+      };
+    }
+    return {
+      text: {
+        title: await s.number('search.weight_title'),
+        text: await s.number('search.weight_text'),
+      },
+      priority: await s.number('search.weight_priority'),
+      verified: await s.number('search.weight_verified'),
+      rating: await s.number('search.weight_rating'),
+    };
+  }
 
   async searchAttorneys(
     q: string,
@@ -100,6 +127,7 @@ export class PostgresSearchProvider implements SearchProvider {
     max: number,
     withClients: boolean,
   ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
+    const w = await this.weights();
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
     const filters = Prisma.sql`
@@ -210,9 +238,8 @@ export class PostgresSearchProvider implements SearchProvider {
         GREATEST(similarity(uname, ${q}),
                  similarity(COALESCE(fname, ''), ${q})) DESC,
         (role = 'attorney') DESC,
-        priority DESC,
-        verified DESC,
-        rating DESC,
+        (priority::INT * ${w.priority}::FLOAT8 + verified::INT * ${w.verified}::FLOAT8
+          + rating::FLOAT8 * ${w.rating}::FLOAT8) DESC,
         id
       LIMIT ${max}`;
     return rows.map((r) => ({
@@ -276,6 +303,7 @@ export class PostgresSearchProvider implements SearchProvider {
     max: number,
     f: PostSearchFilters = {},
   ): Promise<string[]> {
+    const w = await this.weights();
     const where = Prisma.sql`
       ${
         // Audit 2026-10-01: a qualification matches posts of it (and its
@@ -300,7 +328,7 @@ export class PostgresSearchProvider implements SearchProvider {
         ? Prisma.sql`m.created_at DESC, m.id DESC`
         : f.sort === 'popular'
           ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
-          : Prisma.sql`${ftsRank('m', q)} DESC, m.created_at DESC, m.id DESC`;
+          : Prisma.sql`${ftsRank('m', q, w.text)} DESC, m.created_at DESC, m.id DESC`;
     const run = (match: Prisma.Sql) => this.prisma.$queryRaw<{ id: string }[]>`
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
@@ -457,6 +485,7 @@ export class PostgresSearchProvider implements SearchProvider {
     p: Omit<CaseSearchParams, 'cursor' | 'limit'>,
     max: number,
   ): Promise<string[]> {
+    const w = await this.weights();
     const textPractices = await this.practiceIdsFor(q);
     p = { ...p, textPractices };
     const exact = await this.budget(SEARCH_BUDGET_MS, () =>
@@ -476,7 +505,7 @@ export class PostgresSearchProvider implements SearchProvider {
       const ranked = await this.prisma.$queryRaw<{ id: string }[]>`
         SELECT c.id::TEXT AS id FROM cases c
         WHERE c.id = ANY(${ids}::UUID[])
-        ORDER BY ${ftsRank('c', q)} DESC, c.created_at DESC, c.id DESC
+        ORDER BY ${ftsRank('c', q, w.text)} DESC, c.created_at DESC, c.id DESC
         LIMIT ${max}`;
       return ranked.map((r) => r.id);
     }
