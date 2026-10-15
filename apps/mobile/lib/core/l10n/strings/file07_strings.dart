@@ -134,7 +134,7 @@ const file07Ru = <String, String>{
   'presence.todayAt': 'был(а) сегодня в {time}',
   'presence.yesterdayAt': 'был(а) вчера в {time}',
   'presence.on': 'был(а) {date}',
-  'settings.activityStatus': 'Показывать статус активности',
+  'settings.activityStatus': 'Статус активности',
   'tasks.pickKind': 'Выберите, что нужно сделать — откроются нужные поля',
   'tasks.kindChange': 'Изменить',
   'tasks.field.phoneInvalid':
@@ -718,7 +718,7 @@ const file07En = <String, String>{
   'presence.todayAt': 'last seen today at {time}',
   'presence.yesterdayAt': 'last seen yesterday at {time}',
   'presence.on': 'last seen {date}',
-  'settings.activityStatus': 'Show activity status',
+  'settings.activityStatus': 'Activity status',
   'tasks.pickKind': 'Pick what to do — its fields will open',
   'tasks.kindChange': 'Change',
   'tasks.field.phoneInvalid':

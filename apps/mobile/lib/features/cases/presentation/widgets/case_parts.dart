@@ -374,7 +374,7 @@ class CaseTextTabs extends StatelessWidget {
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
         child: Row(
           children: [
             for (final (i, it) in items.indexed)
@@ -385,7 +385,9 @@ class CaseTextTabs extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => onChanged(i),
                   child: Container(
-                    margin: const EdgeInsetsDirectional.only(end: 22),
+                    // Owner 2026-10-15: smaller tabs, like Instagram — 13sp
+                    // (the active one semibold), ~44dp high, 2dp indicator.
+                    margin: const EdgeInsetsDirectional.only(end: 18),
                     padding: const EdgeInsets.only(top: 14, bottom: 10),
                     decoration: BoxDecoration(
                       border: Border(
@@ -400,8 +402,9 @@ class CaseTextTabs extends StatelessWidget {
                       children: [
                         Text(
                           it.label,
-                          style: type.body.copyWith(
-                            fontWeight: FontWeight.w600,
+                          style: type.bodySmall.copyWith(
+                            fontWeight:
+                                i == index ? FontWeight.w600 : FontWeight.w500,
                             color:
                                 i == index ? colors.text : colors.textSecondary,
                           ),
