@@ -104,6 +104,79 @@ abstract final class AppTheme {
         insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       ),
+      // Owner 2026-10-15: the date and time pickers sit on an opaque sheet
+      // in every theme (Glass's own surface is see-through, which let the
+      // form show through the calendar) and use the app's colours.
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: colors.sheet,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: colors.shadow,
+        headerBackgroundColor: colors.sheet,
+        headerForegroundColor: colors.text,
+        headerHeadlineStyle: typography.titleLarge.copyWith(color: colors.text),
+        headerHelpStyle:
+            typography.caption.copyWith(color: colors.textSecondary),
+        weekdayStyle: typography.caption.copyWith(color: colors.textSecondary),
+        dayStyle: typography.bodySmall,
+        yearStyle: typography.bodySmall,
+        dayForegroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? colors.onAccent
+              : states.contains(WidgetState.disabled)
+                  ? colors.textSecondary.withValues(alpha: 0.4)
+                  : colors.text,
+        ),
+        dayBackgroundColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? colors.accent : null,
+        ),
+        todayForegroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? colors.onAccent
+              : colors.accent,
+        ),
+        todayBackgroundColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? colors.accent : null,
+        ),
+        todayBorder: BorderSide(color: colors.accent),
+        yearForegroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? colors.onAccent
+              : colors.text,
+        ),
+        yearBackgroundColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? colors.accent : null,
+        ),
+        dividerColor: colors.border,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.sheet),
+          side: BorderSide(color: colors.border),
+        ),
+        cancelButtonStyle: TextButton.styleFrom(foregroundColor: colors.text),
+        confirmButtonStyle:
+            TextButton.styleFrom(foregroundColor: colors.accent),
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: colors.sheet,
+        dialBackgroundColor: colors.chip,
+        dialHandColor: colors.accent,
+        dialTextColor: colors.text,
+        hourMinuteColor: colors.chip,
+        hourMinuteTextColor: colors.text,
+        dayPeriodColor: colors.chip,
+        dayPeriodTextColor: colors.text,
+        entryModeIconColor: colors.textSecondary,
+        helpTextStyle: typography.caption.copyWith(color: colors.textSecondary),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.sheet),
+          side: BorderSide(color: colors.border),
+        ),
+        cancelButtonStyle: TextButton.styleFrom(foregroundColor: colors.text),
+        confirmButtonStyle:
+            TextButton.styleFrom(foregroundColor: colors.accent),
+      ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           textStyle: typography.button,

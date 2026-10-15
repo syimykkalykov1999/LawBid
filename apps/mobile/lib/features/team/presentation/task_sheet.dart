@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -52,14 +53,14 @@ Future<DateTime?> pickDateTime(
 }) async {
   final now = DateTime.now();
   final base = initial ?? now.add(const Duration(hours: 1));
-  final date = await showDatePicker(
+  final date = await showAppDatePicker(
     context: context,
     initialDate: base.isBefore(now) ? now : base,
     firstDate: DateTime(now.year - 1),
     lastDate: DateTime(now.year + 5),
   );
   if (date == null || !context.mounted) return null;
-  final time = await showTimePicker(
+  final time = await showAppTimePicker(
     context: context,
     initialTime: TimeOfDay.fromDateTime(base),
   );
