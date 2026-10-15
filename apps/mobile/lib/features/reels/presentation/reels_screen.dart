@@ -724,7 +724,7 @@ class ReelFollowButton extends ConsumerWidget {
 /// floating nav bar (46 dp plus its margins); the caption, the icon column
 /// and the «more» button stand above it.
 const kReelNavTop = 54.0;
-const kReelNavGap = 10.0;
+const kReelNavGap = -4.0;
 
 /// Added to the usual bottom spacing (AppSpacing.md) so the last line
 /// stands [kReelNavGap] above the bar.

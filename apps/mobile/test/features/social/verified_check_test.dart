@@ -18,7 +18,9 @@ void main() {
       (tester) async {
     await pump(tester, gold: true);
     expect(find.byIcon(AppIcons.verifiedUserOutlined), findsOneWidget);
-    final icon = tester.widget<Icon>(find.byIcon(AppIcons.verifiedUserOutlined));
+    final icon = tester.widget<Icon>(
+      find.byIcon(AppIcons.verifiedUserOutlined),
+    );
     final colors = AppTheme.light().extension<AppColorTokens>()!;
     expect(icon.color, colors.goldAccent);
   });

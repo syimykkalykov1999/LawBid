@@ -124,6 +124,7 @@ extension on ReviewCard {
                 key: const ValueKey('review-act-report'),
                 icon: AppIcons.flagOutlined,
                 label: t.t('reviews.report.action'),
+                destructive: true,
                 onTap: () => Navigator.of(sheet).pop('report'),
               ),
             const SizedBox(height: AppSpacing.md),

@@ -99,6 +99,11 @@ class _MainShellState extends ConsumerState<MainShell> {
       // Owner 2026-10-12: on the feed the posts run under the floating
       // nav bar (Instagram); other tabs keep their own space.
       extendBody: navigationShell.currentIndex == 0,
+      // Owner 2026-10-15: every tab screen has its own Scaffold that already
+      // makes room for the keyboard; this one must not shrink the body as
+      // well (the screens inside were squeezed by the keyboard's height
+      // twice and overflowed).
+      resizeToAvoidBottomInset: false,
       // docs/ops/demo-world.md: floating «Демо-режим» banner over the tabs
       // while in a demo session (a no-op wrapper otherwise).
       body: DemoBannerHost(

@@ -43,6 +43,9 @@ Future<T?> showAppBottomSheet<T>({
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   return showModalBottomSheet<T>(
     context: context,
+    // Owner 2026-10-15: every sheet opens over the floating nav bar, never
+    // under it (the last row of a menu was hidden behind it).
+    useRootNavigator: true,
     isScrollControlled: isScrollControlled,
     backgroundColor: colors.sheet,
     showDragHandle: false,

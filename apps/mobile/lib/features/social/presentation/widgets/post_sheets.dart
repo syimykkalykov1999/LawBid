@@ -158,6 +158,8 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
       post.author.isFollowing;
   return showAppBottomSheet<void>(
     context: context,
+    // The whole menu fits (the red rows stay at the bottom, visible).
+    isScrollControlled: true,
     builder: (sheet) => SafeArea(
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -377,6 +379,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                         key: const ValueKey('post-menu-report'),
                         icon: AppIcons.flagOutlined,
                         label: t.t('post.menu.report'),
+                        destructive: true,
                         showChevron: false,
                         onTap: () {
                           Navigator.of(sheet).pop();

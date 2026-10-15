@@ -100,6 +100,7 @@ Future<void> showAttorneyMoreSheet(
           AppListRow(
             icon: AppIcons.flagOutlined,
             label: t.t('post.menu.report'),
+            destructive: true,
             showChevron: false,
             onTap: () {
               Navigator.of(sheet).pop();
