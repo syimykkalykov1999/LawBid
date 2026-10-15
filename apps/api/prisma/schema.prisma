@@ -4963,6 +4963,17 @@ model SearchLearnedLink {
   @@map("search_learned_links")
 }
 
+/// Owner 2026-10-15: events from the app counted by day (see the migration).
+model AppEventDay {
+  day    DateTime @db.Date
+  name   String   @db.VarChar(40)
+  screen String   @default("") @db.VarChar(80)
+  count  Int      @default(0)
+
+  @@id([day, name, screen])
+  @@map("app_event_days")
+}
+
 // -----------------------------------------------------------------------
 // Owner 2026-10-15: the app's own crash reports (no paid service): the
 // phone sends errors in batches, the admin sees them grouped.

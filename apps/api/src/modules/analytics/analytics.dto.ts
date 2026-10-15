@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { AnalyticsEventsDto } from './app-events.dto';
 
 export class AnalyticsQueryDto {
   @ApiPropertyOptional({ default: 30 })
@@ -85,4 +86,6 @@ export class AnalyticsDto {
   churn!: AnalyticsChurnDto;
   @ApiProperty({ type: AnalyticsDayDto, isArray: true })
   daily!: AnalyticsDayDto[];
+  @ApiProperty({ type: AnalyticsEventsDto })
+  events!: AnalyticsEventsDto;
 }

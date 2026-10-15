@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 
-export interface ConfirmOptions {
+interface ConfirmOptions {
   title: string;
   description?: React.ReactNode;
   confirm?: string;

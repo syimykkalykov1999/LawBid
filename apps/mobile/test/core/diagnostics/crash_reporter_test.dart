@@ -79,4 +79,16 @@ void main() {
 
     expect(prefs.getString('crash.queue.v1'), contains('offline'));
   });
+
+  test('flag crash_reports off: nothing is queued or sent', () async {
+    CrashReporter.enabled = false;
+    CrashReporter.instance!.report(
+      StateError('muted'),
+      StackTrace.fromString('#0 main (file.dart:10:3)'),
+    );
+    await CrashReporter.instance!.flush();
+    expect(prefs.getString('crash.queue.v1'), isNull);
+    expect(adapter.requests, isEmpty);
+    CrashReporter.enabled = true;
+  });
 }

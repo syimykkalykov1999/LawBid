@@ -10,8 +10,6 @@
  */
 export const TRANSLATE_FLAG = 'chat_translate';
 export const TRANSLATE_SCOPE_KEY = 'translate.scope';
-export const TRANSLATE_SCOPES = ['all', 'zones'] as const;
-export type TranslateScope = (typeof TRANSLATE_SCOPES)[number];
 
 export const TRANSLATE_ZONES = [
   'chat',

@@ -7,18 +7,16 @@ import type { components } from '@/lib/api/schema';
  * fraudsters and the client risk score. Never shows a raw hash — only what
  * kind of thing two accounts share.
  */
-export type FraudStatus = components['schemas']['FraudStatus'];
-export type FraudSignalCode = components['schemas']['FraudSignalCode'];
-export type FingerprintKind = components['schemas']['FingerprintKind'];
-export type FraudEventKind = components['schemas']['FraudEventKind'];
+type FraudStatus = components['schemas']['FraudStatus'];
+type FraudSignalCode = components['schemas']['FraudSignalCode'];
+type FingerprintKind = components['schemas']['FingerprintKind'];
+type FraudEventKind = components['schemas']['FraudEventKind'];
 export type FraudMatchAction = components['schemas']['FraudMatchAction'];
 export type FraudQueueFilter = components['schemas']['FraudQueueFilter'];
-export type FraudQueueReason = NonNullable<components['schemas']['FraudQueueItemDto']['queueReason']>;
-export type FraudUser = components['schemas']['FraudUserDto'];
+type FraudQueueReason = NonNullable<components['schemas']['FraudQueueItemDto']['queueReason']>;
+type FraudUser = components['schemas']['FraudUserDto'];
 
-export const FRAUD_STATUSES: FraudStatus[] = ['review', 'restricted', 'banned', 'ok'];
-
-export const FRAUD_STATUS_RU: Record<FraudStatus, { text: string; tone: Tone }> = {
+const FRAUD_STATUS_RU: Record<FraudStatus, { text: string; tone: Tone }> = {
   ok: { text: 'В порядке', tone: 'success' },
   review: { text: 'На проверке', tone: 'warning' },
   restricted: { text: 'Ограничен', tone: 'danger' },
@@ -61,7 +59,7 @@ export const FRAUD_SIGNAL_RU: Record<FraudSignalCode, string> = {
   duplicate_text: 'Тот же текст кейса у другого аккаунта',
 };
 
-export const FINGERPRINT_KIND_RU: Record<FingerprintKind, string> = {
+const FINGERPRINT_KIND_RU: Record<FingerprintKind, string> = {
   phone: 'Телефон',
   email: 'Почта',
   apple: 'Apple ID',
@@ -85,7 +83,7 @@ export function KindChips({ kinds }: { kinds: string[] }) {
   );
 }
 
-export const FRAUD_EVENT_RU: Record<FraudEventKind, { text: string; tone: Tone }> = {
+const FRAUD_EVENT_RU: Record<FraudEventKind, { text: string; tone: Tone }> = {
   linked_match: { text: 'Совпадение с заблокированным', tone: 'warning' },
   sign_in_blocked: { text: 'Отказано во входе', tone: 'danger' },
   auto_review: { text: 'Авто: на проверку', tone: 'warning' },

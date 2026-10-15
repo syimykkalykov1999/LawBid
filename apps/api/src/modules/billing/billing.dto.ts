@@ -317,12 +317,6 @@ export class PortalSessionDto {
   @ApiProperty({ format: 'uri' }) url!: string;
 }
 
-export class WebhookAckDto {
-  @ApiProperty() received!: true;
-  @ApiProperty({ description: 'False when the event id was already stored.' })
-  queued!: boolean;
-}
-
 // ---- admin (§1.6) -------------------------------------------------------
 
 export class AdminSubscriptionUserParamDto {

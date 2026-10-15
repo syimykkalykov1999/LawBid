@@ -1,9 +1,9 @@
 import type { components } from "@/lib/api/schema";
 
 export type TreasuryOverview = components["schemas"]["TreasuryOverviewDto"];
-export type TreasurySetup = components["schemas"]["TreasurySetupDto"];
-export type TreasuryBank = components["schemas"]["TreasuryBankDto"];
-export type TreasuryCostLine = components["schemas"]["TreasuryCostLineDto"];
+type TreasurySetup = components["schemas"]["TreasurySetupDto"];
+type TreasuryBank = components["schemas"]["TreasuryBankDto"];
+type TreasuryCostLine = components["schemas"]["TreasuryCostLineDto"];
 
 /** Computed monthly lines (not editable here: they come from Зарплаты and
  * Партнёры, and the refund buffer from the settings below). */
@@ -30,7 +30,7 @@ export const PAYOUT_STATUS: Record<
   canceled: { label: "Отменено", tone: "danger" },
 };
 
-export interface SetupStep {
+interface SetupStep {
   done: boolean;
   title: string;
   /** What to do, only while not done. */

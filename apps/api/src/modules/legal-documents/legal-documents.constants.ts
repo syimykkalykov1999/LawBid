@@ -21,7 +21,6 @@ export const LEGAL_LOCALES = ['en', 'ru'] as const;
 export type LegalLocale = (typeof LEGAL_LOCALES)[number];
 
 export const LEGAL_STATUSES = ['draft', 'published', 'archived'] as const;
-export type LegalStatus = (typeof LEGAL_STATUSES)[number];
 
 /** Version string of the one draft per type + locale. */
 export const DRAFT_VERSION = 'draft';

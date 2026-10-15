@@ -37,6 +37,7 @@ import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/users_client.dart';
 import 'clients/admin_analytics_client.dart';
+import 'clients/app_events_client.dart';
 import 'clients/practice_areas_client.dart';
 import 'clients/attorneys_client.dart';
 import 'clients/profiles_client.dart';
@@ -146,6 +147,7 @@ class LawbidApi {
   AdminCaseDisputesClient? _adminCaseDisputes;
   UsersClient? _users;
   AdminAnalyticsClient? _adminAnalytics;
+  AppEventsClient? _appEvents;
   PracticeAreasClient? _practiceAreas;
   AttorneysClient? _attorneys;
   ProfilesClient? _profiles;
@@ -298,6 +300,9 @@ class LawbidApi {
 
   AdminAnalyticsClient get adminAnalytics =>
       _adminAnalytics ??= AdminAnalyticsClient(_dio, baseUrl: _baseUrl);
+
+  AppEventsClient get appEvents =>
+      _appEvents ??= AppEventsClient(_dio, baseUrl: _baseUrl);
 
   PracticeAreasClient get practiceAreas =>
       _practiceAreas ??= PracticeAreasClient(_dio, baseUrl: _baseUrl);

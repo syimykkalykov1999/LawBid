@@ -8,7 +8,7 @@ import { DOC_TEMPLATE_RU, DOC_TEMPLATES, type DocTemplate } from '@/lib/trust-la
 
 export const TRUST_NOTE_MAX = 500;
 
-export type DocumentRequest = { template: DocTemplate; note: string } | null;
+type DocumentRequest = { template: DocTemplate; note: string } | null;
 
 /**
  * «Запросить ещё»: pick what the attorney must upload (template) and add a

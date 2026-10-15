@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
+import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_api_client.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
@@ -66,6 +68,9 @@ class FeatureFlagsController extends _$FeatureFlagsController {
         appConfig: result.appConfig,
         legalDocuments: result.legalDocuments,
       );
+      // Owner 2026-10-15: kill switches of the app's own diagnostics.
+      AppEvents.enabled = state.flags['app_events'] ?? true;
+      CrashReporter.enabled = state.flags['crash_reports'] ?? true;
     } catch (_) {
       // Best-effort — see class doc comment. `state` already holds
       // `defaultFeatureFlags` (or whatever the last successful refresh

@@ -39,9 +39,6 @@ export const STRONG_KINDS: readonly FpKind[] = [
 ];
 /** A phone can be sold or shared in a family: its own setting. */
 export const DEVICE_KINDS: readonly FpKind[] = ['device'];
-/** Shown to staff; only the case text adds to the score (an IP is shared
- * by strangers behind a carrier or office network). */
-export const WEAK_KINDS: readonly FpKind[] = ['ip', 'text'];
 
 /** `client_fraud_profiles.status`. */
 export const FRAUD_STATUS = {

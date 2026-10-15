@@ -16,7 +16,7 @@ import { api, ApiError } from '@/lib/api/client';
 export const LIVE_MS = 60_000;
 export const RATE_LIMITED_BACKOFF_MS = 5 * 60_000;
 
-export function isRateLimited(e: unknown): boolean {
+function isRateLimited(e: unknown): boolean {
   return e instanceof ApiError && e.status === 429;
 }
 

@@ -1,14 +1,14 @@
 import type { components } from '@/lib/api/schema';
 
 export type SystemHealth = components['schemas']['SystemHealthDto'];
-export type HealthItem = components['schemas']['HealthItemDto'];
-export type Light = HealthItem['status'];
+type HealthItem = components['schemas']['HealthItemDto'];
+type Light = HealthItem['status'];
 
 type D = Record<string, unknown>;
 const n = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /** Seconds → «2 мин», «3 ч», «5 дн». */
-export function ago(sec: number | null): string {
+function ago(sec: number | null): string {
   if (sec === null) return 'давно';
   if (sec < 90) return `${Math.max(1, Math.round(sec))} с`;
   if (sec < 5400) return `${Math.round(sec / 60)} мин`;
@@ -16,11 +16,11 @@ export function ago(sec: number | null): string {
   return `${Math.round(sec / 86_400)} дн`;
 }
 
-export function usd(v: number | null): string {
+function usd(v: number | null): string {
   return v === null ? '—' : `$${v.toFixed(v >= 100 ? 0 : 2)}`;
 }
 
-export interface Worded {
+interface Worded {
   title: string;
   /** What is there now, one short line. */
   line: string;

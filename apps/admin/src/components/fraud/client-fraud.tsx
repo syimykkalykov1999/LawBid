@@ -596,7 +596,7 @@ function FraudEvents() {
 
 // --- «Заблокировать» --------------------------------------------------------
 
-export type BanResult = { note: string; includeLinked: boolean } | null;
+type BanResult = { note: string; includeLinked: boolean } | null;
 
 /**
  * «Заблокировать»: a reason (3–500, required by the API) and «и все

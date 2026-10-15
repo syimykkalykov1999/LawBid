@@ -418,7 +418,7 @@ export const VIDEO_STATUS: Record<string, string> = {
 };
 
 /** Badge tone for common statuses. */
-export function toneFor(status: string | null | undefined): Tone {
+function toneFor(status: string | null | undefined): Tone {
   switch (status) {
     case 'active':
     case 'verified':
@@ -537,7 +537,7 @@ export const CONFIG_TYPE: Record<string, string> = {
 };
 
 /** Audit-log action names written by the API services (grep `action:` in apps/api/src). */
-export const AUDIT_ACTION: Record<string, string> = {
+const AUDIT_ACTION: Record<string, string> = {
   'admin.login': 'Вход в панель',
   'admin.logout': 'Выход из панели',
   'admin.recovery_code_used': 'Вход по резервному коду',

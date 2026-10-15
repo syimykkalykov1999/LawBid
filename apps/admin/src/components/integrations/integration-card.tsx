@@ -52,7 +52,7 @@ export function slotName(s: { slot: string; label?: string | null }): string {
 }
 
 /** A fresh key-set id: short, unique enough, matches the API pattern. */
-export function newSlotId(): string {
+function newSlotId(): string {
   return `k${Date.now().toString(36)}`;
 }
 

@@ -54,7 +54,6 @@ export interface ResolvedEntitlements {
   seats: SeatSummary | null;
 }
 
-export const CLIENT_LIVE_STATUSES = ['trialing', 'active', 'past_due'];
 const CACHE_TTL_SECONDS = 60;
 const VERSION_KEY = 'ent:ver';
 const cacheKey = (ver: string, userId: string) => `ent:${ver}:${userId}`;

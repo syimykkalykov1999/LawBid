@@ -59,15 +59,6 @@ export const BID_ACTIONS = Object.keys(BID_ACTION_ACTORS) as BidAction[];
 /** §6.1: at most 5 counter-offers per bid (bids.round_count ≤ 5). */
 export const MAX_COUNTER_ROUNDS = 5;
 
-/** Only `active` bids can change; every other status is final (§5–§7). */
-export const BID_FINAL_STATUSES: readonly BidStatus[] = [
-  'accepted',
-  'rejected_by_client',
-  'rejected_auto',
-  'withdrawn',
-  'failed_negotiation',
-];
-
 /** §5.1: a new bid is active, round 0, the client's turn. */
 export const INITIAL_BID_STATE = {
   status: 'active',
