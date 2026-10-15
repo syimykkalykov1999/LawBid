@@ -208,10 +208,11 @@ export class PostgresSearchProvider implements SearchProvider {
     }));
   }
 
-  searchCases(
+  async searchCases(
     q: string,
     p: CaseSearchParams,
   ): Promise<{ id: string; created_at: Date }[]> {
+    const textPractices = await this.practiceIdsFor(q);
     const extra = Prisma.sql`
           ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
           ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
@@ -232,6 +233,7 @@ export class PostgresSearchProvider implements SearchProvider {
           limit: p.limit + 1,
           text: q,
           textPrefix: !p.textExact,
+          textPractices,
           since: p.since,
           extra,
         }),
@@ -246,6 +248,7 @@ export class PostgresSearchProvider implements SearchProvider {
         limit: p.limit + 1,
         text: q,
         textPrefix: !p.textExact,
+        textPractices,
         since: p.since,
         extra,
       }),
@@ -301,15 +304,16 @@ export class PostgresSearchProvider implements SearchProvider {
       LIMIT ${max}`;
     // Whole words first (the planner estimates them well), then the last
     // word as a prefix ("immigr"), then typos; each within a time budget.
+    const practiceIds = await this.practiceIdsFor(q);
     const exact = await this.budget(SEARCH_BUDGET_MS, () =>
-      run(ftsMatch('p', q, false)),
+      run(ftsMatch('p', q, false, practiceIds)),
     );
     const parsed = parseSearchQuery(q);
     if (exact.length >= MIN_EXACT || !parsed.plain) {
       return exact.map((r) => r.id);
     }
     const prefix = await this.budget(SEARCH_BUDGET_MS, () =>
-      run(ftsMatch('p', q)),
+      run(ftsMatch('p', q, true, practiceIds)),
     );
     const merged = [...new Map([...exact, ...prefix].map((r) => [r.id, r]))];
     if (merged.length > 0) return merged.map(([id]) => id);
@@ -321,6 +325,46 @@ export class PostgresSearchProvider implements SearchProvider {
       true,
     );
     return typo.map((r) => r.id);
+  }
+
+  private readonly practiceCache = new Map<
+    string,
+    { at: number; ids: string[] }
+  >();
+
+  /**
+   * Owner 2026-10-15 (cross-language search, no translation): the practices
+   * whose name in ANY of the 85 languages is, or has a word starting with,
+   * the query — "divorce", "развод" and "ажырашуу" all name Family law, so a
+   * Russian case filed under it is found by an English query. The query
+   * needs ≥3 letters; the result is cached for ten minutes.
+   */
+  async practiceIdsFor(q: string): Promise<string[]> {
+    const norm = parseSearchQuery(q).plain.toLowerCase();
+    if (norm.length < 3) return [];
+    const hit = this.practiceCache.get(norm);
+    if (hit && Date.now() - hit.at < 600_000) return hit.ids;
+    const like = `${escapeLike(norm)}%`;
+    const wordLike = `% ${escapeLike(norm)}%`;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      WITH hits AS (
+        SELECT DISTINCT pa.id, pa.parent_id
+        FROM practice_areas pa
+        JOIN i18n_keys k ON k.key = pa.i18n_key
+        JOIN i18n_translations t ON t.key_id = k.id
+        WHERE pa.is_active
+          AND (public.f_unaccent(lower(t.value)) LIKE ${like}
+            OR public.f_unaccent(' ' || lower(t.value)) LIKE ${wordLike})
+        LIMIT 12
+      )
+      SELECT id::TEXT AS id FROM hits
+      UNION
+      SELECT c.id::TEXT FROM practice_areas c
+        JOIN hits h ON c.parent_id = h.id`;
+    const ids = rows.map((r) => r.id);
+    this.practiceCache.set(norm, { at: Date.now(), ids });
+    if (this.practiceCache.size > 2000) this.practiceCache.clear();
+    return ids;
   }
 
   /**

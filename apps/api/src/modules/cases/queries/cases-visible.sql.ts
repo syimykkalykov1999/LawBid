@@ -34,6 +34,8 @@ export interface VisibleCasesQueryInput {
   text?: string;
   /** The last word is a prefix (default); false = whole words only. */
   textPrefix?: boolean;
+  /** Practices the text names in another language (practiceIdsFor). */
+  textPractices?: string[];
   since?: Date;
 }
 
@@ -109,6 +111,7 @@ export function buildVisibleCasesSql(
     limit,
     text,
     textPrefix,
+    textPractices,
     since,
     extra,
     browseAll,
@@ -124,7 +127,7 @@ export function buildVisibleCasesSql(
     : Prisma.empty;
   const searchFilter = Prisma.sql`${
     text
-      ? Prisma.sql`AND ${ftsMatch('c', text, textPrefix ?? true)}`
+      ? Prisma.sql`AND ${ftsMatch('c', text, textPrefix ?? true, textPractices)}`
       : Prisma.empty
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty}`;
 
@@ -227,6 +230,8 @@ export interface PracticeCasesQueryInput {
   /** Audit 2026-10-01: search uses the same rule (text, period, extras). */
   text?: string;
   textPrefix?: boolean;
+  /** Practices the text names in another language (practiceIdsFor). */
+  textPractices?: string[];
   since?: Date;
   extra?: Prisma.Sql;
   browseAll?: boolean;
@@ -251,13 +256,14 @@ export function buildPracticeCasesSql(
     limit,
     text,
     textPrefix,
+    textPractices,
     since,
     extra,
     browseAll,
   } = input;
   const searchFilter = Prisma.sql`${
     text
-      ? Prisma.sql`AND ${ftsMatch('c', text, textPrefix ?? true)}`
+      ? Prisma.sql`AND ${ftsMatch('c', text, textPrefix ?? true, textPractices)}`
       : Prisma.empty
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty} ${
     extra ?? Prisma.empty

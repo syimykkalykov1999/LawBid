@@ -7,13 +7,23 @@ import { parseSearchQuery } from './search-query';
  * (migration 20261015100000_search_weights). Accents are ignored; the last
  * word is a prefix. [alias] is a table alias written by us, never user input.
  */
-export function ftsMatch(alias: string, q: string, prefix = true): Prisma.Sql {
+export function ftsMatch(
+  alias: string,
+  q: string,
+  prefix = true,
+  practiceIds: string[] = [],
+): Prisma.Sql {
   const parsed = parseSearchQuery(q);
   const tsquery = prefix ? parsed.tsquery : parsed.exact;
   if (!tsquery) return Prisma.sql`FALSE`;
   const a = Prisma.raw(alias);
+  // Owner 2026-10-15: a query in any language also finds rows filed under
+  // the practice it names in another language (practiceIdsFor).
+  const byPractice = practiceIds.length
+    ? Prisma.sql`OR ${a}.practice_area_id = ANY(${practiceIds}::UUID[])`
+    : Prisma.empty;
   return Prisma.sql`(${a}.search_tsv @@ to_tsquery('english', public.f_unaccent(${tsquery}))
-      OR ${a}.search_tsv_simple @@ to_tsquery('simple', public.f_unaccent(${tsquery})))`;
+      OR ${a}.search_tsv_simple @@ to_tsquery('simple', public.f_unaccent(${tsquery})) ${byPractice})`;
 }
 
 export function ftsRank(alias: string, q: string): Prisma.Sql {
