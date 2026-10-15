@@ -86,6 +86,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   media: 'media',
   // Owner 2026-10-15: Поиск → Синонимы, запросы без результатов.
   search: 'content',
+  // Owner 2026-10-15: the app's own crash reports.
+  crashes: 'settings',
   bids: 'cases',
   cases: 'cases',
   'case-disputes': 'cases',

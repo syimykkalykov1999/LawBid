@@ -4962,3 +4962,28 @@ model SearchLearnedLink {
   @@id([q, practice_area_id])
   @@map("search_learned_links")
 }
+
+// -----------------------------------------------------------------------
+// Owner 2026-10-15: the app's own crash reports (no paid service): the
+// phone sends errors in batches, the admin sees them grouped.
+// -----------------------------------------------------------------------
+model CrashReport {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fingerprint  String   @db.VarChar(40)
+  message      String   @db.VarChar(500)
+  stack        String   @db.VarChar(6000)
+  fatal        Boolean  @default(false)
+  platform     String   @db.VarChar(12)
+  app_version  String   @db.VarChar(30)
+  build        String   @db.VarChar(20)
+  flavor       String   @db.VarChar(12)
+  os_version   String   @db.VarChar(40)
+  device_model String   @db.VarChar(60)
+  device_key   String?  @db.VarChar(80)
+  route        String?  @db.VarChar(120)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([fingerprint, created_at(sort: Desc)])
+  @@index([created_at])
+  @@map("crash_reports")
+}
