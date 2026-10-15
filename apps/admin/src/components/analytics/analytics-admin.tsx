@@ -32,6 +32,25 @@ function Bars({ values, labels, tone }: { values: number[]; labels: string[]; to
   );
 }
 
+/** A short list of "name — count" with a thin bar behind each row. */
+function CountList({ rows }: { rows: { label: string; count: number }[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  if (rows.length === 0) return <div className="text-sm text-muted">—</div>;
+  return (
+    <ul className="space-y-1">
+      {rows.map((r) => (
+        <li key={r.label} className="relative overflow-hidden rounded px-2 py-1 text-sm text-ink">
+          <div className="absolute inset-y-0 left-0 bg-accent/10" style={{ width: `${(r.count / max) * 100}%` }} />
+          <div className="relative flex justify-between gap-3">
+            <span className="truncate">{r.label}</span>
+            <b className="tabular-nums">{r.count}</b>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Owner 2026-10-15: our own analytics (free, in our database). */
 export function AnalyticsAdmin() {
   const [days, setDays] = useState('30');
@@ -133,6 +152,27 @@ export function AnalyticsAdmin() {
             <div className="mt-1 text-xs text-muted">
               Подписки {usd(sum((x) => x.subscriptionCents))} · Boost {usd(sum((x) => x.boostCents))} · покупок {sum((x) => x.purchases)}
             </div>
+          </Card>
+
+          <Card className="p-4">
+            <div className="mb-2 text-sm font-medium text-ink">Что делают в приложении</div>
+            {!d.events.enabled ? (
+              <div className="text-sm text-muted">Сбор событий выключен (флаг app_events). Показаны данные, накопленные раньше.</div>
+            ) : null}
+            {d.events.topScreens.length === 0 && d.events.topEvents.length === 0 ? (
+              <div className="text-sm text-muted">Событий пока нет: они появятся, когда люди откроют обновлённое приложение.</div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-1 text-xs text-muted">Самые частые экраны</div>
+                  <CountList rows={d.events.topScreens.map((r) => ({ label: r.screen, count: r.count }))} />
+                </div>
+                <div>
+                  <div className="mb-1 text-xs text-muted">Самые частые действия</div>
+                  <CountList rows={d.events.topEvents.map((r) => ({ label: r.name, count: r.count }))} />
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       ) : null}
