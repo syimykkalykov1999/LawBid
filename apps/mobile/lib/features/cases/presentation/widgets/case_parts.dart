@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
 /// Owner 2026-10-13: the pieces the case card (feed) and the open case
 /// share, so both read the same: practice chips, State · Budget · Deadline
@@ -17,6 +18,7 @@ class CaseChipsRow extends StatelessWidget {
     required this.labels,
     this.status,
     this.dense = false,
+    this.accent,
     this.padding = const EdgeInsets.fromLTRB(
       AppSpacing.lg,
       AppSpacing.md,
@@ -36,6 +38,9 @@ class CaseChipsRow extends StatelessWidget {
   /// Owner 2026-10-14: slimmer chips on the feed card.
   final bool dense;
 
+  /// Owner 2026-10-15: the practice's colour for the main chip.
+  final Color? accent;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -49,7 +54,7 @@ class CaseChipsRow extends StatelessWidget {
             color: ok
                 ? colors.success.withValues(alpha: 0.16)
                 : main
-                    ? (dark ? colors.border : colors.navy)
+                    ? (accent ?? (dark ? colors.border : colors.navy))
                     : colors.chip,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -61,7 +66,9 @@ class CaseChipsRow extends StatelessWidget {
               color: ok
                   ? colors.successText
                   : main
-                      ? Colors.white
+                      ? (accent == null
+                          ? Colors.white
+                          : onPracticeAccent(accent!))
                       : colors.text,
             ),
           ),

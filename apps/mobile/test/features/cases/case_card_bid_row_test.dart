@@ -90,10 +90,11 @@ void main() {
             translator.t(bid ? 'cases.card.bidDone' : 'cases.card.bid');
         expect(find.text(label), findsOneWidget);
         expect(find.textContaining('You placed'), findsNothing);
-        // The button is above the icon row.
-        final button = t.getTopLeft(find.text(label));
-        final icons = t.getTopLeft(find.byIcon(AppIcons.sendOutlined));
-        expect(button.dy, lessThan(icons.dy));
+        // Owner 2026-10-15: Bid sits in the icon row, left of the time.
+        final button = t.getCenter(find.text(label));
+        final icons = t.getCenter(find.byIcon(AppIcons.sendOutlined));
+        expect((button.dy - icons.dy).abs(), lessThan(20));
+        expect(button.dx, greaterThan(icons.dx));
         // Icons, comments, time and Save all fit in 360dp.
         expect(
           t.getTopRight(find.byIcon(AppIcons.bookmarkBorderRounded)).dx,
@@ -149,7 +150,8 @@ void main() {
     expect(b.bottom, lessThanOrEqualTo(780 - 24 - 100 - 64));
   });
 
-  testWidgets('order: files, Bid on its own row, icons; time and Save right', (
+  testWidgets('order: files, then one row: icons, Bid, time, Save at the right',
+      (
     t,
   ) async {
     t.view.physicalSize = const Size(360, 780);
@@ -177,8 +179,8 @@ void main() {
     final files = t.getTopLeft(find.byIcon(AppIcons.folderOutlined)).dy;
     final bid = t.getTopLeft(find.text('Bid')).dy;
     final icons = t.getTopLeft(find.byIcon(AppIcons.sendOutlined)).dy;
-    expect(files, lessThan(bid));
-    expect(bid, lessThan(icons));
+    expect(files, lessThan(icons));
+    expect((bid - icons).abs(), lessThan(20));
     // Save sits at the right edge, the time right before it.
     final save = t.getTopRight(find.byIcon(AppIcons.bookmarkBorderRounded));
     expect(save.dx, greaterThan(360 - 40));

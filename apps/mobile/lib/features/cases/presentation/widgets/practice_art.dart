@@ -42,6 +42,53 @@ IconData practiceGlyph(String? categoryCode) => switch (categoryCode) {
       _ => AppIcons.balanceRounded,
     };
 
+/// Owner 2026-10-15: every practice category has its own colour — the
+/// glow in the card's corner, the header band and the main chip. The key
+/// practices keep hand-picked hues; the others are spread by the golden
+/// angle so no two neighbours look alike. Muted, readable on dark and light.
+const _kPracticeHues = <String, double>{
+  'immigration': 216,
+  'family_law': 340,
+  'traffic_tickets': 38,
+  'dui_and_dwi': 22,
+  'intellectual_property': 255,
+  'real_estate': 152,
+  'criminal_defense': 8,
+  'business_and_corporate': 188,
+};
+
+final Map<String, double> _practiceHues = () {
+  final codes =
+      (kPracticeArtAssets.where((c) => !c.contains('.')).toList()..sort());
+  final used = <double>[..._kPracticeHues.values];
+  final out = <String, double>{..._kPracticeHues};
+  for (final (i, code) in codes.indexed) {
+    if (out.containsKey(code)) continue;
+    var hue = (i * 137.508 + 60) % 360;
+    // Never closer than 6 degrees to another practice's hue.
+    while (used.any((u) => ((u - hue + 540) % 360 - 180).abs() < 6)) {
+      hue = (hue + 7) % 360;
+    }
+    used.add(hue);
+    out[code] = hue;
+  }
+  return out;
+}();
+
+Color practiceAccent(String? categoryCode, {required bool dark}) {
+  final hue = _practiceHues[categoryCode] ?? 45.0;
+  return HSLColor.fromAHSL(1, hue, 0.58, dark ? 0.6 : 0.46).toColor();
+}
+
+/// Legible text on [accent].
+Color onPracticeAccent(Color accent) {
+  final l = accent.computeLuminance();
+  // White or near-black, whichever contrasts more.
+  final white = 1.05 / (l + 0.05);
+  final black = (l + 0.05) / 0.05;
+  return black > white ? Colors.black87 : Colors.white;
+}
+
 /// Bundled photo art (owner-supplied / licensed images), keyed by a leaf
 /// practice code (`traffic_tickets.cdl_violations`) or a category code
 /// (`family_law`); the leaf wins. Keep in sync with `assets/practice_art/`.
