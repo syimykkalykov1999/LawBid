@@ -139,6 +139,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                   controller: _pages,
                   scrollDirection: Axis.vertical,
                   itemCount: items.length,
+                  // Owner 2026-10-15: the neighbours are built (and warmed).
+                  allowImplicitScrolling: true,
                   onPageChanged: (i) {
                     setState(() => _index = i);
                     if (i >= items.length - 3) _load();
@@ -147,6 +149,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     key: ValueKey(items[i].id),
                     post: items[i],
                     active: i == _index,
+                    warm: (i - _index).abs() == 1,
                     muted: muted,
                     embedded: true,
                   ),
@@ -194,6 +197,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                   controller: _pages,
                   scrollDirection: Axis.vertical,
                   itemCount: items.length,
+                  // Owner 2026-10-15: the neighbours are built (and warmed).
+                  allowImplicitScrolling: true,
                   onPageChanged: (i) {
                     setState(() => _index = i);
                     if (i >= items.length - 3) _load();
@@ -202,6 +207,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     key: ValueKey(items[i].id),
                     post: items[i],
                     active: i == _index,
+                    warm: (i - _index).abs() == 1,
                     muted: muted,
                   ),
                 ),
@@ -259,6 +265,7 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.post,
     required this.active,
     required this.muted,
+    this.warm = false,
     this.embedded = false,
     super.key,
   });
@@ -266,6 +273,9 @@ class _ReelPage extends ConsumerStatefulWidget {
   final Post post;
   final bool active;
   final bool muted;
+
+  /// The next or previous reel: its stream is opened ahead.
+  final bool warm;
 
   /// The Reels tab: the compact «Watch» strip sits right above the nav bar.
   final bool embedded;
@@ -404,6 +414,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   ReelVideo(
                     video: video,
                     active: widget.active && video.ready,
+                    warm: widget.warm && video.ready,
                     muted: widget.muted,
                     paused: _paused || covered,
                     onProgress: (v) => _progress.value = v,

@@ -53,12 +53,17 @@ class ReelVideo extends StatefulWidget {
     required this.active,
     this.muted = true,
     this.paused = false,
+    this.warm = false,
     this.onProgress,
     super.key,
   });
 
   final PostVideo video;
   final bool active;
+
+  /// Owner 2026-10-15: the next/previous reel opens its stream ahead and
+  /// waits at the first frame, so swiping to it starts at once.
+  final bool warm;
   final bool muted;
 
   /// The viewer paused it (tap on the reel).
@@ -82,7 +87,7 @@ class _ReelVideoState extends State<ReelVideo> {
   @override
   void initState() {
     super.initState();
-    if (widget.active) _open();
+    if (widget.active || widget.warm) _open();
   }
 
   @override
@@ -90,7 +95,7 @@ class _ReelVideoState extends State<ReelVideo> {
     super.didUpdateWidget(old);
     // Off screen: free the player so it stops buffering (data + memory);
     // coming back re-opens it at the same spot.
-    if (!widget.active && _c != null) {
+    if (!widget.active && !widget.warm && _c != null) {
       final at = _c!.value.isInitialized ? _c!.value.position : null;
       _close();
       _resumeAt = at;
@@ -104,7 +109,7 @@ class _ReelVideoState extends State<ReelVideo> {
       _resumeAt = at;
     }
     if (widget.video.playbackUrl != old.video.playbackUrl) _close();
-    if (widget.active && _c == null) _open();
+    if ((widget.active || widget.warm) && _c == null) _open();
     _apply();
   }
 

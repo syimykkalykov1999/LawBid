@@ -51,6 +51,14 @@ double feedCardHeight(double viewport) => math.max(440, viewport);
 /// all comments (N)". Text-only posts render as a quote card. The card
 /// always shows the latest local version of the post (likes/saves/edits
 /// from any screen).
+/// Room a feed video card keeps besides the video: author row, action row,
+/// two caption lines and a little air (dp).
+const double _kVideoCardChrome = 240;
+
+/// Owner 2026-10-15: a video in a list is at most 9:10 (our header already
+/// takes room, unlike Instagram's 4:5).
+const double _kVideoRatio = 0.9;
+
 class PostCard extends ConsumerWidget {
   const PostCard({
     required this.post,
@@ -241,11 +249,20 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-15 (like Instagram): the frame follows the first photo's
     // shape, at most 4:5 tall and 1.91:1 wide (PostMedia.aspectRatio is
     // bounded); anything longer is cropped to the centre, whole when opened.
-    final frameRatio =
-        p.video == null && p.media.isNotEmpty ? p.media.first.aspectRatio : 0.8;
-    final photoHeight = fillHeight != null || feedHeight != null
+    final frameRatio = p.video == null && p.media.isNotEmpty
+        ? p.media.first.listAspectRatio
+        : 0.8;
+    // Owner 2026-10-15: a video is up to 4:5 but its whole card (author,
+    // video, actions, caption) must fit between the screen header and the
+    // nav bar — shorter when the screen is.
+    final cardRest = feedHeight == null
+        ? double.infinity
+        : math.max(minPhoto, feedHeight! - _kVideoCardChrome);
+    final photoBase = fillHeight != null || feedHeight != null
         ? math.max(width / frameRatio, minPhoto)
         : width / frameRatio;
+    final photoHeight =
+        p.video != null ? math.min(photoBase, cardRest) : photoBase;
     Widget photoBox(Widget child, {required bool fill, VoidCallback? onShort}) {
       if (!fill) return SizedBox(height: photoHeight, child: child);
       return Expanded(
@@ -504,7 +521,7 @@ class PostCard extends ConsumerWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(AppRadii.card - 2),
               child: AspectRatio(
-                aspectRatio: 4 / 5,
+                aspectRatio: _kVideoRatio,
                 child: InlineReel(
                   post: p,
                   onOpen: () => ReelsScreen.open(context, from: p),
@@ -710,7 +727,7 @@ class _InstagramPost extends ConsumerWidget {
           _OwnMenuRow(post: p),
         if (p.video != null)
           AspectRatio(
-            aspectRatio: p.video!.aspectRatio.clamp(0.8, 1.91),
+            aspectRatio: p.video!.aspectRatio.clamp(_kVideoRatio, 1.91),
             child: InlineReel(
               post: p,
               onOpen: () => ReelsScreen.open(context, from: p),
@@ -721,6 +738,7 @@ class _InstagramPost extends ConsumerWidget {
           // gallery (swipe, zoom), double tap = like.
           PostMediaCarousel(
             media: p.media,
+            inList: !inDetail,
             semanticLabel: t.t('post.media.label'),
             onDoubleTap: () => run(() => actions.like(p)),
             // Owner 2026-10-07: in someone's feed of posts a tap opens
@@ -2148,11 +2166,15 @@ class PostMediaCarousel extends StatefulWidget {
     required this.semanticLabel,
     this.compact = false,
     this.fill = false,
+    this.inList = false,
     this.onTap,
     this.onPage,
     this.showDots = true,
     super.key,
   });
+
+  /// In a list (not the opened post): at most square.
+  final bool inList;
 
   /// The visible photo changed (the feed card draws its own indicators).
   final ValueChanged<int>? onPage;
@@ -2283,7 +2305,11 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
           : AspectRatio(
               // PostMedia.aspectRatio is already bounded 4:5 … 1.91:1; longer
               // photos are cropped to the centre (cover), whole when opened.
-              aspectRatio: widget.compact ? 2 : media.first.aspectRatio,
+              aspectRatio: widget.compact
+                  ? 2
+                  : widget.inList
+                      ? media.first.listAspectRatio
+                      : media.first.aspectRatio,
               child: gallery,
             ),
     );

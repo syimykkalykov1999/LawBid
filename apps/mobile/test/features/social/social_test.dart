@@ -189,7 +189,7 @@ void main() {
   });
 
   testWidgets(
-      'a very tall photo (1:4) never makes the card taller than 4:5, '
+      'a very tall photo (1:4) never makes the photo taller than 1:1, '
       'like Instagram', (tester) async {
     final repo = FakeSocialRepository(
       posts: [fakePost('p1', withPhoto: true, photoHeight: 4320)],
@@ -203,7 +203,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     final size = tester.getSize(find.byType(PostMediaCarousel));
-    expect(size.height, lessThanOrEqualTo(size.width * 1.25 + 0.5));
+    expect(size.height, lessThanOrEqualTo(size.width + 0.5));
   });
 
   testWidgets(

@@ -86,6 +86,11 @@ class PostMedia {
     // Instagram-like bounds: 4:5 portrait … 1.91:1 landscape.
     return (w / h).clamp(0.8, 1.91);
   }
+
+  /// Owner 2026-10-15: in any list a photo is at most square (1:1) and at
+  /// most 1.91:1 wide; taller ones are cropped to the centre and shown
+  /// whole when opened.
+  double get listAspectRatio => aspectRatio.clamp(1.0, 1.91);
 }
 
 /// OQ-042: a real person @mentioned in a post or comment.
