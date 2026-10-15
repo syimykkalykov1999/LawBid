@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -355,7 +356,10 @@ class _FileRow extends StatelessWidget {
             child: SizedBox.square(
               dimension: 48,
               child: isImage
-                  ? Image.network(file.previewUrl, fit: BoxFit.cover)
+                  ? Image(
+                      image: appNetworkImage(file.previewUrl, 600),
+                      fit: BoxFit.cover,
+                    )
                   : ColoredBox(
                       color: colors.chip,
                       child: AppIcon(
@@ -553,7 +557,7 @@ class UpdateEntry extends StatelessWidget {
             initials: initials,
             imageProvider: u.authorAvatarUrl == null
                 ? null
-                : NetworkImage(u.authorAvatarUrl!),
+                : appNetworkImage(u.authorAvatarUrl!, 120),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -607,7 +611,10 @@ class UpdateEntry extends StatelessWidget {
                           child: SizedBox.square(
                             dimension: 44,
                             child: f.mime.startsWith('image/')
-                                ? Image.network(f.previewUrl, fit: BoxFit.cover)
+                                ? Image(
+                                    image: appNetworkImage(f.previewUrl, 600),
+                                    fit: BoxFit.cover,
+                                  )
                                 : ColoredBox(
                                     color: colors.chip,
                                     child: const AppIcon(

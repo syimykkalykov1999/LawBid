@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
@@ -40,7 +41,9 @@ class TaskPersonAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AppAvatar(
         size: size,
-        imageProvider: avatarUrl == null ? null : NetworkImage(avatarUrl!),
+        imageProvider: avatarUrl == null
+            ? null
+            : appNetworkImage(avatarUrl!, decodeWidthFor(size)),
         initials: personInitials(name),
         semanticLabel: name,
       );

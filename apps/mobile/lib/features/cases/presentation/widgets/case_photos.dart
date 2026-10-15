@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -319,13 +320,13 @@ class CasePhotosStrip extends ConsumerWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadii.field),
-        child: Image.network(
-          p.previewUrl,
+        child: Image(
+          image: appNetworkImage(p.previewUrl, 336),
           width: 112,
           height: 112,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Image.network(
-            p.url,
+          errorBuilder: (_, __, ___) => Image(
+            image: appNetworkImage(p.url, 336),
             width: 112,
             height: 112,
             fit: BoxFit.cover,

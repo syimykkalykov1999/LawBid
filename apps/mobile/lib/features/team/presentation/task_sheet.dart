@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -1285,7 +1286,7 @@ class _FileTile extends StatelessWidget {
           height: side,
           color: colors.goldTint,
           child: file.isImage && url != null
-              ? Image.network(url, fit: BoxFit.cover)
+              ? Image(image: appNetworkImage(url, 600), fit: BoxFit.cover)
               : Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

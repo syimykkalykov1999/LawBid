@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -136,7 +137,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                                 size: 36,
                                 imageProvider: _avatar(p) == null
                                     ? null
-                                    : NetworkImage(_avatar(p)!),
+                                    : appNetworkImage(_avatar(p)!, 120),
                                 initials: _initials(p),
                               ),
                               const SizedBox(width: AppSpacing.md),

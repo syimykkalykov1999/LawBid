@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 
 /// Hero tag shared by every place an attorney's photo appears, so a list
 /// row (search, file 05) → profile → editor flies the same avatar.
@@ -44,7 +45,9 @@ class ProfileAvatar extends StatelessWidget {
     // ignore: omit_local_variable_types
     final ImageProvider? image = preview != null
         ? MemoryImage(preview!)
-        : (url != null && url!.isNotEmpty ? NetworkImage(url!) : null);
+        : (url != null && url!.isNotEmpty
+            ? appNetworkImage(url!, decodeWidthFor(size))
+            : null);
 
     Widget avatar = AppAvatar(
       imageProvider: image,

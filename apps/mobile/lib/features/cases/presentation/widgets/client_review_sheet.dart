@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -340,7 +341,10 @@ class _SheetState extends ConsumerState<_Sheet> {
                             child: SizedBox.square(
                               dimension: 76,
                               child: p.url != null
-                                  ? Image.network(p.url!, fit: BoxFit.cover)
+                                  ? Image(
+                                      image: appNetworkImage(p.url!, 600),
+                                      fit: BoxFit.cover,
+                                    )
                                   : i < _local.length
                                       ? Image.memory(
                                           _local[i],
