@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/cases/presentation/screens/create_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -78,6 +79,18 @@ void main() {
           // The tiles are really there (not an empty or errored screen).
           expect(find.text(t.t('post.src.gallery')), findsOneWidget);
           expect(find.text(t.t('post.src.camera')), findsOneWidget);
+        });
+
+        testWidgets('case wizard exit sheet, $tag', (tester) async {
+          await pump(
+            tester,
+            Scaffold(body: CreateCaseExitSheet(t: t)),
+            theme: theme,
+            scale: scale,
+            dir: dir,
+          );
+          expect(tester.takeException(), isNull);
+          expect(find.text(t.t('cases.create.exitTitle')), findsOneWidget);
         });
 
         testWidgets('video editor, $tag', (tester) async {

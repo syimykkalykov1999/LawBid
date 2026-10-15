@@ -46,7 +46,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
     // saving?» with [Exit] / [Continue].
     final leave = await showAppBottomSheet<bool>(
       context: context,
-      builder: (context) => _ExitSheet(t: t),
+      builder: (context) => CreateCaseExitSheet(t: t),
     );
     if (leave != true) return;
     await _c.finishEditing(keepDraft: false);
@@ -302,8 +302,8 @@ class _DraftBanner extends StatelessWidget {
 }
 
 /// «Exit without saving?» when the wizard is closed with something typed.
-class _ExitSheet extends StatelessWidget {
-  const _ExitSheet({required this.t});
+class CreateCaseExitSheet extends StatelessWidget {
+  const CreateCaseExitSheet({required this.t, super.key});
 
   final Translator t;
 
