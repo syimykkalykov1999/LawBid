@@ -85,6 +85,13 @@ function expiryOf(token: string): number | null {
   namespace: REALTIME_NAMESPACE,
   cors: { origin: true },
   transports: ['websocket', 'polling'],
+  // Owner 2026-10-15: limits so one heavy or broken client cannot hurt the
+  // rest. Every socket event is small (join, typing, presence, a call's
+  // SDP/ICE of a few KB); files go through the REST API, not the socket.
+  maxHttpBufferSize: 64 * 1024,
+  pingInterval: 25_000,
+  pingTimeout: 20_000,
+  connectTimeout: 10_000,
 })
 export class RealtimeGateway
   implements
