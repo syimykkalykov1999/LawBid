@@ -1,0 +1,104 @@
+# Owner 2026-10-15 — the web version of the app: build (WebAssembly) →
+# S3 → CloudFront cache reset. Infra: infra/modules/web.
+#
+# Runs only when the repository variable WEB_DEPLOY_ENABLED is 'true', so
+# a repo without the AWS secrets stays green.
+#
+# Repository secrets / variables (never in the repo):
+#   AWS_DEPLOY_ROLE_PROD   OIDC role that may use the `web_deploy_policy_arn`
+#                          policy (terraform output of the stack)
+#   AWS_REGION
+#   WEB_BUCKET             terraform output `web_bucket`
+#   WEB_DISTRIBUTION_ID    terraform output `web_distribution_id`
+#   WEB_API_BASE_URL       e.g. https://api.<domain>/api/v1
+#   WEB_DEEP_LINK_HOST     the host links open on (the web host)
+name: Web deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/api-client/**"
+      - ".github/workflows/web-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and publish the web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build web (WebAssembly)
+        working-directory: apps/mobile
+        run: >-
+          flutter build web --wasm -t lib/main_prod.dart
+          --dart-define=WEB_ENABLED=true
+          --dart-define=API_BASE_URL=${{ secrets.WEB_API_BASE_URL }}
+          --dart-define=DEEP_LINK_HOST=${{ secrets.WEB_DEEP_LINK_HOST }}
+
+      - name: The bundle has what the app needs
+        working-directory: apps/mobile
+        run: |
+          test -s build/web/index.html
+          test -s build/web/main.dart.wasm
+          test -s build/web/sqlite3.wasm
+          test -s build/web/drift_worker.js
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Files that never change under the same name are cached for a year;
+      # everything else (the page, the engine, the app) is asked again, so a
+      # release shows up at once.
+      - name: Upload long-lived files
+        working-directory: apps/mobile/build/web
+        run: |
+          aws s3 sync canvaskit "s3://${{ secrets.WEB_BUCKET }}/canvaskit" \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync icons "s3://${{ secrets.WEB_BUCKET }}/icons" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload the rest (always revalidated) and drop what is gone
+        working-directory: apps/mobile/build/web
+        run: |
+          aws s3 sync . "s3://${{ secrets.WEB_BUCKET }}" \
+            --delete \
+            --exclude "canvaskit/*" --exclude "icons/*" \
+            --cache-control "no-cache"
+          # .wasm must be served as application/wasm.
+          aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/" "s3://${{ secrets.WEB_BUCKET }}/" \
+            --recursive --exclude "*" --include "*.wasm" \
+            --content-type application/wasm --metadata-directive REPLACE \
+            --cache-control "no-cache"
+
+      - name: Reset the CDN cache for the page and the app
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
+          --paths "/index.html" "/flutter_bootstrap.js" "/main.dart.js" "/main.dart.wasm" "/main.dart.mjs" "/version.json" "/manifest.json"

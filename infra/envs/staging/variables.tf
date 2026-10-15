@@ -133,3 +133,12 @@ variable "s3_cors_allowed_origins" {
   type    = list(string)
   default = ["https://syimykkalykov1999.github.io"]
 }
+
+variable "web_host" {
+  type    = string
+  default = ""
+}
+variable "web_certificate_arn" {
+  type    = string
+  default = ""
+}

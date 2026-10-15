@@ -36,6 +36,8 @@ module "stack" {
   admin_host          = var.admin_host
   app_link_base_url   = var.app_link_base_url
   certificate_arn     = var.certificate_arn
+  web_host            = var.web_host
+  web_certificate_arn = var.web_certificate_arn
   hosted_zone_id      = var.hosted_zone_id
   dmarc_rua           = var.dmarc_rua
   ses_from_address    = var.ses_from_address
