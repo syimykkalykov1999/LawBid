@@ -35,7 +35,9 @@ for (let i = 1; i <= shards; i += 1) {
   );
   if (r.status !== 0) {
     failed += 1;
-    console.error(`e2e shard ${i}/${shards} failed (exit ${r.status})`);
+    console.error(
+      `e2e shard ${i}/${shards} failed (exit ${r.status}, signal ${r.signal})`,
+    );
   }
 }
 if (failed > 0) {
