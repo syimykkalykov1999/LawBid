@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -25,8 +24,6 @@ class ActiveCaseCard extends StatelessWidget {
     this.nextYours = false,
     this.categoryCode,
     this.practiceCode,
-    this.photoUrl,
-    this.photoCount,
     this.badge = 0,
     this.semanticLabel,
     super.key,
@@ -49,9 +46,6 @@ class ActiveCaseCard extends StatelessWidget {
   final String? categoryCode;
   final String? practiceCode;
 
-  /// The case's first photo (clients only); null = the practice colour.
-  final String? photoUrl;
-  final int? photoCount;
   final int badge;
   final String? semanticLabel;
   final VoidCallback onTap;
@@ -66,103 +60,54 @@ class ActiveCaseCard extends StatelessWidget {
       practiceCode ?? categoryCode,
       surface: practiceCardBase(colors),
     );
-    final withPhoto = photoUrl != null;
     final lit = stage.clamp(0, stages - 1) + 1;
-    final place = [
-      practiceName,
-      if (stateCode != null && stateCode!.isNotEmpty) stateCode!,
-    ];
 
-    // Owner 2026-10-15: one header height for every card; a case photo is
-    // only its dimmed background.
+    // Owner 2026-10-15: one header for every card, in the practice colour
+    // (no photos): the icon and the practice at the left, «price · state»
+    // at the right.
     Widget header() {
-      final fg = withPhoto ? Colors.white : accent;
-      final sub = withPhoto ? Colors.white70 : colors.textSecondary;
-      final label = Row(
-        children: [
-          AppIcon(practiceGlyph(categoryCode), size: 15, color: fg),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: place.first,
-                    style: TextStyle(color: fg, fontWeight: FontWeight.w600),
-                  ),
-                  if (place.length > 1)
-                    TextSpan(
-                      text: ' · ${place[1]}',
-                      style: TextStyle(color: sub),
-                    ),
-                ],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.caption,
-            ),
-          ),
-          if (withPhoto && (photoCount ?? 0) > 0) ...[
-            const SizedBox(width: AppSpacing.sm),
-            const AppIcon(
-              AppIcons.imageOutlined,
-              size: 12,
-              color: Colors.white70,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              '$photoCount',
-              style: type.caption.copyWith(color: Colors.white70),
-            ),
-          ],
-          if (price != null) ...[
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              price!,
-              maxLines: 1,
-              style: type.bodySmall.copyWith(
-                color: withPhoto ? Colors.white : colors.goldDark,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ],
-      );
       return Container(
         height: 28,
-        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm + 2),
+        alignment: Alignment.centerLeft,
         decoration: BoxDecoration(
           color: accent.withValues(alpha: 0.15),
           border: Border(
             bottom: BorderSide(color: accent.withValues(alpha: 0.25)),
           ),
         ),
-        child: Stack(
-          alignment: Alignment.centerLeft,
-          fit: StackFit.expand,
+        child: Row(
           children: [
-            if (withPhoto)
-              Positioned.fill(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: photoUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 800,
-                      placeholder: (_, __) => ColoredBox(color: accent),
-                      errorWidget: (_, __, ___) => ColoredBox(color: accent),
-                    ),
-                    ColoredBox(color: Colors.black.withValues(alpha: 0.5)),
-                  ],
+            AppIcon(practiceGlyph(categoryCode), size: 15, color: accent),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                practiceName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: type.caption
+                    .copyWith(color: accent, fontWeight: FontWeight.w600),
+              ),
+            ),
+            if (price != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                price!,
+                maxLines: 1,
+                style: type.bodySmall.copyWith(
+                  color: colors.goldDark,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm + 2,
+            ],
+            if (stateCode != null && stateCode!.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Text(
+                price != null ? '· $stateCode' : stateCode!,
+                maxLines: 1,
+                style: type.caption.copyWith(color: colors.textSecondary),
               ),
-              child: label,
-            ),
+            ],
           ],
         ),
       );

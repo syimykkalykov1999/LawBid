@@ -48,8 +48,6 @@ void main() {
                       stage: 2,
                       stageLabel: 'Этап 3 из 5: В работе',
                       next: 'Продолжайте работу с адвокатом',
-                      photoUrl: 'https://example.test/x.jpg',
-                      photoCount: 3,
                       onTap: () {},
                     ),
                   ],

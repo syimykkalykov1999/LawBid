@@ -61,13 +61,13 @@ class ClientActiveCaseCard extends ConsumerWidget {
       key: ValueKey('active-case-${c.id}'),
       title: c.title,
       practiceName: practice,
-      stateCode: c.primaryStateCode,
+      stateCode:
+          CaseFormat.place(null, c.primaryStateCode, c.additionalStateCount),
       price: c.budget.isClarifyLater
           ? null
           : CaseFormat.budget(t, formats, c.budget),
       categoryCode: c.practice.artCode,
       practiceCode: c.practice.code,
-      photoUrl: c.coverUrl,
       badge: newBids,
       statusLabel: caseStatusLabel(t, c.status),
       statusTone: caseTone(c.status),
