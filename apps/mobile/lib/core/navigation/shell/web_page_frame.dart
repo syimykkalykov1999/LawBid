@@ -65,8 +65,11 @@ class WebPageFrame extends ConsumerWidget {
     final width = MediaQuery.sizeOf(context).width;
     final layout = shellLayoutFor(width, adaptive: adaptiveShellOn);
     if (layout == ShellLayout.bottom) return child;
+    // The page under this one must not show through at the sides.
+    final bg = Theme.of(context).scaffoldBackgroundColor;
+    Widget paint(Widget w) => bg.a == 1 ? ColoredBox(color: bg, child: w) : w;
     if (isAuthLocation(location)) {
-      return ContentColumn(maxWidth: kAuthColumnMaxWidth, child: child);
+      return paint(ContentColumn(maxWidth: kAuthColumnMaxWidth, child: child));
     }
     final extended = layout == ShellLayout.extendedRail;
     final translator = ref.watch(translatorProvider);
@@ -77,26 +80,28 @@ class WebPageFrame extends ConsumerWidget {
       AppRoutes.mine,
       AppRoutes.profile,
     ];
-    return Row(
-      children: [
-        Material(
-          type: MaterialType.transparency,
-          child: AppSideNav(
-            tabs: tabs,
-            currentIndex: -1,
-            onTabSelected: (i) => context.go(paths[i]),
-            onCreatePressed: () => showCreateSheet(context, ref),
-            extended: extended,
-            createLabel: translator.t('nav.create'),
+    return paint(
+      Row(
+        children: [
+          Material(
+            type: MaterialType.transparency,
+            child: AppSideNav(
+              tabs: tabs,
+              currentIndex: -1,
+              onTabSelected: (i) => context.go(paths[i]),
+              onCreatePressed: () => showCreateSheet(context, ref),
+              extended: extended,
+              createLabel: translator.t('nav.create'),
+            ),
           ),
-        ),
-        Expanded(
-          child: ContentColumn(
-            maxWidth: extended ? kShellContentMaxWidth : null,
-            child: child,
+          Expanded(
+            child: ContentColumn(
+              maxWidth: extended ? kShellContentMaxWidth : null,
+              child: child,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
