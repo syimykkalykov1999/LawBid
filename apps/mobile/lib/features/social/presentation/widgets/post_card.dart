@@ -162,9 +162,8 @@ class PostCard extends ConsumerWidget {
                 fromProfile: fromProfile,
                 onReply: onReply,
                 showPin: showPin,
-                cardHeight: feedHeight != null && !inDetail && !fromProfile
-                    ? feedHeight! / 2
-                    : null,
+                // Owner 2026-10-15: a card is as tall as its content (like
+                // Instagram), never a fixed height.
               )
             // Owner 2026-10-12: one card for every post with a photo or a
             // reel in a list — with a practice or without (no chips then).
@@ -185,11 +184,6 @@ class PostCard extends ConsumerWidget {
                         colors,
                         run,
                         innerOn: ref.watch(innerCardsEnabledProvider),
-                        fillHeight: feedHeight != null &&
-                                !inDetail &&
-                                MediaQuery.textScalerOf(context).scale(10) <= 13
-                            ? feedHeight
-                            : null,
                       ),
       ),
     );
@@ -882,11 +876,7 @@ class _ThreadsPost extends ConsumerWidget {
     this.fromProfile = false,
     this.onReply,
     this.showPin = false,
-    this.cardHeight,
   });
-
-  /// Half of the feed's viewport; null = natural height.
-  final double? cardHeight;
 
   final Post post;
   final bool inDetail;
@@ -921,16 +911,15 @@ class _ThreadsPost extends ConsumerWidget {
     // Owner 2026-10-13: in the feed a brief is exactly half a screen (two
     // fit between the header and the navbar); the text folds to the lines
     // that fit, «ещё» opens the rest.
-    final briefLines = (((cardHeight ?? 0) - 150) / 22).floor().clamp(2, 12);
     Widget bodyText(String s) => PostBodyText(
           key: ValueKey(s.hashCode),
           body: s,
           expanded: inDetail,
           // Owner 2026-10-12 (Threads): up to 500 characters in full; a
           // longer text folds to five lines.
-          collapsedLines: cardHeight != null && !inDetail
-              ? briefLines
-              : (s.length > 500 ? 5 : 1000),
+          // Owner 2026-10-15: the card follows its text; a long one folds
+          // to six lines with «ещё».
+          collapsedLines: inDetail ? 1000 : 6,
           onMore: inDetail ? null : open,
           mentions: p.mentions,
           large: inDetail,
@@ -1136,7 +1125,7 @@ class _ThreadsPost extends ConsumerWidget {
                       label: t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(p)),
                     ),
-                    p.likeCount,
+                    0,
                   ),
                   action(
                     BounceIcon(
@@ -1178,7 +1167,7 @@ class _ThreadsPost extends ConsumerWidget {
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
                     ),
-                    p.shareCount,
+                    0,
                   ),
                 ],
               ),
@@ -1207,7 +1196,7 @@ class _ThreadsPost extends ConsumerWidget {
           activeIcon: AppIcons.bookmarkRounded,
           icon: AppIcons.bookmarkBorderRounded,
           activeColor: colors.gold,
-          size: 20,
+          size: 24,
           extent: 34,
           label: t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
           onTap: () => run(() => actions.toggleSave(p)),
@@ -1285,13 +1274,7 @@ class _ThreadsPost extends ConsumerWidget {
         ),
       ),
     );
-    final h = cardHeight;
-    if (h == null) return card;
-    return SizedBox(
-      height: h,
-      child:
-          ClipRect(child: Align(alignment: Alignment.topCenter, child: card)),
-    );
+    return card;
   }
 }
 
@@ -2466,10 +2449,6 @@ class PostActionsBar extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Owner 2026-10-14: the views of a reel / video post come first,
-                  // an inline icon + number, before the likes.
-                  if (post.video != null && post.viewCount > 0)
-                    _Views(post.viewCount),
                   if (reactions) ...[
                     BounceIcon(
                       size: _kBarIcon,
@@ -2480,9 +2459,8 @@ class PostActionsBar extends ConsumerWidget {
                       label: t.t(post.likedByMe ? 'post.unlike' : 'post.like'),
                       onTap: () => run(() => actions.toggleLike(post)),
                     ),
-                    // Owner 2026-09-30 design: counts next to the icons.
-                    if (showCounts && (showTime || post.likeCount > 0))
-                      _Count(post.likeCount),
+                    // Owner 2026-10-15 (Instagram): no count next to like or
+                    // send; the comments keep theirs.
                     BounceIcon(
                       size: _kBarIcon,
                       active: false,
@@ -2505,8 +2483,6 @@ class PostActionsBar extends ConsumerWidget {
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, post),
                     ),
-                    if (showCounts && (showTime || post.shareCount > 0))
-                      _Count(post.shareCount),
                   ],
                 ],
               ),
@@ -2522,7 +2498,7 @@ class PostActionsBar extends ConsumerWidget {
                 : const SizedBox.shrink(),
           ),
           BounceIcon(
-            size: _kBarIcon,
+            size: _kBarIcon + 2,
             active: post.savedByMe,
             activeIcon: AppIcons.bookmarkRounded,
             icon: AppIcons.bookmarkBorderRounded,
@@ -2562,45 +2538,6 @@ class _Count extends ConsumerWidget {
 
 /// Owner 2026-10-14: Instagram-size icons in the action bar (22).
 const double _kBarIcon = 22;
-
-/// The views counter at the start of the action bar: a small eye and the
-/// compact number, inline (never over the media).
-class _Views extends ConsumerWidget {
-  const _Views(this.value);
-
-  final int value;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final f = ref.watch(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(
-        start: AppSpacing.xs,
-        end: AppSpacing.sm,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppIcon(
-            AppIcons.visibilityOutlined,
-            size: 18,
-            color: colors.textSecondary,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            SocialFormat.count(f, value),
-            style: type.bodySmall.copyWith(
-              color: colors.textSecondary,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 /// A 48x48 action icon that pops (1 → 1.28 → 1) when it turns active.
 class BounceIcon extends StatefulWidget {

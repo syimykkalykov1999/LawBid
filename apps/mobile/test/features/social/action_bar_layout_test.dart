@@ -58,7 +58,9 @@ void main() {
     const StaticTranslatorEn(),
     const StaticTranslatorRu(),
   ]) {
-    testWidgets('video post bar at 360dp: views first, date shown, no Boost', (
+    testWidgets(
+        'video post bar at 360dp: no views, no like/send counts, date shown, no Boost',
+        (
       t,
     ) async {
       t.view.physicalSize = const Size(360, 740);
@@ -80,9 +82,12 @@ void main() {
       );
       await t.pump();
       expect(t.takeException(), isNull);
-      final eye = t.getTopLeft(find.byIcon(AppIcons.visibilityOutlined));
-      final like = t.getTopLeft(find.byIcon(AppIcons.favoriteBorderRounded));
-      expect(eye.dx, lessThan(like.dx));
+      // Owner 2026-10-15: no views counter on feed cards; no count next to
+      // like or send, the comment count stays.
+      expect(find.byIcon(AppIcons.visibilityOutlined), findsNothing);
+      expect(find.text('215K'), findsNothing);
+      expect(find.text('15K'), findsNothing);
+      expect(find.text('1.2M'), findsOneWidget);
       expect(find.byType(BoostButton), findsNothing);
       expect(
         find.text(
@@ -94,11 +99,12 @@ void main() {
         ),
         findsOneWidget,
       );
-      // Instagram size: 22dp icons.
-      expect(
-        t.getSize(find.byIcon(AppIcons.favoriteBorderRounded)).width,
-        lessThanOrEqualTo(24),
-      );
+      // Instagram size: 22dp icons, the bookmark 24.
+      final like = t.getSize(find.byIcon(AppIcons.favoriteBorderRounded)).width;
+      final save = t.getSize(find.byIcon(AppIcons.bookmarkBorderRounded)).width;
+      expect(like, 22);
+      expect(save, greaterThan(like));
+      expect(save - like, lessThanOrEqualTo(3));
     });
   }
 
