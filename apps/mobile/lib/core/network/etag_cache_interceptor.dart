@@ -1,4 +1,3 @@
-import 'dart:collection';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -29,7 +28,7 @@ class EtagCacheInterceptor extends Interceptor {
   static const _keyExtra = 'etagCacheKey';
   static const _hitExtra = 'etagCacheHit';
 
-  final _entries = LinkedHashMap<String, _Entry>();
+  final _entries = <String, _Entry>{};
   int _bytes = 0;
 
   int get length => _entries.length;

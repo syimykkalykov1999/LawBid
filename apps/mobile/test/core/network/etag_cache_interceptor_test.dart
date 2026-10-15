@@ -19,9 +19,13 @@ class _Server implements HttpClientAdapter {
     seen.add(options);
     final tag = 'W/"v$version"';
     if (options.headers['If-None-Match'] == tag) {
-      return ResponseBody.fromString('', 304, headers: {
-        'etag': [tag],
-      });
+      return ResponseBody.fromString(
+        '',
+        304,
+        headers: {
+          'etag': [tag],
+        },
+      );
     }
     return ResponseBody.fromString(
       jsonEncode({'data': 'answer-v$version'}),
@@ -76,10 +80,12 @@ void main() {
   }) =>
       dio.get<dynamic>(
         path,
-        options: Options(headers: {
-          'Authorization': 'Bearer ${_jwt(user)}',
-          'Accept-Language': lang,
-        }),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer ${_jwt(user)}',
+            'Accept-Language': lang,
+          },
+        ),
       );
 
   test('the second identical GET sends If-None-Match and gets the same data',

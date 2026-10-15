@@ -43,7 +43,8 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(IdempotencyInterceptor());
   dio.interceptors.add(AuthInterceptor(ref, dio));
   // After Auth (it needs the bearer to key the cache per user), before Retry
-  // (a retried GET asks again with the tag). Off: --dart-define=ETAG_CACHE=false.
+  // (a retried GET asks again with the tag).
+  // Off: --dart-define=ETAG_CACHE=false.
   if (const bool.fromEnvironment('ETAG_CACHE', defaultValue: true)) {
     dio.interceptors.add(EtagCacheInterceptor());
   }
