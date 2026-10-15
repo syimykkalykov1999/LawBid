@@ -31,3 +31,12 @@ final promotionStatsProvider =
     FutureProvider.autoDispose.family<PromotionStats, String>(
   (ref, id) => ref.watch(promotionsRepositoryProvider).stats(id),
 );
+
+/// The promotion state provider of one post / case.
+FutureProvider<CasePromotionState> promotionStateProvider(
+  PromotionTarget target,
+  String id,
+) =>
+    target == PromotionTarget.post
+        ? postPromotionProvider(id)
+        : casePromotionProvider(id);

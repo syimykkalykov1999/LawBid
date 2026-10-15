@@ -223,6 +223,7 @@ class PromotionsRepository {
         estImpressions: d.estImpressions,
         estReachMin: d.estReachMin,
         estReachMax: d.estReachMax,
+        ctaTypes: d.ctaTypes,
       );
 
   static api.PromotionTarget _target(PromotionTarget t) =>

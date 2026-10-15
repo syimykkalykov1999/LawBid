@@ -84,6 +84,10 @@ abstract final class AppSizes {
   static const double footerSpinner = 20;
   static const double footerSpinnerStroke = 2;
 
+  /// Owner 2026-10-15: one profile photo size in every profile (own, other,
+  /// client, attorney), Instagram's — 76 plus the ring is about 86.
+  static const double profileAvatar = 76;
+
   /// Author/avatar size on content (post/case) cards.
   static const double cardAvatar = 40;
 

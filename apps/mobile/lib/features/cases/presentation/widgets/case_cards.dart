@@ -278,6 +278,29 @@ class FeedCaseCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Owner 2026-10-15: a paid case is pinned on top and says so,
+                  // with the last paid day.
+                  if (item.promoted)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                        AppSpacing.lg,
+                        0,
+                      ),
+                      child: Text(
+                        item.promotedUntil == null
+                            ? t.t('promote.sponsored')
+                            : t.t('boost.ad.until', {
+                                'date': formats.date(item.promotedUntil!),
+                              }),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                       AppSpacing.lg,

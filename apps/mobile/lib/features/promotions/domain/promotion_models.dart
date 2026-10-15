@@ -87,6 +87,7 @@ class PromotionQuote {
     this.estImpressions = 0,
     this.estReachMin = 0,
     this.estReachMax = 0,
+    this.ctaTypes = const [],
   });
 
   final int days;
@@ -111,6 +112,9 @@ class PromotionQuote {
   final int estImpressions;
   final int estReachMin;
   final int estReachMax;
+
+  /// Owner 2026-10-15: the buttons the admin lets an advertiser pick.
+  final List<String> ctaTypes;
 }
 
 @immutable

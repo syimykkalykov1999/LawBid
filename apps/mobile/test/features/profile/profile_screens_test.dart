@@ -614,7 +614,8 @@ void main() {
         overrides: profileOverrides(),
       );
       expect(find.text('Anna Kowalski'), findsOneWidget);
-      expect(find.textContaining('California'), findsOneWidget);
+      // Owner 2026-10-15: a client profile shows no role and no state.
+      expect(find.textContaining('California'), findsNothing);
       expect(find.text('Followers'), findsOneWidget);
       expect(find.text('Following'), findsOneWidget);
       expect(find.text('Reviews'), findsOneWidget);

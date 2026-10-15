@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -579,14 +580,28 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         followMaxWidth: 140,
                         showFollow: !p.isMine,
                         boostPostId: p.isMine ? p.id : null,
-                        subtitle: p.locationName ??
-                            (p.author.isClient
-                                ? '@${p.author.username} · '
-                                    '${t.t('person.client')}'
-                                : p.author.verified
-                                    ? t.t('post.licensedAttorney')
-                                    : '@${p.author.username}'),
+                        subtitle: p.promotionId != null
+                            ? t.t('promote.sponsored')
+                            : p.locationName ??
+                                (p.author.isClient
+                                    ? '@${p.author.username} · '
+                                        '${t.t('person.client')}'
+                                    : p.author.verified
+                                        ? t.t('post.licensedAttorney')
+                                        : '@${p.author.username}'),
                       ),
+                      // Owner 2026-10-15: the advertiser's button.
+                      if (p.promotionId != null && p.promotionCta != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        PromotionCtaButton(
+                          promotionId: p.promotionId!,
+                          cta: p.promotionCta!,
+                          authorId: p.author.id,
+                          onDark: true,
+                          onProfile: () =>
+                              openAuthorProfile(context, ref, p.author),
+                        ),
+                      ],
                       if (caption.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.sm),
                         // A short caption; the whole text is inside (the

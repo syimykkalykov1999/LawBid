@@ -21,6 +21,7 @@ import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart'
     show BoostButton;
+import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -280,6 +281,7 @@ class PostCard extends ConsumerWidget {
                     ? _detail(context, ref, p, t, colors, actions, run)
                     : _feed(
                         context,
+                        ref,
                         p,
                         t,
                         colors,
@@ -296,6 +298,7 @@ class PostCard extends ConsumerWidget {
   /// hashtags, document chips.
   Widget _feed(
     BuildContext context,
+    WidgetRef ref,
     Post p,
     Translator t,
     AppColorTokens colors,
@@ -362,7 +365,13 @@ class PostCard extends ConsumerWidget {
     // nav bar (author row + video + actions), cropped to the centre.
     final cardRest = feedHeight == null
         ? double.infinity
-        : math.max(minPhoto, feedHeight! - _kVideoCardChrome);
+        : math.max(
+            minPhoto,
+            feedHeight! -
+                _kVideoCardChrome -
+                // The advertiser's button (40 dp plus its gap).
+                (post.promotionCta != null ? 48 : 0),
+          );
     final photoBase = fillHeight != null || feedHeight != null
         ? math.max(width / frameRatio, minPhoto)
         : width / frameRatio;
@@ -475,6 +484,22 @@ class PostCard extends ConsumerWidget {
             _OwnMenuRow(post: p),
           photoFor(fill: fill, onShort: onExpand),
           PostActionsBar(post: p, run: run, showTime: true),
+          // Owner 2026-10-15: the advertiser's button under a promoted post.
+          if (post.promotionId != null && post.promotionCta != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                0,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
+              child: PromotionCtaButton(
+                promotionId: post.promotionId!,
+                cta: post.promotionCta!,
+                authorId: p.author.id,
+                onProfile: () => openAuthorProfile(context, ref, p.author),
+              ),
+            ),
           // Owner 2026-10-15: a video post — author, video, icons, then ONE
           // line (nick + the start of the text) with «ещё» at its end; the
           // text, the topic chips and the tags open in a sheet from below.

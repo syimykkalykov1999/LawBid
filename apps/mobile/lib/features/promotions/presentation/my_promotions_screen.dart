@@ -7,8 +7,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
+import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
-import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-10-05 — "My promotions": every promoted post / case with
 /// its status, budget, progress, impressions, reach and clicks.
@@ -72,15 +72,8 @@ class _PromotionTile extends ConsumerWidget {
 
   final CasePromotion p;
 
-  void _open(BuildContext context) {
-    final post = p.postId;
-    final kase = p.caseId;
-    if (post != null) {
-      context.push(SocialRoutes.post(post));
-    } else if (kase != null) {
-      context.push(AppRoutes.myCase(kase));
-    }
-  }
+  void _open(BuildContext context) =>
+      context.push(AppRoutes.promotionStats(p.id));
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -135,7 +128,7 @@ class _PromotionTile extends ConsumerWidget {
                       promotionStatusLabel(t, p.status),
                       style: type.caption.copyWith(
                         color: p.isRunning
-                            ? colors.goldDark
+                            ? colors.boostInk()
                             : colors.textSecondary,
                       ),
                     ),

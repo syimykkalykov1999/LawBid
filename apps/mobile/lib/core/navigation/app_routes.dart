@@ -155,6 +155,9 @@ abstract final class AppRoutes {
   static const referral = '/profile/settings/referral';
   // Owner 2026-10-05: my promoted posts / cases (reach, clicks, stop).
   static const myPromotions = '/profile/settings/promotions';
+  static const promotionStatsPattern = '/profile/settings/promotions/:id';
+  static String promotionStats(String id) =>
+      '/profile/settings/promotions/${Uri.encodeComponent(id)}';
   static const myStats = '/profile/settings/stats';
   static const bidPacks = '/profile/settings/bid-packs';
   static const myFirm = '/profile/settings/firm';
