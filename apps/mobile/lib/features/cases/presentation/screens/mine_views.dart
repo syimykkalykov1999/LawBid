@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
@@ -49,6 +50,13 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
   _ClientTab _tab = _ClientTab.cases;
   _CaseSection _section = _CaseSection.active;
   MineSearch _search = const MineSearch();
+  final _chrome = FeedChromeController(revealOnUp: true);
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,25 +68,33 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       _ClientTab.cases => Column(
           key: const ValueKey('cases'),
           children: [
-            MineSearchBar(
-              search: _search,
-              onChanged: (v) => setState(() => _search = v),
+            // Owner 2026-10-15: search and chips go away on scroll down and
+            // come back on scroll up.
+            ChromeCollapse(
+              child: Column(
+                children: [
+                  MineSearchBar(
+                    search: _search,
+                    onChanged: (v) => setState(() => _search = v),
+                  ),
+                  MineActiveFilters(
+                    search: _search,
+                    onChanged: (v) => setState(() => _search = v),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  FilterChips<_CaseSection>(
+                    key: const ValueKey('case-sections'),
+                    value: _section,
+                    options: [
+                      (_CaseSection.active, t.t('mine.filter.active')),
+                      (_CaseSection.completed, t.t('mine.tab.completed')),
+                    ],
+                    onChanged: (v) => setState(() => _section = v),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+              ),
             ),
-            MineActiveFilters(
-              search: _search,
-              onChanged: (v) => setState(() => _search = v),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            FilterChips<_CaseSection>(
-              key: const ValueKey('case-sections'),
-              value: _section,
-              options: [
-                (_CaseSection.active, t.t('mine.filter.active')),
-                (_CaseSection.completed, t.t('mine.tab.completed')),
-              ],
-              onChanged: (v) => setState(() => _section = v),
-            ),
-            const SizedBox(height: AppSpacing.sm),
             Expanded(
               child: _ClientCasesGrid(
                 key: ValueKey(_section),
@@ -93,29 +109,33 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
           ],
         ),
     };
-    return Column(
-      children: [
-        PillTabs<_ClientTab>(
-          value: _tab,
-          tabs: [
-            (_ClientTab.cases, t.t('mine.tab.cases')),
-            (_ClientTab.planner, t.t('mine.tab.tasks')),
-          ],
-          onChanged: (v) => setState(() => _tab = v),
-        ),
-        Expanded(
-          child: TabSwipe<_ClientTab>(
+    return FeedChrome(
+      controller: _chrome,
+      child: Column(
+        children: [
+          PillTabs<_ClientTab>(
             value: _tab,
-            values: _ClientTab.values,
+            tabs: [
+              (_ClientTab.cases, t.t('mine.tab.cases')),
+              (_ClientTab.planner, t.t('mine.tab.tasks')),
+            ],
             onChanged: (v) => setState(() => _tab = v),
-            child: AnimatedSwitcher(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              child: body,
+          ),
+          Expanded(
+            child: TabSwipe<_ClientTab>(
+              value: _tab,
+              values: _ClientTab.values,
+              onChanged: (v) => setState(() => _tab = v),
+              child: AnimatedSwitcher(
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                child: body,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -200,6 +220,13 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   _BidKind _kind = _BidKind.waiting;
   bool _saved = false;
   MineSearch _search = const MineSearch();
+  final _chrome = FeedChromeController(revealOnUp: true);
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -294,9 +321,17 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       _AttorneyTab.cases => Column(
           key: const ValueKey('cases'),
           children: [
-            search,
-            if (!_saved) sections,
-            const SizedBox(height: AppSpacing.sm),
+            // Owner 2026-10-15: search, bookmark and chips hide on scroll
+            // down and return on scroll up.
+            ChromeCollapse(
+              child: Column(
+                children: [
+                  search,
+                  if (!_saved) sections,
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+              ),
+            ),
             Expanded(
               child: AnimatedSwitcher(
                 duration: context.reduceMotion
@@ -309,29 +344,33 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
         ),
       _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
     };
-    return Column(
-      children: [
-        PillTabs<_AttorneyTab>(
-          value: _tab,
-          tabs: [
-            (_AttorneyTab.cases, t.t('mine.tab.cases')),
-            (_AttorneyTab.planner, t.t('mine.tab.tasks')),
-          ],
-          onChanged: (v) => setState(() => _tab = v),
-        ),
-        Expanded(
-          child: TabSwipe<_AttorneyTab>(
+    return FeedChrome(
+      controller: _chrome,
+      child: Column(
+        children: [
+          PillTabs<_AttorneyTab>(
             value: _tab,
-            values: _AttorneyTab.values,
+            tabs: [
+              (_AttorneyTab.cases, t.t('mine.tab.cases')),
+              (_AttorneyTab.planner, t.t('mine.tab.tasks')),
+            ],
             onChanged: (v) => setState(() => _tab = v),
-            child: AnimatedSwitcher(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              child: body,
+          ),
+          Expanded(
+            child: TabSwipe<_AttorneyTab>(
+              value: _tab,
+              values: _AttorneyTab.values,
+              onChanged: (v) => setState(() => _tab = v),
+              child: AnimatedSwitcher(
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : AppMotion.stateChange,
+                child: body,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

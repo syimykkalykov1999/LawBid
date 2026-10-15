@@ -1644,6 +1644,7 @@ export 'models/public_plan_dto_audience.dart';
 export 'models/public_plan_dto_kind.dart';
 export 'models/public_plan_dto_interval.dart';
 export 'models/payment_dto_status.dart';
+export 'models/payment_dto_kind.dart';
 export 'models/entitlement_def_dto_type.dart';
 export 'models/entitlement_def_dto_audiences.dart';
 export 'models/plans_list_dto_audience.dart';

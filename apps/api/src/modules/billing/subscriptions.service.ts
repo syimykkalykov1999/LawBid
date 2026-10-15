@@ -948,8 +948,24 @@ export class SubscriptionsService {
     });
     const page = rows.slice(0, PAYMENTS_PAGE);
     const last = page[page.length - 1];
+    // Owner 2026-10-15: a Boost payment says so (target and days).
+    const boosts = page.length
+      ? await this.prisma.casePromotion.findMany({
+          where: { payment_id: { in: page.map((p) => p.id) } },
+          select: { payment_id: true, target_type: true, days: true },
+        })
+      : [];
+    const boostOf = new Map(boosts.map((b) => [b.payment_id, b]));
     return {
-      items: page.map(presentPayment),
+      items: page.map((p) => {
+        const b = boostOf.get(p.id);
+        return {
+          ...presentPayment(p),
+          kind: b ? 'boost' : 'subscription',
+          boostTarget: b?.target_type ?? null,
+          boostDays: b?.days ?? null,
+        };
+      }),
       nextCursor:
         rows.length > PAYMENTS_PAGE && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
@@ -1192,5 +1208,6 @@ export function presentPayment(p: Payment): PaymentDto {
     paidAt: p.paid_at?.toISOString() ?? null,
     failureCode: p.failure_code,
     createdAt: p.created_at.toISOString(),
+    kind: 'subscription',
   };
 }

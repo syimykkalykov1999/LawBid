@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +26,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.d
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
+import 'package:lawbid/features/cases/presentation/widgets/review_nudge_sheet.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -43,6 +46,7 @@ class OwnerCaseScreen extends ConsumerStatefulWidget {
 class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
   BidsSort _sort = BidsSort.newest;
   bool _busy = false;
+  bool _nudged = false;
 
   CaseBidsKey get _bidsKey => (caseId: widget.caseId, sort: _sort);
 
@@ -129,6 +133,23 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
     );
   }
 
+  void _maybeNudge(OwnerCase? c) {
+    if (_nudged ||
+        c == null ||
+        c.status != CaseStatus.closed ||
+        c.acceptedBid == null) {
+      return;
+    }
+    _nudged = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final write = await maybeShowReviewNudge(context, ref, c.id);
+      if (!write || !mounted) return;
+      // ignore: use_build_context_synchronously
+      unawaited(context.push(AppRoutes.reviewFormFor(c.id)));
+    });
+  }
+
   Future<void> _refresh() async {
     ref
       ..invalidate(ownerCaseProvider(widget.caseId))
@@ -212,6 +233,8 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Owner 2026-10-15: a finished case → a kind but firm ask for a review.
+    _maybeNudge(ref.watch(ownerCaseProvider(widget.caseId)).value);
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;

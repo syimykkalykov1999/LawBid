@@ -209,8 +209,8 @@ const file06Ru = <String, String>{
       'Доступ приостановлен до успешной оплаты. Обновите карту.',
   'subscription.line.incomplete':
       'Подтверждение обычно занимает меньше минуты. Экран обновится сам.',
-  'subscription.action.manage': 'Управление',
-  'subscription.action.cancel': 'Отменить',
+  'subscription.action.manage': 'Способ оплаты и чеки',
+  'subscription.action.cancel': 'Отменить подписку',
   'subscription.action.updateCard': 'Обновить карту',
   'subscription.action.refresh': 'Обновить',
   'subscription.action.payments': 'История платежей',
@@ -637,8 +637,8 @@ const file06En = <String, String>{
       'Access is paused until a payment goes through. Update your card.',
   'subscription.line.incomplete':
       'Confirmation usually takes under a minute. This screen updates itself.',
-  'subscription.action.manage': 'Manage',
-  'subscription.action.cancel': 'Cancel',
+  'subscription.action.manage': 'Payment method and receipts',
+  'subscription.action.cancel': 'Cancel subscription',
   'subscription.action.updateCard': 'Update card',
   'subscription.action.refresh': 'Refresh',
   'subscription.action.payments': 'Payment history',

@@ -374,18 +374,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
           (s.assistantSeats > 0 || (grant?.assistantSeats ?? 0) > 0))
         section(const AssistantSeatsSection()),
       if (s != null && !statusFirst) statusCard(s),
-      // Owner 2026-10-05 (plan builder): the plan the attorney is on, what
-      // it includes and the assistant seats (included / extra / total).
-      if (o.plan != null && (o.isActive || grant != null))
-        section(
-          CurrentPlanCard(
-            t: t,
-            formats: formats,
-            plan: o.plan!,
-            entitlements: o.entitlements,
-            seats: o.seats,
-          ),
-        ),
+      // Owner 2026-10-15: the plan cards above already say what is included
+      // and the seats; no second «Your plan» card repeating them.
       if (showCta)
         section(
           PlanPicker(

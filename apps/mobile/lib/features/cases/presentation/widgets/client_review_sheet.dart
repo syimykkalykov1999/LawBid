@@ -9,6 +9,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show ReviewPhoto;
@@ -251,36 +252,81 @@ class _SheetState extends ConsumerState<_Sheet> {
                         key: const ValueKey('review-add-photos'),
                         borderRadius: BorderRadius.circular(AppRadii.field),
                         onTap: _busy ? null : _addPhotos,
-                        child: Container(
-                          width: 76,
-                          decoration: BoxDecoration(
-                            color: colors.goldTint,
-                            borderRadius: BorderRadius.circular(AppRadii.field),
-                            border: Border.all(color: colors.gold),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              AppIcon(
-                                AppIcons.addAPhotoOutlined,
-                                color: colors.goldDark,
-                              ),
-                              const SizedBox(height: 2),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.xs,
+                        child: Builder(
+                          builder: (context) {
+                            // Owner 2026-10-15: the same tonal tile with a
+                            // soft icon square as «Gallery / Camera» in «+».
+                            final dark =
+                                Theme.of(context).brightness == Brightness.dark;
+                            final base = practiceCardBase(colors);
+                            final tile = Color.alphaBlend(
+                              AppColorsFixed.sourceGalleryBlue
+                                  .withValues(alpha: 0.16),
+                              base,
+                            );
+                            final accent = readableOn(
+                              dark
+                                  ? AppColorsFixed.sourceGalleryBlue
+                                  : Color.lerp(
+                                      colors.info,
+                                      Colors.black,
+                                      0.45,
+                                    )!,
+                              tile,
+                              min: 3,
+                            );
+                            return Container(
+                              width: 76,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color.alphaBlend(
+                                      accent.withValues(alpha: 0.12),
+                                      colors.surface,
+                                    ),
+                                    colors.surface,
+                                  ],
                                 ),
-                                child: Text(
-                                  t.t('reviews.photos.add'),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: type.caption
-                                      .copyWith(color: colors.goldDark),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: accent.withValues(alpha: 0.28),
                                 ),
                               ),
-                            ],
-                          ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: 0.16),
+                                      borderRadius: BorderRadius.circular(11),
+                                    ),
+                                    child: AppIcon(
+                                      AppIcons.addAPhotoOutlined,
+                                      color: accent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.xs,
+                                    ),
+                                    child: FitText(
+                                      t.t('reviews.photos.add'),
+                                      style: type.caption.copyWith(
+                                        color: colors.text,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),

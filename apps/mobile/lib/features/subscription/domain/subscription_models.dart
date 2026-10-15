@@ -254,7 +254,14 @@ class PaymentRecord {
     required this.createdAt,
     this.paidAt,
     this.failureCode,
+    this.boostTarget,
+    this.boostDays,
   });
+
+  /// Owner 2026-10-15: a Boost payment (`post` | `case`, for [boostDays]).
+  final String? boostTarget;
+  final int? boostDays;
+  bool get isBoost => boostTarget != null;
 
   final String id;
   final int amountCents;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -12,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show CountPill;
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -232,6 +234,8 @@ class MinePagedGrid<T> extends ConsumerWidget {
           onRefresh: pull,
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
+              // The search and chips above hide on scroll down.
+              FeedChrome.maybeOf(context)?.onScroll(n);
               if (n.metrics.extentAfter < 600 && value.canLoadMore) {
                 onLoadMore();
               }
@@ -494,7 +498,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
               hints: [t.t('mine.search.hint')],
               leading: Badge(
                 isLabelVisible: count > 0,
-                label: Text('$count'),
+                label: Text(ref.watch(l10nFormatsProvider).number(count)),
                 backgroundColor: colors.gold,
                 textColor: colors.navy,
                 child: AppIconButton(

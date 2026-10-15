@@ -104,7 +104,13 @@ const boostRu = <String, String>{
   'boost.stat.noDays': 'Данные появятся после первых показов.',
   'boost.repeat': 'Повторить',
   'boost.extend': 'Продлить',
+  'payments.kind.boost': 'Продвижение',
   'boost.stats.open': 'Статистика',
+  'reviews.nudge.title': 'Расскажите, как всё прошло',
+  'reviews.nudge.body':
+      'Кейс завершён. Ваш отзыв очень важен: он поможет следующим клиентам выбрать адвоката и не ошибиться. Это займёт минуту.',
+  'reviews.nudge.cta': 'Оставить отзыв',
+  'reviews.nudge.later': 'Позже',
 };
 
 const boostEn = <String, String>{
@@ -211,5 +217,11 @@ const boostEn = <String, String>{
   'boost.stat.noDays': 'Numbers appear after the first views.',
   'boost.repeat': 'Repeat',
   'boost.extend': 'Extend',
+  'payments.kind.boost': 'Boost',
   'boost.stats.open': 'Stats',
+  'reviews.nudge.title': 'Tell us how it went',
+  'reviews.nudge.body':
+      'Your case is finished. Your review matters a lot: it helps the next clients choose an attorney with confidence. It takes a minute.',
+  'reviews.nudge.cta': 'Write a review',
+  'reviews.nudge.later': 'Later',
 };

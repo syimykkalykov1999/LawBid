@@ -88718,6 +88718,23 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Owner 2026-10-15: what it paid for.",
+            "enum": [
+              "subscription",
+              "boost"
+            ]
+          },
+          "boostTarget": {
+            "type": "string",
+            "nullable": true,
+            "description": "For a boost: what was boosted (`post` | `case`) and for how many days."
+          },
+          "boostDays": {
+            "type": "integer",
+            "nullable": true
           }
         },
         "required": [
@@ -88727,7 +88744,8 @@
           "status",
           "paidAt",
           "failureCode",
-          "createdAt"
+          "createdAt",
+          "kind"
         ]
       },
       "PaymentListEnvelope": {

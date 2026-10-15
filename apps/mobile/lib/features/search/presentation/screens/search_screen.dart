@@ -179,7 +179,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // 2026-09-29). Dimmed on tabs that have no filters yet.
     final filterButton = Badge(
       isLabelVisible: filters.activeCount > 0,
-      label: Text('${filters.activeCount}'),
+      label: Text(ref.watch(l10nFormatsProvider).number(filters.activeCount)),
       backgroundColor: colors.gold,
       textColor: colors.navy,
       child: AppIconButton(

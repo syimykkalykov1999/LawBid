@@ -306,7 +306,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('subscription-cancel')));
       await tester.pump();
       expect(find.text('Cancel subscription?'), findsOneWidget);
-      await tester.tap(find.text('Cancel subscription'));
+      await tester.tap(find.text('Cancel subscription').last);
       await tester.pump();
       await tester.pump();
       expect(repo.calls, contains('cancel'));

@@ -5,6 +5,12 @@ import 'package:flutter/material.dart';
 /// the very top of the list (the Feed tab button scrolls there).
 /// row wrapped in [ChromeCollapse] follows it, anywhere else it stays.
 class FeedChromeController extends ChangeNotifier {
+  FeedChromeController({this.revealOnUp = false});
+
+  /// Owner 2026-10-15 («Mine», like Instagram's header): scrolling up shows
+  /// the rows again at once, not only at the very top of the list.
+  final bool revealOnUp;
+
   bool _visible = true;
   double _run = 0;
 
@@ -35,6 +41,10 @@ class FeedChromeController extends ChangeNotifier {
       _run += d;
       // Owner 2026-10-12: once hidden the rows stay away while scrolling
       // up; they return at the very top (or on the Feed tab button).
+      if (revealOnUp && _run < -24 && !_visible) {
+        show();
+        return false;
+      }
       if (_run > 24 && _visible) {
         _visible = false;
         notifyListeners();

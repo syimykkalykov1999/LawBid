@@ -1,4 +1,5 @@
 import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/native_digits.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -43,8 +44,10 @@ class L10nTranslator implements Translator {
       _compiledEnglish[key];
 
   @override
-  String t(String key, [Map<String, String>? params]) =>
-      interpolate(lookup(key) ?? key, params);
+  String t(String key, [Map<String, String>? params]) => localizeDigits(
+        interpolate(lookup(key) ?? key, params),
+        language.code,
+      );
 
   /// Resolved in two stages so categories never mix across languages
   /// (English has no `few`/`many`): first [language]'s own layers (1–2)
@@ -68,9 +71,12 @@ class L10nTranslator implements Translator {
           (k) => _englishCache[k] ?? _compiledEnglish[k],
         ) ??
         '$key.other';
-    return interpolate(template, {
-      'count': formatPluralCount(language.code, count),
-      ...?params,
-    });
+    return localizeDigits(
+      interpolate(template, {
+        'count': formatPluralCount(language.code, count),
+        ...?params,
+      }),
+      language.code,
+    );
   }
 }

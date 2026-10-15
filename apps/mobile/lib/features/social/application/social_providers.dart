@@ -792,5 +792,7 @@ bool showLikeCount(WidgetRef ref, Post post) {
   if (!ref.watch(featureFlagsControllerProvider).isEnabled('hide_counts')) {
     return true;
   }
-  return !post.likesHidden && !ref.watch(hideLikeCountsProvider);
+  // Owner 2026-10-15: no global «hide the like counts» setting any more —
+  // only the author's choice for their own post.
+  return !post.likesHidden;
 }

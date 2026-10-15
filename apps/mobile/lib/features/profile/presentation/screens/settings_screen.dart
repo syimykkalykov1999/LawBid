@@ -22,8 +22,6 @@ import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show hideLikeCountsProvider;
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -261,11 +259,6 @@ class SettingsScreen extends ConsumerWidget {
           ),
           // Owner 2026-10-01: online / last seen in chats (reciprocal).
           const _ActivityStatusRow(),
-          // Owner 2026-10-15: hide like counters under others' posts.
-          if (ref
-              .watch(featureFlagsControllerProvider)
-              .isEnabled('hide_counts'))
-            const _HideLikesRow(),
         ],
       ),
       AppListSection(
@@ -396,25 +389,6 @@ class _ActivityStatusRow extends ConsumerWidget {
               }
             }
           : null,
-    );
-  }
-}
-
-class _HideLikesRow extends ConsumerWidget {
-  const _HideLikesRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final on = ref.watch(hideLikeCountsProvider);
-    return AppListRow(
-      key: const ValueKey('settings-hide-likes'),
-      icon: AppIcons.visibilityOffOutlined,
-      label: t.t('settings.hideLikes'),
-      subtitle: t.t('settings.hideLikes.hint'),
-      trailingText: t.t(on ? 'common.on' : 'common.off'),
-      showChevron: false,
-      onTap: () => ref.read(hideLikeCountsProvider.notifier).set(hide: !on),
     );
   }
 }
