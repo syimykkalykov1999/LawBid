@@ -9,6 +9,7 @@ and the registrar/DNS access listed below.
 ```
 infra/
   modules/
+    postgres/    RDS PostgreSQL 16 with daily backups + point-in-time restore (opt-in: create_database = true)
     network/     VPC, 2 AZs, public + private subnets, NAT per AZ, VPC endpoints
     kms/         one CMK per environment (S3, Secrets Manager, logs, Redis)
     s3/          documents (private, versioned, SSE-KMS, cross-region replica),
