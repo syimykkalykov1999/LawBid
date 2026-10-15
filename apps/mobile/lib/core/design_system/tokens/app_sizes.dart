@@ -60,6 +60,10 @@ abstract final class AppSizes {
   /// wordmark "LawBid" instead of the scales logo, and a lower bar.
   static const double feedHeaderLogo = 96;
   static const double feedHeader = 40;
+
+  /// The topic chips row under the feed header (owner 2026-10-15: the first
+  /// card is sized with it on screen, so its icons clear the nav bar).
+  static const double feedFilterRow = 40;
   static const double feedWordmark = 26;
 
   /// Segmented tabs (owner 2026-09-29): row height.

@@ -97,6 +97,8 @@ interface OwnedTarget {
   id: string;
   /** May be promoted right now (open case / published post). */
   promotable: boolean;
+  /** A video post (a reel). */
+  video: boolean;
 }
 
 function caseNotFound(): NotFoundException {
@@ -162,6 +164,24 @@ export class PromotionsService {
     }
   }
 
+  /** Owner 2026-10-15: the switches — master, role, content type. */
+  private async boostAllowed(
+    userId: string,
+    type: PromotionTarget,
+    video: boolean,
+    settings: PromotionSettings,
+  ): Promise<boolean> {
+    if (!settings.boostEnabled) return false;
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (u?.role === 'attorney' && !settings.attorneysEnabled) return false;
+    if (u?.role === 'client' && !settings.clientsEnabled) return false;
+    if (type === 'case') return settings.enabled;
+    return video ? settings.reelsEnabled : settings.postsEnabled;
+  }
+
   async settings(db: Db = this.prisma): Promise<PromotionSettings> {
     const row = await db.appConfig.findUnique({
       where: { key: PROMOTION_SETTINGS_KEY },
@@ -177,6 +197,7 @@ export class PromotionsService {
     days: number,
     dailyBudgetCents?: number,
     target: PromotionTarget = 'case',
+    video = false,
   ): Promise<PromotionQuoteDto> {
     const settings = await this.settings();
     await this.assertEntitled(userId, settings);
@@ -203,7 +224,7 @@ export class PromotionsService {
       creditDaysAvailableExact: creditDaysAvailable,
       creditDaysUsedExact: q.creditDaysUsed,
       maxDays: settings.maxDays,
-      enabled: target === 'post' ? settings.postsEnabled : settings.enabled,
+      enabled: await this.boostAllowed(userId, target, video, settings),
       dailyBudgetCents: daily,
       minDailyBudgetCents: settings.minDailyBudgetCents,
       maxDailyBudgetCents: settings.maxDailyBudgetCents,
@@ -253,7 +274,7 @@ export class PromotionsService {
     );
     const shown =
       active ?? rows.find((r) => r.status === 'pending_payment') ?? rows[0];
-    const quote = await this.quote(userId, 1, undefined, type);
+    const quote = await this.quote(userId, 1, undefined, type, target.video);
     return {
       promotion: shown ? toPromotionDto(shown) : null,
       canPromote: quote.enabled && target.promotable && !active,
@@ -313,7 +334,8 @@ export class PromotionsService {
   ): Promise<CreatePromotionResultDto> {
     const settings = await this.settings();
     await this.assertEntitled(userId, settings);
-    if (type === 'post' ? !settings.postsEnabled : !settings.enabled) {
+    const target = await this.ownedTarget(userId, type, id);
+    if (!(await this.boostAllowed(userId, type, target.video, settings))) {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
         message: 'Promotion is not available right now.',
@@ -321,7 +343,6 @@ export class PromotionsService {
     }
     this.assertDays(dto.days, settings);
     const daily = this.dailyBudget(dto.dailyBudgetCents, settings, true);
-    const target = await this.ownedTarget(userId, type, id);
     if (!target.promotable) {
       throw new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,
@@ -912,12 +933,22 @@ export class PromotionsService {
     if (type === 'post') {
       const post = await this.prisma.post.findUnique({
         where: { id },
-        select: { author_id: true, status: true, deleted_at: true },
+        select: {
+          author_id: true,
+          status: true,
+          deleted_at: true,
+          video_asset_id: true,
+        },
       });
       if (!post || post.deleted_at || post.author_id !== userId) {
         throw postNotFound();
       }
-      return { type, id, promotable: post.status === 'published' };
+      return {
+        type,
+        id,
+        promotable: post.status === 'published',
+        video: post.video_asset_id !== null,
+      };
     }
     const kase = await this.prisma.case.findUnique({
       where: { id },
@@ -926,7 +957,7 @@ export class PromotionsService {
     if (!kase || kase.deleted_at || kase.client_id !== userId) {
       throw caseNotFound();
     }
-    return { type, id, promotable: kase.status === 'open' };
+    return { type, id, promotable: kase.status === 'open', video: false };
   }
 
   /** The target of a stored promotion, owner-agnostic. */
@@ -937,12 +968,13 @@ export class PromotionsService {
     if (p.post_id) {
       const post = await this.prisma.post.findUnique({
         where: { id: p.post_id },
-        select: { status: true, deleted_at: true },
+        select: { status: true, deleted_at: true, video_asset_id: true },
       });
       return {
         type: 'post',
         id: p.post_id,
         promotable: !!post && !post.deleted_at && post.status === 'published',
+        video: !!post?.video_asset_id,
       };
     }
     const kase = p.case_id
@@ -955,6 +987,7 @@ export class PromotionsService {
       type: 'case',
       id: p.case_id ?? '',
       promotable: !!kase && !kase.deleted_at && kase.status === 'open',
+      video: false,
     };
   }
 

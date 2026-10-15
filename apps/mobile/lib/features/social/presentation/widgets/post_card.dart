@@ -62,8 +62,11 @@ const double _kVideoRatio = 0.9;
 
 /// Owner 2026-10-15: two lines under a video's icons — the start of the
 /// text (no author name), with «ещё» at the end of the second line.
-class _VideoOneLine extends ConsumerWidget {
-  const _VideoOneLine({
+/// Owner 2026-10-15 (bug): «ещё» only when there is a caption and it really
+/// overflows two lines; an empty caption draws nothing, no gap.
+@visibleForTesting
+class PostVideoCaption extends ConsumerWidget {
+  const PostVideoCaption({
     required this.post,
     required this.line,
     required this.onMore,
@@ -79,6 +82,7 @@ class _VideoOneLine extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final oneLine = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (oneLine.isEmpty) return const SizedBox.shrink();
     final more = t.t('post.more');
     // Measured with the same style the Text draws (DefaultTextStyle merged),
     // or «ещё» can fall to a third line and be clipped (owner 2026-10-15).
@@ -107,9 +111,12 @@ class _VideoOneLine extends ConsumerWidget {
                     textScaler: textScaler,
                     maxLines: 2,
                   )..layout(maxWidth: box.maxWidth);
-              // Whole text fits two lines: nothing to cut, «ещё» still ends
-              // the second line.
+              // The whole text fits two lines: no «ещё», no cut.
               var shown = oneLine;
+              final fitsWhole = !painter(oneLine).didExceedMaxLines;
+              if (fitsWhole) {
+                return Text(oneLine, maxLines: 2, style: base);
+              }
               if (painter('$shown  $more').didExceedMaxLines) {
                 var lo = 0;
                 var hi = oneLine.length;
@@ -303,15 +310,28 @@ class PostCard extends ConsumerWidget {
     final promotionId = post.promotionId;
     // Owner 2026-10-13: a post without attachments has no inner card — a
     // tap on it opens nothing (like Instagram); comments via the sheet.
-    final hasInner = p.hasInner && innerOn;
-    void open() {
-      if (!hasInner) return;
+    void click() {
       if (promotionId != null) {
         ProviderScope.containerOf(context)
             .read(promotionsRepositoryProvider)
             .click(promotionId);
       }
-      context.push(SocialRoutes.post(p.id, fromProfile: fromProfile));
+    }
+
+    // Owner 2026-10-15: the feed has no second page — the caption and
+    // «ещё» open the text in a sheet, the files open in a sheet.
+    void open() {
+      click();
+      showPostTextSheet(context, p);
+    }
+
+    void openFiles() {
+      click();
+      showPostAttachmentsSheet(
+        context,
+        media: p.media,
+        documents: p.attachments,
+      );
     }
 
     void like() => run(
@@ -371,7 +391,6 @@ class PostCard extends ConsumerWidget {
           media: p.media,
           semanticLabel: t.t('post.media.label'),
           onDoubleTap: like,
-          onTap: open,
           fill: true,
         );
         return fill
@@ -460,9 +479,11 @@ class PostCard extends ConsumerWidget {
           // line (nick + the start of the text) with «ещё» at its end; the
           // text, the topic chips and the tags open in a sheet from below.
           if (p.video != null)
-            _VideoOneLine(
+            PostVideoCaption(
               post: p,
-              line: title.isNotEmpty ? '$title $text' : text,
+              line: title.isNotEmpty && !text.startsWith(title)
+                  ? '$title $text'
+                  : text,
               onMore: () => showPostTextSheet(context, p),
             )
           else
@@ -483,7 +504,7 @@ class PostCard extends ConsumerWidget {
               onMore: () => showPostTextSheet(context, p),
             ),
           if (p.video == null && p.attachments.isNotEmpty)
-            _DocChips(documents: p.attachments, onOpen: open),
+            _DocChips(documents: p.attachments, onOpen: openFiles),
           const SizedBox(height: AppSpacing.md),
         ],
       ),
@@ -794,7 +815,7 @@ class _InstagramPost extends ConsumerWidget {
       if (id != null) {
         ref.read(promotionsRepositoryProvider).click(id);
       }
-      context.push(SocialRoutes.post(p.id, fromProfile: fromProfile));
+      showPostTextSheet(context, p);
     }
 
     final hasMedia = p.video != null || p.media.isNotEmpty;
@@ -841,16 +862,16 @@ class _InstagramPost extends ConsumerWidget {
             inList: !inDetail,
             semanticLabel: t.t('post.media.label'),
             onDoubleTap: () => run(() => actions.like(p)),
-            // Owner 2026-10-07: in someone's feed of posts a tap opens
-            // the post; inside it, the full-screen gallery.
-            onTap: fromProfile && !inDetail
-                ? (_) => open()
-                : (i) => showPhotoGallery(
+            // Owner 2026-10-15: a tap on a photo does nothing in a list (like
+            // Instagram); the opened post keeps the full-screen gallery.
+            onTap: inDetail
+                ? (i) => showPhotoGallery(
                       context,
                       urls: [for (final m in p.media) m.url],
                       initial: i,
                       closeLabel: t.t('common.close'),
-                    ),
+                    )
+                : null,
           )
         else if (caption.isNotEmpty)
           // Text only: the text takes the photo's place.
@@ -1025,7 +1046,7 @@ class _ThreadsPost extends ConsumerWidget {
     void open() {
       final id = promotionId;
       if (id != null) ref.read(promotionsRepositoryProvider).click(id);
-      context.push(SocialRoutes.post(p.id, fromProfile: fromProfile));
+      showPostTextSheet(context, p);
     }
 
     final title = (p.title ?? '').trim();
@@ -1263,7 +1284,11 @@ class _ThreadsPost extends ConsumerWidget {
                       // no sheet.
                       onTap: () => inDetail
                           ? onReply?.call()
-                          : context.push(SocialRoutes.post(p.id)),
+                          : showCommentsSheet(
+                              context,
+                              postId: p.id,
+                              commentsEnabled: p.commentsEnabled,
+                            ),
                     ),
                     p.commentCount,
                   ),
@@ -1360,8 +1385,10 @@ class _ThreadsPost extends ConsumerWidget {
       );
     }
 
+    // Owner 2026-10-15: no page behind a text post — a tap does nothing; the
+    // long text opens in a sheet by «ещё», the replies in the comments sheet.
     final card = AppPressable(
-      onTap: open,
+      onTap: null,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.md,
@@ -2183,6 +2210,9 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    if (_body.trim().isEmpty && widget.leading == null) {
+      return const SizedBox.shrink();
+    }
     final style = widget.style ??
         (widget.large ? type.body : type.bodySmall)
             .copyWith(color: colors.text, height: widget.height);
@@ -2880,14 +2910,12 @@ class _FeedCarousel extends StatefulWidget {
     required this.media,
     required this.semanticLabel,
     required this.onDoubleTap,
-    required this.onTap,
     required this.fill,
   });
 
   final List<PostMedia> media;
   final String semanticLabel;
   final VoidCallback onDoubleTap;
-  final VoidCallback onTap;
 
   /// Fill the height the card gives (otherwise a 1:1.25 box).
   final bool fill;
@@ -2921,7 +2949,6 @@ class _FeedCarouselState extends State<_FeedCarousel> {
                 fill: true,
                 showDots: false,
                 onDoubleTap: widget.onDoubleTap,
-                onTap: (_) => widget.onTap(),
                 onPage: (i) => setState(() => _page = i),
               ),
               Positioned(
@@ -3177,7 +3204,7 @@ class _FeedCaptionState extends ConsumerState<_FeedCaption> {
       color: colors.textSecondary,
       fontWeight: FontWeight.w500,
     );
-    final hasText = widget.text.isNotEmpty;
+    final hasText = widget.text.trim().isNotEmpty;
     final hasTags = widget.hashtags.isNotEmpty;
     for (final r in _tagTaps) {
       r.dispose();

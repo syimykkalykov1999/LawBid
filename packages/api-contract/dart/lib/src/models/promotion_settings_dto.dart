@@ -23,6 +23,9 @@ class PromotionSettingsDto {
     required this.feedEveryN,
     required this.reelEveryN,
     required this.reelsEnabled,
+    required this.boostEnabled,
+    required this.attorneysEnabled,
+    required this.clientsEnabled,
     required this.ctaEnabled,
     required this.ctaTypes,
     required this.caseFeedSlots,
@@ -51,6 +54,9 @@ class PromotionSettingsDto {
   final int feedEveryN;
   final int reelEveryN;
   final bool reelsEnabled;
+  final bool boostEnabled;
+  final bool attorneysEnabled;
+  final bool clientsEnabled;
   final bool ctaEnabled;
   final List<PromotionSettingsDtoCtaTypes> ctaTypes;
   final int caseFeedSlots;

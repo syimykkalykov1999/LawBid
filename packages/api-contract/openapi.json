@@ -114612,6 +114612,13 @@
           },
           "casesEnabled": {
             "type": "boolean"
+          },
+          "ctaTypes": {
+            "description": "Owner 2026-10-15: the buttons an advertiser may pick (empty = none).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -114635,7 +114642,8 @@
           "estReachMin",
           "estReachMax",
           "postsEnabled",
-          "casesEnabled"
+          "casesEnabled",
+          "ctaTypes"
         ]
       },
       "PromotionTarget": {
@@ -115542,6 +115550,15 @@
           "reelsEnabled": {
             "type": "boolean"
           },
+          "boostEnabled": {
+            "type": "boolean"
+          },
+          "attorneysEnabled": {
+            "type": "boolean"
+          },
+          "clientsEnabled": {
+            "type": "boolean"
+          },
           "ctaEnabled": {
             "type": "boolean"
           },
@@ -115595,6 +115612,9 @@
           "feedEveryN",
           "reelEveryN",
           "reelsEnabled",
+          "boostEnabled",
+          "attorneysEnabled",
+          "clientsEnabled",
           "ctaEnabled",
           "ctaTypes",
           "caseFeedSlots",

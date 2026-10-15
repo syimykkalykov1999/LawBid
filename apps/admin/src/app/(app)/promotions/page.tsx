@@ -565,6 +565,9 @@ function Toggle({ title, text, checked, onChange, disabled }: { title: string; t
 function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const [boostEnabled, setBoostEnabled] = useState(initial.boostEnabled);
+  const [attorneysEnabled, setAttorneysEnabled] = useState(initial.attorneysEnabled);
+  const [clientsEnabled, setClientsEnabled] = useState(initial.clientsEnabled);
   const [enabled, setEnabled] = useState(initial.enabled);
   const [postsEnabled, setPostsEnabled] = useState(initial.postsEnabled);
   const [autoApprove, setAutoApprove] = useState(initial.autoApprove);
@@ -604,6 +607,9 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     if (!Number.isInteger(en) || en < 10 || en > 15 || !Number.isInteger(rn) || rn < 10 || rn > 15 || !Number.isInteger(cs) || cs < 0 || cs > 10) return null;
     if (!Number.isInteger(fc) || fc < 1 || fc > 50 || !(pp >= 1 && pp <= 10)) return null;
     return {
+      boostEnabled,
+      attorneysEnabled,
+      clientsEnabled,
       enabled,
       postsEnabled,
       autoApprove,
@@ -659,9 +665,12 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           }}
         >
           <div className="divide-y divide-line border-b border-line pb-2">
+            <Toggle title="Кнопки Boost: всё приложение" text="Главный выключатель. Выключено — кнопка «Продвигать» пропадает у всех сразу, без обновления приложения. Уже идущие продвижения доработают срок." checked={boostEnabled} onChange={setBoostEnabled} disabled={!canEdit} />
+            <Toggle title="Кнопки Boost у адвокатов" text="Выключено — адвокаты не видят кнопку на своих постах, видео и делах." checked={attorneysEnabled} onChange={setAttorneysEnabled} disabled={!canEdit || !boostEnabled} />
+            <Toggle title="Кнопки Boost у клиентов" text="Выключено — клиенты не видят кнопку на своих постах, видео и делах." checked={clientsEnabled} onChange={setClientsEnabled} disabled={!canEdit || !boostEnabled} />
             <Toggle title="Продвижение постов" text="Любой клиент или адвокат может продвинуть свой пост. Пост показывается в ленте с пометкой «Реклама»." checked={postsEnabled} onChange={setPostsEnabled} disabled={!canEdit} />
             <Toggle title="Продвижение кейсов" text="Клиент поднимает свой открытый кейс вверх ленты адвокатов. Уже идущие продвижения доработают свой срок." checked={enabled} onChange={setEnabled} disabled={!canEdit} />
-            <Toggle title="Реклама среди рилсов" text="Продвинутые видео показываются в рилсах с пометкой «Реклама» (свой счётчик, отдельно от ленты)." checked={reelsEnabled} onChange={setReelsEnabled} disabled={!canEdit} />
+            <Toggle title="Продвижение видео (рилсы)" text="Кнопка «Продвигать» на видео и реклама среди рилсов с пометкой «Реклама» (свой счётчик, отдельно от ленты)." checked={reelsEnabled} onChange={setReelsEnabled} disabled={!canEdit} />
             <Toggle title="Кнопка под рекламой" text="Рекламодатель выбирает кнопку: сайт, профиль, скачать, позвонить. У кейсов клиента только «Откликнуться»." checked={ctaEnabled} onChange={setCtaEnabled} disabled={!canEdit} />
             <Toggle title="Автопроверка" text="Включено: продвижение стартует сразу после оплаты, если на контент нет открытых жалоб. Выключено: каждое продвижение ждёт проверки сотрудника." checked={autoApprove} onChange={setAutoApprove} disabled={!canEdit} />
             <Toggle title="Только по подписке" text="Выключено (как в Instagram): продвигать может любой. Включено: только те, у кого в плане есть «Продвижение»." checked={requireSub} onChange={setRequireSub} disabled={!canEdit} />

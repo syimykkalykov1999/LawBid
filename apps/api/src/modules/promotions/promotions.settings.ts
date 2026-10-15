@@ -26,9 +26,15 @@ export interface PromotionSettings {
   /** A promoted post goes after every N-th organic post in the feed
    * (owner 2026-10-15: 10–15, default 12). */
   feedEveryN: number;
+  /** Owner 2026-10-15: the Boost buttons — a master switch, then per role
+   * (attorney / client) and per content type (post / reel / case). They
+   * hide at once, no release needed. */
+  boostEnabled: boolean;
+  attorneysEnabled: boolean;
+  clientsEnabled: boolean;
   /** The same for reels: one promoted reel in N (own counter, 10–15). */
   reelEveryN: number;
-  /** Promoted posts may be shown among reels. */
+  /** Video posts (reels) can be boosted and are shown among reels. */
   reelsEnabled: boolean;
   /** A promoted post may carry a button (the types below). */
   ctaEnabled: boolean;
@@ -61,6 +67,9 @@ export const DEFAULT_PROMOTION_SETTINGS: PromotionSettings = {
   durationPresets: [1, 3, 7, 14, 30],
   feedEveryN: 12,
   reelEveryN: 12,
+  boostEnabled: true,
+  attorneysEnabled: true,
+  clientsEnabled: true,
   reelsEnabled: true,
   ctaEnabled: true,
   ctaTypes: ['more', 'message', 'profile', 'download', 'call'],
@@ -253,6 +262,9 @@ export function parsePromotionSettings(raw: unknown): PromotionSettings {
     ),
     feedEveryN: int(r.feedEveryN, 10, 15) ?? d.feedEveryN,
     reelEveryN: int(r.reelEveryN, 10, 15) ?? d.reelEveryN,
+    boostEnabled: bool(r.boostEnabled, d.boostEnabled),
+    attorneysEnabled: bool(r.attorneysEnabled, d.attorneysEnabled),
+    clientsEnabled: bool(r.clientsEnabled, d.clientsEnabled),
     reelsEnabled: bool(r.reelsEnabled, d.reelsEnabled),
     ctaEnabled: bool(r.ctaEnabled, d.ctaEnabled),
     ctaTypes: Array.isArray(r.ctaTypes)

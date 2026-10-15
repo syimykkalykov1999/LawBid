@@ -225,6 +225,7 @@ class CaseText extends StatelessWidget {
       height: 1.45,
       color: colors.text.withValues(alpha: 0.88),
     );
+    if (text.trim().isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: padding,
       child: LayoutBuilder(

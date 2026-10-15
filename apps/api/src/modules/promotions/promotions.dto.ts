@@ -692,6 +692,18 @@ export class PromotionSettingsDto {
 
   @ApiProperty()
   @IsBoolean()
+  boostEnabled!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  attorneysEnabled!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  clientsEnabled!: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
   ctaEnabled!: boolean;
 
   @ApiProperty({ type: String, isArray: true })

@@ -315,12 +315,9 @@ class Post {
 
   bool get pendingReview => isMine && status == 'hidden';
 
-  /// Owner 2026-10-13: the inside of a post (tabs: Overview, Documents,
-  /// Photos, Info) exists only when it has something to show — documents,
-  /// or photos beyond the first of a post. A reel's video is the reel
-  /// itself. Without it a tap on the card opens nothing (like Instagram).
-  bool get hasInner =>
-      attachments.isNotEmpty || (video == null && media.length > 1);
+  /// Owner 2026-10-15: no inner page any more — only documents have a place
+  /// to open (a sheet from below). Photos swipe in the card itself.
+  bool get hasInner => attachments.isNotEmpty;
 
   Post copyWith({
     String? title,

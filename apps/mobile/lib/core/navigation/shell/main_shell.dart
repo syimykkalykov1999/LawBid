@@ -18,6 +18,7 @@ import 'package:lawbid/features/notifications/application/notifications_provider
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_publish_strip.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 
@@ -98,7 +99,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     return Scaffold(
       // Owner 2026-10-12: on the feed the posts run under the floating
       // nav bar (Instagram); other tabs keep their own space.
-      extendBody: navigationShell.currentIndex == 0,
+      extendBody: navigationShell.currentIndex == 0 ||
+          ref.watch(reelPlayersOpenProvider) > 0,
       // Owner 2026-10-15: every tab screen has its own Scaffold that already
       // makes room for the keyboard; this one must not shrink the body as
       // well (the screens inside were squeezed by the keyboard's height
