@@ -201,10 +201,39 @@ abstract interface class SearchRepository {
   });
   Future<List<TagInfo>> tags(String q);
   Future<List<TagInfo>> trending();
+
+  /// Owner 2026-10-15: type-ahead — topics, attorney handles and practice
+  /// names starting with [q].
+  Future<List<SearchSuggestion>> suggest(String q);
+}
+
+enum SuggestionKind { tag, person, practice }
+
+class SearchSuggestion {
+  const SearchSuggestion(this.kind, this.text);
+
+  final SuggestionKind kind;
+  final String text;
 }
 
 class ApiSearchRepository implements SearchRepository {
   ApiSearchRepository(Dio dio) : _search = api.SearchClient(dio);
+
+  @override
+  Future<List<SearchSuggestion>> suggest(String q) async {
+    final env = await guardApiCall(() => _search.suggest(q: q));
+    return [
+      for (final s in env.data)
+        SearchSuggestion(
+          switch (s.kind.json) {
+            'tag' => SuggestionKind.tag,
+            'person' => SuggestionKind.person,
+            _ => SuggestionKind.practice,
+          },
+          s.text,
+        ),
+    ];
+  }
 
   final api.SearchClient _search;
 

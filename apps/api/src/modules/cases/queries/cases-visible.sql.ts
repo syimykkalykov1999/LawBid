@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { ftsMatch } from '../../../common/search/fts-sql';
 
 /** docs/04 §4.1 exception: not_sure_or_other cases are also shown to
  * attorneys who chose General Practice or Not Sure or Other. Same
@@ -31,6 +32,8 @@ export interface VisibleCasesQueryInput {
   /** docs/05 §7.4 search: full-text match on title + description
    * (cases.search_tsv) and a publication window. Absent = the §4.2 feed. */
   text?: string;
+  /** The last word is a prefix (default); false = whole words only. */
+  textPrefix?: boolean;
   since?: Date;
 }
 
@@ -105,6 +108,7 @@ export function buildVisibleCasesSql(
     cursor,
     limit,
     text,
+    textPrefix,
     since,
     extra,
     browseAll,
@@ -120,7 +124,7 @@ export function buildVisibleCasesSql(
     : Prisma.empty;
   const searchFilter = Prisma.sql`${
     text
-      ? Prisma.sql`AND (c.search_tsv @@ plainto_tsquery('english', ${text}) OR c.search_tsv_simple @@ plainto_tsquery('simple', ${text}))`
+      ? Prisma.sql`AND ${ftsMatch('c', text, textPrefix ?? true)}`
       : Prisma.empty
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty}`;
 
@@ -222,6 +226,7 @@ export interface PracticeCasesQueryInput {
   limit: number;
   /** Audit 2026-10-01: search uses the same rule (text, period, extras). */
   text?: string;
+  textPrefix?: boolean;
   since?: Date;
   extra?: Prisma.Sql;
   browseAll?: boolean;
@@ -245,13 +250,14 @@ export function buildPracticeCasesSql(
     cursor,
     limit,
     text,
+    textPrefix,
     since,
     extra,
     browseAll,
   } = input;
   const searchFilter = Prisma.sql`${
     text
-      ? Prisma.sql`AND (c.search_tsv @@ plainto_tsquery('english', ${text}) OR c.search_tsv_simple @@ plainto_tsquery('simple', ${text}))`
+      ? Prisma.sql`AND ${ftsMatch('c', text, textPrefix ?? true)}`
       : Prisma.empty
   } ${since ? Prisma.sql`AND c.created_at >= ${since}` : Prisma.empty} ${
     extra ?? Prisma.empty

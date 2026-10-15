@@ -164,6 +164,9 @@ class FakeSocialRepository implements SocialRepository {
 
 /// In-memory [SearchRepository]: records every query it is asked.
 class FakeSearchRepository implements SearchRepository {
+  @override
+  Future<List<SearchSuggestion>> suggest(String q) async => const [];
+
   final attorneyQueries = <String>[];
   List<AttorneyRow> attorneyResults = const [];
   List<TagInfo> trendingTags = const [];

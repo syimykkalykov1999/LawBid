@@ -281,13 +281,11 @@ export class SearchService {
       return { items: [], nextCursor: null };
     }
     const span = PERIOD_MS[dto.period ?? 'all'];
-    const rows = await this.provider.searchCases(q, {
+    const params = {
       attorneyId: user.sub,
       practiceAreaId: dto.practiceAreaId,
       state: dto.state?.toUpperCase(),
       since: span ? new Date(Date.now() - span) : undefined,
-      cursor: dto.cursor ? decodeCursor(dto.cursor) : undefined,
-      limit: PAGE,
       practiceCategory: dto.practiceCategory,
       budgetMinCents:
         dto.budgetMin === undefined ? undefined : dto.budgetMin * 100,
@@ -300,24 +298,56 @@ export class SearchService {
       urgencyThresholds: dto.minUrgency
         ? await loadUrgencyThresholds(this.settings)
         : undefined,
-    });
-    const page = rows.slice(0, PAGE);
-    // §7.6: the provider's rows still pass the single access check.
-    const visible = await this.access.visibleCaseIds(
-      user.sub,
-      page.map((r) => r.id),
+    };
+    // Owner 2026-10-15: by relevance (a word in the title outranks one in
+    // the text), the ranked ids of this attorney's query kept for a few
+    // minutes and paged by position; filters are part of the key.
+    const ids = await this.ranked(
+      'cs',
+      {
+        q,
+        ...params,
+        since: dto.period ?? 'all',
+        urgencyThresholds: undefined,
+        thresholds: params.urgencyThresholds,
+      },
+      () => this.provider.searchCasesRanked(q, params, RANKED_MAX),
     );
-    const last = page[page.length - 1];
+    const { slice, next } = this.pageOf(ids, dto.cursor);
+    // §7.6: the provider's rows still pass the single access check.
+    const visible = await this.access.visibleCaseIds(user.sub, slice);
     return {
       items: await this.casesFeed.hydrate(
-        page.map((r) => r.id).filter((id) => visible.has(id)),
+        slice.filter((id) => visible.has(id)),
         user.sub,
       ),
-      nextCursor:
-        rows.length > PAGE && last
-          ? encodeCursor({ createdAt: last.created_at, id: last.id })
-          : null,
+      nextCursor: next,
     };
+  }
+
+  /** GET /search/suggest: type-ahead for the search field. */
+  async suggest(
+    user: RequestUser,
+    rawQ: string,
+  ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]> {
+    await this.limits.consume('search', user.sub);
+    const q = normalizeQuery(rawQ);
+    if (q.length < 1) return [];
+    const hash = createHash('sha256').update(q).digest('base64url');
+    const hit = await this.redis.get(`search:suggest:${hash}`);
+    if (hit)
+      return JSON.parse(hit) as {
+        kind: 'tag' | 'person' | 'practice';
+        text: string;
+      }[];
+    const items = await this.provider.suggest(q, 4);
+    await this.redis.set(
+      `search:suggest:${hash}`,
+      JSON.stringify(items),
+      'EX',
+      60,
+    );
+    return items;
   }
 
   async postsByText(

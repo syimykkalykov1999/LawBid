@@ -1514,9 +1514,9 @@ model Case {
   deleted_at            DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', title || ' ' ||
   // description). Read-only.
-  search_tsv            Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::regconfig, ((title || ' '::text) || description))"))
+  search_tsv            Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, f_unaccent(title)), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, f_unaccent(description)), 'C'::\"char\"))"))
   // Same text with the 'simple' config: exact words in any language.
-  search_tsv_simple     Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, ((title || ' '::text) || description))"))
+  search_tsv_simple     Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, f_unaccent(title)), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, f_unaccent(description)), 'C'::\"char\"))"))
   created_at            DateTime                 @default(now()) @db.Timestamptz
   updated_at            DateTime                 @updatedAt @db.Timestamptz
 
@@ -1806,9 +1806,9 @@ model Post {
   edited_at            DateTime?                @db.Timestamptz
   deleted_at           DateTime?                @db.Timestamptz
   // STORED computed column (§5.3): to_tsvector('english', body). Read-only.
-  search_tsv           Unsupported("tsvector")? @default(dbgenerated("to_tsvector('english'::regconfig, body)"))
+  search_tsv           Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('english'::regconfig, f_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('english'::regconfig, f_unaccent(body)), 'C'::\"char\"))"))
   // Owner 2026-10-13: the same text in the language-neutral 'simple' config.
-  search_tsv_simple    Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, body)"))
+  search_tsv_simple    Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, f_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, f_unaccent(body)), 'C'::\"char\"))"))
   created_at           DateTime                 @default(now()) @db.Timestamptz
   // Explicit write-shard 0..15 (docs/02 §1.1 hot-spot rule): STORED
   // computed column, indexed as (created_shard, created_at). Replaces a

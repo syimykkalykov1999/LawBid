@@ -151,3 +151,11 @@ class RecentSearches extends AsyncNotifier<List<String>> {
 
 final recentSearchesProvider =
     AsyncNotifierProvider<RecentSearches, List<String>>(RecentSearches.new);
+
+/// Owner 2026-10-15: suggestions for what is being typed (type-ahead); the
+/// server caches them for a minute, the family key is the normalized text.
+final searchSuggestionsProvider = FutureProvider.autoDispose
+    .family<List<SearchSuggestion>, String>((ref, q) async {
+  if (q.isEmpty) return const [];
+  return ref.watch(searchRepositoryProvider).suggest(q);
+});

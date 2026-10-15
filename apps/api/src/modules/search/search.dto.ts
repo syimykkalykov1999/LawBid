@@ -412,3 +412,11 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @IsIn(POST_CONTENT_CLASSES)
   contentClass?: PostContentClass;
 }
+
+export class SuggestionDto {
+  @ApiProperty({ enum: ['tag', 'person', 'practice'] })
+  kind!: 'tag' | 'person' | 'practice';
+
+  @ApiProperty()
+  text!: string;
+}

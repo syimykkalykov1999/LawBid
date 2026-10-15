@@ -17,6 +17,7 @@ import '../models/post_list_envelope.dart';
 import '../models/role2.dart';
 import '../models/sort2.dart';
 import '../models/sort3.dart';
+import '../models/suggestion_list_envelope.dart';
 import '../models/tag_list_envelope.dart';
 
 part 'search_client.g.dart';
@@ -38,6 +39,15 @@ abstract class SearchClient {
     @Query('state') String? state,
     @Query('minRating') num? minRating,
     @Query('language') String? language,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Type-ahead: topics, handles, practices by prefix.
+  ///
+  /// [q] - Hashtag prefix, with or without "#".
+  @GET('/search/suggest')
+  Future<SuggestionListEnvelope> suggest({
+    @Query('q') required String q,
     @Extras() Map<String, dynamic>? extras,
   });
 
