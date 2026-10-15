@@ -90,6 +90,8 @@ jobs:
           aws s3 sync . "s3://${{ secrets.WEB_BUCKET }}" \
             --delete \
             --exclude "canvaskit/*" --exclude "icons/*" \
+            --exclude "lawyers/*" --exclude "attorneys/*" --exclude "practice-areas/*" \
+            --exclude "sitemap.xml" --exclude "robots.txt" \
             --cache-control "no-cache"
           # .wasm must be served as application/wasm.
           aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/" "s3://${{ secrets.WEB_BUCKET }}/" \

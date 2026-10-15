@@ -130,6 +130,29 @@ resource "aws_cloudfront_response_headers_policy" "web" {
   }
 }
 
+# The public pages (scripts/seo) are plain files in the same bucket:
+# /lawyers/california/divorce/ is served from .../index.html.
+resource "aws_cloudfront_function" "seo_index" {
+  name    = "${var.name}-seo-index"
+  runtime = "cloudfront-js-2.0"
+  comment = "Directory URLs of the public pages end in index.html"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var uri = request.uri;
+      if (/^\/(lawyers|attorneys|practice-areas)(\/|$)/.test(uri)) {
+        if (uri.charAt(uri.length - 1) === '/') {
+          request.uri = uri + 'index.html';
+        } else if (uri.indexOf('.', uri.lastIndexOf('/')) === -1) {
+          request.uri = uri + '/index.html';
+        }
+      }
+      return request;
+    }
+  EOT
+}
+
 # The engine and the page: always asked again (they change on every
 # release); the hashed assets, icons and CanvasKit are cached by the
 # `Cache-Control` the deploy writes on each object.
@@ -157,6 +180,11 @@ resource "aws_cloudfront_distribution" "web" {
     # AWS managed CachingOptimized: follows the object's Cache-Control.
     cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
     response_headers_policy_id = aws_cloudfront_response_headers_policy.web.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.seo_index.arn
+    }
   }
 
   # S3 answers 403 for a missing key (no ListBucket for the OAC): the app

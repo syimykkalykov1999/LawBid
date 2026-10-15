@@ -1,0 +1,88 @@
+# Owner 2026-10-15 — the public, search-engine-readable pages of the web
+# app (scripts/seo): practice area x state landing pages, attorney
+# profiles, sitemap.xml and robots.txt. Built from the API's public
+# directory and published next to the web app (same bucket, own
+# prefixes). Rebuilt every day so new attorneys appear.
+#
+# Runs only when the repository variable WEB_DEPLOY_ENABLED is 'true'.
+# Secrets/variables: see web-deploy.yml (WEB_BUCKET, WEB_DISTRIBUTION_ID,
+# AWS_DEPLOY_ROLE_PROD, AWS_REGION) plus
+#   WEB_SITE_URL       https://<web host>
+#   WEB_SEO_API_URL    https://api.<domain>/api/v1
+name: SEO pages
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/seo/**"
+      - ".github/workflows/seo-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      index_empty:
+        description: "Index state x practice pages that have no attorneys yet"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: seo-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Generator tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/seo/test/build.test.mjs
+
+  deploy:
+    name: Build and publish the pages
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build the pages from the public directory
+        run: >-
+          node scripts/seo/build.mjs
+          --api "${{ secrets.WEB_SEO_API_URL }}"
+          --site "${{ secrets.WEB_SITE_URL }}"
+          --out dist-seo
+          ${{ inputs.index_empty && '--index-empty' || '' }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Publish (each prefix is replaced as a whole)
+        run: |
+          for d in lawyers attorneys practice-areas; do
+            aws s3 sync "dist-seo/$d" "s3://${{ secrets.WEB_BUCKET }}/$d" --delete \
+              --cache-control "public,max-age=3600" --content-type "text/html; charset=utf-8"
+          done
+          aws s3 cp dist-seo/sitemap.xml "s3://${{ secrets.WEB_BUCKET }}/sitemap.xml" \
+            --cache-control "public,max-age=3600" --content-type application/xml
+          aws s3 cp dist-seo/robots.txt "s3://${{ secrets.WEB_BUCKET }}/robots.txt" \
+            --cache-control "public,max-age=3600" --content-type text/plain
+
+      - name: Reset the CDN cache for the pages
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
+          --paths "/lawyers/*" "/attorneys/*" "/practice-areas/*" "/sitemap.xml" "/robots.txt"
