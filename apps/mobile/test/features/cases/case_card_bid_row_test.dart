@@ -108,10 +108,12 @@ void main() {
     t.view.physicalSize = const Size(360, 780);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
+    // Owner 2026-10-15: the height follows the content; a typical case
+    // (two-line title, description clamped to two lines) takes two to a
+    // screen, a short one even less.
     final long = kase(
       bid: false,
-      title: 'A very long title of a case that needs two full lines of text '
-          'on a narrow phone screen to be sure it clamps',
+      title: 'A title of a case that needs two lines on a narrow phone',
       desc: 'A long description. ' * 30,
     );
     await t.pumpWidget(
@@ -144,6 +146,43 @@ void main() {
     expect(b.top - a.bottom, lessThanOrEqualTo(0.5));
     // ignore: avoid_print
     print('card height ${a.height}');
-    expect(b.bottom, lessThanOrEqualTo(780 - 24 - 150 - 64));
+    expect(b.bottom, lessThanOrEqualTo(780 - 24 - 100 - 64));
+  });
+
+  testWidgets('order: files, Bid on its own row, icons; time and Save right', (
+    t,
+  ) async {
+    t.view.physicalSize = const Size(360, 780);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: SingleChildScrollView(
+            child: FeedCaseCard(
+              item: kase(bid: false),
+              t: const _Safe(StaticTranslatorEn()),
+              formats: L10nFormats(AppLanguage.fallback),
+              onTap: () {},
+            ),
+          ),
+        ),
+        theme: AppTheme.dark(),
+        size: const Size(360, 780),
+        overrides: uxOverrides(),
+      ),
+    );
+    await t.pump();
+    expect(t.takeException(), isNull);
+    final files = t.getTopLeft(find.byIcon(AppIcons.folderOutlined)).dy;
+    final bid = t.getTopLeft(find.text('Bid')).dy;
+    final icons = t.getTopLeft(find.byIcon(AppIcons.sendOutlined)).dy;
+    expect(files, lessThan(bid));
+    expect(bid, lessThan(icons));
+    // Save sits at the right edge, the time right before it.
+    final save = t.getTopRight(find.byIcon(AppIcons.bookmarkBorderRounded));
+    expect(save.dx, greaterThan(360 - 40));
+    // Overflowing nothing; the card is content-high (no fixed height).
+    expect(t.getSize(find.byType(FeedCaseCard)).height, lessThan(400));
   });
 }

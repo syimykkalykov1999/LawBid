@@ -9,6 +9,9 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/social/data/social_repository.dart'
+    show caseThreadId;
+import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 
@@ -281,6 +284,16 @@ class FeedCaseCard extends StatelessWidget {
                   moreLabel: t.t('post.more'),
                   onMore: onTap,
                 ),
+              CaseFileLine(
+                t: t,
+                dossier: item.dossier,
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  0,
+                ),
+              ),
               _CaseCardRow(item: item, t: t, formats: formats),
             ],
           ),
@@ -307,24 +320,33 @@ class _CaseCardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget stat(IconData icon, int n) => Padding(
-          padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(icon, size: 22, color: colors.text),
-              const SizedBox(width: 4),
-              Text(
-                SocialFormat.count(formats, n),
-                style: typography.bodySmall.copyWith(
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+    Widget stat(IconData icon, int n, {VoidCallback? onTap}) {
+      final row = Padding(
+        padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppIcon(icon, size: 22, color: colors.text),
+            const SizedBox(width: 4),
+            Text(
+              SocialFormat.count(formats, n),
+              style: typography.bodySmall.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
               ),
-            ],
-          ),
-        );
+            ),
+          ],
+        ),
+      );
+      if (onTap == null) return row;
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: row,
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -371,32 +393,37 @@ class _CaseCardRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                Expanded(
-                  child: CaseFileLine(
-                    t: t,
-                    dossier: item.dossier,
-                    padding: const EdgeInsetsDirectional.only(
-                      start: AppSpacing.md,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
           Row(
             children: [
               stat(AppIcons.gavelRounded, item.bidsCount),
-              stat(AppIcons.modeCommentOutlined, item.commentCount),
+              // Owner 2026-10-15: comments open as a sheet (like posts), not
+              // the case screen.
+              stat(
+                AppIcons.modeCommentOutlined,
+                item.commentCount,
+                onTap: () => showCommentsSheet(
+                  context,
+                  postId: caseThreadId(item.id),
+                  commentsEnabled: true,
+                ),
+              ),
               stat(AppIcons.sendOutlined, item.shareCount),
-              const Spacer(),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    SocialFormat.ago(t, formats, item.createdAt),
-                    maxLines: 1,
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
+              // Owner 2026-10-15: the time and Save are pinned to the right
+              // edge (Expanded + Align, not Spacer + Flexible).
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      SocialFormat.ago(t, formats, item.createdAt),
+                      maxLines: 1,
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
                   ),
                 ),
               ),
