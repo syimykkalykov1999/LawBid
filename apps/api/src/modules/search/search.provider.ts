@@ -37,6 +37,8 @@ export interface CaseSearchParams {
   urgencyThresholds?: UrgencyThresholds;
   /** Whole words only (no prefix on the last word), provider-internal. */
   textExact?: boolean;
+  /** Practices the text names in another language, provider-internal. */
+  textPractices?: string[];
   /** Extra `AND …` SQL (the typo fallback), provider-internal. */
   extraSql?: import('@prisma/client').Prisma.Sql;
 }

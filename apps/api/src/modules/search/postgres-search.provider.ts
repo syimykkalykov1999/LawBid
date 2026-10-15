@@ -222,11 +222,13 @@ export class PostgresSearchProvider implements SearchProvider {
     }));
   }
 
-  async searchCases(
+  searchCases(
     q: string,
     p: CaseSearchParams,
   ): Promise<{ id: string; created_at: Date }[]> {
-    const textPractices = await this.practiceIdsFor(q);
+    // Looked up by the caller (searchCasesRanked): this stays a lazy Prisma
+    // query, which the time budget runs inside a transaction.
+    const textPractices = p.textPractices ?? [];
     const extra = Prisma.sql`
           ${p.budgetMinCents !== undefined ? Prisma.sql`AND c.budget_cents >= ${p.budgetMinCents}` : Prisma.empty}
           ${p.budgetMaxCents !== undefined ? Prisma.sql`AND c.budget_cents <= ${p.budgetMaxCents}` : Prisma.empty}
@@ -449,6 +451,8 @@ export class PostgresSearchProvider implements SearchProvider {
     p: Omit<CaseSearchParams, 'cursor' | 'limit'>,
     max: number,
   ): Promise<string[]> {
+    const textPractices = await this.practiceIdsFor(q);
+    p = { ...p, textPractices };
     const exact = await this.budget(SEARCH_BUDGET_MS, () =>
       this.searchCases(q, { ...p, textExact: true, limit: CASE_CANDIDATES }),
     );
