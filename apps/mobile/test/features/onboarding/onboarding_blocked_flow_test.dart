@@ -41,7 +41,7 @@ String _location(GoRouter r) =>
 
 void main() {
   testWidgets(
-      '(b) role already set: other card disabled, note shown, Continue moves on without an API call',
+      '(b) role set, onboarding not finished: no lock, Continue with the same role moves on without an API call',
       (tester) async {
     tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
@@ -64,6 +64,73 @@ void main() {
     await tester.pumpWidget(wrap(Router.withConfig(config: router)));
     await tester.pumpAndSettle();
 
+    // Owner 2026-10-15: the person can still choose again.
+    expect(find.byKey(const ValueKey('role-locked-note')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('role-card-disabled-client')),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(repo.calls, isEmpty);
+    expect(
+      _location(router),
+      OnboardingRoutes.forStep(OnboardingStepId.contacts),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(Duration.zero);
+  });
+
+  testWidgets(
+      '(b) role set, onboarding not finished: picking Client asks the server to switch',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final me = meFixture(
+      role: UserRole.attorney,
+      consents: true,
+      phone: '+15551234567',
+      step: OnboardingStepId.profile,
+    );
+    final repo = FakeOnboardingRepository(me);
+    final wrap = await onboardingWrapper(
+      AppTheme.light(),
+      user: me,
+      repo: repo,
+    );
+    await tester.pumpWidget(wrap(const RoleScreen()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Client'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(repo.calls, contains('setRole:client'));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(Duration.zero);
+  });
+
+  testWidgets(
+      '(b) onboarding finished: the role is final, other card disabled, note shown',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final me = meFixture(
+      role: UserRole.attorney,
+      consents: true,
+      phone: '+15551234567',
+      completed: true,
+    );
+    final wrap = await onboardingWrapper(
+      AppTheme.light(),
+      user: me,
+      repo: FakeOnboardingRepository(me),
+    );
+    await tester.pumpWidget(wrap(const RoleScreen()));
+    await tester.pumpAndSettle();
     expect(
       find.text("Your role is already set and can't be changed."),
       findsOneWidget,
@@ -75,21 +142,6 @@ void main() {
     expect(
       find.byKey(const ValueKey('role-card-disabled-attorney')),
       findsNothing,
-    );
-    final opacity = tester.widget<Opacity>(
-      find.descendant(
-        of: find.byKey(const ValueKey('role-card-disabled-client')),
-        matching: find.byType(Opacity),
-      ),
-    );
-    expect(opacity.opacity, AppSizes.disabledOpacity);
-
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-    expect(repo.calls, isEmpty);
-    expect(
-      _location(router),
-      OnboardingRoutes.forStep(OnboardingStepId.contacts),
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);

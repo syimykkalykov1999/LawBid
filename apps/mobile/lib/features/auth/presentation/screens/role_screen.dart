@@ -35,21 +35,30 @@ class RoleScreen extends ConsumerWidget {
     final flowState = ref.watch(onboardingFlowProvider);
     final serverRole =
         ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
-    final selectedRole =
-        serverRole ?? flowState.selectedRole ?? UserRole.client;
+    final onboardingDone = ref.watch(
+      currentUserControllerProvider
+          .select((s) => s.user?.onboarding.isCompleted ?? false),
+    );
+    // Owner 2026-10-15: until onboarding is finished the role can be chosen
+    // again (someone who looked at the lawyer side and went back); after it,
+    // the role is final.
+    final locked = serverRole != null && onboardingDone;
+    final selectedRole = locked
+        ? serverRole
+        : flowState.selectedRole ?? serverRole ?? UserRole.client;
     final action = ref.watch(onboardingActionsProvider);
     // Owner 2026-10-11: an assistant signs in only with an invite code, not
     // through this screen — here the choice is client or attorney.
     final attorneySide = selectedRole == UserRole.attorney;
 
     void select(UserRole role) {
-      if (serverRole != null) return;
+      if (locked) return;
       ref.read(onboardingFlowProvider.notifier).selectRole(role);
     }
 
     Future<void> handleContinue() async {
       final user = ref.read(currentUserControllerProvider).user;
-      if (serverRole != null && user != null) {
+      if (serverRole != null && user != null && selectedRole == serverRole) {
         context.go(AppRouterGuard.forwardRoute(user));
         return;
       }
@@ -64,7 +73,7 @@ class RoleScreen extends ConsumerWidget {
 
     /// The card of the role that can no longer be picked: dimmed, inert.
     Widget lockable(UserRole role, Widget card) {
-      if (serverRole == null || serverRole == role) return card;
+      if (!locked || serverRole == role) return card;
       return Semantics(
         enabled: false,
         child: IgnorePointer(
@@ -128,7 +137,7 @@ class RoleScreen extends ConsumerWidget {
                           },
                         ),
                       ),
-                      if (serverRole != null) ...[
+                      if (locked) ...[
                         const SizedBox(height: AppSpacing.md),
                         Text(
                           t.t('onboarding.role.locked'),

@@ -262,7 +262,7 @@ export class OnboardingService {
    * (owner 2026-10-14) a person who took the wrong door (looked at the
    * lawyer side, hit the licence step, went back) picks again: the half-made
    * profile of the other side is removed and onboarding restarts. Once
-   * onboarding is complete, or a card / a verification request exists, the
+   * onboarding is complete, or a card exists or a verification request was sent, the
    * role is final. The client refreshes its tokens afterwards. */
   async setRole(
     userId: string,
@@ -295,12 +295,35 @@ export class OnboardingService {
       ) {
         throw locked();
       }
-      const [sub, request] = await Promise.all([
+      // Owner 2026-10-15: a DRAFT request exists as soon as the person opens
+      // «add a state» on the verification step; it is not a submission, so it
+      // does not lock the role. Only a request that was sent does.
+      const [sub, sent] = await Promise.all([
         tx.subscription.count({ where: { user_id: userId } }),
-        tx.verificationRequest.count({ where: { attorney_id: userId } }),
+        tx.verificationRequest.count({
+          where: { attorney_id: userId, status: { not: 'draft' } },
+        }),
       ]);
-      if (sub > 0 || request > 0) throw locked();
+      if (sub > 0 || sent > 0) throw locked();
+      const drafts = await tx.verificationRequest.findMany({
+        where: { attorney_id: userId, status: 'draft' },
+        select: { id: true },
+      });
+      const draftIds = drafts.map((d) => d.id);
+      if (draftIds.length > 0) {
+        await tx.verificationDocument.deleteMany({
+          where: { request_id: { in: draftIds } },
+        });
+        await tx.verificationCheck.deleteMany({
+          where: { request_id: { in: draftIds } },
+        });
+      }
       await tx.attorneyLicense.deleteMany({ where: { attorney_id: userId } });
+      if (draftIds.length > 0) {
+        await tx.verificationRequest.deleteMany({
+          where: { id: { in: draftIds } },
+        });
+      }
       await tx.attorneyPracticeArea.deleteMany({
         where: { attorney_id: userId },
       });
