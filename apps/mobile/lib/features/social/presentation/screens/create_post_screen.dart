@@ -59,6 +59,10 @@ class _VideoPick {
   ReelCut cut;
   final Size size;
   Uint8List? frame;
+
+  /// A cover chosen from the gallery (uploaded), instead of a frame.
+  Uint8List? coverBytes;
+  String? coverFileId;
 }
 
 /// Owner 2026-09-30: "+" → a post (everyone) or News (attorneys): the
@@ -265,18 +269,25 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   Future<void> _editVideo(int tab) async {
     final pick = _video;
     if (pick == null) return;
-    final cut = await Navigator.of(context).push<ReelCut>(
+    final edit = await Navigator.of(context).push<VideoEdit>(
       MaterialPageRoute(
         builder: (_) => VideoEditorScreen(
           file: pick.file,
           cut: pick.cut,
+          coverBytes: pick.coverBytes,
+          coverFileId: pick.coverFileId,
           maxMs: reelMaxSeconds(ref) * 1000,
           initialTab: tab,
         ),
       ),
     );
-    if (cut == null || !mounted) return;
-    setState(() => pick.cut = cut);
+    if (edit == null || !mounted) return;
+    setState(() {
+      pick
+        ..cut = edit.cut
+        ..coverBytes = edit.coverBytes
+        ..coverFileId = edit.coverFileId;
+    });
     unawaited(_loadCoverFrame(pick));
   }
 
@@ -441,6 +452,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 file: v.file,
                 cut: v.cut,
                 previewSize: v.size,
+                coverFileId: v.coverFileId,
                 title: _parts.$1,
                 text: _parts.$2,
                 place: '',
@@ -611,6 +623,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                             child: _SourceButton(
                               icon: AppIcons.photoLibraryOutlined,
                               label: t.t('post.src.gallery'),
+                              hint: t.t('post.src.galleryHint'),
+                              tint: AppColorsFixed.sourceGalleryBlue,
                               onTap: _pick,
                             ),
                           ),
@@ -619,6 +633,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                             child: _SourceButton(
                               icon: AppIcons.photoCameraOutlined,
                               label: t.t('post.src.camera'),
+                              hint: t.t('post.src.cameraHint'),
+                              tint: AppColorsFixed.sourceCameraTeal,
                               onTap: _camera,
                             ),
                           ),
@@ -1110,49 +1126,78 @@ class _PhotoTile extends StatelessWidget {
   }
 }
 
-/// «Gallery» / «Camera»: the two ways to add photos or a video.
+/// «Gallery» / «Camera»: the two ways to add photos or a video. Owner
+/// 2026-10-15 (mockup A): tonal dark tiles, a cool icon in a soft square —
+/// blue for the gallery, teal for the camera, no gold.
 class _SourceButton extends StatelessWidget {
   const _SourceButton({
     required this.icon,
     required this.label,
+    required this.hint,
+    required this.tint,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
+  final String hint;
+  final Color tint;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // On a light theme the same hue is darkened to stay readable.
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final accent = dark ? tint : Color.lerp(tint, Colors.black, 0.45)!;
     return Semantics(
       button: true,
-      label: label,
+      label: '$label. $hint',
       excludeSemantics: true,
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          height: 100,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           decoration: BoxDecoration(
-            color: colors.goldTint,
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            border: Border.all(color: colors.goldStroke),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.alphaBlend(
+                  accent.withValues(alpha: 0.12),
+                  colors.surface,
+                ),
+                colors.surface,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: accent.withValues(alpha: 0.22)),
           ),
-          child: Row(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIcon(icon, color: colors.goldDark),
-              const SizedBox(width: AppSpacing.sm),
-              Flexible(
-                child: FitText(
-                  label,
-                  style: type.body.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
                 ),
+                child: AppIcon(icon, color: accent, size: 24),
+              ),
+              const SizedBox(height: 6),
+              FitText(
+                label,
+                style: type.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              FitText(
+                hint,
+                style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -1226,7 +1271,9 @@ class _VideoSummary extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (pick.frame == null)
+                if (pick.coverBytes != null)
+                  Image.memory(pick.coverBytes!, fit: BoxFit.cover)
+                else if (pick.frame == null)
                   ColoredBox(
                     color: colors.surface,
                     child: Center(

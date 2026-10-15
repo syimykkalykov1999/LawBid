@@ -5,11 +5,13 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:image_picker/image_picker.dart'
+    show ImagePicker, ImageSource, XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:video_player/video_player.dart';
 
 /// Owner 2026-10-15 (approved mockup A): the «Video» editor opened from the
@@ -17,14 +19,30 @@ import 'package:video_player/video_player.dart';
 /// a gold frame and two handles, start / length / end) and «Cover» (a white
 /// frame slid along the strip, and how it looks in the profile grid).
 /// «Done» returns the edited [ReelCut]; the close button returns nothing.
+/// What «Done» returns: the cut, and a cover picked from the gallery
+/// (already uploaded as [coverFileId]) instead of a frame.
+class VideoEdit {
+  const VideoEdit(this.cut, {this.coverBytes, this.coverFileId});
+
+  final ReelCut cut;
+  final Uint8List? coverBytes;
+  final String? coverFileId;
+}
+
 class VideoEditorScreen extends ConsumerStatefulWidget {
   const VideoEditorScreen({
     required this.file,
     required this.cut,
     required this.maxMs,
     this.initialTab = 0,
+    this.coverBytes,
+    this.coverFileId,
     super.key,
   });
+
+  /// A gallery cover chosen earlier.
+  final Uint8List? coverBytes;
+  final String? coverFileId;
 
   final XFile file;
   final ReelCut cut;
@@ -51,6 +69,11 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
   final _frames = List<Uint8List?>.filled(_kStripFrames, null);
   Uint8List? _coverFrame;
   Timer? _coverTimer;
+
+  /// A cover from the gallery, and the state of its upload.
+  late Uint8List? _custom = widget.coverBytes;
+  late String? _customId = widget.coverFileId;
+  bool _uploadingCover = false;
 
   @override
   void initState() {
@@ -146,12 +169,47 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
   }
 
   void _setCover(int ms) {
-    setState(() => _cut = _cut.withCover(ms));
+    setState(() {
+      _cut = _cut.withCover(ms);
+      _custom = null;
+      _customId = null;
+    });
     _scheduleCoverFrame();
     final c = _player;
     if (c == null) return;
     unawaited(c.pause());
     unawaited(c.seekTo(Duration(milliseconds: _cut.coverMs)));
+  }
+
+  Future<void> _pickCover() async {
+    final t = ref.read(translatorProvider);
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1440,
+      maxHeight: 1440,
+      imageQuality: 80,
+    );
+    if (x == null || !mounted) return;
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _custom = bytes;
+      _customId = null;
+      _uploadingCover = true;
+    });
+    try {
+      final id = await ref.read(socialActionsProvider).uploadPhoto(bytes);
+      if (mounted && identical(_custom, bytes)) {
+        setState(() => _customId = id);
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _custom = null);
+        showAppSnackBar(context, t.t('reels.upload.failed'));
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingCover = false);
+    }
   }
 
   @override
@@ -171,7 +229,15 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
         title: Text(t.t('video.edit.title')),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(_cut),
+            onPressed: _uploadingCover
+                ? null
+                : () => Navigator.of(context).pop(
+                      VideoEdit(
+                        _cut,
+                        coverBytes: _customId == null ? null : _custom,
+                        coverFileId: _customId,
+                      ),
+                    ),
             child: Text(
               t.t('video.edit.done'),
               style: type.body.copyWith(
@@ -278,8 +344,49 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen> {
                 t.t('video.edit.frame', {'time': formatCutTime(_cut.coverMs)}),
                 style: type.titleMedium,
               ),
+              const SizedBox(height: AppSpacing.md),
+              Semantics(
+                button: true,
+                label: t.t('video.edit.uploadCover'),
+                excludeSemantics: true,
+                child: AppPressable(
+                  onTap: _uploadingCover ? null : _pickCover,
+                  child: Container(
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadii.field),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: _uploadingCover
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AppIcon(
+                                AppIcons.photoLibraryOutlined,
+                                color: colors.goldDark,
+                                size: 20,
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Flexible(
+                                child: FitText(
+                                  t.t('video.edit.uploadCover'),
+                                  style: type.body.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
               const SizedBox(height: AppSpacing.lg),
-              _GridPreview(frame: _coverFrame),
+              _GridPreview(frame: _custom ?? _coverFrame),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 t.t('video.edit.gridHint'),

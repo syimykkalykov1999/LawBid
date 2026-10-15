@@ -15,6 +15,7 @@ CreateVideoUploadDto _$CreateVideoUploadDtoFromJson(
   trimStartMs: (json['trimStartMs'] as num?)?.toInt(),
   trimEndMs: (json['trimEndMs'] as num?)?.toInt(),
   coverTimeMs: (json['coverTimeMs'] as num?)?.toInt(),
+  coverFileId: json['coverFileId'] as String?,
 );
 
 Map<String, dynamic> _$CreateVideoUploadDtoToJson(
@@ -26,4 +27,5 @@ Map<String, dynamic> _$CreateVideoUploadDtoToJson(
   'trimStartMs': ?instance.trimStartMs,
   'trimEndMs': ?instance.trimEndMs,
   'coverTimeMs': ?instance.coverTimeMs,
+  'coverFileId': ?instance.coverFileId,
 };

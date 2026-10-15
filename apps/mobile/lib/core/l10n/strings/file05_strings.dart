@@ -73,7 +73,7 @@ const file05Ru = <String, String>{
   'post.published': 'Пост опубликован',
 
   // --- composer ---
-  'post.create.title': 'Пост в ленту',
+  'post.create.title': 'Новая публикация',
   'post.create.hint': 'Поделитесь знаниями, разбором кейса или советом…',
   'post.create.photos': 'Фото',
   'post.create.addPhoto': 'Добавить фото',

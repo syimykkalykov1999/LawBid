@@ -11,11 +11,13 @@ import '../../helpers/ux_harness.dart';
 /// in a table keyed by category. Different practices must differ.
 void main() {
   Color headerOf(WidgetTester tester) {
-    final box = tester
-        .widgetList<Container>(find.descendant(
-          of: find.byType(ActiveCaseCard),
-          matching: find.byType(Container),
-        ))
+    final containers = tester.widgetList<Container>(
+      find.descendant(
+        of: find.byType(ActiveCaseCard),
+        matching: find.byType(Container),
+      ),
+    );
+    final box = containers
         .map((c) => c.decoration)
         .whereType<BoxDecoration>()
         .firstWhere(

@@ -164,6 +164,28 @@ export class VideosService {
       dto.coverTimeMs != null && dto.coverTimeMs <= dto.durationSec * 1000
         ? dto.coverTimeMs
         : (trim?.startMs ?? null);
+    // Owner 2026-10-15: a cover from the gallery — the owner's own clean
+    // post image; anything else is ignored (the frame is used).
+    let coverFileId: string | null = null;
+    if (dto.coverFileId) {
+      const f = await this.prisma.file.findUnique({
+        where: { id: dto.coverFileId },
+        select: { owner_user_id: true, purpose: true, scan_status: true },
+      });
+      if (
+        !f ||
+        f.owner_user_id !== userId ||
+        f.purpose !== 'post_image' ||
+        f.scan_status !== 'clean'
+      ) {
+        throw new UnprocessableEntityException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'The cover image cannot be used.',
+          details: { field: 'coverFileId' },
+        });
+      }
+      coverFileId = dto.coverFileId;
+    }
     const pending = await this.prisma.videoAsset.count({
       where: {
         owner_user_id: userId,
@@ -195,6 +217,7 @@ export class VideosService {
         trim_start_ms: trim?.startMs ?? null,
         trim_end_ms: trim?.endMs ?? null,
         cover_time_ms: coverMs,
+        cover_file_id: coverFileId,
       },
     });
     return {

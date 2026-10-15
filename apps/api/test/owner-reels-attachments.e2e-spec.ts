@@ -337,4 +337,37 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
     expect(row.media).toHaveLength(1);
     expect(row.attachments[0].file_name).toBe('Checklist.pdf');
   });
+
+  it('a reel cover can be an own clean gallery image (owner 2026-10-15)', async () => {
+    const att = await attorney();
+    const other = await attorney();
+    const upload = (body: Record<string, unknown>) =>
+      api().post('/api/v1/videos/uploads').set(att.auth).send(body);
+    const mine = await file(att.id, 'post_image', { mime: 'image/jpeg' });
+    const ok = await upload({
+      sizeBytes: 1000,
+      durationSec: 60,
+      coverFileId: mine,
+    });
+    expect(ok.status).toBe(201);
+    const row = await prisma.videoAsset.findUniqueOrThrow({
+      where: { id: ok.body.data.videoAssetId as string },
+    });
+    expect(row.cover_file_id).toBe(mine);
+    // Someone else's image, a document and an unscanned image are refused.
+    const foreign = await file(other.id, 'post_image', { mime: 'image/jpeg' });
+    const doc = await file(att.id, 'post_attachment');
+    const unscanned = await file(att.id, 'post_image', {
+      mime: 'image/jpeg',
+      scan: 'pending',
+    });
+    for (const id of [foreign, doc, unscanned]) {
+      const r = await upload({
+        sizeBytes: 1000,
+        durationSec: 60,
+        coverFileId: id,
+      });
+      expect(r.status).toBe(422);
+    }
+  });
 });

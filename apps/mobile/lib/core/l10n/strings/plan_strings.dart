@@ -150,6 +150,9 @@ const planRu = <String, String>{
   'post.create.hintBrief':
       'Первая строка станет заголовком брифа. Пишите подробно — до {max} знаков',
   'post.create.hintCaption': 'Подпись к посту…',
+  'post.src.galleryHint': 'Фото и видео',
+  'post.src.cameraHint': 'Снять сейчас',
+  'video.edit.uploadCover': 'Загрузить из галереи',
   'cases.create.exitTitle': 'Выйти без сохранения?',
   'cases.create.exitMessage': 'Введённые данные будут потеряны.',
   'cases.create.exitConfirm': 'Выйти',
@@ -322,6 +325,9 @@ const planEn = <String, String>{
   'post.create.hintBrief':
       "The first line becomes the brief's title. Write in detail, up to {max} characters",
   'post.create.hintCaption': 'Write a caption for your post…',
+  'post.src.galleryHint': 'Photos and video',
+  'post.src.cameraHint': 'Take it now',
+  'video.edit.uploadCover': 'Upload from gallery',
   'cases.create.exitTitle': 'Exit without saving?',
   'cases.create.exitMessage': 'What you entered will be lost.',
   'cases.create.exitConfirm': 'Exit',

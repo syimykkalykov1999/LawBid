@@ -144,7 +144,7 @@ class _Segment extends StatelessWidget {
                             ? Colors.white
                             : Colors.white.withValues(alpha: 0.7))
                         : (selected ? colors.text : colors.textSecondary),
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
                   child: Text(label, textAlign: TextAlign.center),

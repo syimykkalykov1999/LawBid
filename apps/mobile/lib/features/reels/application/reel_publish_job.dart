@@ -46,6 +46,7 @@ class ReelPublishRequest {
     required this.commentsEnabled,
     required this.photoIds,
     required this.attachments,
+    this.coverFileId,
   });
 
   final XFile file;
@@ -57,6 +58,9 @@ class ReelPublishRequest {
   final bool commentsEnabled;
   final List<String> photoIds;
   final List<PostDocumentRef> attachments;
+
+  /// A cover picked from the gallery (an uploaded post image), if any.
+  final String? coverFileId;
 }
 
 class ReelPublishJob extends Notifier<ReelPublishState> {
@@ -85,6 +89,7 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
         trimStartMs: r.cut.trimmed ? r.cut.startMs : null,
         trimEndMs: r.cut.trimmed ? r.cut.endMs : null,
         coverTimeMs: r.cut.coverMs,
+        coverFileId: r.coverFileId,
       );
       assetId = upload.videoAssetId;
       await repo.upload(

@@ -233,13 +233,24 @@ export class PostPresenter {
     const assetIds = posts
       .map((p) => p.video_asset_id)
       .filter((x): x is string => !!x);
-    const videos = await this.videos.present(
-      assetIds.length
-        ? await this.prisma.videoAsset.findMany({
-            where: { id: { in: assetIds } },
-          })
-        : [],
-    );
+    const assets = assetIds.length
+      ? await this.prisma.videoAsset.findMany({
+          where: { id: { in: assetIds } },
+        })
+      : [];
+    const videos = await this.videos.present(assets);
+    // Owner 2026-10-15: a cover picked from the gallery is the poster.
+    const coverIds = assets
+      .map((a) => a.cover_file_id)
+      .filter((x): x is string => !!x);
+    if (coverIds.length) {
+      const covers = await this.files.postImageUrls(coverIds);
+      for (const a of assets) {
+        const v = a.cover_file_id ? videos.get(a.id) : undefined;
+        const url = a.cover_file_id ? covers.get(a.cover_file_id) : undefined;
+        if (v && url && v.thumbnailUrl) v.thumbnailUrl = url.mediumUrl;
+      }
+    }
     // Owner 2026-09-30: each post's qualification.
     const practiceIds = [
       ...new Set(

@@ -3442,6 +3442,9 @@ model VideoAsset {
   trim_start_ms     Int?
   trim_end_ms       Int?
   cover_time_ms     Int?
+  /// Owner 2026-10-15: a cover picked from the gallery (a post_image file
+  /// of the owner) — replaces the frame as the reel's poster.
+  cover_file_id     String?          @db.Uuid
   upload_expires_at DateTime         @db.Timestamptz
   created_at        DateTime         @default(now()) @db.Timestamptz
   ready_at          DateTime?        @db.Timestamptz

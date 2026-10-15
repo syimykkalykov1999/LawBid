@@ -51,6 +51,7 @@ class ReelsRepository {
     int? trimStartMs,
     int? trimEndMs,
     int? coverTimeMs,
+    String? coverFileId,
   }) async {
     final d = (await guardApiCall(
       () => _videos.createVideoUpload(
@@ -61,6 +62,7 @@ class ReelsRepository {
           trimStartMs: trimStartMs,
           trimEndMs: trimEndMs,
           coverTimeMs: coverTimeMs,
+          coverFileId: coverFileId,
         ),
       ),
     ))

@@ -91882,6 +91882,11 @@
             "description": "Owner 2026-10-05: the cover = the frame at this moment.",
             "minimum": 0,
             "maximum": 3600000
+          },
+          "coverFileId": {
+            "type": "string",
+            "description": "Owner 2026-10-15: or a cover picked from the gallery (the id of the\nowner's uploaded `post_image` file). Wins over [coverTimeMs].",
+            "format": "uuid"
           }
         },
         "required": [
