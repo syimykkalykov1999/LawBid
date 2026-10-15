@@ -762,7 +762,8 @@ export class PostsService {
     user: RequestUser,
     query: { cursor?: string; limit?: number; practice?: string },
   ): Promise<PostPage> {
-    const limit = Math.min(query.limit ?? 10, 20);
+    // Owner 2026-10-15: 20 a page, so a page holds at least one ad slot.
+    const limit = Math.min(query.limit ?? 20, 20);
     const practice = query.practice?.trim().toLowerCase();
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
     const blocks = await this.prisma.userBlock.findMany({
@@ -816,7 +817,7 @@ export class PostsService {
     const last = page[page.length - 1];
     const items = await this.presenter.present(page, user.sub);
     return {
-      items: c ? items : await this.withPromotedReels(user, items, hidden),
+      items: await this.withPromotedReels(user, items, hidden),
       nextCursor:
         rows.length > limit && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })

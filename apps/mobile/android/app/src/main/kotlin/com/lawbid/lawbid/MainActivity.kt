@@ -1,7 +1,11 @@
 package com.lawbid.lawbid
 
 import android.app.NotificationChannel
+import android.Manifest
+import android.app.Notification
 import android.app.NotificationManager
+import android.content.pm.PackageManager
+import androidx.core.app.NotificationManagerCompat
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.Ringtone
@@ -31,6 +35,7 @@ import io.flutter.plugin.common.MethodChannel
  */
 class MainActivity : FlutterFragmentActivity() {
     private var ringtone: Ringtone? = null
+    private var pendingPermission: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -47,6 +52,59 @@ class MainActivity : FlutterFragmentActivity() {
                         .putExtra(Settings.EXTRA_CHANNEL_ID, id)
                     startActivity(intent)
                     result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // Owner 2026-10-15: the phone's own notification switch — asked
+        // (Android 13+), read, opened and tried with a local notification,
+        // whether or not Firebase is set up in this build.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/system_notifications",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "enabled" -> result.success(notificationsAllowed())
+                "request" -> {
+                    if (notificationsAllowed()) {
+                        result.success(true)
+                    } else if (Build.VERSION.SDK_INT >= 33) {
+                        pendingPermission?.success(false)
+                        pendingPermission = result
+                        requestPermissions(
+                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                            REQUEST_NOTIFICATIONS,
+                        )
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "openSettings" -> {
+                    startActivity(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
+                    )
+                    result.success(null)
+                }
+                "showTest" -> {
+                    if (!notificationsAllowed()) {
+                        result.success(false)
+                    } else {
+                        val builder = if (Build.VERSION.SDK_INT >= 26) {
+                            Notification.Builder(this, CHANNEL_NOTIFICATIONS)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            Notification.Builder(this)
+                        }
+                        val n = builder
+                            .setSmallIcon(applicationInfo.icon)
+                            .setContentTitle(call.argument<String>("title") ?: "")
+                            .setContentText(call.argument<String>("body") ?: "")
+                            .setAutoCancel(true)
+                            .build()
+                        getSystemService(NotificationManager::class.java)?.notify(7002, n)
+                        result.success(true)
+                    }
                 }
                 else -> result.notImplemented()
             }
@@ -96,6 +154,31 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    private fun notificationsAllowed(): Boolean {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        return NotificationManagerCompat.from(this).areNotificationsEnabled()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            pendingPermission?.success(
+                grantResults.isNotEmpty() &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED,
+            )
+            pendingPermission = null
+        }
+    }
+
     private fun createChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java) ?: return
@@ -124,5 +207,6 @@ class MainActivity : FlutterFragmentActivity() {
     companion object {
         const val CHANNEL_CHATS = "chats"
         const val CHANNEL_NOTIFICATIONS = "general"
+        const val REQUEST_NOTIFICATIONS = 7001
     }
 }

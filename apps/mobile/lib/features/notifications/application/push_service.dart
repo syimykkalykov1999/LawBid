@@ -9,6 +9,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -37,13 +38,6 @@ class PushService {
       await s.cancel();
     }
     _subs.clear();
-    try {
-      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
-    } on Object catch (e) {
-      debugPrint('push disabled: $e');
-      _startedFor = null;
-      return;
-    }
     // docs/01 §11 Шаг 3: the onboarding explainer asked first; a user who
     // said no there is not prompted by the OS at every start (Settings →
     // Notifications re-asks explicitly).
@@ -54,6 +48,16 @@ class PushService {
         .data['pushOptIn'];
     if (optIn == false) {
       debugPrint('push: declined in onboarding, not prompting');
+      return;
+    }
+    // Owner 2026-10-15: the phone's permission is asked here, whether or not
+    // the push SDK is set up in this build.
+    unawaited(_ref.read(systemNotificationsProvider).request());
+    try {
+      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+    } on Object catch (e) {
+      debugPrint('push disabled: $e');
+      _startedFor = null;
       return;
     }
     final m = FirebaseMessaging.instance;

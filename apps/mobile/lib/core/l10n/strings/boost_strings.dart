@@ -111,6 +111,14 @@ const boostRu = <String, String>{
       'Кейс завершён. Ваш отзыв очень важен: он поможет следующим клиентам выбрать адвоката и не ошибиться. Это займёт минуту.',
   'reviews.nudge.cta': 'Оставить отзыв',
   'reviews.nudge.later': 'Позже',
+  'notif.system.on': 'Уведомления разрешены в телефоне',
+  'notif.system.off': 'Уведомления выключены в телефоне',
+  'notif.system.offBody':
+      'Пока они выключены, сообщения, ответы и звонки не приходят. Включите их в настройках телефона.',
+  'notif.system.open': 'Открыть настройки',
+  'notif.system.test': 'Проверить',
+  'notif.system.test.title': 'LawBid',
+  'notif.system.test.body': 'Так будут выглядеть уведомления',
 };
 
 const boostEn = <String, String>{
@@ -224,4 +232,12 @@ const boostEn = <String, String>{
       'Your case is finished. Your review matters a lot: it helps the next clients choose an attorney with confidence. It takes a minute.',
   'reviews.nudge.cta': 'Write a review',
   'reviews.nudge.later': 'Later',
+  'notif.system.on': 'Notifications are allowed on your phone',
+  'notif.system.off': 'Notifications are off on your phone',
+  'notif.system.offBody':
+      'While they are off, messages, replies and calls do not reach you. Turn them on in the phone settings.',
+  'notif.system.open': 'Open settings',
+  'notif.system.test': 'Try it',
+  'notif.system.test.title': 'LawBid',
+  'notif.system.test.body': 'This is how notifications will look',
 };

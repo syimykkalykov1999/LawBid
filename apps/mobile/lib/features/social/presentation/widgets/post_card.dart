@@ -1709,11 +1709,9 @@ class _AuthorRow extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-12: in the author's own feed of posts (no author row) the
-/// "…" menu stays reachable (pin, edit, delete), with "Pinned" on the left.
 /// Owner 2026-10-15 (Instagram): the head of a card in someone's own posts
-/// feed — their @username on the left and the «…» menu; no «Pinned» label
-/// (the pin lives only on the profile grid).
+/// feed — their avatar and @username on the left and the «…» menu; no
+/// «Pinned» label (the pin lives only on the profile grid).
 class _OwnMenuRow extends ConsumerWidget {
   const _OwnMenuRow({required this.post});
 
@@ -1731,6 +1729,19 @@ class _OwnMenuRow extends ConsumerWidget {
       ),
       child: Row(
         children: [
+          GestureDetector(
+            onTap: () => openAuthorProfile(context, ref, post.author),
+            child: IdentityAvatar(
+              id: post.author.id,
+              url: post.author.avatarUrl,
+              initials: post.author.initials,
+              size: 32,
+              ring: post.author.verified,
+              trustLevel: post.author.isClient ? 0 : post.author.trustLevel,
+              rejected: !post.author.isClient && post.author.identityRejected,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               post.author.username,
