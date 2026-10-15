@@ -24,7 +24,6 @@
   "features/profile/presentation/widgets/review_widgets.dart -> translation/data/content_translation_repository.dart",
   "features/reels/application/reel_publish_job.dart -> social/data/social_repository.dart",
   "features/reels/data/reels_repository.dart -> social/data/social_repository.dart",
-  "features/reels/presentation/create_reel_screen.dart -> social/data/social_repository.dart",
   "features/search/data/search_repository.dart -> cases/data/cases_mappers.dart",
   "features/search/data/search_repository.dart -> social/data/social_repository.dart",
   "features/search/presentation/screens/search_screen.dart -> cases/data/cases_repository.dart",
