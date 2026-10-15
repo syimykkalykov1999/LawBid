@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
     show openCaseDocument;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
@@ -218,7 +219,7 @@ class PostDocumentsEditor extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               Text(
-                '${controller.items.length} / ${limits.maxFiles}',
+                ltrIsolate('${controller.items.length} / ${limits.maxFiles}'),
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
             ],

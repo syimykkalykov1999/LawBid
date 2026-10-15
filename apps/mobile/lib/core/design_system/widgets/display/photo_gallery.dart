@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/widgets/bars/system_nav_band.dart';
+import 'package:lawbid/core/text/bidi.dart';
 
 /// Tests draw the photos without the network cache.
 @visibleForTesting
@@ -128,7 +129,7 @@ class _GalleryState extends State<_Gallery> {
                       Padding(
                         padding: const EdgeInsetsDirectional.only(end: 12),
                         child: Text(
-                          '${_page + 1} / ${widget.urls.length}',
+                          ltrIsolate('${_page + 1} / ${widget.urls.length}'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,

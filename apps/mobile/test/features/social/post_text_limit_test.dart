@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/theme/app_theme.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 
 import '../../helpers/ux_harness.dart';
@@ -18,23 +19,23 @@ void main() {
         Scaffold(
           body: PostTextField(
             controller: c,
-            limitHint: 'Without photo or video up to 5000 characters',
+            limitHint: 'Without photo or video up to 3000 characters',
           ),
         ),
         theme: AppTheme.light(),
       ),
     );
     await tester.pump();
-    expect(find.text('2300 / 2200'), findsOneWidget);
+    expect(find.text(ltrIsolate('2300 / 2200')), findsOneWidget);
     expect(
-      find.text('Without photo or video up to 5000 characters'),
+      find.text('Without photo or video up to 3000 characters'),
       findsOneWidget,
     );
     c.text = 'a' * 100;
     await tester.pump();
-    expect(find.text('100 / 2200'), findsOneWidget);
+    expect(find.text(ltrIsolate('100 / 2200')), findsOneWidget);
     expect(
-      find.text('Without photo or video up to 5000 characters'),
+      find.text('Without photo or video up to 3000 characters'),
       findsNothing,
     );
   });

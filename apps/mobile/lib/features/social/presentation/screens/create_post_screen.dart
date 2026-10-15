@@ -10,6 +10,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_frames.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -612,8 +613,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         Text(
-                          '${_video != null ? 1 : _photos.length} / '
-                          '${_video != null ? 1 : _maxMedia}',
+                          ltrIsolate(
+                            '${_video != null ? 1 : _photos.length} / '
+                            '${_video != null ? 1 : _maxMedia}',
+                          ),
                           style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
