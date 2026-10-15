@@ -46,6 +46,8 @@ import 'clients/admin_media_client.dart';
 import 'clients/admin_search_client.dart';
 import 'clients/search_client.dart';
 import 'clients/follows_client.dart';
+import 'clients/crash_reports_client.dart';
+import 'clients/admin_crashes_client.dart';
 import 'clients/document_templates_client.dart';
 import 'clients/admin_document_templates_client.dart';
 import 'clients/admin_billing_client.dart';
@@ -152,6 +154,8 @@ class LawbidApi {
   AdminSearchClient? _adminSearch;
   SearchClient? _search;
   FollowsClient? _follows;
+  CrashReportsClient? _crashReports;
+  AdminCrashesClient? _adminCrashes;
   DocumentTemplatesClient? _documentTemplates;
   AdminDocumentTemplatesClient? _adminDocumentTemplates;
   AdminBillingClient? _adminBilling;
@@ -317,6 +321,12 @@ class LawbidApi {
 
   FollowsClient get follows =>
       _follows ??= FollowsClient(_dio, baseUrl: _baseUrl);
+
+  CrashReportsClient get crashReports =>
+      _crashReports ??= CrashReportsClient(_dio, baseUrl: _baseUrl);
+
+  AdminCrashesClient get adminCrashes =>
+      _adminCrashes ??= AdminCrashesClient(_dio, baseUrl: _baseUrl);
 
   DocumentTemplatesClient get documentTemplates =>
       _documentTemplates ??= DocumentTemplatesClient(_dio, baseUrl: _baseUrl);

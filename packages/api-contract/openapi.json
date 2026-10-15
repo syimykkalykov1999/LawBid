@@ -38057,6 +38057,314 @@
         ]
       }
     },
+    "/crash-reports": {
+      "post": {
+        "operationId": "reportCrashes",
+        "parameters": [
+          {
+            "name": "x-device-key",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The app reports errors (batch of up to 10)",
+        "tags": [
+          "crash-reports"
+        ]
+      }
+    },
+    "/admin/crashes": {
+      "get": {
+        "operationId": "listCrashGroups",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 30,
+              "default": 7,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrashGroupListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Crashes grouped, most frequent first",
+        "tags": [
+          "admin-crashes"
+        ]
+      }
+    },
+    "/admin/crashes/{fingerprint}": {
+      "get": {
+        "operationId": "getCrashDetail",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrashDetailEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One crash: stack, versions, systems, phones",
+        "tags": [
+          "admin-crashes"
+        ]
+      },
+      "delete": {
+        "operationId": "resolveCrash",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Mark fixed: clears the group",
+        "tags": [
+          "admin-crashes"
+        ]
+      }
+    },
     "/document-templates": {
       "get": {
         "operationId": "listDocumentTemplates",
@@ -101163,6 +101471,269 @@
           "newest",
           "popular",
           "for_you"
+        ]
+      },
+      "CrashReportInDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "The error as text (type and message)."
+          },
+          "stack": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "fatal": {
+            "type": "boolean"
+          },
+          "platform": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12,
+            "example": "android"
+          },
+          "appVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30,
+            "example": "1.0.3"
+          },
+          "build": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "example": "42"
+          },
+          "flavor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12,
+            "example": "prod"
+          },
+          "osVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "deviceModel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "route": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "The screen the person was on."
+          }
+        },
+        "required": [
+          "message",
+          "stack",
+          "platform",
+          "appVersion",
+          "build",
+          "flavor",
+          "osVersion",
+          "deviceModel"
+        ]
+      },
+      "CrashBatchDto": {
+        "type": "object",
+        "properties": {
+          "reports": {
+            "minItems": 1,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrashReportInDto"
+            }
+          }
+        },
+        "required": [
+          "reports"
+        ]
+      },
+      "CrashGroupDto": {
+        "type": "object",
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "devices": {
+            "type": "number",
+            "description": "Different phones (people) it hit."
+          },
+          "fatal": {
+            "type": "number",
+            "description": "Of them the app closed."
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firstAt": {
+            "type": "string"
+          },
+          "lastAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "message",
+          "count",
+          "devices",
+          "fatal",
+          "versions",
+          "firstAt",
+          "lastAt"
+        ]
+      },
+      "CrashGroupListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrashGroupDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CrashCountDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "count"
+        ]
+      },
+      "CrashInstanceDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "appVersion": {
+            "type": "string"
+          },
+          "build": {
+            "type": "string"
+          },
+          "flavor": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "osVersion": {
+            "type": "string"
+          },
+          "deviceModel": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string",
+            "nullable": true
+          },
+          "fatal": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "at",
+          "appVersion",
+          "build",
+          "flavor",
+          "platform",
+          "osVersion",
+          "deviceModel",
+          "fatal"
+        ]
+      },
+      "CrashDetailDto": {
+        "type": "object",
+        "properties": {
+          "fingerprint": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "stack": {
+            "type": "string"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrashCountDto"
+            }
+          },
+          "systems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrashCountDto"
+            }
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrashCountDto"
+            }
+          },
+          "latest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrashInstanceDto"
+            }
+          }
+        },
+        "required": [
+          "fingerprint",
+          "message",
+          "stack",
+          "versions",
+          "systems",
+          "devices",
+          "latest"
+        ]
+      },
+      "CrashDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CrashDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "TemplateAudience": {
