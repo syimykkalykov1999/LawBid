@@ -10,14 +10,14 @@ import 'package:lawbid/features/cases/presentation/widgets/active_case_card.dart
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
-/// Owner 2026-10-15: the five stages of a case, from the client's side:
-/// published · bids · choosing · in work · done.
+/// Owner 2026-10-15: the five stages of a case, each tied to a real case
+/// status: 1 published (open, no bids) · 2 bids (open, at least one bid) ·
+/// 3 in progress · 4 wrapping up (pending completion / disputed) ·
+/// 5 completed (closed, archived).
 int caseStageOf(CaseStatus status, int bids) => switch (status) {
       CaseStatus.open => bids > 0 ? 1 : 0,
-      CaseStatus.inProgress ||
-      CaseStatus.pendingCompletion ||
-      CaseStatus.disputed =>
-        3,
+      CaseStatus.inProgress => 2,
+      CaseStatus.pendingCompletion || CaseStatus.disputed => 3,
       _ => 4,
     };
 
@@ -45,7 +45,7 @@ class ClientActiveCaseCard extends ConsumerWidget {
       c.practice.categoryNameEn ?? c.practice.nameEn,
     );
     final choosing = c.status == CaseStatus.open && c.bidsCount > 0;
-    final working = stage == 3;
+    final working = stage == 2 || stage == 3;
     return ActiveCaseCard(
       key: ValueKey('active-case-${c.id}'),
       title: c.title,
@@ -85,7 +85,7 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final w = item;
-    final stage = caseStageOf(w.status, 0).clamp(3, 4);
+    final stage = caseStageOf(w.status, 0).clamp(2, 4);
     final practice = w.practiceI18nKey == null
         ? ''
         : CaseFormat.practice(
@@ -108,8 +108,8 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       stageLabel: caseStageLabel(t, stage),
       timeText: when == null ? '' : formats.dayMonth(when),
       next:
-          stage == 3 ? t.t('mine.next.workingAttorney') : t.t('mine.next.done'),
-      nextQuiet: stage != 3,
+          stage < 4 ? t.t('mine.next.workingAttorney') : t.t('mine.next.done'),
+      nextQuiet: stage >= 4,
       onTap: () => context.push(AppRoutes.workCase(w.caseId)),
     );
   }

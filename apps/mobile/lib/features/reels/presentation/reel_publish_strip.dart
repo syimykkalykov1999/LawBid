@@ -1,118 +1,118 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 
-/// Owner 2026-10-15: a thin strip at the top of the app while a reel is
-/// compressed, uploaded and posted in the background (Instagram-style); it
-/// ends with «Опубликовано» (the video then finishes processing on the
-/// server) or a retry when the upload failed.
-class ReelPublishStrip extends ConsumerWidget {
+/// Owner 2026-10-15 (like X / Threads): one thin line over the app while a
+/// reel is compressed, uploaded and posted in the background — the text,
+/// a hairline of progress and a «Cancel»; then «Published» (a tap opens
+/// the profile; it leaves by itself) or «Failed · Retry» (the video is
+/// kept).
+class ReelPublishStrip extends ConsumerStatefulWidget {
   const ReelPublishStrip({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReelPublishStrip> createState() => _ReelPublishStripState();
+}
+
+class _ReelPublishStripState extends ConsumerState<ReelPublishStrip> {
+  Timer? _hide;
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(reelPublishJobProvider);
+    ref.listen(reelPublishJobProvider, (_, next) {
+      _hide?.cancel();
+      if (next.phase == ReelPublishPhase.done) {
+        _hide = Timer(const Duration(seconds: 5), () {
+          if (mounted) ref.read(reelPublishJobProvider.notifier).dismiss();
+        });
+      }
+    });
     if (s.phase == ReelPublishPhase.idle) return const SizedBox.shrink();
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final job = ref.read(reelPublishJobProvider.notifier);
     final percent = '${(s.progress * 100).round()}';
+    final failed = s.phase == ReelPublishPhase.failed;
+    final done = s.phase == ReelPublishPhase.done;
     final label = switch (s.phase) {
       ReelPublishPhase.compressing =>
         t.t('reels.compressing', {'percent': percent}),
       ReelPublishPhase.uploading =>
         t.t('reels.uploading', {'percent': percent}),
       ReelPublishPhase.posting => t.t('reels.posting'),
-      ReelPublishPhase.done => t.t('reels.processing.toast'),
+      ReelPublishPhase.done => t.t('post.brief.published'),
       _ => t.t('reels.upload.failed'),
     };
-    final failed = s.phase == ReelPublishPhase.failed;
-    final done = s.phase == ReelPublishPhase.done;
-    // Owner 2026-10-15: compact, like Instagram — 44 dp, a 32 dp preview,
-    // 13 sp text and a thin progress line.
+    final action = failed
+        ? (t.t('error.retry'), job.retry)
+        : done
+            ? null
+            : (t.t('common.cancel'), job.cancel);
     return Material(
       color: colors.surface,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: 44,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenSide,
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: colors.goldTint,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: AppIcon(
-                      failed
-                          ? AppIcons.errorOutlineRounded
-                          : done
-                              ? AppIcons.checkRounded
-                              : AppIcons.playArrowRounded,
-                      size: 18,
-                      color: failed ? colors.danger : colors.goldDark,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.bodySmall.copyWith(
-                        color: failed ? colors.danger : colors.text,
+      child: InkWell(
+        onTap: done ? () => context.go(AppRoutes.profile) : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 32,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenSide,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.bodySmall.copyWith(
+                          color: failed ? colors.danger : colors.text,
+                        ),
                       ),
                     ),
-                  ),
-                  if (failed)
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 32),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                    if (action != null)
+                      InkWell(
+                        onTap: action.$2,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.xs,
+                          ),
+                          child: Text(
+                            failed ? ' · ${action.$1}' : action.$1,
+                            style: type.bodySmall.copyWith(
+                              color: colors.goldDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
-                      onPressed: job.retry,
-                      child: Text(t.t('error.retry')),
-                    ),
-                  if (failed || done)
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      tooltip: t.t('common.close'),
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: job.dismiss,
-                    )
-                  else
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 32),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                      ),
-                      onPressed: job.cancel,
-                      child: Text(t.t('common.cancel')),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          if (s.busy)
-            LinearProgressIndicator(
-              value: s.phase == ReelPublishPhase.posting ? null : s.progress,
-              minHeight: 2,
-              color: colors.gold,
-              backgroundColor: colors.border,
-            )
-          else
-            Divider(height: 1, color: colors.border),
-        ],
+            if (s.busy)
+              LinearProgressIndicator(
+                value: s.phase == ReelPublishPhase.posting ? null : s.progress,
+                minHeight: 2,
+                color: colors.gold,
+                backgroundColor: colors.border,
+              )
+            else
+              Divider(height: 1, color: colors.border),
+          ],
+        ),
       ),
     );
   }

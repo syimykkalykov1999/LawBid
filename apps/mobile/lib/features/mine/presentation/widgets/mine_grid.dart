@@ -194,8 +194,13 @@ class MinePagedGrid<T> extends ConsumerWidget {
     this.tileOf,
     this.rowOf,
     this.header,
+    this.edgeToEdge = false,
     super.key,
   }) : assert(tileOf != null || rowOf != null, 'tileOf or rowOf');
+
+  /// Rows touch the screen edges and each other (a hairline between), like
+  /// the feed's cards.
+  final bool edgeToEdge;
 
   final AsyncValue<PaginatedList<T>> value;
   final MineTileData Function(T item)? tileOf;
@@ -240,14 +245,17 @@ class MinePagedGrid<T> extends ConsumerWidget {
                   SliverFillRemaining(child: empty)
                 else if (rowOf != null)
                   SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                      vertical: AppSpacing.xs,
-                    ),
+                    padding: edgeToEdge
+                        ? EdgeInsets.zero
+                        : const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.xs,
+                          ),
                     sliver: SliverList.separated(
                       itemCount: value.items.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: AppSpacing.sm),
+                      separatorBuilder: (_, __) => edgeToEdge
+                          ? const SizedBox.shrink()
+                          : const SizedBox(height: AppSpacing.sm),
                       itemBuilder: (context, i) => rowOf!(value.items[i]),
                     ),
                   )

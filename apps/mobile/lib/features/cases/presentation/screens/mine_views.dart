@@ -171,6 +171,7 @@ class _ClientCasesGrid extends ConsumerWidget {
             : null,
       ),
       // Owner 2026-10-07 (bug 16): compact rows; swipe left for actions.
+      edgeToEdge: cards,
       rowOf: (c) => cards
           ? ClientActiveCaseCard(
               item: c,
@@ -399,6 +400,7 @@ class _WorkGrid extends ConsumerWidget {
               : 'mine.work.completedEmpty',
         ),
       ),
+      edgeToEdge: cards,
       rowOf: cards ? (w) => AttorneyActiveCaseCard(item: w) : null,
       tileOf: cards
           ? null

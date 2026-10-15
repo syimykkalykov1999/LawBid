@@ -115,15 +115,13 @@ class ActiveCaseCard extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs + 1,
-          ),
-          padding: const EdgeInsets.all(AppSpacing.sm + 2),
+          // Owner 2026-10-15: edge to edge like the feed's cards.
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            border: Border.all(color: colors.border),
+            border: Border.symmetric(
+              horizontal: BorderSide(color: colors.border),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
