@@ -21,6 +21,17 @@ export const OPS_KEYS = {
   scaleMode: 'ops:scale-mode',
   /** JSON {ok, latencyMs, at}: the last database probe of the ops guard. */
   dbProbe: 'ops:db-probe',
+  /** JSON EconomyState: the economy guard (owner 2026-10-16). */
+  economy: 'ops:economy',
+  /** JSON {api, worker, mode, at}: the autoscaling ceilings the economy
+   * job applied last (what «обычный режим» means now). */
+  ceiling: 'ops:ceiling',
+  /** List (newest first, capped) of EconomyEvent JSON. */
+  economyEvents: 'ops:economy:events',
+  /** JSON {metrics, info, at}: the newest database / Redis load reading. */
+  capacity: 'ops:capacity',
+  /** SET NX flag per resource pressure, so one alert per 6 hours. */
+  pressureFlag: 'ops:pressure:',
 } as const;
 
 /** An automatic pause lasts this long; the guard renews it while the
@@ -57,6 +68,53 @@ export interface HeavyPause {
 export interface ScaleMode {
   mode: 'min' | 'normal';
   by: 'owner' | 'auto';
+  at: string;
+  /** Who capped it (absent in older rows = the AWS budget check): the
+   * economy guard only lifts its own cap. */
+  source?: 'budget' | 'economy';
+}
+
+/** Owner 2026-10-16: the economy guard. `limited` = third-party spend is
+ * projected above the rule: provider caps at their floors, new video
+ * uploads paused, SMS for sign-in / reset only, autoscaling at the minimum. */
+export interface EconomyState {
+  guard: 'ok' | 'limited';
+  since: string;
+  projectedUsd: number;
+  allowedUsd: number;
+  /** Provider caps the guard cut (restored on release, unless an admin
+   * changed them meanwhile): `budget.<provider>.<suffix>` → the stored
+   * value before (null = no row existed) and the floor it was set to. */
+  savedCaps: Record<string, { before: number | null; set: number }>;
+}
+
+export interface EconomyEvent {
+  at: string;
+  kind:
+    | 'guard_on'
+    | 'guard_off'
+    | 'ceiling'
+    | 'db_cpu'
+    | 'db_connections'
+    | 'redis_memory'
+    | 'scaled_up';
+  text: string;
+}
+
+export interface CapacityReading {
+  at: string;
+  dbClass: string | null;
+  redisClass: string | null;
+  dbCpuPercent: number | null;
+  dbConnections: number | null;
+  dbMaxConnections: number | null;
+  redisMemoryPercent: number | null;
+}
+
+export interface CeilingSnapshot {
+  api: number;
+  worker: number;
+  mode: 'auto' | 'manual';
   at: string;
 }
 

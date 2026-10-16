@@ -51,6 +51,7 @@ import { DemoService } from '../modules/demo/demo.service';
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
+import { EconomyService } from '../common/economy/economy.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
@@ -102,6 +103,7 @@ export class CronProcessor {
     @Optional() private readonly opsState?: OpsStateService,
     @Optional() private readonly costAutoscale?: CostAutoscaleService,
     @Optional() private readonly treasury?: TreasuryService,
+    @Optional() private readonly economy?: EconomyService,
     @Optional() private readonly countryPartners?: CountryPartnersService,
     @Optional() private readonly searchLog?: SearchLogService,
     @Optional() private readonly searchSynonyms?: SearchSynonymsService,
@@ -216,6 +218,8 @@ export class CronProcessor {
         return this.opsGuard?.backupCheck();
       case CRON_JOBS.costAutoscale:
         return this.costAutoscale?.run();
+      case CRON_JOBS.economyGuard:
+        return this.economy?.tick();
       case CRON_JOBS.treasuryDaily:
         return this.treasury?.daily() ?? null;
       default:

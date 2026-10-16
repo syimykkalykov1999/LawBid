@@ -45,6 +45,7 @@ export const SUPER_ONLY_AREAS = [
   'admins', // accounts, roles, passwords
   'audit', // audit log
   'sessions', // everyone's sessions
+  'economy', // owner 2026-10-16: revenue vs third-party spend, ceilings
   'rewards', // owner 2026-10-05: «Лучший сотрудник» (prizes, bonuses)
 ] as const;
 export type SuperOnlyArea = (typeof SUPER_ONLY_AREAS)[number];
@@ -122,6 +123,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   'case-payments': 'money', // client → attorney payments (Stripe Connect)
   // Owner 2026-10-05: «Прибыль и резерв» (the monthly split of the balance).
   treasury: 'money',
+  // Owner 2026-10-16: Система → Экономика (spend rule, ceilings, tiers).
+  economy: 'economy',
   integrations: 'keys',
   admins: 'admins',
   'audit-log': 'audit',
