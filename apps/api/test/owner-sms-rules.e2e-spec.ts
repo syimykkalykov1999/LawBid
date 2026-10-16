@@ -7,6 +7,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
  * Owner 2026-10-16: fewer SMS. A code goes only to a NEW number (once per
@@ -153,5 +154,26 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     await setting('sms.login_code_enabled', true);
     expect((await otp(phone)).status).toBe(200);
     await setting('sms.login_code_enabled', false);
+  });
+
+  it('the signed-in owner of a number may ask a code for it (reauthentication); a stranger may not', async () => {
+    const phone = fresh();
+    const user = await prisma.user.create({
+      data: { role: 'client', phone_e164: phone, status: 'active' },
+    });
+    await prisma.userIdentifier.create({
+      data: { user_id: user.id, provider: 'phone', provider_uid: phone },
+    });
+    const bearer = `Bearer ${app.get(TokenService).signAccessToken({
+      sub: user.id,
+      role: 'client',
+      sid: randomUUID(),
+      verified: false,
+      subscriptionStatus: 'none',
+    })}`;
+    const mine = await otp(phone).set('Authorization', bearer);
+    expect(mine.status).toBe(200);
+    const stranger = await otp(phone);
+    expect(stranger.status).toBe(409);
   });
 });

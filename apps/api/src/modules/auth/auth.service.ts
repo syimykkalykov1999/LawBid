@@ -113,7 +113,11 @@ export class AuthService {
   // ---------------------------------------------------------------------
   // POST /auth/otp/request
   // ---------------------------------------------------------------------
-  async requestOtp(dto: OtpRequestDto, meta: RequestMeta): Promise<void> {
+  async requestOtp(
+    dto: OtpRequestDto,
+    meta: RequestMeta,
+    callerId?: string,
+  ): Promise<void> {
     // Before any rate-limit budget or provider spend (feature flag
     // phone_login / email_login).
     await this.loginMethods.assertEnabled(dto.channel);
@@ -148,7 +152,7 @@ export class AuthService {
     );
 
     if (dto.channel === 'phone')
-      await this.assertSmsOnlyForNewNumber(identifier);
+      await this.assertSmsOnlyForNewNumber(identifier, callerId);
 
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(identifier)],
@@ -1030,15 +1034,23 @@ export class AuthService {
    * cap apply to registration codes. `sms.login_code_enabled` = true brings
    * the old passwordless sign-in code back (rollback).
    */
-  private async assertSmsOnlyForNewNumber(identifier: string): Promise<void> {
+  private async assertSmsOnlyForNewNumber(
+    identifier: string,
+    callerId?: string,
+  ): Promise<void> {
     const cfg = this.settings;
     if (!cfg || (await cfg.boolean('sms.login_code_enabled'))) return;
     const owner = await this.prisma.userIdentifier.findUnique({
       where: {
         provider_provider_uid: { provider: 'phone', provider_uid: identifier },
       },
-      select: { user: { select: { password_hash: true } } },
+      select: {
+        user_id: true,
+        user: { select: { password_hash: true } },
+      },
     });
+    // Reauthentication: the signed-in owner of this very number.
+    if (owner && callerId && owner.user_id === callerId) return;
     if (owner) {
       throw new ConflictException({
         code: ErrorCode.AUTH_PHONE_REGISTERED,

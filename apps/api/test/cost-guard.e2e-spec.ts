@@ -47,7 +47,11 @@ describe('Cost guard (e2e)', () => {
       where: {
         OR: [
           { key: { startsWith: 'budget.' } },
-          { key: { startsWith: 'sms.' } },
+          // Owner 2026-10-16: the suites' sign-in switch stays.
+          {
+            key: { startsWith: 'sms.' },
+            NOT: { key: 'sms.login_code_enabled' },
+          },
         ],
       },
     });
