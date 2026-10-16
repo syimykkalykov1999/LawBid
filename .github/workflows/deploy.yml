@@ -50,23 +50,30 @@ jobs:
     if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
-      # Owner 2026-10-16: when AWS refuses the role, the log must show which
-      # `sub` GitHub sent, to compare with the role's trust policy
-      # (docs/runbooks/PROD_LAUNCH.md §11). Only the claims, never the token.
-      - name: Show the OIDC claims (diagnostic)
-        if: ${{ always() }}
+      - name: OIDC diagnostics (prints the token's sub, never the token)
         continue-on-error: true
-        run: |
-          set -eu
-          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')
-          echo "$TOKEN" | python3 -c 'import sys,json,base64;p=sys.stdin.read().strip().split(".")[1];p+="="*(-len(p)%4);c=json.loads(base64.urlsafe_b64decode(p));print({k:c.get(k) for k in ("sub","aud","repository","ref","environment","job_workflow_ref")})'
+        run: scripts/deploy/oidc-sub.sh
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
       - uses: aws-actions/amazon-ecr-login@v2
+      # ECR tags are IMMUTABLE (infra/bootstrap): re-running Deploy on a
+      # commit whose images are already pushed would fail on the push.
+      - name: Images already in ECR?
+        id: have
+        run: |
+          if aws ecr describe-images --repository-name lawbid-api --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1 \
+            && aws ecr describe-images --repository-name lawbid-admin --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::images for $IMAGE_TAG already in ECR, build skipped"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/setup-buildx-action@v3
+        if: steps.have.outputs.exists != 'true'
       - name: Build & push api
+        if: steps.have.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -78,6 +85,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build & push admin
+        if: steps.have.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -119,6 +127,9 @@ jobs:
       name: production
     steps:
       - uses: actions/checkout@v4
+      - name: OIDC diagnostics (prints the token's sub, never the token)
+        continue-on-error: true
+        run: scripts/deploy/oidc-sub.sh
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}

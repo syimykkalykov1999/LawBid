@@ -112,4 +112,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('chips and search share one row: magnifier opens, ✕ closes',
+      (tester) async {
+    await pumpCases(tester, [_case('a', CaseStatus.open)]);
+    final open = find.byKey(const ValueKey('mine-search-open'));
+    final close = find.byKey(const ValueKey('mine-search-close'));
+    // Owner 2026-10-16: closed — the two chips and the magnifier, one row.
+    expect(find.text('Active'), findsOneWidget);
+    expect(find.text('Completed'), findsOneWidget);
+    expect(open, findsOneWidget);
+    expect(close, findsNothing);
+    expect(
+      (tester.getCenter(open).dy - tester.getCenter(find.text('Active')).dy)
+          .abs(),
+      lessThan(4),
+    );
+    await tester.tap(open);
+    await tester.pumpAndSettle();
+    // Open — the field replaces the chips, ✕ at its end.
+    expect(find.byKey(const ValueKey('mine-search')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mine-filters')), findsOneWidget);
+    expect(close, findsOneWidget);
+    expect(find.text('Completed'), findsNothing);
+    await tester.tap(close);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mine-search')), findsNothing);
+    expect(find.text('Completed'), findsOneWidget);
+    expect(open, findsOneWidget);
+    // The Cases · Tasks tabs stay full width above.
+    expect(find.text('Cases'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

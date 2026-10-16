@@ -69,6 +69,15 @@ variable "web_certificate_arn" {
   default     = ""
   description = "ACM certificate for web_host in us-east-1 (CloudFront only reads that region)."
 }
+variable "web_create_certificate" {
+  type        = bool
+  default     = false
+  description = "Terraform requests the web certificate itself (DNS validation, records added by hand)."
+}
+variable "web_extra_hosts" {
+  type    = list(string)
+  default = []
+}
 variable "hosted_zone_id" {
   type    = string
   default = null
@@ -269,6 +278,8 @@ module "web" {
   name                   = local.name
   web_host               = var.web_host
   certificate_arn        = var.web_certificate_arn
+  create_certificate     = var.web_create_certificate
+  extra_hosts            = var.web_extra_hosts
   cross_origin_isolation = var.web_cross_origin_isolation
   hosted_zone_id         = coalesce(var.hosted_zone_id, "")
   api_origin             = "https://${var.api_host}"
@@ -520,6 +531,7 @@ output "cluster_name" { value = module.ecs.cluster_name }
 output "migrate_task_definition_arn" { value = module.ecs.migrate_task_definition_arn }
 output "media_cdn_domain" { value = module.s3.media_cdn_domain }
 output "web_bucket" { value = module.web.web_bucket }
+output "web_certificate_validation" { value = module.web.web_certificate_validation }
 output "web_distribution_id" { value = module.web.web_distribution_id }
 output "web_cdn_domain" { value = module.web.web_cdn_domain }
 output "web_deploy_policy_arn" { value = module.web.web_deploy_policy_arn }
