@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -227,6 +228,37 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-12: the practice card in a list has no side borders or
     // shadow, only a thin divider (a strip of the page background) below.
     final flat = !inDetail && !isThreadsStyle(p);
+    // Owner 2026-10-16 (web): a post is as wide as Instagram's (470 px), a
+    // text post as Threads' column (640 px).
+    return WebMediaWidth(
+      maxWidth: isThreadsStyle(p) ? kWebBriefMaxWidth : kWebPostMaxWidth,
+      child: _cardBody(
+        context,
+        ref,
+        p,
+        t,
+        colors,
+        actions,
+        run,
+        insta,
+        edge,
+        flat,
+      ),
+    );
+  }
+
+  Widget _cardBody(
+    BuildContext context,
+    WidgetRef ref,
+    Post p,
+    Translator t,
+    AppColorTokens colors,
+    SocialActions actions,
+    Future<void> Function(Future<Object?> Function()) run,
+    bool insta,
+    bool edge,
+    bool flat,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
@@ -111,6 +113,18 @@ const kPostGridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
   mainAxisSpacing: 2,
   crossAxisSpacing: 2,
 );
+
+/// Owner 2026-10-16 (web): a profile's grid like Instagram's: three 3:4
+/// tiles, a 1 px gap (measured: 311 x 414 in a 935 px container). Phones
+/// keep the square tiles.
+SliverGridDelegate profileGridDelegate() => adaptiveShellOn
+    ? const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: kWebGridGap,
+        crossAxisSpacing: kWebGridGap,
+        childAspectRatio: kWebGridTileAspect,
+      )
+    : kPostGridDelegate;
 
 /// A video tile that plays by itself (muted, looping) while at least 60 % of
 /// it is on screen, and lets go of the player when it leaves — at most a
