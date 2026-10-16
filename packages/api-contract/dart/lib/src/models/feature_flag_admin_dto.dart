@@ -36,7 +36,6 @@ class FeatureFlagAdminDto {
 
   /// Which of them are not set on the server.
   final List<String> missingKeys;
-
   final String? updatedBy;
   final DateTime updatedAt;
 
