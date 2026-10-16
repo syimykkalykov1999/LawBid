@@ -18,7 +18,7 @@ RefundDto _$RefundDtoFromJson(Map<String, dynamic> json) => RefundDto(
   status: RefundDtoStatus.fromJson(json['status'] as String),
   stripeRefundId: json['stripeRefundId'] as String?,
   failureReason: json['failureReason'] as String?,
-  adminId: json['adminId'] as String,
+  adminId: json['adminId'] as String?,
   createdAt: DateTime.parse(json['createdAt'] as String),
 );
 
@@ -32,6 +32,6 @@ Map<String, dynamic> _$RefundDtoToJson(RefundDto instance) => <String, dynamic>{
   'status': instance.status.toJson(),
   'stripeRefundId': ?instance.stripeRefundId,
   'failureReason': ?instance.failureReason,
-  'adminId': instance.adminId,
+  'adminId': ?instance.adminId,
   'createdAt': instance.createdAt.toIso8601String(),
 };

@@ -1,5 +1,10 @@
 import { BarAttemptsService } from './bar-attempts.service';
-import { checkBarNumber, resolveFormats } from '../bar-number-format';
+import {
+  barShape,
+  checkBarNumber,
+  FORMAT_UNUSUAL_FLAG,
+  resolveFormats,
+} from '../bar-number-format';
 import { notAvailable } from '../../countries/countries.service';
 import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import {
@@ -80,6 +85,12 @@ export type MissingItem =
  * resubmit. Licenses live on the attorney (`attorney_licenses`); the
  * licenses in `pending` belong to the open request (only one can be open).
  */
+interface LicenseLike {
+  license_status: string;
+  state_code: string;
+  registry_flag: string | null;
+}
+
 @Injectable()
 export class VerificationRequestsService {
   constructor(
@@ -116,6 +127,35 @@ export class VerificationRequestsService {
     return row?.name_mismatch ?? false;
   }
 
+  /** Owner 2026-10-16: the bar card is asked for when the admin switched it
+   * on, for a number of an unusual shape, and for every state without an
+   * enabled registry (nobody else checks it). No license yet → asked. */
+  private async barDocumentNeeded(
+    latest: { attorney: { licenses: LicenseLike[] } } | null,
+  ): Promise<boolean> {
+    if (await this.barDocumentRequired()) return true;
+    if (
+      !(await this.settings.boolean(
+        'verification.bar_document_for_manual_states',
+      ))
+    ) {
+      return false;
+    }
+    const pending = (latest?.attorney.licenses ?? []).filter(
+      (l) => l.license_status === 'pending',
+    );
+    if (pending.length === 0) return true;
+    for (const l of pending) {
+      if (
+        l.registry_flag === FORMAT_UNUSUAL_FLAG ||
+        !(await this.checks.registryEnabled(l.state_code))
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Photo of the bar card per license: optional unless switched on. */
   private barDocumentRequired(): Promise<boolean> {
     return this.settings.boolean('verification.require_bar_document');
@@ -144,7 +184,7 @@ export class VerificationRequestsService {
       verificationStatus,
       request: latest ? toDto(latest) : null,
       identityRequired: await this.identityRequired(userId, verificationStatus),
-      barDocumentRequired: await this.barDocumentRequired(),
+      barDocumentRequired: await this.barDocumentNeeded(latest),
       submissionsLast30Days: used,
       maxSubmissions30Days: max,
     };
@@ -238,28 +278,40 @@ export class VerificationRequestsService {
           { retryAfterSeconds: wait },
         );
       }
-      const shape = checkBarNumber(
-        dto.stateCode,
-        dto.barNumber,
-        resolveFormats(await this.settings.string('verification.bar_formats')),
-      );
-      if (!shape.ok) {
-        const cooldown = await this.attempts.recordFailure(userId, ip);
-        throw httpError(
-          cooldown > 0 ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_REQUEST,
-          cooldown > 0
-            ? ErrorCode.BAR_ATTEMPTS_COOLDOWN
-            : ErrorCode.BAR_NUMBER_FORMAT_INVALID,
-          cooldown > 0
-            ? 'Too many wrong bar numbers. Try again later.'
-            : 'Bar number not found for this state.',
-          cooldown > 0
-            ? { retryAfterSeconds: cooldown }
-            : { stateCode: dto.stateCode },
-        );
-      }
-      dto = { ...dto, barNumber: shape.normalized };
     }
+    // Owner 2026-10-16: a number that does not look like this state's usual
+    // one is never a dead end: a soft hint, the license goes to a person
+    // with a document, and the shape is logged for the admin.
+    const shape = checkBarNumber(
+      dto.stateCode,
+      dto.barNumber,
+      resolveFormats(await this.settings.string('verification.bar_formats')),
+    );
+    // Only what no bar can issue is refused: 3–32 letters / digits with at
+    // least one digit.
+    if (
+      !/^[A-Z0-9]{3,32}$/.test(shape.normalized) ||
+      !/\d/.test(shape.normalized)
+    ) {
+      const cooldown = this.attempts
+        ? await this.attempts.recordFailure(userId, ip)
+        : 0;
+      throw httpError(
+        cooldown > 0 ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_REQUEST,
+        cooldown > 0
+          ? ErrorCode.BAR_ATTEMPTS_COOLDOWN
+          : ErrorCode.BAR_NUMBER_FORMAT_INVALID,
+        cooldown > 0
+          ? 'Too many wrong bar numbers. Try again later.'
+          : 'Bar number not found for this state.',
+        cooldown > 0
+          ? { retryAfterSeconds: cooldown }
+          : { stateCode: dto.stateCode },
+      );
+    }
+    const unusual = !shape.ok;
+    if (unusual) await this.logFormatMiss(dto.stateCode, dto.barNumber);
+    dto = { ...dto, barNumber: shape.normalized };
     const state = await this.prisma.state.findUnique({
       where: { code: dto.stateCode },
       select: { code: true, country_code: true, country: true },
@@ -343,6 +395,10 @@ export class VerificationRequestsService {
               rejection_code: null,
               rejection_note: null,
               auto_check_result: Prisma.DbNull,
+              ...(unusual && {
+                registry_flag: FORMAT_UNUSUAL_FLAG,
+                registry_flagged_at: new Date(),
+              }),
             },
           });
         } else {
@@ -352,6 +408,10 @@ export class VerificationRequestsService {
               state_code: dto.stateCode,
               bar_number: dto.barNumber,
               expires_at: expiresAt,
+              ...(unusual && {
+                registry_flag: FORMAT_UNUSUAL_FLAG,
+                registry_flagged_at: new Date(),
+              }),
             },
           });
         }
@@ -581,6 +641,22 @@ export class VerificationRequestsService {
     return this.get(userId, requestId);
   }
 
+  /** Owner 2026-10-16: counts the SHAPE of a number no rule recognised
+   * (never the number) so the admin can widen a rule without a release. */
+  private async logFormatMiss(state: string, raw: string): Promise<void> {
+    try {
+      const shape = barShape(raw);
+      await this.prisma.barFormatMiss.upsert({
+        where: { state_code_shape: { state_code: state, shape } },
+        create: { state_code: state, shape },
+        update: { hits: { increment: 1 }, last_seen: new Date() },
+      });
+    } catch (e) {
+      // A log failure must never block the attorney.
+      void e;
+    }
+  }
+
   /** §2.1 completeness. A new submission needs ≥1 license; its bar
    * document and the identity document (front, and back for driver
    * license/state ID) + selfie only when required (see identityRequired,
@@ -593,13 +669,24 @@ export class VerificationRequestsService {
     barDocRequired: boolean,
   ): Promise<MissingItem[]> {
     const missing: MissingItem[] = [];
+    const manualDoc = await this.settings.boolean(
+      'verification.bar_document_for_manual_states',
+    );
     if (fromDraft) {
       const pending = req.attorney.licenses.filter(
         (l) => l.license_status === 'pending',
       );
       if (pending.length === 0) missing.push('license');
-      if (barDocRequired) {
-        for (const l of pending) {
+      for (const l of pending) {
+        // Owner 2026-10-16: the bar card is required where nobody checks the
+        // number for us (no registry for the state) and for a number whose
+        // shape no rule recognised.
+        const needsDoc =
+          barDocRequired ||
+          (manualDoc &&
+            (l.registry_flag === FORMAT_UNUSUAL_FLAG ||
+              !(await this.checks.registryEnabled(l.state_code))));
+        if (needsDoc) {
           const has = req.documents.some(
             (d) =>
               d.doc_type === 'bar_license' && d.state_code === l.state_code,

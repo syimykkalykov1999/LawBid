@@ -24,6 +24,8 @@ export const CRON_JOBS = {
   /** docs/04 §2 (stage 4.4): safety-net withdrawal of an attorney's active
    * bids when SubscriptionAccessService.isActive() goes false. */
   bidSubscriptionLapse: 'bids.subscription-lapse',
+  /** Owner 2026-10-16: an attorney who lost verification stops paying. */
+  verificationLossBilling: 'billing.verification-loss',
   /** docs/04 §10.2 (stage 4.6): hourly case lifecycle jobs. */
   caseStalePrompt: 'cases.stale-prompt',
   caseAutoArchive: 'cases.auto-archive',
@@ -143,6 +145,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Hourly safety net (docs/04 §2, stage 4.4): usually a no-op once file
   // 06's subscription webhook calls withdrawActiveBidsForAttorney directly.
   { name: CRON_JOBS.bidSubscriptionLapse, pattern: '20 * * * *' },
+  { name: CRON_JOBS.verificationLossBilling, pattern: '*/10 * * * *' },
   // docs/04 §10.2 "каждый час", staggered within the hour.
   { name: CRON_JOBS.caseStalePrompt, pattern: '5 * * * *' },
   { name: CRON_JOBS.caseAutoArchive, pattern: '25 * * * *' },

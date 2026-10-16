@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'bar_format_miss_dto.dart';
 import 'registry_adapter_descriptor_dto.dart';
 import 'state_registry_dto.dart';
 
@@ -15,6 +16,7 @@ class StateRegistriesOverviewDto {
     required this.secretsEnabled,
     required this.adapterTypes,
     required this.items,
+    required this.formatMisses,
   });
 
   factory StateRegistriesOverviewDto.fromJson(Map<String, Object?> json) =>
@@ -24,6 +26,9 @@ class StateRegistriesOverviewDto {
   final bool secretsEnabled;
   final List<RegistryAdapterDescriptorDto> adapterTypes;
   final List<StateRegistryDto> items;
+
+  /// Bar-number shapes no state rule recognised (they went to manual review): widen verification.bar_formats from here.
+  final List<BarFormatMissDto> formatMisses;
 
   Map<String, Object?> toJson() => _$StateRegistriesOverviewDtoToJson(this);
 }

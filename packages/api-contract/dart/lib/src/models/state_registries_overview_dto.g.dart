@@ -18,6 +18,9 @@ StateRegistriesOverviewDto _$StateRegistriesOverviewDtoFromJson(
   items: (json['items'] as List<dynamic>)
       .map((e) => StateRegistryDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  formatMisses: (json['formatMisses'] as List<dynamic>)
+      .map((e) => BarFormatMissDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$StateRegistriesOverviewDtoToJson(
@@ -26,4 +29,5 @@ Map<String, dynamic> _$StateRegistriesOverviewDtoToJson(
   'secretsEnabled': instance.secretsEnabled,
   'adapterTypes': instance.adapterTypes.map((e) => e.toJson()).toList(),
   'items': instance.items.map((e) => e.toJson()).toList(),
+  'formatMisses': instance.formatMisses.map((e) => e.toJson()).toList(),
 };

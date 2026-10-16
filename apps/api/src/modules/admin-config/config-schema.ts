@@ -118,6 +118,63 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: OTP_DAILY_LIMIT_MIN,
     max: OTP_DAILY_LIMIT_MAX,
   };
+  out['verification.bar_document_for_manual_states'] = {
+    ...out['verification.bar_document_for_manual_states'],
+    description:
+      'On: a license in a state without an automatic registry (or with an unusual number shape) needs a photo of the bar card; a person approves it. Off: only when «require_bar_document» is on.',
+  };
+  out['billing.cancel_on_verification_loss'] = {
+    ...out['billing.cancel_on_verification_loss'],
+    description:
+      'An attorney who loses verification (rejected / suspended): the subscription ends now and the unused part of the period, offer packs and Boost is refunded. Off: nothing is canceled automatically.',
+  };
+  out['billing.require_verified_for_purchases'] = {
+    ...out['billing.require_verified_for_purchases'],
+    description:
+      'Only a verified attorney can buy offer packs and Boost. Off: anyone can (rollback).',
+  };
+  out['payments.own_page_enabled'] = {
+    ...out['payments.own_page_enabled'],
+    description:
+      "On (needs the Stripe publishable key): the subscription is paid on our own card page. Off: Stripe's hosted page (card only).",
+  };
+  out['payments.own_page_ttl_minutes'] = {
+    ...out['payments.own_page_ttl_minutes'],
+    description: 'How long a link to the card page works, minutes.',
+    min: 5,
+    max: 240,
+  };
+  // Owner 2026-10-16: fewer SMS.
+  out['sms.login_code_enabled'] = {
+    ...out['sms.login_code_enabled'],
+    description:
+      'Off (default): a registered number signs in with its password; an SMS code goes only to register a new number and to reset a password. On: the old sign-in code works again (rollback).',
+  };
+  out['sms.resend_cooldown_seconds'] = {
+    ...out['sms.resend_cooldown_seconds'],
+    description:
+      'Seconds before the same number may ask for another registration code.',
+    min: 10,
+    max: 3600,
+  };
+  out['sms.registration_per_number_per_day'] = {
+    ...out['sms.registration_per_number_per_day'],
+    description: 'Registration codes one number may request in 24 hours.',
+    min: 1,
+    max: 50,
+  };
+  out['sms.reset_per_number_per_hour'] = {
+    ...out['sms.reset_per_number_per_hour'],
+    description: 'Password-reset codes one number may request per hour.',
+    min: 1,
+    max: 20,
+  };
+  out['sms.reset_per_number_per_day'] = {
+    ...out['sms.reset_per_number_per_day'],
+    description: 'Password-reset codes one number may request in 24 hours.',
+    min: 1,
+    max: 50,
+  };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],

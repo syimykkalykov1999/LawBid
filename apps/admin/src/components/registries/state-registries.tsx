@@ -77,10 +77,11 @@ export function StateRegistries() {
             Реестры адвокатов по штатам
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-muted">
-            Выберите для штата способ проверки и введите ключ API — приложение сразу начнёт сверять номер лицензии и имя
-            каждого нового адвоката этого штата. Адвокат по-прежнему одобряется сразу по присяге; если реестр не
-            подтвердил, лицензия попадает в «Проверка → Сверка с реестром», никого автоматически не отклоняем. Раз в месяц
-            все лицензии включённых штатов проверяются заново.
+            Новая лицензия остаётся «на проверке» (серая галочка), пока её не подтвердит реестр штата (зелёная) или
+            проверяющий вручную по фото карточки адвоката. В штатах без публичного API проверка ручная, ссылка на
+            официальный поиск штата есть у каждого. Выберите способ проверки и введите ключ API — приложение сразу начнёт
+            сверять номер и имя. Не совпало — красная отметка и очередь «Проверка → Сверка с реестром». Раз в месяц все
+            лицензии включённых штатов проверяются заново.
           </p>
         </div>
         <Badge tone={on.length ? 'success' : 'neutral'} dot>
@@ -96,6 +97,7 @@ export function StateRegistries() {
             <thead>
               <tr>
                 <Th>Штат</Th>
+                <Th>Поиск штата</Th>
                 <Th>Способ</Th>
                 <Th>Ключ</Th>
                 <Th>Последняя проверка</Th>
@@ -111,6 +113,15 @@ export function StateRegistries() {
                     <Td>
                       <span className="font-mono text-xs text-muted">{it.stateCode}</span>{' '}
                       <span className="text-ink">{it.stateName}</span>
+                    </Td>
+                    <Td className="text-xs">
+                      {it.lookupUrl ? (
+                        <a href={it.lookupUrl} target="_blank" rel="noopener noreferrer" className="text-gold-600 hover:underline">
+                          Открыть
+                        </a>
+                      ) : (
+                        <span className="text-faint">—</span>
+                      )}
                     </Td>
                     <Td className="text-sm">{adapterLabel(it.adapter)}</Td>
                     <Td className="font-mono text-xs">{it.secretMasked ?? <span className="text-faint">—</span>}</Td>
@@ -146,6 +157,22 @@ export function StateRegistries() {
           </Table>
         </Card>
       )}
+      {(q.data?.formatMisses?.length ?? 0) > 0 ? (
+        <Card className="mt-4 p-4">
+          <h3 className="font-serif text-base font-semibold text-heading">Нетипичные номера (ушли на ручную проверку)</h3>
+          <p className="mt-1 max-w-3xl text-sm text-muted">
+            Форма номера, которую правило штата не узнало: 9 — цифра, A — буква. Самих номеров здесь нет. Если форма
+            настоящая, расширьте правило штата в настройке «verification.bar_formats» — без релиза.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {q.data!.formatMisses.map((m) => (
+              <Badge key={`${m.stateCode}-${m.shape}`} tone="warning">
+                {m.stateCode} · {m.shape} · {m.hits}
+              </Badge>
+            ))}
+          </div>
+        </Card>
+      ) : null}
       {editing && q.data ? (
         <RegistryDialog
           key={editing.stateCode}

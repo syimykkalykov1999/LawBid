@@ -14,6 +14,7 @@ import { RatingReconcileJob } from './handlers/rating-reconcile.job';
 import { LicenseExpiryJob } from './handlers/license-expiry.job';
 import { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
+import { VerificationLossBillingJob } from './handlers/verification-loss-billing.job';
 import {
   CaseAutoArchiveJob,
   CaseAutoCloseJob,
@@ -67,6 +68,7 @@ export class CronProcessor {
     private readonly licenseExpiry: LicenseExpiryJob,
     private readonly licenseRegistryRecheck: LicenseRegistryRecheckJob,
     private readonly bidSubscriptionLapse: BidSubscriptionLapseJob,
+    private readonly verificationLossBilling: VerificationLossBillingJob,
     private readonly caseStalePrompt: CaseStalePromptJob,
     private readonly caseAutoArchive: CaseAutoArchiveJob,
     private readonly caseAutoClose: CaseAutoCloseJob,
@@ -136,6 +138,8 @@ export class CronProcessor {
         return this.licenseRegistryRecheck.run();
       case CRON_JOBS.bidSubscriptionLapse:
         return this.bidSubscriptionLapse.run();
+      case CRON_JOBS.verificationLossBilling:
+        return this.verificationLossBilling.run();
       case CRON_JOBS.caseStalePrompt:
         return this.caseStalePrompt.run();
       case CRON_JOBS.caseAutoArchive:
