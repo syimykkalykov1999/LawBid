@@ -9,6 +9,7 @@
 import { createReadStream, statSync } from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
+import net from 'node:net';
 import tls from 'node:tls';
 import { extname, join, normalize, resolve } from 'node:path';
 
@@ -39,11 +40,14 @@ function upstreamHeaders(headers) {
   return h;
 }
 
+// PREVIEW_API=http://localhost:3000 talks to a local API (plain http / ws).
+const plain = api.protocol === 'http:';
+
 function proxy(req, res) {
-  const up = https.request(
+  const up = (plain ? http : https).request(
     {
       host: api.hostname,
-      port: api.port || 443,
+      port: api.port || (plain ? 80 : 443),
       path: req.url,
       method: req.method,
       headers: upstreamHeaders(req.headers),
@@ -96,9 +100,18 @@ const server = http.createServer((req, res) =>
 // Realtime chat (socket.io over websocket): pipe the raw upgrade through.
 server.on('upgrade', (req, socket, head) => {
   if (!isApi(req.url)) return socket.destroy();
-  const up = tls.connect(
-    { host: api.hostname, port: Number(api.port || 443), servername: api.hostname },
-    () => {
+  const connect = plain
+    ? (cb) => net.connect({ host: api.hostname, port: Number(api.port || 80) }, cb)
+    : (cb) =>
+        tls.connect(
+          {
+            host: api.hostname,
+            port: Number(api.port || 443),
+            servername: api.hostname,
+          },
+          cb,
+        );
+  const up = connect(() => {
       const lines = [`${req.method} ${req.url} HTTP/1.1`];
       for (const [k, v] of Object.entries(upstreamHeaders(req.headers))) {
         for (const one of [v].flat()) lines.push(`${k}: ${one}`);
@@ -107,8 +120,7 @@ server.on('upgrade', (req, socket, head) => {
       if (head?.length) up.write(head);
       up.pipe(socket);
       socket.pipe(up);
-    },
-  );
+  });
   up.on('error', () => socket.destroy());
   socket.on('error', () => up.destroy());
 });

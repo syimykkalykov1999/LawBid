@@ -40,13 +40,13 @@ void main() {
     expect(s.width, 470);
   });
 
-  testWidgets('a brief is 640 px wide', (tester) async {
+  testWidgets('a brief is as wide as a post (470 px)', (tester) async {
     adaptiveShellOverride = true;
     final s = await sizeOf(
       tester,
       const WebMediaWidth(maxWidth: kWebBriefMaxWidth, child: probe),
     );
-    expect(s.width, 640);
+    expect(s.width, 470);
   });
 
   testWidgets('phones and the narrow web column keep the full width',

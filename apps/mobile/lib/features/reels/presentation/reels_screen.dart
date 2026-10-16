@@ -136,7 +136,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     ];
     if (widget.embedded) {
       return ColoredBox(
-        color: Colors.black,
+        color: reelsBackdrop(
+          context,
+          Theme.of(context).scaffoldBackgroundColor,
+        ),
         child: Padding(
           padding: EdgeInsets.zero,
           child: items.isEmpty
@@ -180,7 +183,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: reelsBackdrop(
+            context,
+            Theme.of(context).scaffoldBackgroundColor,
+          ),
           body: Stack(
             children: [
               if (items.isEmpty)
