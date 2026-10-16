@@ -18,6 +18,11 @@ String apiErrorText(Translator t, ApiException error) {
       return t.t('error.api.retryAfter', {'seconds': '$retry'});
     }
   }
+  // Owner 2026-10-16: a registered number gets no SMS; say what to do.
+  if (error.code == ApiErrorCodes.authPhoneRegistered &&
+      error.details?['hasPassword'] == false) {
+    return t.t('error.api.AUTH_PHONE_NO_PASSWORD');
+  }
   // docs/03 §4.1 / OQ-012: say which requirement blocks completion when
   // it is the attorney photo.
   if (error.code == ApiErrorCodes.onboardingIncomplete) {
@@ -74,6 +79,7 @@ const _keys = <String, String>{
   ApiErrorCodes.authOtpExpired: 'error.api.AUTH_OTP_EXPIRED',
   ApiErrorCodes.authOtpLocked: 'error.api.AUTH_OTP_LOCKED',
   ApiErrorCodes.authOtpRequestLimit: 'error.api.AUTH_OTP_REQUEST_LIMIT',
+  ApiErrorCodes.authPhoneRegistered: 'error.api.AUTH_PHONE_REGISTERED',
   ApiErrorCodes.contactDomainBlocked: 'error.api.CONTACT_DOMAIN_BLOCKED',
   ApiErrorCodes.contactAlreadyExists: 'error.api.CONTACT_ALREADY_EXISTS',
   ApiErrorCodes.identifierAlreadyLinked: 'error.api.CONTACT_ALREADY_EXISTS',

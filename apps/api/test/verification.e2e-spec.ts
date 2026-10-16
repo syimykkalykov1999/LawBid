@@ -977,4 +977,53 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       }
     });
   });
+
+  // Owner 2026-10-16: a new license stays pending; where no registry checks
+  // the number, the bar card is required; an unusual shape goes to a person.
+  describe('pending until confirmed, bar card where nobody checks', () => {
+    beforeAll(async () => {
+      await setConfig('verification.bar_document_for_manual_states', true);
+    });
+    afterAll(async () => {
+      await setConfig('verification.bar_document_for_manual_states', false);
+    });
+
+    it('no bar card → incomplete; with it → submitted, never auto-verified', async () => {
+      const a = await attorney();
+      const requestId = await createDraft(a.auth);
+      await api()
+        .post(`/api/v1/verification/requests/${requestId}/licenses`)
+        .set(a.auth)
+        .send({ stateCode: 'CA', barNumber: '123456' })
+        .expect(201);
+      const incomplete = await api()
+        .post(`/api/v1/verification/requests/${requestId}/submit`)
+        .set(a.auth)
+        .send({ attestation: true });
+      expect(incomplete.status).toBe(400);
+      expect(
+        (incomplete.body as { error: { details: { missing: string[] } } }).error
+          .details.missing,
+      ).toContain('bar_license:CA');
+      await api()
+        .post(`/api/v1/verification/requests/${requestId}/documents`)
+        .set(a.auth)
+        .send({
+          fileId: await file(a.userId),
+          docType: 'bar_license',
+          stateCode: 'CA',
+        })
+        .expect(201);
+      await api()
+        .post(`/api/v1/verification/requests/${requestId}/submit`)
+        .set(a.auth)
+        .send({ attestation: true })
+        .expect(200);
+      const lic = await prisma.attorneyLicense.findFirstOrThrow({
+        where: { attorney_id: a.userId },
+      });
+      expect(lic.license_status).toBe('pending');
+      expect(await profileStatus(a.userId)).not.toBe('verified');
+    });
+  });
 });

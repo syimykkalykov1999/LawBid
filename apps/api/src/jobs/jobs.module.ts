@@ -24,6 +24,7 @@ import { LicenseExpiryJob } from './handlers/license-expiry.job';
 import { LicenseRegistryRecheckJob } from './handlers/license-registry-recheck.job';
 import { VerificationModule } from '../modules/verification/verification.module';
 import { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.job';
+import { VerificationLossBillingJob } from './handlers/verification-loss-billing.job';
 import {
   CaseAutoArchiveJob,
   CaseAutoCloseJob,
@@ -111,6 +112,7 @@ export class JobsModule {
         LicenseExpiryJob,
         LicenseRegistryRecheckJob,
         BidSubscriptionLapseJob,
+        VerificationLossBillingJob,
         CaseStalePromptJob,
         CaseAutoArchiveJob,
         CaseAutoCloseJob,
