@@ -8,7 +8,6 @@ import {
   Param,
   Post,
   Req,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -44,8 +43,6 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ReauthDto } from './dto/reauth.dto';
 import { LinkIdentifierDto } from './dto/link-identifier.dto';
 import type { RequestMeta } from './services/session.service';
-import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
-import { ATTESTATION_HEADER } from './attestation/device-attestation.service';
 import {
   AuthTokensDto,
   IdentifierLinkedDto,
@@ -71,13 +68,6 @@ const IdempotencyKeyHeader = ApiHeader({
   description:
     'Replays the stored response for a retried request (24h); a different body with the same key is 409 IDEMPOTENCY_KEY_CONFLICT.',
 });
-/** DeviceAttestationGuard (flag `device_attestation`, docs/01 §10.6). */
-const AttestationHeader = ApiHeader({
-  name: ATTESTATION_HEADER,
-  required: false,
-  description:
-    'App Attest / Play Integrity token; required only while the device_attestation flag is on.',
-});
 
 /**
  * docs/01_FOUNDATION_AUTH.md §10.5. Stays a thin HTTP layer per
@@ -96,10 +86,6 @@ const AttestationHeader = ApiHeader({
  * otp/request triggers a billed SMS/email send) — logout/logout-all/
  * reauth/DELETE sessions are naturally idempotent already (revoking an
  * already-revoked session is a no-op) so they don't need it.
- *
- * DeviceAttestationGuard (flag `device_attestation`, docs/01 §10.6)
- * guards the two unauthenticated routes that spend money or mint
- * accounts: otp/request and social.
  */
 @ApiTags('auth')
 @ApiErrors(COMMON_ERRORS)
@@ -115,17 +101,15 @@ export class AuthController {
   @ApiEnvelopeResponse(OtpSentDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.PHONE_COUNTRY_NOT_SUPPORTED],
-    403: [E.DEVICE_ATTESTATION_REQUIRED, E.AUTH_PROVIDER_DISABLED],
+    403: [E.AUTH_PROVIDER_DISABLED],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
     429: [E.AUTH_OTP_REQUEST_LIMIT, E.RATE_LIMITED],
     503: [E.PROVIDER_BUDGET_EXCEEDED],
   })
   @IdempotencyKeyHeader
-  @AttestationHeader
   @Public()
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(DeviceAttestationGuard)
   @UseInterceptors(IdempotencyInterceptor)
   async requestOtp(
     @Body() dto: OtpRequestDto,
@@ -238,7 +222,6 @@ export class AuthController {
     400: [E.VALIDATION_ERROR],
     401: [E.AUTH_SOCIAL_TOKEN_INVALID],
     403: [
-      E.DEVICE_ATTESTATION_REQUIRED,
       E.AUTH_PROVIDER_DISABLED,
       E.FEATURE_DISABLED,
       E.ACCOUNT_SUSPENDED,
@@ -253,10 +236,8 @@ export class AuthController {
     503: [E.AUTH_PROVIDER_DISABLED],
   })
   @IdempotencyKeyHeader
-  @AttestationHeader
   @Public()
   @Post('social')
-  @UseGuards(DeviceAttestationGuard)
   @UseInterceptors(IdempotencyInterceptor)
   async social(
     @Body() dto: SocialLoginDto,

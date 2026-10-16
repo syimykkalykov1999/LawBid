@@ -5,6 +5,14 @@ All notable changes to this project are documented here, per
 .cursorrules (each stage ends with a CHANGELOG update + commit on
 branch cursor/stage-X-Y-description).
 
+## Stub cleanup (2026-10-16)
+
+Owner: no paid identity checks, nothing in the admin may read "not built".
+
+- Removed the four never-buildable flags `stripe_identity`, `persona_verification`, `profile_promotion`, `device_attestation` (catalog, admin page, app defaults, a migration deletes their rows). ID checks are always manual.
+- Removed the Stripe Identity / Persona adapters, the attestation guard, `X-Device-Attestation` header and `FEATURE_ATTESTATION` env.
+- Admin flags API no longer returns `notBuilt`.
+
 ## Password sign-in (2026-10-13)
 
 Owner: "like Instagram", so signing out and in does not cost an SMS each time.

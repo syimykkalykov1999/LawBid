@@ -143,9 +143,6 @@ export const pinoHttpOptions: PinoHttpOptions = {
       'req.body.idToken',
       'req.body.nonce',
       'req.body.reauthToken',
-      // Device attestation blobs (DeviceAttestationGuard) — opaque,
-      // large, and replayable within their validity window.
-      'req.headers["x-device-attestation"]',
       // Owner 2026-10-05: keys, passwords and tokens never reach the logs.
       'req.body.values',
       'req.body.password',

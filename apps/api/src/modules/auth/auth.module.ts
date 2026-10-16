@@ -41,13 +41,6 @@ import {
   LOGIN_NOTIFICATION_CHANNELS,
   type LoginNotificationChannel,
 } from './notifications/login-notification-channel';
-import {
-  APP_ATTEST_VERIFIER,
-  PLAY_INTEGRITY_VERIFIER,
-} from './attestation/attestation-verifier.interface';
-import { UnconfiguredAttestationVerifier } from './attestation/unconfigured-attestation.verifier';
-import { DeviceAttestationService } from './attestation/device-attestation.service';
-import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
 import type { AppEnv } from '../../config/env.schema';
 import { resolveSmsProvider } from '../../config/provider-selection';
 import { demoNoop } from '../../common/demo/demo-guards';
@@ -124,19 +117,6 @@ import { demoNoop } from '../../common/demo/demo-guards';
       inject: [EmailLoginNotificationChannel, PushLoginNotificationChannel],
     },
     NewDeviceNotifier,
-    // docs/01 §10.6 device integrity, behind flag `device_attestation`.
-    // Both verifiers reject everything until real App Attest / Play
-    // Integrity implementations (owner keys) replace these providers.
-    {
-      provide: APP_ATTEST_VERIFIER,
-      useValue: new UnconfiguredAttestationVerifier('ios'),
-    },
-    {
-      provide: PLAY_INTEGRITY_VERIFIER,
-      useValue: new UnconfiguredAttestationVerifier('android'),
-    },
-    DeviceAttestationService,
-    DeviceAttestationGuard,
     AssistantContextService,
     {
       provide: SMS_PROVIDER,

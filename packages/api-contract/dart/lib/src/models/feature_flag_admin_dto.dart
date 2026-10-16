@@ -16,7 +16,6 @@ class FeatureFlagAdminDto {
     required this.paid,
     required this.requiredKeys,
     required this.missingKeys,
-    required this.notBuilt,
     required this.updatedBy,
     required this.updatedAt,
   });
@@ -37,9 +36,6 @@ class FeatureFlagAdminDto {
 
   /// Which of them are not set on the server.
   final List<String> missingKeys;
-
-  /// The feature is not built yet — the server refuses to enable it (409).
-  final bool notBuilt;
   final String? updatedBy;
   final DateTime updatedAt;
 
