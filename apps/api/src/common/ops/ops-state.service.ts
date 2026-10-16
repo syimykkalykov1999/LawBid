@@ -9,8 +9,12 @@ import {
   OPS_KEYS,
   parseJson,
   type BackupSnapshot,
+  type CapacityReading,
+  type CeilingSnapshot,
   type CostSnapshot,
   type DbProbe,
+  type EconomyEvent,
+  type EconomyState,
   type HeavyPause,
   type ScaleMode,
 } from './ops.constants';
@@ -139,6 +143,80 @@ export class OpsStateService implements OnModuleDestroy {
 
   async setDbProbe(p: DbProbe): Promise<void> {
     await this.redis.set(OPS_KEYS.dbProbe, JSON.stringify(p), 'EX', 600);
+  }
+
+  // --- economy guard (owner 2026-10-16) -----------------------------------
+
+  async economy(): Promise<EconomyState | null> {
+    return parseJson<EconomyState>(await this.redis.get(OPS_KEYS.economy));
+  }
+
+  async setEconomy(state: EconomyState | null): Promise<void> {
+    this.economyCache = undefined;
+    if (!state) await this.redis.del(OPS_KEYS.economy);
+    else await this.redis.set(OPS_KEYS.economy, JSON.stringify(state));
+  }
+
+  private economyCache?: { at: number; limited: boolean };
+
+  /**
+   * Hot-path question («are paid extras paused right now?») asked by the
+   * OTP and video services. Cached 15 s in the process; a Redis hiccup
+   * answers «no» — the guard must never block users by accident.
+   */
+  async isEconomyLimited(now: number = Date.now()): Promise<boolean> {
+    if (this.economyCache && now - this.economyCache.at < 15_000) {
+      return this.economyCache.limited;
+    }
+    let limited = false;
+    try {
+      limited = (await this.economy())?.guard === 'limited';
+    } catch {
+      limited = false;
+    }
+    this.economyCache = { at: now, limited };
+    return limited;
+  }
+
+  async ceiling(): Promise<CeilingSnapshot | null> {
+    return parseJson<CeilingSnapshot>(await this.redis.get(OPS_KEYS.ceiling));
+  }
+
+  async setCeiling(c: CeilingSnapshot): Promise<void> {
+    await this.redis.set(OPS_KEYS.ceiling, JSON.stringify(c));
+  }
+
+  async capacity(): Promise<CapacityReading | null> {
+    return parseJson<CapacityReading>(await this.redis.get(OPS_KEYS.capacity));
+  }
+
+  async setCapacity(c: CapacityReading): Promise<void> {
+    await this.redis.set(OPS_KEYS.capacity, JSON.stringify(c), 'EX', 3600);
+  }
+
+  async economyEvents(limit = 20): Promise<EconomyEvent[]> {
+    const raw = await this.redis.lrange(OPS_KEYS.economyEvents, 0, limit - 1);
+    return raw
+      .map((r) => parseJson<EconomyEvent>(r))
+      .filter((e): e is EconomyEvent => e !== null);
+  }
+
+  async pushEconomyEvent(e: EconomyEvent): Promise<void> {
+    await this.redis.lpush(OPS_KEYS.economyEvents, JSON.stringify(e));
+    await this.redis.ltrim(OPS_KEYS.economyEvents, 0, 49);
+  }
+
+  /** True the first time per [ttlSec] for [key] (one alert per window). */
+  async firstTime(key: string, ttlSec: number): Promise<boolean> {
+    return (
+      (await this.redis.set(
+        OPS_KEYS.pressureFlag + key,
+        '1',
+        'EX',
+        ttlSec,
+        'NX',
+      )) === 'OK'
+    );
   }
 
   async workerHeartbeat(): Promise<{ at: string; mode: string } | null> {

@@ -20,8 +20,16 @@ alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.de
 
 # --- size (full-size default → launch) -----------------------------------
 min_tasks        = 1    # 2 → 1: one api + one worker task; autoscaling adds more
-api_max_tasks    = 4    # 20 → 4
-worker_max_tasks = 2    # 10 → 2
+# api_max_tasks / worker_max_tasks are the HARD cap the app never exceeds.
+# The real ceiling is set by the app itself every 5 minutes from the
+# economy rule (admin → Система → Экономика): it rises with revenue and
+# falls to the minimum when third-party spend passes the rule, so nobody
+# edits this number as traffic grows. The Fargate vCPU quota of the AWS
+# account must cover it: 50 API × 0.5 + 20 worker × 0.5 = 35 vCPU
+# (a new account starts at 6 — request an increase in Service Quotas →
+# Fargate On-Demand vCPU before a big launch; docs/runbooks/ecs-capacity.md).
+api_max_tasks    = 50   # 4 → 50 (hard cap)
+worker_max_tasks = 20   # 2 → 20 (hard cap)
 api_cpu          = 512  # 1024 → 512 (0.5 vCPU)
 api_memory       = 1024 # 2048 → 1024
 worker_cpu       = 512

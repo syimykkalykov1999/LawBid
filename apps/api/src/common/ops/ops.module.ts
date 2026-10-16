@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { AwsCapacityService } from './aws-capacity.service';
 import { AwsOpsService } from './aws-ops.service';
 import { OpsStateService } from './ops-state.service';
 
@@ -6,7 +7,7 @@ import { OpsStateService } from './ops-state.service';
  * the worker (RedisModule and ConfigModule are global). */
 @Global()
 @Module({
-  providers: [AwsOpsService, OpsStateService],
-  exports: [AwsOpsService, OpsStateService],
+  providers: [AwsOpsService, AwsCapacityService, OpsStateService],
+  exports: [AwsOpsService, AwsCapacityService, OpsStateService],
 })
 export class OpsModule {}

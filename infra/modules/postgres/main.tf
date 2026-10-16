@@ -152,6 +152,12 @@ resource "aws_db_instance" "this" {
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
   tags = var.tags
+
+  # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move the
+  # database one tier up at run time; terraform apply must not undo it.
+  lifecycle {
+    ignore_changes = [instance_class]
+  }
 }
 
 output "endpoint" { value = aws_db_instance.this.address }

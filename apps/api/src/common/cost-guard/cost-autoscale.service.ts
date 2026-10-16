@@ -3,6 +3,7 @@ import {
   Injectable,
   OnApplicationBootstrap,
   OnApplicationShutdown,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
@@ -13,6 +14,7 @@ import {
   AppConfigService,
 } from '../../modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OpsStateService } from '../ops/ops-state.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
   AUTOSCALE_CONFIG_KEY,
@@ -95,6 +97,7 @@ export class CostAutoscaleService
     private readonly appConfig: AppConfigService,
     private readonly config: ConfigService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly ops?: OpsStateService,
   ) {
     this.logger.setContext(CostAutoscaleService.name);
   }
@@ -172,9 +175,14 @@ export class CostAutoscaleService
   } | null> {
     return withJobLock(this.redis, LOCK_NAME, LOCK_TTL_MS, async () => {
       const changes: AutoscaleChange[] = [];
+      // Owner 2026-10-16: while the economy guard holds the caps at their
+      // floors, the automatic raise must not undo it (history still grows).
+      const limited =
+        (await this.ops?.isEconomyLimited(now.getTime())) ?? false;
       for (const provider of COST_PROVIDERS) {
         await this.snapshotHistory(provider, now);
       }
+      if (limited) return { changes };
       const { settings, stored } = await this.readSettings();
       for (const provider of COST_PROVIDERS) {
         changes.push(
@@ -193,6 +201,7 @@ export class CostAutoscaleService
   ): Promise<AutoscaleChange[]> {
     await this.redis.del(APP_CONFIG_CACHE_KEY);
     await this.snapshotHistory(provider, now);
+    if (await this.ops?.isEconomyLimited(now.getTime())) return [];
     const { settings, stored } = await this.readSettings();
     const changes = await this.applyProvider(provider, settings, stored, now);
     if (changes.length > 0) await this.redis.del(APP_CONFIG_CACHE_KEY);

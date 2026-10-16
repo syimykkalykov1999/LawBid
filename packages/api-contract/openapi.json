@@ -56552,6 +56552,267 @@
         ]
       }
     },
+    "/admin/economy": {
+      "get": {
+        "operationId": "getEconomy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Revenue vs third-party spend, ceiling, tiers",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
+    "/admin/economy/settings": {
+      "patch": {
+        "operationId": "updateEconomySettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEconomyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The spend rule, ceiling mode, unit prices, flag",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
+    "/admin/economy/increase": {
+      "post": {
+        "operationId": "increaseCapacity",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncreaseCapacityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Database or Redis one tier up (needs step-up)",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
     "/referrals/me": {
       "get": {
         "operationId": "getMyReferrals",
@@ -112831,6 +113092,427 @@
             "type": "boolean"
           }
         }
+      },
+      "SpendLineDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "enum": [
+              "aws",
+              "sms",
+              "video",
+              "translate"
+            ],
+            "type": "string"
+          },
+          "monthToDateUsd": {
+            "type": "number"
+          },
+          "projectedUsd": {
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "actual",
+              "estimate"
+            ],
+            "type": "string",
+            "description": "actual = read from AWS; estimate = units × unit price."
+          }
+        },
+        "required": [
+          "key",
+          "monthToDateUsd",
+          "projectedUsd",
+          "source"
+        ]
+      },
+      "EconomyFiguresDto": {
+        "type": "object",
+        "properties": {
+          "revenue30dUsd": {
+            "type": "number"
+          },
+          "revenueMonthUsd": {
+            "type": "number"
+          },
+          "allowedUsd": {
+            "type": "number",
+            "description": "Spend the rule allows this month, USD."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpendLineDto"
+            }
+          },
+          "monthToDateUsd": {
+            "type": "number"
+          },
+          "projectedUsd": {
+            "type": "number",
+            "description": "Projected third-party spend for the month."
+          }
+        },
+        "required": [
+          "revenue30dUsd",
+          "revenueMonthUsd",
+          "allowedUsd",
+          "lines",
+          "monthToDateUsd",
+          "projectedUsd"
+        ]
+      },
+      "EconomySettingsDto": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "description": "Third-party spend ≤ this % of 30-day revenue."
+          },
+          "thresholdUsd": {
+            "type": "number",
+            "description": "…but never below this many USD a month."
+          },
+          "ceilingMode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "manualApi": {
+            "type": "number"
+          },
+          "manualWorker": {
+            "type": "number"
+          },
+          "smsUnitUsd": {
+            "type": "number"
+          },
+          "videoUnitUsd": {
+            "type": "number"
+          },
+          "translateUnitUsd": {
+            "type": "number"
+          },
+          "awsFallbackUsd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "percent",
+          "thresholdUsd",
+          "ceilingMode",
+          "manualApi",
+          "manualWorker",
+          "smsUnitUsd",
+          "videoUnitUsd",
+          "translateUnitUsd",
+          "awsFallbackUsd"
+        ]
+      },
+      "ContainerReportDto": {
+        "type": "object",
+        "properties": {
+          "running": {
+            "type": "number",
+            "nullable": true
+          },
+          "desired": {
+            "type": "number",
+            "nullable": true
+          },
+          "ceiling": {
+            "type": "number",
+            "nullable": true
+          },
+          "hardCap": {
+            "type": "number",
+            "description": "The Terraform maximum."
+          },
+          "taskUsd": {
+            "type": "number",
+            "description": "Monthly cost of one task, USD."
+          }
+        },
+        "required": [
+          "hardCap",
+          "taskUsd"
+        ]
+      },
+      "ContainersDto": {
+        "type": "object",
+        "properties": {
+          "onAws": {
+            "type": "boolean",
+            "description": "ECS actions work here (on AWS)."
+          },
+          "api": {
+            "$ref": "#/components/schemas/ContainerReportDto"
+          },
+          "worker": {
+            "$ref": "#/components/schemas/ContainerReportDto"
+          },
+          "scaleMode": {
+            "nullable": true,
+            "enum": [
+              "min",
+              "normal"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "onAws",
+          "api",
+          "worker"
+        ]
+      },
+      "TierRowDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "memoryGb": {
+            "type": "number"
+          },
+          "monthUsd": {
+            "type": "number"
+          },
+          "current": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "memoryGb",
+          "monthUsd",
+          "current"
+        ]
+      },
+      "CapacityDto": {
+        "type": "object",
+        "properties": {
+          "onAws": {
+            "type": "boolean",
+            "description": "The database / Redis can be read and resized."
+          },
+          "at": {
+            "type": "string",
+            "nullable": true
+          },
+          "dbClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "dbNext": {
+            "type": "string",
+            "nullable": true
+          },
+          "dbCpuPercent": {
+            "type": "number",
+            "nullable": true
+          },
+          "dbConnections": {
+            "type": "number",
+            "nullable": true
+          },
+          "dbMaxConnections": {
+            "type": "number",
+            "nullable": true
+          },
+          "redisClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "redisNext": {
+            "type": "string",
+            "nullable": true
+          },
+          "redisMemoryPercent": {
+            "type": "number",
+            "nullable": true
+          },
+          "dbTiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRowDto"
+            }
+          },
+          "redisTiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRowDto"
+            }
+          }
+        },
+        "required": [
+          "onAws",
+          "dbTiers",
+          "redisTiers"
+        ]
+      },
+      "EconomyEventDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "guard_on",
+              "guard_off",
+              "ceiling",
+              "db_cpu",
+              "db_connections",
+              "redis_memory",
+              "scaled_up"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "text"
+        ]
+      },
+      "EconomyReportDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The economy_guard flag."
+          },
+          "guard": {
+            "enum": [
+              "ok",
+              "limited"
+            ],
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "nullable": true
+          },
+          "figures": {
+            "$ref": "#/components/schemas/EconomyFiguresDto"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/EconomySettingsDto"
+          },
+          "containers": {
+            "$ref": "#/components/schemas/ContainersDto"
+          },
+          "capacity": {
+            "$ref": "#/components/schemas/CapacityDto"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EconomyEventDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "guard",
+          "figures",
+          "settings",
+          "containers",
+          "capacity",
+          "events"
+        ]
+      },
+      "EconomyReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EconomyReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateEconomyDto": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "thresholdUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "ceilingMode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "manualApi": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "manualWorker": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "smsUnitUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "videoUnitUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "translateUnitUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "awsFallbackUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "guardEnabled": {
+            "type": "boolean",
+            "description": "The economy_guard flag (rollback)."
+          }
+        }
+      },
+      "IncreaseCapacityDto": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "enum": [
+              "db",
+              "redis"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "target"
+        ]
       },
       "ReferralStatus": {
         "type": "string",
