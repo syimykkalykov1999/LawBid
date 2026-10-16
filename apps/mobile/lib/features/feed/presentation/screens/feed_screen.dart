@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
@@ -367,12 +368,16 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
     final legalOnly =
         ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
     final media = MediaQuery.of(context);
+    // Owner 2026-10-16: on the web only the 9:16 card is black; the sides
+    // are the page colour (phones keep the all-black reels).
+    final backdrop =
+        reelsBackdrop(context, Theme.of(context).scaffoldBackgroundColor);
     return SystemNavBandColor(
-      color: Colors.black,
+      color: backdrop,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: backdrop,
           body: Stack(
             children: [
               Positioned.fill(
