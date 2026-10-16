@@ -46,6 +46,16 @@ describe('Economy (e2e)', () => {
     prisma = app.get(PrismaService);
     economy = app.get(EconomyService);
     ops = app.get(OpsStateService);
+    // The guard state is one Redis key shared by every e2e shard: while this
+    // suite holds the guard «on», another shard's phone-change OTP would
+    // answer 503. Keep the state in memory for this process only.
+    let held: Awaited<ReturnType<OpsStateService['economy']>> = null;
+    jest.spyOn(ops, 'economy').mockImplementation(() => Promise.resolve(held));
+    jest.spyOn(ops, 'setEconomy').mockImplementation((state) => {
+      held = state;
+      (ops as unknown as { economyCache?: unknown }).economyCache = undefined;
+      return Promise.resolve();
+    });
     flags = app.get(FeatureFlagsService);
     // The catalog row is created on boot outside the test environment.
     await prisma.featureFlag.upsert({
