@@ -161,3 +161,15 @@ variable "web_extra_hosts" {
   type    = list(string)
   default = []
 }
+variable "create_database" {
+  type    = bool
+  default = false
+}
+variable "database_instance_class" {
+  type    = string
+  default = "db.t4g.medium"
+}
+variable "database_backup_retention_days" {
+  type    = number
+  default = 14
+}
