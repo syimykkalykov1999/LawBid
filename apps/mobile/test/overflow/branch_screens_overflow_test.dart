@@ -94,8 +94,13 @@ void main() {
           );
           expect(tester.takeException(), isNull);
           expect(
-              find.byKey(const ValueKey('post-add-gallery')), findsOneWidget);
-          expect(find.byKey(const ValueKey('post-add-camera')), findsOneWidget);
+            find.byKey(const ValueKey('post-add-gallery')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const ValueKey('post-add-camera')),
+            findsOneWidget,
+          );
           expect(find.textContaining('1 / 9'), findsOneWidget);
         });
 
