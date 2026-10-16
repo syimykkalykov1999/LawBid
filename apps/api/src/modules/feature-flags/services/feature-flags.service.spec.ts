@@ -55,3 +55,31 @@ describe('FeatureFlagsService.getFlags', () => {
     expect(await service.getFlags()).toEqual({});
   });
 });
+
+describe('payments_in_app is locked off (owner 2026-10-16)', () => {
+  const { lockFlags } = jest.requireActual<
+    typeof import('../../../common/feature-flags/locked-flags')
+  >('../../../common/feature-flags/locked-flags');
+
+  afterEach(() => {
+    delete process.env.CASE_PAYMENTS_UNLOCKED_FOR_TESTS;
+  });
+
+  it('reads as off whatever the table says', () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(lockFlags({ payments_in_app: true, bid_packs: true })).toEqual({
+        payments_in_app: false,
+        bid_packs: true,
+      });
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  it('only a test environment can unlock it', () => {
+    process.env.CASE_PAYMENTS_UNLOCKED_FOR_TESTS = '1';
+    expect(lockFlags({ payments_in_app: true }).payments_in_app).toBe(true);
+  });
+});

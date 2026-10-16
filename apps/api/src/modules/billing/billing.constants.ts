@@ -14,7 +14,7 @@ export const YEARLY_PRICE_CENTS = 959_000;
  * `billing.trial_days` (PricingService.trialDays); TRIAL_DAYS is only the
  * fallback when settings are unavailable. */
 // Owner 2026-10-14: 14 days (or the plan's trial offers, whichever ends first).
-export const TRIAL_DAYS = 14;
+export const TRIAL_DAYS = 7;
 export const TRIAL_DAYS_MAX = 365;
 /** §1.5: reminder "за 2 дня до окончания" of the trial. */
 export const TRIAL_REMINDER_DAYS_BEFORE = 2;
