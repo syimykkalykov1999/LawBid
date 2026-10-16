@@ -36,3 +36,9 @@ interface_endpoints = []    # AWS API traffic goes through the NAT (≈ $73 save
 
 # --- money (zero maintenance) ----------------------------------------------
 monthly_budget_usd = 200 # e-mails at $100 / $160 / $200; at $200 the server stays at the minimum until the next month
+
+# Web on lawbid.dev (docs/runbooks/WEB_LAUNCH.md): Terraform asks ACM for the
+# certificate itself; the validation records are added by hand in Namecheap.
+web_host               = "lawbid.dev"
+web_extra_hosts        = ["www.lawbid.dev"]
+web_create_certificate = true
