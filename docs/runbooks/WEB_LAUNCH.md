@@ -15,6 +15,7 @@ and nothing is public until the owner's steps at the end.
 | Hosting: S3 + CloudFront, security headers, SPA fallback | `infra/modules/web` (composed in `infra/modules/stack`) |
 | Publishing the app | `.github/workflows/web-deploy.yml` |
 | Public search pages (practice area × state, attorney profiles, sitemap) | `scripts/seo/` + `.github/workflows/seo-deploy.yml`; data from `GET /api/v1/public/directory/attorneys` |
+| Company site (repository LawBidSite: /about, legal pages, pricing, FAQ) | built and merged by `seo-deploy.yml` (`scripts/seo/merge-site.mjs`); the app owns `/`, the site's landing is `/about`; one sitemap |
 
 ## Owner's list (in this order)
 
