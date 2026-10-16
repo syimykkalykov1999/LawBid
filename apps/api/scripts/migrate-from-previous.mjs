@@ -187,24 +187,33 @@ function resolvePrevious(current) {
     }
     break;
   }
-  const last = tryGit(
-    'log',
-    '-1',
-    '--format=%H',
-    '--',
-    `${API_DIR}/prisma/migrations`,
-  );
-  if (last) {
+  // Walk the first-parent line (on main: one commit per merged PR) back to
+  // the newest change whose parent holds a strict prefix of the current set.
+  // Without --first-parent the "last commit" can be a branch's own "merge
+  // main in" commit, whose first parent already has the same set.
+  const touched = (
+    tryGit(
+      'log',
+      '--first-parent',
+      '--format=%H',
+      '-n',
+      '50',
+      '--',
+      `${API_DIR}/prisma/migrations`,
+    ) ?? ''
+  )
+    .split('\n')
+    .filter(Boolean);
+  for (const last of touched) {
     const parent = tryGit('rev-parse', '--verify', '--quiet', `${last}^1`);
-    if (parent) {
-      const set = migrationsAtRef(parent);
-      if (set) {
-        return {
-          ref: parent,
-          set,
-          how: `parent of the last migrations commit ${last.slice(0, 10)}`,
-        };
-      }
+    if (!parent) continue;
+    const set = migrationsAtRef(parent);
+    if (set && isStrictPrefix(set, current)) {
+      return {
+        ref: parent,
+        set,
+        how: `parent of the last migrations commit ${last.slice(0, 10)}`,
+      };
     }
   }
   fail(
