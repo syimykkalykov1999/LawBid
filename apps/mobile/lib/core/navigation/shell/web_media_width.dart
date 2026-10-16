@@ -38,9 +38,18 @@ class WebMediaWidth extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         if (c.maxWidth <= maxWidth) return child;
+        // The cards size their photos from MediaQuery: tell them the
+        // column's width, not the window's.
+        final mq = MediaQuery.of(context);
         return Align(
           alignment: Alignment.topCenter,
-          child: SizedBox(width: maxWidth, child: child),
+          child: SizedBox(
+            width: maxWidth,
+            child: MediaQuery(
+              data: mq.copyWith(size: Size(maxWidth, mq.size.height)),
+              child: child,
+            ),
+          ),
         );
       },
     );

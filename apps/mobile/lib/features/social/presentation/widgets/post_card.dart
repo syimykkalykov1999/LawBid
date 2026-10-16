@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
@@ -194,6 +195,14 @@ class PostCard extends ConsumerWidget {
   /// edge. Null = natural height (2:1 photo band).
   final double? feedHeight;
 
+  /// Owner 2026-10-16 (web): a post card is at most as tall as Instagram's
+  /// (470 px wide, photo 4:5), whatever the window height.
+  double? get _feedH => feedHeight == null
+      ? null
+      : adaptiveShellOn
+          ? math.min(feedHeight!, kWebPostMaxWidth * 1.25 + _kVideoCardChrome)
+          : feedHeight;
+
   /// On the post screen: full text, no "view comments" link.
   final bool inDetail;
 
@@ -221,7 +230,7 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-07: the open post and a profile's feed of posts are
     // full width too (Instagram), no card around them.
     // Owner 2026-10-12: a text post is edge to edge in every list (Threads).
-    final edge = (feedHeight != null && !inDetail) ||
+    final edge = (_feedH != null && !inDetail) ||
         inDetail ||
         fromProfile ||
         isThreadsStyle(p);
@@ -395,19 +404,19 @@ class PostCard extends ConsumerWidget {
         : 0.8;
     // Owner 2026-10-15: a video fills the screen between the header and the
     // nav bar (author row + video + actions), cropped to the centre.
-    final cardRest = feedHeight == null
+    final cardRest = _feedH == null
         ? double.infinity
         : math.max(
             minPhoto,
-            feedHeight! -
+            _feedH! -
                 _kVideoCardChrome -
                 // The advertiser's button (40 dp plus its gap).
                 (post.promotionCta != null ? 48 : 0),
           );
-    final photoBase = fillHeight != null || feedHeight != null
+    final photoBase = fillHeight != null || _feedH != null
         ? math.max(width / frameRatio, minPhoto)
         : width / frameRatio;
-    final photoHeight = p.video != null && feedHeight != null
+    final photoHeight = p.video != null && _feedH != null
         ? cardRest
         : (p.video != null ? math.min(photoBase, cardRest) : photoBase);
     Widget photoBox(Widget child, {required bool fill, VoidCallback? onShort}) {
@@ -500,7 +509,7 @@ class PostCard extends ConsumerWidget {
     // and the nav bar — the video takes what the icons and the two text lines
     // leave (a fixed guess for them let «ещё» slip under the nav bar).
     return _FeedFill(
-      height: fillHeight ?? (p.video != null ? feedHeight : null),
+      height: fillHeight ?? (p.video != null ? _feedH : null),
       builder: ({required fill, required onExpand}) => Column(
         mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
