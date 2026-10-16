@@ -147,12 +147,7 @@ texts of all 87 languages.
 
 ## 5. Things to decide before submitting
 
-- **Contacts.** The app asks for contacts (`READ_CONTACTS`,
-  `NSContactsUsageDescription`) and sends hashes of phone numbers to the
-  server. RELEASE_CHECKLIST §4–5 list "contacts" as *not collected*. Play
-  Data safety and App Privacy ask about hashed contact data too: either
-  declare Contacts (Personal info → Contacts, app functionality, optional),
-  or remove the feature for v1. Wrong answers are a rejection reason.
+- **Contacts.** Declared as collected (hashed, optional) in the privacy manifest and in RELEASE_CHECKLIST §4–5; answer Play Data safety and App Privacy the same way.
 - **Sign in with Apple.** The owner's decision is "no Google/Apple sign-in",
   but `Runner.entitlements` still declares it and the review notes mention
   it. If the feature is off in v1, remove the entitlement and that sentence

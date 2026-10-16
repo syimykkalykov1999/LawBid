@@ -5,7 +5,8 @@
      §App Privacy. No tracking, no ads, no third-party analytics; every
      data type is linked to the account and used only to run the app.
      OtherDataTypes = attorney license / ID document images and the
-     verification selfie. Plugins (Flutter, Firebase, Stripe, …) ship
+     verification selfie. Contacts = SHA-256 hashes of phone-book numbers
+     uploaded by the optional "Find people from your contacts" sync. Plugins (Flutter, Firebase, Stripe, …) ship
      their own manifests for the APIs they call. -->
 <plist version="1.0">
 <dict>
@@ -42,6 +43,18 @@
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypePhoneNumber</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeContacts</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>

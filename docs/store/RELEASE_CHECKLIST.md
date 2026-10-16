@@ -83,14 +83,14 @@ Review notes (paste as is, codes filled in):
 "Do you or your third-party partners collect data?" → **Yes**. For every type:
 **Linked to the user: Yes**, **Used for tracking: No**, purpose **App Functionality** only.
 
-- Contact Info: Name, Email Address, Phone Number
+- Contact Info: Name, Email Address, Phone Number, **Contacts** (optional "Find people from your contacts": phone numbers are hashed on the device, only hashes are uploaded)
 - User Content: Photos or Videos, Audio Data, Emails or Text Messages (chat), Customer Support, Other User Content (cases, posts, reviews)
 - Identifiers: User ID, Device ID
 - Purchases: Purchase History
 - Usage Data: Product Interaction
 - Other Data: Other Data Types (attorney license / ID images, verification selfie)
 
-Not collected: location, contacts, health, financial info, browsing/search
+Not collected: location, health, financial info, browsing/search
 history, advertising data, diagnostics (the app has no analytics or crash SDK).
 
 ## 5. Google Play Data safety
@@ -105,8 +105,9 @@ history, advertising data, diagnostics (the app has no analytics or crash SDK).
   - Audio: Voice or sound recordings — optional
   - Files and docs — optional
   - App activity: App interactions, Other user-generated content — optional
+  - Contacts — optional (hashed phone numbers, App functionality)
   - Device or other IDs — required
-- Not collected: location, contacts, calendar, health, web browsing, crash logs, diagnostics.
+- Not collected: location, calendar, health, web browsing, crash logs, diagnostics.
 
 ## 6. Age rating
 
