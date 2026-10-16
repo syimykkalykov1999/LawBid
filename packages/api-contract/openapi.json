@@ -24784,6 +24784,7 @@
             "in": "query",
             "description": "meta.nextCursor of the previous page.",
             "schema": {
+              "maxLength": 300,
               "type": "string"
             }
           },
@@ -75859,6 +75860,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "format": "date-time",
               "type": "string"
             }
@@ -75868,6 +75870,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "format": "date-time",
               "type": "string"
             }
@@ -75964,6 +75967,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "format": "date-time",
               "type": "string"
             }
@@ -75973,6 +75977,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "format": "date-time",
               "type": "string"
             }
@@ -82613,7 +82618,8 @@
             ]
           },
           "identifier": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 254
           },
           "linkChallenge": {
             "type": "string",
@@ -82699,7 +82705,8 @@
             ]
           },
           "identifier": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 254
           },
           "code": {
             "type": "string",
@@ -82792,10 +82799,12 @@
             ]
           },
           "idToken": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 4096
           },
           "nonce": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 256
           },
           "firstName": {
             "type": "string",
@@ -82819,7 +82828,8 @@
         "type": "object",
         "properties": {
           "refreshToken": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 4096
           },
           "deviceInfo": {
             "$ref": "#/components/schemas/DeviceInfoDto"
@@ -83021,16 +83031,20 @@
             ]
           },
           "identifier": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 254
           },
           "code": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 16
           },
           "idToken": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 4096
           },
           "nonce": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 256
           }
         },
         "required": [
@@ -98124,7 +98138,8 @@
             ]
           },
           "value": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 254
           }
         },
         "required": [
@@ -98169,7 +98184,8 @@
             ]
           },
           "value": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 254
           },
           "code": {
             "type": "string",
