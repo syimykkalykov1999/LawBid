@@ -19,6 +19,7 @@ AdminAccountDto _$AdminAccountDtoFromJson(Map<String, dynamic> json) =>
         (k, e) => MapEntry(k, PermissionsPermissions.fromJson(e as String)),
       ),
       canManageAdmins: json['canManageAdmins'] as bool,
+      noPii: json['noPii'] as bool,
       countries: (json['countries'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
@@ -42,6 +43,7 @@ Map<String, dynamic> _$AdminAccountDtoToJson(
   'hasPassword': instance.hasPassword,
   'permissions': instance.permissions.map((k, e) => MapEntry(k, e.toJson())),
   'canManageAdmins': instance.canManageAdmins,
+  'noPii': instance.noPii,
   'countries': instance.countries,
   'countryPartnerId': ?instance.countryPartnerId,
   'partnerLead': instance.partnerLead,

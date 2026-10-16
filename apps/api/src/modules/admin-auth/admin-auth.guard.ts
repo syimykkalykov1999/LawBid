@@ -31,6 +31,7 @@ import {
   parsePermissions,
   readCountries,
   readManageAdmins,
+  readNoPii,
   readPartner,
   routeArea,
   VIEW_AUDITED_AREAS,
@@ -155,6 +156,9 @@ export class AdminAuthGuard implements CanActivate {
       adminRole === 'super_admin'
         ? null
         : readPartner(user.admin_profile.permissions);
+    // Owner 2026-10-16: «без персональных данных» (accountant).
+    const noPii =
+      adminRole !== 'super_admin' && readNoPii(user.admin_profile.permissions);
     const manageAdmins =
       adminRole !== 'super_admin' &&
       !partner &&
@@ -184,6 +188,7 @@ export class AdminAuthGuard implements CanActivate {
           req.method,
           manageAdmins,
           partner,
+          noPii,
         )
       ) {
         // Owner 2026-10-05: a section the admin has no right to answers
@@ -232,6 +237,7 @@ export class AdminAuthGuard implements CanActivate {
       permissions,
       manageAdmins,
       partner,
+      noPii,
       assignedCountries,
       countries: effectiveCountries(
         adminRole === 'super_admin',

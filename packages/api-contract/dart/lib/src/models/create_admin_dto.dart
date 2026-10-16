@@ -16,6 +16,7 @@ class CreateAdminDto {
     required this.role,
     this.permissions,
     this.canManageAdmins,
+    this.noPii,
   });
 
   factory CreateAdminDto.fromJson(Map<String, Object?> json) =>
@@ -29,6 +30,9 @@ class CreateAdminDto {
 
   /// Super admin only: lets this admin create and manage other admins within their own access.
   final bool? canManageAdmins;
+
+  /// Super admin only: «без персональных данных» — phones, emails and names come back masked.
+  final bool? noPii;
 
   Map<String, Object?> toJson() => _$CreateAdminDtoToJson(this);
 }

@@ -7,9 +7,12 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_account_envelope.dart';
 import '../models/admin_account_list_envelope.dart';
+import '../models/admin_invite_result_envelope.dart';
+import '../models/admin_preset_list_envelope.dart';
 import '../models/admin_role_template_envelope.dart';
 import '../models/admin_role_template_list_envelope.dart';
 import '../models/create_admin_dto.dart';
+import '../models/invite_admin_dto.dart';
 import '../models/save_admin_role_template_dto.dart';
 import '../models/set_admin_countries_dto.dart';
 import '../models/set_admin_credentials_dto.dart';
@@ -63,6 +66,26 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Ready-made rights (owner, accountant, moderator, support, view-only) to start from
+  @GET('/admin/admins/presets')
+  Future<AdminPresetListEnvelope> listPresets({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Invite an administrator: creates the account with a preset’s rights and returns a one-time link (72 h) for the owner to send himself — no email is sent. Needs a fresh step-up.
+  @POST('/admin/admins/invites')
+  Future<AdminInviteResultEnvelope> inviteAdmin({
+    @Body() required InviteAdminDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A new one-time sign-up link (72 h) for an existing administrator; the old link stops working. Needs a fresh step-up.
+  @POST('/admin/admins/{id}/invite')
+  Future<AdminInviteResultEnvelope> reinviteAdmin({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Assign a role (ends the admin’s sessions)
   @PATCH('/admin/admins/{id}/role')
   Future<AdminAccountEnvelope> setAdminRole({
@@ -71,7 +94,7 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Toggle areas for an admin (view / manage), within what the caller holds. Money and keys cannot be granted.
+  /// Toggle areas for an admin (view / manage), within what the caller holds. Keys, admin management and sessions cannot be granted; money, economy, budget limits and the audit log only by the super admin.
   @PATCH('/admin/admins/{id}/permissions')
   Future<AdminAccountEnvelope> setAdminPermissions({
     @Path('id') required String id,

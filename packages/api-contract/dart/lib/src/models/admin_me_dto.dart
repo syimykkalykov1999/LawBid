@@ -23,6 +23,7 @@ class AdminMeDto {
     required this.permissions,
     required this.hasSecurityQuestion,
     required this.canManageAdmins,
+    required this.noPii,
     required this.countryPartnerId,
     required this.partnerLead,
     required this.countries,
@@ -54,6 +55,9 @@ class AdminMeDto {
 
   /// May create and manage other admins (the super admin always can).
   final bool canManageAdmins;
+
+  /// Owner 2026-10-16: «без персональных данных» — people’s phones, emails and names are masked for this admin.
+  final bool noPii;
 
   /// Owner 2026-10-06: the country partner whose team this admin is in (null = LawBid staff).
   final String? countryPartnerId;

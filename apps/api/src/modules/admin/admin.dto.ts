@@ -56,6 +56,14 @@ export class CreateAdminDto {
   @IsOptional()
   @IsBoolean()
   canManageAdmins?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Super admin only: «без персональных данных» — phones, emails and names come back masked.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  noPii?: boolean;
 }
 
 export class SetAdminPermissionsDto {
@@ -75,6 +83,14 @@ export class SetAdminPermissionsDto {
   @IsOptional()
   @IsBoolean()
   canManageAdmins?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Super admin only: «без персональных данных». Omitted = unchanged.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  noPii?: boolean;
 }
 
 /** Owner 2026-10-05: the countries an employee works with. */
@@ -147,6 +163,12 @@ export class AdminAccountDto {
 
   @ApiProperty({ description: 'May create and manage other admins.' })
   canManageAdmins!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-16: personal data (phone, email, name) is masked for this admin.',
+  })
+  noPii!: boolean;
 
   @ApiProperty({
     type: [String],
@@ -391,4 +413,80 @@ export class SaveAdminRoleTemplateDto {
   })
   @IsObject()
   permissions!: Record<string, string>;
+}
+
+// ---- Owner 2026-10-16: presets and invite links -------------------------
+
+export class AdminPresetDto {
+  @ApiProperty() key!: string;
+  @ApiProperty() label!: string;
+  @ApiProperty() description!: string;
+  @ApiProperty({ enum: ADMIN_ROLES }) role!: AdminRoleName;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+  })
+  permissions!: Record<string, string>;
+  @ApiProperty({ description: 'Personal data is masked.' }) noPii!: boolean;
+  @ApiProperty({ description: 'Creates another owner.' }) dangerous!: boolean;
+}
+
+export class InviteAdminDto {
+  @ApiProperty({ format: 'email' })
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Preset key from GET /admin/admins/presets (owner, accountant, moderator, support, viewer).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  preset?: string;
+
+  @ApiPropertyOptional({
+    enum: ADMIN_ROLES,
+    description: 'Default: the preset’s role.',
+  })
+  @IsOptional()
+  @IsIn(ADMIN_ROLES)
+  role?: AdminRoleName;
+
+  @ApiPropertyOptional({
+    description: 'Overrides the preset’s toggles (area → view | manage).',
+    type: 'object',
+    additionalProperties: { type: 'string', enum: ['view', 'manage'] },
+  })
+  @IsOptional()
+  @IsObject()
+  permissions?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description: 'Overrides the preset’s «без персональных данных».',
+  })
+  @IsOptional()
+  @IsBoolean()
+  noPii?: boolean;
+}
+
+export class AdminInviteDto {
+  @ApiProperty({ description: 'Secret part of the link; shown once.' })
+  token!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Full link when ADMIN_PANEL_URL is set; otherwise null and the panel builds /invite/<token> itself.',
+  })
+  url!: string | null;
+
+  @ApiProperty({ format: 'date-time' }) expiresAt!: string;
+}
+
+export class AdminInviteResultDto {
+  @ApiProperty({ type: AdminAccountDto }) admin!: AdminAccountDto;
+  @ApiProperty({ type: AdminInviteDto }) invite!: AdminInviteDto;
 }

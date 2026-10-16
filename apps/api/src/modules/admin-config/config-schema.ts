@@ -30,7 +30,7 @@ export interface ConfigKeySchema {
  */
 /** An admin area key (admin-permissions ADMIN_AREAS) or `money`. */
 const REASON_AREA_PATTERN = new RegExp(
-  `^(${[...ADMIN_AREAS, 'money'].join('|')})$`,
+  `^(${[...ADMIN_AREAS].join('|')})$`,
 );
 
 export function configSchema(): Record<string, ConfigKeySchema> {

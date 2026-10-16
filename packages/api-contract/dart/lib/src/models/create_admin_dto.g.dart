@@ -14,6 +14,7 @@ CreateAdminDto _$CreateAdminDtoFromJson(Map<String, dynamic> json) =>
         (k, e) => MapEntry(k, PermissionsPermissions.fromJson(e as String)),
       ),
       canManageAdmins: json['canManageAdmins'] as bool?,
+      noPii: json['noPii'] as bool?,
     );
 
 Map<String, dynamic> _$CreateAdminDtoToJson(
@@ -23,4 +24,5 @@ Map<String, dynamic> _$CreateAdminDtoToJson(
   'role': instance.role.toJson(),
   'permissions': ?instance.permissions?.map((k, e) => MapEntry(k, e.toJson())),
   'canManageAdmins': ?instance.canManageAdmins,
+  'noPii': ?instance.noPii,
 };
