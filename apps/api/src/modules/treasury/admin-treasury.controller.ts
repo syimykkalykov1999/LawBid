@@ -20,6 +20,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AdminEndpoint,
   CurrentAdmin,
+  Roles,
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
@@ -42,6 +43,9 @@ const E = ErrorCode;
  * (admin-permissions canAccess). The switches and the «split now» button
  * need a fresh 2FA code. Nothing here can add, choose or type a bank:
  * payouts go only to the banks in Stripe itself. Writes are audited.
+ * Owner 2026-10-16: `money` is grantable now, so every write below is
+ * pinned to the super admin by @Roles (an accountant with `money` only
+ * reads).
  */
 @ApiTags('admin-treasury')
 @AdminEndpoint('super_admin', 'finance', 'moderator', 'support', 'verifier')
@@ -64,6 +68,7 @@ export class AdminTreasuryController {
   }
 
   @Put('settings')
+  @Roles('super_admin')
   @ApiOperation({
     summary: 'Auto split, payout day, buffers, pay day (needs step-up)',
   })
@@ -88,6 +93,7 @@ export class AdminTreasuryController {
   }
 
   @Post('run')
+  @Roles('super_admin')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Split the balance now: the computed amounts only (step-up)',
@@ -102,6 +108,7 @@ export class AdminTreasuryController {
   }
 
   @Post('expenses')
+  @Roles('super_admin')
   @ApiOperation({ summary: 'Add a service the expense card pays monthly' })
   @ApiEnvelopeResponse(TreasuryOverviewDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
@@ -114,6 +121,7 @@ export class AdminTreasuryController {
   }
 
   @Patch('expenses/:id')
+  @Roles('super_admin')
   @ApiOperation({ summary: 'Change a monthly expense or switch it off' })
   @ApiEnvelopeResponse(TreasuryOverviewDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
@@ -127,6 +135,7 @@ export class AdminTreasuryController {
   }
 
   @Delete('expenses/:id')
+  @Roles('super_admin')
   @ApiOperation({ summary: 'Remove a monthly expense' })
   @ApiEnvelopeResponse(TreasuryOverviewDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })

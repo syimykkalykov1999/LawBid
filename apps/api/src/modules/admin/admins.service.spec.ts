@@ -81,12 +81,13 @@ function build(found = row()) {
 }
 
 describe('AdminsService access toggles', () => {
-  it('stores only known areas and levels, never money or keys', async () => {
+  it('stores only known areas and levels, never keys or unknown areas', async () => {
     const { svc, prisma, sessions } = build();
     const out = await svc.setPermissions(actor, 'u2', {
       users: 'manage',
       support: 'view',
-      money: 'manage',
+      keys: 'manage',
+      admins: 'manage',
       integrations: 'manage',
       content: 'root',
     });
@@ -422,5 +423,160 @@ describe('AdminsService — country partner team (owner 2026-10-06)', () => {
     await expect(svc.setEnabled(manager, 'u2', false)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+});
+
+describe('AdminsService money, no-PII flag (owner 2026-10-16)', () => {
+  it('the super admin can hand out money and the no-PII flag', async () => {
+    const { svc, prisma } = build();
+    const out = await svc.setPermissions(
+      actor,
+      'u2',
+      { money: 'view', economy: 'view', budget_limits: 'manage' },
+      undefined,
+      true,
+    );
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          admin_profile: {
+            update: {
+              permissions: {
+                money: 'view',
+                economy: 'view',
+                budget_limits: 'manage',
+                no_pii: true,
+              },
+            },
+          },
+        },
+      }),
+    );
+    expect(out.noPii).toBe(true);
+  });
+
+  it('keeps the flag when only the toggles change, and clears it on request', async () => {
+    const masked = row({
+      admin_profile: {
+        admin_role: 'finance',
+        permissions: { money: 'view', no_pii: true },
+      },
+    });
+    const a = build(masked);
+    const kept = await a.svc.setPermissions(actor, 'u2', { money: 'view' });
+    expect(kept.noPii).toBe(true);
+    const b = build(masked);
+    const cleared = await b.svc.setPermissions(
+      actor,
+      'u2',
+      { money: 'view' },
+      undefined,
+      false,
+    );
+    expect(cleared.noPii).toBe(false);
+  });
+
+  it('a manager cannot give money, economy, budget limits or audit — even if he holds them', async () => {
+    const holder = {
+      ...manager,
+      permissions: { users: 'manage', money: 'manage', audit: 'view' },
+    } as unknown as AdminActor;
+    const { svc } = build();
+    const cases: Record<string, string>[] = [
+      { money: 'view' },
+      { audit: 'view' },
+      { economy: 'view' },
+      { budget_limits: 'view' },
+    ];
+    for (const perms of cases) {
+      await expect(
+        svc.setPermissions(holder, 'u2', perms),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        svc.create(holder, 'n@x.io', 'support', perms),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    }
+  });
+
+  it('a manager cannot set or clear the no-PII flag, nor touch an admin who has money', async () => {
+    const { svc } = build();
+    await expect(
+      svc.setPermissions(manager, 'u2', { users: 'view' }, undefined, false),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    const rich = build(
+      row({
+        admin_profile: {
+          admin_role: 'finance',
+          permissions: { users: 'view', money: 'view' },
+        },
+      }),
+    );
+    await expect(
+      rich.svc.setPermissions(manager, 'u2', { users: 'view' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    const masked = build(
+      row({
+        admin_profile: {
+          admin_role: 'support',
+          permissions: { users: 'view', no_pii: true },
+        },
+      }),
+    );
+    await expect(
+      masked.svc.setPermissions(manager, 'u2', { users: 'view' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('a new admin gets the flag only from the super admin; the owner preset has none', async () => {
+    const { svc, prisma } = build();
+    await svc.create(
+      actor,
+      'acc@x.io',
+      'finance',
+      { money: 'view' },
+      undefined,
+      true,
+    );
+    expect(
+      prisma.user.create.mock.calls[0][0].data.admin_profile.create.permissions,
+    ).toEqual({ money: 'view', no_pii: true });
+    await svc.create(
+      actor,
+      'boss@x.io',
+      'super_admin',
+      undefined,
+      undefined,
+      true,
+    );
+    expect(
+      prisma.user.create.mock.calls[1][0].data.admin_profile.create.permissions,
+    ).toEqual({});
+  });
+
+  it('a masked manager can only hire masked staff', async () => {
+    const maskedManager = {
+      ...manager,
+      noPii: true,
+    } as unknown as AdminActor;
+    const { svc, prisma } = build();
+    await svc.create(maskedManager, 'h@x.io', 'support', { users: 'view' });
+    expect(
+      prisma.user.create.mock.calls[0][0].data.admin_profile.create.permissions,
+    ).toEqual({ users: 'view', no_pii: true });
+  });
+
+  it('countries change keeps the flag', async () => {
+    const masked = row({
+      admin_profile: {
+        admin_role: 'finance',
+        permissions: { money: 'view', no_pii: true },
+      },
+    });
+    const { svc, prisma } = build(masked);
+    (prisma as unknown as { country: unknown }).country = {
+      count: jest.fn().mockResolvedValue(1),
+    };
+    const out = await svc.setCountries(actor, 'u2', ['CA']);
+    expect(out.noPii).toBe(true);
   });
 });

@@ -125,6 +125,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       permissions: { verification: 'manage' },
       manageAdmins: false,
       partner: null,
+      noPii: false,
       assignedCountries: [],
       countries: null,
     });
@@ -235,12 +236,8 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     );
   });
 
-  it('money, keys and admin management are closed to non-super admins even with a role and toggles', async () => {
-    for (const url of [
-      '/api/v1/admin/billing/payments',
-      '/api/v1/admin/integrations',
-      '/api/v1/admin/admins',
-    ]) {
+  it('keys and admin management are closed to non-super admins even with a role and toggles', async () => {
+    for (const url of ['/api/v1/admin/integrations', '/api/v1/admin/admins']) {
       const t = setup({
         allowed: ['finance', 'support', 'super_admin'],
         url,
@@ -256,6 +253,69 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
         NotFoundException,
       );
     }
+  });
+
+  it('money is grantable (owner 2026-10-16): the toggle opens routes that list the role, never super-admin-only routes', async () => {
+    const row = (permissions: Record<string, unknown>) => ({
+      ...admin('finance'),
+      admin_profile: { admin_role: 'finance' as const, permissions },
+    });
+    const open = setup({
+      allowed: ['finance', 'super_admin'],
+      url: '/api/v1/admin/billing/payments',
+      row: row({ money: 'view' }),
+    });
+    await expect(open.guard.canActivate(open.ctx)).resolves.toBe(true);
+    const noToggle = setup({
+      allowed: ['finance', 'super_admin'],
+      url: '/api/v1/admin/billing/payments',
+      row: row({ users: 'manage' }),
+    });
+    await expect(
+      noToggle.guard.canActivate(noToggle.ctx),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    const viewWrites = setup({
+      allowed: ['finance', 'super_admin'],
+      url: '/api/v1/admin/billing/refunds',
+      method: 'POST',
+      row: row({ money: 'view' }),
+    });
+    await expect(
+      viewWrites.guard.canActivate(viewWrites.ctx),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    const ownerOnly = setup({
+      allowed: ['super_admin'],
+      url: '/api/v1/admin/billing/prices',
+      row: row({ money: 'manage' }),
+    });
+    await expect(
+      ownerOnly.guard.canActivate(ownerOnly.ctx),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('a no-PII admin carries the flag and loses exports', async () => {
+    const row = {
+      ...admin('finance'),
+      admin_profile: {
+        admin_role: 'finance' as const,
+        permissions: { money: 'view', exports: 'manage', no_pii: true },
+      },
+    };
+    const ok = setup({
+      allowed: ['finance', 'super_admin'],
+      url: '/api/v1/admin/billing/payments',
+      row,
+    });
+    await expect(ok.guard.canActivate(ok.ctx)).resolves.toBe(true);
+    expect(ok.req.admin?.noPii).toBe(true);
+    const exp = setup({
+      allowed: ['finance', 'super_admin'],
+      url: '/api/v1/admin/export/users',
+      row,
+    });
+    await expect(exp.guard.canActivate(exp.ctx)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('admin management opens only for an admin holding the manager right, and nothing else with it', async () => {

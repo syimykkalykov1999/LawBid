@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -24,9 +25,13 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { ADMIN_PRESETS, findPreset } from '../admin-auth/admin-permissions';
 import {
   AdminAccountDto,
   AdminIdParamDto,
+  AdminInviteResultDto,
+  AdminPresetDto,
+  InviteAdminDto,
   CreateAdminDto,
   SetAdminCountriesDto,
   SetAdminCredentialsDto,
@@ -75,7 +80,87 @@ export class AdminsController {
       dto.role,
       dto.permissions,
       dto.canManageAdmins,
+      dto.noPii,
     );
+  }
+
+  @Get('presets')
+  @ApiOperation({
+    summary:
+      'Ready-made rights (owner, accountant, moderator, support, view-only) to start from',
+  })
+  @ApiEnvelopeResponse(AdminPresetDto, { isArray: true })
+  listPresets(): AdminPresetDto[] {
+    return ADMIN_PRESETS.map((p) => ({
+      key: p.key,
+      label: p.label,
+      description: p.description,
+      role: p.role,
+      permissions: { ...p.permissions },
+      noPii: p.noPii,
+      dangerous: p.dangerous === true,
+    }));
+  }
+
+  @Post('invites')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Invite an administrator: creates the account with a preset’s rights and returns a one-time link (72 h) for the owner to send himself — no email is sent. Needs a fresh step-up.',
+  })
+  @ApiEnvelopeResponse(AdminInviteResultDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.ADMIN_EMAIL_TAKEN],
+  })
+  async inviteAdmin(
+    @CurrentAdmin() actor: AdminActor,
+    @Body() dto: InviteAdminDto,
+  ): Promise<AdminInviteResultDto> {
+    const preset = dto.preset ? findPreset(dto.preset) : undefined;
+    if (dto.preset && !preset) {
+      throw new BadRequestException({
+        code: E.VALIDATION_ERROR,
+        message: 'Unknown preset.',
+      });
+    }
+    const role = dto.role ?? preset?.role;
+    if (!role) {
+      throw new BadRequestException({
+        code: E.VALIDATION_ERROR,
+        message: 'Choose a preset or a role.',
+      });
+    }
+    await this.auth.assertStepUp(actor.sessionId);
+    const admin = await this.admins.create(
+      actor,
+      dto.email,
+      role,
+      dto.permissions ?? (preset ? preset.permissions : undefined),
+      undefined,
+      dto.noPii ?? preset?.noPii,
+    );
+    const invite = await this.auth.createInvite(actor, admin.id);
+    return { admin, invite };
+  }
+
+  @Post(':id/invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'A new one-time sign-up link (72 h) for an existing administrator; the old link stops working. Needs a fresh step-up.',
+  })
+  @ApiEnvelopeResponse(AdminInviteResultDto)
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async reinviteAdmin(
+    @CurrentAdmin() actor: AdminActor,
+    @Param() params: AdminIdParamDto,
+  ): Promise<AdminInviteResultDto> {
+    await this.admins.assertCanManage(actor, params.id);
+    await this.auth.assertStepUp(actor.sessionId);
+    const invite = await this.auth.createInvite(actor, params.id);
+    return { admin: await this.admins.get(params.id), invite };
   }
 
   @Patch(':id/role')
@@ -94,7 +179,7 @@ export class AdminsController {
   @Patch(':id/permissions')
   @ApiOperation({
     summary:
-      'Toggle areas for an admin (view / manage), within what the caller holds. Money and keys cannot be granted.',
+      'Toggle areas for an admin (view / manage), within what the caller holds. Keys, admin management and sessions cannot be granted; money, economy, budget limits and the audit log only by the super admin.',
   })
   @ApiEnvelopeResponse(AdminAccountDto)
   @ApiErrors(TARGET_ERRORS)
@@ -108,6 +193,7 @@ export class AdminsController {
       params.id,
       dto.permissions,
       dto.canManageAdmins,
+      dto.noPii,
     );
   }
 

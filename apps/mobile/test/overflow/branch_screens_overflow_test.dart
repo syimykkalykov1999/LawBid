@@ -24,10 +24,7 @@ import '../helpers/ux_harness.dart';
 void main() {
   setUpAll(initializeDateFormatting);
 
-  final dirs = {
-    'ltr': TextDirection.ltr,
-    'rtl': TextDirection.rtl,
-  };
+  final dirs = {'ltr': TextDirection.ltr, 'rtl': TextDirection.rtl};
 
   late List<Override> base;
   setUp(() async {
@@ -83,8 +80,9 @@ void main() {
 
         // Owner 2026-10-16: after the first photo the Gallery / Camera cards
         // stay next to the thumbnails (compact), until 9 photos.
-        testWidgets('post form with 1 photo keeps the add cards, $tag',
-            (tester) async {
+        testWidgets('post form with 1 photo keeps the add cards, $tag', (
+          tester,
+        ) async {
           await pump(
             tester,
             const CreatePostScreen(debugPhotoCount: 1),
@@ -113,8 +111,9 @@ void main() {
           expect(find.text(t.t('cases.create.exitTitle')), findsOneWidget);
         });
 
-        testWidgets('post form with 9 photos has no add cards, $tag',
-            (tester) async {
+        testWidgets('post form with 9 photos has no add cards, $tag', (
+          tester,
+        ) async {
           await pump(
             tester,
             const CreatePostScreen(debugPhotoCount: 9),
@@ -162,17 +161,18 @@ void main() {
                       (
                         'cases.status.pendingCompletion',
                         'mine.next.confirmDone',
-                        false
+                        false,
                       ),
                       (
                         'cases.status.inProgress',
                         'mine.next.agreePrice',
-                        false
+                        false,
                       ),
                       ('cases.status.open', 'mine.next.waitingBids', false),
                     ])
                       ActiveCaseCard(
-                        title: 'Demo active: long title for the card in every '
+                        title:
+                            'Demo active: long title for the card in every '
                             'language and every font size',
                         practiceName: t.t('practice.real_estate'),
                         statusLabel: t.t(status),

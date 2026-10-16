@@ -3,8 +3,10 @@ import type { AdminRole } from '@prisma/client';
 /**
  * Per-area access for admins other than the super admin (owner
  * 2026-10-02). The super admin toggles each area to `view` (GET only) or
- * `manage`. Money and API keys are never grantable: those routes answer 403
- * to everyone but the super admin, whatever the toggles say.
+ * `manage`. API keys, admin management, admin sessions and rewards are never
+ * grantable (SUPER_ONLY_AREAS). Owner 2026-10-16: money, economy, budget
+ * limits and the audit log are now grantable — but only the super admin
+ * hands them out (SUPER_GRANT_ONLY_AREAS).
  */
 export const ADMIN_AREAS = [
   'dashboard',
@@ -31,6 +33,18 @@ export const ADMIN_AREAS = [
   // Owner 2026-10-06: a country partner's accountant — their country's
   // revenue report and settlements, read only. Only inside a partner team.
   'partner_report',
+  // Owner 2026-10-16: grantable money (subscriptions, billing, promotions,
+  // referrals, partners, treasury, analytics) for an accountant.
+  'money',
+  // …the «Экономика» card (revenue vs third-party spend); the area key is
+  // registered here, its routes live under /admin/economy.
+  'economy',
+  // …the provider budget caps in Настройки (/admin/config/budgets).
+  'budget_limits',
+  // …support conversations (/admin/chats).
+  'chats',
+  // …the audit log: everybody's rows instead of only one's own.
+  'audit',
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number];
 
@@ -40,14 +54,26 @@ export type AdminPermissions = Partial<Record<AdminArea, AccessLevel>>;
 
 /** Sections only the super admin ever reaches. */
 export const SUPER_ONLY_AREAS = [
-  'money', // billing, subscriptions, promotions, referrals (payouts, refunds)
   'keys', // integrations: Stripe, FCM, Bunny, SES, Sentry, ...
   'admins', // accounts, roles, passwords
-  'audit', // audit log
   'sessions', // everyone's sessions
   'rewards', // owner 2026-10-05: «Лучший сотрудник» (prizes, bonuses)
 ] as const;
 export type SuperOnlyArea = (typeof SUPER_ONLY_AREAS)[number];
+
+/** Grantable, but only the super admin may hand them out (a deputy who
+ * manages admins cannot give money or the audit log to anyone). */
+export const SUPER_GRANT_ONLY_AREAS: readonly AdminArea[] = [
+  'money',
+  'economy',
+  'budget_limits',
+  'audit',
+];
+
+/** True when [perms] holds an area only the super admin may grant. */
+export function hasSuperGrantOnly(perms: AdminPermissions): boolean {
+  return SUPER_GRANT_ONLY_AREAS.some((a) => perms[a] !== undefined);
+}
 
 type RouteArea =
   | AdminArea
@@ -90,6 +116,10 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   crashes: 'settings',
   // Owner 2026-10-15: own analytics shows what was bought: money area.
   analytics: 'money',
+  // Owner 2026-10-16: revenue vs third-party spend card.
+  economy: 'economy',
+  // …support conversations.
+  chats: 'chats',
   bids: 'cases',
   cases: 'cases',
   'case-disputes': 'cases',
@@ -139,6 +169,9 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
 export function routeArea(path: string): RouteArea | null {
   const m = /\/admin\/([^/?#]+)/.exec(path);
   if (!m) return null;
+  // Owner 2026-10-16: the provider budget caps sit under /admin/config but
+  // have their own switch.
+  if (/\/admin\/config\/budgets(?:[/?#]|$)/.test(path)) return 'budget_limits';
   return SEGMENT_AREA[m[1]] ?? 'unknown';
 }
 
@@ -155,6 +188,24 @@ export function readManageAdmins(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
   return (raw as Record<string, unknown>)[MANAGE_ADMINS_KEY] === true;
 }
+
+/** Key inside `admin_profiles.permissions` (owner 2026-10-16): «без
+ * персональных данных» — the admin (an accountant) works with the numbers
+ * but every person's phone, email and name comes back masked, and the
+ * sections that dump personal data (CSV exports, government requests) stay
+ * closed. Only the super admin sets or clears it. */
+export const NO_PII_KEY = 'no_pii';
+
+export function readNoPii(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  return (raw as Record<string, unknown>)[NO_PII_KEY] === true;
+}
+
+/** Sections that carry personal data in bulk: closed to a no-PII admin. */
+export const PII_CLOSED_AREAS: readonly AdminArea[] = [
+  'exports',
+  'data_requests',
+];
 
 /** Key inside `admin_profiles.permissions` for the countries an employee
  * works with (owner 2026-10-05): a verifier hired for Canada sees only
@@ -223,6 +274,7 @@ export function storePermissions(
   manageAdmins: boolean,
   countries: readonly string[] = [],
   partner: PartnerMembership | null = null,
+  noPii = false,
 ): Record<string, string | boolean | string[]> {
   const out: Record<string, string | boolean | string[]> = {
     ...(partner ? intersect(PARTNER_TEAM_MAX, areas) : areas),
@@ -230,6 +282,7 @@ export function storePermissions(
   // A partner's team never gets the owner's deputy right.
   if (manageAdmins && !partner) out[MANAGE_ADMINS_KEY] = true;
   if (countries.length > 0) out[COUNTRIES_KEY] = [...countries];
+  if (noPii) out[NO_PII_KEY] = true;
   if (partner) {
     out[COUNTRY_PARTNER_KEY] = partner.partnerId;
     if (partner.lead) out[PARTNER_LEAD_KEY] = true;
@@ -325,11 +378,20 @@ export function canAccess(
   method: string,
   manageAdmins = false,
   partner: PartnerMembership | null = null,
+  noPii = false,
 ): boolean {
   if (role === 'super_admin') return true;
   const area = routeArea(path);
   if (!area || area === 'unknown') return false;
   if (area === 'auth' || area === 'workspace') return true;
+  if (
+    noPii &&
+    ((PII_CLOSED_AREAS as readonly string[]).includes(area) ||
+      // CSV downloads dump people in bulk (e.g. partner commissions).
+      /\.csv(?:[?#]|$)/i.test(path))
+  ) {
+    return false;
+  }
   // Owner 2026-10-06: a country partner's team works only inside the
   // partner limits, whatever was stored; the lead manages their own team
   // (AdminsService narrows it to that team).
@@ -381,4 +443,98 @@ export function defaultPermissionsForRole(role: AdminRole): AdminPermissions {
     default:
       return {};
   }
+}
+
+/** Owner 2026-10-16: ready-made rights for the people the owner hires. The
+ * panel shows them as one-click presets (the owner can still fine-tune each
+ * toggle afterwards); the real check stays in AdminsService. */
+export interface AdminPreset {
+  key: string;
+  label: string;
+  description: string;
+  /** Label of the account; the toggles are what actually decide. */
+  role: AdminRole;
+  permissions: AdminPermissions;
+  noPii: boolean;
+  /** Creates another owner: the panel asks for confirmation. */
+  dangerous?: boolean;
+}
+
+/** Every toggle the owner may hand out, at [level]. */
+function allAreas(level: AccessLevel): AdminPermissions {
+  const out: AdminPermissions = {};
+  for (const a of ADMIN_AREAS) {
+    // The partner portal report belongs to a partner's team only.
+    if (a === 'partner_report') continue;
+    out[a] = level;
+  }
+  return out;
+}
+
+export const ADMIN_PRESETS: readonly AdminPreset[] = [
+  {
+    key: 'owner',
+    label: 'Владелец',
+    description:
+      'Полный доступ ко всему, включая ключи и администраторов. Второй владелец — выдавайте осторожно.',
+    role: 'super_admin',
+    permissions: {},
+    noPii: false,
+    dangerous: true,
+  },
+  {
+    key: 'accountant',
+    label: 'Бухгалтер',
+    description:
+      'Деньги, экономика и лимиты расходов; лимиты можно менять. Люди без телефонов, почты и имён.',
+    role: 'finance',
+    permissions: {
+      dashboard: 'view',
+      users: 'view',
+      money: 'view',
+      economy: 'view',
+      budget_limits: 'manage',
+    },
+    noPii: true,
+  },
+  {
+    key: 'moderator',
+    label: 'Модератор',
+    description: 'Жалобы, обжалования и проверка адвокатов.',
+    role: 'moderator',
+    permissions: {
+      dashboard: 'view',
+      users: 'view',
+      moderation: 'manage',
+      verification: 'manage',
+    },
+    noPii: false,
+  },
+  {
+    key: 'support',
+    label: 'Поддержка',
+    description: 'Обращения и чаты поддержки; пользователей — только смотреть.',
+    role: 'support',
+    permissions: {
+      dashboard: 'view',
+      users: 'view',
+      support: 'manage',
+      chats: 'manage',
+    },
+    noPii: false,
+  },
+  {
+    key: 'viewer',
+    label: 'Только просмотр',
+    description:
+      'Видит все разделы, которые можно выдать, но ничего не меняет.',
+    role: 'support',
+    permissions: allAreas('view'),
+    noPii: false,
+  },
+];
+
+/** The preset behind [key], or undefined. */
+export function findPreset(key: string): AdminPreset | undefined {
+  return ADMIN_PRESETS.find((p) => p.key === key);
 }

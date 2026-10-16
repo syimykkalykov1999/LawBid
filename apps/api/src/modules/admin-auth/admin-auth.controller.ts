@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Ip,
+  Param,
   Post,
   Put,
   Req,
@@ -28,6 +29,9 @@ import {
 } from './admin-auth.decorators';
 import {
   AdminChangeOwnCredentialsDto,
+  AdminInviteAcceptDto,
+  AdminInviteAcceptResultDto,
+  AdminInvitePreviewDto,
   AdminOkDto,
   AdminPasswordLoginDto,
   AdminRecoverPasswordDto,
@@ -186,6 +190,45 @@ export class AdminAuthController {
   @ApiEnvelopeResponse(AdminMeDto)
   adminMe(@CurrentAdmin() admin: AdminActor): Promise<AdminMeDto> {
     return this.auth.me(admin);
+  }
+
+  @Public()
+  @Get('invite/:token')
+  @ApiOperation({
+    summary:
+      'Who an invite link is for (404 when it is unknown, used or older than 72 hours)',
+  })
+  @ApiEnvelopeResponse(AdminInvitePreviewDto)
+  @ApiErrors({ ...START_ERRORS, 404: [E.NOT_FOUND] })
+  adminInvitePreview(
+    @Param('token') token: string,
+    @Ip() ip: string,
+  ): Promise<AdminInvitePreviewDto> {
+    return this.auth.previewInvite(token, ip || null);
+  }
+
+  @Public()
+  @Post('invite/accept')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'The invited admin chooses a login and password; the link is spent. Sign in next, then turn two-factor on in the profile.',
+  })
+  @ApiEnvelopeResponse(AdminInviteAcceptResultDto)
+  @ApiErrors({
+    ...START_ERRORS,
+    404: [E.NOT_FOUND],
+    409: [E.ADMIN_LOGIN_TAKEN],
+  })
+  adminInviteAccept(
+    @Body() dto: AdminInviteAcceptDto,
+    @Ip() ip: string,
+  ): Promise<AdminInviteAcceptResultDto> {
+    return this.auth.acceptInvite(
+      dto.token,
+      { login: dto.login, password: dto.password },
+      ip || null,
+    );
   }
 
   @Public()

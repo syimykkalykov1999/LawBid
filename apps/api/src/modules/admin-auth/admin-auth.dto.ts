@@ -214,6 +214,12 @@ export class AdminMeDto {
   canManageAdmins!: boolean;
 
   @ApiProperty({
+    description:
+      'Owner 2026-10-16: «без персональных данных» — people’s phones, emails and names are masked for this admin.',
+  })
+  noPii!: boolean;
+
+  @ApiProperty({
     type: String,
     format: 'uuid',
     nullable: true,
@@ -307,4 +313,33 @@ export class AdminTwoFactorEnabledDto {
 
 export class AdminStepUpResultDto {
   @ApiProperty() validForSeconds!: number;
+}
+
+// ---- Owner 2026-10-16: invite link for a new administrator -------------
+
+export class AdminInvitePreviewDto {
+  @ApiProperty({ format: 'email', description: 'The address the link is for.' })
+  email!: string;
+}
+
+export class AdminInviteAcceptDto {
+  @ApiProperty({ minLength: 20, maxLength: 128 })
+  @IsString()
+  @Length(20, 128)
+  token!: string;
+
+  @ApiProperty({ example: 'your.login', maxLength: 40 })
+  @IsString()
+  @MaxLength(40)
+  login!: string;
+
+  @ApiProperty({ minLength: 10, maxLength: 128 })
+  @IsString()
+  @MaxLength(128)
+  password!: string;
+}
+
+export class AdminInviteAcceptResultDto {
+  @ApiProperty({ description: 'The login to sign in with.' })
+  login!: string;
 }

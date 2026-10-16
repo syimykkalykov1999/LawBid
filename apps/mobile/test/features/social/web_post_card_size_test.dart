@@ -50,44 +50,43 @@ Future<void> main() async {
     bool repost = false,
     bool photo = false,
     List<PostMedia>? media,
-  }) =>
-      Post(
-        id: 'p1',
-        author: author,
-        body: body,
-        media: media ??
-            (photo
-                ? const [
-                    PostMedia(
-                      fileId: 'f1',
-                      url: 'https://example.test/1.jpg',
-                      previewUrl: 'https://example.test/1_320.jpg',
-                      mediumUrl: 'https://example.test/1_1080.jpg',
-                      width: 1080,
-                      height: 1080,
-                    ),
-                  ]
-                : const []),
-        tags: const [],
-        likeCount: 215000,
-        commentCount: 1200000,
-        shareCount: 15400,
-        likedByMe: false,
-        savedByMe: false,
-        isMine: true,
-        createdAt: DateTime.now().subtract(const Duration(hours: 5)),
-        repostedBy:
-            repost ? const PostReposter(id: 'u2', username: 'james') : null,
-      );
+  }) => Post(
+    id: 'p1',
+    author: author,
+    body: body,
+    media:
+        media ??
+        (photo
+            ? const [
+                PostMedia(
+                  fileId: 'f1',
+                  url: 'https://example.test/1.jpg',
+                  previewUrl: 'https://example.test/1_320.jpg',
+                  mediumUrl: 'https://example.test/1_1080.jpg',
+                  width: 1080,
+                  height: 1080,
+                ),
+              ]
+            : const []),
+    tags: const [],
+    likeCount: 215000,
+    commentCount: 1200000,
+    shareCount: 15400,
+    likedByMe: false,
+    savedByMe: false,
+    isMine: true,
+    createdAt: DateTime.now().subtract(const Duration(hours: 5)),
+    repostedBy: repost ? const PostReposter(id: 'u2', username: 'james') : null,
+  );
 
   PostMedia m(int i) => PostMedia(
-        fileId: 'f$i',
-        url: 'https://example.test/$i.jpg',
-        previewUrl: 'https://example.test/${i}_320.jpg',
-        mediumUrl: 'https://example.test/${i}_1080.jpg',
-        width: 1080,
-        height: 1080,
-      );
+    fileId: 'f$i',
+    url: 'https://example.test/$i.jpg',
+    previewUrl: 'https://example.test/${i}_320.jpg',
+    mediumUrl: 'https://example.test/${i}_1080.jpg',
+    width: 1080,
+    height: 1080,
+  );
   testWidgets('web: a photo post is 470 wide and at most 4:5 tall', (t) async {
     adaptiveShellOverride = true;
     addTearDown(() => adaptiveShellOverride = null);
