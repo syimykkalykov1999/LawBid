@@ -269,6 +269,7 @@ export 'models/attorney_verification_status_envelope.dart';
 export 'models/registry_field_descriptor_dto.dart';
 export 'models/registry_adapter_descriptor_dto.dart';
 export 'models/state_registry_dto.dart';
+export 'models/bar_format_miss_dto.dart';
 export 'models/state_registries_overview_dto.dart';
 export 'models/state_registries_overview_envelope.dart';
 export 'models/save_state_registry_dto.dart';

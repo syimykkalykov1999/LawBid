@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
+import 'package:lawbid/features/verification/domain/bar_formats.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 
@@ -191,7 +192,13 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
                 controller: _bar,
                 label: t.t('verification.license.barNumber'),
                 hintText: t.t('verification.license.barNumber.hint'),
-                helperText: t.t('verification.license.barNumber.helper'),
+                // Owner 2026-10-16: an unusual number is never refused: a
+                // soft hint, a person checks the license.
+                helperText: _state != null &&
+                        _bar.text.trim().isNotEmpty &&
+                        !barNumberFitsState(_state!, _bar.text)
+                    ? t.t('verification.license.barNumber.soft')
+                    : t.t('verification.license.barNumber.helper'),
                 textCapitalization: TextCapitalization.characters,
                 maxLength: 32,
                 inputFormatters: [
@@ -200,9 +207,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
                 errorText: _tried && _barValue == null
                     ? t.t('verification.license.barNumber.invalid')
                     : null,
-                onChanged: (_) {
-                  if (_tried) setState(() {});
-                },
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: AppSpacing.lg),
               PickerField(

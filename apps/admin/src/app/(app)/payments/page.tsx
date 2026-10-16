@@ -216,8 +216,8 @@ function Refunds() {
                     {r.failureReason ? <Reason code={r.failureReason} className="mt-1 block text-xs text-danger" /> : null}
                   </Td>
                   <Td className="max-w-80 text-muted">{r.reason}</Td>
-                  <Td className="font-mono text-xs text-faint" title={r.adminId}>
-                    {r.adminId.slice(0, 8)}
+                  <Td className="font-mono text-xs text-faint" title={r.adminId ?? 'система'}>
+                    {r.adminId ? r.adminId.slice(0, 8) : 'система'}
                   </Td>
                   <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
                 </tr>

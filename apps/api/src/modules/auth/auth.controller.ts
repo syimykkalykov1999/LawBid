@@ -59,6 +59,7 @@ import {
 } from './dto/auth-responses.dto';
 import { ContinueLoginDto } from './dto/continue-login.dto';
 import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
+import { TokenService } from './services/token.service';
 
 const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
@@ -108,6 +109,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly socialAuth: SocialAuthService,
     private readonly passwordAuth: PasswordAuthService,
+    private readonly tokens: TokenService,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -129,7 +131,18 @@ export class AuthController {
     @Body() dto: OtpRequestDto,
     @Req() req: Request,
   ): Promise<OtpSentDto> {
-    await this.auth.requestOtp(dto, this.meta(req));
+    // Owner 2026-10-16: a signed-in person may ask a code for their OWN number
+    // (reauthentication for a sensitive action); a stranger may not.
+    let callerId: string | undefined;
+    const bearer = /^Bearer (.+)$/i.exec(req.header('authorization') ?? '');
+    if (bearer) {
+      try {
+        callerId = this.tokens.verifyAccessToken(bearer[1]).sub;
+      } catch {
+        callerId = undefined;
+      }
+    }
+    await this.auth.requestOtp(dto, this.meta(req), callerId);
     return { sent: true };
   }
 

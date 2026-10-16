@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   BadRequestException,
   ConflictException,
   Inject,
@@ -9,6 +10,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -76,6 +78,7 @@ export class BidPacksService {
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async enabled(): Promise<boolean> {
@@ -146,6 +149,27 @@ export class BidPacksService {
       WHERE user_id = ${userId}::uuid`;
   }
 
+  /** Owner 2026-10-16: packs are for verified attorneys (rollback:
+   * `billing.require_verified_for_purchases` off). */
+  private async assertVerified(userId: string): Promise<void> {
+    if (!this.settings) return;
+    if (
+      !(await this.settings.boolean('billing.require_verified_for_purchases'))
+    ) {
+      return;
+    }
+    const p = await this.prisma.attorneyProfile.findUnique({
+      where: { user_id: userId },
+      select: { verification_status: true },
+    });
+    if (p && p.verification_status !== 'verified') {
+      throw new ForbiddenException({
+        code: ErrorCode.ATTORNEY_NOT_VERIFIED,
+        message: 'Offer packs are available after verification.',
+      });
+    }
+  }
+
   /** POST /bid-packs/:id/buy → the hosted payment page. */
   async buy(
     userId: string,
@@ -157,6 +181,7 @@ export class BidPacksService {
         message: 'Offer packs are not available right now.',
       });
     }
+    await this.assertVerified(userId);
     const pack = (await this.packs()).find((p) => p.id === packId);
     if (!pack) {
       throw new NotFoundException({
