@@ -12,6 +12,10 @@ enum FeeType {
   hourly('hourly'),
   @JsonValue('free_consultation')
   freeConsultation('free_consultation'),
+  @JsonValue('contingency')
+  contingency('contingency'),
+  @JsonValue('to_be_agreed')
+  toBeAgreed('to_be_agreed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

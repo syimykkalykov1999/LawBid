@@ -26,6 +26,9 @@ abstract final class BidLimits {
   static const messageMin = 20;
   static int get messageMax => TextLimits.of(TextLimit.bidMessage);
   static const amountMaxDollars = 10000000;
+
+  /// A percent bid: 1%..90% of the recovery.
+  static const percentMax = 90;
   static const durationMax = 3650;
 }
 
@@ -106,10 +109,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       await ref.read(teamRepositoryProvider).saveBidDraft(
             widget.caseId,
             feeType: _fee.json,
-            amountCents:
-                _fee == FeeType.freeConsultation || _amountDollars == null
-                    ? null
-                    : _amountDollars! * 100,
+            amountCents: _noAmount || _amountDollars == null
+                ? null
+                : _amountDollars! * 100,
             message: _message.text.trim().isEmpty ? null : _message.text,
             startAvailability: _start.json,
             startDate: _startDate,
@@ -130,11 +132,20 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
 
   int? get _amountDollars => int.tryParse(_amount.text);
 
+  /// Free consultations and a fee "agreed later" name no amount.
+  bool get _noAmount =>
+      _fee == FeeType.freeConsultation || _fee == FeeType.toBeAgreed;
+
+  bool get _isPercent => _fee == FeeType.contingency;
+
+  /// Owner 2026-10-16: a percent bid names 1%..90% of the recovery (the
+  /// server keeps it in hundredths: 33 → 3300).
   bool get _amountOk =>
-      _fee == FeeType.freeConsultation ||
+      _noAmount ||
       (_amountDollars != null &&
           _amountDollars! > 0 &&
-          _amountDollars! <= BidLimits.amountMaxDollars);
+          _amountDollars! <=
+              (_isPercent ? BidLimits.percentMax : BidLimits.amountMaxDollars));
 
   bool get _messageOk {
     final n = _message.text.trim().length;
@@ -182,9 +193,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             widget.caseId,
             BidInput(
               feeType: _fee,
-              amountCents: _fee == FeeType.freeConsultation
-                  ? null
-                  : _amountDollars! * 100,
+              amountCents: _noAmount ? null : _amountDollars! * 100,
               message: _message.text,
               startAvailability: _start,
               startDate: _startDate,
@@ -223,7 +232,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final free = _fee == FeeType.freeConsultation;
+    final free = _noAmount;
     // OQ-049: an assistant sends bids only with the "bids" access the
     // attorney switched on (under their responsibility); else a draft.
     final assistant = ref.watch(isAssistantProvider) &&
@@ -275,15 +284,27 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             style: typography.bodySmall.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.sm),
-          SegmentedChoice<FeeType>(
+          _FeeChoice(
             value: _fee,
             options: [
               (FeeType.fixed, t.t('cases.fee.fixed')),
               (FeeType.hourly, t.t('cases.fee.hourly')),
+              (FeeType.contingency, t.t('cases.fee.percent')),
               (FeeType.freeConsultation, t.t('cases.fee.freeShort')),
+              (FeeType.toBeAgreed, t.t('cases.fee.later')),
             ],
-            onChanged: (v) => setState(() => _fee = v),
+            onChanged: (v) => setState(() {
+              _fee = v;
+              _amount.clear();
+            }),
           ),
+          if (_fee == FeeType.toBeAgreed) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              t.t('cases.bidForm.laterHint'),
+              style: typography.bodySmall.copyWith(color: colors.textSecondary),
+            ),
+          ],
           AnimatedSize(
             duration:
                 context.reduceMotion ? Duration.zero : AppMotion.stateChange,
@@ -295,22 +316,28 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                     child: AppTextField(
                       controller: _amount,
                       label: t.t(
-                        _fee == FeeType.hourly
-                            ? 'cases.bidForm.rate'
-                            : 'cases.bidForm.amount',
+                        _isPercent
+                            ? 'cases.bidForm.percentLabel'
+                            : _fee == FeeType.hourly
+                                ? 'cases.bidForm.rate'
+                                : 'cases.bidForm.amount',
                       ),
                       leading: Text(
-                        r'$',
+                        _isPercent ? '%' : r'$',
                         style: typography.titleMedium
                             .copyWith(color: colors.goldDark),
                       ),
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(8),
+                        LengthLimitingTextInputFormatter(_isPercent ? 2 : 8),
                       ],
                       errorText: _amount.text.isNotEmpty && !_amountOk
-                          ? t.t('cases.bidForm.amountError')
+                          ? t.t(
+                              _isPercent
+                                  ? 'cases.bidForm.percentError'
+                                  : 'cases.bidForm.amountError',
+                            )
                           : null,
                       onChanged: (_) => setState(() {}),
                     ),
@@ -452,6 +479,67 @@ class _FirmSender extends ConsumerWidget {
         ],
         onChanged: onChanged,
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-16: five ways to name a fee (fixed, hourly, a percent of
+/// the recovery, free, agreed later): chips that wrap, so a long word in
+/// any language never squeezes the others.
+class _FeeChoice extends StatelessWidget {
+  const _FeeChoice({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final FeeType value;
+  final List<(FeeType, String)> options;
+  final ValueChanged<FeeType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final (type, label) in options)
+          Semantics(
+            button: true,
+            selected: type == value,
+            label: label,
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(type),
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(minHeight: AppSizes.touchTarget),
+                child: Container(
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    color: type == value ? colors.accent : colors.surface,
+                    borderRadius: BorderRadius.circular(AppRadii.field),
+                    border: Border.all(
+                      color: type == value ? colors.accent : colors.border,
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: typography.button.copyWith(
+                      color: type == value ? colors.onAccent : colors.text,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

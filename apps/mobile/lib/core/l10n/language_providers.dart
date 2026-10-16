@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/available_languages.dart';
 import 'package:lawbid/core/l10n/language_repository.dart';
 import 'package:lawbid/core/l10n/local_language_repository.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/web_fonts.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'language_providers.g.dart';
@@ -72,7 +73,9 @@ class LanguageController extends _$LanguageController {
       if (next != current) state = AsyncData(next);
     });
     _stored = await ref.read(languageRepositoryProvider).readStoredCode();
-    return _resolve();
+    final resolved = _resolve();
+    await WebFonts.ensureLanguage(resolved.code);
+    return resolved;
   }
 
   AppLanguage _resolve() {
@@ -96,6 +99,7 @@ class LanguageController extends _$LanguageController {
       // A failed build doesn't block an explicit choice.
     }
     _stored = language.code;
+    await WebFonts.ensureLanguage(language.code);
     state = AsyncData(language);
     await ref.read(languageRepositoryProvider).write(language);
   }

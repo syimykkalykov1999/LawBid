@@ -12,7 +12,7 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Input, Label, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { api, errorText } from '@/lib/api/client';
-import { BID_STATUS, FEE_TYPE, label, StatusPill, usd } from '@/lib/labels';
+import { BID_STATUS, FEE_TYPE, feeText, label, StatusPill } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
 /** Owner 2026-09-30: every bid with its case, attorney, amount and status. */
@@ -88,7 +88,7 @@ export default function BidsPage() {
                 </Td>
                 <Td className="text-xs">{b.attorneyName}</Td>
                 <Td className="text-sm tabular-nums">
-                  {b.feeType === 'free_consultation' ? '—' : usd(b.amountCents)}
+                  {b.feeType === 'free_consultation' || b.feeType === 'to_be_agreed' ? '—' : feeText(b.feeType, b.amountCents)}
                   <div className="text-xs text-muted">{label(FEE_TYPE, b.feeType)}</div>
                 </Td>
                 <Td className="tabular-nums">{b.rounds}</Td>

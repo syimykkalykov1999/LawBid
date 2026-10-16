@@ -47,6 +47,9 @@ const kUploadFormatMime = <String, String>{
   'rtf': 'application/rtf',
   'txt': 'text/plain',
   'csv': 'text/csv',
+  // Owner 2026-10-16: a video of a case (one per case).
+  'mp4': 'video/mp4',
+  'mov': 'video/quicktime',
 };
 
 const kPhotoFormats = {'jpeg', 'png', 'heic', 'webp', 'gif'};
@@ -155,9 +158,9 @@ const kDefaultUploadLimits = <UploadPlace, PlaceUploadLimits>{
   UploadPlace.kase: PlaceUploadLimits(
     maxPhotos: 0,
     maxFiles: 9,
-    fileMb: 10,
+    fileMb: 25,
     totalMb: 0,
-    formats: {'jpeg', 'png', 'heic', 'pdf', 'docx'},
+    formats: {'jpeg', 'png', 'heic', 'pdf', 'docx', 'mp4', 'mov'},
   ),
   UploadPlace.chat: PlaceUploadLimits(
     maxPhotos: 0,

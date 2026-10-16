@@ -12,6 +12,8 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart'
+    show BidLimits;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
@@ -371,7 +373,7 @@ class _BidBody extends StatelessWidget {
                   style: typography.bodySmall
                       .copyWith(color: colors.textSecondary),
                 ),
-                if (!bid.isFreeConsultation) ...[
+                if (!bid.isAcceptOnly) ...[
                   const SizedBox(height: AppSpacing.md),
                   RoundCounter(used: bid.roundCount, t: t),
                 ],
@@ -482,7 +484,11 @@ class _CounterSheetState extends State<_CounterSheet> {
 
   int? get _cents {
     final n = int.tryParse(_amount.text);
-    return n == null || n <= 0 ? null : n * 100;
+    if (n == null || n <= 0) return null;
+    if (widget.bid.feeType == FeeType.contingency && n > BidLimits.percentMax) {
+      return null;
+    }
+    return n * 100;
   }
 
   @override
@@ -527,11 +533,13 @@ class _CounterSheetState extends State<_CounterSheet> {
               AppTextField(
                 controller: _amount,
                 autofocus: true,
-                label: widget.bid.feeType == FeeType.hourly
-                    ? t.t('cases.counter.amountHourly')
-                    : t.t('cases.counter.amount'),
+                label: widget.bid.feeType == FeeType.contingency
+                    ? t.t('cases.bidForm.percentLabel')
+                    : widget.bid.feeType == FeeType.hourly
+                        ? t.t('cases.counter.amountHourly')
+                        : t.t('cases.counter.amount'),
                 leading: Text(
-                  r'$',
+                  widget.bid.feeType == FeeType.contingency ? '%' : r'$',
                   style:
                       typography.titleMedium.copyWith(color: colors.goldDark),
                 ),

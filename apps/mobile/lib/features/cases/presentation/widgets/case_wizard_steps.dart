@@ -570,8 +570,10 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
         AppTextField(
           controller: _description,
           label: t.t('cases.field.description'),
-          hintText: t.t('cases.field.descriptionHint'),
-          helperText: t.t('cases.field.noContacts'),
+          // Owner 2026-10-16: every attorney reads this text: only what
+          // happened, no personal data, case numbers or documents.
+          hintText: t.t('cases.field.descriptionPlaceholder'),
+          helperText: t.t('cases.field.descriptionPrivacy'),
           maxLines: 8,
           maxLength: CaseLimits.descriptionMax,
           textCapitalization: TextCapitalization.sentences,

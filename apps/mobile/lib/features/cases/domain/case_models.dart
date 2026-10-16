@@ -347,10 +347,14 @@ class CaseBid {
   bool get isActive => status == BidStatus.active;
   bool get isFreeConsultation => feeType == FeeType.freeConsultation;
 
+  /// Free consultations and "fee agreed later" bids are only accepted or
+  /// declined: no counters, no negotiation rounds to show.
+  bool get isAcceptOnly => isFreeConsultation || feeType == FeeType.toBeAgreed;
+
   /// §6.1: counters are possible below the cap and never for free
-  /// consultations.
+  /// consultations (or a fee left to be agreed).
   bool get canCounter =>
-      isActive && !isFreeConsultation && roundCount < kMaxNegotiationRounds;
+      isActive && !isAcceptOnly && roundCount < kMaxNegotiationRounds;
 
   bool isTurnOf(PartyRole role) => isActive && turn == role;
 }

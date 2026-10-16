@@ -18,10 +18,21 @@ abstract final class CaseFormat {
     );
   }
 
-  /// "$600", "$250/hr" or "Free consultation".
+  /// A percent bid keeps hundredths of a percent in its cents: 3300 → "33".
+  static String percent(L10nFormats f, int basisPoints) => f.digits(
+        basisPoints % 100 == 0
+            ? '${basisPoints ~/ 100}'
+            : (basisPoints / 100).toStringAsFixed(2),
+      );
+
+  /// "$600", "$250/hr", "33% of the recovery", "Fee agreed later" or
+  /// "Free consultation".
   static String terms(Translator t, L10nFormats f, FeeType type, int cents) =>
       switch (type) {
         FeeType.freeConsultation => t.t('cases.fee.free'),
+        FeeType.toBeAgreed => t.t('cases.fee.laterTerms'),
+        FeeType.contingency =>
+          t.t('cases.fee.percentOf', {'percent': percent(f, cents)}),
         FeeType.hourly => t.t('cases.fee.perHour', {'amount': money(f, cents)}),
         _ => money(f, cents),
       };
@@ -29,6 +40,8 @@ abstract final class CaseFormat {
   static String feeTypeLabel(Translator t, FeeType type) => switch (type) {
         FeeType.hourly => t.t('cases.fee.hourly'),
         FeeType.freeConsultation => t.t('cases.fee.free'),
+        FeeType.contingency => t.t('cases.fee.percent'),
+        FeeType.toBeAgreed => t.t('cases.fee.later'),
         _ => t.t('cases.fee.fixed'),
       };
 

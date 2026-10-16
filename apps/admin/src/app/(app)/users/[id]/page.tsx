@@ -25,7 +25,7 @@ import {
   StatusBadge,
   StatusPill,
   SUBSCRIPTION_STATUS,
-  usd,
+  feeText,
   VERIFICATION_STATUS,
   LICENSE_STATUS,
 } from '@/lib/labels';
@@ -474,9 +474,7 @@ export default function UserCardPage() {
                       <StatusPill map={BID_STATUS} value={b.status} />
                     </Td>
                     <Td className="tabular-nums">
-                      {b.feeType === 'free_consultation'
-                        ? 'бесплатная консультация'
-                        : `${usd(b.amountCents)}${b.feeType === 'hourly' ? '/ч' : ''}`}
+                      {feeText(b.feeType, b.amountCents)}
                     </Td>
                     <Td className="whitespace-nowrap text-muted">{formatDateTime(b.createdAt)}</Td>
                   </MotionRow>

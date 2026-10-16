@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { FilesService } from '../../files/files.service';
@@ -6,6 +7,9 @@ import { assertUploadCount } from '../../files/upload-limits';
 import type { CasePhotoDto } from '../dto/case-responses.dto';
 
 type Tx = Prisma.TransactionClient;
+
+/** Owner 2026-10-16: one private video per case. */
+const MAX_CASE_VIDEOS = 1;
 
 /**
  * Owner decision 2026-09-30 (OQ-031): photos per case (count: admin). Files are
@@ -31,7 +35,7 @@ export class CasePhotosService {
     const had = caseId
       ? await this.prisma.casePhoto.findMany({
           where: { case_id: caseId },
-          select: { file_id: true },
+          select: { file_id: true, file: { select: { mime: true } } },
         })
       : [];
     const kept = new Set(had.map((p) => p.file_id));
@@ -42,12 +46,24 @@ export class CasePhotosService {
       fileIds.length,
       had.length,
     );
+    // Owner 2026-10-16: up to 9 photos/files or one video per case.
+    const videos = new Set(
+      had.filter((p) => p.file.mime.startsWith('video/')).map((p) => p.file_id),
+    );
     for (const id of fileIds) {
       const file = await this.files.assertAttachable(userId, id, [
         'case_photo',
         'case_attachment',
       ]);
       if (!kept.has(id)) await this.files.assertFitsPlace('case', file);
+      if (file.mime.startsWith('video/')) videos.add(id);
+    }
+    if (videos.size > MAX_CASE_VIDEOS) {
+      throw new BadRequestException({
+        code: ErrorCode.FILES_COUNT_LIMIT,
+        message: 'A case can have one video.',
+        details: { maxVideos: MAX_CASE_VIDEOS },
+      });
     }
   }
 

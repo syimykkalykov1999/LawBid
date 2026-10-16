@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/platform/web_fonts.dart';
 
 /// Builds the light/dark [ThemeData] for LawBid (file 07 §2-§4).
 ///
@@ -45,6 +46,8 @@ abstract final class AppTheme {
       // screens are transparent over it.
       scaffoldBackgroundColor: colors.isGlass ? Colors.transparent : colors.bg,
       fontFamily: AppFontFamilies.sans,
+      // Owner 2026-10-16: letters Inter lacks (web only, see WebFonts).
+      fontFamilyFallback: WebFonts.fallbackFamilies,
       colorScheme: ColorScheme(
         brightness: brightness,
         primary: colors.accent,

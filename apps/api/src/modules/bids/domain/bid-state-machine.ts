@@ -127,10 +127,13 @@ export function planBidTransition(
   switch (action) {
     case 'counter': {
       if (!yourTurn) throw notYourTurn(details);
-      if (bid.fee_type === 'free_consultation') {
+      if (
+        bid.fee_type === 'free_consultation' ||
+        bid.fee_type === 'to_be_agreed'
+      ) {
         throw conflict(
           ErrorCode.BID_COUNTER_NOT_ALLOWED,
-          'A free consultation can only be accepted or declined.',
+          'This bid can only be accepted or declined.',
           details,
         );
       }

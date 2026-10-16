@@ -17,6 +17,10 @@ import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decora
 
 /** docs/04_CASES_BIDS.md §3.2 / §5.1: money in cents, up to $10,000,000. */
 export const BID_AMOUNT_MAX_CENTS = 1_000_000_000;
+/** Owner 2026-10-16: a percent bid is stored in hundredths of a percent:
+ * 1%..90% of the recovery. */
+export const BID_PERCENT_MIN_BP = 100;
+export const BID_PERCENT_MAX_BP = 9000;
 export const BID_MESSAGE_MIN = 20;
 export const BID_MESSAGE_MAX = 2000;
 export const COUNTER_MESSAGE_MAX = 500;
@@ -42,7 +46,8 @@ const trimToNull = ({ value }: { value: unknown }): unknown => {
 
 /**
  * POST /cases/:caseId/bids (§5.1). `amountCents` is required for `fixed`/
- * `hourly` and ignored (stored as 0) for `free_consultation` — enforced in
+ * `hourly`, a percent in hundredths for `contingency` (1%..90%), and
+ * ignored (stored as 0) for `free_consultation` / `to_be_agreed` — enforced in
  * BidsService, since "required unless X" isn't expressible with a single
  * decorator combination that also rejects a stray value cleanly.
  */
@@ -65,7 +70,7 @@ export class CreateBidDto {
     minimum: 1,
     maximum: BID_AMOUNT_MAX_CENTS,
     description:
-      'Required for fixed/hourly; ignored (stored as 0) for free_consultation.',
+      'Required for fixed/hourly (cents) and contingency (percent in hundredths, 100..9000); ignored (stored as 0) for free_consultation and to_be_agreed.',
   })
   @IsOptional()
   @IsInt()

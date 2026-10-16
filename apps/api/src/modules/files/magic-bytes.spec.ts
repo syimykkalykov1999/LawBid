@@ -143,3 +143,20 @@ describe('detectMime (docs/03 §2.2 magic bytes)', () => {
     });
   });
 });
+
+describe('case videos (owner 2026-10-16)', () => {
+  const ftyp = (brand: string): Uint8Array => {
+    const b = Buffer.alloc(32);
+    b.writeUInt32BE(24, 0);
+    b.write('ftyp', 4, 'latin1');
+    b.write(brand, 8, 'latin1');
+    return b;
+  };
+
+  it('takes an ISO-BMFF file as a video only when the client said video', () => {
+    expect(detectMime(ftyp('mp42'), 'video/mp4')).toBe('video/mp4');
+    expect(detectMime(ftyp('qt  '), 'video/quicktime')).toBe('video/quicktime');
+    expect(detectMime(ftyp('mp42'), 'audio/mp4')).toBe('audio/mp4');
+    expect(detectMime(ftyp('qt  '), 'video/mp4')).not.toBe('video/mp4');
+  });
+});

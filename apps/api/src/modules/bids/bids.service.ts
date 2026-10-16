@@ -24,7 +24,12 @@ import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
-import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
+import {
+  BID_PERCENT_MAX_BP,
+  BID_PERCENT_MIN_BP,
+  type CounterOfferDto,
+  type CreateBidDto,
+} from './dto/bid-requests.dto';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
@@ -381,6 +386,7 @@ export class BidsService {
     dto: CounterOfferDto,
   ): Promise<BidDto> {
     const { bid, by } = await this.loadForEitherParty(bidId, user);
+    if (bid.fee_type === 'contingency') assertPercent(dto.amountCents);
     return this.applyAndRespond(bid.id, 'counter', by, {
       amountCents: dto.amountCents,
       message: dto.message ?? null,
@@ -643,8 +649,32 @@ export class BidsService {
   }
 }
 
+/** Owner 2026-10-16: a percent bid names 1%..90% (hundredths of a percent). */
+export function assertPercent(basisPoints: number): void {
+  if (basisPoints < BID_PERCENT_MIN_BP || basisPoints > BID_PERCENT_MAX_BP) {
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'A percent bid must be from 1% to 90%.',
+      details: { fields: ['amountCents'] },
+    });
+  }
+}
+
 export function normalizeAmount(dto: CreateBidDto): number {
-  if (dto.feeType === 'free_consultation') return 0;
+  if (dto.feeType === 'free_consultation' || dto.feeType === 'to_be_agreed') {
+    return 0;
+  }
+  if (dto.feeType === 'contingency') {
+    if (dto.amountCents === undefined) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'amountCents (percent in hundredths) is required.',
+        details: { fields: ['amountCents'] },
+      });
+    }
+    assertPercent(dto.amountCents);
+    return dto.amountCents;
+  }
   if (dto.amountCents === undefined || dto.amountCents <= 0) {
     throw new BadRequestException({
       code: ErrorCode.VALIDATION_ERROR,

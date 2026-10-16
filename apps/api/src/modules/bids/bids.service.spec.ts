@@ -28,6 +28,20 @@ describe('normalizeAmount (docs/04 §5.1)', () => {
     ).toBe(0);
   });
 
+  it('to_be_agreed is stored as 0; a percent bid keeps 1%..90%', () => {
+    expect(
+      normalizeAmount(dto({ feeType: 'to_be_agreed', amountCents: 500 })),
+    ).toBe(0);
+    expect(
+      normalizeAmount(dto({ feeType: 'contingency', amountCents: 3300 })),
+    ).toBe(3300);
+    for (const bad of [undefined, 0, 99, 9001]) {
+      expect(() =>
+        normalizeAmount(dto({ feeType: 'contingency', amountCents: bad })),
+      ).toThrow(BadRequestException);
+    }
+  });
+
   it('fixed/hourly require a positive amountCents', () => {
     expect(
       normalizeAmount(dto({ feeType: 'hourly', amountCents: 15_000 })),

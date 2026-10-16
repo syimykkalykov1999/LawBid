@@ -20,7 +20,7 @@ import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
-import { BID_STATUS, CASE_STATUS, FEE_TYPE, INVITE_STATUS, JOURNAL_EVENT, label, PARTY_ROLE, partyName, StatusPill, usd } from '@/lib/labels';
+import { BID_STATUS, CASE_STATUS, FEE_TYPE, INVITE_STATUS, feeText, JOURNAL_EVENT, label, PARTY_ROLE, partyName, StatusPill, usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
 type CaseCard = components['schemas']['AdminCaseCardDto'];
@@ -364,7 +364,7 @@ function Bids({ c, canOpenUsers }: { c: CaseCard; canOpenUsers: boolean }) {
                   </Badge>
                 ) : null}
               </Td>
-              <Td className="text-right whitespace-nowrap tabular-nums">{b.feeType === 'free_consultation' ? '—' : usd(b.amountCents)}</Td>
+              <Td className="text-right whitespace-nowrap tabular-nums">{b.feeType === 'free_consultation' || b.feeType === 'to_be_agreed' ? '—' : feeText(b.feeType, b.amountCents)}</Td>
               <Td className="text-muted">{label(FEE_TYPE, b.feeType)}</Td>
               <Td>
                 <StatusPill map={BID_STATUS} value={b.status} />

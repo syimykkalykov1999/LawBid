@@ -87975,7 +87975,9 @@
         "enum": [
           "fixed",
           "hourly",
-          "free_consultation"
+          "free_consultation",
+          "contingency",
+          "to_be_agreed"
         ]
       },
       "StartAvailability": {
@@ -88264,7 +88266,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 1000000000,
-            "description": "Required for fixed/hourly; ignored (stored as 0) for free_consultation."
+            "description": "Required for fixed/hourly (cents) and contingency (percent in hundredths, 100..9000); ignored (stored as 0) for free_consultation and to_be_agreed."
           },
           "message": {
             "type": "string",
@@ -108730,7 +108732,9 @@
           "odp",
           "rtf",
           "txt",
-          "csv"
+          "csv",
+          "mp4",
+          "mov"
         ]
       },
       "UploadPlaceLimitsDto": {

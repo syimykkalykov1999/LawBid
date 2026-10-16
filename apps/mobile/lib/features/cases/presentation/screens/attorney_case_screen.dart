@@ -560,7 +560,7 @@ class _OwnBidCard extends ConsumerWidget {
                   ),
                 ],
               ),
-              if (!value.isFreeConsultation) ...[
+              if (!value.isAcceptOnly) ...[
                 const SizedBox(height: AppSpacing.sm),
                 RoundCounter(used: value.roundCount, t: t),
               ],

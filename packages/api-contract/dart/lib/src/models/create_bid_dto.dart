@@ -28,7 +28,7 @@ class CreateBidDto {
   final String? sendAsAttorneyId;
   final FeeType feeType;
 
-  /// Required for fixed/hourly; ignored (stored as 0) for free_consultation.
+  /// Required for fixed/hourly (cents) and contingency (percent in hundredths, 100..9000); ignored (stored as 0) for free_consultation and to_be_agreed.
   final int? amountCents;
   final String message;
   final StartAvailability startAvailability;

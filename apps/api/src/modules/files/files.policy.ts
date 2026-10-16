@@ -31,6 +31,9 @@ export const FILE_MIME = {
   rtf: 'application/rtf',
   txt: 'text/plain',
   csv: 'text/csv',
+  // Owner 2026-10-16: a video attached to a case (private, one per case).
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -112,7 +115,7 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   // OQ-034: case documents — photos, PDF, Word; private like case photos
   // (only the owner and the attorney whose bid was accepted open them).
   case_attachment: {
-    mimes: [...IMAGES, ...DOCS],
+    mimes: [...IMAGES, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
     bucket: 'documents',
   },
   // OQ-047: photos and documents in a chat once the bid is accepted;

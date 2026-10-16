@@ -191,6 +191,8 @@ export const FEE_TYPE: Record<string, string> = {
   fixed: 'фикс',
   hourly: 'почасово',
   free_consultation: 'бесплатная консультация',
+  contingency: 'процент от выигрыша',
+  to_be_agreed: 'договоримся позже',
 };
 
 export const SUBSCRIPTION_STATUS: Record<string, string> = {
@@ -480,6 +482,15 @@ export function StatusPill({ map, value }: { map: Record<string, string>; value:
       {map[value] ?? value}
     </Badge>
   );
+}
+
+/** A bid's fee as text: dollars, dollars per hour, a percent (stored in
+ * hundredths) or the words for the two fee-less kinds. */
+export function feeText(feeType: string, cents: number): string {
+  if (feeType === 'free_consultation') return 'бесплатная консультация';
+  if (feeType === 'to_be_agreed') return 'договоримся позже';
+  if (feeType === 'contingency') return `${cents / 100}% от выигрыша`;
+  return `${usd(cents)}${feeType === 'hourly' ? '/ч' : ''}`;
 }
 
 export function usd(cents: number | null | undefined, digits = 0): string {

@@ -1734,6 +1734,17 @@ class StaticTranslatorEn extends _MapTranslator {
         'cases.field.descriptionHint':
             "What happened, when, and what you'd like to achieve",
         'cases.field.descriptionError': 'At least {min} characters',
+        'cases.field.descriptionPlaceholder':
+            'What happened and when. No names, phone numbers or case numbers.',
+        'cases.field.descriptionPrivacy':
+            'Every attorney sees this text. Describe only what happened; contacts and documents go to your chosen attorney.',
+        'cases.fee.percent': 'Percent',
+        'cases.fee.later': 'Agree later',
+        'cases.fee.percentOf': '{percent}% of the recovery',
+        'cases.fee.laterTerms': 'Fee agreed later',
+        'cases.bidForm.percentLabel': 'Percent of the recovery',
+        'cases.bidForm.percentError': 'From 1 to 90',
+        'cases.bidForm.laterHint': 'The fee is agreed later in the chat.',
         'cases.field.noContacts':
             "Don't add contacts: they're shared automatically with the attorney you choose.",
         'cases.field.place': 'Location',

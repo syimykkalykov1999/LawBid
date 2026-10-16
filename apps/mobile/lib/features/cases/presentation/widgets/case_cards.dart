@@ -1089,7 +1089,7 @@ class BidCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: typography.body.copyWith(color: colors.text),
           ),
-          if (bid.isActive && !bid.isFreeConsultation) ...[
+          if (bid.isActive && !bid.isAcceptOnly) ...[
             const SizedBox(height: AppSpacing.md),
             RoundCounter(used: bid.roundCount, t: t),
           ],
@@ -1159,7 +1159,7 @@ class MyBidCard extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.xs),
           Expanded(child: MoneyText(terms)),
-          if (!bid.isFreeConsultation) ...[
+          if (!bid.isAcceptOnly) ...[
             const SizedBox(width: AppSpacing.sm),
             Flexible(child: RoundCounter(used: bid.roundCount, t: t)),
           ],

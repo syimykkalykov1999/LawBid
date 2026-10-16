@@ -190,7 +190,18 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   void addFiles(List<({Uint8List bytes, String? name})> picked) {
     final left = ref.read(uploadLimitsProvider)[UploadPlace.kase].maxFiles -
         state.photos.length;
-    for (final f in picked.take(left)) {
+    // Owner 2026-10-16: one video per case, the rest of the slots are
+    // photos and documents.
+    var hasVideo = state.photos.any((p) => _isVideoName(p.name));
+    final fit = <({Uint8List bytes, String? name})>[];
+    for (final f in picked) {
+      if (_isVideoName(f.name)) {
+        if (hasVideo) continue;
+        hasVideo = true;
+      }
+      fit.add(f);
+    }
+    for (final f in fit.take(left)) {
       final item =
           CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);
       state = state.copyWith(photos: [...state.photos, item]);
@@ -398,3 +409,8 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
           : isoDay(c.urgencyInfo.deadline!),
       deadlineKind: c.urgencyInfo.kind?.json,
     );
+
+bool _isVideoName(String? name) {
+  final n = name?.toLowerCase() ?? '';
+  return n.endsWith('.mp4') || n.endsWith('.mov');
+}

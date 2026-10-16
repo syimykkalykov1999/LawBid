@@ -34,6 +34,14 @@ export function detectMime(
   }
   if (isHeic(b)) return FILE_MIME.heic;
   if (isDocx(b)) return FILE_MIME.docx;
+  // Owner 2026-10-16: a video of a case. The container is the same as a
+  // voice note's (ISO-BMFF), so the client's declared type picks video.
+  if (
+    (declared === FILE_MIME.mp4 && isIsoVideo(b, M4A_BRANDS)) ||
+    (declared === FILE_MIME.mov && isIsoVideo(b, MOV_BRANDS))
+  ) {
+    return declared;
+  }
   if (isM4a(b)) return FILE_MIME.m4a;
   if (isWebmOpus(b)) return FILE_MIME.webm;
   const family = detectFamily(b);
@@ -143,6 +151,18 @@ const M4A_BRANDS = new Set([
   'mp4a',
   'dash',
 ]);
+
+/** QuickTime (iPhone) videos carry the `qt  ` brand. */
+const MOV_BRANDS = new Set(['qt  ', 'mp42', 'isom']);
+
+/** An ISO-BMFF file (an `ftyp` box) whose major brand is in [brands]. */
+function isIsoVideo(b: Buffer, brands: Set<string>): boolean {
+  return (
+    b.length >= 12 &&
+    b.subarray(4, 8).toString('latin1') === 'ftyp' &&
+    brands.has(b.subarray(8, 12).toString('latin1'))
+  );
+}
 
 const EBML_MAGIC = [0x1a, 0x45, 0xdf, 0xa3];
 const EBML_DOCTYPE_ID = 0x4282;

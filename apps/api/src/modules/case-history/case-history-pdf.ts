@@ -27,6 +27,13 @@ function money(cents: number | null): string {
   return `$${(cents / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }
 
+/** Owner 2026-10-16: percent bids keep hundredths of a percent in the cents. */
+function feeMoney(feeType: string, cents: number | null): string {
+  if (feeType === 'contingency' && cents !== null) return `${cents / 100}%`;
+  if (feeType === 'to_be_agreed') return 'to be agreed';
+  return money(cents);
+}
+
 function date(iso: string | null): string {
   return iso ? new Date(iso).toISOString().slice(0, 10) : '—';
 }
@@ -72,7 +79,7 @@ export function renderCaseHistoryPdf(input: {
     for (const c of input.cases) {
       doc.moveDown(1).fillColor(NAVY).fontSize(13).text(c.title);
       const bid = c.acceptedBid
-        ? ` · Accepted bid: ${money(c.acceptedBid.amountCents)} (${c.acceptedBid.feeType})`
+        ? ` · Accepted bid: ${feeMoney(c.acceptedBid.feeType, c.acceptedBid.amountCents)} (${c.acceptedBid.feeType})`
         : '';
       doc
         .fillColor(MUTED)
@@ -86,7 +93,11 @@ export function renderCaseHistoryPdf(input: {
       doc.moveDown(0.3).fillColor('#000000').fontSize(9);
       for (const e of c.events) {
         const extra = [
-          e.amountCents !== null ? money(e.amountCents) : '',
+          e.amountCents !== null && e.feeType
+            ? feeMoney(e.feeType, e.amountCents)
+            : e.amountCents !== null
+              ? money(e.amountCents)
+              : '',
           e.feeType ?? '',
           e.roundNo !== null ? `round ${e.roundNo}` : '',
           e.reason ?? '',

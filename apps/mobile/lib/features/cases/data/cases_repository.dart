@@ -536,7 +536,8 @@ class ApiCasesRepository implements CasesRepository {
             caseId: caseId,
             body: api.CreateBidDto(
               feeType: input.feeType,
-              amountCents: input.feeType == FeeType.freeConsultation
+              amountCents: input.feeType == FeeType.freeConsultation ||
+                      input.feeType == FeeType.toBeAgreed
                   ? null
                   : input.amountCents,
               message: input.message.trim(),

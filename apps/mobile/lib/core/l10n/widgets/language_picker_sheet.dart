@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_catalog_provider.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/platform/web_fonts.dart';
 
 /// Search + list language picker (2026-09-22 owner voice follow-up):
 /// tapping the welcome screen's globe icon used to toggle ru<->en directly;
@@ -41,6 +45,21 @@ class LanguagePickerSheet extends ConsumerStatefulWidget {
 class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
   final _searchController = TextEditingController();
   String _query = '';
+
+  /// Web: the names of the scripts Inter lacks need their font first
+  /// (see [WebFonts]); the list is rebuilt once it is in.
+  bool _namesReady = !kIsWeb;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb) return;
+    unawaited(
+      WebFonts.ensureNames().whenComplete(() {
+        if (mounted) setState(() => _namesReady = true);
+      }),
+    );
+  }
 
   @override
   void dispose() {
@@ -110,7 +129,6 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
                   color: colors.textSecondary,
                 ),
                 hintText: t.t('lang.picker.search.hint'),
-                autofocus: true,
                 onChanged: (value) => setState(() => _query = value),
                 semanticLabel: t.t('lang.picker.search.hint'),
               ),
@@ -122,6 +140,7 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
                         message: t.t('lang.picker.empty'),
                       )
                     : ListView.separated(
+                        key: ValueKey(_namesReady),
                         controller: scrollController,
                         itemCount: results.length,
                         separatorBuilder: (_, __) =>

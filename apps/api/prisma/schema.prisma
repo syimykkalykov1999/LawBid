@@ -264,6 +264,11 @@ enum FeeType {
   fixed
   hourly
   free_consultation
+  /// Owner 2026-10-16: a share of what the client recovers; `amount_cents`
+  /// holds the percent in hundredths (3300 = 33%).
+  contingency
+  /// Owner 2026-10-16: the fee is agreed later in the chat; stored as 0.
+  to_be_agreed
 
   @@map("fee_type")
 }

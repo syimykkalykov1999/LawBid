@@ -47,11 +47,21 @@ export const DOC_FORMATS = [
   'txt',
   'csv',
 ] as const;
+/** Owner 2026-10-16: videos (cases only, one per case). */
+export const VIDEO_FORMATS = ['mp4', 'mov'] as const;
 export type UploadFormat =
-  (typeof PHOTO_FORMATS)[number] | (typeof DOC_FORMATS)[number];
+  | (typeof PHOTO_FORMATS)[number]
+  | (typeof DOC_FORMATS)[number]
+  | (typeof VIDEO_FORMATS)[number];
 export const ALL_UPLOAD_FORMATS: readonly UploadFormat[] = [
   ...PHOTO_FORMATS,
   ...DOC_FORMATS,
+];
+
+/** Every format a setting may name (videos only where a place lists them). */
+export const KNOWN_UPLOAD_FORMATS: readonly UploadFormat[] = [
+  ...ALL_UPLOAD_FORMATS,
+  ...VIDEO_FORMATS,
 ];
 
 export const FORMAT_MIME: Record<UploadFormat, FileMime> = {
@@ -73,6 +83,8 @@ export const FORMAT_MIME: Record<UploadFormat, FileMime> = {
   rtf: FILE_MIME.rtf,
   txt: FILE_MIME.txt,
   csv: FILE_MIME.csv,
+  mp4: FILE_MIME.mp4,
+  mov: FILE_MIME.mov,
 };
 
 /** How a place counts files:
@@ -146,14 +158,14 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
   },
   case: {
     count: 'combined',
-    safeFormats: [...PHOTOS, ...DOC_FORMATS],
+    safeFormats: [...PHOTOS, ...DOC_FORMATS, ...VIDEO_FORMATS],
     ceiling: { count: 20, fileMb: 50, totalMb: 0 },
     defaults: {
       maxPhotos: 0,
       maxFiles: 9,
-      fileMb: 10,
+      fileMb: 25,
       totalMb: 0,
-      formats: ['jpeg', 'png', 'heic', 'pdf', 'docx'],
+      formats: ['jpeg', 'png', 'heic', 'pdf', 'docx', 'mp4', 'mov'],
     },
   },
   chat: {
