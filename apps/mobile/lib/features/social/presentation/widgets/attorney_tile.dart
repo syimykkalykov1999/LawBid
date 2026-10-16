@@ -134,17 +134,49 @@ class IdentityAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final avatar = GoldRingAvatar(
       url: url,
       initials: initials,
       size: size,
       ring: ring,
     );
-    // Owner 2026-10-13: green Identity badge once the profile is confirmed
-    // (identity level and above); grey while it is not; nothing at level 0.
-    if (trustLevel < 1 && !rejected) return avatar;
+    return TrustAvatarBadge(
+      id: id,
+      size: size,
+      trustLevel: trustLevel,
+      rejected: rejected,
+      child: avatar,
+    );
+  }
+}
+
+/// Any avatar of an attorney with the trust-level badge on its bottom-end
+/// corner. Owner 2026-10-13: green Identity badge once the profile is
+/// confirmed (identity level and above); grey while it is not; red when
+/// rejected; nothing at level 0. Tapping it opens the level's sheet.
+class TrustAvatarBadge extends ConsumerWidget {
+  const TrustAvatarBadge({
+    required this.id,
+    required this.size,
+    required this.trustLevel,
+    required this.child,
+    this.rejected = false,
+    super.key,
+  });
+
+  final String id;
+
+  /// Outer diameter of [child] (the badge is a fraction of it).
+  final double size;
+  final int trustLevel;
+  final bool rejected;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (trustLevel < 1 && !rejected) return child;
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final c = rejected
         ? (
             fill: colors.dangerTint,
@@ -152,7 +184,9 @@ class IdentityAvatar extends ConsumerWidget {
             border: colors.dangerText
           )
         : trustLevelColors(colors, trustLevel);
-    final badge = size * 0.4;
+    // Instagram-sized: 40% of the avatar, capped so a profile-size avatar
+    // does not get a oversized badge.
+    final badge = (size * 0.4).clamp(0.0, 24.0);
     final label = t.t(TrustLevels.nameKey(trustLevel));
     return SizedBox(
       width: size,
@@ -160,7 +194,7 @@ class IdentityAvatar extends ConsumerWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          avatar,
+          Positioned.fill(child: child),
           PositionedDirectional(
             end: -2,
             bottom: -2,
