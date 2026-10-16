@@ -79,7 +79,12 @@ describe('Economy (e2e)', () => {
   type Report = {
     enabled: boolean;
     guard: 'ok' | 'limited';
-    figures: { allowedUsd: number; projectedUsd: number; lines: unknown[] };
+    figures: {
+      allowedUsd: number;
+      revenue30dUsd: number;
+      projectedUsd: number;
+      lines: unknown[];
+    };
     settings: { percent: number; thresholdUsd: number; ceilingMode: string };
     containers: { onAws: boolean };
     capacity: { onAws: boolean; dbTiers: unknown[] };
@@ -100,8 +105,12 @@ describe('Economy (e2e)', () => {
       thresholdUsd: 150,
       ceilingMode: 'auto',
     });
-    // No revenue yet: the $150 floor is the allowance.
-    expect(r.figures.allowedUsd).toBe(150);
+    // Other suites share this database and may have paid rows, so the
+    // allowance is the larger of the $150 floor and 50% of what is earned.
+    expect(r.figures.allowedUsd).toBeCloseTo(
+      Math.max(150, r.figures.revenue30dUsd * 0.5),
+      1,
+    );
     expect(r.figures.lines).toHaveLength(4);
     expect(r.containers.onAws).toBe(false);
     expect(r.capacity.dbTiers.length).toBeGreaterThan(0);
