@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -213,7 +214,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   Navigator.of(sheet).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => ChatFilesScreen(conversationId: c.id),
+                      builder: (_) =>
+                          webPageRoute(ChatFilesScreen(conversationId: c.id)),
                     ),
                   );
                 },

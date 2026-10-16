@@ -49,4 +49,27 @@ void main() {
     final r = await bodyRect(t, '/chats', const Size(390, 844));
     expect(r.width, 390);
   });
+
+  testWidgets('webPageRoute keeps the side menu on a Navigator.push screen',
+      (t) async {
+    const size = Size(1400, 900);
+    t.view.physicalSize = size;
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    adaptiveShellOverride = true;
+    addTearDown(() => adaptiveShellOverride = null);
+    await t.pumpWidget(
+      uxApp(
+        Scaffold(
+          body: webPageRoute(const SizedBox.expand(key: Key('page'))),
+        ),
+        theme: AppTheme.dark(),
+        size: size,
+        overrides: uxOverrides(),
+      ),
+    );
+    await t.pump();
+    expect(find.byType(AppSideNav), findsOneWidget);
+    expect(t.getRect(find.byKey(const Key('page'))).width, 680);
+  });
 }

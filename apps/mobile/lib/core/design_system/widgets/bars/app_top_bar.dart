@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/glass_panel.dart';
 
@@ -15,7 +17,9 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget>? actions;
 
   @override
-  Size get preferredSize => const Size.fromHeight(56);
+  // Owner 2026-10-16 (web): as high as the feed's header, not higher.
+  Size get preferredSize =>
+      Size.fromHeight(adaptiveShellOn ? AppSizes.feedHeader : 56);
 
   @override
   Widget build(BuildContext context) {

@@ -54,9 +54,18 @@ class ContentColumn extends StatelessWidget {
 /// app the side menu stays at the edge; sign-in and onboarding get a
 /// narrower column and no menu. On a phone-sized window it does nothing.
 class WebPageFrame extends ConsumerWidget {
-  const WebPageFrame({required this.location, required this.child, super.key});
+  const WebPageFrame({
+    required this.location,
+    required this.child,
+    this.imperative = false,
+    super.key,
+  });
 
   final String location;
+
+  /// A screen pushed with `Navigator.push` (not a go_router page): a tab
+  /// tap closes it first, so it does not stay above the new tab.
+  final bool imperative;
   final Widget child;
 
   @override
@@ -88,7 +97,12 @@ class WebPageFrame extends ConsumerWidget {
             child: AppSideNav(
               tabs: tabs,
               currentIndex: -1,
-              onTabSelected: (i) => context.go(paths[i]),
+              onTabSelected: (i) {
+                if (imperative) {
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                }
+                context.go(paths[i]);
+              },
               onCreatePressed: () => showCreateSheet(context, ref),
               extended: extended,
               createLabel: translator.t('nav.create'),
@@ -105,3 +119,8 @@ class WebPageFrame extends ConsumerWidget {
     );
   }
 }
+
+/// Owner 2026-10-16 (web): a screen opened with `Navigator.push` keeps the
+/// side menu and the column like the go_router pages. Phones: [child] as is.
+Widget webPageRoute(Widget child) =>
+    WebPageFrame(location: '', imperative: true, child: child);

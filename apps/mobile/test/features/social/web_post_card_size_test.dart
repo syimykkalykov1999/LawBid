@@ -10,7 +10,6 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 
-import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 
 /// Owner 2026-10-15: a card's height follows its content (like Instagram):

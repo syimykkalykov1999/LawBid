@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -22,7 +23,9 @@ import 'package:share_plus/share_plus.dart';
 /// file "Add files"); null when the user backs out.
 Future<DocTemplate?> pickTemplate(BuildContext context) =>
     Navigator.of(context).push<DocTemplate>(
-      MaterialPageRoute(builder: (_) => const TemplatesScreen(picker: true)),
+      MaterialPageRoute(
+        builder: (_) => webPageRoute(const TemplatesScreen(picker: true)),
+      ),
     );
 
 /// Owner 2026-10-05 — Settings → Document templates: search, a state

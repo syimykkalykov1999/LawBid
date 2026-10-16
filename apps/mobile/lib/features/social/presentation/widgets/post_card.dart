@@ -4,6 +4,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1647,7 +1648,8 @@ class _TopicChips extends ConsumerWidget {
             icon: practiceGlyph(pr.categoryCode),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => PracticePostsScreen(practice: pr.code),
+                builder: (_) =>
+                    webPageRoute(PracticePostsScreen(practice: pr.code)),
               ),
             ),
           )
@@ -3096,7 +3098,8 @@ class PostPracticeChips extends ConsumerWidget {
 
     void openPractice(String code) => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => PracticePostsScreen(practice: code),
+            builder: (_) =>
+                webPageRoute(PracticePostsScreen(practice: code)),
           ),
         );
     // A post without a practice has no chip row.
