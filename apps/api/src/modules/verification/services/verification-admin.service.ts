@@ -373,6 +373,11 @@ export class VerificationAdminService {
               verifier: { connect: { id: admin.id } },
               rejection_code: null,
               rejection_note: dto.note || null,
+              // A person looked at the document: an unusual shape is settled.
+              ...(license.registry_flag === 'format_unusual' && {
+                registry_flag: null,
+                registry_flagged_at: null,
+              }),
             }
           : {
               license_status: 'rejected',

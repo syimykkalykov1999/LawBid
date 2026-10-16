@@ -5009,3 +5009,20 @@ model UserActivityDay {
   @@index([day])
   @@map("user_activity_days")
 }
+
+/// Owner 2026-10-16: a bar number that did not fit its state's shape is not
+/// refused; it goes to manual review. The SHAPE (digits → 9, letters → A,
+/// never the number itself) is counted here so the admin sees new patterns
+/// and widens `verification.bar_formats` without a release.
+model BarFormatMiss {
+  id         String   @id @default(uuid()) @db.Uuid
+  state_code String   @db.VarChar(2)
+  shape      String   @db.VarChar(40)
+  hits       Int      @default(1)
+  first_seen DateTime @default(now()) @db.Timestamptz
+  last_seen  DateTime @default(now()) @db.Timestamptz
+
+  @@unique([state_code, shape])
+  @@index([last_seen])
+  @@map("bar_format_misses")
+}

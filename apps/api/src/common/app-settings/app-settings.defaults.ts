@@ -186,7 +186,12 @@ export const OWNER_BADGE_SETTINGS = {
 export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.require_bar_document': false,
   'verification.require_identity': false,
-  'verification.self_attestation_auto_approve': true,
+  // Owner 2026-10-16: off — a new license stays pending until the state
+  // registry matches it or an admin approves it (with the bar card).
+  'verification.self_attestation_auto_approve': false,
+  // Owner 2026-10-16: where no registry checks the number, the bar card is
+  // required (a person decides from it). Off = only when switched on above.
+  'verification.bar_document_for_manual_states': true,
 } as const;
 
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this

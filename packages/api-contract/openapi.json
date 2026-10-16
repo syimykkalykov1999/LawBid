@@ -85768,7 +85768,8 @@
               "name_mismatch",
               "not_found",
               "not_active",
-              "duplicate_claim"
+              "duplicate_claim",
+              "format_unusual"
             ],
             "type": "string",
             "description": "Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified)."
@@ -86520,6 +86521,11 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "lookupUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The state's own public lookup page (a link for the verifier)."
           }
         },
         "required": [
@@ -86533,7 +86539,35 @@
           "testBarNumber",
           "lastTestAt",
           "lastTestResult",
-          "updatedAt"
+          "updatedAt",
+          "lookupUrl"
+        ]
+      },
+      "BarFormatMissDto": {
+        "type": "object",
+        "properties": {
+          "stateCode": {
+            "type": "string",
+            "example": "TX"
+          },
+          "shape": {
+            "type": "string",
+            "example": "99999999",
+            "description": "The shape of a number no rule recognised (9 = digit, A = letter)."
+          },
+          "hits": {
+            "type": "number"
+          },
+          "lastSeen": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "stateCode",
+          "shape",
+          "hits",
+          "lastSeen"
         ]
       },
       "StateRegistriesOverviewDto": {
@@ -86554,12 +86588,20 @@
             "items": {
               "$ref": "#/components/schemas/StateRegistryDto"
             }
+          },
+          "formatMisses": {
+            "description": "Bar-number shapes no state rule recognised (they went to manual review): widen verification.bar_formats from here.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BarFormatMissDto"
+            }
           }
         },
         "required": [
           "secretsEnabled",
           "adapterTypes",
-          "items"
+          "items",
+          "formatMisses"
         ]
       },
       "StateRegistriesOverviewEnvelope": {

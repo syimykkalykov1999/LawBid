@@ -129,6 +129,20 @@ export default async function globalSetup(): Promise<void> {
     create: { key: 'sms.login_code_enabled', value: true },
     update: { value: true },
   });
+  // Owner 2026-10-16: production keeps a new license pending until a registry
+  // or a person confirms it, with the bar card where nobody checks the
+  // number; the suites type arbitrary numbers and expect the old sworn
+  // self-approval. The suites about the new rules switch them on.
+  for (const [key, value] of [
+    ['verification.self_attestation_auto_approve', true],
+    ['verification.bar_document_for_manual_states', false],
+  ] as const) {
+    await seed.appConfig.upsert({
+      where: { key },
+      create: { key, value },
+      update: { value },
+    });
+  }
   await seed.$disconnect();
   await admin.$disconnect();
 

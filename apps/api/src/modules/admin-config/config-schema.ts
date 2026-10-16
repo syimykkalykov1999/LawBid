@@ -118,6 +118,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: OTP_DAILY_LIMIT_MIN,
     max: OTP_DAILY_LIMIT_MAX,
   };
+  out['verification.bar_document_for_manual_states'] = {
+    ...out['verification.bar_document_for_manual_states'],
+    description:
+      'On: a license in a state without an automatic registry (or with an unusual number shape) needs a photo of the bar card; a person approves it. Off: only when «require_bar_document» is on.',
+  };
   // Owner 2026-10-16: fewer SMS.
   out['sms.login_code_enabled'] = {
     ...out['sms.login_code_enabled'],

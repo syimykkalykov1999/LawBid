@@ -722,6 +722,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.license.barNumber.hint': 'Номер лицензии',
         'verification.license.barNumber.helper':
             'Буквы и цифры, как в лицензии.',
+        'verification.license.barNumber.soft':
+            'Необычный номер для этого штата. Его всё равно можно добавить: мы проверим его вручную по фото вашей карточки адвоката.',
         'verification.license.barNumber.invalid':
             'Введите номер лицензии: буквы и цифры, до 32 символов.',
         'verification.license.expires': 'Срок действия (если указан)',
@@ -2142,6 +2144,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.license.barNumber.hint': 'License number',
         'verification.license.barNumber.helper':
             'Letters and digits as on your license.',
+        'verification.license.barNumber.soft':
+            'This number looks unusual for this state. You can still add it: we will check it by hand with a photo of your bar card.',
         'verification.license.barNumber.invalid':
             'Enter the bar number: letters and digits, up to 32 characters.',
         'verification.license.expires': 'Expiry date (if any)',
