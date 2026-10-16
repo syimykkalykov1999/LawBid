@@ -32,6 +32,11 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   final _controller = TextEditingController();
   String? _localError;
 
+  /// Re-entry guard: `phoneStatus` is awaited before the flow's own
+  /// `isSubmitting` flips, so a second tap / Enter in that window would
+  /// push the code screen twice (back then needs two presses).
+  bool _submitting = false;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -39,6 +44,20 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
   }
 
   Future<void> _submit(
+    BuildContext context,
+    WidgetRef ref,
+    Translator t,
+  ) async {
+    if (_submitting) return;
+    _submitting = true;
+    try {
+      await _submitOnce(context, ref, t);
+    } finally {
+      _submitting = false;
+    }
+  }
+
+  Future<void> _submitOnce(
     BuildContext context,
     WidgetRef ref,
     Translator t,

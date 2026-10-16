@@ -50,15 +50,26 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     super.dispose();
   }
 
+  /// Re-entry guard: a double tap / Enter before the button rebuilds as
+  /// loading would otherwise push the code screen twice.
+  bool _submitting = false;
+
   Future<void> _submit(Translator t) async {
+    if (_submitting) return;
     if (!isPlausibleEmail(_controller.text)) {
       setState(() => _localError = t.t('auth.email.error.invalid'));
       return;
     }
     setState(() => _localError = null);
-    final ok = await ref
-        .read(onboardingFlowProvider.notifier)
-        .submitEmail(_controller.text);
+    _submitting = true;
+    final bool ok;
+    try {
+      ok = await ref
+          .read(onboardingFlowProvider.notifier)
+          .submitEmail(_controller.text);
+    } finally {
+      _submitting = false;
+    }
     if (ok && mounted) await context.push(AuthRoutes.otp);
   }
 

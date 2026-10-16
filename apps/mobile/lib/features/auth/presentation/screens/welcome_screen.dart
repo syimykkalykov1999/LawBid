@@ -157,6 +157,7 @@ class WelcomeScreen extends ConsumerWidget {
                                     ? AppButtonVariant.ctaBright
                                     : AppButtonVariant.primary,
                                 onPressed: () {
+                                  if (!_isTopRoute(context)) return;
                                   ref
                                       .read(onboardingFlowProvider.notifier)
                                       .goToPhoneStep();
@@ -174,8 +175,11 @@ class WelcomeScreen extends ConsumerWidget {
                                     key: const ValueKey('welcome-login'),
                                     label: t.t('auth.welcome.signIn'),
                                     variant: AppButtonVariant.secondary,
-                                    onPressed: () =>
-                                        context.push(AuthRoutes.login),
+                                    onPressed: () {
+                                      if (_isTopRoute(context)) {
+                                        context.push(AuthRoutes.login);
+                                      }
+                                    },
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -184,8 +188,11 @@ class WelcomeScreen extends ConsumerWidget {
                                     key: const ValueKey('welcome-assistant'),
                                     label: t.t('auth.welcome.assistant'),
                                     variant: AppButtonVariant.secondary,
-                                    onPressed: () =>
-                                        context.push(AuthRoutes.assistant),
+                                    onPressed: () {
+                                      if (_isTopRoute(context)) {
+                                        context.push(AuthRoutes.assistant);
+                                      }
+                                    },
                                   ),
                                 ),
                               ],
@@ -242,3 +249,8 @@ class WelcomeScreen extends ConsumerWidget {
     );
   }
 }
+
+/// False once another screen has been pushed over this one, so a queued
+/// second tap (button animation, double tap) can't push the same route twice.
+bool _isTopRoute(BuildContext context) =>
+    ModalRoute.of(context)?.isCurrent ?? true;
