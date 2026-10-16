@@ -153,3 +153,11 @@ variable "web_certificate_arn" {
   type    = string
   default = ""
 }
+variable "web_create_certificate" {
+  type    = bool
+  default = false
+}
+variable "web_extra_hosts" {
+  type    = list(string)
+  default = []
+}
