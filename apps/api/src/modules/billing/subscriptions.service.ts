@@ -73,6 +73,9 @@ const PAYMENTS_PAGE = 20;
  * after creation is driven by webhooks (SubscriptionSyncService).
  */
 import { ReferralsService } from '../referrals/referrals.service';
+/** `sessionId` of a payment made on our own card page. */
+export const OWN_PAGE_SESSION_PREFIX = 'own:';
+
 @Injectable()
 export class SubscriptionsService implements OnModuleDestroy {
   private readonly logger = new Logger(SubscriptionsService.name);
@@ -228,6 +231,33 @@ export class SubscriptionsService implements OnModuleDestroy {
     };
   }
 
+  /** Owner 2026-10-16: price and trial of an order, for the link to our own
+   * card page (nothing is created at the provider). */
+  async quote(
+    user: RequestUser,
+    req: CheckoutRequestDto = {},
+  ): Promise<{
+    priceCents: number;
+    trialDays: number;
+    trialEligible: boolean;
+    promo: CheckoutSessionDto['promo'] | undefined;
+  }> {
+    const o = await this.prepareOrder(user, req, false);
+    return {
+      priceCents: o.priceCents,
+      trialDays: o.planTrialDays,
+      trialEligible: o.eligible,
+      promo: o.promo
+        ? {
+            code: o.promo.code,
+            discountType: o.promo.discount_type as PromoDiscountType,
+            discountCents: promoDiscountCents(o.promo, o.priceCents),
+            freeDays: o.promoDays || null,
+          }
+        : undefined,
+    };
+  }
+
   /**
    * Owner 2026-10-11 (in-app payment sheet): the order the attorney chose
    * (plan, extra seats, assistant phones, promo code) turned into prices,
@@ -373,7 +403,11 @@ export class SubscriptionsService implements OnModuleDestroy {
     sessionId: string,
   ): Promise<SubscriptionMeDto> {
     await this.verifiedAttorney(user);
-    await this.applyCheckout(sessionId, user.sub);
+    // Owner 2026-10-16: our own card page confirms on the server itself; the
+    // app only asks for the result.
+    if (!sessionId.startsWith(OWN_PAGE_SESSION_PREFIX)) {
+      await this.applyCheckout(sessionId, user.sub);
+    }
     return this.me(user);
   }
 

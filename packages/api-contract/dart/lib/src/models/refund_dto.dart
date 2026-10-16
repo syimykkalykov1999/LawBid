@@ -37,7 +37,9 @@ class RefundDto {
   final RefundDtoStatus status;
   final String? stripeRefundId;
   final String? failureReason;
-  final String adminId;
+
+  /// null = issued by the system (verification lost).
+  final String? adminId;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$RefundDtoToJson(this);

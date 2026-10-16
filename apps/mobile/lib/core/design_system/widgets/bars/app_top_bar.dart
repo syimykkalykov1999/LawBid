@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
-import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/glass_panel.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 
 /// Generic top bar (file 01 §15 component list). The Feed screen uses the
 /// dedicated `AppFeedHeader` (docs/07 §10: small static ScalesLogo left;

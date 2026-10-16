@@ -4,7 +4,6 @@ import 'dart:ui' show ImageFilter;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +15,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -3098,8 +3098,7 @@ class PostPracticeChips extends ConsumerWidget {
 
     void openPractice(String code) => Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) =>
-                webPageRoute(PracticePostsScreen(practice: code)),
+            builder: (_) => webPageRoute(PracticePostsScreen(practice: code)),
           ),
         );
     // A post without a practice has no chip row.

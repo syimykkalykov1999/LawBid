@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/presentation/chats_icon_button.dart';
@@ -113,7 +114,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
     if (_tab == _FeedTab.reels) {
       return FeedChrome(
         controller: _chrome,
-        child: _ReelsTab(header: buildHeader(onDark: true)),
+        child: _ReelsTab(
+          header: buildHeader(onDark: !_webReelsLayout(context)),
+        ),
       );
     }
     final topInset = MediaQuery.paddingOf(context).top;
@@ -345,6 +348,12 @@ class FeedPreviewIllustration extends StatelessWidget {
 /// The Reels tab (owner 2026-10-12): the vertical player over the whole
 /// screen; the app header (same as in Posts) and the topic filters lie over
 /// the video in white, no bar or fill; the nav bar floats over it.
+/// Owner 2026-10-16 (web): in a wide window the reel is a 9:16 card on the
+/// page colour (instagram.com/reels); the header and filters sit above it
+/// in the normal colours, not over the video.
+bool _webReelsLayout(BuildContext context) =>
+    adaptiveShellOn && MediaQuery.sizeOf(context).width >= 520;
+
 class _ReelsTab extends ConsumerStatefulWidget {
   const _ReelsTab({required this.header});
 
@@ -367,6 +376,33 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
     final legalOnly =
         ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
     final media = MediaQuery.of(context);
+    if (_webReelsLayout(context)) {
+      return Scaffold(
+        body: Column(
+          children: [
+            SizedBox(height: media.padding.top),
+            MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: widget.header,
+            ),
+            TopicFilterBar(
+              category: _category,
+              onCategory: (v) => setState(() => _category = v),
+              showNews: false,
+            ),
+            Expanded(
+              child: ReelsScreen(
+                key: ValueKey('reels|$_category|$legalOnly'),
+                embedded: true,
+                filter: (p) => _accepts(p, legalOnly: legalOnly),
+                practice: _category,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return SystemNavBandColor(
       color: Colors.black,
       child: AnnotatedRegion<SystemUiOverlayStyle>(

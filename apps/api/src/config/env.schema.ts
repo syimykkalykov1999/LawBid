@@ -207,6 +207,9 @@ export const envSchema = z
     // Owner 2026-10-02: local stand-in for Bunny Stream (tools/fake-bunny.mjs)
     // so reels can be tried end to end on the emulator without keys.
     DEV_FAKE_BUNNY: envBoolean(false),
+    // The host:port the fake CDN is reached at from the client: the Android
+    // emulator sees the Mac as 10.0.2.2, a browser on the Mac as localhost.
+    DEV_FAKE_BUNNY_HOST: z.string().optional(),
 
     // --- SMS provider (stage 1.4; auto-selection: provider-selection.ts) ---
     // auto (default): twilio once every TWILIO_* credential below is set,

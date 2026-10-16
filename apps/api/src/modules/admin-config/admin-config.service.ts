@@ -1,4 +1,8 @@
 import {
+  casePaymentsUnlockedForTests,
+  LOCKED_OFF_FLAGS,
+} from '../../common/feature-flags/locked-flags';
+import {
   BadRequestException,
   ConflictException,
   Inject,
@@ -123,7 +127,11 @@ export class AdminConfigService {
     const rows = await this.prisma.featureFlag.findMany({
       orderBy: { key: 'asc' },
     });
-    return Promise.all(rows.map((r) => this.presentFlag(r)));
+    // Owner 2026-10-16: a locked-off switch is not offered at all.
+    const shown = casePaymentsUnlockedForTests()
+      ? rows
+      : rows.filter((r) => !LOCKED_OFF_FLAGS.includes(r.key));
+    return Promise.all(shown.map((r) => this.presentFlag(r)));
   }
 
   async updateFlag(
@@ -134,6 +142,18 @@ export class AdminConfigService {
     const before = await this.prisma.featureFlag.findUnique({ where: { key } });
     if (!before) throw notFound('Feature flag');
     const enabling = dto.enabled === true && !before.enabled;
+    if (
+      dto.enabled === true &&
+      LOCKED_OFF_FLAGS.includes(key) &&
+      !casePaymentsUnlockedForTests()
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.FLAG_PROVIDER_KEYS_MISSING,
+        message:
+          'LawBid does not process payments between clients and attorneys; this switch stays off.',
+        details: { missingKeys: [], locked: true },
+      });
+    }
     if (enabling && UNBUILT_FLAGS.has(key)) {
       throw new ConflictException({
         code: ErrorCode.FLAG_PROVIDER_KEYS_MISSING,

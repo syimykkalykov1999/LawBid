@@ -232,7 +232,8 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     expect((start.body as Body).data).toMatchObject({
       trialEligible: true,
       priceCents: 39_900,
-      trialDays: 14,
+      // Owner 2026-10-16: the owner's plan says 7 days (was 14 in code).
+      trialDays: 7,
     });
     expect(
       ((start.body as Body).data.clientSecret as string).length,
