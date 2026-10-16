@@ -112,4 +112,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('tabs and search share one row: magnifier opens, ✕ closes',
+      (tester) async {
+    await pumpCases(tester, [_case('a', CaseStatus.open)]);
+    final open = find.byKey(const ValueKey('mine-search-open'));
+    final close = find.byKey(const ValueKey('mine-search-close'));
+    // Owner 2026-10-16: closed — the two tabs and the magnifier, one row.
+    expect(find.text('Cases'), findsOneWidget);
+    expect(find.text('Planner'), findsOneWidget);
+    expect(open, findsOneWidget);
+    expect(close, findsNothing);
+    expect(
+      (tester.getCenter(open).dy - tester.getCenter(find.text('Cases')).dy)
+          .abs(),
+      lessThan(4),
+    );
+    await tester.tap(open);
+    await tester.pumpAndSettle();
+    // Open — the field replaces the tabs, ✕ at its end.
+    expect(find.byKey(const ValueKey('mine-search')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mine-filters')), findsOneWidget);
+    expect(close, findsOneWidget);
+    expect(find.text('Planner'), findsNothing);
+    await tester.tap(close);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mine-search')), findsNothing);
+    expect(find.text('Planner'), findsOneWidget);
+    expect(open, findsOneWidget);
+    // The Active · Completed chips are untouched.
+    expect(find.text('Active'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

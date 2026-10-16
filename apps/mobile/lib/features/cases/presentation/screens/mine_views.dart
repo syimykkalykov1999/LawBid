@@ -73,10 +73,6 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
             ChromeCollapse(
               child: Column(
                 children: [
-                  MineSearchBar(
-                    search: _search,
-                    onChanged: (v) => setState(() => _search = v),
-                  ),
                   MineActiveFilters(
                     search: _search,
                     onChanged: (v) => setState(() => _search = v),
@@ -113,13 +109,20 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       controller: _chrome,
       child: Column(
         children: [
-          PillTabs<_ClientTab>(
-            value: _tab,
-            tabs: [
-              (_ClientTab.cases, t.t('mine.tab.cases')),
-              (_ClientTab.planner, t.t('mine.tab.tasks')),
-            ],
-            onChanged: (v) => setState(() => _tab = v),
+          // Owner 2026-10-16: tabs and search in one row.
+          MineTabsSearchRow(
+            searchable: _tab == _ClientTab.cases,
+            search: _search,
+            onChanged: (v) => setState(() => _search = v),
+            tabs: PillTabs<_ClientTab>(
+              padding: EdgeInsets.zero,
+              value: _tab,
+              tabs: [
+                (_ClientTab.cases, t.t('mine.tab.cases')),
+                (_ClientTab.planner, t.t('mine.tab.tasks')),
+              ],
+              onChanged: (v) => setState(() => _tab = v),
+            ),
           ),
           Expanded(
             child: TabSwipe<_ClientTab>(
@@ -233,29 +236,19 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final invites = _section == _BidsSection.bids && _kind == _BidKind.invites;
-    final search = Column(
-      children: [
-        MineSearchBar(
-          search: _search,
-          onChanged: (v) => setState(() => _search = v),
-          // Owner 2026-10-15: «Saved» is a bookmark right of the search.
-          action: AppIconButton(
-            key: const ValueKey('mine-saved-toggle'),
-            icon: AppIcon(
-              _saved
-                  ? AppIcons.bookmarkRounded
-                  : AppIcons.bookmarkBorderRounded,
-              color: _saved ? colors.goldDark : colors.text,
-            ),
-            semanticLabel: t.t('mine.tab.saved'),
-            onPressed: () => setState(() => _saved = !_saved),
-          ),
-        ),
-        MineActiveFilters(
-          search: _search,
-          onChanged: (v) => setState(() => _search = v),
-        ),
-      ],
+    final filters = MineActiveFilters(
+      search: _search,
+      onChanged: (v) => setState(() => _search = v),
+    );
+    // Owner 2026-10-15: «Saved» is a bookmark right of the search.
+    final saved = AppIconButton(
+      key: const ValueKey('mine-saved-toggle'),
+      icon: AppIcon(
+        _saved ? AppIcons.bookmarkRounded : AppIcons.bookmarkBorderRounded,
+        color: _saved ? colors.goldDark : colors.text,
+      ),
+      semanticLabel: t.t('mine.tab.saved'),
+      onPressed: () => setState(() => _saved = !_saved),
     );
     final sections = Padding(
       padding: const EdgeInsets.only(top: AppSpacing.sm),
@@ -321,12 +314,12 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       _AttorneyTab.cases => Column(
           key: const ValueKey('cases'),
           children: [
-            // Owner 2026-10-15: search, bookmark and chips hide on scroll
-            // down and return on scroll up.
+            // Owner 2026-10-15: the filter chips hide on scroll down and
+            // return on scroll up.
             ChromeCollapse(
               child: Column(
                 children: [
-                  search,
+                  filters,
                   if (!_saved) sections,
                   const SizedBox(height: AppSpacing.sm),
                 ],
@@ -348,13 +341,21 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       controller: _chrome,
       child: Column(
         children: [
-          PillTabs<_AttorneyTab>(
-            value: _tab,
-            tabs: [
-              (_AttorneyTab.cases, t.t('mine.tab.cases')),
-              (_AttorneyTab.planner, t.t('mine.tab.tasks')),
-            ],
-            onChanged: (v) => setState(() => _tab = v),
+          // Owner 2026-10-16: tabs and search in one row.
+          MineTabsSearchRow(
+            searchable: _tab == _AttorneyTab.cases,
+            search: _search,
+            onChanged: (v) => setState(() => _search = v),
+            action: _tab == _AttorneyTab.cases ? saved : null,
+            tabs: PillTabs<_AttorneyTab>(
+              padding: EdgeInsets.zero,
+              value: _tab,
+              tabs: [
+                (_AttorneyTab.cases, t.t('mine.tab.cases')),
+                (_AttorneyTab.planner, t.t('mine.tab.tasks')),
+              ],
+              onChanged: (v) => setState(() => _tab = v),
+            ),
           ),
           Expanded(
             child: TabSwipe<_AttorneyTab>(
