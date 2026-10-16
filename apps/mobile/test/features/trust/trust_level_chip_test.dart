@@ -278,6 +278,33 @@ void _badgeTests() {
       expect((dot.decoration! as BoxDecoration).color, colors.success);
     });
 
+    testWidgets('client profile: gold badge, not tappable', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          const TrustAvatarBadge(
+            id: 'c1',
+            size: 76,
+            trustLevel: 0,
+            goldLabel: 'Verified',
+            child: SizedBox.square(dimension: 76),
+          ),
+        ),
+      );
+      final colors = AppTheme.light().extension<AppColorTokens>()!;
+      expect(find.byIcon(AppIcons.verifiedUserOutlined), findsOneWidget);
+      final dot = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(GestureDetector),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect((dot.decoration! as BoxDecoration).color, colors.goldAccent);
+      expect(tester.widget<GestureDetector>(find.byType(GestureDetector)).onTap,
+          isNull);
+    });
+
     testWidgets('rejected draws a red cross', (tester) async {
       await tester.pumpWidget(badged(0, rejected: true));
       expect(find.byIcon(AppIcons.closeRounded), findsOneWidget);

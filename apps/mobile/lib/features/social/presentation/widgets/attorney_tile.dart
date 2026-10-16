@@ -161,8 +161,13 @@ class TrustAvatarBadge extends ConsumerWidget {
     required this.trustLevel,
     required this.child,
     this.rejected = false,
+    this.goldLabel,
     super.key,
   });
+
+  /// Client profile: a gold badge (not tappable) with this semantic label
+  /// instead of the attorney's trust level; [trustLevel] is ignored.
+  final String? goldLabel;
 
   final String id;
 
@@ -174,7 +179,8 @@ class TrustAvatarBadge extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (trustLevel < 1 && !rejected) return child;
+    final gold = goldLabel;
+    if (gold == null && trustLevel < 1 && !rejected) return child;
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final c = rejected
@@ -187,7 +193,7 @@ class TrustAvatarBadge extends ConsumerWidget {
     // Instagram-sized: 40% of the avatar, capped so a profile-size avatar
     // does not get a oversized badge.
     final badge = (size * 0.4).clamp(0.0, 24.0);
-    final label = t.t(TrustLevels.nameKey(trustLevel));
+    final label = TrustLevels.nameKey(trustLevel);
     return SizedBox(
       width: size,
       height: size,
@@ -199,22 +205,24 @@ class TrustAvatarBadge extends ConsumerWidget {
             end: -2,
             bottom: -2,
             child: Semantics(
-              button: true,
-              label: t.t('trust.chip.label', {'level': label}),
+              button: gold == null,
+              label: gold ?? t.t('trust.chip.label', {'level': t.t(label)}),
               excludeSemantics: true,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => showTrustLevelSheet(
-                  context,
-                  attorneyId: id,
-                  level: trustLevel,
-                ),
+                onTap: gold != null
+                    ? null
+                    : () => showTrustLevelSheet(
+                          context,
+                          attorneyId: id,
+                          level: trustLevel,
+                        ),
                 child: Container(
                   width: badge,
                   height: badge,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: c.fg,
+                    color: gold != null ? colors.goldAccent : c.fg,
                     border: Border.all(color: colors.bg, width: 2),
                   ),
                   child: Center(
@@ -808,7 +816,10 @@ class FollowButton extends ConsumerWidget {
                       t.t(following ? 'follow.following' : 'follow.follow'),
                       maxLines: 1,
                       style: type.button.copyWith(
-                        fontSize: 14,
+                        // Owner 2026-10-16: the small pills (feed, player,
+                        // lists) are 13sp like the player's; the profile
+                        // button stays 14sp like Message.
+                        fontSize: expanded ? 14 : 13,
                         color: following ? colors.text : Colors.white,
                       ),
                     ),
