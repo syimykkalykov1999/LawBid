@@ -86,20 +86,46 @@ android {
 
     signingConfigs {
         create("upload") {
-            storeFile = System.getenv("ANDROID_KEYSTORE_PATH")?.let { file(it) }
-            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            // Keystore from the environment (CI) or, for a build on the
+            // owner's Mac, from the git-ignored android/key.properties
+            // (storeFile, storePassword, keyAlias, keyPassword).
+            val props = java.util.Properties().apply {
+                val f = rootProject.file("key.properties")
+                if (f.exists()) f.inputStream().use { load(it) }
+            }
+            fun cfg(env: String, key: String): String? =
+                System.getenv(env) ?: props.getProperty(key)
+            storeFile = cfg("ANDROID_KEYSTORE_PATH", "storeFile")?.let { file(it) }
+            storePassword = cfg("ANDROID_KEYSTORE_PASSWORD", "storePassword")
+            keyAlias = cfg("ANDROID_KEY_ALIAS", "keyAlias")
+            keyPassword = cfg("ANDROID_KEY_PASSWORD", "keyPassword")
+        }
+    }
+
+    val hasUploadKey = System.getenv("ANDROID_KEYSTORE_PATH") != null ||
+        rootProject.file("key.properties").exists()
+
+    // A store bundle signed with the debug key is rejected by Google Play
+    // after a long build; fail early with a clear message instead. Local
+    // `flutter run --release` / `build apk --release` still use the debug key.
+    gradle.taskGraph.whenReady {
+        val bundlesProd = allTasks.any {
+            it.name.startsWith("bundle") && it.name.endsWith("Release") && it.name.contains("Prod")
+        }
+        if (bundlesProd && !hasUploadKey) {
+            throw GradleException(
+                "Release bundle needs the upload key: create android/key.properties " +
+                    "or set ANDROID_KEYSTORE_PATH (see docs/runbooks/STORE_RELEASE.md)."
+            )
         }
     }
 
     buildTypes {
         release {
-            // docs/06 §7.4: the upload keystore comes from the environment
-            // (ANDROID_KEYSTORE_PATH / _PASSWORD / KEY_ALIAS / KEY_PASSWORD, set
-            // by the mobile-release workflow from GitHub Secrets); without it
-            // the debug key keeps `flutter run --release` working locally.
-            signingConfig = if (System.getenv("ANDROID_KEYSTORE_PATH") != null)
+            // Upload key when present, otherwise the debug key so local
+            // `flutter run --release` keeps working (store bundles are
+            // blocked above).
+            signingConfig = if (hasUploadKey)
                 signingConfigs.getByName("upload") else signingConfigs.getByName("debug")
         }
     }
