@@ -44,7 +44,7 @@ jobs:
     name: Generator tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -57,7 +57,7 @@ jobs:
     timeout-minutes: 20
     if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -71,7 +71,7 @@ jobs:
           ${{ inputs.index_empty && '--index-empty' || '' }}
 
       - name: Check out the company site
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: syimykkalykov1999/LawBidSite
           path: site
