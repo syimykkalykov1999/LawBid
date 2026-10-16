@@ -10,7 +10,38 @@ const ALLOWED = new Set([
   'login/password',
   'recover/question',
   'recover/password',
+  // Owner 2026-10-16: the invited admin picks a login and password.
+  'invite/accept',
 ]);
+
+/** `GET invite/<token>`: who the link is for. */
+const INVITE_PREVIEW = /^invite\/[A-Za-z0-9_-]{20,128}$/;
+
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ path: string[] }> },
+): Promise<Response> {
+  const path = (await ctx.params).path.join('/');
+  if (!INVITE_PREVIEW.test(path)) {
+    return NextResponse.json(
+      { error: { code: 'NOT_FOUND', message: 'Not found.' } },
+      { status: 404 },
+    );
+  }
+  const upstream = await fetch(`${apiBaseUrl()}/admin/auth/${path}`, {
+    headers: {
+      accept: 'application/json',
+      'x-forwarded-for': req.headers.get('x-forwarded-for') ?? '',
+    },
+    cache: 'no-store',
+  });
+  return new NextResponse(upstream.body, {
+    status: upstream.status,
+    headers: {
+      'content-type': upstream.headers.get('content-type') ?? 'application/json',
+    },
+  });
+}
 
 export async function POST(
   req: NextRequest,

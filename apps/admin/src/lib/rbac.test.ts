@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROUPS, SECTIONS, canOpen, groupFor, groupsFor, tabsFor } from './rbac';
+import { GRANTABLE_AREAS, GROUPS, SECTIONS, canOpen, fitToMe, groupFor, groupsFor, summarizeRights, tabsFor } from './rbac';
 
 // The 38 pages the menu had before it was grouped (owner 2026-10-05):
 // every one keeps its URL and its own right.
@@ -73,5 +73,48 @@ describe('country partner team (owner 2026-10-06)', () => {
   it('LawBid staff never see the partner page', () => {
     const staff = { role: 'support' as const, permissions: { support: 'manage' as const } };
     expect(canOpen(staff, '/partner')).toBe(false);
+  });
+});
+
+describe('grantable money and audit (owner 2026-10-16)', () => {
+  const acc = {
+    role: 'finance' as const,
+    permissions: { dashboard: 'view' as const, users: 'view' as const, money: 'view' as const, economy: 'view' as const, budget_limits: 'manage' as const },
+  };
+  it('an accountant opens money tabs and the budget caps, nothing owner-only', () => {
+    for (const h of ['/payments', '/subscriptions', '/promo-codes', '/partners', '/treasury', '/config']) {
+      expect(canOpen(acc, h)).toBe(true);
+    }
+    for (const h of ['/prices', '/plans', '/analytics', '/case-payments', '/country-partners', '/sessions', '/integrations', '/admins', '/audit-log', '/flags', '/payroll', '/exports']) {
+      expect(canOpen(acc, h)).toBe(false);
+    }
+  });
+  it('the audit log opens by its toggle', () => {
+    const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const } };
+    expect(canOpen(mod, '/audit-log')).toBe(false);
+    expect(canOpen({ ...mod, permissions: { audit: 'view' as const } }, '/audit-log')).toBe(true);
+  });
+  it('Настройки opens for budget caps alone, but other settings tabs stay closed', () => {
+    const b = { role: 'support' as const, permissions: { budget_limits: 'manage' as const } };
+    expect(canOpen(b, '/config')).toBe(true);
+    expect(canOpen(b, '/flags')).toBe(false);
+  });
+  it('the deputy still reads the owner-only money pages', () => {
+    const deputy = { role: 'support' as const, permissions: {}, canManageAdmins: true };
+    for (const h of ['/prices', '/analytics', '/sessions', '/payments']) expect(canOpen(deputy, h)).toBe(true);
+  });
+  it('only the owner can hand out money, economy, budget caps and audit', () => {
+    const owner = ['money', 'economy', 'budget_limits', 'audit'];
+    expect(GRANTABLE_AREAS.filter((a) => a.ownerGrants).map((a) => a.key).sort()).toEqual(owner.sort());
+    const manager = { role: 'support' as const, permissions: { users: 'manage' as const, money: 'view' as const } };
+    expect(fitToMe({ users: 'manage', money: 'view', support: 'manage' }, manager)).toEqual({ users: 'manage' });
+    expect(fitToMe({ users: 'manage', money: 'view' }, { role: 'super_admin', permissions: {} })).toEqual({ users: 'manage', money: 'view' });
+  });
+  it('summarizes the effective rights in words', () => {
+    const s = summarizeRights({ money: 'view', budget_limits: 'manage' });
+    expect(s.manage).toEqual(['Лимиты расходов']);
+    expect(s.view).toEqual(['Деньги']);
+    expect(s.closed).toContain('Пользователи');
+    expect(s.closed).not.toContain('Деньги');
   });
 });

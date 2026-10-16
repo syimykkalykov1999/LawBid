@@ -13,7 +13,9 @@ import { Input, Select } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { useMe } from '@/lib/hooks';
 import { CONFIG_TYPE, label } from '@/lib/labels';
+import { can } from '@/lib/rbac';
 import { formatDateTime } from '@/lib/utils';
 
 /** Russian explanations for the known keys (most server descriptions are null or English). */
@@ -278,7 +280,7 @@ function parse(type: string, raw: string): { value?: unknown; error?: string } {
 const show = (v: unknown) => (Array.isArray(v) ? v.join(', ') : v === null || v === undefined ? '' : String(v));
 
 /** docs/06 §2.3 item 8: schema-validated editor of app_config. */
-export default function ConfigPage() {
+function FullConfigPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -407,4 +409,24 @@ export default function ConfigPage() {
       </Table>
     </>
   );
+}
+
+/** Owner 2026-10-16: an admin with only «Лимиты расходов» (an accountant)
+ * sees the spend caps card, not the rest of Настройки. */
+export default function ConfigPage() {
+  const { data: me } = useMe();
+  if (!me) return null;
+  if (!can(me, 'settings')) {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Система"
+          title="Лимиты расходов"
+          subtitle="Потолки на SMS, письма, видео, хранилище и переводы: в минуту, в день и в месяц."
+        />
+        <BudgetLimitsCard />
+      </>
+    );
+  }
+  return <FullConfigPage />;
 }

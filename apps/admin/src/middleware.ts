@@ -7,6 +7,8 @@ const SESSION_COOKIE = 'lawbid_admin';
 export function middleware(req: NextRequest) {
   const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);
   const { pathname } = req.nextUrl;
+  // Owner 2026-10-16: an invited admin opens the link before any session.
+  if (pathname.startsWith('/invite/')) return NextResponse.next();
   if (pathname.startsWith('/login')) {
     if (hasSession) return NextResponse.redirect(new URL('/', req.url));
     return NextResponse.next();

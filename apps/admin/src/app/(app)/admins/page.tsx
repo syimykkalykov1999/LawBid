@@ -1,6 +1,6 @@
 'use client';
 
-import { Key, LockSimple, ShieldCheck, SlidersHorizontal, Trash, UserPlus } from '@phosphor-icons/react';
+import { Copy, Key, LinkSimple, LockSimple, ShieldCheck, SlidersHorizontal, Trash, UserPlus } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useConfirm } from '@/components/legacy/confirm';
@@ -23,6 +23,8 @@ import {
   PARTNER_TEAM_AREAS,
   ROLE_LABEL,
   covers,
+  fitToMe,
+  summarizeRights,
   type AccessLevel,
   type AdminRole,
   type Permissions,
@@ -31,21 +33,21 @@ import { cn, formatDateTime } from '@/lib/utils';
 
 type Account = components['schemas']['AdminAccountDto'];
 type Template = components['schemas']['AdminRoleTemplateDto'];
+type Preset = components['schemas']['AdminPresetDto'];
+type Invite = components['schemas']['AdminInviteDto'];
+
+/** Presets this admin may use: the owner all of them, a manager only those that fit inside their own access. */
+function usablePresets(presets: Preset[], me: { role: AdminRole; permissions: Permissions } | undefined): Preset[] {
+  if (me?.role === 'super_admin') return presets;
+  return presets.filter((p) => p.role !== 'super_admin' && !p.noPii && covers(me?.permissions ?? {}, fitToMe(p.permissions, me)) && Object.keys(fitToMe(p.permissions, me)).length === Object.keys(p.permissions).length);
+}
 
 /** A template, cut down to what this admin may hand out (the API caps it too). */
 function fitTemplate(
   t: Template,
   me: { role: AdminRole; permissions: Permissions } | undefined,
 ): Record<string, AccessLevel> {
-  const own = me?.permissions ?? {};
-  const out: Record<string, AccessLevel> = {};
-  for (const [k, v] of Object.entries(t.permissions)) {
-    if (!GRANTABLE_AREAS.some((a) => a.key === k)) continue;
-    if (me?.role === 'super_admin') out[k] = v as AccessLevel;
-    else if (own[k] === 'manage') out[k] = v as AccessLevel;
-    else if (own[k] === 'view') out[k] = 'view';
-  }
-  return out;
+  return fitToMe(t.permissions, me);
 }
 
 const ROLES = Object.keys(ROLE_LABEL) as AdminRole[];
@@ -77,6 +79,16 @@ export default function AdminsPage() {
   const [manager, setManager] = useState(false);
   const [tplId, setTplId] = useState('');
   const [editTpl, setEditTpl] = useState<Template | 'new' | null>(null);
+  // Owner 2026-10-16: invite = preset + e-mail → a one-time link to hand over.
+  const [invEmail, setInvEmail] = useState('');
+  const [invPreset, setInvPreset] = useState('');
+  const [invNoPii, setInvNoPii] = useState<boolean | null>(null);
+  const [invite, setInvite] = useState<{ email: string; link: Invite } | null>(null);
+  const [stepUpFor, setStepUpFor] = useState<null | { kind: 'new' } | { kind: 're'; id: string; email: string }>(null);
+  const presets = useQuery({
+    queryKey: ['admin-presets'],
+    queryFn: async () => (await api.GET('/admin/admins/presets')).data!.data,
+  });
   const templates = useQuery({
     queryKey: ['admin-templates'],
     queryFn: async () => (await api.GET('/admin/admins/templates')).data!.data,
@@ -98,6 +110,42 @@ export default function AdminsPage() {
 
   const tpl = (templates.data ?? []).find((t) => t.id === tplId);
   const refresh = () => qc.invalidateQueries({ queryKey: ['admins'] });
+  const usable = usablePresets(presets.data ?? [], me);
+  const chosen = usable.find((p) => p.key === invPreset);
+  const noPiiNow = invNoPii ?? chosen?.noPii ?? false;
+
+  const inviteM = useMutation({
+    mutationFn: async () =>
+      (
+        await api.POST('/admin/admins/invites', {
+          body: {
+            email: invEmail.trim(),
+            preset: invPreset,
+            ...(isSuper ? { noPii: noPiiNow } : {}),
+          },
+        })
+      ).data!.data,
+    onSuccess: (r) => {
+      setInvite({ email: r.admin.email, link: r.invite });
+      setInvEmail('');
+      setInvPreset('');
+      setInvNoPii(null);
+      void refresh();
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.code === 'ADMIN_STEP_UP_REQUIRED') setStepUpFor({ kind: 'new' });
+      else toast.error(e);
+    },
+  });
+  const reinviteM = useMutation({
+    mutationFn: async (v: { id: string; email: string }) =>
+      (await api.POST('/admin/admins/{id}/invite', { params: { path: { id: v.id } } })).data!.data,
+    onSuccess: (r) => setInvite({ email: r.admin.email, link: r.invite }),
+    onError: (e, v) => {
+      if (e instanceof ApiError && e.code === 'ADMIN_STEP_UP_REQUIRED') setStepUpFor({ kind: 're', id: v.id, email: v.email });
+      else toast.error(e);
+    },
+  });
 
   const create = useMutation({
     mutationFn: () =>
@@ -183,7 +231,18 @@ export default function AdminsPage() {
   return (
     <>
       {dialog}
-      <RightsDialog account={rights} me={me} onClose={() => setRights(null)} onSaved={() => void refresh()} />
+      <InviteLinkDialog invite={invite} onClose={() => setInvite(null)} />
+      <StepUpDialog
+        open={stepUpFor !== null}
+        onCancel={() => setStepUpFor(null)}
+        onDone={() => {
+          const t = stepUpFor;
+          setStepUpFor(null);
+          if (t?.kind === 'new') inviteM.mutate();
+          else if (t?.kind === 're') reinviteM.mutate({ id: t.id, email: t.email });
+        }}
+      />
+      <RightsDialog account={rights} me={me} presets={presets.data ?? []} onClose={() => setRights(null)} onSaved={() => void refresh()} />
       <CredentialsDialog account={creds} onClose={() => setCreds(null)} onSaved={() => void refresh()} />
       <PageHeader
         eyebrow="Система"
@@ -192,12 +251,85 @@ export default function AdminsPage() {
           partnerLead
             ? 'Ваша команда в вашей стране. Принимайте сотрудников в пределах лимита, выдавайте им простые разделы (проверка, модерация, поддержка, борьба с мошенниками, привлечение, бухгалтер только для просмотра), задавайте логин и пароль, отключайте. Деньги, цены, ключи, юр. документы и другие страны закрыты.'
             : isSuper
-            ? 'Создание сотрудников, права по разделам, логин и пароль, отключение, удаление. Регистрации нет: аккаунты заводите вы или те, кому вы дали право управлять админами. Деньги и ключи сервисов обычным админам недоступны никогда.'
-            : 'Вы можете принимать сотрудников, выдавать им доступ в рамках своего, задавать логин и пароль, отключать и удалять. Деньги, журнал аудита и сессии вы видите только для просмотра, ключи сервисов недоступны, а право заместителя выдаёт только супер-админ.'
+            ? 'Создание сотрудников, права по разделам, логин и пароль, отключение, удаление. Регистрации нет: аккаунты заводите вы или те, кому вы дали право управлять админами. Ключи сервисов, управление админами и сессии обычным админам недоступны никогда; деньги, экономику, лимиты расходов и журнал аудита выдаёте только вы.'
+            : 'Вы можете принимать сотрудников, выдавать им доступ в рамках своего, задавать логин и пароль, отключать и удалять. Деньги, журнал аудита и сессии вы видите только для просмотра, ключи сервисов недоступны, а право заместителя, деньги и журнал аудита другим выдаёт только супер-админ.'
         }
       />
+      {partnerLead ? null : (
+        <form
+          className="mb-4 rounded-[var(--radius-lg)] border border-line bg-surface p-4 shadow-card"
+          onSubmit={(e) => {
+            e.preventDefault();
+            inviteM.mutate();
+          }}
+        >
+          <div className="mb-3">
+            <h2 className="text-sm font-medium text-heading">Пригласить сотрудника</h2>
+            <p className="text-xs text-faint">
+              Выберите роль-пресет и почту. Письмо не отправляется: вы получите одноразовую ссылку на 72 часа и отправите
+              её сами. По ссылке человек придумывает логин и пароль, потом включает 2FA в профиле. Права можно поправить
+              после.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-64 flex-1 space-y-1.5">
+              <Label htmlFor="inv-email">Email</Label>
+              <Input id="inv-email" type="email" required value={invEmail} onChange={(e) => setInvEmail(e.target.value)} />
+            </div>
+            <div className="w-56 space-y-1.5">
+              <Label htmlFor="inv-preset">Пресет</Label>
+              <Select
+                id="inv-preset"
+                required
+                value={invPreset}
+                onChange={(e) => {
+                  setInvPreset(e.target.value);
+                  setInvNoPii(null);
+                }}
+              >
+                <option value="">Выберите…</option>
+                {usable.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {isSuper ? (
+              <label className="flex h-10 items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--color-gold,#C9A24A)]"
+                  checked={noPiiNow}
+                  onChange={(e) => setInvNoPii(e.target.checked)}
+                />
+                Без персональных данных
+              </label>
+            ) : null}
+            <Button type="submit" loading={inviteM.isPending} disabled={!invPreset}>
+              <LinkSimple size={16} weight="light" />
+              Создать приглашение
+            </Button>
+          </div>
+          {chosen ? (
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs text-muted">{chosen.description}</p>
+              {chosen.dangerous ? (
+                <p className="mb-1.5 text-xs text-danger">
+                  Это второй владелец: он получит полный доступ, включая ключи сервисов и администраторов. Выдавайте только
+                  тому, кому доверяете как себе.
+                </p>
+              ) : (
+                <RightsSummaryView perms={fitToMe(chosen.permissions, me)} noPii={noPiiNow} manager={false} />
+              )}
+            </div>
+          ) : null}
+        </form>
+      )}
+      <details className="mb-6 rounded-[var(--radius-lg)] border border-line bg-surface shadow-card">
+        <summary className="cursor-pointer px-4 py-3 text-sm text-muted">Создать вручную, без ссылки (запасной способ)</summary>
       <form
-        className="mb-6 flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-line bg-surface p-4 shadow-card"
+        className="flex flex-wrap items-end gap-3 border-t border-line p-4"
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate();
@@ -244,6 +376,7 @@ export default function AdminsPage() {
           Создать
         </Button>
       </form>
+      </details>
       {isSuper ? <ReasonPolicyCard /> : null}
       {partnerLead ? null : <TemplatesCard
         templates={templates.data ?? []}
@@ -326,6 +459,7 @@ export default function AdminsPage() {
                           : 'нет разделов'}
                       </Badge>
                       {a.canManageAdmins ? <Badge tone="gold">заместитель</Badge> : null}
+                      {a.noPii ? <Badge tone="info" title="Телефоны, почты и имена людей скрыты">без ПД</Badge> : null}
                       {a.partnerLead ? (
                         <Badge tone="gold">партнёр страны</Badge>
                       ) : a.countryPartnerId ? (
@@ -366,6 +500,17 @@ export default function AdminsPage() {
                       <Button size="sm" variant="outline" onClick={() => setCreds(a)}>
                         <Key size={14} /> Логин и пароль
                       </Button>
+                      {a.status === 'active' && !self ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={reinviteM.isPending}
+                          title="Новая одноразовая ссылка на 72 часа; старая перестанет работать"
+                          onClick={() => reinviteM.mutate({ id: a.id, email: a.email })}
+                        >
+                          <LinkSimple size={14} /> Ссылка
+                        </Button>
+                      ) : null}
                       <Button
                         size="sm"
                         variant="outline"
@@ -425,11 +570,13 @@ const LEVELS: { value: AccessLevel | 'none'; label: string }[] = [
 function RightsDialog({
   account,
   me,
+  presets,
   onClose,
   onSaved,
 }: {
   account: Account | null;
   me: { role: AdminRole; permissions: Permissions; partnerLead?: boolean } | undefined;
+  presets: Preset[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -448,6 +595,7 @@ function RightsDialog({
           key={account.id}
           account={account}
           me={me}
+          presets={presets}
           onCancel={onClose}
           onSaved={() => {
             toast.success('Права сохранены');
@@ -516,12 +664,14 @@ function AreaToggles({
 function RightsForm({
   account,
   me,
+  presets,
   onCancel,
   onSaved,
   onError,
 }: {
   account: Account;
   me: { role: AdminRole; permissions: Permissions; partnerLead?: boolean } | undefined;
+  presets: Preset[];
   onCancel: () => void;
   onSaved: () => void;
   onError: (e: unknown) => void;
@@ -532,7 +682,7 @@ function RightsForm({
   // Owner 2026-10-06: a country partner's team gets only the partner areas.
   const partnerTeam = !!account.countryPartnerId;
   const pool = partnerTeam ? PARTNER_TEAM_AREAS : GRANTABLE_AREAS;
-  const areas = isSuper ? pool : pool.filter((a) => own[a.key]);
+  const areas = isSuper ? pool : pool.filter((a) => own[a.key] && !('ownerGrants' in a && a.ownerGrants));
   const cap = (key: string): AccessLevel[] => {
     const max = PARTNER_TEAM_AREAS.find((a) => a.key === key)?.max;
     if (partnerTeam && max === 'view') return ['view'];
@@ -540,6 +690,7 @@ function RightsForm({
   };
   const [perms, setPerms] = useState<Record<string, AccessLevel>>({ ...account.permissions });
   const [manager, setManager] = useState(account.canManageAdmins);
+  const [noPii, setNoPii] = useState(account.noPii);
   const [countries, setCountries] = useState<string[]>(account.countries ?? []);
   const templates = useQuery({
     queryKey: ['admin-templates'],
@@ -549,7 +700,7 @@ function RightsForm({
     mutationFn: async () => {
       await api.PATCH('/admin/admins/{id}/permissions', {
         params: { path: { id: account.id } },
-        body: { permissions: perms, ...(isSuper ? { canManageAdmins: manager } : {}) },
+        body: { permissions: perms, ...(isSuper ? { canManageAdmins: manager, noPii } : {}) },
       });
       const before = [...(account.countries ?? [])].sort().join();
       if ([...countries].sort().join() !== before) {
@@ -571,8 +722,35 @@ function RightsForm({
       level === 'none' ? {} : Object.fromEntries(areas.map((a) => [a.key, cap(a.key).includes(level) ? level : 'view'])),
     );
 
+  const usable = usablePresets(presets, me).filter((p) => p.role !== 'super_admin');
   return (
     <div>
+      {usable.length > 0 && !partnerTeam ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Label htmlFor="rights-preset" className="mb-0">
+            Пресет
+          </Label>
+          <Select
+            id="rights-preset"
+            className="h-9 w-64"
+            value=""
+            onChange={(e) => {
+              const p = usable.find((x) => x.key === e.target.value);
+              if (!p) return;
+              setPerms(fitToMe(p.permissions, me));
+              if (isSuper) setNoPii(p.noPii);
+            }}
+          >
+            <option value="">Подставить пресет…</option>
+            {usable.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+          </Select>
+          <span className="text-xs text-faint">Заменяет галочки ниже, потом можно поправить.</span>
+        </div>
+      ) : null}
       {(templates.data ?? []).length > 0 && !partnerTeam ? (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Label htmlFor="rights-tpl" className="mb-0">
@@ -632,6 +810,29 @@ function RightsForm({
           </span>
         </label>
       ) : null}
+      {isSuper && !partnerTeam ? (
+        <label className="mt-3 flex items-start gap-2.5 rounded-[var(--radius-md)] border border-line px-3.5 py-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 accent-[var(--color-gold,#C9A24A)]"
+            checked={noPii}
+            onChange={(e) => setNoPii(e.target.checked)}
+          />
+          <span>
+            <span className="text-ink">Без персональных данных</span>
+            <span className="block text-xs text-faint">
+              Для бухгалтера: телефоны, почты и имена людей приходят скрытыми (инициалы, последние цифры), выгрузки CSV и
+              запросы госорганов закрыты. Действует сразу.
+            </span>
+          </span>
+        </label>
+      ) : null}
+      {partnerTeam ? null : (
+        <div className="mt-3">
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Итог: что сможет этот админ</div>
+          <RightsSummaryView perms={perms} noPii={noPii} manager={manager} />
+        </div>
+      )}
       <div className="mt-3 rounded-[var(--radius-md)] border border-dashed border-line px-3.5 py-3">
         <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">
           <LockSimple size={13} /> Закрыто навсегда
@@ -931,7 +1132,7 @@ function TemplateDialog({
   const toast = useToast();
   const isSuper = me?.role === 'super_admin';
   const own = me?.permissions ?? {};
-  const areas = isSuper ? GRANTABLE_AREAS : GRANTABLE_AREAS.filter((a) => own[a.key]);
+  const areas = isSuper ? GRANTABLE_AREAS : GRANTABLE_AREAS.filter((a) => own[a.key] && !a.ownerGrants);
   const cap = (key: string): AccessLevel[] => (isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view']);
   const existing = target && target !== 'new' ? target : null;
   const [name, setName] = useState(existing?.name ?? '');
@@ -980,6 +1181,81 @@ function TemplateDialog({
           Сохранить шаблон
         </Button>
       </div>
+    </Dialog>
+  );
+}
+
+/** What the toggles mean, in words: manage / view / closed (owner 2026-10-16). */
+function RightsSummaryView({ perms, noPii, manager }: { perms: Record<string, AccessLevel>; noPii: boolean; manager: boolean }) {
+  const sum = summarizeRights(perms);
+  const money = perms.money === 'manage';
+  return (
+    <div className="space-y-1.5 rounded-[var(--radius-md)] border border-line bg-surface-2 px-3.5 py-3 text-xs">
+      <div>
+        <span className="text-ink">Управляет:</span>{' '}
+        <span className="text-muted">{sum.manage.length ? sum.manage.join(', ') : 'ничем'}</span>
+      </div>
+      <div>
+        <span className="text-ink">Только смотрит:</span>{' '}
+        <span className="text-muted">{sum.view.length ? sum.view.join(', ') : 'ничего'}</span>
+      </div>
+      <div>
+        <span className="text-ink">Закрыто:</span>{' '}
+        <span className="text-faint">{sum.closed.length ? sum.closed.join(', ') : 'ничего из выдаваемого'}</span>
+      </div>
+      {noPii ? (
+        <div className="text-muted">Люди без телефонов, почт и имён; выгрузки CSV и запросы госорганов закрыты.</div>
+      ) : (
+        <div className="text-muted">Персональные данные людей видны там, где есть доступ.</div>
+      )}
+      {manager ? <div className="text-muted">Доверенный заместитель: читает все разделы, кроме ключей.</div> : null}
+      {money ? (
+        <div className="text-danger">
+          «Деньги: управлять» даёт возвраты, выплаты партнёрам и промокоды. Для бухгалтера хватает «смотреть».
+        </div>
+      ) : null}
+      <div className="text-faint">Ключи сервисов, управление админами и сессии не выдаются никому, кроме вас.</div>
+    </div>
+  );
+}
+
+/** The one-time link, shown once: copy it and send it yourself (no email is sent). */
+function InviteLinkDialog({ invite, onClose }: { invite: { email: string; link: Invite } | null; onClose: () => void }) {
+  const toast = useToast();
+  const link = invite ? (invite.link.url ?? `${window.location.origin}/invite/${invite.link.token}`) : '';
+  return (
+    <Dialog
+      open={!!invite}
+      onClose={onClose}
+      eyebrow="Приглашение"
+      title={invite ? `Ссылка для ${invite.email}` : undefined}
+      description="Письмо НЕ отправлено: скопируйте ссылку и отправьте человеку сами (мессенджер, почта). Она работает один раз и 72 часа, показывается только сейчас."
+    >
+      {invite ? (
+        <div className="space-y-3">
+          <Input readOnly aria-label="Ссылка-приглашение" value={link} onFocus={(e) => e.currentTarget.select()} />
+          <p className="text-xs text-faint">
+            Действует до {formatDateTime(invite.link.expiresAt)}. По ссылке человек придумает логин и пароль, затем в профиле
+            включит двухфакторную защиту. Потеряли ссылку — нажмите «Ссылка» у админа, старая перестанет работать.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Закрыть
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(link)
+                  .then(() => toast.success('Ссылка скопирована'))
+                  .catch(() => toast.error('Не удалось скопировать: выделите ссылку и скопируйте вручную'));
+              }}
+            >
+              <Copy size={16} /> Скопировать
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </Dialog>
   );
 }
