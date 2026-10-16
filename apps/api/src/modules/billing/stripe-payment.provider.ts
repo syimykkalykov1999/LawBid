@@ -313,6 +313,9 @@ export class StripePaymentProvider implements PaymentProvider {
         quantity: l.quantity,
       })),
       payment_method_collection: 'always',
+      // Owner 2026-10-16: a card and nothing else (no Link, wallets, bank
+      // methods) and no promotion-code box: our promo codes live in the app.
+      payment_method_types: ['card'],
       subscription_data: {
         ...(input.trialDays ? { trial_period_days: input.trialDays } : {}),
         metadata: input.metadata,
@@ -321,11 +324,9 @@ export class StripePaymentProvider implements PaymentProvider {
       client_reference_id: input.metadata.userId,
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
-      // Owner 2026-10-02: Stripe takes either a fixed discount or the
-      // page's promotion-code box, not both.
-      ...(input.couponId
-        ? { discounts: [{ coupon: input.couponId }] }
-        : { allow_promotion_codes: true }),
+      // Owner 2026-10-02: a fixed discount from our own promo code; owner
+      // 2026-10-16: no promotion-code box on Stripe's page.
+      ...(input.couponId ? { discounts: [{ coupon: input.couponId }] } : {}),
       // Our words under the button (logo and colours: Stripe Dashboard →
       // Settings → Branding).
       custom_text: {
@@ -370,6 +371,8 @@ export class StripePaymentProvider implements PaymentProvider {
     const s = await this.stripe.checkout.sessions.create(
       {
         mode: 'payment',
+        // Owner 2026-10-16: a card and nothing else.
+        payment_method_types: ['card'],
         line_items: [
           {
             quantity: 1,

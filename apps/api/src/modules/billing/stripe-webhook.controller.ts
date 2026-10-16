@@ -1,4 +1,6 @@
+import { casePaymentsUnlockedForTests } from '../feature-flags/services/feature-flags.service';
 import {
+  NotFoundException,
   BadRequestException,
   Controller,
   Headers,
@@ -45,6 +47,10 @@ export class StripeWebhookController {
     @Req() req: Request & { rawBody?: Buffer },
     @Headers('stripe-signature') signature?: string,
   ): Promise<{ received: true; queued: boolean }> {
+    // Owner 2026-10-16: no client → attorney payments, so no Connect events.
+    if (!casePaymentsUnlockedForTests()) {
+      throw new NotFoundException();
+    }
     return this.receive(req, signature, true);
   }
 
