@@ -58,8 +58,8 @@ describe('FeatureFlagsService.getFlags', () => {
 
 describe('payments_in_app is locked off (owner 2026-10-16)', () => {
   const { lockFlags } = jest.requireActual<
-    typeof import('./feature-flags.service')
-  >('./feature-flags.service');
+    typeof import('../../../common/feature-flags/locked-flags')
+  >('../../../common/feature-flags/locked-flags');
 
   afterEach(() => {
     delete process.env.CASE_PAYMENTS_UNLOCKED_FOR_TESTS;

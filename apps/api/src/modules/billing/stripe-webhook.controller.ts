@@ -1,4 +1,4 @@
-import { casePaymentsUnlockedForTests } from '../feature-flags/services/feature-flags.service';
+import { casePaymentsUnlockedForTests } from '../../common/feature-flags/locked-flags';
 import {
   NotFoundException,
   BadRequestException,

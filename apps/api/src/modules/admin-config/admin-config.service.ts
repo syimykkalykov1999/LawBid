@@ -1,7 +1,7 @@
 import {
   casePaymentsUnlockedForTests,
   LOCKED_OFF_FLAGS,
-} from '../feature-flags/services/feature-flags.service';
+} from '../../common/feature-flags/locked-flags';
 import {
   BadRequestException,
   ConflictException,

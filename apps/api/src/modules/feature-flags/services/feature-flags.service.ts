@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FLAG_CATALOG } from '../flag-catalog';
+import { lockFlags } from '../../../common/feature-flags/locked-flags';
 
 /** Same reasoning as I18nBundleService's bundle-version TTL
  * (i18n-bundle.service.ts): the admin's flag toggle writes straight to
@@ -105,29 +106,4 @@ export class FeatureFlagsService implements OnModuleInit {
   async invalidate(): Promise<void> {
     await this.redis.del(FLAGS_CACHE_KEY);
   }
-}
-
-/**
- * Owner 2026-10-16: LawBid does not touch the money between a client and an
- * attorney; only subscriptions, offer packs and Boost go through the
- * platform. The flag stays in the table, but it is always read as off and
- * the admin cannot switch it on. (The e2e suites of the dormant feature set
- * CASE_PAYMENTS_UNLOCKED_FOR_TESTS in a test environment.)
- */
-export const LOCKED_OFF_FLAGS: readonly string[] = ['payments_in_app'];
-
-export function casePaymentsUnlockedForTests(): boolean {
-  return (
-    process.env.NODE_ENV === 'test' &&
-    process.env.CASE_PAYMENTS_UNLOCKED_FOR_TESTS === '1'
-  );
-}
-
-export function lockFlags(
-  flags: Record<string, boolean>,
-): Record<string, boolean> {
-  if (casePaymentsUnlockedForTests()) return flags;
-  const out = { ...flags };
-  for (const k of LOCKED_OFF_FLAGS) if (out[k]) out[k] = false;
-  return out;
 }
