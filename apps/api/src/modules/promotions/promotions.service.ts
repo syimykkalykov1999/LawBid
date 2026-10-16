@@ -10,6 +10,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { CasePromotion, Prisma } from '@prisma/client';
 import {
   decodeCursor,
@@ -145,7 +146,31 @@ export class PromotionsService {
     // Owner 2026-10-05 (plan builder): promotion is a client plan term.
     @Optional() private readonly entitlements?: EntitlementsService,
     @Optional() private readonly delivery?: PromotionDeliveryService,
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {}
+
+  /** Owner 2026-10-16: an attorney who is not verified cannot buy Boost
+   * (clients are not affected; rollback `billing.require_verified_for_purchases`). */
+  private async assertVerified(userId: string): Promise<void> {
+    if (!this.appSettings) return;
+    if (
+      !(await this.appSettings.boolean(
+        'billing.require_verified_for_purchases',
+      ))
+    ) {
+      return;
+    }
+    const p = await this.prisma.attorneyProfile.findUnique({
+      where: { user_id: userId },
+      select: { verification_status: true },
+    });
+    if (p && p.verification_status !== 'verified') {
+      throw new ForbiddenException({
+        code: ErrorCode.ATTORNEY_NOT_VERIFIED,
+        message: 'Boost is available after verification.',
+      });
+    }
+  }
 
   /** Only when the admin turned "needs a subscription" on. */
   private async assertEntitled(
@@ -334,6 +359,7 @@ export class PromotionsService {
   ): Promise<CreatePromotionResultDto> {
     const settings = await this.settings();
     await this.assertEntitled(userId, settings);
+    await this.assertVerified(userId);
     const target = await this.ownedTarget(userId, type, id);
     if (!(await this.boostAllowed(userId, type, target.video, settings))) {
       throw new ForbiddenException({

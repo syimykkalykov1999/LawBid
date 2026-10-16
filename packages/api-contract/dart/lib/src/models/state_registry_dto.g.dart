@@ -23,6 +23,7 @@ StateRegistryDto _$StateRegistryDtoFromJson(Map<String, dynamic> json) =>
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.parse(json['updatedAt'] as String),
+      lookupUrl: json['lookupUrl'] as String?,
     );
 
 Map<String, dynamic> _$StateRegistryDtoToJson(StateRegistryDto instance) =>
@@ -38,4 +39,5 @@ Map<String, dynamic> _$StateRegistryDtoToJson(StateRegistryDto instance) =>
       'lastTestAt': ?instance.lastTestAt?.toIso8601String(),
       'lastTestResult': ?instance.lastTestResult,
       'updatedAt': ?instance.updatedAt?.toIso8601String(),
+      'lookupUrl': ?instance.lookupUrl,
     };

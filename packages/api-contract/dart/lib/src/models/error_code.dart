@@ -34,6 +34,8 @@ enum ErrorCode {
   authOtpLocked('AUTH_OTP_LOCKED'),
   @JsonValue('AUTH_OTP_REQUEST_LIMIT')
   authOtpRequestLimit('AUTH_OTP_REQUEST_LIMIT'),
+  @JsonValue('AUTH_PHONE_REGISTERED')
+  authPhoneRegistered('AUTH_PHONE_REGISTERED'),
   @JsonValue('AUTH_REFRESH_INVALID')
   authRefreshInvalid('AUTH_REFRESH_INVALID'),
   @JsonValue('AUTH_REFRESH_EXPIRED')

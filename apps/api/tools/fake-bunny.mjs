@@ -96,7 +96,24 @@ const TYPES = {
   m3u8: 'application/vnd.apple.mpegurl',
   ts: 'video/mp2t',
   jpg: 'image/jpeg',
+  // Owner 2026-10-16: the web player uses the MP4 copy (play_720p.mp4).
+  mp4: 'video/mp4',
 };
+
+// The MP4 rung a browser plays; made on first request from the upload.
+async function ensureMp4(guid) {
+  const out = join(dir(guid), 'hls', 'play_720p.mp4');
+  if (existsSync(out)) return out;
+  const input = join(dir(guid), 'upload.bin');
+  if (!existsSync(input)) return null;
+  await mkdir(join(dir(guid), 'hls'), { recursive: true });
+  await run('ffmpeg', [
+    '-y', '-i', input, '-vf', "scale='min(720,iw)':-2",
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', out,
+  ]);
+  return out;
+}
 
 const send = (res, code, body, headers = {}) => {
   res.writeHead(code, {
@@ -193,14 +210,30 @@ createServer(async (req, res) => {
         const file = parts[parts.length - 1];
         const guid = parts[parts.length - 2];
         if (/^[\w.-]+$/.test(file)) {
-          const p = join(dir(guid), 'hls', file);
+          let p = join(dir(guid), 'hls', file);
+          if (file === 'play_720p.mp4') p = (await ensureMp4(guid)) ?? p;
           if (existsSync(p)) {
             const size = (await stat(p)).size;
-            res.writeHead(200, {
+            const type = TYPES[file.split('.').pop()] ?? 'application/octet-stream';
+            const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
+            const base = {
               'access-control-allow-origin': '*',
-              'content-type': TYPES[file.split('.').pop()] ?? 'application/octet-stream',
-              'content-length': size,
-            });
+              'access-control-allow-headers': 'range',
+              'access-control-expose-headers': 'Content-Range,Content-Length,Accept-Ranges',
+              'accept-ranges': 'bytes',
+              'content-type': type,
+            };
+            if (range && (range[1] || range[2])) {
+              const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+              const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+              res.writeHead(206, {
+                ...base,
+                'content-range': `bytes ${start}-${end}/${size}`,
+                'content-length': end - start + 1,
+              });
+              return req.method === 'HEAD' ? res.end() : createReadStream(p, { start, end }).pipe(res);
+            }
+            res.writeHead(200, { ...base, 'content-length': size });
             return req.method === 'HEAD' ? res.end() : createReadStream(p).pipe(res);
           }
         }

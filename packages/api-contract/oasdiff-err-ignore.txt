@@ -81,3 +81,15 @@ POST /users/me/contacts/request the `value` request property's maxLength was set
 POST /users/me/contacts/verify the `value` request property's maxLength was set to `254`
 GET /admin/feature-flags removed the required property `data/items/notBuilt` from the response with the `200` status
 PATCH /admin/feature-flags/{key} removed the required property `data/notBuilt` from the response with the `200` status
+GET /admin/billing/refunds the response property `data/items/adminId` became nullable for the status `200`
+POST /admin/billing/refunds the response property `data/adminId` became nullable for the status `201`
+POST /admin/verification/licenses/{licenseId}/recheck added the new `format_unusual` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-check added the new `format_unusual` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-flag/clear added the new `format_unusual` enum value to the `data/registryFlag` response property for the response status `200`
+GET /admin/verification/registry-flags added the new `format_unusual` enum value to the `data/items/license/registryFlag` response property for the response status `200`
+GET /admin/verification/requests/{id} added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/approve added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/licenses/{licenseId}/decision added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/reject added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/request-info added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/take added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`

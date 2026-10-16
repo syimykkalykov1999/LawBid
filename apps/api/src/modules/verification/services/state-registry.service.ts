@@ -1,3 +1,4 @@
+import { stateBarLookupUrl } from '../state-bar-links';
 import {
   BadRequestException,
   Inject,
@@ -155,18 +156,28 @@ export class StateRegistryService {
 
   /** Every active state (50 + DC) with its settings — never a key. */
   async list() {
-    const [states, rows] = await Promise.all([
+    const [states, rows, misses] = await Promise.all([
       this.prisma.state.findMany({
         where: { is_active: true },
         orderBy: { code: 'asc' },
       }),
       this.prisma.stateBarRegistry.findMany(),
+      this.prisma.barFormatMiss.findMany({
+        orderBy: [{ hits: 'desc' }, { last_seen: 'desc' }],
+        take: 200,
+      }),
     ]);
     const byState = new Map(rows.map((r) => [r.state_code, r]));
     return {
       secretsEnabled: this.secretsEnabled,
       adapterTypes: REGISTRY_ADAPTERS,
       items: states.map((s) => this.dto(s.code, s.name, byState.get(s.code))),
+      formatMisses: misses.map((m) => ({
+        stateCode: m.state_code,
+        shape: m.shape,
+        hits: m.hits,
+        lastSeen: m.last_seen.toISOString(),
+      })),
     };
   }
 
@@ -404,6 +415,7 @@ export class StateRegistryService {
       lastTestResult:
         (row?.last_test_result as Record<string, unknown> | null) ?? null,
       updatedAt: row?.updated_at.toISOString() ?? null,
+      lookupUrl: stateBarLookupUrl(code, ''),
     };
   }
 }

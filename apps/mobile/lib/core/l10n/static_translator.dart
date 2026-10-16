@@ -345,6 +345,10 @@ class StaticTranslatorRu extends _MapTranslator {
             'Слишком много неверных кодов. Попробуйте через 15 минут.',
         'error.api.AUTH_OTP_REQUEST_LIMIT':
             'Слишком много запросов кода. Попробуйте позже.',
+        'error.api.AUTH_PHONE_REGISTERED':
+            'Этот номер уже зарегистрирован. Вернитесь назад и войдите по паролю.',
+        'error.api.AUTH_PHONE_NO_PASSWORD':
+            'У этого номера ещё нет пароля. Нажмите «Забыли пароль?» и задайте его по коду из SMS.',
         'error.api.CONTACT_DOMAIN_BLOCKED':
             'Этот email нельзя использовать. Укажите вашу настоящую почту — скрытые (relay) и временные адреса не принимаются.',
         'error.api.CONTACT_ALREADY_EXISTS':
@@ -718,6 +722,8 @@ class StaticTranslatorRu extends _MapTranslator {
         'verification.license.barNumber.hint': 'Номер лицензии',
         'verification.license.barNumber.helper':
             'Буквы и цифры, как в лицензии.',
+        'verification.license.barNumber.soft':
+            'Необычный номер для этого штата. Его всё равно можно добавить: мы проверим его вручную по фото вашей карточки адвоката.',
         'verification.license.barNumber.invalid':
             'Введите номер лицензии: буквы и цифры, до 32 символов.',
         'verification.license.expires': 'Срок действия (если указан)',
@@ -1398,6 +1404,10 @@ class StaticTranslatorEn extends _MapTranslator {
             'Too many incorrect codes. Try again in 15 minutes.',
         'error.api.AUTH_OTP_REQUEST_LIMIT':
             'Too many code requests. Please try again later.',
+        'error.api.AUTH_PHONE_REGISTERED':
+            'This number is already registered. Go back and sign in with your password.',
+        'error.api.AUTH_PHONE_NO_PASSWORD':
+            'This number has no password yet. Tap "Forgot password?" and set one with the code we text you.',
         'error.api.CONTACT_DOMAIN_BLOCKED':
             "This email can't be used. Please enter your real, personal email — private relay and temporary addresses aren't accepted.",
         'error.api.CONTACT_ALREADY_EXISTS':
@@ -2134,6 +2144,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'verification.license.barNumber.hint': 'License number',
         'verification.license.barNumber.helper':
             'Letters and digits as on your license.',
+        'verification.license.barNumber.soft':
+            'This number looks unusual for this state. You can still add it: we will check it by hand with a photo of your bar card.',
         'verification.license.barNumber.invalid':
             'Enter the bar number: letters and digits, up to 32 characters.',
         'verification.license.expires': 'Expiry date (if any)',

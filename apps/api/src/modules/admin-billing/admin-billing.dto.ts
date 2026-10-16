@@ -560,7 +560,13 @@ export class RefundDto {
   @ApiProperty({ enum: ['pending', 'succeeded', 'failed'] }) status!: string;
   @ApiProperty({ type: String, nullable: true }) stripeRefundId!: string | null;
   @ApiProperty({ type: String, nullable: true }) failureReason!: string | null;
-  @ApiProperty({ format: 'uuid' }) adminId!: string;
+  @ApiProperty({
+    format: 'uuid',
+    nullable: true,
+    type: String,
+    description: 'null = issued by the system (verification lost).',
+  })
+  adminId!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 

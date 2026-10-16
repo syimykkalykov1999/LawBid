@@ -42,6 +42,8 @@ function make(
   };
   const otp = { requestOtp: jest.fn().mockResolvedValue(undefined) };
   const settings = {
+    // The daily cap is about the old sign-in code: switch it on (rollback).
+    boolean: jest.fn(() => Promise.resolve(true)),
     storedNumber: jest.fn(() =>
       opts.settingsThrow
         ? Promise.reject(new Error('redis down'))

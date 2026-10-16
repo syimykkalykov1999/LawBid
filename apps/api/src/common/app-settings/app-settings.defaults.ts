@@ -186,7 +186,12 @@ export const OWNER_BADGE_SETTINGS = {
 export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.require_bar_document': false,
   'verification.require_identity': false,
-  'verification.self_attestation_auto_approve': true,
+  // Owner 2026-10-16: off — a new license stays pending until the state
+  // registry matches it or an admin approves it (with the bar card).
+  'verification.self_attestation_auto_approve': false,
+  // Owner 2026-10-16: where no registry checks the number, the bar card is
+  // required (a person decides from it). Off = only when switched on above.
+  'verification.bar_document_for_manual_states': true,
 } as const;
 
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this
@@ -200,6 +205,38 @@ export const OWNER_TASKS_SETTINGS = {
 // Future web client (a client form on lawbid.dev sharing this API): the
 // browser origins allowed to call the API cross-origin (CORS). Localhost
 // origins are added on top outside production (src/common/cors).
+// Owner 2026-10-16: fewer SMS. A code goes out only to register a NEW number
+// and to reset a password; a registered number signs in with its password.
+// All values are editable in the admin (Настройки); `login_code_enabled` is
+// the rollback switch for the old passwordless sign-in code.
+// Owner 2026-10-16: an attorney who loses verification stops paying: the
+// subscription ends and the unused part is refunded (rollback: off).
+export const OWNER_BILLING_GATE_SETTINGS = {
+  'billing.cancel_on_verification_loss': true,
+  // Offer packs and Boost are for verified attorneys only (rollback: off).
+  'billing.require_verified_for_purchases': true,
+} as const;
+
+// Owner 2026-10-16: our own card page (variant B) for the subscription; off or
+// without a publishable key, Stripe's hosted page (card only) is used.
+export const OWNER_PAY_PAGE_SETTINGS = {
+  'payments.own_page_enabled': true,
+  /** How long a link to the card page works, minutes. */
+  'payments.own_page_ttl_minutes': 30,
+} as const;
+
+export const OWNER_SMS_SETTINGS = {
+  /** true = a registered number may still get a sign-in code (the old way). */
+  'sms.login_code_enabled': false,
+  /** Seconds before the same number may ask for another registration code. */
+  'sms.resend_cooldown_seconds': 60,
+  /** Registration codes to one number in 24 hours. */
+  'sms.registration_per_number_per_day': 3,
+  /** Password-reset codes to one number per hour / per 24 hours. */
+  'sms.reset_per_number_per_hour': 3,
+  'sms.reset_per_number_per_day': 5,
+} as const;
+
 export const OWNER_WEB_SETTINGS = {
   'web.allowed_origins': [
     'https://lawbid.dev',
@@ -319,7 +356,8 @@ export const OWNER_TRUST_SETTINGS = {
 // trial). Applies to new trials; running ones keep their end date (an
 // admin extends one attorney's trial from their subscription card).
 export const OWNER_TRIAL_SETTINGS = {
-  'billing.trial_days': 14,
+  // Owner 2026-10-16: the owner's plan says 7 days (was 14 in code).
+  'billing.trial_days': 7,
 } as const;
 
 // Owner 2026-10-05: sections where admins other than the super admin must
@@ -528,6 +566,9 @@ export const APP_SETTINGS = {
   ...OWNER_LAWYER_VERIFICATION_SETTINGS,
   ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
+  ...OWNER_SMS_SETTINGS,
+  ...OWNER_PAY_PAGE_SETTINGS,
+  ...OWNER_BILLING_GATE_SETTINGS,
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
