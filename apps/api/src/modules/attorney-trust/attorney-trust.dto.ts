@@ -682,11 +682,13 @@ export class ClearedByQueryDto {
   @ApiPropertyOptional({ format: 'date-time' })
   @IsOptional()
   @IsString()
+  @MaxLength(40)
   from?: string;
 
   @ApiPropertyOptional({ format: 'date-time' })
   @IsOptional()
   @IsString()
+  @MaxLength(40)
   to?: string;
 }
 
@@ -840,11 +842,13 @@ export class StaffDecisionsQueryDto {
   @ApiPropertyOptional({ format: 'date-time' })
   @IsOptional()
   @IsString()
+  @MaxLength(40)
   from?: string;
 
   @ApiPropertyOptional({ format: 'date-time' })
   @IsOptional()
   @IsString()
+  @MaxLength(40)
   to?: string;
 }
 

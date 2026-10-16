@@ -1,4 +1,10 @@
-import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { IsIdentifierForChannel } from './validators';
 
 export class OtpRequestDto {
@@ -7,6 +13,7 @@ export class OtpRequestDto {
 
   @IsString()
   @IsIdentifierForChannel('channel')
+  @MaxLength(254)
   identifier!: string;
 
   /** Magic-link binding (email login only): base64url SHA-256 of a random

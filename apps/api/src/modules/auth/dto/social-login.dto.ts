@@ -20,9 +20,11 @@ export class SocialLoginDto {
   provider!: 'apple' | 'google';
 
   @IsString()
+  @MaxLength(4096)
   idToken!: string;
 
   @IsString()
+  @MaxLength(256)
   nonce!: string;
 
   @IsOptional()

@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  MaxLength,
+} from 'class-validator';
 import {
   BidAttorneySummaryDto,
   BidDto,
@@ -27,6 +35,7 @@ export class CaseBidsQueryDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   cursor?: string;
 
   @ApiPropertyOptional({

@@ -1,4 +1,9 @@
-import { IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  ValidateNested,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { DeviceInfoDto } from './device-info.dto';
 
@@ -14,6 +19,7 @@ import { DeviceInfoDto } from './device-info.dto';
  */
 export class RefreshTokenDto {
   @IsString()
+  @MaxLength(4096)
   refreshToken!: string;
 
   @IsOptional()
