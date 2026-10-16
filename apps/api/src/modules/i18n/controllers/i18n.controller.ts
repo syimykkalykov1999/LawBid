@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Header,
+  Param,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ApiHeader, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
@@ -31,6 +39,7 @@ export class I18nController {
 
   @Public()
   @Get('languages')
+  @Header('Cache-Control', 'public, max-age=60')
   @ApiEnvelopeResponse(I18nLanguageDto, { isArray: true })
   async listLanguages(): Promise<I18nLanguageDto[]> {
     return this.languages.listActive();
