@@ -1064,7 +1064,22 @@ class _PhotoTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.memory(photo.bytes, fit: BoxFit.cover, cacheWidth: 312),
+            Image.memory(
+              photo.bytes,
+              fit: BoxFit.cover,
+              cacheWidth: 312,
+              // A format this browser cannot draw (HEIC outside Safari): the
+              // file is still uploaded and converted on the server.
+              errorBuilder: (_, __, ___) => ColoredBox(
+                color: colors.surface,
+                child: Center(
+                  child: AppIcon(
+                    AppIcons.photoLibraryOutlined,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
             if (photo.uploading)
               ColoredBox(
                 color: colors.navy.withValues(alpha: 0.45),
