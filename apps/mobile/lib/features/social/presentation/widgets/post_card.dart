@@ -196,11 +196,12 @@ class PostCard extends ConsumerWidget {
   final double? feedHeight;
 
   /// Owner 2026-10-16 (web): a post card is at most as tall as Instagram's
-  /// (470 px wide, photo 4:5), whatever the window height.
+  /// (470 px wide; a photo is at most 1:1, a video 9:10), whatever the
+  /// window height.
   double? get _feedH => feedHeight == null
       ? null
       : adaptiveShellOn
-          ? math.min(feedHeight!, kWebPostMaxWidth * 1.25 + _kVideoCardChrome)
+          ? math.min(feedHeight!, kWebPostMaxWidth / 0.9 + _kVideoCardChrome)
           : feedHeight;
 
   /// On the post screen: full text, no "view comments" link.
@@ -390,7 +391,10 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-12: a card is one screen — from the status bar to the
     // nav bar; the photo takes what the other blocks leave (the fullest
     // post has a smaller photo, a photo-only post a full-screen one).
-    final width = MediaQuery.sizeOf(context).width;
+    // On the web the card is capped to a post's width; its photo follows.
+    final width = adaptiveShellOn
+        ? math.min(MediaQuery.sizeOf(context).width, kWebPostMaxWidth)
+        : MediaQuery.sizeOf(context).width;
     // Owner 2026-10-13: one card is exactly the screen between the header
     // and the navbar; the photo takes what the text, chips and files
     // leave, and only a tiny leftover (under 30% of the screen) lets the

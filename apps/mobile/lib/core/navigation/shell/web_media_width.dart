@@ -14,8 +14,9 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 ///   column edge (542 px wide), media at most 542 x 430.
 const double kWebPostMaxWidth = 470;
 
-/// A text post (a brief) is as wide as the Threads column.
-const double kWebBriefMaxWidth = 640;
+/// Owner 2026-10-16: a text post (a brief) is as wide as a photo post, one
+/// column (Threads itself is 640 px).
+const double kWebBriefMaxWidth = kWebPostMaxWidth;
 
 /// The reel player is 9:16 and as tall as the window, never wider than this.
 const double kWebReelMaxWidth = 420;
@@ -71,8 +72,18 @@ class WebReelFrame extends StatelessWidget {
         if (!c.hasBoundedHeight) return child;
         final w = (c.maxHeight * 9 / 16).clamp(0.0, kWebReelMaxWidth);
         if (c.maxWidth <= w) return child;
-        return Center(child: SizedBox(width: w, child: child));
+        return Center(
+          child: ColoredBox(
+            color: const Color(0xFF000000),
+            child: SizedBox(width: w, child: child),
+          ),
+        );
       },
     );
   }
 }
+
+/// The backdrop behind the reels: black on a phone, the page's own colour on
+/// the web where only the 9:16 player is black (instagram.com/reels).
+Color reelsBackdrop(BuildContext context, Color pageColor) =>
+    adaptiveShellOn ? pageColor : const Color(0xFF000000);
