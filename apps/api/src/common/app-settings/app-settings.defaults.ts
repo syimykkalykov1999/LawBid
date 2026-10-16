@@ -217,6 +217,14 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.require_verified_for_purchases': true,
 } as const;
 
+// Owner 2026-10-16: our own card page (variant B) for the subscription; off or
+// without a publishable key, Stripe's hosted page (card only) is used.
+export const OWNER_PAY_PAGE_SETTINGS = {
+  'payments.own_page_enabled': true,
+  /** How long a link to the card page works, minutes. */
+  'payments.own_page_ttl_minutes': 30,
+} as const;
+
 export const OWNER_SMS_SETTINGS = {
   /** true = a registered number may still get a sign-in code (the old way). */
   'sms.login_code_enabled': false,
@@ -559,6 +567,7 @@ export const APP_SETTINGS = {
   ...OWNER_TASKS_SETTINGS,
   ...OWNER_WEB_SETTINGS,
   ...OWNER_SMS_SETTINGS,
+  ...OWNER_PAY_PAGE_SETTINGS,
   ...OWNER_BILLING_GATE_SETTINGS,
   ...OWNER_AUTOMATION_SETTINGS,
   ...OWNER_INVITE_SETTINGS,

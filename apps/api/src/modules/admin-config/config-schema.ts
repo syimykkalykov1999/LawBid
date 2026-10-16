@@ -133,6 +133,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Only a verified attorney can buy offer packs and Boost. Off: anyone can (rollback).',
   };
+  out['payments.own_page_enabled'] = {
+    ...out['payments.own_page_enabled'],
+    description:
+      "On (needs the Stripe publishable key): the subscription is paid on our own card page. Off: Stripe's hosted page (card only).",
+  };
+  out['payments.own_page_ttl_minutes'] = {
+    ...out['payments.own_page_ttl_minutes'],
+    description: 'How long a link to the card page works, minutes.',
+    min: 5,
+    max: 240,
+  };
   // Owner 2026-10-16: fewer SMS.
   out['sms.login_code_enabled'] = {
     ...out['sms.login_code_enabled'],
