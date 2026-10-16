@@ -3,9 +3,11 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import type { User } from '@prisma/client';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
@@ -75,6 +77,8 @@ export class PasswordAuthService {
     private readonly loginMethods: LoginMethodPolicy,
     private readonly bans: AccountBansService,
     private readonly revocation: SessionRevocationService,
+    // Owner 2026-10-16: reset-code caps are admin-editable.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   // POST /auth/password/login
@@ -194,10 +198,20 @@ export class PasswordAuthService {
     await this.loginMethods.assertEnabled('password');
     const { channel, identifier } = this.parseIdentifier(dto.identifier);
     this.assertResetByPhone(channel);
+    const resetHash = this.rateLimit.hashIdentifier(identifier);
     await this.limit(
-      ['pwd-reset-req', 'id', this.rateLimit.hashIdentifier(identifier)],
-      RESET_REQUEST_PER_IDENTIFIER,
+      ['pwd-reset-req', 'id', resetHash],
+      this.settings
+        ? await this.settings.number('sms.reset_per_number_per_hour')
+        : RESET_REQUEST_PER_IDENTIFIER,
     );
+    if (this.settings) {
+      await this.limit(
+        ['pwd-reset-req-day', 'id', resetHash],
+        await this.settings.number('sms.reset_per_number_per_day'),
+        86_400,
+      );
+    }
     if (meta.ip) {
       await this.limit(['pwd-reset-req', 'ip', meta.ip], RESET_REQUEST_PER_IP);
     }
@@ -399,11 +413,15 @@ export class PasswordAuthService {
     });
   }
 
-  private async limit(key: string[], max: number): Promise<void> {
+  private async limit(
+    key: string[],
+    max: number,
+    windowSeconds = WINDOW_SECONDS,
+  ): Promise<void> {
     const r = await this.rateLimit.consumeSlidingWindow(
       key,
       max,
-      WINDOW_SECONDS,
+      windowSeconds,
     );
     if (r.allowed) return;
     throw new HttpException(

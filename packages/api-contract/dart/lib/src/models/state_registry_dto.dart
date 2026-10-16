@@ -22,6 +22,7 @@ class StateRegistryDto {
     required this.lastTestAt,
     required this.lastTestResult,
     required this.updatedAt,
+    required this.lookupUrl,
   });
 
   factory StateRegistryDto.fromJson(Map<String, Object?> json) =>
@@ -42,6 +43,9 @@ class StateRegistryDto {
   final DateTime? lastTestAt;
   final dynamic lastTestResult;
   final DateTime? updatedAt;
+
+  /// The state's own public lookup page (a link for the verifier).
+  final String? lookupUrl;
 
   Map<String, Object?> toJson() => _$StateRegistryDtoToJson(this);
 }

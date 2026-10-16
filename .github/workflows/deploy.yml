@@ -50,6 +50,16 @@ jobs:
     if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
+      # Owner 2026-10-16: when AWS refuses the role, the log must show which
+      # `sub` GitHub sent, to compare with the role's trust policy
+      # (docs/runbooks/PROD_LAUNCH.md §11). Only the claims, never the token.
+      - name: Show the OIDC claims (diagnostic)
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          set -eu
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')
+          echo "$TOKEN" | python3 -c 'import sys,json,base64;p=sys.stdin.read().strip().split(".")[1];p+="="*(-len(p)%4);c=json.loads(base64.urlsafe_b64decode(p));print({k:c.get(k) for k in ("sub","aud","repository","ref","environment","job_workflow_ref")})'
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_DEPLOY_ROLE_PROD }}

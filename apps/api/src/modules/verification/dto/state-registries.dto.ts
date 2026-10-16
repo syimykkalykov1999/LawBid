@@ -103,6 +103,32 @@ export class StateRegistryDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   updatedAt!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "The state's own public lookup page (a link for the verifier).",
+  })
+  lookupUrl!: string | null;
+}
+
+export class BarFormatMissDto {
+  @ApiProperty({ example: 'TX' })
+  stateCode!: string;
+
+  @ApiProperty({
+    example: '99999999',
+    description:
+      'The shape of a number no rule recognised (9 = digit, A = letter).',
+  })
+  shape!: string;
+
+  @ApiProperty()
+  hits!: number;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  lastSeen!: string;
 }
 
 export class StateRegistriesOverviewDto {
@@ -114,6 +140,14 @@ export class StateRegistriesOverviewDto {
 
   @ApiProperty({ type: StateRegistryDto, isArray: true })
   items!: StateRegistryDto[];
+
+  @ApiProperty({
+    type: BarFormatMissDto,
+    isArray: true,
+    description:
+      'Bar-number shapes no state rule recognised (they went to manual review): widen verification.bar_formats from here.',
+  })
+  formatMisses!: BarFormatMissDto[];
 }
 
 export class SaveStateRegistryDto {
