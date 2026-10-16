@@ -163,16 +163,22 @@ class FilterChips<T> extends StatelessWidget {
     required this.options,
     required this.onChanged,
     super.key,
+    this.padding = const EdgeInsets.symmetric(
+      horizontal: AppSpacing.screenSide,
+    ),
   });
 
   final T value;
   final List<(T, String)> options;
   final ValueChanged<T> onChanged;
 
+  /// Owner 2026-10-16: zero when the chips share a row with other controls.
+  final EdgeInsetsGeometry padding;
+
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+        padding: padding,
         child: Row(
           children: [
             for (final (key, label) in options) ...[

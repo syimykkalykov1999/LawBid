@@ -73,19 +73,24 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
             ChromeCollapse(
               child: Column(
                 children: [
+                  // Owner 2026-10-16: the chips and the search share a row.
+                  MineChipsSearchRow(
+                    search: _search,
+                    onChanged: (v) => setState(() => _search = v),
+                    chips: FilterChips<_CaseSection>(
+                      key: const ValueKey('case-sections'),
+                      padding: EdgeInsets.zero,
+                      value: _section,
+                      options: [
+                        (_CaseSection.active, t.t('mine.filter.active')),
+                        (_CaseSection.completed, t.t('mine.tab.completed')),
+                      ],
+                      onChanged: (v) => setState(() => _section = v),
+                    ),
+                  ),
                   MineActiveFilters(
                     search: _search,
                     onChanged: (v) => setState(() => _search = v),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  FilterChips<_CaseSection>(
-                    key: const ValueKey('case-sections'),
-                    value: _section,
-                    options: [
-                      (_CaseSection.active, t.t('mine.filter.active')),
-                      (_CaseSection.completed, t.t('mine.tab.completed')),
-                    ],
-                    onChanged: (v) => setState(() => _section = v),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                 ],
@@ -109,20 +114,13 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       controller: _chrome,
       child: Column(
         children: [
-          // Owner 2026-10-16: tabs and search in one row.
-          MineTabsSearchRow(
-            searchable: _tab == _ClientTab.cases,
-            search: _search,
-            onChanged: (v) => setState(() => _search = v),
-            tabs: PillTabs<_ClientTab>(
-              padding: EdgeInsets.zero,
-              value: _tab,
-              tabs: [
-                (_ClientTab.cases, t.t('mine.tab.cases')),
-                (_ClientTab.planner, t.t('mine.tab.tasks')),
-              ],
-              onChanged: (v) => setState(() => _tab = v),
-            ),
+          PillTabs<_ClientTab>(
+            value: _tab,
+            tabs: [
+              (_ClientTab.cases, t.t('mine.tab.cases')),
+              (_ClientTab.planner, t.t('mine.tab.tasks')),
+            ],
+            onChanged: (v) => setState(() => _tab = v),
           ),
           Expanded(
             child: TabSwipe<_ClientTab>(
@@ -250,24 +248,31 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       semanticLabel: t.t('mine.tab.saved'),
       onPressed: () => setState(() => _saved = !_saved),
     );
-    final sections = Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Column(
-        children: [
-          FilterChips<_BidsSection>(
-            key: const ValueKey('bids-sections'),
-            value: _section,
-            options: [
-              (_BidsSection.active, t.t('mine.filter.active')),
-              (_BidsSection.bids, t.t('mine.bids.title')),
-              (_BidsSection.completed, t.t('mine.tab.completed')),
-            ],
-            onChanged: (v) => setState(() => _section = v),
-          ),
-          // «Bids» holds the bids waiting for the client and the invitations.
-          if (_section == _BidsSection.bids) ...[
-            const SizedBox(height: AppSpacing.sm),
-            FilterChips<_BidKind>(
+    // Owner 2026-10-16: the section chips, the search and «Saved» share one
+    // row; the invitations switch stays under it.
+    final topRow = MineChipsSearchRow(
+      search: _search,
+      onChanged: (v) => setState(() => _search = v),
+      action: saved,
+      chips: _saved
+          ? null
+          : FilterChips<_BidsSection>(
+              key: const ValueKey('bids-sections'),
+              padding: EdgeInsets.zero,
+              value: _section,
+              options: [
+                (_BidsSection.active, t.t('mine.filter.active')),
+                (_BidsSection.bids, t.t('mine.bids.title')),
+                (_BidsSection.completed, t.t('mine.tab.completed')),
+              ],
+              onChanged: (v) => setState(() => _section = v),
+            ),
+    );
+    // «Bids» holds the bids waiting for the client and the invitations.
+    final kinds = !_saved && _section == _BidsSection.bids
+        ? Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: FilterChips<_BidKind>(
               key: const ValueKey('bids-kinds'),
               value: _kind,
               options: [
@@ -276,10 +281,8 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
               ],
               onChanged: (v) => setState(() => _kind = v),
             ),
-          ],
-        ],
-      ),
-    );
+          )
+        : const SizedBox.shrink();
     final Widget grid = _saved
         ? _AttorneySaved(
             key: const ValueKey('saved'),
@@ -319,8 +322,9 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             ChromeCollapse(
               child: Column(
                 children: [
+                  topRow,
                   filters,
-                  if (!_saved) sections,
+                  kinds,
                   const SizedBox(height: AppSpacing.sm),
                 ],
               ),
@@ -341,21 +345,13 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       controller: _chrome,
       child: Column(
         children: [
-          // Owner 2026-10-16: tabs and search in one row.
-          MineTabsSearchRow(
-            searchable: _tab == _AttorneyTab.cases,
-            search: _search,
-            onChanged: (v) => setState(() => _search = v),
-            action: _tab == _AttorneyTab.cases ? saved : null,
-            tabs: PillTabs<_AttorneyTab>(
-              padding: EdgeInsets.zero,
-              value: _tab,
-              tabs: [
-                (_AttorneyTab.cases, t.t('mine.tab.cases')),
-                (_AttorneyTab.planner, t.t('mine.tab.tasks')),
-              ],
-              onChanged: (v) => setState(() => _tab = v),
-            ),
+          PillTabs<_AttorneyTab>(
+            value: _tab,
+            tabs: [
+              (_AttorneyTab.cases, t.t('mine.tab.cases')),
+              (_AttorneyTab.planner, t.t('mine.tab.tasks')),
+            ],
+            onChanged: (v) => setState(() => _tab = v),
           ),
           Expanded(
             child: TabSwipe<_AttorneyTab>(
