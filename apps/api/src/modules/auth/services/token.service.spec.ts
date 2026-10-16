@@ -48,6 +48,20 @@ describe('TokenService', () => {
     expect(service.verifyAccessToken(token)).toEqual(claims);
   });
 
+  it('keeps the demo flag through verification (the guard matches it against the demo header)', () => {
+    const service = buildService();
+    const claims = {
+      sub: 'user-1',
+      role: 'client' as const,
+      sid: 'chain-1',
+      verified: false,
+      subscriptionStatus: 'none',
+      demo: true,
+    };
+    const token = service.signAccessToken(claims);
+    expect(service.verifyAccessToken(token)).toEqual(claims);
+  });
+
   it('accepts a token signed under a non-active kid still listed in JWT_KEYS (rotation)', () => {
     // A token signed under kid2's secret (as if kid2 used to be active before
     // a rotation to kid1) must still verify — see TokenService's class doc:
