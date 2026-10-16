@@ -47,7 +47,7 @@ describe('Search ranking weights (e2e)', () => {
 
   afterAll(async () => {
     await prisma.appConfig.deleteMany({
-      where: { key: 'search.weight_rating' },
+      where: { key: { startsWith: 'search.weight_' } },
     });
     await redis.del('config:app_config');
     await app.close();
@@ -64,6 +64,11 @@ describe('Search ranking weights (e2e)', () => {
   });
 
   it('a heavier rating weight puts the better-rated attorney first', async () => {
+    // Start from the defaults whatever an earlier suite left behind.
+    await prisma.appConfig.deleteMany({
+      where: { key: { startsWith: 'search.weight_' } },
+    });
+    await redis.del('config:app_config');
     const stem = `wgt${randomUUID()
       .replace(/[^a-f]/g, '')
       .slice(0, 5)}`;
