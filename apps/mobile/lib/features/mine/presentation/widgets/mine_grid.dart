@@ -356,6 +356,8 @@ class MineSearchBar extends ConsumerStatefulWidget {
     required this.search,
     required this.onChanged,
     this.action,
+    this.onClose,
+    this.padded = true,
     super.key,
   });
 
@@ -364,6 +366,14 @@ class MineSearchBar extends ConsumerStatefulWidget {
 
   /// Owner 2026-10-15: a button right of the field (the attorney's «Saved»).
   final Widget? action;
+
+  /// Owner 2026-10-16: when set, the field sits in the chips row — it takes
+  /// focus on open and the magnifier at its end becomes a ✕ that clears the
+  /// query and calls this.
+  final VoidCallback? onClose;
+
+  /// Outer padding of the standalone bar; off inside [MineChipsSearchRow].
+  final bool padded;
 
   @override
   ConsumerState<MineSearchBar> createState() => _MineSearchBarState();
@@ -375,6 +385,25 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
   final _focus = FocusNode();
   Timer? _debounce;
   late String _last = widget.search.q;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.onClose != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focus.requestFocus();
+      });
+    }
+  }
+
+  void _close() {
+    _debounce?.cancel();
+    _focus.unfocus();
+    if (widget.search.q.isNotEmpty) {
+      widget.onChanged(widget.search.copyWith(q: ''));
+    }
+    widget.onClose?.call();
+  }
 
   @override
   void dispose() {
@@ -478,12 +507,14 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
     // Owner 2026-09-30: like Search — the filter button inside the field
     // on the left, the magnifier on the right.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        AppSpacing.sm,
-        AppSpacing.screenSide,
-        0,
-      ),
+      padding: widget.padded
+          ? const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              0,
+            )
+          : EdgeInsets.zero,
       child: Row(
         children: [
           Expanded(
@@ -508,13 +539,96 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
                   onPressed: _filters,
                 ),
               ),
-              trailing: AppIconButton(
-                icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-                semanticLabel: t.t('mine.search.hint'),
-                onPressed: _focus.requestFocus,
-              ),
+              trailing: widget.onClose != null
+                  ? AppIconButton(
+                      key: const ValueKey('mine-search-close'),
+                      icon: AppIcon(AppIcons.closeRounded, color: colors.text),
+                      semanticLabel: t.t('common.cancel'),
+                      onPressed: _close,
+                    )
+                  : AppIconButton(
+                      icon: AppIcon(
+                        AppIcons.searchRounded,
+                        color: colors.goldDark,
+                      ),
+                      semanticLabel: t.t('mine.search.hint'),
+                      onPressed: _focus.requestFocus,
+                    ),
             ),
           ),
+          if (widget.action != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            widget.action!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-16: the section chips (client: Active · Completed;
+/// attorney: Active · Bids · Completed) and the search share one row.
+/// Closed: the chips on the left, a magnifier on the right; a tap opens the
+/// field over the chips (filters button inside, ✕ at the end closes it).
+/// The field stays open while a query is typed. [action] (the attorney's
+/// «Saved») stays at the far end in both states. Without [chips] the field
+/// is always open.
+class MineChipsSearchRow extends ConsumerStatefulWidget {
+  const MineChipsSearchRow({
+    required this.search,
+    required this.onChanged,
+    this.chips,
+    this.action,
+    super.key,
+  });
+
+  /// The chips, built without their own outer padding.
+  final Widget? chips;
+  final MineSearch search;
+  final ValueChanged<MineSearch> onChanged;
+  final Widget? action;
+
+  @override
+  ConsumerState<MineChipsSearchRow> createState() => _MineChipsSearchRowState();
+}
+
+class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
+  late bool _open = widget.search.q.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final chips = widget.chips;
+    final open = _open || chips == null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        0,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: open
+                ? MineSearchBar(
+                    search: widget.search,
+                    onChanged: widget.onChanged,
+                    onClose: chips == null
+                        ? null
+                        : () => setState(() => _open = false),
+                    padded: false,
+                  )
+                : chips,
+          ),
+          if (!open)
+            AppIconButton(
+              key: const ValueKey('mine-search-open'),
+              icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
+              semanticLabel: t.t('mine.search.hint'),
+              onPressed: () => setState(() => _open = true),
+            ),
           if (widget.action != null) ...[
             const SizedBox(width: AppSpacing.sm),
             widget.action!,

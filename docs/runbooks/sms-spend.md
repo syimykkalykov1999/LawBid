@@ -18,5 +18,5 @@ Monitor → Insights (destinations, error 30xxx).
 
 **Act.** Abuse → lower `OTP_RATE_LIMIT_PER_IP_PER_HOUR` /
 `OTP_RATE_LIMIT_PER_DEVICE_PER_HOUR` (env), add the source to a WAF
-block; enable device attestation (`FEATURE_ATTESTATION`). Legit growth →
+block. Legit growth →
 raise the budgets deliberately.

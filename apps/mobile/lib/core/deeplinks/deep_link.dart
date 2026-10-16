@@ -79,6 +79,25 @@ final class ContentDeepLink extends DeepLink {
   String toString() => 'ContentDeepLink($kind, $id)';
 }
 
+/// Web only: the address of a main tab (`/feed`, `/search`, `/mine`,
+/// `/profile`), so a browser refresh reopens the same tab instead of the
+/// feed (owner 2026-10-16).
+final class TabDeepLink extends DeepLink {
+  const TabDeepLink(this.location);
+
+  /// In-app go_router location.
+  final String location;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TabDeepLink && other.location == location;
+
+  @override
+  int get hashCode => location.hashCode;
+}
+
+const _webTabs = {'/feed', '/search', '/mine', '/profile'};
+
 /// Magic-link token: 32 random bytes, base64url without padding.
 final _tokenPattern = RegExp(r'^[A-Za-z0-9_-]{43}$');
 
@@ -102,7 +121,11 @@ bool _isLoopback(String host) =>
 ///   (for the custom scheme the "host" is the first path segment);
 /// - `https://<host>/auth/email-code?…`, `https://<host>/case/<id>` … where
 ///   `<host>` is [host] or `www.<host>` (universal / App Links).
-DeepLink? parseDeepLink(Uri uri, {required String host}) {
+DeepLink? parseDeepLink(
+  Uri uri, {
+  required String host,
+  bool webTabs = false,
+}) {
   final List<String> segments;
   final scheme = uri.scheme.toLowerCase();
   if (scheme == deepLinkScheme) {
@@ -130,6 +153,10 @@ DeepLink? parseDeepLink(Uri uri, {required String host}) {
     }
     if (!_tokenPattern.hasMatch(token)) return null;
     return EmailCodeDeepLink(token: token);
+  }
+
+  if (webTabs && parts.length == 1 && _webTabs.contains('/${parts[0]}')) {
+    return TabDeepLink('/${parts[0]}');
   }
 
   if (parts.length != 2) return null;

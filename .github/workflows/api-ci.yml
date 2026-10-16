@@ -86,7 +86,6 @@ jobs:
       SMTP_PORT: "1025"
       GOOGLE_CLIENT_IDS: ""
       APPLE_BUNDLE_IDS: ""
-      FEATURE_ATTESTATION: "false"
 
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16.

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -36,6 +37,7 @@ class StickerImage extends StatelessWidget {
             )
           : CachedNetworkImage(
               imageUrl: url,
+              memCacheWidth: decodeWidthFor(size),
               fit: BoxFit.contain,
               fadeInDuration: const Duration(milliseconds: 120),
               placeholder: (_, __) => Center(

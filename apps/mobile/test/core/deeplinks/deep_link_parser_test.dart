@@ -73,6 +73,25 @@ void main() {
     });
   });
 
+  group('web tab addresses (refresh keeps the tab)', () {
+    test('only with webTabs', () {
+      final uri = Uri.parse('https://lawbid.dev/mine');
+      expect(parseDeepLink(uri, host: 'lawbid.dev'), isNull);
+      expect(
+        parseDeepLink(uri, host: 'lawbid.dev', webTabs: true),
+        const TabDeepLink('/mine'),
+      );
+      expect(
+        parseDeepLink(
+          Uri.parse('https://lawbid.dev/admin'),
+          host: 'lawbid.dev',
+          webTabs: true,
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('content links (docs/01 §12)', () {
     test('case / lawyer / post on both forms', () {
       const id = '3f0c9a8e-1b2d-4c5e-9f00-112233445566';

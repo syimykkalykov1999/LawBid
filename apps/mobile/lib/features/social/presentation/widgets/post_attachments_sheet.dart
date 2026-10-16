@@ -185,6 +185,7 @@ class _PostAttachmentsSheetState extends ConsumerState<PostAttachmentsSheet> {
                           borderRadius: BorderRadius.circular(AppRadii.field),
                           child: CachedNetworkImage(
                             imageUrl: media[i].previewUrl,
+                            memCacheWidth: 600,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) =>
                                 ColoredBox(color: colors.surface),

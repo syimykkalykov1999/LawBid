@@ -1,6 +1,6 @@
 'use client';
 
-import { Flask, Key, LockSimple } from '@phosphor-icons/react';
+import { Key } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import Link from 'next/link';
@@ -77,38 +77,12 @@ const FLAG_INFO: Record<string, FlagInfo> = {
     title: 'Вход с сайта (веб-версия)',
     what: 'Пользователи могут входить не только из телефона, но и через браузер на сайте. Выключите — останется только приложение.',
   },
-  profile_promotion: {
-    title: 'Продвижение профиля адвоката',
-    what: 'Платное поднятие профиля адвоката выше в поиске.',
-    need: 'Ключи Stripe и ID цены в «Ключи и сервисы».',
-    href: KEYS,
-    hrefLabel: 'Ключи Stripe',
-  },
-  stripe_identity: {
-    title: 'Проверка документов (Stripe Identity)',
-    what: 'Автоматическая проверка удостоверения личности адвоката по фото документа.',
-    need: 'Ключ Stripe в «Ключи и сервисы».',
-    href: KEYS,
-    hrefLabel: 'Ключи Stripe',
-  },
-  persona_verification: {
-    title: 'Проверка документов (Persona)',
-    what: 'Другой сервис проверки личности адвоката, вместо Stripe Identity.',
-    need: 'Ключ Persona в «Ключи и сервисы».',
-    href: KEYS,
-    hrefLabel: 'Ключ Persona',
-  },
   auto_bar_check: {
     title: 'Автопроверка лицензии (старый переключатель)',
     what: 'Больше не используется. Проверка лицензий теперь включается отдельно для каждого штата.',
     need: 'Настраивается внизу страницы «Ключи и сервисы» → «Реестры адвокатов по штатам».',
     href: KEYS,
     hrefLabel: 'Реестры штатов',
-  },
-  device_attestation: {
-    title: 'Защита от ботов (проверка телефона)',
-    what: 'Сервер проверяет, что вход идёт с настоящего iPhone или Android, а не из программы-бота.',
-    need: 'Ещё не готово: если включить сейчас, никто не сможет войти. Поэтому кнопка заблокирована.',
   },
   password_login: {
     title: 'Вход по паролю',
@@ -170,7 +144,6 @@ type Flag = {
   description: string | null;
   paid: boolean;
   missingKeys: string[];
-  notBuilt?: boolean;
   updatedAt: string;
 };
 
@@ -252,7 +225,7 @@ function FlagCard({
 }) {
   const info = infoFor(f);
   const title = info.title;
-  const blocked = !f.enabled && (f.notBuilt || (f.paid && f.missingKeys.length > 0));
+  const blocked = !f.enabled && f.paid && f.missingKeys.length > 0;
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -264,11 +237,7 @@ function FlagCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-medium text-heading">{title}</h3>
-              {f.notBuilt ? (
-                <Badge tone="neutral">
-                  <LockSimple size={11} /> ещё не сделано
-                </Badge>
-              ) : f.enabled ? (
+              {f.enabled ? (
                 <Badge tone="success" dot>
                   включено
                 </Badge>
@@ -305,16 +274,10 @@ function FlagCard({
               Добавить ключи →
             </Link>
           </div>
-        ) : info.href && !f.notBuilt ? (
+        ) : info.href ? (
           <Link href={info.href} className="mt-3 inline-block text-xs text-gold-600 underline-offset-2 hover:underline">
             {info.hrefLabel ?? 'Открыть настройки'} →
           </Link>
-        ) : null}
-        {f.notBuilt ? (
-          <div className="mt-4 flex items-start gap-2 border-t border-line pt-4 text-xs text-faint">
-            <Flask size={14} className="mt-px shrink-0" />
-            <span className="break-words">Функция ещё не готова в приложении — сервер не даст её включить.</span>
-          </div>
         ) : null}
         <div className="mt-2 text-[11px] text-faint">Изменён {formatDateTime(f.updatedAt)}</div>
       </Card>

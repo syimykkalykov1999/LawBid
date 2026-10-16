@@ -24,14 +24,30 @@ and nothing is public until the owner's steps at the end.
    `appId`, `messagingSenderId`, `projectId`, `authDomain`, the VAPID key.
    They go into the repository secrets `FIREBASE_WEB_*` (see
    `web-deploy.yml`). Without them the web simply has no push.
-2. **AWS** (same account and Terraform state as the rest): an ACM
-   certificate for the web host in **us-east-1** (CloudFront reads only that
-   region), then in `terraform.tfvars`: `web_host`, `web_certificate_arn`;
-   `terraform apply`. Point the DNS record at the CloudFront domain if the
-   zone is not in Route 53.
+2. **AWS + DNS for lawbid.dev** (Mac, owner's AWS keys; Terraform makes the
+   certificate itself, nothing is created by hand in the AWS console):
+   1. In `infra/envs/prod/terraform.tfvars` add `web_host = "lawbid.dev"`,
+      `web_extra_hosts = ["www.lawbid.dev"]`, `web_create_certificate = true`
+      (leave `web_certificate_arn` empty).
+   2. `terraform apply -target=module.stack.module.web.aws_acm_certificate.web`
+      (only asks ACM for the certificate), then
+      `terraform output -json stack | jq .web_certificate_validation`.
+   3. **Namecheap → Domain List → lawbid.dev → Advanced DNS → Add new record**,
+      one `CNAME Record` per line of that output: *Host* = the `host` without
+      the trailing `.lawbid.dev.` part (Namecheap adds the domain itself),
+      *Value* = the `value` (keep the dot at the end out if Namecheap
+      complains), TTL Automatic. Nothing else is needed to confirm the
+      certificate: ACM sees the records itself (usually 5–30 minutes).
+   4. Full `terraform apply` (waits until the certificate is issued, then
+      creates the bucket, CloudFront and the deploy policy).
+   5. **Point the site at CloudFront** (Namecheap → Advanced DNS):
+      `ALIAS Record`, Host `@`, Value = `terraform output` → `web_cdn_domain`
+      (`dxxxx.cloudfront.net`); `CNAME Record`, Host `www`, same value.
+      Remove the default "parking page" records for `@` and `www` first.
+      TLS is on the CloudFront side, nothing to buy.
 3. **Repository secrets/variables** for the two workflows: variable
    `WEB_DEPLOY_ENABLED=true`; secrets `WEB_BUCKET`, `WEB_DISTRIBUTION_ID`
-   (terraform outputs), `WEB_API_BASE_URL`, `WEB_DEEP_LINK_HOST`,
+   (terraform outputs), `WEB_API_BASE_URL` (`https://api.lawbid.dev/api/v1`), `WEB_DEEP_LINK_HOST` (`lawbid.dev`),
    `WEB_SITE_URL`, `WEB_SEO_API_URL`, and the deploy role needs the
    `web_deploy_policy_arn` policy.
 4. **API CORS**: add the web origin to `S3_CORS_ALLOWED_ORIGINS`
