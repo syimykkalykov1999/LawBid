@@ -228,6 +228,7 @@ class _ReelVideoState extends State<ReelVideo> {
           if (thumb != null)
             CachedNetworkImage(
               imageUrl: thumb,
+              memCacheWidth: 720,
               fit: BoxFit.cover,
               fadeInDuration: Duration.zero,
               errorWidget: (_, __, ___) => const SizedBox.shrink(),

@@ -9,6 +9,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -473,7 +474,7 @@ class _Avatar extends StatelessWidget {
                   ),
                 ),
               )
-            : Image.network(url, fit: BoxFit.cover),
+            : Image(image: appNetworkImage(url, 600), fit: BoxFit.cover),
       ),
     );
   }

@@ -73,23 +73,24 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
             ChromeCollapse(
               child: Column(
                 children: [
-                  MineSearchBar(
+                  // Owner 2026-10-16: the chips and the search share a row.
+                  MineChipsSearchRow(
                     search: _search,
                     onChanged: (v) => setState(() => _search = v),
+                    chips: FilterChips<_CaseSection>(
+                      key: const ValueKey('case-sections'),
+                      padding: EdgeInsets.zero,
+                      value: _section,
+                      options: [
+                        (_CaseSection.active, t.t('mine.filter.active')),
+                        (_CaseSection.completed, t.t('mine.tab.completed')),
+                      ],
+                      onChanged: (v) => setState(() => _section = v),
+                    ),
                   ),
                   MineActiveFilters(
                     search: _search,
                     onChanged: (v) => setState(() => _search = v),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  FilterChips<_CaseSection>(
-                    key: const ValueKey('case-sections'),
-                    value: _section,
-                    options: [
-                      (_CaseSection.active, t.t('mine.filter.active')),
-                      (_CaseSection.completed, t.t('mine.tab.completed')),
-                    ],
-                    onChanged: (v) => setState(() => _section = v),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                 ],
@@ -233,48 +234,45 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final invites = _section == _BidsSection.bids && _kind == _BidKind.invites;
-    final search = Column(
-      children: [
-        MineSearchBar(
-          search: _search,
-          onChanged: (v) => setState(() => _search = v),
-          // Owner 2026-10-15: «Saved» is a bookmark right of the search.
-          action: AppIconButton(
-            key: const ValueKey('mine-saved-toggle'),
-            icon: AppIcon(
-              _saved
-                  ? AppIcons.bookmarkRounded
-                  : AppIcons.bookmarkBorderRounded,
-              color: _saved ? colors.goldDark : colors.text,
-            ),
-            semanticLabel: t.t('mine.tab.saved'),
-            onPressed: () => setState(() => _saved = !_saved),
-          ),
-        ),
-        MineActiveFilters(
-          search: _search,
-          onChanged: (v) => setState(() => _search = v),
-        ),
-      ],
+    final filters = MineActiveFilters(
+      search: _search,
+      onChanged: (v) => setState(() => _search = v),
     );
-    final sections = Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Column(
-        children: [
-          FilterChips<_BidsSection>(
-            key: const ValueKey('bids-sections'),
-            value: _section,
-            options: [
-              (_BidsSection.active, t.t('mine.filter.active')),
-              (_BidsSection.bids, t.t('mine.bids.title')),
-              (_BidsSection.completed, t.t('mine.tab.completed')),
-            ],
-            onChanged: (v) => setState(() => _section = v),
-          ),
-          // «Bids» holds the bids waiting for the client and the invitations.
-          if (_section == _BidsSection.bids) ...[
-            const SizedBox(height: AppSpacing.sm),
-            FilterChips<_BidKind>(
+    // Owner 2026-10-15: «Saved» is a bookmark right of the search.
+    final saved = AppIconButton(
+      key: const ValueKey('mine-saved-toggle'),
+      icon: AppIcon(
+        _saved ? AppIcons.bookmarkRounded : AppIcons.bookmarkBorderRounded,
+        color: _saved ? colors.goldDark : colors.text,
+      ),
+      semanticLabel: t.t('mine.tab.saved'),
+      onPressed: () => setState(() => _saved = !_saved),
+    );
+    // Owner 2026-10-16: the section chips, the search and «Saved» share one
+    // row; the invitations switch stays under it.
+    final topRow = MineChipsSearchRow(
+      search: _search,
+      onChanged: (v) => setState(() => _search = v),
+      action: saved,
+      chips: _saved
+          ? null
+          : FilterChips<_BidsSection>(
+              key: const ValueKey('bids-sections'),
+              padding: EdgeInsets.zero,
+              value: _section,
+              options: [
+                (_BidsSection.active, t.t('mine.filter.active')),
+                (_BidsSection.bids, t.t('mine.bids.title')),
+                (_BidsSection.completed, t.t('mine.tab.completed')),
+              ],
+              onChanged: (v) => setState(() => _section = v),
+            ),
+    );
+    // «Bids» holds the bids waiting for the client and the invitations.
+    final kinds = !_saved && _section == _BidsSection.bids
+        ? Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: FilterChips<_BidKind>(
               key: const ValueKey('bids-kinds'),
               value: _kind,
               options: [
@@ -283,10 +281,8 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
               ],
               onChanged: (v) => setState(() => _kind = v),
             ),
-          ],
-        ],
-      ),
-    );
+          )
+        : const SizedBox.shrink();
     final Widget grid = _saved
         ? _AttorneySaved(
             key: const ValueKey('saved'),
@@ -321,13 +317,14 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       _AttorneyTab.cases => Column(
           key: const ValueKey('cases'),
           children: [
-            // Owner 2026-10-15: search, bookmark and chips hide on scroll
-            // down and return on scroll up.
+            // Owner 2026-10-15: the filter chips hide on scroll down and
+            // return on scroll up.
             ChromeCollapse(
               child: Column(
                 children: [
-                  search,
-                  if (!_saved) sections,
+                  topRow,
+                  filters,
+                  kinds,
                   const SizedBox(height: AppSpacing.sm),
                 ],
               ),

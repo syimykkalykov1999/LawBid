@@ -14,8 +14,8 @@ import { IsPhoneOrEmailIdentifier } from './validators';
  *
  * "biometric" from §10.1 is intentionally NOT a valid `method` value yet:
  * a server can't verify an on-device Face ID/Touch ID assertion without
- * platform key attestation (App Attest / Play Integrity), which is the
- * FEATURE_ATTESTATION-flagged seam stage 1.4 stubs but does not build.
+ * platform key attestation (App Attest / Play Integrity), which the API
+ * does not have.
  * Only 'otp' reauth is implemented this stage.
  */
 export class ReauthDto {

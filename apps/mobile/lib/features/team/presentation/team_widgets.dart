@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -355,8 +356,8 @@ class RequestCard extends StatelessWidget {
                       separatorBuilder: (_, __) => const SizedBox(width: 6),
                       itemBuilder: (_, i) => ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadii.field),
-                        child: Image.network(
-                          r.mediaUrls[i],
+                        child: Image(
+                          image: appNetworkImage(r.mediaUrls[i], 216),
                           width: 72,
                           height: 72,
                           fit: BoxFit.cover,
