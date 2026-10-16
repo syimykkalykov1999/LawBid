@@ -14,10 +14,12 @@ import { AdminSessionService } from '../admin-auth/admin-session.service';
 import {
   covers,
   defaultPermissionsForRole,
+  hasSuperGrantOnly,
   intersect,
   parsePermissions,
   readCountries,
   readManageAdmins,
+  readNoPii,
   readPartner,
   storePermissions,
 } from '../admin-auth/admin-permissions';
@@ -115,11 +117,17 @@ export class AdminsService {
     role: AdminRoleName,
     permissions?: Record<string, string>,
     canManageAdmins?: boolean,
+    noPii?: boolean,
   ): Promise<AdminAccountDto> {
     const own = actor.permissions ?? {};
     if (!isSuper(actor)) {
       if (role === 'super_admin' || canManageAdmins) throw outsideReach();
       if (permissions && !covers(own, parsePermissions(permissions))) {
+        throw outsideReach();
+      }
+      // Money, economy, budget caps and the audit log: the owner hands
+      // them out himself.
+      if (permissions && hasSuperGrantOnly(parsePermissions(permissions))) {
         throw outsideReach();
       }
     }
@@ -146,6 +154,9 @@ export class AdminsService {
           ? []
           : (actor.assignedCountries ?? []),
       team ? { partnerId: team.id, lead: false } : null,
+      // Only the owner chooses the flag; a no-PII manager hires no-PII staff.
+      role !== 'super_admin' &&
+        (isSuper(actor) ? noPii === true : actor.noPii === true),
     );
     const normalized = email.trim().toLowerCase();
     const created = await withTxRetry(this.prisma, async (tx) => {
@@ -270,12 +281,16 @@ export class AdminsService {
     id: string,
     input: Record<string, string>,
     canManageAdmins?: boolean,
+    noPii?: boolean,
   ): Promise<AdminAccountDto> {
     if (id === actor.id) throw cannotTargetSelf();
     const next = parsePermissions(input);
     if (!isSuper(actor)) {
-      if (canManageAdmins !== undefined) throw outsideReach();
+      if (canManageAdmins !== undefined || noPii !== undefined) {
+        throw outsideReach();
+      }
       if (!covers(actor.permissions ?? {}, next)) throw outsideReach();
+      if (hasSuperGrantOnly(next)) throw outsideReach();
     }
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const before = await this.load(tx, id);
@@ -295,6 +310,9 @@ export class AdminsService {
         manager,
         readCountries(before.admin_profile?.permissions),
         readPartner(before.admin_profile?.permissions),
+        isSuper(actor)
+          ? (noPii ?? readNoPii(before.admin_profile?.permissions))
+          : readNoPii(before.admin_profile?.permissions),
       );
       const after = await tx.user.update({
         where: { id },
@@ -367,6 +385,8 @@ export class AdminsService {
         parsePermissions(raw),
         readManageAdmins(raw),
         next,
+        null,
+        readNoPii(raw),
       );
       const after = await tx.user.update({
         where: { id },
@@ -529,6 +549,7 @@ function present(u: AdminRow): AdminAccountDto {
     hasPassword: Boolean(u.admin_credential?.password_hash),
     permissions: parsePermissions(u.admin_profile?.permissions),
     canManageAdmins: readManageAdmins(u.admin_profile?.permissions),
+    noPii: readNoPii(u.admin_profile?.permissions),
     countries: readCountries(u.admin_profile?.permissions),
     countryPartnerId:
       readPartner(u.admin_profile?.permissions)?.partnerId ?? null,
@@ -558,6 +579,11 @@ function reaches(actor: AdminActor, target: AdminRow): boolean {
   const prof = target.admin_profile;
   if (!prof || prof.admin_role === 'super_admin') return false;
   if (readManageAdmins(prof.permissions)) return false;
+  // Owner 2026-10-16: an admin holding money, economy, budget caps or the
+  // audit log, or masked from personal data by the owner, is the owner's
+  // to change; a masked manager may only touch masked staff.
+  if (hasSuperGrantOnly(parsePermissions(prof.permissions))) return false;
+  if (readNoPii(prof.permissions) && !actor.noPii) return false;
   // Owner 2026-10-06: a country partner reaches only their own staff; the
   // owner's deputy never touches a partner's team (the owner does).
   const theirTeam = readPartner(prof.permissions);

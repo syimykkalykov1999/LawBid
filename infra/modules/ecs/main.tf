@@ -479,6 +479,14 @@ resource "aws_appautoscaling_target" "svc" {
   resource_id        = "service/${aws_ecs_cluster.this.name}/${each.value.service}"
   min_capacity       = var.min_tasks
   max_capacity       = each.value.max
+
+  # Owner 2026-10-16: var.*_max_tasks is the hard cap. The running ceiling
+  # is moved by the app (economy.guard job, RegisterScalableTarget) from
+  # the revenue rule; terraform apply must not reset it to the cap. The
+  # first creation still uses the cap, the job lowers it within 5 minutes.
+  lifecycle {
+    ignore_changes = [max_capacity]
+  }
 }
 
 # --- quiet hours (opt-in): fewer tasks at night, back in the morning --------
@@ -496,7 +504,6 @@ resource "aws_appautoscaling_scheduled_action" "night_down" {
   timezone           = "UTC"
   scalable_target_action {
     min_capacity = var.night_min_tasks
-    max_capacity = each.value.max_capacity
   }
 }
 
@@ -510,7 +517,6 @@ resource "aws_appautoscaling_scheduled_action" "morning_up" {
   timezone           = "UTC"
   scalable_target_action {
     min_capacity = var.min_tasks
-    max_capacity = each.value.max_capacity
   }
 }
 

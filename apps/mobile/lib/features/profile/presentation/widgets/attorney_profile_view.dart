@@ -35,7 +35,6 @@ import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
-import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
@@ -605,7 +604,7 @@ class _HeaderCard extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
-    final avatar = Container(
+    final avatarRing = Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -636,6 +635,14 @@ class _HeaderCard extends ConsumerWidget {
           viewerCloseLabel: t.t('common.close'),
         ),
       ),
+    );
+    // Owner 2026-10-16: the trust-level badge sits on the avatar corner (as
+    // in the feed), no longer as a pill beside the name.
+    final avatar = TrustAvatarBadge(
+      id: profile.id,
+      size: _avatar + 6,
+      trustLevel: profile.trustLevel,
+      child: avatarRing,
     );
     // Owner 2026-09-30 (Instagram layout): avatar left with the counters
     // beside it; the name on its own line under the avatar, flush with
@@ -690,15 +697,6 @@ class _HeaderCard extends ConsumerWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-            ),
-            // Owner 2026-10-05: trust level next to the badge; opens the
-            // sheet with what was checked and the registry links.
-            const SizedBox(width: AppSpacing.sm),
-            Flexible(
-              child: TrustLevelChip(
-                level: profile.trustLevel,
-                attorneyId: profile.id,
               ),
             ),
           ],

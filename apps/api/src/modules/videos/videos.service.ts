@@ -1,3 +1,4 @@
+import { OpsStateService } from '../../common/ops/ops-state.service';
 import {
   ConflictException,
   ForbiddenException,
@@ -95,6 +96,7 @@ export class VideosService {
     private readonly limits: UsageLimitsService,
     private readonly costGuard: CostGuardService,
     @Optional() private readonly entitlements?: EntitlementsService,
+    @Optional() private readonly ops?: OpsStateService,
   ) {}
 
   /** The flag is on and every Bunny key is set. */
@@ -124,6 +126,15 @@ export class VideosService {
     dto: CreateVideoUploadDto,
   ): Promise<VideoUploadDto> {
     await this.assertAvailable();
+    // Owner 2026-10-16 (economy guard): new uploads wait while third-party
+    // spend is above the rule; playback of existing videos is untouched.
+    if (await this.ops?.isEconomyLimited()) {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.VIDEO_UNAVAILABLE,
+        message:
+          'Video uploads are paused for a short while. Please try again later.',
+      });
+    }
     // Owner 2026-10-05 (plan builder): video posts are a plan term.
     if (
       this.entitlements &&

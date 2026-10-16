@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  NotFoundException,
   Optional,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -43,6 +44,7 @@ import {
   parsePermissions,
   readCountries,
   readManageAdmins,
+  readNoPii,
   readPartner,
 } from './admin-permissions';
 import {
@@ -78,7 +80,25 @@ export const ADMIN_AUDIT = {
   credentialsChanged: 'admin.credentials_changed',
   securityQuestionSet: 'admin.security_question_set',
   passwordRecovered: 'admin.password_recovered',
+  inviteCreated: 'admin.invite_created',
+  inviteAccepted: 'admin.invite_accepted',
 } as const;
+
+/** Owner 2026-10-16: an invite link is valid for 72 hours, once. */
+export const INVITE_TTL_SECONDS = 72 * 3600;
+const INVITE_PER_IP_PER_HOUR = 30;
+const inviteKey = (hash: string) => `adm:invite:${hash}`;
+const inviteForKey = (adminId: string) => `adm:invite-for:${adminId}`;
+const hashInviteToken = (token: string) =>
+  createHash('sha256').update(token).digest('hex');
+
+export interface AdminInviteIssued {
+  token: string;
+  /** Absolute link when ADMIN_PANEL_URL is configured, else null (the
+   * panel builds it from its own address). */
+  url: string | null;
+  expiresAt: string;
+}
 
 interface AdminRow {
   id: string;
@@ -99,6 +119,7 @@ interface AdminRow {
 export class AdminAuthService {
   private readonly cipher: SecretCipher | null;
   private readonly loginStartPerIpPerHour: number;
+  private readonly panelUrl: string | null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -113,6 +134,8 @@ export class AdminAuthService {
   ) {
     const key = config.get<string>('ADMIN_TOTP_ENC_KEY');
     this.cipher = key ? new SecretCipher(key) : null;
+    this.panelUrl =
+      config.get<string>('ADMIN_PANEL_URL')?.replace(/\/$/, '') ?? null;
     this.loginStartPerIpPerHour = config.getOrThrow<number>(
       'ADMIN_LOGIN_LIMIT_PER_IP_PER_HOUR',
     );
@@ -387,6 +410,8 @@ export class AdminAuthService {
       canManageAdmins:
         role === 'super_admin' ||
         (!partner && readManageAdmins(user.admin_profile?.permissions)),
+      noPii:
+        role !== 'super_admin' && readNoPii(user.admin_profile?.permissions),
       countryPartnerId: partner?.partnerId ?? null,
       partnerLead: partner?.lead ?? false,
       countries: assigned,
@@ -1085,6 +1110,134 @@ export class AdminAuthService {
     }
   }
 
+  /**
+   * Owner 2026-10-16: a one-time link (72 h) for a new administrator. No
+   * email provider exists, so the link is handed to the owner to send
+   * himself. A new link ends the previous one. The caller has already
+   * checked who may touch [targetId].
+   */
+  async createInvite(
+    actor: AdminActor,
+    targetId: string,
+  ): Promise<AdminInviteIssued> {
+    const target = await this.prisma.user.findFirst({
+      where: { id: targetId, role: 'admin', deleted_at: null },
+      select: { id: true, status: true },
+    });
+    if (!target) throw invalid('Administrator not found.');
+    if (target.status !== 'active') throw invalid('The account is disabled.');
+    const previous = await this.redis.get(inviteForKey(targetId));
+    if (previous) await this.redis.del(inviteKey(previous));
+    const token = randomBytes(32).toString('base64url');
+    const hash = hashInviteToken(token);
+    await this.redis.set(
+      inviteKey(hash),
+      JSON.stringify({ adminId: targetId, by: actor.id }),
+      'EX',
+      INVITE_TTL_SECONDS,
+    );
+    await this.redis.set(
+      inviteForKey(targetId),
+      hash,
+      'EX',
+      INVITE_TTL_SECONDS,
+    );
+    await this.audit.record({
+      adminId: actor.id,
+      action: ADMIN_AUDIT.inviteCreated,
+      targetType: 'admin',
+      targetId,
+      after: { expiresInHours: INVITE_TTL_SECONDS / 3600 },
+      ip: actor.ip,
+    });
+    return {
+      token,
+      url: this.panelUrl ? `${this.panelUrl}/invite/${token}` : null,
+      expiresAt: new Date(Date.now() + INVITE_TTL_SECONDS * 1000).toISOString(),
+    };
+  }
+
+  /** Who the link is for (the invitee sees the address before choosing a
+   * password). Unknown, used or expired links answer the same 404. */
+  async previewInvite(
+    token: string,
+    ip: string | null,
+  ): Promise<{ email: string }> {
+    if (ip)
+      await this.limit(['admin-invite', 'ip', ip], INVITE_PER_IP_PER_HOUR);
+    const raw = await this.redis.get(inviteKey(hashInviteToken(token)));
+    const adminId = raw
+      ? (JSON.parse(raw) as { adminId: string }).adminId
+      : null;
+    const user = adminId
+      ? await this.prisma.user.findFirst({
+          where: {
+            id: adminId,
+            role: 'admin',
+            status: 'active',
+            deleted_at: null,
+          },
+          select: { email: true },
+        })
+      : null;
+    if (!user?.email) throw inviteGone();
+    return { email: user.email };
+  }
+
+  /** The invitee picks a login and password; the link is spent. The
+   * authenticator is bound at the first sign-in (profile → two-factor). */
+  async acceptInvite(
+    token: string,
+    input: { login: string; password: string },
+    ip: string | null,
+  ): Promise<{ login: string }> {
+    const cipher = this.assertConfigured();
+    if (ip)
+      await this.limit(['admin-invite', 'ip', ip], INVITE_PER_IP_PER_HOUR);
+    const hash = hashInviteToken(token);
+    const raw = await this.redis.get(inviteKey(hash));
+    if (!raw) throw inviteGone();
+    const { adminId, by } = JSON.parse(raw) as { adminId: string; by: string };
+    const user = await this.prisma.user.findFirst({
+      where: { id: adminId, role: 'admin', status: 'active', deleted_at: null },
+      select: { id: true },
+    });
+    if (!user) throw inviteGone();
+    const login = this.checkLogin(input.login);
+    const problem = passwordProblem(input.password, login);
+    if (problem) throw invalid(problem);
+    // Spend the link first: two parallel requests cannot both succeed.
+    const spent = await this.redis.del(inviteKey(hash));
+    if (spent !== 1) throw inviteGone();
+    await this.redis.del(inviteForKey(adminId));
+    try {
+      await this.writeCredentials(adminId, cipher, {
+        login,
+        password: input.password,
+      });
+    } catch (e) {
+      // A taken login: give the link back so the invitee can choose another.
+      await this.redis.set(inviteKey(hash), raw, 'EX', INVITE_TTL_SECONDS);
+      await this.redis.set(
+        inviteForKey(adminId),
+        hash,
+        'EX',
+        INVITE_TTL_SECONDS,
+      );
+      throw e;
+    }
+    await this.audit.record({
+      adminId,
+      action: ADMIN_AUDIT.inviteAccepted,
+      targetType: 'admin',
+      targetId: adminId,
+      after: { invitedBy: by },
+      ip,
+    });
+    await this.sessions.revokeAllForUser(adminId);
+    return { login };
+  }
+
   private async limit(parts: string[], perHour: number): Promise<void> {
     const r = await this.rateLimit.consumeFixedWindow(parts, perHour, 3600);
     if (!r.allowed) {
@@ -1116,6 +1269,12 @@ export class AdminAuthService {
 
 const invalid = (message: string) =>
   new BadRequestException({ code: ErrorCode.VALIDATION_ERROR, message });
+
+const inviteGone = () =>
+  new NotFoundException({
+    code: ErrorCode.NOT_FOUND,
+    message: 'This invite link is not valid any more.',
+  });
 
 const ticketInvalid = () =>
   new UnauthorizedException({

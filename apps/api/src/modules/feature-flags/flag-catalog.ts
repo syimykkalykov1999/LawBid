@@ -19,6 +19,14 @@ export interface FlagDef {
 
 export const FLAG_CATALOG: readonly FlagDef[] = [
   {
+    // Owner 2026-10-16: the app must never run at a loss paying third
+    // parties. Off = the guard lifts everything it set and stops acting.
+    key: 'economy_guard',
+    enabled: true,
+    description:
+      'Economy guard: third-party spend above the rule pauses video uploads, trims SMS and caps autoscaling (admin: Экономика)',
+  },
+  {
     // Owner 2026-10-15: kill switch for the app's own crash reports. Off:
     // the phone stops sending and the API drops what still arrives.
     key: 'crash_reports',

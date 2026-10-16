@@ -27,6 +27,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { AppConfigService } from '../../feature-flags/services/app-config.service';
 import { checkSmsDestination } from '../dto/validators';
 import { CountriesService } from '../../countries/countries.service';
+import { OpsStateService } from '../../../common/ops/ops-state.service';
 import {
   buildAdminLoginCodeEmail,
   buildContactOtpEmail,
@@ -120,6 +121,7 @@ export class OtpService {
     private readonly costGuard: CostGuardService,
     private readonly appConfig: AppConfigService,
     @Optional() private readonly countries?: CountriesService,
+    @Optional() private readonly ops?: OpsStateService,
   ) {
     this.codeTtlSeconds = this.config.getOrThrow<number>(
       'OTP_CODE_TTL_SECONDS',
@@ -150,6 +152,23 @@ export class OtpService {
     // so dev/e2e exercise the same path production does).
     if (channel === 'phone') {
       await this.assertSmsDestinationAllowed(identifier);
+      // Owner 2026-10-16 (economy guard): while third-party spend is above
+      // the rule, SMS goes only to sign-in / registration and password
+      // reset; contact checks and the like wait.
+      if (
+        purpose !== 'login' &&
+        purpose !== 'reset' &&
+        (await this.ops?.isEconomyLimited())
+      ) {
+        throw new HttpException(
+          {
+            code: ErrorCode.PROVIDER_BUDGET_EXCEEDED,
+            message:
+              'This service is temporarily unavailable. Try again later.',
+          },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
       await this.costGuard.consume('sms');
     } else {
       await this.costGuard.consume('email');

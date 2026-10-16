@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/trust/application/trust_providers.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
@@ -57,6 +58,7 @@ Widget _app(
     );
 
 void main() {
+  _badgeTests();
   group('TrustLevelChip labels', () {
     const en = {
       0: 'Self-declared',
@@ -236,5 +238,77 @@ void main() {
     );
     expect(find.text('How to confirm my account'), findsOneWidget);
     expect(find.textContaining("You can't pay this attorney"), findsNothing);
+  });
+}
+
+/// Owner 2026-10-16: the trust badge lives on the avatar corner (profile
+/// included), with its own shield icon: green once confirmed, red when
+/// rejected, absent at level 0.
+void _badgeTests() {
+  group('TrustAvatarBadge', () {
+    Widget badged(int level, {bool rejected = false, double size = 82}) => _app(
+          TrustAvatarBadge(
+            id: 'a1',
+            size: size,
+            trustLevel: level,
+            rejected: rejected,
+            child: const SizedBox.square(dimension: 82),
+          ),
+        );
+
+    testWidgets('level 0 draws no badge', (tester) async {
+      await tester.pumpWidget(badged(0));
+      expect(find.byType(AppIcon), findsNothing);
+    });
+
+    testWidgets('level 2 draws the shield, capped at 24 dp', (tester) async {
+      await tester.pumpWidget(badged(2));
+      expect(find.byIcon(AppIcons.verifiedUserOutlined), findsOneWidget);
+      final colors = AppTheme.light().extension<AppColorTokens>()!;
+      final dot = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(GestureDetector),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect(tester.getSize(find.byType(GestureDetector)).width, 24);
+      expect((dot.decoration! as BoxDecoration).color, colors.success);
+    });
+
+    testWidgets('client profile: gold badge, not tappable', (tester) async {
+      await tester.pumpWidget(
+        _app(
+          const TrustAvatarBadge(
+            id: 'c1',
+            size: 76,
+            trustLevel: 0,
+            goldLabel: 'Verified',
+            child: SizedBox.square(dimension: 76),
+          ),
+        ),
+      );
+      final colors = AppTheme.light().extension<AppColorTokens>()!;
+      expect(find.byIcon(AppIcons.verifiedUserOutlined), findsOneWidget);
+      final dot = tester.widget<Container>(
+        find
+            .descendant(
+              of: find.byType(GestureDetector),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      expect((dot.decoration! as BoxDecoration).color, colors.goldAccent);
+      expect(
+        tester.widget<GestureDetector>(find.byType(GestureDetector)).onTap,
+        isNull,
+      );
+    });
+
+    testWidgets('rejected draws a red cross', (tester) async {
+      await tester.pumpWidget(badged(0, rejected: true));
+      expect(find.byIcon(AppIcons.closeRounded), findsOneWidget);
+    });
   });
 }

@@ -29,9 +29,7 @@ export interface ConfigKeySchema {
  * create arbitrary rows.
  */
 /** An admin area key (admin-permissions ADMIN_AREAS) or `money`. */
-const REASON_AREA_PATTERN = new RegExp(
-  `^(${[...ADMIN_AREAS, 'money'].join('|')})$`,
-);
+const REASON_AREA_PATTERN = new RegExp(`^(${[...ADMIN_AREAS].join('|')})$`);
 
 export function configSchema(): Record<string, ConfigKeySchema> {
   const out: Record<string, ConfigKeySchema> = {};
@@ -190,6 +188,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 24 * 14,
   };
+  out['economy.max_spend_percent'] = {
+    ...out['economy.max_spend_percent'],
+    description:
+      'Third-party services may cost at most this percent of the last 30 days’ revenue (admin: Экономика).',
+    min: 1,
+    max: 100,
+  };
+  out['economy.ceiling_mode'] = {
+    ...out['economy.ceiling_mode'],
+    description:
+      'Autoscaling ceiling: auto (follows the economy rule) or manual.',
+    pattern: /^(auto|manual)$/,
+  };
+  for (const key of ['economy.manual_api_max', 'economy.manual_worker_max']) {
+    out[key] = { ...out[key], min: 1, max: 1000 };
+  }
   out['trust.payout_delay_days'] = {
     ...out['trust.payout_delay_days'],
     description:

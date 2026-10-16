@@ -6,6 +6,9 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_change_own_credentials_dto.dart';
+import '../models/admin_invite_accept_dto.dart';
+import '../models/admin_invite_accept_result_envelope.dart';
+import '../models/admin_invite_preview_envelope.dart';
 import '../models/admin_login_start_dto.dart';
 import '../models/admin_login_verify_dto.dart';
 import '../models/admin_login_verify_result_envelope.dart';
@@ -76,6 +79,20 @@ abstract class AdminAuthClient {
   /// The signed-in admin
   @GET('/admin/auth/me')
   Future<AdminMeEnvelope> adminMe({@Extras() Map<String, dynamic>? extras});
+
+  /// Who an invite link is for (404 when it is unknown, used or older than 72 hours)
+  @GET('/admin/auth/invite/{token}')
+  Future<AdminInvitePreviewEnvelope> adminInvitePreview({
+    @Path('token') required String token,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The invited admin chooses a login and password; the link is spent. Sign in next, then turn two-factor on in the profile.
+  @POST('/admin/auth/invite/accept')
+  Future<AdminInviteAcceptResultEnvelope> adminInviteAccept({
+    @Body() required AdminInviteAcceptDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// Login + password: signs in (or returns the 2FA ticket when the admin turned two-factor on)
   @POST('/admin/auth/login/password')

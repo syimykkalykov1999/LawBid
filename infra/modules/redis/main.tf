@@ -92,6 +92,12 @@ resource "aws_elasticache_replication_group" "this" {
   maintenance_window         = "sun:05:00-sun:06:00"
   snapshot_retention_limit   = 1
   tags                       = var.tags
+
+  # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move Redis
+  # one tier up at run time; terraform apply must not undo it.
+  lifecycle {
+    ignore_changes = [node_type]
+  }
 }
 
 resource "aws_secretsmanager_secret" "redis_url" {

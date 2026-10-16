@@ -16,6 +16,7 @@ import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
@@ -213,7 +214,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   Navigator.of(sheet).pop();
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => ChatFilesScreen(conversationId: c.id),
+                      builder: (_) =>
+                          webPageRoute(ChatFilesScreen(conversationId: c.id)),
                     ),
                   );
                 },

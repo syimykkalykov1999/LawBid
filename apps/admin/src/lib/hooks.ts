@@ -14,6 +14,8 @@ export interface Me {
   hasPassword: boolean;
   permissions: Permissions;
   canManageAdmins: boolean;
+  /** Owner 2026-10-16: people's phones, emails and names are masked for this admin. */
+  noPii?: boolean;
   /** Owner 2026-10-06: member of a country partner's team (null = staff). */
   countryPartnerId?: string | null;
   /** The country partner themself. */

@@ -8,7 +8,11 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
-import { covers, parsePermissions } from '../admin-auth/admin-permissions';
+import {
+  covers,
+  hasSuperGrantOnly,
+  parsePermissions,
+} from '../admin-auth/admin-permissions';
 import type { AdminRoleTemplateDto } from './admin.dto';
 
 const AUDIT = {
@@ -116,6 +120,12 @@ export class AdminRoleTemplatesService {
     permissions: ReturnType<typeof parsePermissions>,
   ): void {
     if (actor.adminRole === 'super_admin') return;
+    if (hasSuperGrantOnly(permissions)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only the super admin can use money, economy or audit rights.',
+      });
+    }
     if (!covers(actor.permissions ?? {}, permissions)) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,

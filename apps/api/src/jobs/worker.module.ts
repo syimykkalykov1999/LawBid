@@ -6,6 +6,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { OpsModule } from '../common/ops/ops.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
+import { EconomyModule } from '../common/economy/economy.module';
 import { CostGuardModule } from '../common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
@@ -52,6 +53,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     // Global paid-provider caps: FilesService (calls, client reviews in
     // the cron jobs) injects CostGuardService.
     CostGuardModule,
+    // Owner 2026-10-16: `economy.guard` (spend rule, ceiling, DB / Redis).
+    EconomyModule,
     // Owner 2026-10-01: keys managed in the admin (push, email, Stripe…).
     SecretsModule,
     NotificationsModule,

@@ -563,6 +563,11 @@ resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
     cost_ceiling        = "CostCeilingReached"
     backup_stale        = "BackupStale"
     cost_budget_ceiling = "CostBudgetCeiling"
+
+    # Owner 2026-10-16: the economy guard (src/common/economy).
+    economy_guard_on  = "EconomyGuardOn"
+    economy_guard_off = "EconomyGuardOff"
+    capacity_pressure = "CapacityPressure"
   }
   name           = "${var.name}-ops-${replace(each.key, "_", "-")}"
   log_group_name = var.worker_log_group
@@ -740,6 +745,37 @@ resource "aws_cloudwatch_metric_alarm" "cost_budget_ceiling" {
   threshold           = 1
   statistic           = "Sum"
   metric_name         = "CostBudgetCeiling"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
+# Owner 2026-10-16: the economy guard e-mails on every transition and when the
+# database / Redis come under load (events also show in the admin card).
+resource "aws_cloudwatch_metric_alarm" "economy" {
+  for_each = {
+    economy_guard_on = {
+      metric = "EconomyGuardOn"
+      text   = "Расходы на сторонние сервисы превысили правило (доля дохода). Что делать: ничего — система сама включила ограничения: лимиты сервисов на минимум, новые видео на паузе, SMS только для входа, контейнеры на минимуме. Снимутся сами, когда расходы придут в норму. Подробности и правило: админка → Система → Экономика. (EN: economy guard switched on.)"
+    }
+    economy_guard_off = {
+      metric = "EconomyGuardOff"
+      text   = "Ограничения экономики сняты: расходы снова в норме или автоматика выключена. Что делать: ничего. (EN: economy guard switched off.)"
+    }
+    capacity_pressure = {
+      metric = "CapacityPressure"
+      text   = "База данных или Redis под нагрузкой (процессор базы выше 70 %, соединения выше 80 % или память Redis выше 75 %). Что делать: админка → Система → Экономика → «Увеличить» (одна кнопка, нужен код 2FA; перезапуск на 1–5 минут). (EN: DB/Redis pressure.)"
+    }
+  }
+  alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
+  alarm_description   = "LawBid: ${each.value.text}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = each.value.metric
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
   alarm_actions       = local.ops

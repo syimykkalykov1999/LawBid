@@ -26,7 +26,7 @@ export type AccessLevel = 'view' | 'manage';
 export type Permissions = Partial<Record<string, AccessLevel>>;
 
 /** Areas the super admin can toggle for another admin (same list as the API). */
-export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: string }[] = [
+export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: string; ownerGrants?: boolean }[] = [
   { key: 'dashboard', label: 'Дашборд', hint: 'цифры и очереди (без денег)' },
   { key: 'users', label: 'Пользователи', hint: 'поиск, карточки; управление = санкции' },
   { key: 'verification', label: 'Верификация и проверка', hint: 'лицензии адвокатов, борьба с мошенниками (очередь проверки), галочки клиентов' },
@@ -46,13 +46,19 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'sanctions', label: 'Санкции', hint: 'блокировки и баны по телефону, e-mail, устройству' },
   { key: 'outreach', label: 'Привлечение', hint: 'база контактов, холодные звонки и письма; сотрудник видит только своих' },
   { key: 'payroll', label: 'Зарплаты', hint: 'сотрудники, выплаты за период' },
+  // Owner 2026-10-16: grantable by the owner only (a deputy cannot hand them out).
+  { key: 'money', label: 'Деньги', hint: 'платежи, подписки, промокоды, рефералы, партнёры, прибыль и резерв. «Смотреть» безопасно; «управлять» даёт возвраты, выплаты партнёрам и промокоды. Цены, планы и аналитика остаются только у вас', ownerGrants: true },
+  { key: 'economy', label: 'Экономика', hint: 'доход против расходов на SMS, видео и AWS', ownerGrants: true },
+  { key: 'budget_limits', label: 'Лимиты расходов', hint: 'потолки на SMS, видео, хранилище и переводы в Настройках', ownerGrants: true },
+  { key: 'audit', label: 'Журнал аудита', hint: 'кто что сделал; без этого права админ видит только свои действия', ownerGrants: true },
+  { key: 'chats', label: 'Чаты поддержки', hint: 'переписки с пользователями в поддержке' },
 ];
 
 /** Never grantable — shown locked so nobody wonders where they are. */
 export const LOCKED_AREAS: readonly { label: string; hint: string }[] = [
-  { label: 'Деньги', hint: 'подписки, платежи, возвраты, промокоды, рефералы, договоры; доверенный заместитель только смотрит' },
   { label: 'Ключи и сервисы', hint: 'Stripe, Firebase, Bunny, SES, Sentry… только супер-админ' },
-  { label: 'Журнал аудита и сессии админов', hint: 'кто что сделал и кто сейчас в админке; заместитель только смотрит' },
+  { label: 'Администраторы и сессии админов', hint: 'аккаунты, права, пароли и кто сейчас в админке; заместитель только смотрит' },
+  { label: 'Цены, планы, аналитика, оплаты адвокатам, партнёры стран', hint: 'только супер-админ (заместитель смотрит)' },
   { label: 'Право «Доверенный заместитель»', hint: 'его выдаёт только супер-админ' },
 ];
 
@@ -118,9 +124,9 @@ export function covers(outer: Permissions, inner: Permissions): boolean {
 export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust';
 
 /** An area key, `everyone` for the personal workspace, `super` for
- * sections only the super admin opens,
- * `money` for money/audit sections the deputy may read, or `admins` for
- * admin management (super admin or a granted manager). */
+ * sections only the super admin opens, `moneyOwner` for owner-only money
+ * pages the deputy may read, `config` for Настройки (settings or budget
+ * caps), or `admins` for admin management (super admin or a granted manager). */
 type SectionArea = string;
 
 interface Section {
@@ -207,17 +213,17 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Деньги',
     icon: 'wallet',
     items: [
-      { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'money', hint: 'кто заходит, воронка, отток, покупки' },
-      { href: '/prices', label: 'Цены', icon: 'tag', area: 'money', hint: 'стоимость тарифов и галочки' },
-      { href: '/plans', label: 'Планы', icon: 'stack', area: 'money', hint: 'планы подписок и их возможности' },
+      { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'moneyOwner', hint: 'кто заходит, воронка, отток, покупки' },
+      { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', hint: 'стоимость тарифов и галочки' },
+      { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', hint: 'планы подписок и их возможности' },
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'money', hint: 'тарифы адвокатов' },
       { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },
       { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'money' },
-      { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'money', hint: 'клиент платит адвокату через Stripe Connect' },
+      { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'moneyOwner', hint: 'клиент платит адвокату через Stripe Connect' },
       { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'money' },
       { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'money', hint: 'скидки за приглашения' },
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
-      { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'money', hint: 'главный партнёр страны: команда, процент, цели' },
+      { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
     ],
@@ -238,8 +244,8 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Безопасность',
     icon: 'lock',
     items: [
-      { href: '/audit-log', label: 'Журнал аудита', icon: 'clock-counter-clockwise', area: 'money', hint: 'кто что сделал' },
-      { href: '/sessions', label: 'Сессии админов', icon: 'devices', area: 'money', hint: 'кто сейчас в админке' },
+      { href: '/audit-log', label: 'Журнал аудита', icon: 'clock-counter-clockwise', area: 'audit', hint: 'кто что сделал' },
+      { href: '/sessions', label: 'Сессии админов', icon: 'devices', area: 'moneyOwner', hint: 'кто сейчас в админке' },
       { href: '/integrations', label: 'Ключи и сервисы', icon: 'key', area: 'super', hint: 'API-ключи, ротация' },
       { href: '/data-requests', label: 'Запросы госорганов', icon: 'bank', area: 'data_requests' },
     ],
@@ -249,10 +255,11 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Система',
     icon: 'sliders-horizontal',
     items: [
+      { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
       { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
       { href: '/crashes', label: 'Вылеты', icon: 'bug', area: 'settings', hint: 'ошибки приложения: где, на каких телефонах' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', hint: 'флаги, скрытые функции' },
-      { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'settings', hint: 'лимиты, версии приложения' },
+      { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', hint: 'лимиты, версии приложения' },
       { href: '/storage', label: 'Хранилище', icon: 'hard-drives', area: 'settings', hint: 'место, очистка, лимиты' },
       // Owner 2026-10-07 (bug 17): every upload limit and file format.
       { href: '/uploads', label: 'Загрузки и файлы', icon: 'paperclip', area: 'settings', hint: 'сколько файлов, размер, форматы' },
@@ -275,7 +282,11 @@ function opens(me: AccessSubject, s: Section): boolean {
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
   if (s.area === 'super') return me.role === 'super_admin';
-  if (s.area === 'money') return me.role === 'super_admin' || me.canManageAdmins === true;
+  // Owner-only money pages (prices, plans, analytics, payments to attorneys,
+  // country partners, admin sessions); the deputy reads them.
+  if (s.area === 'moneyOwner') return me.role === 'super_admin' || me.canManageAdmins === true;
+  // Настройки: the whole page, or just the budget caps card.
+  if (s.area === 'config') return can(me, 'settings') || can(me, 'budget_limits');
   // Admin management: the super admin, an admin given that right, or a
   // country partner (their own team only).
   if (s.area === 'admins') return me.role === 'super_admin' || me.canManageAdmins === true || me.partnerLead === true;
@@ -312,4 +323,41 @@ export function canOpen(me: AccessSubject | undefined, href: string): boolean {
   if (!me) return false;
   const s = sectionFor(href);
   return !!s && opens(me, s);
+}
+
+/** What a set of toggles means in words (owner 2026-10-16): shown on the
+ * rights form and the invite dialog so nobody guesses the effective access. */
+export interface RightsSummary {
+  manage: string[];
+  view: string[];
+  closed: string[];
+}
+
+export function summarizeRights(perms: Permissions, areas: readonly { key: string; label: string }[] = GRANTABLE_AREAS): RightsSummary {
+  const out: RightsSummary = { manage: [], view: [], closed: [] };
+  for (const a of areas) {
+    const lvl = perms[a.key];
+    if (lvl === 'manage') out.manage.push(a.label);
+    else if (lvl === 'view') out.view.push(a.label);
+    else out.closed.push(a.label);
+  }
+  return out;
+}
+
+/** A preset or template cut down to what [me] may hand out (the API caps it too). */
+export function fitToMe(
+  perms: Record<string, string>,
+  me: { role: AdminRole; permissions: Permissions } | undefined,
+): Record<string, AccessLevel> {
+  const own = me?.permissions ?? {};
+  const out: Record<string, AccessLevel> = {};
+  for (const [k, v] of Object.entries(perms)) {
+    const def = GRANTABLE_AREAS.find((a) => a.key === k);
+    if (!def) continue;
+    if (me?.role === 'super_admin') out[k] = v as AccessLevel;
+    else if (def.ownerGrants) continue;
+    else if (own[k] === 'manage') out[k] = v as AccessLevel;
+    else if (own[k] === 'view') out[k] = 'view';
+  }
+  return out;
 }

@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart'
     show openCaseDocument;
@@ -22,7 +23,9 @@ import 'package:share_plus/share_plus.dart';
 /// file "Add files"); null when the user backs out.
 Future<DocTemplate?> pickTemplate(BuildContext context) =>
     Navigator.of(context).push<DocTemplate>(
-      MaterialPageRoute(builder: (_) => const TemplatesScreen(picker: true)),
+      MaterialPageRoute(
+        builder: (_) => webPageRoute(const TemplatesScreen(picker: true)),
+      ),
     );
 
 /// Owner 2026-10-05 — Settings → Document templates: search, a state

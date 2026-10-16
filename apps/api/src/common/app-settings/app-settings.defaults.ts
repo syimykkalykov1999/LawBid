@@ -510,6 +510,26 @@ export const OWNER_OPS_SETTINGS = {
   'ops.auto_scale_down_on_budget': true,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
+  /** Owner 2026-10-16 «Экономика»: third-party spend may be at most this
+   * percent of the last 30 days' revenue … */
+  'economy.max_spend_percent': 50,
+  /** … but never less than this many dollars a month (a floor to run on
+   * while revenue is still small). */
+  'economy.min_threshold_usd': 150,
+  /** Autoscaling ceiling: 'auto' (follows the rule above) or 'manual'
+   * (the numbers below, always within the Terraform cap). */
+  'economy.ceiling_mode': 'auto',
+  'economy.manual_api_max': 4,
+  'economy.manual_worker_max': 2,
+  /** Unit prices behind the spend estimate, USD (editable: providers
+   * change prices). SMS: Twilio US ≈ $0.0079; a video upload session on
+   * Bunny (encode + storage + delivery) ≈ $0.05; a translation ≈ $0.002. */
+  'economy.sms_unit_usd': 0.0079,
+  'economy.video_unit_usd': 0.05,
+  'economy.translate_unit_usd': 0.002,
+  /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
+   * the launch size). */
+  'economy.aws_fallback_usd': 150,
 };
 
 /** Owner 2026-10-05 «Прибыль и резерв» (Деньги): the monthly split of the

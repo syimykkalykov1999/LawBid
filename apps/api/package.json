@@ -29,7 +29,10 @@
   "dependencies": {
     "@aws-sdk/client-application-auto-scaling": "^3.1146.0",
     "@aws-sdk/client-budgets": "^3.1146.0",
+    "@aws-sdk/client-cloudwatch": "^3.1152.0",
     "@aws-sdk/client-ecs": "^3.1146.0",
+    "@aws-sdk/client-elasticache": "^3.1152.0",
+    "@aws-sdk/client-rds": "^3.1152.0",
     "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/client-ses": "^3.1137.0",
     "@aws-sdk/s3-presigned-post": "^3.1141.0",

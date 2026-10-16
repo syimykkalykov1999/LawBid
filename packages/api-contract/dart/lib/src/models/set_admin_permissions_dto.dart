@@ -13,6 +13,7 @@ class SetAdminPermissionsDto {
   const SetAdminPermissionsDto({
     required this.permissions,
     this.canManageAdmins,
+    this.noPii,
   });
 
   factory SetAdminPermissionsDto.fromJson(Map<String, Object?> json) =>
@@ -23,6 +24,9 @@ class SetAdminPermissionsDto {
 
   /// Super admin only: the right to create and manage other admins. Omitted = unchanged.
   final bool? canManageAdmins;
+
+  /// Super admin only: «без персональных данных». Omitted = unchanged.
+  final bool? noPii;
 
   Map<String, Object?> toJson() => _$SetAdminPermissionsDtoToJson(this);
 }

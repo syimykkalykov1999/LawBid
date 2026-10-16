@@ -2709,6 +2709,199 @@
         ]
       }
     },
+    "/admin/auth/invite/{token}": {
+      "get": {
+        "operationId": "adminInvitePreview",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInvitePreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED, AUTH_OTP_REQUEST_LIMIT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED, PROVIDER_BUDGET_EXCEEDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Who an invite link is for (404 when it is unknown, used or older than 72 hours)",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/invite/accept": {
+      "post": {
+        "operationId": "adminInviteAccept",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminInviteAcceptDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInviteAcceptResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ADMIN_LOGIN_TAKEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED, AUTH_OTP_REQUEST_LIMIT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED, PROVIDER_BUDGET_EXCEEDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The invited admin chooses a login and password; the link is spent. Sign in next, then turn two-factor on in the profile.",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
     "/admin/auth/login/password": {
       "post": {
         "operationId": "adminLoginPassword",
@@ -4262,6 +4455,297 @@
         ]
       }
     },
+    "/admin/admins/presets": {
+      "get": {
+        "operationId": "listPresets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPresetListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Ready-made rights (owner, accountant, moderator, support, view-only) to start from",
+        "tags": [
+          "admin-admins"
+        ]
+      }
+    },
+    "/admin/admins/invites": {
+      "post": {
+        "operationId": "inviteAdmin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteAdminDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInviteResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ADMIN_EMAIL_TAKEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Invite an administrator: creates the account with a preset’s rights and returns a one-time link (72 h) for the owner to send himself — no email is sent. Needs a fresh step-up.",
+        "tags": [
+          "admin-admins"
+        ]
+      }
+    },
+    "/admin/admins/{id}/invite": {
+      "post": {
+        "operationId": "reinviteAdmin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInviteResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "A new one-time sign-up link (72 h) for an existing administrator; the old link stops working. Needs a fresh step-up.",
+        "tags": [
+          "admin-admins"
+        ]
+      }
+    },
     "/admin/admins/{id}/role": {
       "patch": {
         "operationId": "setAdminRole",
@@ -4490,7 +4974,7 @@
             "admin": []
           }
         ],
-        "summary": "Toggle areas for an admin (view / manage), within what the caller holds. Money and keys cannot be granted.",
+        "summary": "Toggle areas for an admin (view / manage), within what the caller holds. Keys, admin management and sessions cannot be granted; money, economy, budget limits and the audit log only by the super admin.",
         "tags": [
           "admin-admins"
         ]
@@ -56068,6 +56552,267 @@
         ]
       }
     },
+    "/admin/economy": {
+      "get": {
+        "operationId": "getEconomy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Revenue vs third-party spend, ceiling, tiers",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
+    "/admin/economy/settings": {
+      "patch": {
+        "operationId": "updateEconomySettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEconomyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The spend rule, ceiling mode, unit prices, flag",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
+    "/admin/economy/increase": {
+      "post": {
+        "operationId": "increaseCapacity",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncreaseCapacityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Database or Redis one tier up (needs step-up)",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
     "/referrals/me": {
       "get": {
         "operationId": "getMyReferrals",
@@ -83312,6 +84057,10 @@
             "type": "boolean",
             "description": "May create and manage other admins (the super admin always can)."
           },
+          "noPii": {
+            "type": "boolean",
+            "description": "Owner 2026-10-16: «без персональных данных» — people’s phones, emails and names are masked for this admin."
+          },
           "countryPartnerId": {
             "type": "string",
             "nullable": true,
@@ -83359,6 +84108,7 @@
           "permissions",
           "hasSecurityQuestion",
           "canManageAdmins",
+          "noPii",
           "countryPartnerId",
           "partnerLead",
           "countries",
@@ -83571,6 +84321,84 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminMeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminInvitePreviewDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "The address the link is for."
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "AdminInvitePreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminInvitePreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminInviteAcceptResultDto": {
+        "type": "object",
+        "properties": {
+          "login": {
+            "type": "string",
+            "description": "The login to sign in with."
+          }
+        },
+        "required": [
+          "login"
+        ]
+      },
+      "AdminInviteAcceptDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 128
+          },
+          "login": {
+            "type": "string",
+            "maxLength": 40,
+            "example": "your.login"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 10
+          }
+        },
+        "required": [
+          "token",
+          "login",
+          "password"
+        ]
+      },
+      "AdminInviteAcceptResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminInviteAcceptResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -84170,6 +84998,10 @@
             "type": "boolean",
             "description": "May create and manage other admins."
           },
+          "noPii": {
+            "type": "boolean",
+            "description": "Owner 2026-10-16: personal data (phone, email, name) is masked for this admin."
+          },
           "countries": {
             "description": "Countries this admin works with (ISO 3166-1 alpha-2); empty = every country.",
             "type": "array",
@@ -84207,6 +85039,7 @@
           "hasPassword",
           "permissions",
           "canManageAdmins",
+          "noPii",
           "countries",
           "countryPartnerId",
           "partnerLead",
@@ -84263,6 +85096,10 @@
           "canManageAdmins": {
             "type": "boolean",
             "description": "Super admin only: lets this admin create and manage other admins within their own access."
+          },
+          "noPii": {
+            "type": "boolean",
+            "description": "Super admin only: «без персональных данных» — phones, emails and names come back masked."
           }
         },
         "required": [
@@ -84275,6 +85112,170 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminAccountDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminPresetDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "super_admin",
+              "moderator",
+              "verifier",
+              "support",
+              "finance"
+            ],
+            "type": "string"
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "view",
+                "manage"
+              ]
+            }
+          },
+          "noPii": {
+            "type": "boolean",
+            "description": "Personal data is masked."
+          },
+          "dangerous": {
+            "type": "boolean",
+            "description": "Creates another owner."
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "description",
+          "role",
+          "permissions",
+          "noPii",
+          "dangerous"
+        ]
+      },
+      "AdminPresetListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPresetDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdminInviteDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Secret part of the link; shown once."
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "Full link when ADMIN_PANEL_URL is set; otherwise null and the panel builds /invite/<token> itself."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "token",
+          "url",
+          "expiresAt"
+        ]
+      },
+      "AdminInviteResultDto": {
+        "type": "object",
+        "properties": {
+          "admin": {
+            "$ref": "#/components/schemas/AdminAccountDto"
+          },
+          "invite": {
+            "$ref": "#/components/schemas/AdminInviteDto"
+          }
+        },
+        "required": [
+          "admin",
+          "invite"
+        ]
+      },
+      "InviteAdminDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "preset": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "Preset key from GET /admin/admins/presets (owner, accountant, moderator, support, viewer)."
+          },
+          "role": {
+            "enum": [
+              "super_admin",
+              "moderator",
+              "verifier",
+              "support",
+              "finance"
+            ],
+            "type": "string",
+            "description": "Default: the preset’s role."
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "view",
+                "manage"
+              ]
+            },
+            "description": "Overrides the preset’s toggles (area → view | manage)."
+          },
+          "noPii": {
+            "type": "boolean",
+            "description": "Overrides the preset’s «без персональных данных»."
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "AdminInviteResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminInviteResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -84319,6 +85320,10 @@
           "canManageAdmins": {
             "type": "boolean",
             "description": "Super admin only: the right to create and manage other admins. Omitted = unchanged."
+          },
+          "noPii": {
+            "type": "boolean",
+            "description": "Super admin only: «без персональных данных». Omitted = unchanged."
           }
         },
         "required": [
@@ -112087,6 +113092,427 @@
             "type": "boolean"
           }
         }
+      },
+      "SpendLineDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "enum": [
+              "aws",
+              "sms",
+              "video",
+              "translate"
+            ],
+            "type": "string"
+          },
+          "monthToDateUsd": {
+            "type": "number"
+          },
+          "projectedUsd": {
+            "type": "number"
+          },
+          "source": {
+            "enum": [
+              "actual",
+              "estimate"
+            ],
+            "type": "string",
+            "description": "actual = read from AWS; estimate = units × unit price."
+          }
+        },
+        "required": [
+          "key",
+          "monthToDateUsd",
+          "projectedUsd",
+          "source"
+        ]
+      },
+      "EconomyFiguresDto": {
+        "type": "object",
+        "properties": {
+          "revenue30dUsd": {
+            "type": "number"
+          },
+          "revenueMonthUsd": {
+            "type": "number"
+          },
+          "allowedUsd": {
+            "type": "number",
+            "description": "Spend the rule allows this month, USD."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpendLineDto"
+            }
+          },
+          "monthToDateUsd": {
+            "type": "number"
+          },
+          "projectedUsd": {
+            "type": "number",
+            "description": "Projected third-party spend for the month."
+          }
+        },
+        "required": [
+          "revenue30dUsd",
+          "revenueMonthUsd",
+          "allowedUsd",
+          "lines",
+          "monthToDateUsd",
+          "projectedUsd"
+        ]
+      },
+      "EconomySettingsDto": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "description": "Third-party spend ≤ this % of 30-day revenue."
+          },
+          "thresholdUsd": {
+            "type": "number",
+            "description": "…but never below this many USD a month."
+          },
+          "ceilingMode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "manualApi": {
+            "type": "number"
+          },
+          "manualWorker": {
+            "type": "number"
+          },
+          "smsUnitUsd": {
+            "type": "number"
+          },
+          "videoUnitUsd": {
+            "type": "number"
+          },
+          "translateUnitUsd": {
+            "type": "number"
+          },
+          "awsFallbackUsd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "percent",
+          "thresholdUsd",
+          "ceilingMode",
+          "manualApi",
+          "manualWorker",
+          "smsUnitUsd",
+          "videoUnitUsd",
+          "translateUnitUsd",
+          "awsFallbackUsd"
+        ]
+      },
+      "ContainerReportDto": {
+        "type": "object",
+        "properties": {
+          "running": {
+            "type": "number",
+            "nullable": true
+          },
+          "desired": {
+            "type": "number",
+            "nullable": true
+          },
+          "ceiling": {
+            "type": "number",
+            "nullable": true
+          },
+          "hardCap": {
+            "type": "number",
+            "description": "The Terraform maximum."
+          },
+          "taskUsd": {
+            "type": "number",
+            "description": "Monthly cost of one task, USD."
+          }
+        },
+        "required": [
+          "hardCap",
+          "taskUsd"
+        ]
+      },
+      "ContainersDto": {
+        "type": "object",
+        "properties": {
+          "onAws": {
+            "type": "boolean",
+            "description": "ECS actions work here (on AWS)."
+          },
+          "api": {
+            "$ref": "#/components/schemas/ContainerReportDto"
+          },
+          "worker": {
+            "$ref": "#/components/schemas/ContainerReportDto"
+          },
+          "scaleMode": {
+            "nullable": true,
+            "enum": [
+              "min",
+              "normal"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "onAws",
+          "api",
+          "worker"
+        ]
+      },
+      "TierRowDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "memoryGb": {
+            "type": "number"
+          },
+          "monthUsd": {
+            "type": "number"
+          },
+          "current": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "memoryGb",
+          "monthUsd",
+          "current"
+        ]
+      },
+      "CapacityDto": {
+        "type": "object",
+        "properties": {
+          "onAws": {
+            "type": "boolean",
+            "description": "The database / Redis can be read and resized."
+          },
+          "at": {
+            "type": "string",
+            "nullable": true
+          },
+          "dbClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "dbNext": {
+            "type": "string",
+            "nullable": true
+          },
+          "dbCpuPercent": {
+            "type": "number",
+            "nullable": true
+          },
+          "dbConnections": {
+            "type": "number",
+            "nullable": true
+          },
+          "dbMaxConnections": {
+            "type": "number",
+            "nullable": true
+          },
+          "redisClass": {
+            "type": "string",
+            "nullable": true
+          },
+          "redisNext": {
+            "type": "string",
+            "nullable": true
+          },
+          "redisMemoryPercent": {
+            "type": "number",
+            "nullable": true
+          },
+          "dbTiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRowDto"
+            }
+          },
+          "redisTiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRowDto"
+            }
+          }
+        },
+        "required": [
+          "onAws",
+          "dbTiers",
+          "redisTiers"
+        ]
+      },
+      "EconomyEventDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "guard_on",
+              "guard_off",
+              "ceiling",
+              "db_cpu",
+              "db_connections",
+              "redis_memory",
+              "scaled_up"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "kind",
+          "text"
+        ]
+      },
+      "EconomyReportDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The economy_guard flag."
+          },
+          "guard": {
+            "enum": [
+              "ok",
+              "limited"
+            ],
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "nullable": true
+          },
+          "figures": {
+            "$ref": "#/components/schemas/EconomyFiguresDto"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/EconomySettingsDto"
+          },
+          "containers": {
+            "$ref": "#/components/schemas/ContainersDto"
+          },
+          "capacity": {
+            "$ref": "#/components/schemas/CapacityDto"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EconomyEventDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "guard",
+          "figures",
+          "settings",
+          "containers",
+          "capacity",
+          "events"
+        ]
+      },
+      "EconomyReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EconomyReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateEconomyDto": {
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "thresholdUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "ceilingMode": {
+            "enum": [
+              "auto",
+              "manual"
+            ],
+            "type": "string"
+          },
+          "manualApi": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "manualWorker": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "smsUnitUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "videoUnitUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "translateUnitUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "awsFallbackUsd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "guardEnabled": {
+            "type": "boolean",
+            "description": "The economy_guard flag (rollback)."
+          }
+        }
+      },
+      "IncreaseCapacityDto": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "enum": [
+              "db",
+              "redis"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "target"
+        ]
       },
       "ReferralStatus": {
         "type": "string",

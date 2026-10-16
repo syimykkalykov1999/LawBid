@@ -22,6 +22,7 @@ class AdminAccountDto {
     required this.hasPassword,
     required this.permissions,
     required this.canManageAdmins,
+    required this.noPii,
     required this.countries,
     required this.countryPartnerId,
     required this.partnerLead,
@@ -47,6 +48,9 @@ class AdminAccountDto {
 
   /// May create and manage other admins.
   final bool canManageAdmins;
+
+  /// Owner 2026-10-16: personal data (phone, email, name) is masked for this admin.
+  final bool noPii;
 
   /// Countries this admin works with (ISO 3166-1 alpha-2); empty = every country.
   final List<String> countries;

@@ -111,6 +111,7 @@ export class OpsGuardJob {
           mode: 'min',
           by: 'auto',
           at: now.toISOString(),
+          source: 'budget',
         });
         this.logger.warn(
           { alert: 'cost_scaled_down' },
@@ -120,6 +121,7 @@ export class OpsGuardJob {
     } else if (
       mode?.mode === 'min' &&
       mode.by === 'auto' &&
+      mode.source !== 'economy' &&
       this.aws.available
     ) {
       // A new month (spend reset): give the capacity back.
@@ -128,6 +130,7 @@ export class OpsGuardJob {
         mode: 'normal',
         by: 'auto',
         at: now.toISOString(),
+        source: 'budget',
       });
       this.logger.info(
         'autoscaling ceiling restored (budget back under the limit)',
