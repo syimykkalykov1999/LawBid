@@ -1,4 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +23,16 @@ import 'auth_test_harness.dart';
 const _phone = '+12025550123';
 const _token = 'Tk_-0123456789abcdefghijABCDEFGHIJ012345678';
 const _verifier = 'Vf_-0123456789abcdefghijABCDEFGHIJ012345678';
+
+/// `phoneStatus` stays pending until [status] completes, like a slow network.
+class _SlowStatusRepository extends RecordingAuthRepository {
+  final status =
+      Completer<({bool registered, bool hasPassword})?>();
+
+  @override
+  Future<({bool registered, bool hasPassword})?> phoneStatus(String phone) =>
+      status.future;
+}
 
 void main() {
   late RecordingAuthRepository repo;
@@ -290,6 +302,8 @@ void main() {
   group('double submit (owner bug 2026-10-16)', () {
     testWidgets('two quick taps on Continue push the code screen once',
         (tester) async {
+      final slow = _SlowStatusRepository();
+      repo = slow;
       final c = await container();
       final router =
           GoRouter(initialLocation: AuthRoutes.phone, routes: authRoutes());
@@ -301,7 +315,8 @@ void main() {
       await tester.pump();
       final button = find.byType(AppButton).first;
       await tester.tap(button);
-      await tester.tap(button); // before the first submit has resolved
+      await tester.tap(button); // phoneStatus still pending (network)
+      slow.status.complete((registered: false, hasPassword: false));
       await tester.pump(const Duration(milliseconds: 600));
       await tester.pumpAndSettle();
 
