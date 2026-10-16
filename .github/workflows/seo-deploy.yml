@@ -48,7 +48,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test scripts/seo/test/
+      - run: node --test scripts/seo/test/*.test.mjs
 
   deploy:
     name: Build and publish the pages
@@ -108,7 +108,8 @@ jobs:
         working-directory: dist-seo
         run: |
           B="s3://${{ secrets.WEB_BUCKET }}"
-          for d in */; do
+          for d in */ .well-known/; do
+            [ -d "$d" ] || continue
             d="${d%/}"
             if [ "$d" = "_next" ]; then
               aws s3 sync "_next" "$B/_next" --delete \
@@ -117,6 +118,11 @@ jobs:
               aws s3 sync "$d" "$B/$d" --delete --cache-control "public,max-age=3600"
             fi
           done
+          # App links for the phone apps (iOS needs it served as JSON).
+          if [ -f .well-known/apple-app-site-association ]; then
+            aws s3 cp .well-known/apple-app-site-association "$B/.well-known/apple-app-site-association" \
+              --content-type application/json --cache-control "public,max-age=3600"
+          fi
           for f in *; do
             [ -f "$f" ] || continue
             case "$f" in

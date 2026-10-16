@@ -51,7 +51,8 @@ export async function mergeSite({ seo, site, siteUrl }) {
   const base = siteUrl.replace(/\/$/, '');
   const copied = [];
   for (const name of await readdir(site)) {
-    if (SKIP_TOP.has(name)) continue;
+    // __next.*.txt at the top are the site home's data (the home is skipped).
+    if (SKIP_TOP.has(name) || name.startsWith('__next.')) continue;
     // force: false keeps the SEO page when both have the same file.
     await cp(join(site, name), join(seo, name), {
       recursive: true,

@@ -234,7 +234,8 @@ resource "aws_cloudfront_function" "seo_index" {
         };
       }
       var uri = request.uri;
-      if (uri !== '/' && uri.indexOf('.', uri.lastIndexOf('/')) === -1) {
+      // /.well-known/ holds extension-less files (app links): served as is.
+      if (uri !== '/' && uri.indexOf('/.well-known/') !== 0 && uri.indexOf('.', uri.lastIndexOf('/')) === -1) {
         request.uri = uri.charAt(uri.length - 1) === '/' ? uri + 'index.html' : uri + '/index.html';
       }
       return request;
