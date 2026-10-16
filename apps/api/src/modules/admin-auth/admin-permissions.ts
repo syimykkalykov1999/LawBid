@@ -57,7 +57,6 @@ export const SUPER_ONLY_AREAS = [
   'keys', // integrations: Stripe, FCM, Bunny, SES, Sentry, ...
   'admins', // accounts, roles, passwords
   'sessions', // everyone's sessions
-  'economy', // owner 2026-10-16: revenue vs third-party spend, ceilings
   'rewards', // owner 2026-10-05: «Лучший сотрудник» (prizes, bonuses)
 ] as const;
 export type SuperOnlyArea = (typeof SUPER_ONLY_AREAS)[number];
