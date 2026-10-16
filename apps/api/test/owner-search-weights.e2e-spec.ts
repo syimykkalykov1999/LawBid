@@ -69,6 +69,11 @@ describe('Search ranking weights (e2e)', () => {
       where: { key: { startsWith: 'search.weight_' } },
     });
     await redis.del('config:app_config');
+    // The stem uses the letters a-f only and the two names end in y / z: the
+    // trigram similarity that is compared before the weights is then the
+    // same for both (a suffix letter that also sits in the stem made one
+    // name a little closer to the query, and the test flaked on a random
+    // stem).
     const stem = `wgt${randomUUID()
       .replace(/[^a-f]/g, '')
       .slice(0, 5)}`;
@@ -90,8 +95,8 @@ describe('Search ranking weights (e2e)', () => {
       });
       return u.id;
     };
-    const verifiedId = await make('a', true, 0);
-    const ratedId = await make('b', false, 5);
+    const verifiedId = await make('y', true, 0);
+    const ratedId = await make('z', false, 5);
     const viewer = await prisma.user.create({ data: { role: 'client' } });
     const order = async (minRating?: number) => {
       const r = await request(base)
