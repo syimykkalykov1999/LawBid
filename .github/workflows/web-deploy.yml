@@ -59,6 +59,7 @@ jobs:
         working-directory: apps/mobile
         run: >-
           flutter build web --wasm -t lib/main_prod.dart
+          --no-web-resources-cdn
           --dart-define=WEB_ENABLED=true
           --dart-define=API_BASE_URL=${{ secrets.WEB_API_BASE_URL }}
           --dart-define=DEEP_LINK_HOST=${{ secrets.WEB_DEEP_LINK_HOST }}
@@ -87,9 +88,13 @@ jobs:
               firebase-messaging-sw.js
           fi
 
+      # The engine (CanvasKit / skwasm) is served from our own domain: the
+      # page's CSP allows fetches only to 'self' and the API, and a fetch to
+      # gstatic.com was blocked, leaving the app on its splash forever.
       - name: The bundle has what the app needs
         working-directory: apps/mobile
         run: |
+          test -s build/web/canvaskit/skwasm.wasm
           test -s build/web/index.html
           test -s build/web/main.dart.wasm
           test -s build/web/sqlite3.wasm
@@ -106,10 +111,11 @@ jobs:
       - name: Upload long-lived files
         working-directory: apps/mobile/build/web
         run: |
+          # Engine file names carry no version: cached a day, reset below.
           aws s3 sync canvaskit "s3://${{ secrets.WEB_BUCKET }}/canvaskit" \
-            --cache-control "public,max-age=31536000,immutable"
+            --cache-control "public,max-age=86400"
           aws s3 sync icons "s3://${{ secrets.WEB_BUCKET }}/icons" \
-            --cache-control "public,max-age=31536000,immutable"
+            --cache-control "public,max-age=86400"
 
       # The public pages (SEO pages + the company site, seo-deploy.yml) live
       # in the same bucket; public-paths.txt lists their names so --delete
@@ -139,4 +145,4 @@ jobs:
         run: >-
           aws cloudfront create-invalidation
           --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
-          --paths "/index.html" "/flutter_bootstrap.js" "/main.dart.js" "/main.dart.wasm" "/main.dart.mjs" "/version.json" "/manifest.json"
+          --paths "/index.html" "/canvaskit/*" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/main.dart.js" "/main.dart.wasm" "/main.dart.mjs" "/version.json" "/manifest.json"

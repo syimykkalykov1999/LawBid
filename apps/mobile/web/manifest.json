@@ -3,7 +3,7 @@
     "short_name": "LawBid",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FFFFFF",
+    "background_color": "#0A1A3F",
     "theme_color": "#0A1A3C",
     "description": "LawBid: post your case, attorneys bid, you choose.",
     "orientation": "any",
