@@ -30,6 +30,10 @@ abstract final class ApiErrorCodes {
   static const authOtpExpired = 'AUTH_OTP_EXPIRED';
   static const authOtpLocked = 'AUTH_OTP_LOCKED';
   static const authOtpRequestLimit = 'AUTH_OTP_REQUEST_LIMIT';
+
+  /// Owner 2026-10-16: the number is registered; an SMS code is only for new
+  /// numbers (sign in with the password, or set one through the reset).
+  static const authPhoneRegistered = 'AUTH_PHONE_REGISTERED';
   static const authRefreshInvalid = 'AUTH_REFRESH_INVALID';
   static const authRefreshExpired = 'AUTH_REFRESH_EXPIRED';
   static const authRefreshReuseDetected = 'AUTH_REFRESH_REUSE_DETECTED';
@@ -279,6 +283,7 @@ abstract final class ApiErrorCodes {
     authOtpExpired,
     authOtpLocked,
     authOtpRequestLimit,
+    authPhoneRegistered,
     authRefreshInvalid,
     authRefreshExpired,
     authRefreshReuseDetected,

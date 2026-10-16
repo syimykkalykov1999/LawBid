@@ -147,6 +147,9 @@ export class AuthService {
       owner?.user_id ?? null,
     );
 
+    if (dto.channel === 'phone')
+      await this.assertSmsOnlyForNewNumber(identifier);
+
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(identifier)],
       this.limit(ENV.otpPerIdentifierPerHour),
@@ -1018,6 +1021,63 @@ export class AuthService {
    * already caught and fixed once in SessionService.gracePeriodMs()). */
   private limit(key: (typeof ENV)[keyof typeof ENV]): number {
     return this.config.getOrThrow<number>(key);
+  }
+
+  /**
+   * Owner 2026-10-16: an SMS code is only for a NEW number (registration).
+   * A registered number signs in with its password; one without a password
+   * is told to set it through the reset flow. Resend cooldown and a daily
+   * cap apply to registration codes. `sms.login_code_enabled` = true brings
+   * the old passwordless sign-in code back (rollback).
+   */
+  private async assertSmsOnlyForNewNumber(identifier: string): Promise<void> {
+    const cfg = this.settings;
+    if (!cfg || (await cfg.boolean('sms.login_code_enabled'))) return;
+    const owner = await this.prisma.userIdentifier.findUnique({
+      where: {
+        provider_provider_uid: { provider: 'phone', provider_uid: identifier },
+      },
+      select: { user: { select: { password_hash: true } } },
+    });
+    if (owner) {
+      throw new ConflictException({
+        code: ErrorCode.AUTH_PHONE_REGISTERED,
+        message: 'This number is registered. Sign in with your password.',
+        details: { hasPassword: owner.user.password_hash != null },
+      });
+    }
+    const idHash = this.rateLimit.hashIdentifier(identifier);
+    const cooldown = await cfg.number('sms.resend_cooldown_seconds');
+    const wait = await this.rateLimit.consumeFixedWindow(
+      ['sms-resend', idHash],
+      1,
+      cooldown,
+    );
+    if (!wait.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Wait a moment before asking for another code.',
+          details: { retryAfterSeconds: wait.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const day = await this.rateLimit.consumeSlidingWindow(
+      ['sms-reg-day', idHash],
+      await cfg.number('sms.registration_per_number_per_day'),
+      OTP_DAILY_WINDOW_SECONDS,
+    );
+    if (!day.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
+          message: 'Too many codes for this number today. Try again tomorrow.',
+          details: { retryAfterSeconds: day.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   /** `security.otp_per_identifier_per_day` when an admin saved a valid

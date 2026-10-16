@@ -120,6 +120,15 @@ export default async function globalSetup(): Promise<void> {
     create: { key: 'verification.bar_formats', value: JSON.stringify(loose) },
     update: { value: JSON.stringify(loose) },
   });
+  // Owner 2026-10-16: production sends an SMS code only to a new number and
+  // for a password reset; the suites sign the same numbers in by code again
+  // and again, so they start with the old behaviour (the rollback switch).
+  // The suite about the new rules turns it off itself.
+  await seed.appConfig.upsert({
+    where: { key: 'sms.login_code_enabled' },
+    create: { key: 'sms.login_code_enabled', value: true },
+    update: { value: true },
+  });
   await seed.$disconnect();
   await admin.$disconnect();
 

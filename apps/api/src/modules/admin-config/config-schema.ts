@@ -118,6 +118,37 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: OTP_DAILY_LIMIT_MIN,
     max: OTP_DAILY_LIMIT_MAX,
   };
+  // Owner 2026-10-16: fewer SMS.
+  out['sms.login_code_enabled'] = {
+    ...out['sms.login_code_enabled'],
+    description:
+      'Off (default): a registered number signs in with its password; an SMS code goes only to register a new number and to reset a password. On: the old sign-in code works again (rollback).',
+  };
+  out['sms.resend_cooldown_seconds'] = {
+    ...out['sms.resend_cooldown_seconds'],
+    description:
+      'Seconds before the same number may ask for another registration code.',
+    min: 10,
+    max: 3600,
+  };
+  out['sms.registration_per_number_per_day'] = {
+    ...out['sms.registration_per_number_per_day'],
+    description: 'Registration codes one number may request in 24 hours.',
+    min: 1,
+    max: 50,
+  };
+  out['sms.reset_per_number_per_hour'] = {
+    ...out['sms.reset_per_number_per_hour'],
+    description: 'Password-reset codes one number may request per hour.',
+    min: 1,
+    max: 20,
+  };
+  out['sms.reset_per_number_per_day'] = {
+    ...out['sms.reset_per_number_per_day'],
+    description: 'Password-reset codes one number may request in 24 hours.',
+    min: 1,
+    max: 50,
+  };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],
