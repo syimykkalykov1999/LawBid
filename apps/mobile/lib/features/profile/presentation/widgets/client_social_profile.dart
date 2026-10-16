@@ -29,7 +29,7 @@ import 'package:lawbid/features/social/application/social_providers.dart'
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show ProfilePostsGrid;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
-    show FollowButton;
+    show FollowButton, TrustAvatarBadge;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -182,13 +182,24 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
         children: [
           Row(
             children: [
-              ProfileAvatar(
+              // Owner 2026-10-16: the verified badge sits on the avatar
+              // corner (as on the attorney's), not beside the name.
+              TrustAvatarBadge(
+                id: p.id,
                 size: AppSizes.profileAvatar,
-                url: p.avatarUrl,
-                initials:
-                    initialsOf(p.firstName, p.lastName, fallback: p.username),
-                semanticLabel: t.t('profile.avatar.label'),
-                viewerCloseLabel: t.t('common.close'),
+                trustLevel: 0,
+                goldLabel: p.verified ? t.t('profile.verified.label') : null,
+                child: ProfileAvatar(
+                  size: AppSizes.profileAvatar,
+                  url: p.avatarUrl,
+                  initials: initialsOf(
+                    p.firstName,
+                    p.lastName,
+                    fallback: p.username,
+                  ),
+                  semanticLabel: t.t('profile.avatar.label'),
+                  viewerCloseLabel: t.t('common.close'),
+                ),
               ),
               const SizedBox(width: AppSpacing.md),
               counter(
@@ -224,13 +235,6 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   ),
                 ),
               ),
-              if (p.verified) ...[
-                const SizedBox(width: AppSpacing.xs),
-                VerifiedBadge(
-                  semanticLabel: t.t('profile.verified.label'),
-                  gold: true,
-                ),
-              ],
             ],
           ),
           if (blocked) ...[
@@ -276,11 +280,9 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                     ref.watch(canDoProvider(AssistantDuty.chats))) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    child: AppButton(
+                    child: ProfileQuietButton(
                       label: t.t('profile.action.message'),
-                      variant: AppButtonVariant.secondary,
-                      height: AppSizes.touchTarget,
-                      onPressed: () => openDirectChat(context, ref, p.id),
+                      onTap: () => openDirectChat(context, ref, p.id),
                     ),
                   ),
                 ],
