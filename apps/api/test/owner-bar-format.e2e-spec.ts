@@ -111,7 +111,7 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
 
   it("a number must fit the state's shape; a good one is stored without separators", async () => {
     const a = await attorney();
-    const bad = await add(a, 'MI', '12345');
+    const bad = await add(a, 'MI', 'ABC');
     expect(bad.status).toBe(400);
     expect(bad.body.error.code).toBe('BAR_NUMBER_FORMAT_INVALID');
     // Owner 2026-10-14: the shape is never revealed to the client.
@@ -122,6 +122,23 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
       where: { attorney_id: a.id },
     });
     expect(row.bar_number).toBe('P12345');
+    await redis.flushdb();
+  });
+
+  // Owner 2026-10-16: a real number the rule does not know is never a dead
+  // end: soft, flagged for a person, its shape counted for the admin.
+  it('a number of an unusual shape is accepted for manual review and its shape is logged', async () => {
+    const a = await attorney();
+    const res = await add(a, 'NY', 'A1B2C3');
+    expect(res.status).toBe(201);
+    const row = await prisma.attorneyLicense.findFirstOrThrow({
+      where: { attorney_id: a.id },
+    });
+    expect(row.registry_flag).toBe('format_unusual');
+    const miss = await prisma.barFormatMiss.findUniqueOrThrow({
+      where: { state_code_shape: { state_code: 'NY', shape: 'A9A9A9' } },
+    });
+    expect(miss.hits).toBeGreaterThanOrEqual(1);
     await redis.flushdb();
   });
 

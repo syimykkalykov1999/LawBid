@@ -76,6 +76,8 @@ export const FILTERED_TABLES: Readonly<Record<string, string>> = {
 
 /** Everything the testers created. TRUNCATE … CASCADE in one statement. */
 export const WIPE_TABLES: Readonly<Record<string, string>> = {
+  // Owner 2026-10-16: shapes of unusual bar numbers typed so far
+  bar_format_misses: 'counted shapes of unusual bar numbers (test entries)',
   // identity and sign-in
   user_identifiers: 'phones / e-mails / Apple / Google ids',
   sessions: 'sign-in sessions (admins sign in again)',

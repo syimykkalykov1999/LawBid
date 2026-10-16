@@ -67,22 +67,16 @@ void main() {
     expect(s.width, 390);
   });
 
-  testWidgets('a reel is 9:16 by the window height, at most 420 px',
+  testWidgets('a reel card is 9:16, the window height minus 16 px each side',
       (tester) async {
     adaptiveShellOverride = true;
-    var s = await sizeOf(
+    final s = await sizeOf(
       tester,
       const WebReelFrame(child: SizedBox.expand(key: ValueKey('probe'))),
-      height: 600,
+      width: 1280,
     );
-    expect(s.width, closeTo(337.5, 0.5));
-    expect(s.height, 600);
-    s = await sizeOf(
-      tester,
-      const WebReelFrame(child: SizedBox.expand(key: ValueKey('probe'))),
-      height: 1200,
-    );
-    expect(s.width, 420);
+    expect(s.height, 868);
+    expect(s.width, closeTo(868 * 9 / 16, 0.5));
   });
 
   test('the profile grid is three 3:4 tiles with a 1 px gap on the web', () {

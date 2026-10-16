@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FLAG_CATALOG } from '../flag-catalog';
+import { lockFlags } from '../../../common/feature-flags/locked-flags';
 
 /** Same reasoning as I18nBundleService's bundle-version TTL
  * (i18n-bundle.service.ts): the admin's flag toggle writes straight to
@@ -69,6 +70,10 @@ export class FeatureFlagsService implements OnModuleInit {
   }
 
   async getFlags(): Promise<Record<string, boolean>> {
+    return lockFlags(await this.readFlags());
+  }
+
+  private async readFlags(): Promise<Record<string, boolean>> {
     const cached = await this.redis.get(FLAGS_CACHE_KEY);
     if (cached !== null) return JSON.parse(cached) as Record<string, boolean>;
 

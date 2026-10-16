@@ -59,6 +59,16 @@ export class VerificationChecksService {
     this.logger.setContext(VerificationChecksService.name);
   }
 
+  /** Whether the state has an enabled automatic registry (owner
+   * 2026-10-16: where it has none, the bar card is required). */
+  async registryEnabled(stateCode: string): Promise<boolean> {
+    try {
+      return await (await this.selector.barLookup()).supports(stateCode);
+    } catch {
+      return false;
+    }
+  }
+
   /** After a draft is submitted. Best effort: failures are logged. */
   async runOnSubmit(requestId: string): Promise<void> {
     try {
@@ -95,7 +105,11 @@ export class VerificationChecksService {
     // auto-approval needs every license of the request to pass.
     let allSupported = licenses.length > 0;
     for (const license of licenses) {
-      if (!(await bar.supports(license.state_code))) {
+      // Owner 2026-10-16: a number of an unusual shape waits for a person.
+      if (
+        license.registry_flag === 'format_unusual' ||
+        !(await bar.supports(license.state_code))
+      ) {
         allSupported = false;
         continue;
       }
