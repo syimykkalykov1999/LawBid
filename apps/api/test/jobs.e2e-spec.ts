@@ -274,11 +274,19 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
 async function expectOnePendingRunPerScheduler(queue: Queue): Promise<void> {
   const delayed = await queue.getJobs(['delayed']);
   const perKey = new Map<string, number>();
+  // A run whose time has come but that the queue has not moved to «waiting»
+  // yet is not a second pending run: the scheduler already queued the
+  // next one. Counting it made this check flake at a minute boundary
+  // (two «delayed» jobs for one every-minute scheduler).
+  const now = Date.now();
   for (const j of delayed) {
+    if (j.timestamp + (j.delay ?? 0) <= now) continue;
     const key = j.repeatJobKey ?? j.name;
     perKey.set(key, (perKey.get(key) ?? 0) + 1);
   }
-  expect([...perKey.values()].filter((n) => n > 1)).toEqual([]);
+  // The job ids and due times go into the failure, so a CI log alone shows
+  // whether two runs are really pending or one is only late to be moved.
+  expect([...perKey].filter(([, n]) => n > 1)).toEqual([]);
   const pending = await queue.getJobs([
     'delayed',
     'waiting',
