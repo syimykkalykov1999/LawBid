@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-169 tables.
+170 tables.
 
 ```mermaid
 erDiagram
@@ -1352,7 +1352,7 @@ erDiagram
     String status
     String stripe_refund_id UK "nullable"
     String failure_reason "nullable"
-    String admin_id
+    String admin_id "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -2110,6 +2110,14 @@ erDiagram
   user_activity_days {
     String user_id PK
     DateTime day PK
+  }
+  bar_format_misses {
+    String id PK
+    String state_code
+    String shape
+    Int hits
+    DateTime first_seen
+    DateTime last_seen
   }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"

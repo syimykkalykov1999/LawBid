@@ -627,7 +627,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             <div>
               <h3 className="font-medium text-heading">Оплата адвокату через платформу</h3>
               <p className="mt-1 text-sm text-muted">
-                Платформа не делит гонорар адвоката: комиссии в процентах нет вовсе, по умолчанию комиссии нет совсем. Включается флагом <span className="font-mono">payments_in_app</span> в разделе «Флаги» и работает, когда сохранены ключи Stripe (Система → Ключи и сервисы, поле «Connect webhook»).
+                Платформа не делит гонорар адвоката: комиссии в процентах нет вовсе, по умолчанию комиссии нет совсем. Оплата клиент→адвокат отключена: LawBid не участвует в деньгах между клиентом и адвокатом (в платформе только подписки, пакеты ставок и Boost).
               </p>
             </div>
             <div className="flex gap-2">

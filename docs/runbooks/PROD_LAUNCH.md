@@ -175,6 +175,26 @@ GitHub → репозиторий → **Settings → Secrets and variables → A
 подтверждения выкатывает их на прод; откат — **Actions → Rollback
 production**.
 
+### Если шаг `configure-aws-credentials` пишет «Not authorized to perform sts:AssumeRoleWithWebIdentity»
+
+Роль или провайдер в аккаунте не совпадают с тем, что описано в
+`infra/bootstrap`. Перед запуском шага Deploy печатает шаг «Show the OIDC
+claims»: реальный `sub` токена GitHub (ожидается
+`repo:syimykkalykov1999/LawBid:ref:refs/heads/main`). Проверка с Mac:
+
+```
+aws login                                   # сессия истекает; дальше команды только на чтение
+aws sts get-caller-identity                 # аккаунт 047754151252
+aws iam list-open-id-connect-providers      # должен быть .../token.actions.githubusercontent.com
+aws iam get-role --role-name lawbid-prod-github-deploy \
+  --query Role.AssumeRolePolicyDocument     # Federated = провайдер выше, aud = sts.amazonaws.com,
+                                            # sub = deploy_trust_sub из terraform output
+cd infra/bootstrap && terraform init && terraform plan   # разница с реальностью; apply — только по слову владельца
+```
+
+Секрет `AWS_DEPLOY_ROLE_PROD` должен быть ровно `terraform output
+deploy_role_arn`.
+
 ## Почта (SES)
 
 Пока AWS не выпустил аккаунт из «песочницы», письма уходят только на

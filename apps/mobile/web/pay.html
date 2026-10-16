@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>LawBid · Secure payment</title>
+<!--
+  Owner 2026-10-16: our own card page (variant B) for the attorney subscription.
+  The app opens  /pay.html#t=<signed token>&api=<api base>&theme=day|night|navy|glass.
+  Card numbers never touch our servers: Stripe.js renders the three fields
+  (cardNumber / cardExpiry / cardCvc) inside Stripe-hosted iframes that sit on
+  top of the artwork; we only get a SetupIntent back and ask the API to create
+  the subscription from it. A card only: no wallets, no Link, no promo box.
+-->
+<style>
+:root{
+  --bg:#f4f1ea; --surface:#ffffff; --ink:#14213d; --muted:#5b6678; --line:#e3ddd0;
+  --gold:#b8892f; --gold-ink:#6d4f10; --accent:#14213d; --accent-ink:#ffffff;
+  --danger:#c0392b; --ok:#1f8a5b; --card-a:#1b2a4a; --card-b:#34507f; --card-ink:#ffffff;
+  --field:rgba(255,255,255,.12); --field-line:rgba(255,255,255,.28);
+  --shadow:0 18px 40px rgba(20,33,61,.18);
+}
+html[data-theme="night"]{
+  --bg:#0c1220; --surface:#141c2e; --ink:#eef1f7; --muted:#9aa6bd; --line:#26314a;
+  --gold:#d9ad4f; --gold-ink:#f0cd84; --accent:#d9ad4f; --accent-ink:#14213d;
+  --card-a:#26324f; --card-b:#4a3f77; --shadow:0 18px 40px rgba(0,0,0,.5);
+}
+html[data-theme="navy"]{
+  --bg:#0f2347; --surface:#16305e; --ink:#f3f6fc; --muted:#a9b9d6; --line:#2b4a82;
+  --gold:#e0b45a; --gold-ink:#f2d089; --accent:#e0b45a; --accent-ink:#0f2347;
+  --card-a:#0a1a38; --card-b:#2b5aa8; --shadow:0 18px 40px rgba(0,0,0,.45);
+}
+html[data-theme="glass"]{
+  --bg:#dfe7f5; --surface:rgba(255,255,255,.62); --ink:#14213d; --muted:#4d5d7a; --line:rgba(255,255,255,.7);
+  --gold:#a67a22; --gold-ink:#6d4f10; --accent:#14213d; --accent-ink:#fff;
+  --card-a:#3a5a9a; --card-b:#7a5fb0; --shadow:0 18px 40px rgba(40,60,110,.25);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+  -webkit-text-size-adjust:100%}
+body{padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
+  display:flex;justify-content:center}
+html[data-theme="glass"] body{background:radial-gradient(1200px 600px at 20% -10%,#c9d8f5,transparent),
+  radial-gradient(900px 500px at 100% 10%,#e6d9f7,transparent),var(--bg)}
+main{width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:center;justify-content:space-between;padding:4px 2px}
+.brand{font:700 20px/1 Georgia,"Times New Roman",serif;letter-spacing:.2px}
+.brand b{color:var(--gold)}
+.lock{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:12.5px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;
+  box-shadow:var(--shadow);backdrop-filter:blur(14px)}
+.summary h1{margin:0 0 4px;font-size:18px}
+.summary .price{font-size:30px;font-weight:700;letter-spacing:-.5px}
+.summary .price small{font-size:14px;color:var(--muted);font-weight:500}
+.summary p{margin:6px 0 0;color:var(--muted);font-size:13.5px}
+.trial{display:inline-block;margin-top:8px;padding:4px 10px;border-radius:999px;
+  background:color-mix(in srgb,var(--gold) 18%,transparent);color:var(--gold-ink);font-weight:600;font-size:12.5px}
+/* The card artwork with the three Stripe fields on it. */
+.stage{perspective:1100px}
+.card{position:relative;width:100%;aspect-ratio:1.586;border-radius:18px;transform-style:preserve-3d;
+  transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.card.flip{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:18px;padding:5.5% 6%;color:var(--card-ink);overflow:hidden;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  background:linear-gradient(135deg,var(--card-a),var(--card-b));box-shadow:var(--shadow)}
+.face::after{content:"";position:absolute;inset:-30% -10% auto auto;width:70%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.22),transparent 65%);pointer-events:none}
+.back{transform:rotateY(180deg);padding:0}
+.chip{width:13%;aspect-ratio:1.3;border-radius:6px;background:linear-gradient(135deg,#f0d58a,#b8892f);opacity:.95}
+.row{display:flex;justify-content:space-between;align-items:center}
+.brandmark{font:700 15px/1 Georgia,serif;letter-spacing:.3px;opacity:.95}
+#brandlabel{font-weight:700;font-size:15px;letter-spacing:.6px;text-transform:uppercase;min-width:3.2em;text-align:right;
+  transition:opacity .25s}
+.num{position:absolute;left:6%;right:6%;top:41%}
+.exp{position:absolute;left:6%;width:38%;bottom:11%}
+.lbl{display:block;font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;opacity:.75;margin-bottom:4px}
+.field{height:42px;display:flex;align-items:center;padding:0 12px;border-radius:12px;
+  background:var(--field);border:1px solid var(--field-line);transition:border-color .2s,box-shadow .2s}
+.field.focus{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.22)}
+.field.err{border-color:#ff9c8f}
+.field>div{flex:1;min-width:0}
+.strip{position:absolute;left:0;right:0;top:12%;height:17%;background:rgba(0,0,0,.72)}
+.cvcwrap{position:absolute;left:6%;right:6%;top:38%;display:flex;flex-direction:column;align-items:flex-end}
+.cvcwrap .field{width:46%}
+.cvcwrap .lbl{align-self:flex-end;margin-right:4px}
+.hint{position:absolute;left:6%;bottom:9%;right:6%;font-size:11.5px;opacity:.8}
+.errors{min-height:20px;color:var(--danger);font-size:13px;margin:-4px 2px 0}
+button.pay{width:100%;height:54px;border:0;border-radius:16px;background:var(--accent);color:var(--accent-ink);
+  font:700 16px/1 inherit;cursor:pointer;transition:transform .12s,opacity .2s,filter .2s}
+button.pay:active{transform:scale(.985)}
+button.pay[disabled]{opacity:.55;cursor:default}
+.fine{text-align:center;color:var(--muted);font-size:12.5px;margin:0 6px}
+a.link{color:var(--gold-ink);text-decoration:underline;cursor:pointer}
+.center{display:none;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:28px 12px}
+.center.show{display:flex}
+.badge{width:76px;height:76px;border-radius:50%;display:grid;place-items:center;font-size:38px;color:#fff}
+.badge.ok{background:var(--ok);animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+.badge.bad{background:var(--danger);animation:shake .45s}
+.center h2{margin:6px 0 0;font-size:21px}
+.center p{margin:0;color:var(--muted)}
+.hide{display:none!important}
+@keyframes pop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes shake{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.spin{width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,255,255,.35);border-top-color:currentColor;
+  animation:rot .8s linear infinite;display:inline-block;vertical-align:-5px;margin-right:8px}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.badge{animation:none}}
+@media (min-width:700px){body{align-items:flex-start;padding-top:48px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">Law<b>Bid</b></div>
+    <div class="lock" aria-label="Secure payment">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span id="t-secure">Secure payment · Stripe</span>
+    </div>
+  </header>
+
+  <section id="loading" class="panel center show" aria-live="polite">
+    <span class="spin" style="border-color:rgba(128,128,128,.3);border-top-color:var(--gold)"></span>
+    <p id="t-loading">Preparing your payment…</p>
+  </section>
+
+  <section id="form" class="hide" style="display:none;flex-direction:column;gap:18px">
+    <div class="panel summary">
+      <h1 id="plan">LawBid Attorney subscription</h1>
+      <div class="price"><span id="amount">$—</span><small id="per"> / month</small></div>
+      <span id="trial" class="trial hide"></span>
+      <p id="after"></p>
+    </div>
+
+    <div class="stage" aria-label="Card">
+      <div class="card" id="card">
+        <div class="face front">
+          <div class="row">
+            <div class="brandmark">LawBid</div>
+            <div id="brandlabel" aria-live="polite"></div>
+          </div>
+          <div class="chip" style="margin-top:6%"></div>
+          <div class="num">
+            <span class="lbl" id="t-number">Card number</span>
+            <div class="field" id="f-number"><div id="el-number"></div></div>
+          </div>
+          <div class="exp">
+            <span class="lbl" id="t-exp">Expires</span>
+            <div class="field" id="f-exp"><div id="el-exp"></div></div>
+          </div>
+        </div>
+        <div class="face back">
+          <div class="strip"></div>
+          <div class="cvcwrap">
+            <span class="lbl" id="t-cvc">Security code</span>
+            <div class="field" id="f-cvc"><div id="el-cvc"></div></div>
+          </div>
+          <div class="hint" id="t-cvchint">The 3 or 4 digits on the card.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="errors" id="errors" role="alert"></div>
+    <button class="pay" id="pay" disabled>Start free trial</button>
+    <p class="fine" id="fine">Cancel anytime in the app → Subscription. Your card details go straight to Stripe and never reach LawBid.</p>
+    <p class="fine"><a class="link" id="cancel" href="#">Back to the app</a></p>
+  </section>
+
+  <section id="ok" class="panel center">
+    <div class="badge ok">✓</div>
+    <h2 id="t-ok">You're all set</h2>
+    <p id="t-ok2">Your subscription is active. Return to the LawBid app.</p>
+    <button class="pay" id="back-ok" style="margin-top:8px">Return to LawBid</button>
+  </section>
+
+  <section id="bad" class="panel center">
+    <div class="badge bad">!</div>
+    <h2 id="t-bad">Payment didn't go through</h2>
+    <p id="bad-msg"></p>
+    <button class="pay" id="retry" style="margin-top:8px">Try another card</button>
+    <p class="fine"><a class="link" id="back-bad" href="#">Back to the app</a></p>
+  </section>
+</main>
+
+<script src="https://js.stripe.com/v3/" async></script>
+<script>
+(function () {
+  'use strict';
+  var params = new URLSearchParams(location.hash.slice(1));
+  var token = params.get('t') || '';
+  var api = (params.get('api') || '').replace(/\/+$/, '');
+  var ret = params.get('ret') || '';
+  var theme = (params.get('theme') || '').toLowerCase();
+  if (!/^(day|night|navy|glass)$/.test(theme)) {
+    theme = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
+  }
+  document.documentElement.setAttribute('data-theme', theme);
+  // The token stays out of the address bar and the history.
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+
+  var $ = function (id) { return document.getElementById(id); };
+  var T = {
+    en: { secure: 'Secure payment · Stripe', loading: 'Preparing your payment…', number: 'Card number', exp: 'Expires', cvc: 'Security code',
+      cvchint: 'The 3 or 4 digits on the card.', trial: function (d) { return d + '-day free trial'; },
+      after: function (d, a) { return 'Then ' + a + ' per month. You can cancel before the trial ends and pay nothing.'; },
+      afterNoTrial: function (a) { return 'You will be charged ' + a + ' today, then every month.'; },
+      payTrial: 'Start free trial', pay: function (a) { return 'Pay ' + a; }, processing: 'Processing…',
+      fine: 'Cancel anytime in the app → Subscription. Your card details go straight to Stripe and never reach LawBid.',
+      back: 'Back to the app', ok: "You're all set", ok2: 'Your subscription is active. Return to the LawBid app.', okBtn: 'Return to LawBid',
+      bad: "Payment didn't go through", retry: 'Try another card', expired: 'This link has expired. Open the payment again from the app.',
+      generic: 'Something went wrong. Nothing was charged. Please try again.', month: ' / month' },
+    ru: { secure: 'Безопасная оплата · Stripe', loading: 'Готовим оплату…', number: 'Номер карты', exp: 'Срок', cvc: 'Код безопасности',
+      cvchint: '3 или 4 цифры на карте.', trial: function (d) { return d + ' дней бесплатно'; },
+      after: function (d, a) { return 'Затем ' + a + ' в месяц. Можно отменить до конца пробного периода и ничего не платить.'; },
+      afterNoTrial: function (a) { return 'Сегодня спишется ' + a + ', дальше каждый месяц.'; },
+      payTrial: 'Начать бесплатный период', pay: function (a) { return 'Оплатить ' + a; }, processing: 'Обработка…',
+      fine: 'Отмена в любой момент в приложении → Подписка. Данные карты уходят прямо в Stripe и не попадают в LawBid.',
+      back: 'Вернуться в приложение', ok: 'Готово', ok2: 'Подписка активна. Вернитесь в приложение LawBid.', okBtn: 'Вернуться в LawBid',
+      bad: 'Оплата не прошла', retry: 'Другая карта', expired: 'Ссылка устарела. Откройте оплату заново из приложения.',
+      generic: 'Что-то пошло не так. Деньги не списаны. Попробуйте ещё раз.', month: ' / мес' }
+  };
+  var lang = (params.get('lang') || navigator.language || 'en').slice(0, 2).toLowerCase();
+  var L = T[lang] || T.en;
+  document.documentElement.lang = T[lang] ? lang : 'en';
+  function setText(id, v) { var e = $(id); if (e) e.textContent = v; }
+  setText('t-secure', L.secure); setText('t-loading', L.loading); setText('t-number', L.number);
+  setText('t-exp', L.exp); setText('t-cvc', L.cvc); setText('t-cvchint', L.cvchint); setText('fine', L.fine);
+  setText('cancel', L.back); setText('back-bad', L.back); setText('t-ok', L.ok); setText('t-ok2', L.ok2);
+  setText('back-ok', L.okBtn); setText('t-bad', L.bad); setText('retry', L.retry); setText('per', L.month);
+
+  var screens = ['loading', 'form', 'ok', 'bad'];
+  function show(name) {
+    screens.forEach(function (s) {
+      var e = $(s);
+      if (s === 'form') { e.style.display = name === s ? 'flex' : 'none'; e.classList.toggle('hide', name !== s); }
+      else e.classList.toggle('show', name === s);
+    });
+  }
+  function money(c) { return '$' + (c / 100).toFixed(c % 100 === 0 ? 0 : 2); }
+  function call(path, body) {
+    return fetch(api + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); });
+  }
+  function leave(kind) {
+    if (!ret) { history.length > 1 ? history.back() : window.close(); return; }
+    location.href = ret + (kind === 'ok' ? '/subscription/success' : '/subscription/cancel');
+  }
+  $('cancel').addEventListener('click', function (e) { e.preventDefault(); leave('no'); });
+  $('back-bad').addEventListener('click', function (e) { e.preventDefault(); leave('no'); });
+  $('back-ok').addEventListener('click', function () { leave('ok'); });
+
+  var state = { session: null, stripe: null, number: null, exp: null, cvc: null,
+    done: { number: false, exp: false, cvc: false }, busy: false, trial: false };
+
+  function label() { state.trial = !!(state.session && state.session.trialEligible && state.session.trialDays > 0); }
+  function refreshButton() {
+    var ready = state.done.number && state.done.exp && state.done.cvc && !state.busy;
+    var btn = $('pay');
+    btn.disabled = !ready;
+    if (state.busy) { btn.innerHTML = '<span class="spin" style="border-color:rgba(128,128,128,.4);border-top-color:currentColor"></span>' + L.processing; return; }
+    btn.textContent = state.trial ? L.payTrial : L.pay(money(state.session.priceCents));
+  }
+  function brandName(b) {
+    return ({ visa: 'Visa', mastercard: 'Mastercard', amex: 'Amex', discover: 'Discover', diners: 'Diners', jcb: 'JCB', unionpay: 'UnionPay', cartes_bancaires: 'CB' })[b] || '';
+  }
+  function err(msg) { setText('errors', msg || ''); }
+
+  function mount() {
+    var s = state.session;
+    state.stripe = window.Stripe(s.publishableKey);
+    var els = state.stripe.elements({ locale: lang === 'ru' ? 'ru' : 'en', fonts: [] });
+    var style = { base: { color: '#ffffff', fontSize: '17px', fontFamily: 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif',
+      letterSpacing: '0.04em', '::placeholder': { color: 'rgba(255,255,255,.55)' }, iconColor: '#ffffff' },
+      invalid: { color: '#ffd1ca', iconColor: '#ffd1ca' } };
+    state.number = els.create('cardNumber', { style: style, showIcon: false, placeholder: '1234 1234 1234 1234' });
+    state.exp = els.create('cardExpiry', { style: style, placeholder: 'MM / YY' });
+    state.cvc = els.create('cardCvc', { style: style, placeholder: '•••' });
+    state.number.mount('#el-number'); state.exp.mount('#el-exp'); state.cvc.mount('#el-cvc');
+    [['number', 'f-number'], ['exp', 'f-exp'], ['cvc', 'f-cvc']].forEach(function (p) {
+      var el = state[p[0]], box = $(p[1]);
+      el.on('focus', function () { box.classList.add('focus'); $('card').classList.toggle('flip', p[0] === 'cvc'); });
+      el.on('blur', function () { box.classList.remove('focus'); if (p[0] === 'cvc') $('card').classList.remove('flip'); });
+      el.on('change', function (ev) {
+        state.done[p[0]] = !!ev.complete;
+        box.classList.toggle('err', !!ev.error);
+        err(ev.error ? ev.error.message : '');
+        if (p[0] === 'number') {
+          setText('brandlabel', brandName(ev.brand));
+          // A full number moves on to the date, a full date to the code.
+          if (ev.complete) state.exp.focus();
+        }
+        if (p[0] === 'exp' && ev.complete) state.cvc.focus();
+        refreshButton();
+      });
+    });
+    refreshButton();
+  }
+
+  function fail(msg) {
+    setText('bad-msg', msg || L.generic);
+    show('bad');
+  }
+  $('retry').addEventListener('click', function () {
+    state.busy = false;
+    ['number', 'exp', 'cvc'].forEach(function (k) { try { state[k].clear(); } catch (e) {} state.done[k] = false; });
+    err(''); setText('brandlabel', '');
+    show('form'); refreshButton();
+    // The old SetupIntent may be used up: a fresh one for the next card.
+    load(true);
+  });
+
+  $('pay').addEventListener('click', function () {
+    if (state.busy || $('pay').disabled) return;
+    state.busy = true; refreshButton(); err('');
+    state.stripe.confirmCardSetup(state.session.clientSecret, { payment_method: { card: state.number } })
+      .then(function (res) {
+        if (res.error) { state.busy = false; refreshButton(); fail(res.error.message); return null; }
+        return call('/pay/confirm', { token: token, setupIntentId: res.setupIntent.id, chargeNow: !state.trial })
+          .then(function (r) {
+            state.busy = false;
+            if (r.ok) { show('ok'); return; }
+            var code = r.body && r.body.error && r.body.error.code;
+            if (code === 'SUBSCRIPTION_ALREADY_ACTIVE') { show('ok'); return; }
+            refreshButton();
+            fail(code === 'UNAUTHORIZED' ? L.expired : (r.body && r.body.error && r.body.error.message));
+          });
+      })
+      .catch(function () { state.busy = false; refreshButton(); fail(L.generic); });
+  });
+
+  function paint() {
+    var s = state.session;
+    label();
+    setText('amount', money(s.priceCents));
+    var t = $('trial');
+    if (state.trial) { t.textContent = L.trial(s.trialDays); t.classList.remove('hide'); setText('after', L.after(s.trialDays, money(s.priceCents))); }
+    else { t.classList.add('hide'); setText('after', L.afterNoTrial(money(s.priceCents))); }
+  }
+
+  function load(again) {
+    if (!token || !api) { show('bad'); setText('bad-msg', L.expired); $('retry').classList.add('hide'); return; }
+    call('/pay/session', { token: token }).then(function (r) {
+      if (!r.ok) {
+        var code = r.body && r.body.error && r.body.error.code;
+        $('retry').classList.add('hide');
+        fail(code === 'UNAUTHORIZED' ? L.expired : (r.body && r.body.error && r.body.error.message));
+        return;
+      }
+      state.session = r.body.data || r.body;
+      paint();
+      show('form');
+      if (!again) {
+        var wait = function () { window.Stripe ? mount() : setTimeout(wait, 80); };
+        wait();
+      } else { refreshButton(); }
+    }).catch(function () { fail(L.generic); });
+  }
+  load(false);
+})();
+</script>
+</body>
+</html>

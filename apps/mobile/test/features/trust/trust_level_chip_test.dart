@@ -246,8 +246,7 @@ void main() {
 /// rejected, absent at level 0.
 void _badgeTests() {
   group('TrustAvatarBadge', () {
-    Widget badged(int level, {bool rejected = false, double size = 82}) =>
-        _app(
+    Widget badged(int level, {bool rejected = false, double size = 82}) => _app(
           TrustAvatarBadge(
             id: 'a1',
             size: size,

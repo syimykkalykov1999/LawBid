@@ -205,3 +205,12 @@ output "acm_dns_records" {
 }
 output "ecr_registry" { value = "${local.account}.dkr.ecr.${var.region}.amazonaws.com" }
 output "deploy_role_arn" { value = aws_iam_role.deploy.arn }
+
+# Owner 2026-10-16: the `sub` values the deploy role trusts, to compare with the
+# real one printed by the "Show the OIDC claims" step of the Deploy workflow.
+output "deploy_trust_sub" {
+  value = [
+    "repo:${var.github_repo}:ref:refs/heads/main",
+    "repo:${var.github_repo}:environment:production",
+  ]
+}

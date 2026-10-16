@@ -27,6 +27,8 @@ import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { SubscriptionsController } from './subscriptions.controller';
+import { PayPageController } from './pay-page.controller';
+import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { PricingService } from './pricing.service';
 import { PricingController } from './pricing.controller';
@@ -72,6 +74,7 @@ export class BillingModule {
         options.mode === 'api'
           ? [
               SubscriptionsController,
+              PayPageController,
               StripeWebhookController,
               AdminSubscriptionsController,
               // Owner 2026-10-03: public price list (app, website).
@@ -106,6 +109,7 @@ export class BillingModule {
         SubscriptionSyncService,
         PricingService,
         SubscriptionsService,
+        PayPageService,
         ClientPlansService,
         StripeWebhookIntakeService,
         BillingRunner,
