@@ -19,10 +19,6 @@ import {
   type StateBarAdapter,
 } from './providers/bar-lookup/state-bar-adapter';
 import {
-  PersonaIdVerificationProvider,
-  StripeIdentityProvider,
-} from './providers/id/paid-id-verification.providers';
-import {
   ManualBarLookupProvider,
   ManualIdVerificationProvider,
 } from './providers/manual.providers';
@@ -63,8 +59,6 @@ import { VerificationRequestsService } from './services/verification-requests.se
     BarAttemptsService,
     ManualBarLookupProvider,
     ManualIdVerificationProvider,
-    StripeIdentityProvider,
-    PersonaIdVerificationProvider,
     // Owner 2026-10-05: the ways a state registry can be asked. Which one a
     // state uses (and its key) is set per state in the admin
     // (StateRegistryService); states without one fall back to manual

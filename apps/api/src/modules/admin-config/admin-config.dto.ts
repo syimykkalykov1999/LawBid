@@ -66,11 +66,6 @@ export class FeatureFlagAdminDto {
     description: 'Which of them are not set on the server.',
   })
   missingKeys!: string[];
-  @ApiProperty({
-    description:
-      'The feature is not built yet — the server refuses to enable it (409).',
-  })
-  notBuilt!: boolean;
   @ApiProperty({ type: String, format: 'uuid', nullable: true }) updatedBy!:
     string | null;
   @ApiProperty({ format: 'date-time' }) updatedAt!: string;

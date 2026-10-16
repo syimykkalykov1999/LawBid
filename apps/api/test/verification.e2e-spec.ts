@@ -96,7 +96,6 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         },
       })
     ).id;
-    await setFlag('stripe_identity', false);
     // No registry calls from e2e: NY lookups stay off (unit-tested).
     await setFlag('auto_bar_check', false);
     await setConfig('verification.require_identity', false);
@@ -107,7 +106,6 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
   });
 
   afterAll(async () => {
-    await setFlag('stripe_identity', false);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
     await setConfig('verification.self_attestation_auto_approve', true);
@@ -951,30 +949,6 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .post(`/api/v1/admin/verification/licenses/${license.id}/recheck`)
         .set(verifier.auth)
         .expect(409);
-    });
-
-    it('stripe_identity flag routes ID checks through the paid adapter + CostGuard', async () => {
-      await setFlag('stripe_identity', true);
-      try {
-        const a = await attorney();
-        const { requestId } = await submittedRequest(a);
-        const checks = await prisma.verificationCheck.findMany({
-          where: { request_id: requestId },
-          orderBy: { check_type: 'asc' },
-        });
-        expect(
-          checks.map((c) => `${c.check_type}/${c.provider}/${c.result}`).sort(),
-        ).toEqual([
-          'face_match/stripe_identity/manual_review',
-          'id_check/stripe_identity/manual_review',
-        ]);
-        const redis = app.get<Redis>(REDIS_CLIENT);
-        expect(
-          (await redis.keys('budget:{id_check}:*')).length,
-        ).toBeGreaterThan(0);
-      } finally {
-        await setFlag('stripe_identity', false);
-      }
     });
   });
 

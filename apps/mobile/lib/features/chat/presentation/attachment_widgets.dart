@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -185,8 +186,8 @@ class AttachmentMessageBody extends ConsumerWidget {
       final image = a.localBytes != null
           ? Image.memory(a.localBytes!, fit: BoxFit.cover, cacheWidth: 600)
           : (a.previewUrl ?? a.url) != null
-              ? Image.network(
-                  (a.previewUrl ?? a.url)!,
+              ? Image(
+                  image: appNetworkImage((a.previewUrl ?? a.url)!, 600),
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) =>
                       ColoredBox(color: colors.skeletonBase),
@@ -504,8 +505,9 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen> {
                                         ),
                                 child: a.previewUrl == null
                                     ? ColoredBox(color: colors.skeletonBase)
-                                    : Image.network(
-                                        a.previewUrl!,
+                                    : Image(
+                                        image:
+                                            appNetworkImage(a.previewUrl!, 450),
                                         fit: BoxFit.cover,
                                       ),
                               );

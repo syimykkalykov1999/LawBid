@@ -393,15 +393,6 @@
         "operationId": "requestOtp",
         "parameters": [
           {
-            "name": "x-device-attestation",
-            "in": "header",
-            "description": "App Attest / Play Integrity token; required only while the device_attestation flag is on.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
             "description": "Replays the stored response for a retried request (24h); a different body with the same key is 409 IDEMPOTENCY_KEY_CONFLICT.",
@@ -443,7 +434,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: DEVICE_ATTESTATION_REQUIRED, AUTH_PROVIDER_DISABLED",
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -910,15 +901,6 @@
         "operationId": "social",
         "parameters": [
           {
-            "name": "x-device-attestation",
-            "in": "header",
-            "description": "App Attest / Play Integrity token; required only while the device_attestation flag is on.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "Idempotency-Key",
             "in": "header",
             "description": "Replays the stored response for a retried request (24h); a different body with the same key is 409 IDEMPOTENCY_KEY_CONFLICT.",
@@ -970,7 +952,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: DEVICE_ATTESTATION_REQUIRED, AUTH_PROVIDER_DISABLED, FEATURE_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED, FEATURE_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
             "content": {
               "application/json": {
                 "schema": {
@@ -89452,10 +89434,6 @@
               "type": "string"
             }
           },
-          "notBuilt": {
-            "type": "boolean",
-            "description": "The feature is not built yet — the server refuses to enable it (409)."
-          },
           "updatedBy": {
             "type": "string",
             "nullable": true,
@@ -89474,7 +89452,6 @@
           "paid",
           "requiredKeys",
           "missingKeys",
-          "notBuilt",
           "updatedBy",
           "updatedAt"
         ]

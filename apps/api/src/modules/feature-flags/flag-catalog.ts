@@ -92,29 +92,11 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video attachments on feed posts',
   },
   {
-    key: 'profile_promotion',
-    enabled: false,
-    app: true,
-    description: 'Paid attorney profile promotion',
-  },
-  {
     key: 'payments_in_app',
     enabled: false,
     app: true,
     description:
       'Clients pay the accepted attorney through the platform (Stripe Connect)',
-  },
-  {
-    key: 'stripe_identity',
-    enabled: false,
-    app: true,
-    description: 'Stripe Identity as a verification provider',
-  },
-  {
-    key: 'persona_verification',
-    enabled: false,
-    app: true,
-    description: 'Persona as a verification provider',
   },
   {
     key: 'chat_translate',
@@ -186,14 +168,5 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Sign in with Google',
-  },
-  {
-    // docs/01 §10.6: App Attest / Play Integrity on otp/request and
-    // social login. Keep OFF until real verifiers are configured —
-    // the placeholder verifiers reject every token.
-    key: 'device_attestation',
-    enabled: false,
-    description:
-      'Require App Attest / Play Integrity on OTP request and social login',
   },
 ];
