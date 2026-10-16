@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Optional,
@@ -38,6 +39,7 @@ export class CountriesController {
 
   @Public()
   @Get()
+  @Header('Cache-Control', 'public, max-age=60')
   @ApiOperation({
     summary:
       'Switched-on countries with their regions (states / provinces), calling code and currency',

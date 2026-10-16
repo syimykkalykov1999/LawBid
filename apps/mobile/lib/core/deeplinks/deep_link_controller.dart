@@ -97,6 +97,7 @@ class DeepLinkController extends Notifier<DeepLink?> {
       uri,
       // Web: the page's own host is the app's link host.
       host: kIsWeb ? uri.host : ref.read(appEnvironmentProvider).deepLinkHost,
+      webTabs: kIsWeb,
     );
     if (link == null) return;
     state = link;
@@ -132,7 +133,7 @@ class DeepLinkController extends Notifier<DeepLink?> {
         ref.read(deepLinkNavigatorProvider)(
           '${AppRoutes.referral}?code=${Uri.encodeQueryComponent(code)}',
         );
-      case ContentDeepLink(:final location):
+      case ContentDeepLink(:final location) || TabDeepLink(:final location):
         if (!hasSession) return; // wait for sign-in
         final user = ref.read(currentUserControllerProvider).user;
         if (user == null || AppRouterGuard.requiredStep(user) != null) {

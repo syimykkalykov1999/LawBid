@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 
 /// Owner 2026-09-30: every case / post card carries artwork for its practice
 /// category on the right, dissolving into the card background (brighter on
@@ -245,8 +246,8 @@ class PracticeArt extends StatelessWidget {
         );
 
     final picture = imageUrl != null
-        ? Image.network(
-            imageUrl!,
+        ? Image(
+            image: appNetworkImage(imageUrl!, 720),
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback(),
           )

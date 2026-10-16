@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -30,6 +30,7 @@ export class BootstrapController {
   @Public()
   @SkipVersionCheck()
   @Get('bootstrap')
+  @Header('Cache-Control', 'public, max-age=5')
   @ApiEnvelopeResponse(BootstrapDto)
   // No 426: @SkipVersionCheck() — see the class doc.
   @ApiErrors({

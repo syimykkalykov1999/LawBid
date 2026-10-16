@@ -1,7 +1,7 @@
 # Runbooks (docs/06 §8)
 
 **Владельцу: начните с [OWNER.md](OWNER.md)** — какое письмо что значит и
-что делать, простыми словами. Первый запуск на AWS — [PROD_LAUNCH.md](PROD_LAUNCH.md).
+что делать, простыми словами. Первый запуск на AWS — [PROD_LAUNCH.md](PROD_LAUNCH.md); выкладка новых версий на уже работающий прод — [DEPLOY_PROD.md](DEPLOY_PROD.md).
 Всё остальное ниже — для инженера.
 
 One page per alert of `infra/modules/monitoring` (the alarm description

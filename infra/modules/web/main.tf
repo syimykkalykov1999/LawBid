@@ -25,6 +25,18 @@ variable "certificate_arn" {
   description = "ACM certificate for web_host. CloudFront only takes one from us-east-1."
 }
 
+variable "create_certificate" {
+  type        = bool
+  default     = false
+  description = "Request the ACM certificate here (needs the stack's main region to be us-east-1, where CloudFront reads it). Validated by DNS records the owner adds by hand (see web_certificate_validation). Ignored when certificate_arn is given."
+}
+
+variable "extra_hosts" {
+  type        = list(string)
+  default     = []
+  description = "More hosts that open the same app and go on the certificate and the CloudFront aliases (e.g. www.lawbid.dev)."
+}
+
 variable "hosted_zone_id" {
   type        = string
   default     = ""
@@ -55,8 +67,37 @@ variable "cross_origin_isolation" {
   description = "Send COOP/COEP headers so the engine can render on a worker thread (faster, Chrome and Firefox). Off by default: turn on after checking images and video still load."
 }
 
+data "aws_region" "current" {}
+
+resource "aws_acm_certificate" "web" {
+  count                     = var.create_certificate && var.certificate_arn == "" && var.web_host != "" ? 1 : 0
+  domain_name               = var.web_host
+  subject_alternative_names = var.extra_hosts
+  validation_method         = "DNS"
+  tags                      = var.tags
+
+  lifecycle {
+    create_before_destroy = true
+    precondition {
+      condition     = data.aws_region.current.name == "us-east-1"
+      error_message = "CloudFront only reads certificates from us-east-1."
+    }
+  }
+}
+
+# Waits until the owner's DNS records exist and ACM says "Issued". First run:
+# `terraform apply -target=module.stack.module.web.aws_acm_certificate.web`,
+# add the records from `web_certificate_validation`, then the full apply.
+resource "aws_acm_certificate_validation" "web" {
+  count                   = length(aws_acm_certificate.web)
+  certificate_arn         = aws_acm_certificate.web[0].arn
+  validation_record_fqdns = [for o in aws_acm_certificate.web[0].domain_validation_options : o.resource_record_name]
+  timeouts { create = "60m" }
+}
+
 locals {
-  has_host = var.web_host != "" && var.certificate_arn != ""
+  certificate_arn = var.certificate_arn != "" ? var.certificate_arn : (length(aws_acm_certificate_validation.web) > 0 ? aws_acm_certificate_validation.web[0].certificate_arn : "")
+  has_host        = var.web_host != "" && local.certificate_arn != ""
 }
 
 resource "aws_s3_bucket" "web" {
@@ -215,7 +256,7 @@ resource "aws_cloudfront_distribution" "web" {
   price_class         = "PriceClass_100"
   is_ipv6_enabled     = true
   http_version        = "http2and3"
-  aliases             = local.has_host ? [var.web_host] : []
+  aliases             = local.has_host ? concat([var.web_host], var.extra_hosts) : []
 
   origin {
     domain_name              = aws_s3_bucket.web.bucket_regional_domain_name
@@ -264,7 +305,7 @@ resource "aws_cloudfront_distribution" "web" {
 
   viewer_certificate {
     cloudfront_default_certificate = local.has_host ? null : true
-    acm_certificate_arn            = local.has_host ? var.certificate_arn : null
+    acm_certificate_arn            = local.has_host ? local.certificate_arn : null
     ssl_support_method             = local.has_host ? "sni-only" : null
     minimum_protocol_version       = local.has_host ? "TLSv1.2_2021" : null
   }
@@ -334,6 +375,18 @@ resource "aws_iam_policy" "deploy" {
   name   = "${var.name}-web-deploy"
   policy = data.aws_iam_policy_document.deploy.json
   tags   = var.tags
+}
+
+# DNS records to add at the registrar (Namecheap → Advanced DNS) so ACM
+# can issue the certificate. Available right after the targeted apply.
+output "web_certificate_validation" {
+  value = length(aws_acm_certificate.web) == 0 ? [] : [
+    for o in aws_acm_certificate.web[0].domain_validation_options : {
+      host  = o.resource_record_name
+      type  = o.resource_record_type
+      value = o.resource_record_value
+    }
+  ]
 }
 
 output "web_bucket" { value = aws_s3_bucket.web.bucket }
