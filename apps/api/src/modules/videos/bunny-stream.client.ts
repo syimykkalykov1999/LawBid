@@ -63,7 +63,13 @@ export class BunnyStreamClient {
   }
 
   tusEndpoint(): string {
-    return this.devFake ? 'http://10.0.2.2:4010/tusupload' : BUNNY_TUS_ENDPOINT;
+    return this.devFake
+      ? `http://${this.devFakeHost()}/tusupload`
+      : BUNNY_TUS_ENDPOINT;
+  }
+
+  private devFakeHost(): string {
+    return this.config?.get<string>('DEV_FAKE_BUNNY_HOST') ?? '10.0.2.2:4010';
   }
 
   cdnScheme(): 'https' | 'http' {
@@ -74,7 +80,7 @@ export class BunnyStreamClient {
     if (this.devFake) {
       return {
         libraryId: 'dev',
-        cdnHostname: '10.0.2.2:4010',
+        cdnHostname: this.devFakeHost(),
         apiKey: 'dev-api-key',
         tokenAuthKey: 'dev-token-key',
         webhookToken: 'dev-webhook',

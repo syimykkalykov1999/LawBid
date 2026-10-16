@@ -41,6 +41,9 @@ export const REGISTRY_FLAGS = [
   // Owner 2026-10-05 (trust levels): another account tried to register
   // this bar number.
   'duplicate_claim',
+  // Owner 2026-10-16: the number's shape did not match the state's rule; a
+  // person decides with the bar card.
+  'format_unusual',
 ] as const;
 
 export const QUEUE_PAGE_DEFAULT = 20;

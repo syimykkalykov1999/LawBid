@@ -65,7 +65,16 @@ const PROFILE_PAGES: Readonly<Record<string, (n: string) => string>> = {
   CA: (n) => `https://apps.calbar.ca.gov/attorney/Licensee/Detail/${n}`,
   FL: (n) =>
     `https://www.floridabar.org/directories/find-mbr/profile/?num=${n}`,
+  // Owner 2026-10-16 (research): more states with an address per number.
+  CO: (n) =>
+    `https://www.coloradolegalregulation.com/attorney-search/attorney-information/?regnum=${n}`,
+  ND: (n) => `https://www.ndcourts.gov/lawyers/${n.padStart(5, '0')}`,
+  WI: (n) => `https://lawyerhistory.wicourts.gov/attorneys/${n}`,
 };
+
+/** Every state has a lookup link (a state added later without one is caught
+ * by the test, never silently left without). */
+export const STATES_WITH_LOOKUP: readonly string[] = Object.keys(SEARCH_PAGES);
 
 /** True when the state's page takes the bar number in the URL (one tap
  * opens the attorney's record); false = a search page, the verifier pastes

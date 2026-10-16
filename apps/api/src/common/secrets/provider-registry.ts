@@ -201,6 +201,17 @@ export const PROVIDERS: ProviderDefinition[] = [
         env: 'STRIPE_SECRET_KEY',
       },
       {
+        name: 'publishableKey',
+        // Owner 2026-10-16: our own card page (Stripe.js on lawbid.dev)
+        // needs the public key; empty = Stripe's hosted page is used.
+        label: 'Publishable key (our card page)',
+        secret: false,
+        required: false,
+        pattern: /^pk_(test|live)_[A-Za-z0-9]{10,}$/,
+        patternHint: 'pk_live_… / pk_test_…',
+        env: 'STRIPE_PUBLISHABLE_KEY',
+      },
+      {
         name: 'webhookSecret',
         label: 'Webhook signing secret',
         secret: true,

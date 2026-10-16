@@ -1,4 +1,5 @@
 import {
+  Req,
   Body,
   Controller,
   Get,
@@ -31,6 +32,8 @@ import {
   SubscriptionMeDto,
   type PaymentsPage,
 } from './billing.dto';
+import type { Request } from 'express';
+import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
@@ -47,7 +50,10 @@ const ATTORNEY_ERRORS = {
 @AttorneyOnly()
 @Controller('subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly subscriptions: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptions: SubscriptionsService,
+    private readonly payPage: PayPageService,
+  ) {}
 
   @Post('checkout')
   @HttpCode(HttpStatus.OK)
@@ -61,10 +67,26 @@ export class SubscriptionsController {
     400: [E.VALIDATION_ERROR, E.PROMO_CODE_INVALID],
     409: [E.SUBSCRIPTION_ALREADY_ACTIVE],
   })
-  createCheckout(
+  async createCheckout(
     @CurrentUser() user: RequestUser,
     @Body() dto: CheckoutRequestDto,
+    @Req() req: Request,
   ): Promise<CheckoutSessionDto> {
+    // Owner 2026-10-16: our own card page when it is switched on and the
+    // public Stripe key is known; otherwise Stripe's hosted page.
+    if (await this.payPage.enabled()) {
+      const quote = await this.subscriptions.quote(user, dto);
+      const apiBase = `${req.protocol}://${req.get('host')}/api/v1`;
+      const link = await this.payPage.link(user, dto, apiBase);
+      return {
+        url: link.url,
+        sessionId: link.id,
+        trialEligible: quote.trialEligible,
+        priceCents: quote.priceCents,
+        trialDays: quote.trialDays,
+        ...(quote.promo ? { promo: quote.promo } : {}),
+      };
+    }
     return this.subscriptions.checkout(user, dto);
   }
 
