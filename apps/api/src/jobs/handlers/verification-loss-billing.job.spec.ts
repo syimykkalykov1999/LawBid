@@ -15,6 +15,13 @@ describe('unusedShare', () => {
 
 describe('VerificationLossBillingJob', () => {
   const DAY = 86_400_000;
+  // A frozen clock: the unused share must not depend on milliseconds.
+  beforeEach(() => {
+    jest.useFakeTimers({ now: new Date('2026-10-16T12:00:00Z') });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
   function make(opts: { enabled?: boolean } = {}) {
     const now = Date.now();
     const prisma = {
