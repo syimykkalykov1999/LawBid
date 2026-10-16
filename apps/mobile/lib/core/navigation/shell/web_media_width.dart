@@ -1,4 +1,6 @@
-import 'package:flutter/widgets.dart';
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 
 /// Owner 2026-10-16 (web): the sizes of instagram.com / threads.com.
@@ -17,9 +19,6 @@ const double kWebPostMaxWidth = 470;
 /// Owner 2026-10-16: a text post (a brief) is as wide as a photo post, one
 /// column (Threads itself is 640 px).
 const double kWebBriefMaxWidth = kWebPostMaxWidth;
-
-/// The reel player is 9:16 and as tall as the window, never wider than this.
-const double kWebReelMaxWidth = 420;
 
 /// The profile grid: three 3:4 tiles with a 1 px gap (Instagram).
 const double kWebGridGap = 1;
@@ -57,12 +56,16 @@ class WebMediaWidth extends StatelessWidget {
   }
 }
 
-/// A reel page in a window wider than a phone: a 9:16 player as tall as the
-/// page, centred on black, the actions inside it (Instagram reels).
+/// A reel page in a window wider than a phone: a 9:16 card as tall as the
+/// window minus 16 px above and below, 8 px rounded, centred on the page
+/// colour (instagram.com/reels at 1300 px: ~635 x 1268).
 class WebReelFrame extends StatelessWidget {
   const WebReelFrame({required this.child, super.key});
 
   final Widget child;
+
+  static const double margin = 16;
+  static const double radius = 8;
 
   @override
   Widget build(BuildContext context) {
@@ -70,12 +73,23 @@ class WebReelFrame extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         if (!c.hasBoundedHeight) return child;
-        final w = (c.maxHeight * 9 / 16).clamp(0.0, kWebReelMaxWidth);
-        if (c.maxWidth <= w) return child;
+        final room = c.maxHeight - 2 * margin;
+        // As wide as 9:16 asks for the window's height, but never wider than
+        // the column leaves; the height follows the width.
+        final w = math.min(room * 9 / 16, c.maxWidth - 2 * margin);
+        final h = w * 16 / 9;
+        if (room <= 0 || w <= 0 || c.maxWidth <= 0) return child;
+        // A phone-width window keeps the full-screen reel.
+        if (c.maxWidth <= room * 9 / 16 + 2 * margin && c.maxWidth < 520) {
+          return child;
+        }
         return Center(
-          child: ColoredBox(
-            color: const Color(0xFF000000),
-            child: SizedBox(width: w, child: child),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: ColoredBox(
+              color: Colors.black,
+              child: SizedBox(width: w, height: h, child: child),
+            ),
           ),
         );
       },
@@ -86,4 +100,4 @@ class WebReelFrame extends StatelessWidget {
 /// The backdrop behind the reels: black on a phone, the page's own colour on
 /// the web where only the 9:16 player is black (instagram.com/reels).
 Color reelsBackdrop(BuildContext context, Color pageColor) =>
-    adaptiveShellOn ? pageColor : const Color(0xFF000000);
+    adaptiveShellOn ? pageColor : Colors.black;

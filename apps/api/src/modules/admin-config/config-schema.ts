@@ -29,9 +29,7 @@ export interface ConfigKeySchema {
  * create arbitrary rows.
  */
 /** An admin area key (admin-permissions ADMIN_AREAS) or `money`. */
-const REASON_AREA_PATTERN = new RegExp(
-  `^(${[...ADMIN_AREAS].join('|')})$`,
-);
+const REASON_AREA_PATTERN = new RegExp(`^(${[...ADMIN_AREAS].join('|')})$`);
 
 export function configSchema(): Record<string, ConfigKeySchema> {
   const out: Record<string, ConfigKeySchema> = {};
