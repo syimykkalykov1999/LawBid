@@ -57,10 +57,19 @@ export const EMAIL_TYPES: ReadonlySet<NotificationType> = new Set([
   'security_phone_changed',
 ]);
 
-/** §9.5: pushes that ignore quiet hours. */
+/** §9.5: pushes that ignore quiet hours. A task reminder is a time the
+ * person chose themselves: it is not held until the morning. */
 export const QUIET_EXEMPT: ReadonlySet<NotificationType> = new Set([
   'security_new_device',
   'security_phone_changed',
+  'task_reminder',
+]);
+
+/** Owner 2026-10-15: pushes that ignore the per-category switch. The
+ * person set the reminder on purpose, so a muted «Cases» category must not
+ * swallow it. */
+export const ALWAYS_PUSH: ReadonlySet<NotificationType> = new Set([
+  'task_reminder',
 ]);
 
 export interface QuietHours {
