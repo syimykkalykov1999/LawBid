@@ -9,6 +9,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { tidy } from '../../common/utils/tidy-text';
+import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
 
 export const COMMENT_BODY_MAX = 1000;
 export const COMMENTS_PAGE = 20;
@@ -19,7 +20,7 @@ export class CreateCommentDto {
   @Transform(tidy)
   @IsString()
   @MinLength(1)
-  @MaxLength(COMMENT_BODY_MAX)
+  @MaxTextChars('limits.comment_chars')
   body!: string;
 
   @ApiPropertyOptional({

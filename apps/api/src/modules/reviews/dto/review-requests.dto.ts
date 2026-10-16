@@ -17,6 +17,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 
 /** docs/03 §7.2 / docs/02 §6.1: text ≤ 1000 characters (CHECK in DB). */
 export const REVIEW_BODY_MAX = 1000;
@@ -70,7 +71,7 @@ export class CreateReviewDto {
   @IsOptional()
   @Transform(trimToNull)
   @IsString()
-  @MaxLength(REVIEW_BODY_MAX)
+  @MaxTextChars('limits.review_chars')
   body?: string | null;
 
   /** Owner 2026-10-01 (Google Maps-style): `review_photo` files (count: admin, bug 17). */
@@ -99,7 +100,7 @@ export class UpdateReviewDto {
   @Transform(trimToNull)
   @ValidateIf((_o, v) => v !== null && v !== undefined)
   @IsString()
-  @MaxLength(REVIEW_BODY_MAX)
+  @MaxTextChars('limits.review_chars')
   body?: string | null;
 
   @ApiPropertyOptional({ type: [String], maxItems: REVIEW_PHOTOS_MAX })

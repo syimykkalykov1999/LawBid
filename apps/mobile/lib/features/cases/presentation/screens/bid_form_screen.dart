@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
@@ -23,7 +24,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 /// docs/04 §5.1 limits.
 abstract final class BidLimits {
   static const messageMin = 20;
-  static const messageMax = 2000;
+  static int get messageMax => TextLimits.of(TextLimit.bidMessage);
   static const amountMaxDollars = 10000000;
   static const durationMax = 3650;
 }

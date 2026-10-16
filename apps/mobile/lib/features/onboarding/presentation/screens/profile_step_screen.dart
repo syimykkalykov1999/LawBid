@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
@@ -26,7 +26,7 @@ import 'package:lawbid/shared/domain/user_role.dart';
 const kNameMaxLength = 50;
 
 /// Max attorney bio length (docs/01_FOUNDATION_AUTH.md §11 Шаг 3B).
-const kBioMaxLength = 300;
+int get kBioMaxLength => TextLimits.of(TextLimit.bio);
 
 /// Preferred contact methods (§11 Шаг 3A "звонок / SMS / email / чат").
 /// UI ids (translation keys `onboarding.profile.contactMethod.<id>`); the

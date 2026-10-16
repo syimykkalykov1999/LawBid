@@ -314,8 +314,11 @@ export enum ErrorCode {
   CONVERSATION_NOT_FOUND = 'CONVERSATION_NOT_FOUND',
   // 409: the conversation is closed (read only, §8.2).
   CONVERSATION_CLOSED = 'CONVERSATION_CLOSED',
-  // 400: a message longer than 2000 characters (§8.2).
+  // 400: a message longer than the admin's chat limit (§8.2).
   MESSAGE_TOO_LONG = 'MESSAGE_TOO_LONG',
+  // 400: a text longer than its limit (admin: Config → «Лимиты ввода»);
+  // details = { field, max, length }.
+  TEXT_TOO_LONG = 'TEXT_TOO_LONG',
   // 403: the feature is off by a feature flag (video posts, §3.6).
   FEATURE_DISABLED = 'FEATURE_DISABLED',
   // 400: search needs at least 2 characters (§7.1).

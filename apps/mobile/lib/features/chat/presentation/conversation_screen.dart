@@ -14,6 +14,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
@@ -43,7 +44,7 @@ import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
-const kMessageMaxChars = 2000;
+int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
 
 /// docs/05 §8.2 conversation: header (who, case title → case, "⋯": mute,
 /// report), bubbles with day separators and delivery states (sending /
@@ -1651,8 +1652,23 @@ class _ComposerState extends ConsumerState<_Composer> {
       minLines: 1,
       maxLines: 5,
       maxLength: kMessageMaxChars,
-      buildCounter:
-          (_, {required currentLength, required isFocused, maxLength}) => null,
+      // Owner 2026-10-15: the counter shows up near the limit (Telegram).
+      buildCounter: (
+        _, {
+        required currentLength,
+        required isFocused,
+        maxLength,
+      }) =>
+          maxLength != null && currentLength >= maxLength * 0.9
+              ? Text(
+                  context.digits('$currentLength/$maxLength'),
+                  style: type.caption.copyWith(
+                    color: currentLength >= maxLength
+                        ? colors.danger
+                        : colors.textSecondary,
+                  ),
+                )
+              : null,
       textCapitalization: TextCapitalization.sentences,
       onChanged: (v) => widget.onTyping(v.isNotEmpty),
       onTap: widget.onFieldTap,

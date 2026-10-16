@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -23,7 +23,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// docs/03 §4.1 limits (the server enforces the same).
 const kAttorneyNameMax = 50;
-const kAttorneyBioMax = 300;
+int get kAttorneyBioMax => TextLimits.of(TextLimit.bio);
 const kAttorneyFirmMax = 80;
 
 /// OQ-030: firms per attorney profile.

@@ -25,6 +25,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { tidy } from '../../../common/utils/tidy-text';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 
 /** Owner 2026-10-12: a thread (text only, no files) is up to 5000 characters. */
 export const POST_BODY_MAX = 5000;
@@ -92,7 +93,7 @@ export class CreatePostDto {
   @Transform(trim)
   @IsString()
   @MinLength(1)
-  @MaxLength(POST_TITLE_MAX)
+  @MaxTextChars('limits.post_title_chars')
   title!: string;
 
   /** Owner 2026-09-30: the qualification — a practice category or
@@ -198,7 +199,7 @@ export class UpdatePostDto {
   @Transform(trim)
   @IsString()
   @MinLength(1)
-  @MaxLength(POST_TITLE_MAX)
+  @MaxTextChars('limits.post_title_chars')
   title?: string;
 
   @ApiPropertyOptional()

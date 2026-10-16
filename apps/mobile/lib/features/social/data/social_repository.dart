@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
@@ -103,7 +104,7 @@ class PostDraft {
 }
 
 /// docs/05 §5.1: comment length 1–1000.
-const kCommentMaxChars = 1000;
+int get kCommentMaxChars => TextLimits.of(TextLimit.comment);
 
 /// Owner 2026-09-30 (OQ-034): comments under a case reuse the post comment
 /// UI. A case thread id and its comment ids carry this prefix, so the

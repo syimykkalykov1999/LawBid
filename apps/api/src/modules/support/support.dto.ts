@@ -16,8 +16,10 @@ import {
   Length,
   Matches,
   MaxLength,
+  MinLength,
   ValidateIf,
 } from 'class-validator';
+import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -63,7 +65,7 @@ export class CreateSupportTicketDto {
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
-  @MaxLength(SUPPORT_BODY_MAX)
+  @MaxTextChars('limits.support_message_chars')
   body!: string;
 }
 
@@ -72,7 +74,7 @@ export class SupportMessageBodyDto {
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
-  @MaxLength(SUPPORT_BODY_MAX)
+  @MaxTextChars('limits.support_message_chars')
   body!: string;
 }
 
@@ -473,7 +475,8 @@ export class CreateSupportMacroDto {
   @ApiProperty({ minLength: 1, maxLength: SUPPORT_BODY_MAX })
   @Transform(trim)
   @IsString()
-  @Length(1, SUPPORT_BODY_MAX)
+  @MinLength(1)
+  @MaxTextChars('limits.support_message_chars')
   body!: string;
 
   @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })
@@ -500,7 +503,8 @@ export class UpdateSupportMacroDto {
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @Length(1, SUPPORT_BODY_MAX)
+  @MinLength(1)
+  @MaxTextChars('limits.support_message_chars')
   body?: string;
 
   @ApiPropertyOptional({ enum: SUPPORT_CATEGORIES, nullable: true })

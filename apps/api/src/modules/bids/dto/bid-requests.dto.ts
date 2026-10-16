@@ -9,11 +9,11 @@ import {
   IsString,
   IsUUID,
   Max,
-  MaxLength,
   Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 
 /** docs/04_CASES_BIDS.md §3.2 / §5.1: money in cents, up to $10,000,000. */
 export const BID_AMOUNT_MAX_CENTS = 1_000_000_000;
@@ -76,7 +76,7 @@ export class CreateBidDto {
   @ApiProperty({ minLength: BID_MESSAGE_MIN, maxLength: BID_MESSAGE_MAX })
   @IsString()
   @MinLength(BID_MESSAGE_MIN)
-  @MaxLength(BID_MESSAGE_MAX)
+  @MaxTextChars('limits.bid_message_chars')
   message!: string;
 
   @ApiProperty({ enum: StartAvailability, enumName: 'StartAvailability' })
@@ -120,6 +120,6 @@ export class CounterOfferDto {
   @IsOptional()
   @Transform(trimToNull)
   @IsString()
-  @MaxLength(COUNTER_MESSAGE_MAX)
+  @MaxTextChars('limits.counter_message_chars')
   message?: string | null;
 }

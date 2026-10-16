@@ -1,3 +1,4 @@
+import { textLimitCeiling } from '../../../common/app-settings/text-limits';
 import {
   CountriesService,
   notAvailable,
@@ -20,7 +21,6 @@ import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   ATTORNEY_ONLY_FIELDS,
-  BIO_MAX_LENGTH,
   CLIENT_ONLY_FIELDS,
   CONTACT_NOTE_MAX_LENGTH,
   FIRM_NAME_MAX_LENGTH,
@@ -551,7 +551,8 @@ export class UserProfilesService {
     }
     if (role === 'attorney') {
       return {
-        bio: str(raw.bio, BIO_MAX_LENGTH),
+        // The DTO already held the admin's limit; this only bounds old data.
+        bio: str(raw.bio, textLimitCeiling('limits.bio_chars')),
         firmName: str(raw.firm, FIRM_NAME_MAX_LENGTH),
         languages,
         licensedStates: await knownStates(

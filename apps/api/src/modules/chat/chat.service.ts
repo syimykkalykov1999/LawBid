@@ -1,3 +1,7 @@
+import {
+  TextLimitsService,
+  textLimit,
+} from '../../common/app-settings/text-limits.service';
 import { StickersService } from '../stickers/stickers.service';
 import type { StickerDto } from '../stickers/stickers.dto';
 import {
@@ -30,7 +34,6 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import {
-  MESSAGE_MAX_CHARS,
   type CallLogDto,
   type ChatAttachmentDto,
   type ConversationDto,
@@ -105,6 +108,8 @@ export class ChatService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
     // write to attorneys until staff look.
     @Optional() private readonly fraud?: ClientFraudService,
+    // Owner 2026-10-15: the chat message limit is the admin's.
+    @Optional() private readonly textLimits?: TextLimitsService,
   ) {}
 
   /**
@@ -467,11 +472,15 @@ export class ChatService {
         details: { field: 'body' },
       });
     }
-    if ([...body].length > MESSAGE_MAX_CHARS) {
+    const maxChars = await textLimit(
+      this.textLimits,
+      'limits.chat_message_chars',
+    );
+    if ([...body].length > maxChars) {
       throw new BadRequestException({
         code: ErrorCode.MESSAGE_TOO_LONG,
-        message: `A message is at most ${MESSAGE_MAX_CHARS} characters.`,
-        details: { max: MESSAGE_MAX_CHARS },
+        message: `A message is at most ${maxChars} characters.`,
+        details: { max: maxChars },
       });
     }
     const conv = await this.load(user, id);
