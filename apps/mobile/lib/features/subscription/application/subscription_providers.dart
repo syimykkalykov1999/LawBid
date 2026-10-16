@@ -3,6 +3,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/config/app_config.dart';
+import 'package:lawbid/core/design_system/theme/app_theme_providers.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
@@ -277,6 +279,20 @@ class SubscribeController extends Notifier<SubscribeState> {
 
   /// OQ-048 (owner 2026-09-30): pay on Stripe's hosted page in the
   /// browser — plan, seats and assistant phones are fixed in the session.
+  /// Owner 2026-10-16: our own card page takes the app's theme and language
+  /// (in the fragment, so they never reach a server log).
+  Uri _withPayPageLook(Uri url) {
+    if (!url.path.endsWith('/pay.html')) return url;
+    final theme = ref.read(appThemeControllerProvider)?.name;
+    final lang = ref.read(languageControllerProvider).value?.code;
+    final extra = [
+      if (theme != null) 'theme=$theme',
+      if (lang != null) 'lang=$lang',
+    ].join('&');
+    if (extra.isEmpty) return url;
+    return url.replace(fragment: '${url.fragment}&$extra');
+  }
+
   /// Waits (polling the session, 15 min max) until it is paid; the
   /// attorney may stop waiting and come back later — `checkNow` on resume.
   Future<SubscribeOutcome> subscribeWeb({
@@ -300,11 +316,11 @@ class SubscribeController extends Notifier<SubscribeState> {
       _sessionId = checkout.sessionId;
       _stopWaiting = false;
       _stopWaitingAfter = null;
+      final payUrl = _withPayPageLook(checkout.url);
       // Only https in production; the dev payment page is http://localhost.
       final okScheme = checkout.url.scheme == 'https' ||
           (kDebugMode && checkout.url.scheme == 'http');
-      if (!okScheme ||
-          !await ref.read(checkoutLauncherProvider)(checkout.url)) {
+      if (!okScheme || !await ref.read(checkoutLauncherProvider)(payUrl)) {
         throw const CheckoutNotOpened();
       }
       _phase(SubscribePhase.awaitingPayment);

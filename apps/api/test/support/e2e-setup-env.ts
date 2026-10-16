@@ -65,3 +65,7 @@ if (!process.env.SECRETS_MASTER_KEYS) {
     'e2e1:e2e-integrations-master-key-0123456789abcdef';
   process.env.SECRETS_ACTIVE_KID = 'e2e1';
 }
+
+// Owner 2026-10-16: client → attorney payments are locked off in the product;
+// the suites of that dormant feature still run against the real code.
+process.env.CASE_PAYMENTS_UNLOCKED_FOR_TESTS = '1';
