@@ -127,6 +127,7 @@ const _postFormats = {
   'jpeg',
   'png',
   'heic',
+  'webp',
   'pdf',
   'doc',
   'docx',

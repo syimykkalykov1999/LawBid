@@ -75,11 +75,19 @@ class _VideoPick {
 /// the chosen qualification. [editing]: the same form for an own post
 /// (photos stay as published).
 class CreatePostScreen extends ConsumerStatefulWidget {
-  const CreatePostScreen({this.news = false, this.editing, super.key});
+  const CreatePostScreen({
+    this.news = false,
+    this.editing,
+    @visibleForTesting this.debugPhotoCount = 0,
+    super.key,
+  });
 
   /// Start as News (attorneys).
   final bool news;
   final Post? editing;
+
+  /// Tests: open the form with this many photos already uploaded.
+  final int debugPhotoCount;
 
   @override
   ConsumerState<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -122,7 +130,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     return (title, body);
   }
 
-  final _photos = <_Photo>[];
+  late final _photos = <_Photo>[
+    for (var i = 0; i < widget.debugPhotoCount; i++)
+      _Photo(Uint8List(0))..fileId = 'debug-$i',
+  ];
   _VideoPick? _video;
 
   /// Owner 2026-10-05: PDF / Word / text readers download.
@@ -134,12 +145,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// Owner 2026-10-07 (bug 17): counts, MB and formats from the admin.
   late final _limits = ref.read(uploadLimitsProvider)[UploadPlace.post];
 
-  /// Owner 2026-10-13: without the right to attach, a post carries one
-  /// photo (or one video) and no documents.
-  bool get _canAttach =>
-      ref.read(postAttachmentsAllowedProvider).value ?? false;
-
-  int get _maxMedia => _canAttach ? _limits.maxPhotos : 1;
+  /// Owner 2026-10-16: up to 9 photos or one video for everyone; only the
+  /// documents need the right to attach.
+  int get _maxMedia => _limits.maxPhotos;
   late String? _practice = widget.editing?.practice?.code;
 
   /// «Не знаю тему» was chosen (no qualification, on purpose).
@@ -671,15 +679,33 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                             final p = _photos.removeAt(from);
                             _photos.insert(to > from ? to - 1 : to, p);
                           }),
+                          // Owner 2026-10-16: the same Gallery / Camera cards
+                          // as the empty state, compact, until the post
+                          // holds its photos.
                           footer: _photos.length < _maxMedia
-                              ? _AddPhotoTile(
-                                  label: t.t(
-                                    video
-                                        ? 'post.create.addMedia'
-                                        : 'post.create.addPhoto',
-                                  ),
-                                  video: video,
-                                  onTap: _pick,
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _SourceButton(
+                                      key: const ValueKey('post-add-gallery'),
+                                      compact: true,
+                                      icon: AppIcons.photoLibraryOutlined,
+                                      label: t.t('post.src.gallery'),
+                                      hint: t.t('post.src.galleryHint'),
+                                      tint: AppColorsFixed.sourceGalleryBlue,
+                                      onTap: _pick,
+                                    ),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    _SourceButton(
+                                      key: const ValueKey('post-add-camera'),
+                                      compact: true,
+                                      icon: AppIcons.photoCameraOutlined,
+                                      label: t.t('post.src.camera'),
+                                      hint: t.t('post.src.cameraHint'),
+                                      tint: AppColorsFixed.sourceCameraTeal,
+                                      onTap: _camera,
+                                    ),
+                                  ],
                                 )
                               : null,
                           children: [
@@ -1009,49 +1035,6 @@ class _PracticeField extends StatelessWidget {
   }
 }
 
-class _AddPhotoTile extends StatelessWidget {
-  const _AddPhotoTile({
-    required this.label,
-    required this.onTap,
-    this.video = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-
-  /// Photos and videos: the gallery glyph instead of the photo one.
-  final bool video;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: AppPressable(
-        onTap: onTap,
-        child: Container(
-          width: 104,
-          margin: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-          decoration: BoxDecoration(
-            color: colors.goldTint,
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            border: Border.all(color: colors.goldStroke),
-          ),
-          child: AppIcon(
-            video
-                ? AppIcons.photoLibraryOutlined
-                : AppIcons.addPhotoAlternateOutlined,
-            color: colors.goldDark,
-            size: AppSizes.iconLg,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PhotoTile extends StatelessWidget {
   const _PhotoTile({
     required this.photo,
@@ -1152,6 +1135,8 @@ class _SourceButton extends StatelessWidget {
     required this.hint,
     required this.tint,
     required this.onTap,
+    super.key,
+    this.compact = false,
   });
 
   final IconData icon;
@@ -1159,6 +1144,9 @@ class _SourceButton extends StatelessWidget {
   final String hint;
   final Color tint;
   final VoidCallback onTap;
+
+  /// Next to the thumbnails: the same card, narrower, without the hint.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1181,7 +1169,8 @@ class _SourceButton extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          height: 100,
+          height: compact ? 112 : 100,
+          width: compact ? 96 : null,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -1218,10 +1207,11 @@ class _SourceButton extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              FitText(
-                hint,
-                style: type.caption.copyWith(color: colors.textSecondary),
-              ),
+              if (!compact)
+                FitText(
+                  hint,
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
             ],
           ),
         ),
