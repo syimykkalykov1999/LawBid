@@ -38,8 +38,7 @@ dart run build_runner build --delete-conflicting-outputs
 ## 1. Config files (git-ignored, never committed)
 
 1. `config/prod.json`: copy `config/prod.example.json`; set
-   `STRIPE_PUBLISHABLE_KEY=pk_live_…`. `GOOGLE_*` stay empty (no Google
-   sign-in in v1). `APP_STORE_ID` stays empty until step 5 gives the Apple ID.
+   `STRIPE_PUBLISHABLE_KEY=pk_live_…`. `APP_STORE_ID` stays empty until step 5 gives the Apple ID.
 2. Firebase project `lawbid-6e5ff`: Firebase console → Project settings →
    add Android app `com.lawbid.lawbid` and iOS app `com.lawbid.lawbid`;
    download and save as
@@ -48,8 +47,7 @@ dart run build_runner build --delete-conflicting-outputs
    iOS push also needs an APNs key (Apple Developer → Keys → APNs) uploaded
    in Firebase → Cloud Messaging.
 3. `apps/mobile/ios/Flutter/Secrets.xcconfig` from `Secrets.example.xcconfig`:
-   `DEVELOPMENT_TEAM = 78T56RPM74`; `GOOGLE_REVERSED_CLIENT_ID` can stay the
-   default "not configured" value.
+   `DEVELOPMENT_TEAM = 78T56RPM74`.
 
 ## 2. Android
 

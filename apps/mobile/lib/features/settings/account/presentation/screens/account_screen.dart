@@ -1,12 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
@@ -21,7 +18,7 @@ import 'package:lawbid/features/settings/account/presentation/widgets/account_ti
 
 /// Settings → Account (docs/01 §10.3): the account's phone/email contact
 /// (change = reauth + code on the new contact, §11 3A), every linked
-/// sign-in method, and linking another phone / email / Apple / Google via
+/// sign-in method, and linking another phone / email via
 /// `POST /auth/identifiers`.
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -31,27 +28,6 @@ class AccountScreen extends ConsumerStatefulWidget {
 }
 
 class _AccountScreenState extends ConsumerState<AccountScreen> {
-  /// Apple/Google linking in flight (native sheet + POST).
-  IdentifierProvider? _linking;
-
-  Future<void> _linkSocial(Translator t, IdentifierProvider provider) async {
-    if (_linking != null) return;
-    setState(() => _linking = provider);
-    try {
-      final outcome = await ref
-          .read(accountIdentifiersProvider.notifier)
-          .linkSocial(provider);
-      if (!mounted) return;
-      if (outcome == SocialLinkOutcome.linked) {
-        showAppSnackBar(context, t.t('account.link.success'));
-      }
-    } catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    } finally {
-      if (mounted) setState(() => _linking = null);
-    }
-  }
-
   Future<void> _openFlow(ContactType type, AccountContactMode mode) async {
     await context.push<void>(AccountRoutes.contact(type, mode));
     if (mounted) {
@@ -107,10 +83,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             t: t,
             user: user,
             identifiers: items,
-            linking: _linking,
             emailFlows: ref.watch(emailFlowsEnabledProvider),
             onContact: _openFlow,
-            onLinkSocial: (p) => _linkSocial(t, p),
           ),
         ),
       ),
@@ -123,25 +97,19 @@ class _AccountBody extends StatelessWidget {
     required this.t,
     required this.user,
     required this.identifiers,
-    required this.linking,
     required this.emailFlows,
     required this.onContact,
-    required this.onLinkSocial,
   });
 
   final Translator t;
   final CurrentUser? user;
   final List<AccountIdentifier> identifiers;
-  final IdentifierProvider? linking;
 
   /// Admin «Вход и письма по почте»: off → no e-mail add / change / link
   /// (the code could not be delivered); an e-mail already on the account
   /// is still shown, read-only.
   final bool emailFlows;
   final void Function(ContactType, AccountContactMode) onContact;
-  final void Function(IdentifierProvider) onLinkSocial;
-
-  bool _has(IdentifierProvider p) => identifiers.any((i) => i.provider == p);
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +117,6 @@ class _AccountBody extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final phoneVerified = user?.phoneVerified ?? false;
     final emailVerified = user?.emailVerified ?? false;
-    final busy = linking != null;
 
     Widget contactTile(ContactType type) {
       final isPhone = type == ContactType.phone;
@@ -180,9 +147,7 @@ class _AccountBody extends StatelessWidget {
         actionLabel: editable
             ? t.t(verified ? 'account.contact.change' : 'account.contact.add')
             : null,
-        onTap: busy || !editable
-            ? null
-            : () => onContact(type, AccountContactMode.primary),
+        onTap: editable ? () => onContact(type, AccountContactMode.primary) : null,
       );
     }
 
@@ -253,42 +218,23 @@ class _AccountBody extends StatelessWidget {
           AccountTile(
             icon: AppIcons.addCall,
             title: t.t('account.link.phone'),
-            onTap: busy
-                ? null
-                : () => onContact(
-                      ContactType.phone,
-                      phoneVerified
-                          ? AccountContactMode.link
-                          : AccountContactMode.primary,
-                    ),
+            onTap: () => onContact(
+              ContactType.phone,
+              phoneVerified
+                  ? AccountContactMode.link
+                  : AccountContactMode.primary,
+            ),
           ),
           if (emailFlows)
             AccountTile(
               icon: AppIcons.markEmailUnreadOutlined,
               title: t.t('account.link.email'),
-              onTap: busy
-                  ? null
-                  : () => onContact(
-                        ContactType.email,
-                        emailVerified
-                            ? AccountContactMode.link
-                            : AccountContactMode.primary,
-                      ),
-            ),
-          // Owner 2026-10-16: no Sign in with Apple in the product (the
-          // welcome screen offers none either); only already-linked Apple
-          // identifiers are listed below.
-          if (!_has(IdentifierProvider.google) &&
-              (!kReleaseMode ||
-                  AppConfig.googleSignInConfigured(
-                    Theme.of(context).platform,
-                  )))
-            AccountTile(
-              glyph: const GoogleGlyph(),
-              title: t.t('account.link.google'),
-              loading: linking == IdentifierProvider.google,
-              onTap:
-                  busy ? null : () => onLinkSocial(IdentifierProvider.google),
+              onTap: () => onContact(
+                ContactType.email,
+                emailVerified
+                    ? AccountContactMode.link
+                    : AccountContactMode.primary,
+              ),
             ),
         ],
       ),

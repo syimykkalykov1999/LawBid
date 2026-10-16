@@ -64,22 +64,8 @@
 	<string>LawBid uses your photo library so you can choose a profile photo, add photos and videos to posts, cases and chats, and upload license and ID document images.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.</string>
-	<!-- Google Sign-In (Phase 3 of the auth networking work,
-	     docs/CHANGELOG.md): iOS needs the app's REVERSED client ID
-	     registered as a URL scheme so Google's OAuth redirect can get back
-	     into the app. The value is the build setting
-	     GOOGLE_REVERSED_CLIENT_ID: set it in the gitignored
-	     ios/Flutter/Secrets.xcconfig (copy Secrets.example.xcconfig; see
-	     docs/KEYS_SETUP.md). Debug/Release.xcconfig give it a harmless
-	     "not configured" default so the app builds without it. -->
 	<key>CFBundleURLTypes</key>
 	<array>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
-			</array>
-		</dict>
 		<!-- LawBid deep links (p12 leaf-1.4, docs/01_FOUNDATION_AUTH.md
 		     §10.2 E/F, §12): lawbid://auth/email-code?email=…&code=… (magic
 		     sign-in link) and lawbid://case/<id> etc. Universal links on

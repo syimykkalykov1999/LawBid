@@ -4,7 +4,7 @@ part 'reauth_result.freezed.dart';
 
 /// Result of a `POST /auth/reauth` attempt (file 01 §10.1/§10.5), Phase 4
 /// of the auth networking work (docs/CHANGELOG.md) — same union style as
-/// `OtpVerifyResult`/`SocialLoginResult` (see those files' doc comments
+/// `OtpVerifyResult` (see that file's doc comment
 /// for why a union instead of a bare success/failure) so a reauth-gated
 /// screen (e.g. `DeleteAccountController`) can show a precise message per
 /// failure mode.

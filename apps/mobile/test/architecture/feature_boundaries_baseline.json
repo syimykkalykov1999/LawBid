@@ -28,7 +28,6 @@
   "features/search/data/search_repository.dart -> social/data/social_repository.dart",
   "features/search/presentation/screens/search_screen.dart -> cases/data/cases_repository.dart",
   "features/settings/account/data/account_repository.dart -> auth/data/auth_api_client.dart",
-  "features/settings/account/data/account_repository.dart -> auth/data/social_auth_native_client.dart",
   "features/settings/active_devices/data/active_devices_repository_impl.dart -> auth/data/auth_dtos.dart",
   "features/settings/active_devices/data/active_devices_repository_impl.dart -> auth/data/auth_repository.dart",
   "features/settings/active_devices/data/device_session_mapper.dart -> auth/data/auth_dtos.dart",

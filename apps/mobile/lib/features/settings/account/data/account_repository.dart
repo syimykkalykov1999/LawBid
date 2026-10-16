@@ -3,7 +3,6 @@ import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/features/auth/data/auth_api_client.dart';
-import 'package:lawbid/features/auth/data/social_auth_native_client.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/settings/account/domain/account_identifier.dart';
 
@@ -43,7 +42,7 @@ class AccountApiClient {
   }
 }
 
-/// Account identifiers: list + link additional phone/email/Apple/Google.
+/// Account identifiers: list + link additional phone/email.
 /// Changing the account's phone/email contact is NOT here — it reuses the
 /// onboarding `ContactVerificationController` (reauth + code on the new
 /// contact, docs/01 §11 3A).
@@ -55,17 +54,13 @@ abstract interface class AccountRepository {
   Future<void> requestLinkCode(ContactType type, String value);
 
   Future<void> linkContact(ContactType type, String value, String code);
-
-  /// Native Apple/Google sheet → `POST /auth/identifiers`.
-  Future<SocialLinkOutcome> linkSocial(IdentifierProvider provider);
 }
 
 class ApiAccountRepository implements AccountRepository {
-  ApiAccountRepository(this._client, this._auth, this._native);
+  ApiAccountRepository(this._client, this._auth);
 
   final AccountApiClient _client;
   final AuthApiClient _auth;
-  final SocialAuthNativeClient _native;
 
   @override
   Future<List<AccountIdentifier>> listIdentifiers() async => [
@@ -85,31 +80,4 @@ class ApiAccountRepository implements AccountRepository {
         'identifier': value,
         'code': code,
       });
-
-  @override
-  Future<SocialLinkOutcome> linkSocial(IdentifierProvider provider) async {
-    assert(provider.isSocial, 'Only apple/google link natively');
-    final SocialCredential credential;
-    try {
-      credential = provider == IdentifierProvider.apple
-          ? await _native.signInWithApple()
-          : await _native.signInWithGoogle();
-    } on SocialAuthCancelledException {
-      return SocialLinkOutcome.cancelled;
-    } on ApiException {
-      rethrow;
-    } catch (_) {
-      // Native SDK failure (not configured, no network in the sheet, …).
-      throw const ApiException(
-        code: ApiErrorCodes.authSocialProviderUnavailable,
-        message: 'Social sign-in is unavailable.',
-      );
-    }
-    await _client.linkIdentifier({
-      'provider': credential.provider,
-      'idToken': credential.idToken,
-      'nonce': credential.nonce,
-    });
-    return SocialLinkOutcome.linked;
-  }
 }
