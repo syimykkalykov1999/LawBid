@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
@@ -147,7 +148,9 @@ class _AccountBody extends StatelessWidget {
         actionLabel: editable
             ? t.t(verified ? 'account.contact.change' : 'account.contact.add')
             : null,
-        onTap: editable ? () => onContact(type, AccountContactMode.primary) : null,
+        onTap: editable
+            ? () => onContact(type, AccountContactMode.primary)
+            : null,
       );
     }
 

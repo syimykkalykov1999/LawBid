@@ -2,7 +2,6 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
-import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/data/sms_code_retriever.dart';
 import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
