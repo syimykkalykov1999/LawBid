@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -89,7 +91,7 @@ android {
             // Keystore from the environment (CI) or, for a build on the
             // owner's Mac, from the git-ignored android/key.properties
             // (storeFile, storePassword, keyAlias, keyPassword).
-            val props = java.util.Properties().apply {
+            val props = Properties().apply {
                 val f = rootProject.file("key.properties")
                 if (f.exists()) f.inputStream().use { load(it) }
             }
