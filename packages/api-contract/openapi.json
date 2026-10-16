@@ -82320,6 +82320,7 @@
           "CONVERSATION_NOT_FOUND",
           "CONVERSATION_CLOSED",
           "MESSAGE_TOO_LONG",
+          "TEXT_TOO_LONG",
           "FEATURE_DISABLED",
           "SEARCH_QUERY_TOO_SHORT",
           "USER_BLOCKED",
@@ -98050,8 +98051,7 @@
             "maxLength": 200
           },
           "bio": {
-            "type": "string",
-            "maxLength": 300
+            "type": "string"
           },
           "firmName": {
             "type": "string",
@@ -98873,8 +98873,7 @@
             "maxLength": 50
           },
           "bio": {
-            "type": "string",
-            "maxLength": 300
+            "type": "string"
           },
           "firmName": {
             "type": "string",
@@ -106034,8 +106033,8 @@
           },
           "body": {
             "type": "string",
-            "maxLength": 5000,
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 5000
           }
         },
         "required": [
@@ -106144,8 +106143,8 @@
         "properties": {
           "body": {
             "type": "string",
-            "maxLength": 5000,
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 5000
           }
         },
         "required": [
@@ -106666,8 +106665,8 @@
         "properties": {
           "body": {
             "type": "string",
-            "maxLength": 5000,
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 5000
           },
           "internal": {
             "type": "boolean",

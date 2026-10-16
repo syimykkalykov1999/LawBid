@@ -165,6 +165,7 @@ const _keys = <String, String>{
   ApiErrorCodes.conversationNotFound: 'error.api.CONVERSATION_NOT_FOUND',
   ApiErrorCodes.conversationClosed: 'error.api.CONVERSATION_CLOSED',
   ApiErrorCodes.messageTooLong: 'error.api.MESSAGE_TOO_LONG',
+  ApiErrorCodes.textTooLong: 'error.api.TEXT_TOO_LONG',
   ApiErrorCodes.featureDisabled: 'error.api.FEATURE_DISABLED',
   ApiErrorCodes.bidLimitReached: 'error.api.BID_LIMIT_REACHED',
   ApiErrorCodes.bidMonthlyLimitReached: 'error.api.BID_MONTHLY_LIMIT_REACHED',

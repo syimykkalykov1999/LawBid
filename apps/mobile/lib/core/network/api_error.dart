@@ -137,6 +137,7 @@ abstract final class ApiErrorCodes {
   static const conversationNotFound = 'CONVERSATION_NOT_FOUND';
   static const conversationClosed = 'CONVERSATION_CLOSED';
   static const messageTooLong = 'MESSAGE_TOO_LONG';
+  static const textTooLong = 'TEXT_TOO_LONG';
   static const featureDisabled = 'FEATURE_DISABLED';
   static const searchQueryTooShort = 'SEARCH_QUERY_TOO_SHORT';
   static const userBlocked = 'USER_BLOCKED';
@@ -363,6 +364,7 @@ abstract final class ApiErrorCodes {
     conversationNotFound,
     conversationClosed,
     messageTooLong,
+    textTooLong,
     featureDisabled,
     searchQueryTooShort,
     userBlocked,
