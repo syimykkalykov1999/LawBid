@@ -111,14 +111,23 @@ jobs:
           aws s3 sync icons "s3://${{ secrets.WEB_BUCKET }}/icons" \
             --cache-control "public,max-age=31536000,immutable"
 
+      # The public pages (SEO pages + the company site, seo-deploy.yml) live
+      # in the same bucket; public-paths.txt lists their names so --delete
+      # never removes them.
       - name: Upload the rest (always revalidated) and drop what is gone
         working-directory: apps/mobile/build/web
         run: |
+          KEEP=(--exclude "public-paths.txt" --exclude "lawyers/*" --exclude "attorneys/*" \
+            --exclude "practice-areas/*" --exclude "sitemap.xml" --exclude "robots.txt")
+          if aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/public-paths.txt" /tmp/public-paths.txt 2>/dev/null; then
+            while read -r p; do
+              [ -n "$p" ] && KEEP+=(--exclude "$p" --exclude "$p/*")
+            done < /tmp/public-paths.txt
+          fi
           aws s3 sync . "s3://${{ secrets.WEB_BUCKET }}" \
             --delete \
             --exclude "canvaskit/*" --exclude "icons/*" \
-            --exclude "lawyers/*" --exclude "attorneys/*" --exclude "practice-areas/*" \
-            --exclude "sitemap.xml" --exclude "robots.txt" \
+            "${KEEP[@]}" \
             --cache-control "no-cache"
           # .wasm must be served as application/wasm.
           aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/" "s3://${{ secrets.WEB_BUCKET }}/" \

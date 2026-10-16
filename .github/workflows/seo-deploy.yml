@@ -4,6 +4,11 @@
 # directory and published next to the web app (same bucket, own
 # prefixes). Rebuilt every day so new attorneys appear.
 #
+# Owner 2026-10-16: the company site (repository LawBidSite: /about, the
+# legal pages, pricing, FAQ...) is built here too and published with
+# these pages (scripts/seo/merge-site.mjs); the app owns the root. A site
+# change shows up with the next daily run, or run this workflow by hand.
+#
 # Runs only when the repository variable WEB_DEPLOY_ENABLED is 'true'.
 # Secrets/variables: see web-deploy.yml (WEB_BUCKET, WEB_DISTRIBUTION_ID,
 # AWS_DEPLOY_ROLE_PROD, AWS_REGION) plus
@@ -43,7 +48,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --test scripts/seo/test/build.test.mjs
+      - run: node --test scripts/seo/test/*.test.mjs
 
   deploy:
     name: Build and publish the pages
@@ -65,24 +70,72 @@ jobs:
           --out dist-seo
           ${{ inputs.index_empty && '--index-empty' || '' }}
 
+      - name: Check out the company site
+        uses: actions/checkout@v4
+        with:
+          repository: syimykkalykov1999/LawBidSite
+          path: site
+
+      - name: Build the company site (static, one folder per page)
+        working-directory: site
+        env:
+          TRAILING_SLASH: "1"
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.WEB_SITE_URL }}
+          NEXT_PUBLIC_APP_STORE_URL: ${{ vars.NEXT_PUBLIC_APP_STORE_URL }}
+          NEXT_PUBLIC_PLAY_STORE_URL: ${{ vars.NEXT_PUBLIC_PLAY_STORE_URL }}
+          NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.NEXT_PUBLIC_SUPPORT_EMAIL }}
+          PRICING_API_URL: ${{ secrets.WEB_SEO_API_URL }}
+        run: |
+          npm ci
+          npm run build:static
+          test -s out/about/index.html
+
+      - name: Merge the site into the pages (one sitemap)
+        run: >-
+          node scripts/seo/merge-site.mjs
+          --seo dist-seo --site site/out
+          --site-url "${{ secrets.WEB_SITE_URL }}"
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # Each first-level folder is replaced as a whole; the app's own files
+      # (index.html, main.dart.*, canvaskit, assets...) are never touched.
+      # public-paths.txt tells web-deploy.yml which names to keep.
       - name: Publish (each prefix is replaced as a whole)
+        working-directory: dist-seo
         run: |
-          for d in lawyers attorneys practice-areas; do
-            aws s3 sync "dist-seo/$d" "s3://${{ secrets.WEB_BUCKET }}/$d" --delete \
-              --cache-control "public,max-age=3600" --content-type "text/html; charset=utf-8"
+          B="s3://${{ secrets.WEB_BUCKET }}"
+          for d in */ .well-known/; do
+            [ -d "$d" ] || continue
+            d="${d%/}"
+            if [ "$d" = "_next" ]; then
+              aws s3 sync "_next" "$B/_next" --delete \
+                --cache-control "public,max-age=31536000,immutable"
+            else
+              aws s3 sync "$d" "$B/$d" --delete --cache-control "public,max-age=3600"
+            fi
           done
-          aws s3 cp dist-seo/sitemap.xml "s3://${{ secrets.WEB_BUCKET }}/sitemap.xml" \
-            --cache-control "public,max-age=3600" --content-type application/xml
-          aws s3 cp dist-seo/robots.txt "s3://${{ secrets.WEB_BUCKET }}/robots.txt" \
-            --cache-control "public,max-age=3600" --content-type text/plain
+          # App links for the phone apps (iOS needs it served as JSON).
+          if [ -f .well-known/apple-app-site-association ]; then
+            aws s3 cp .well-known/apple-app-site-association "$B/.well-known/apple-app-site-association" \
+              --content-type application/json --cache-control "public,max-age=3600"
+          fi
+          for f in *; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              sitemap.xml) t=application/xml ;;
+              robots.txt|public-paths.txt) t=text/plain ;;
+              *) t="" ;;
+            esac
+            aws s3 cp "$f" "$B/$f" --cache-control "public,max-age=3600" ${t:+--content-type "$t"}
+          done
 
+      # One wildcard is one invalidation path (the free tier counts paths).
       - name: Reset the CDN cache for the pages
         run: >-
           aws cloudfront create-invalidation
           --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
-          --paths "/lawyers/*" "/attorneys/*" "/practice-areas/*" "/sitemap.xml" "/robots.txt"
+          --paths "/*"

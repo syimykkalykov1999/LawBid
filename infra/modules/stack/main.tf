@@ -281,7 +281,7 @@ module "web" {
   create_certificate     = var.web_create_certificate
   extra_hosts            = var.web_extra_hosts
   cross_origin_isolation = var.web_cross_origin_isolation
-  hosted_zone_id         = coalesce(var.hosted_zone_id, "")
+  hosted_zone_id         = var.hosted_zone_id == null ? "" : var.hosted_zone_id
   api_origin             = "https://${var.api_host}"
   tags                   = local.tags
 }

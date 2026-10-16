@@ -162,7 +162,7 @@ class _SuspendedScreen extends ConsumerWidget {
                       AppButton(
                         label: t.t('account.suspended.contact'),
                         onPressed: () => launchUrl(
-                          Uri.parse(kWebsiteUrl),
+                          Uri.parse(kContactUrl),
                           mode: LaunchMode.externalApplication,
                         ),
                       ),

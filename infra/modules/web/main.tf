@@ -199,23 +199,44 @@ resource "aws_cloudfront_response_headers_policy" "web" {
   }
 }
 
-# The public pages (scripts/seo) are plain files in the same bucket:
-# /lawyers/california/divorce/ is served from .../index.html.
+# The public pages are plain files in the same bucket: the SEO pages
+# (scripts/seo: /lawyers, /attorneys/<name>, /practice-areas) and the
+# company site (LawBidSite static export: /about, /pricing, the legal
+# pages...). Owner 2026-10-16: the app is on the domain root, the site's
+# landing moved to /about. Any address without a file extension is tried
+# as <address>/index.html; an app screen has no such file, S3 answers 403
+# and the app's own index.html is served (custom_error_response below).
+# www.<host> answers with a permanent redirect to <host> (one address for
+# search engines).
 resource "aws_cloudfront_function" "seo_index" {
   name    = "${var.name}-seo-index"
   runtime = "cloudfront-js-2.0"
-  comment = "Directory URLs of the public pages end in index.html"
+  comment = "www to the bare host; directory URLs of the public pages end in index.html"
   publish = true
   code    = <<-EOT
     function handler(event) {
       var request = event.request;
-      var uri = request.uri;
-      if (/^\/(lawyers|attorneys|practice-areas)(\/|$)/.test(uri)) {
-        if (uri.charAt(uri.length - 1) === '/') {
-          request.uri = uri + 'index.html';
-        } else if (uri.indexOf('.', uri.lastIndexOf('/')) === -1) {
-          request.uri = uri + '/index.html';
+      var host = request.headers.host ? request.headers.host.value : '';
+      if (host.indexOf('www.') === 0) {
+        var qs = [];
+        for (var k in request.querystring) {
+          var q = request.querystring[k];
+          qs.push(q.value === '' ? k : k + '=' + q.value);
         }
+        return {
+          statusCode: 301,
+          statusDescription: 'Moved Permanently',
+          headers: {
+            location: {
+              value: 'https://' + host.substring(4) + request.uri + (qs.length ? '?' + qs.join('&') : '')
+            }
+          }
+        };
+      }
+      var uri = request.uri;
+      // /.well-known/ holds extension-less files (app links): served as is.
+      if (uri !== '/' && uri.indexOf('/.well-known/') !== 0 && uri.indexOf('.', uri.lastIndexOf('/')) === -1) {
+        request.uri = uri.charAt(uri.length - 1) === '/' ? uri + 'index.html' : uri + '/index.html';
       }
       return request;
     }
@@ -224,6 +245,7 @@ resource "aws_cloudfront_function" "seo_index" {
 
 # Only the home page and the public pages are for search engines; every
 # other address is an app screen (the same index.html), so it is `noindex`.
+# The list is the site's and the SEO pages' first path segments.
 resource "aws_cloudfront_function" "app_noindex" {
   name    = "${var.name}-app-noindex"
   runtime = "cloudfront-js-2.0"
@@ -234,10 +256,10 @@ resource "aws_cloudfront_function" "app_noindex" {
       var response = event.response;
       var uri = event.request.uri;
       var indexable =
-        uri === '/' ||
-        /^\/(lawyers|attorneys|practice-areas)(\/|$)/.test(uri) ||
+        uri === '/' || uri === '/index.html' ||
+        /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/.test(uri) ||
         uri === '/sitemap.xml' || uri === '/robots.txt';
-      var isFile = /\.[a-z0-9]{2,5}$/i.test(uri);
+      var isFile = /\.[a-z0-9]{2,5}$/i.test(uri) && !/\/index\.html$/.test(uri);
       if (!indexable && !isFile) {
         response.headers['x-robots-tag'] = { value: 'noindex' };
       }
@@ -254,6 +276,9 @@ resource "aws_cloudfront_distribution" "web" {
   comment             = "${var.name} web app"
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
+  # Apply returns as soon as AWS accepted it (CloudFront then rolls out for
+  # 5-15 min on its own): a short AWS login can not lapse mid-apply.
+  wait_for_deployment = false
   is_ipv6_enabled     = true
   http_version        = "http2and3"
   aliases             = local.has_host ? concat([var.web_host], var.extra_hosts) : []

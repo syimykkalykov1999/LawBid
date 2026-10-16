@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,7 +22,14 @@ class AboutScreen extends ConsumerWidget {
     final uri = Uri.parse(kWebsiteUrl);
     var ok = false;
     try {
-      ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      // On the web /about is a page of the same site: open it in place.
+      ok = await launchUrl(
+        uri,
+        mode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
+        webOnlyWindowName: kIsWeb ? '_self' : null,
+      );
     } on Object {
       ok = false;
     }
