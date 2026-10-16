@@ -74,7 +74,6 @@ void main() {
       tester,
       const WebReelFrame(child: SizedBox.expand(key: ValueKey('probe'))),
       width: 1280,
-      height: 900,
     );
     expect(s.height, 868);
     expect(s.width, closeTo(868 * 9 / 16, 0.5));
