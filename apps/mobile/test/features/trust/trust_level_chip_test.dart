@@ -300,8 +300,10 @@ void _badgeTests() {
             .first,
       );
       expect((dot.decoration! as BoxDecoration).color, colors.goldAccent);
-      expect(tester.widget<GestureDetector>(find.byType(GestureDetector)).onTap,
-          isNull);
+      expect(
+        tester.widget<GestureDetector>(find.byType(GestureDetector)).onTap,
+        isNull,
+      );
     });
 
     testWidgets('rejected draws a red cross', (tester) async {
