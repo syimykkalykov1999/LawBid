@@ -17,6 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { tidy } from '../../../../common/utils/tidy-text';
+import { MaxTextChars } from '../../../../common/app-settings/max-text-chars.decorator';
 
 /** Owner 2026-10-13 limits: a task title, text and note; files per send
  * and the note on each file. (The MB per file is the admin's «Кейсы».) */
@@ -144,7 +145,7 @@ export class TaskSubmissionDto {
   @IsOptional()
   @Transform(tidy)
   @IsString()
-  @MaxLength(NOTE_MAX)
+  @MaxTextChars('limits.workspace_note_chars')
   note?: string;
 
   @ApiProperty({ type: [CaseFileInputDto], maxItems: FILES_PER_SEND_MAX })
@@ -160,7 +161,7 @@ export class CreateCaseUpdateDto {
   @Transform(tidy)
   @IsString()
   @MinLength(1)
-  @MaxLength(UPDATE_TEXT_MAX)
+  @MaxTextChars('limits.workspace_update_chars')
   body!: string;
 
   @ApiProperty({ type: [CaseFileInputDto], maxItems: FILES_PER_SEND_MAX })

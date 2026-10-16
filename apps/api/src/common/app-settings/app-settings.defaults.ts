@@ -515,6 +515,8 @@ export const OWNER_POST_ATTACHMENT_SETTINGS = {
   attachments_keep_after_cancel: true,
 };
 
+import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -544,6 +546,7 @@ export const APP_SETTINGS = {
   ...OWNER_TREASURY_SETTINGS,
   ...OWNER_FEED_SETTINGS,
   ...OWNER_POST_ATTACHMENT_SETTINGS,
+  ...OWNER_TEXT_LIMIT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

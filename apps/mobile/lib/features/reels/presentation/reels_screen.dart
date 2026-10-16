@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
@@ -160,13 +161,15 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     setState(() => _index = i);
                     if (i >= items.length - 3) _load();
                   },
-                  itemBuilder: (_, i) => _ReelPage(
-                    key: ValueKey(items[i].id),
-                    post: items[i],
-                    active: i == _index,
-                    warm: (i - _index).abs() == 1,
-                    muted: muted,
-                    embedded: true,
+                  itemBuilder: (_, i) => WebReelFrame(
+                    child: _ReelPage(
+                      key: ValueKey(items[i].id),
+                      post: items[i],
+                      active: i == _index,
+                      warm: (i - _index).abs() == 1,
+                      muted: muted,
+                      embedded: true,
+                    ),
                   ),
                 ),
         ),
@@ -218,13 +221,15 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     setState(() => _index = i);
                     if (i >= items.length - 3) _load();
                   },
-                  itemBuilder: (_, i) => _ReelPage(
-                    key: ValueKey(items[i].id),
-                    post: items[i],
-                    active: i == _index,
-                    warm: (i - _index).abs() == 1,
-                    muted: muted,
-                    embedded: _underNavBar,
+                  itemBuilder: (_, i) => WebReelFrame(
+                    child: _ReelPage(
+                      key: ValueKey(items[i].id),
+                      post: items[i],
+                      active: i == _index,
+                      warm: (i - _index).abs() == 1,
+                      muted: muted,
+                      embedded: _underNavBar,
+                    ),
                   ),
                 ),
               SafeArea(

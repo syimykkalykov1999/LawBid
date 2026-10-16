@@ -94,36 +94,37 @@ FeedCase _case({
   String? coverKey,
   bool isNew = false,
   CaseDossier dossier = CaseDossier.empty,
-}) => FeedCase(
-  id: id,
-  title: title,
-  excerpt: excerpt,
-  practice: PracticeRef(
-    id: 'p-$id',
-    code: '$category.$leaf',
-    i18nKey: 'practice.$category.$leaf',
-    nameEn: categoryName,
-    categoryI18nKey: 'practice.$category',
-    categoryNameEn: categoryName,
-    categoryCode: category,
-  ),
-  primaryStateCode: state,
-  additionalStateCodes: extra,
-  city: city,
-  status: CaseStatus.open,
-  budget: CaseBudget(
-    mode: budgetCents == null ? BudgetMode.clarifyLater : BudgetMode.amount,
-    amountCents: budgetCents,
-  ),
-  viewCount: 128,
-  bidsCount: 3,
-  createdAt: DateTime(2026, 10, 4, 12),
-  isNew: isNew,
-  hasOwnBid: false,
-  urgency: urgency,
-  coverKey: coverKey,
-  dossier: dossier,
-);
+}) =>
+    FeedCase(
+      id: id,
+      title: title,
+      excerpt: excerpt,
+      practice: PracticeRef(
+        id: 'p-$id',
+        code: '$category.$leaf',
+        i18nKey: 'practice.$category.$leaf',
+        nameEn: categoryName,
+        categoryI18nKey: 'practice.$category',
+        categoryNameEn: categoryName,
+        categoryCode: category,
+      ),
+      primaryStateCode: state,
+      additionalStateCodes: extra,
+      city: city,
+      status: CaseStatus.open,
+      budget: CaseBudget(
+        mode: budgetCents == null ? BudgetMode.clarifyLater : BudgetMode.amount,
+        amountCents: budgetCents,
+      ),
+      viewCount: 128,
+      bidsCount: 3,
+      createdAt: DateTime(2026, 10, 4, 12),
+      isNew: isNew,
+      hasOwnBid: false,
+      urgency: urgency,
+      coverKey: coverKey,
+      dossier: dossier,
+    );
 
 final _cases = [
   _case(
@@ -132,7 +133,8 @@ final _cases = [
     categoryName: 'Immigration',
     leaf: 'visas',
     title: 'Work visa renewal before my H-1B expires',
-    excerpt: 'My H-1B ends in six weeks and my employer filed late. I need help with the extension and a backup plan.',
+    excerpt:
+        'My H-1B ends in six weeks and my employer filed late. I need help with the extension and a backup plan.',
     state: 'CA',
     city: 'Los Angeles',
     extra: ['NV'],
@@ -152,7 +154,8 @@ final _cases = [
     categoryName: 'Family law',
     leaf: 'divorce',
     title: 'Uncontested divorce, shared custody of two kids',
-    excerpt: 'We agree on almost everything and want to file together. Need an attorney to draft and file the papers.',
+    excerpt:
+        'We agree on almost everything and want to file together. Need an attorney to draft and file the papers.',
     state: 'NY',
     city: 'Brooklyn',
     budgetCents: 250000,
@@ -166,7 +169,8 @@ final _cases = [
     categoryName: 'Personal injury',
     leaf: 'car_accidents',
     title: 'Rear-ended on I-95, back injury, insurer stalling',
-    excerpt: 'The other driver was cited. The insurer keeps asking for more documents and has not made an offer.',
+    excerpt:
+        'The other driver was cited. The insurer keeps asking for more documents and has not made an offer.',
     state: 'FL',
     urgency: CaseUrgency.flexible,
     coverKey: 'icon:car',
@@ -237,8 +241,8 @@ void main() {
       final strict = goldenFileComparator;
       goldenFileComparator = _TolerantComparator(
         (strict as LocalFileComparator).basedir.resolve(
-          'case_cover_golden_test.dart',
-        ),
+              'case_cover_golden_test.dart',
+            ),
         maxDiff: 0.03,
       );
       addTearDown(() => goldenFileComparator = strict);

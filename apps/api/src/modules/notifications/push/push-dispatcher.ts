@@ -18,6 +18,7 @@ import { buildNotificationEmail } from '../../auth/notifications/email-templates
 import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
 import { BadgesService } from '../badges.service';
 import {
+  ALWAYS_PUSH,
   DEFAULT_PUSH,
   EMAIL_TYPES,
   LOCKED_CATEGORIES,
@@ -212,7 +213,12 @@ export class PushDispatcher
     if (data.push === false) return 'no_push';
     // Audit 2026-10-02: read in the app while quiet hours held it → no push.
     if (data.deferred && n.read_at) return 'no_push';
-    if (!(await this.pushAllowed(n.user_id, n.category))) return 'disabled';
+    if (
+      !ALWAYS_PUSH.has(n.type) &&
+      !(await this.pushAllowed(n.user_id, n.category))
+    ) {
+      return 'disabled';
+    }
     if (!data.deferred && !QUIET_EXEMPT.has(n.type)) {
       const until = await this.quietUntil(n.user_id);
       if (until) {

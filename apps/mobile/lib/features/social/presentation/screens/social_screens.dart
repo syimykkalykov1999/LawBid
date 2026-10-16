@@ -729,7 +729,7 @@ class ProfilePostsGrid extends ConsumerWidget {
               padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: kPostGridDelegate,
+              gridDelegate: profileGridDelegate(),
               itemCount: posts.length,
               itemBuilder: (context, i) {
                 final p = posts[i];

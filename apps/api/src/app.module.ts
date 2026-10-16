@@ -66,6 +66,7 @@ import {
   ClientFraudModule,
 } from './modules/client-fraud/client-fraud.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
+import { PublicDirectoryModule } from './modules/public-directory/public-directory.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DevModule } from './modules/dev/dev.module';
@@ -314,6 +315,7 @@ const isDev =
     CountriesModule,
     FilesModule,
     ProfilesModule,
+    PublicDirectoryModule,
     ReviewsModule,
     ClientFraudModule,
     // Owner 2026-10-06: Деньги → Партнёры стран.

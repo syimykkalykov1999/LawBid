@@ -142,13 +142,10 @@ export class PostsService {
         details: { field: 'body', maxChars },
       });
     }
-    // Owner 2026-10-13: documents and extra photos need the right to
-    // attach (the admin's setting + plan); the post's own photo and a
-    // reel's video do not.
-    if (
-      (dto.attachments?.length ?? 0) > 0 ||
-      (dto.mediaFileIds?.length ?? 0) > 1
-    ) {
+    // Owner 2026-10-13: documents need the right to attach (the admin's
+    // setting + plan). Owner 2026-10-16: photos (up to the admin's count,
+    // 9) and a reel's video never do.
+    if ((dto.attachments?.length ?? 0) > 0) {
       await this.attachmentsPolicy.assertCanAttach(user.sub);
     }
     const video = dto.videoAssetId

@@ -35,6 +35,16 @@ String? sniffImageMime(Uint8List bytes) {
       bytes[3] == 0x47) {
     return 'image/png';
   }
+  // Owner 2026-10-16: WebP (RIFF....WEBP) and GIF are post photos too.
+  if (bytes.length >= 12 &&
+      String.fromCharCodes(bytes.sublist(0, 4)) == 'RIFF' &&
+      String.fromCharCodes(bytes.sublist(8, 12)) == 'WEBP') {
+    return 'image/webp';
+  }
+  if (bytes.length >= 6 &&
+      String.fromCharCodes(bytes.sublist(0, 4)) == 'GIF8') {
+    return 'image/gif';
+  }
   if (bytes.length >= 12 &&
       String.fromCharCodes(bytes.sublist(4, 8)) == 'ftyp') {
     final brand = String.fromCharCodes(bytes.sublist(8, 12));

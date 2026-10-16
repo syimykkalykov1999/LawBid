@@ -26,7 +26,7 @@ Future<bool> showOtherDeviceDialog(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => AppAlertDialog(
-      backgroundColor: colors.surface,
+      backgroundColor: colors.sheet,
       icon: AppIcon(
         web ? AppIcons.computerRounded : AppIcons.phoneIphoneRounded,
         color: colors.gold,

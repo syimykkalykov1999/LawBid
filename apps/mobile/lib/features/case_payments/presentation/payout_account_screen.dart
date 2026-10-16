@@ -129,7 +129,7 @@ class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
           }
           return RefreshIndicator(
             color: colors.gold,
-            backgroundColor: colors.surface,
+            backgroundColor: colors.sheet,
             onRefresh: _refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),

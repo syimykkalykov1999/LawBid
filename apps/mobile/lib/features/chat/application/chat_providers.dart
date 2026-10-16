@@ -461,6 +461,8 @@ class ChatThread extends Notifier<ChatThreadState> {
         durationMs: v.durationMs,
         waveform: v.waveform,
       );
+      // Your own note plays from the recording, not from a download.
+      await adoptVoiceFileAsCache(v.localPath, sent.id);
       if (!ref.mounted) return;
       state = state.copyWith(
         voiceOutbox: state.voiceOutbox

@@ -42,6 +42,8 @@ class VoiceMessageBody extends ConsumerWidget {
     final accent = mine ? colors.goldLight : colors.gold;
     final playable = v.url != null || v.localPath != null;
     final player = ref.read(voicePlayerProvider.notifier);
+    // Download the note while it is on screen (a tap then plays at once).
+    WidgetsBinding.instance.addPostFrameCallback((_) => player.prefetch(m));
 
     Future<void> toggle() async {
       if (!playable) return;

@@ -122,7 +122,7 @@ class PagedListBody<T> extends ConsumerWidget {
         RefreshIndicator(
           key: const ValueKey('empty'),
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: pull,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),

@@ -26,7 +26,6 @@ import {
   IsOptional,
   IsString,
   Max,
-  MaxLength,
   Min,
 } from 'class-validator';
 import {
@@ -47,6 +46,7 @@ import {
   ESTIMATED_DURATION_MAX_DAYS,
 } from '../bids/dto/bid-requests.dto';
 import { CaseIdParamDto } from '../cases/dto/cases-feed.dto';
+import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
 
 /** The bid form, every field optional (a draft may be half done). */
 export class BidDraftBodyDto {
@@ -65,7 +65,7 @@ export class BidDraftBodyDto {
   @ApiPropertyOptional({ maxLength: BID_MESSAGE_MAX })
   @IsOptional()
   @IsString()
-  @MaxLength(BID_MESSAGE_MAX)
+  @MaxTextChars('limits.bid_message_chars')
   message?: string;
 
   @ApiPropertyOptional({

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { BudgetLimitsCard, isBudgetKey } from '@/components/budget-limits-card';
+import { TextLimitsCard, isTextLimitKey } from '@/components/text-limits-card';
 import { MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,19 @@ const KEY_TEXT: Record<string, string> = {
   'reco.post.state': 'Рекомендации · Посты и рилсы: вес «штат» (0.06).',
   'reco.post.affinity': 'Рекомендации · Посты и рилсы: вес «вы смотрели его посты» (0.06).',
   'case.max_practices': 'Тем в одном кейсе: сколько специализаций клиент может отметить (по умолчанию 3).',
+  'limits.chat_message_chars': 'Сообщение в чате: максимум знаков.',
+  'limits.comment_chars': 'Комментарий: максимум знаков.',
+  'limits.post_title_chars': 'Заголовок поста или рилса: максимум знаков.',
+  'limits.case_title_chars': 'Заголовок кейса: максимум знаков.',
+  'limits.case_description_chars': 'Описание кейса: максимум знаков.',
+  'limits.bid_message_chars': 'Текст отклика адвоката: максимум знаков.',
+  'limits.counter_message_chars': 'Текст встречного предложения: максимум знаков.',
+  'limits.review_chars': 'Текст отзыва: максимум знаков.',
+  'limits.dispute_chars': 'Текст спора или отметки о завершении: максимум знаков.',
+  'limits.workspace_note_chars': 'Заметка к файлам в рабочем пространстве: максимум знаков.',
+  'limits.workspace_update_chars': 'Обновление по кейсу: максимум знаков.',
+  'limits.support_message_chars': 'Сообщение в поддержку: максимум знаков.',
+  'limits.bio_chars': '«О себе» у адвоката: максимум знаков.',
   'post.max_chars_media': 'Пост с фото, видео или файлами: максимум знаков (2200 как в Instagram).',
   'post.max_chars_brief': 'Бриф (только текст): максимум знаков (3000 как в LinkedIn).',
   'media.photo_max_px': 'Фото (посты, рилсы, дела, отзывы): длинная сторона после сжатия на телефоне, px',
@@ -294,7 +308,7 @@ export default function ConfigPage() {
   const f = filter.trim().toLowerCase();
   // Spend caps (`budget.*`) are managed by the «Лимиты расходов» card.
   const rows = (q.data ?? []).filter(
-    (e) => !isBudgetKey(e.key) && (!f || e.key.toLowerCase().includes(f) || (keyText(e) ?? '').toLowerCase().includes(f)),
+    (e) => !isBudgetKey(e.key) && !isTextLimitKey(e.key) && (!f || e.key.toLowerCase().includes(f) || (keyText(e) ?? '').toLowerCase().includes(f)),
   );
 
   return (
@@ -317,6 +331,7 @@ export default function ConfigPage() {
         }
       />
       <BudgetLimitsCard />
+      <TextLimitsCard entries={q.data ?? []} />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>

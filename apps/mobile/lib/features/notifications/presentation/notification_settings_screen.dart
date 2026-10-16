@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -98,7 +99,7 @@ class _NotificationSettingsScreenState
     final q = s.quietHours ??
         const QuietHours(start: '22:00', end: '07:00', timezone: 'UTC');
     final parts = (start ? q.start : q.end).split(':');
-    final picked = await showTimePicker(
+    final picked = await showAppTimePicker(
       context: context,
       initialTime:
           TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])),

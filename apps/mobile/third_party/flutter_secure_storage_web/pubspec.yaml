@@ -1,0 +1,27 @@
+name: flutter_secure_storage_web
+description: >-
+  LawBid's web implementation of flutter_secure_storage. The published 1.2.1
+  uses dart:html and does not compile to WebAssembly (flutter build web
+  --wasm); this one is written on package:web. Used only by the web build
+  (dependency_overrides in apps/mobile/pubspec.yaml); Android and iOS never
+  load it.
+version: 1.2.1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_secure_storage_platform_interface: ^1.1.1
+  flutter_web_plugins:
+    sdk: flutter
+  web: ">=0.5.0 <2.0.0"
+
+flutter:
+  plugin:
+    platforms:
+      web:
+        pluginClass: FlutterSecureStorageWeb
+        fileName: flutter_secure_storage_web.dart

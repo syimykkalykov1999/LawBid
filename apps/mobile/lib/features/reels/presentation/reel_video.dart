@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -132,11 +133,13 @@ class _ReelVideoState extends State<ReelVideo> {
   }
 
   Future<void> _open() async {
-    final url = widget.video.playbackUrl;
+    final url = widget.video.playerUrl(web: kIsWeb);
     if (url == null) return;
     final c = VideoPlayerController.networkUrl(
       Uri.parse(url),
-      formatHint: VideoFormat.hls,
+      formatHint: widget.video.usesMp4(web: kIsWeb)
+          ? VideoFormat.other
+          : VideoFormat.hls,
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: widget.muted),
     );
     _c = c;

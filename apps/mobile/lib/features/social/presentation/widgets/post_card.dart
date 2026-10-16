@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/text/tidy_text.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -227,6 +228,37 @@ class PostCard extends ConsumerWidget {
     // Owner 2026-10-12: the practice card in a list has no side borders or
     // shadow, only a thin divider (a strip of the page background) below.
     final flat = !inDetail && !isThreadsStyle(p);
+    // Owner 2026-10-16 (web): a post is as wide as Instagram's (470 px), a
+    // text post as Threads' column (640 px).
+    return WebMediaWidth(
+      maxWidth: isThreadsStyle(p) ? kWebBriefMaxWidth : kWebPostMaxWidth,
+      child: _cardBody(
+        context,
+        ref,
+        p,
+        t,
+        colors,
+        actions,
+        run,
+        insta,
+        edge,
+        flat,
+      ),
+    );
+  }
+
+  Widget _cardBody(
+    BuildContext context,
+    WidgetRef ref,
+    Post p,
+    Translator t,
+    AppColorTokens colors,
+    SocialActions actions,
+    Future<void> Function(Future<Object?> Function()) run,
+    bool insta,
+    bool edge,
+    bool flat,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -914,6 +946,7 @@ class _InstagramPost extends ConsumerWidget {
           post: p,
           run: run,
           showCounts: false,
+          showTime: true,
           boost: !inDetail,
           reactions: !inDetail,
           // Inside the post the comment field is right below.
@@ -990,20 +1023,6 @@ class _InstagramPost extends ConsumerWidget {
               ),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.xs,
-            AppSpacing.lg,
-            0,
-          ),
-          child: Text(
-            SocialFormat.ago(t, f, p.createdAt),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: type.caption.copyWith(color: colors.textSecondary),
-          ),
-        ),
         if (inDetail && p.editedAt != null)
           Padding(
             padding: side,
@@ -1170,6 +1189,19 @@ class _ThreadsPost extends ConsumerWidget {
                 ],
               ),
             ),
+            // Owner 2026-10-15: Follow on someone else's brief too, the same
+            // small pill as on photo and video posts, right of the name.
+            if (!p.isMine) ...[
+              const SizedBox(width: AppSpacing.sm),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 120),
+                child: FollowButton(
+                  attorneyId: a.id,
+                  initial: a.isFollowing,
+                  outlined: true,
+                ),
+              ),
+            ],
             // Owner 2026-10-14: on my own post Boost sits here, right of the
             // username (where Follow sits on someone else's).
             if (p.isMine && !ref.watch(isAssistantProvider)) ...[
@@ -2609,12 +2641,15 @@ class PostActionsBar extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final actions = ref.read(socialActionsProvider);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      // Owner 2026-10-15: the same row as a brief's (icons in a 34 wide
+      // touch area, the first icon's edge on the text's edge, the time and
+      // Save at the far side), for photo and video posts too.
+      padding: const EdgeInsets.symmetric(horizontal: _kBarSide),
       child: Row(
         children: [
           // The icons and counters shrink as a group if huge numbers (or a
           // long language) don't fit; the date and Save keep their place.
-          Flexible(
+          Expanded(
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: AlignmentDirectional.centerStart,
@@ -2624,6 +2659,7 @@ class PostActionsBar extends ConsumerWidget {
                   if (reactions) ...[
                     BounceIcon(
                       size: _kBarIcon,
+                      extent: _kBarExtent,
                       active: post.likedByMe,
                       activeIcon: AppIcons.favoriteRounded,
                       icon: AppIcons.favoriteBorderRounded,
@@ -2635,6 +2671,7 @@ class PostActionsBar extends ConsumerWidget {
                     // send; the comments keep theirs.
                     BounceIcon(
                       size: _kBarIcon,
+                      extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.modeCommentOutlined,
                       icon: AppIcons.modeCommentOutlined,
@@ -2649,6 +2686,7 @@ class PostActionsBar extends ConsumerWidget {
                       _Count(post.commentCount),
                     BounceIcon(
                       size: _kBarIcon,
+                      extent: _kBarExtent,
                       active: false,
                       activeIcon: AppIcons.sendOutlined,
                       icon: AppIcons.sendOutlined,
@@ -2661,16 +2699,10 @@ class PostActionsBar extends ConsumerWidget {
             ),
           ),
           // Owner 2026-09-30: the time and Save sit at the right edge.
-          Expanded(
-            child: showTime
-                ? Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: _ShortDate(at: post.createdAt),
-                  )
-                : const SizedBox.shrink(),
-          ),
+          if (showTime) _RowTime(at: post.createdAt),
           BounceIcon(
             size: _kBarIcon + 2,
+            extent: _kBarExtent,
             active: post.savedByMe,
             activeIcon: AppIcons.bookmarkRounded,
             icon: AppIcons.bookmarkBorderRounded,
@@ -2710,6 +2742,13 @@ class _Count extends ConsumerWidget {
 
 /// Owner 2026-10-14: Instagram-size icons in the action bar (22).
 const double _kBarIcon = 22;
+
+/// Owner 2026-10-15: the touch area of a bar icon, as in a brief's row.
+const double _kBarExtent = 34;
+
+/// The bar's side padding that puts the first icon's edge on the text's
+/// edge (lg) given [_kBarExtent].
+const double _kBarSide = AppSpacing.lg - (_kBarExtent - _kBarIcon) / 2;
 
 /// A 48x48 action icon that pops (1 → 1.28 → 1) when it turns active.
 class BounceIcon extends StatefulWidget {
@@ -2885,10 +2924,10 @@ class PostDisclaimer extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-12: the small grey date left of Save ("2d", "Mar 14",
-/// "Mar 14, 2024").
-class _ShortDate extends ConsumerWidget {
-  const _ShortDate({required this.at});
+/// Owner 2026-10-15: the time left of Save in every post's action row, grey,
+/// the same as in a brief's row ("1 h ago").
+class _RowTime extends ConsumerWidget {
+  const _RowTime({required this.at});
 
   final DateTime at;
 
@@ -2898,10 +2937,10 @@ class _ShortDate extends ConsumerWidget {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: AppSpacing.xs),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 96),
       child: Text(
-        SocialFormat.shortDate(t, f, at),
+        SocialFormat.ago(t, f, at),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: type.caption.copyWith(color: colors.textSecondary, fontSize: 13),

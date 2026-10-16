@@ -81,6 +81,24 @@ void main() {
           expect(find.text(t.t('post.src.camera')), findsOneWidget);
         });
 
+        // Owner 2026-10-16: after the first photo the Gallery / Camera cards
+        // stay next to the thumbnails (compact), until 9 photos.
+        testWidgets('post form with 1 photo keeps the add cards, $tag',
+            (tester) async {
+          await pump(
+            tester,
+            const CreatePostScreen(debugPhotoCount: 1),
+            theme: theme,
+            scale: scale,
+            dir: dir,
+          );
+          expect(tester.takeException(), isNull);
+          expect(
+              find.byKey(const ValueKey('post-add-gallery')), findsOneWidget);
+          expect(find.byKey(const ValueKey('post-add-camera')), findsOneWidget);
+          expect(find.textContaining('1 / 9'), findsOneWidget);
+        });
+
         testWidgets('case wizard exit sheet, $tag', (tester) async {
           await pump(
             tester,
@@ -91,6 +109,20 @@ void main() {
           );
           expect(tester.takeException(), isNull);
           expect(find.text(t.t('cases.create.exitTitle')), findsOneWidget);
+        });
+
+        testWidgets('post form with 9 photos has no add cards, $tag',
+            (tester) async {
+          await pump(
+            tester,
+            const CreatePostScreen(debugPhotoCount: 9),
+            theme: theme,
+            scale: scale,
+            dir: dir,
+          );
+          expect(tester.takeException(), isNull);
+          expect(find.byKey(const ValueKey('post-add-gallery')), findsNothing);
+          expect(find.textContaining('9 / 9'), findsOneWidget);
         });
 
         testWidgets('video editor, $tag', (tester) async {

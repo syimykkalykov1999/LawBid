@@ -1,4 +1,4 @@
-import { IsIn, IsString } from 'class-validator';
+import { IsIn, IsString, MaxLength } from 'class-validator';
 import { IsIdentifierForChannel } from '../../auth/dto/validators';
 
 export class ContactRequestDto {
@@ -7,5 +7,6 @@ export class ContactRequestDto {
 
   @IsString()
   @IsIdentifierForChannel('type')
+  @MaxLength(254)
   value!: string;
 }

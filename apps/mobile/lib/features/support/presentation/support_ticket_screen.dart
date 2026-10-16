@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 
@@ -210,7 +211,7 @@ class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
                           controller: _text,
                           minLines: 1,
                           maxLines: 5,
-                          maxLength: 4000,
+                          maxLength: TextLimits.of(TextLimit.supportMessage),
                           buildCounter: (
                             _, {
                             required currentLength,

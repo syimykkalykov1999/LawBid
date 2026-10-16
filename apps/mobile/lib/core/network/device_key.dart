@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -27,6 +28,8 @@ abstract final class DeviceKey {
 
   /// Never throws.
   static Future<void> load() async {
+    // A browser has no stable hardware id: no key (the server copes).
+    if (kIsWeb) return;
     try {
       if (Platform.isAndroid) {
         final id = await _channel.invokeMethod<String>('androidId');

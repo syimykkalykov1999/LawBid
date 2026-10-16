@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 
 import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/change_password_screen.dart';
@@ -62,7 +63,10 @@ abstract final class AuthRoutes {
 List<RouteBase> authRoutes() => [
       GoRoute(
         path: AuthRoutes.welcome,
-        builder: (context, state) => const WelcomeScreen(),
+        builder: (context, state) => WebPageFrame(
+          location: state.matchedLocation,
+          child: const WelcomeScreen(),
+        ),
       ),
       // Welcome keeps the platform default transition (not part of the UI
       // modernization pass, 2026-09-27); the rest use LawBid page motion.

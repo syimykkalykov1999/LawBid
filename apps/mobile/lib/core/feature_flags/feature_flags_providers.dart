@@ -5,6 +5,7 @@ import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_api_client.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/feature_flags/semver.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -68,6 +69,8 @@ class FeatureFlagsController extends _$FeatureFlagsController {
         appConfig: result.appConfig,
         legalDocuments: result.legalDocuments,
       );
+      // Owner 2026-10-15: the admin's character limits for text fields.
+      TextLimits.apply(state.appConfig);
       // Owner 2026-10-15: kill switches of the app's own diagnostics.
       AppEvents.enabled = state.flags['app_events'] ?? true;
       CrashReporter.enabled = state.flags['crash_reports'] ?? true;

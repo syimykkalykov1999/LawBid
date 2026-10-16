@@ -108,6 +108,8 @@ const POST_DEFAULT: UploadFormat[] = [
   'jpeg',
   'png',
   'heic',
+  // Owner 2026-10-16: saved web images are often WebP.
+  'webp',
   'pdf',
   'doc',
   'docx',

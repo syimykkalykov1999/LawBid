@@ -355,7 +355,7 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
     if (widget.onRefresh != null) {
       list = RefreshIndicator(
         color: colors.gold,
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         onRefresh: widget.onRefresh!,
         child: list,
       );

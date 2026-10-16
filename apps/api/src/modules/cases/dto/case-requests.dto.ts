@@ -28,6 +28,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { tidy } from '../../../common/utils/tidy-text';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 
 // docs/04_CASES_BIDS.md §3.2.
 export const TITLE_MIN = 10;
@@ -90,14 +91,14 @@ export class CreateCaseDto {
   @Transform(trim)
   @IsString()
   @MinLength(TITLE_MIN)
-  @MaxLength(TITLE_MAX)
+  @MaxTextChars('limits.case_title_chars')
   title!: string;
 
   @ApiProperty({ minLength: DESCRIPTION_MIN, maxLength: DESCRIPTION_MAX })
   @Transform(tidy)
   @IsString()
   @MinLength(DESCRIPTION_MIN)
-  @MaxLength(DESCRIPTION_MAX)
+  @MaxTextChars('limits.case_description_chars')
   description!: string;
 
   @ApiProperty({ pattern: '^[A-Z0-9]{2}$', example: 'NY' })
@@ -221,7 +222,7 @@ export class UpdateCaseDto {
   @Transform(trim)
   @IsString()
   @MinLength(TITLE_MIN)
-  @MaxLength(TITLE_MAX)
+  @MaxTextChars('limits.case_title_chars')
   title?: string;
 
   @ApiPropertyOptional({
@@ -232,7 +233,7 @@ export class UpdateCaseDto {
   @Transform(tidy)
   @IsString()
   @MinLength(DESCRIPTION_MIN)
-  @MaxLength(DESCRIPTION_MAX)
+  @MaxTextChars('limits.case_description_chars')
   description?: string;
 
   @ApiPropertyOptional({

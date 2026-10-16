@@ -1,14 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 
 /// docs/04 §3.2 limits, mirrored client-side for instant feedback (the
 /// server re-validates everything).
 abstract final class CaseLimits {
   static const titleMin = 10;
-  static const titleMax = 120;
+  static int get titleMax => TextLimits.of(TextLimit.caseTitle);
   static const descriptionMin = 30;
-  static const descriptionMax = 5000;
+  static int get descriptionMax => TextLimits.of(TextLimit.caseDescription);
   static const cityMax = 80;
   static const maxAdditionalStates = 2;
   static const budgetMinDollars = 1;

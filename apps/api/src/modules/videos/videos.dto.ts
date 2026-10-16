@@ -123,6 +123,12 @@ export class PostVideoDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   playbackUrl!: string | null;
 
+  /** Owner 2026-10-15 (web): the same video as a plain MP4 (Bunny's «MP4
+   * fallback», 720p). A browser plays it without an HLS library; the phone
+   * apps keep using [playbackUrl]. Null when the library has no MP4 copy. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  fallbackUrl!: string | null;
+
   @ApiPropertyOptional({ type: String, nullable: true })
   thumbnailUrl!: string | null;
 

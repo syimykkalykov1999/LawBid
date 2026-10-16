@@ -66,7 +66,7 @@ describe('DB schema — stage 2.3 acceptance', () => {
     ).rejects.toThrow(/23514/);
   });
 
-  it('enforces bio ≤ 300 and contact note ≤ 200', async () => {
+  it('enforces the outer bio bound (1000; the admin limit lives in app_config) and contact note ≤ 200', async () => {
     const user = await prisma.user.create({ data: { role: 'attorney' } });
     await expect(
       prisma.attorneyProfile.create({
@@ -74,7 +74,7 @@ describe('DB schema — stage 2.3 acceptance', () => {
           user_id: user.id,
           username: 'bio_x',
           username_lower: 'bio_x',
-          bio: 'x'.repeat(301),
+          bio: 'x'.repeat(1001),
         },
       }),
     ).rejects.toThrow(/23514/);

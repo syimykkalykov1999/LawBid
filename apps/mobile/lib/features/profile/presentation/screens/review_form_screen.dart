@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
 import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
 
 /// docs/03 §7.2: review text is optional, up to 1000 characters.
-const kReviewBodyMax = 1000;
+int get kReviewBodyMax => TextLimits.of(TextLimit.review);
 
 /// Review form (docs/03 §7): 1–5 stars (required), text ≤ 1000, the
 /// mandatory notice "A review can't be deleted; you can edit it within 14

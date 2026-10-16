@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="LawBid: post your legal matter, licensed attorneys respond with offers, you choose. Find a lawyer by state and practice area.">
+  <!-- Search engines: the address / and the public pages (scripts/seo) are
+       indexed; every other address of the app answers with an
+       `X-Robots-Tag: noindex` header (infra/modules/web). -->
+  <meta name="theme-color" content="#0A1A3C" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0D1117" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LawBid">
+  <meta property="og:title" content="LawBid: find a licensed lawyer, compare offers">
+  <meta property="og:description" content="Post your legal matter and licensed attorneys in your state respond with offers. You choose.">
+  <meta property="og:image" content="icons/Icon-512.png">
+  <meta name="twitter:card" content="summary">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="LawBid">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>LawBid: find a licensed lawyer, compare offers</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    /* Owner 2026-10-15: something is on screen the moment the page opens,
+       while the app (a few MB) downloads; it goes away with the first frame. */
+    html, body { margin: 0; height: 100%; background: #fff; }
+    #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #fff; z-index: 1; pointer-events: none; transition: opacity .25s; }
+    #boot img { width: 96px; height: 96px; border-radius: 22px; animation: boot-pulse 1.4s ease-in-out infinite; }
+    #boot.gone { opacity: 0; pointer-events: none; }
+    @keyframes boot-pulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.06); opacity: 1; } }
+    @media (prefers-color-scheme: dark) { html, body, #boot { background: #0D1117; } }
+    @media (prefers-reduced-motion: reduce) { #boot img { animation: none; } }
+    /* Text for search engines and readers without the app; not drawn. */
+    #seo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div id="boot"><img src="icons/Icon-192.png" alt="LawBid" width="96" height="96"></div>
+  <main id="seo">
+    <h1>LawBid: find a licensed lawyer and compare offers</h1>
+    <p>Post your legal matter. Licensed attorneys in your state respond with offers, and you choose who to talk to.</p>
+    <nav>
+      <a href="/lawyers/">Find a lawyer by state</a>
+      <a href="/practice-areas/family-law/">Family law</a>
+      <a href="/practice-areas/immigration/">Immigration</a>
+      <a href="/practice-areas/criminal-defense/">Criminal defense</a>
+      <a href="/practice-areas/personal-injury/">Personal injury</a>
+    </nav>
+  </main>
+  <noscript>LawBid needs JavaScript. You can still browse <a href="/lawyers/">lawyers by state and practice area</a>.</noscript>
+  <script>
+    function hideBoot() {
+      var b = document.getElementById('boot');
+      if (!b) return;
+      b.classList.add('gone');
+      setTimeout(function () { b.remove(); }, 400);
+    }
+    window.addEventListener('flutter-first-frame', hideBoot);
+    setTimeout(hideBoot, 30000); // never stays if the event does not come
+  </script>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

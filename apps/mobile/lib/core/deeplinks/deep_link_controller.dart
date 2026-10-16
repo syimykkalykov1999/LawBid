@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
@@ -82,7 +83,8 @@ class DeepLinkController extends Notifier<DeepLink?> {
     final source = ref.read(deepLinkSourceProvider);
     _subscription = source.links.listen(handleUri, onError: (Object _) {});
     try {
-      final initial = await source.initialLink();
+      // Web: the address the tab was opened on is the link.
+      final initial = kIsWeb ? Uri.base : await source.initialLink();
       if (initial != null) handleUri(initial);
     } catch (_) {
       // A malformed launch URI must never break startup.
@@ -91,8 +93,11 @@ class DeepLinkController extends Notifier<DeepLink?> {
 
   /// Parses [uri]; unknown/invalid links are ignored.
   void handleUri(Uri uri) {
-    final link =
-        parseDeepLink(uri, host: ref.read(appEnvironmentProvider).deepLinkHost);
+    final link = parseDeepLink(
+      uri,
+      // Web: the page's own host is the app's link host.
+      host: kIsWeb ? uri.host : ref.read(appEnvironmentProvider).deepLinkHost,
+    );
     if (link == null) return;
     state = link;
     _drain();

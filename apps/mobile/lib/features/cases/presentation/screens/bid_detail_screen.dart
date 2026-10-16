@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -186,7 +187,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
         onRetry: () => ref.invalidate(bidProvider(widget.bidId)),
         builder: (b) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: () async {
             ref.invalidate(bidProvider(widget.bidId));
             await ref.read(bidProvider(widget.bidId).future);
@@ -475,7 +476,7 @@ class _CounterSheet extends StatefulWidget {
 }
 
 class _CounterSheetState extends State<_CounterSheet> {
-  static const _messageMax = 500;
+  static int get _messageMax => TextLimits.of(TextLimit.counterMessage);
   final _amount = TextEditingController();
   final _message = TextEditingController();
 

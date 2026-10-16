@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -538,7 +539,7 @@ class _TaskEditorScreenState extends ConsumerState<TaskEditorScreen> {
                       return;
                     }
                     final now = DateTime.now();
-                    final d = await showDatePicker(
+                    final d = await showAppDatePicker(
                       context: context,
                       initialDate: _due!.isAfter(now) ? _due! : now,
                       firstDate: now,

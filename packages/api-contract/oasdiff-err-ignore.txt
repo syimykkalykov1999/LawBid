@@ -63,3 +63,19 @@ POST /cases/{id}/tasks/{taskId}/done added the new `joint` enum value to the `da
 POST /cases/{id}/tasks/{taskId}/items/{itemId}/done added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
 POST /cases/{id}/tasks/{taskId}/reopen added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
 POST /cases/{id}/tasks/{taskId}/submissions added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+GET /admin/trust/cleared-by for the `query` request parameter `from`, the maxLength was set to `40`
+GET /admin/trust/cleared-by for the `query` request parameter `to`, the maxLength was set to `40`
+GET /admin/trust/staff-decisions for the `query` request parameter `from`, the maxLength was set to `40`
+GET /admin/trust/staff-decisions for the `query` request parameter `to`, the maxLength was set to `40`
+POST /auth/identifiers the `code` request property's maxLength was set to `16`
+POST /auth/identifiers the `idToken` request property's maxLength was set to `4096`
+POST /auth/identifiers the `identifier` request property's maxLength was set to `254`
+POST /auth/identifiers the `nonce` request property's maxLength was set to `256`
+POST /auth/otp/request the `identifier` request property's maxLength was set to `254`
+POST /auth/otp/verify the `identifier` request property's maxLength was set to `254`
+POST /auth/refresh the `refreshToken` request property's maxLength was set to `4096`
+POST /auth/social the `idToken` request property's maxLength was set to `4096`
+POST /auth/social the `nonce` request property's maxLength was set to `256`
+GET /cases/{id}/bids for the `query` request parameter `cursor`, the maxLength was set to `300`
+POST /users/me/contacts/request the `value` request property's maxLength was set to `254`
+POST /users/me/contacts/verify the `value` request property's maxLength was set to `254`

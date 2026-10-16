@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
@@ -53,8 +54,18 @@ class PushService {
     // Owner 2026-10-15: the phone's permission is asked here, whether or not
     // the push SDK is set up in this build.
     unawaited(_ref.read(systemNotificationsProvider).request());
+    // Web: push only when the build carries the Firebase web app's keys.
+    if (kIsWeb && !WebPushConfig.configured) {
+      debugPrint('push: no web keys in this build');
+      _startedFor = null;
+      return;
+    }
     try {
-      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: kIsWeb ? WebPushConfig.options : null,
+        );
+      }
     } on Object catch (e) {
       debugPrint('push disabled: $e');
       _startedFor = null;
@@ -64,9 +75,13 @@ class PushService {
     try {
       // OQ-041: a call pushed while the app is in the background rings
       // through the system call screen.
-      FirebaseMessaging.onBackgroundMessage(lawbidBackgroundMessage);
+      if (!kIsWeb) {
+        FirebaseMessaging.onBackgroundMessage(lawbidBackgroundMessage);
+      }
       await m.requestPermission();
-      final token = await m.getToken();
+      final token = await m.getToken(
+        vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
+      );
       if (token != null) await _register(token);
       _subs
         ..add(m.onTokenRefresh.listen(_register))
@@ -101,7 +116,8 @@ class PushService {
     try {
       await _ref.read(notificationsRepositoryProvider).registerPushToken(
             token,
-            ios: defaultTargetPlatform == TargetPlatform.iOS,
+            ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+            web: kIsWeb,
           );
     } on Object {
       // Next app start registers again.

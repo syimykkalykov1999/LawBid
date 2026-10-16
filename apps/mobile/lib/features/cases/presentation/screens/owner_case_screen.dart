@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -110,7 +111,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
               controller: controller,
               label: t.t('cases.work.disputeReason'),
               // Audit 2026-10-04: 1000, as the API and the lawyer form.
-              maxLength: 1000,
+              maxLength: TextLimits.of(TextLimit.dispute),
               maxLines: 4,
             ),
             const SizedBox(height: AppSpacing.md),
@@ -270,7 +271,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
         onRetry: _refresh,
         builder: (c) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: _OwnerCaseBody(
             kase: c,

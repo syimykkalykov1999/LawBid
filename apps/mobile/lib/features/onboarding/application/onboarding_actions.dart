@@ -14,6 +14,7 @@ import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/domain/profile_input.dart';
+import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Busy/error state of one onboarding screen's primary action.
@@ -71,7 +72,10 @@ class OnboardingActions extends Notifier<StepActionState> {
 
   CurrentUser? get _me => ref.read(currentUserControllerProvider).user;
 
-  Future<bool> _run(Future<CurrentUser?> Function() body) async {
+  Future<bool> _run(
+    Future<CurrentUser?> Function() body, {
+    String Function(CurrentUser user)? destination,
+  }) async {
     if (state.busy) return false;
     state = const StepActionState(busy: true);
     try {
@@ -81,7 +85,7 @@ class OnboardingActions extends Notifier<StepActionState> {
         ref.read(currentUserControllerProvider.notifier).apply(user);
         // Move forward explicitly; the guard alone keeps a user on an
         // already-saved step because going back is allowed.
-        _go(AppRouterGuard.forwardRoute(user));
+        _go(destination?.call(user) ?? AppRouterGuard.forwardRoute(user));
       }
       if (ref.mounted) state = const StepActionState();
       return true;
@@ -120,32 +124,44 @@ class OnboardingActions extends Notifier<StepActionState> {
   }
 
   /// §10.2 H: records every decision (required + optional) as one
-  /// append-only batch, then moves to the role step.
+  /// append-only batch, then moves to the role step (also when the role was
+  /// picked already and the person came back: owner 2026-10-15, they must be
+  /// able to choose again instead of being thrown to the profile).
   Future<bool> saveConsents(
     Map<ConsentType, bool> decisions, {
     Map<ConsentType, String?> documentIds = const {},
   }) =>
-      _run(() async {
-        await _repo.saveConsents([
-          // Only the decisions the screen actually asked for (optional
-          // consents move to Settings, owner decision 2026-09-27).
-          for (final type in decisions.keys)
-            ConsentDecision(
-              type: type,
-              granted: decisions[type] ?? false,
-              documentId: documentIds[type],
-            ),
-        ]);
-        return _repo.saveStep(OnboardingStepId.role);
-      });
+      _run(
+        () async {
+          await _repo.saveConsents([
+            // Only the decisions the screen actually asked for (optional
+            // consents move to Settings, owner decision 2026-09-27).
+            for (final type in decisions.keys)
+              ConsentDecision(
+                type: type,
+                granted: decisions[type] ?? false,
+                documentId: documentIds[type],
+              ),
+          ]);
+          return _repo.saveStep(OnboardingStepId.role);
+        },
+        destination: (user) {
+          final again = user.role != null && !user.onboarding.isCompleted;
+          return again
+              ? OnboardingRoutes.forStep(OnboardingStepId.role)
+              : AppRouterGuard.forwardRoute(user);
+        },
+      );
 
   /// Шаг 2: sets the role once, moves on, then refreshes the access token
   /// so its `role` claim is current (users.controller.ts: "afterwards call
   /// /auth/refresh to get the role claim").
   Future<bool> chooseRole(UserRole role) => _run(() async {
         final current = _me;
-        if (current?.role == null) await _repo.setRole(role);
-        final next = OnboardingStepId.role.nextFor(current?.role ?? role)!;
+        // Owner 2026-10-15: until onboarding is done the role can be chosen
+        // again (the server drops the half-made profile of the other side).
+        if (current?.role != role) await _repo.setRole(role);
+        final next = OnboardingStepId.role.nextFor(role)!;
         final user = await _repo.saveStep(next);
         unawaited(
           ref

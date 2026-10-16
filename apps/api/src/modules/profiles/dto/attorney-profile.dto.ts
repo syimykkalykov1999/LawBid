@@ -13,13 +13,11 @@ import {
 } from 'class-validator';
 import { LicenseStatus, VerificationStatus } from '@prisma/client';
 import { ISO_639_1_CODES } from '../../users/iso-639-1';
-import {
-  BIO_MAX_LENGTH,
-  MAX_LANGUAGES,
-} from '../../users/dto/onboarding-profile.dto';
+import { MAX_LANGUAGES } from '../../users/dto/onboarding-profile.dto';
 import { USERNAME_PATTERN } from '../../users/services/username.util';
 import { SelectedPracticeAreaDto } from './practice-areas.dto';
 import { tidy } from '../../../common/utils/tidy-text';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 
 /** docs/03 §4.1: first/last name 1-50, firm up to 80. */
 export const ATTORNEY_NAME_MAX = 50;
@@ -59,7 +57,7 @@ export class UpdateAttorneyProfileDto {
   @IsOptional()
   @Transform(tidy)
   @IsString()
-  @MaxLength(BIO_MAX_LENGTH)
+  @MaxTextChars('limits.bio_chars')
   bio?: string;
 
   @IsOptional()

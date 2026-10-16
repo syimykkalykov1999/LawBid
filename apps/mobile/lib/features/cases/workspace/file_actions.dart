@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -9,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// What a cached file needs: its id (the name on disk), type and link.
 /// Owner 2026-10-13: a post's document uses the same cache as a case file.
@@ -52,10 +54,12 @@ class CaseFileCache {
         _ => 'bin',
       };
 
+  /// The browser keeps nothing on disk: its own download list does that.
   static Future<bool> isDownloaded(FileRef f) async =>
-      (await _target(f)).existsSync();
+      kIsWeb || (await _target(f)).existsSync();
 
-  static Future<File> download(FileRef f) async {
+  static Future<File?> download(FileRef f) async {
+    if (kIsWeb) return null;
     final file = await _target(f);
     if (file.existsSync()) return file;
     final tmp = File('${file.path}.part');
@@ -73,7 +77,13 @@ class CaseFileCache {
       await showPhotoGallery(context, urls: [f.url], closeLabel: closeLabel);
       return;
     }
+    // A browser opens the link in a new tab (it shows or saves the file).
+    if (kIsWeb) {
+      await launchUrl(Uri.parse(f.url), mode: LaunchMode.externalApplication);
+      return;
+    }
     final file = await download(f);
+    if (file == null) return;
     await SharePlus.instance.share(
       ShareParams(files: [XFile(file.path, mimeType: f.mime)]),
     );
@@ -94,7 +104,7 @@ class FileOpenButton extends ConsumerStatefulWidget {
 }
 
 class _FileOpenButtonState extends ConsumerState<FileOpenButton> {
-  bool? _have;
+  bool? _have = kIsWeb ? true : null;
   bool _busy = false;
 
   @override

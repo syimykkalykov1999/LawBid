@@ -421,4 +421,59 @@ describe('Reels and post documents (e2e, owner 2026-10-05)', () => {
       (byTopic.body.data as { id: string }[]).map((x) => x.id),
     ).not.toContain(g.body.data.id);
   });
+
+  it('9 photos need no right to attach; a document still does (owner 2026-10-16)', async () => {
+    const att = await attorney();
+    const setMode = async (value: string) => {
+      await prisma.appConfig.upsert({
+        where: { key: 'attachments_in_posts' },
+        create: { key: 'attachments_in_posts', value },
+        update: { value },
+      });
+      await app
+        .get<import('ioredis').default>(REDIS_CLIENT)
+        .del('config:app_config');
+    };
+    await setMode('off_for_all');
+    try {
+      const photos: string[] = [];
+      // The formats a browser or a Mac hands over: PNG screenshots, WebP,
+      // JPEG, HEIC (owner 2026-10-16).
+      const formats = ['image/png', 'image/webp', 'image/jpeg', 'image/heic'];
+      for (let i = 0; i < 9; i += 1) {
+        photos.push(await file(att.id, 'post_image', { mime: formats[i % 4] }));
+      }
+      const ok = await post(att.auth, {
+        body: 'Nine photos of the closing day',
+        mediaFileIds: photos,
+      });
+      expect(ok.status).toBe(201);
+      const row = await prisma.post.findUniqueOrThrow({
+        where: { id: ok.body.data.id as string },
+        include: { media: true },
+      });
+      expect(row.media).toHaveLength(9);
+
+      const ten: string[] = [];
+      for (let i = 0; i < 10; i += 1) {
+        ten.push(await file(att.id, 'post_image', { mime: 'image/png' }));
+      }
+      const tenth = await post(att.auth, {
+        body: 'Ten photos is one too many',
+        mediaFileIds: ten,
+      });
+      expect(tenth.status).toBe(409);
+      expect(tenth.body.error.code).toBe('FILES_COUNT_LIMIT');
+
+      const doc = await file(att.id, 'post_attachment');
+      const withDoc = await post(att.auth, {
+        body: 'A photo and a file',
+        mediaFileIds: [ten[0]],
+        attachments: [{ fileId: doc, fileName: 'Checklist.pdf' }],
+      });
+      expect(withDoc.status).toBe(403);
+    } finally {
+      await setMode('on_for_all');
+    }
+  });
 });

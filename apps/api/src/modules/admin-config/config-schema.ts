@@ -1,4 +1,5 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
+import { TEXT_LIMIT_DEFS } from '../../common/app-settings/text-limits';
 import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
 import { ADMIN_AREAS } from '../admin-auth/admin-permissions';
@@ -51,6 +52,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
         max: 10_000_000,
       };
     }
+  }
+  // Owner 2026-10-15: how long each free-text field may be. Whole numbers
+  // inside what the database and the request validators accept.
+  for (const [key, def] of Object.entries(TEXT_LIMIT_DEFS)) {
+    out[key] = {
+      ...out[key],
+      type: 'integer',
+      description: `${def.label}: most characters (${def.min}–${def.max}). The app shows a counter and stops at the same number.`,
+      min: def.min,
+      max: def.max,
+    };
+  }
+  for (const key of ['post.max_chars_media', 'post.max_chars_brief']) {
+    out[key] = { ...out[key], type: 'integer', min: 1, max: 5000 };
   }
   // Owner 2026-10-13: who may add files to posts and reels.
   out['attachments_in_posts'] = {

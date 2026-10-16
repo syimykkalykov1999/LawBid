@@ -54,6 +54,21 @@ variable "api_host" { type = string }
 variable "admin_host" { type = string }
 variable "app_link_base_url" { type = string }
 variable "certificate_arn" { type = string }
+variable "web_host" {
+  type        = string
+  default     = ""
+  description = "Host of the web app (e.g. app.<domain>); empty = only the CloudFront address."
+}
+variable "web_cross_origin_isolation" {
+  type        = bool
+  default     = false
+  description = "COOP/COEP headers on the web app (the engine renders on a worker thread)."
+}
+variable "web_certificate_arn" {
+  type        = string
+  default     = ""
+  description = "ACM certificate for web_host in us-east-1 (CloudFront only reads that region)."
+}
 variable "hosted_zone_id" {
   type    = string
   default = null
@@ -246,6 +261,18 @@ module "s3" {
   tags                = local.tags
 
   cors_allowed_origins = var.s3_cors_allowed_origins
+}
+
+# Owner 2026-10-15: the web version of the app (S3 + CloudFront).
+module "web" {
+  source                 = "../web"
+  name                   = local.name
+  web_host               = var.web_host
+  certificate_arn        = var.web_certificate_arn
+  cross_origin_isolation = var.web_cross_origin_isolation
+  hosted_zone_id         = coalesce(var.hosted_zone_id, "")
+  api_origin             = "https://${var.api_host}"
+  tags                   = local.tags
 }
 
 module "ses" {
@@ -492,6 +519,10 @@ output "alb_dns_name" { value = module.alb.dns_name }
 output "cluster_name" { value = module.ecs.cluster_name }
 output "migrate_task_definition_arn" { value = module.ecs.migrate_task_definition_arn }
 output "media_cdn_domain" { value = module.s3.media_cdn_domain }
+output "web_bucket" { value = module.web.web_bucket }
+output "web_distribution_id" { value = module.web.web_distribution_id }
+output "web_cdn_domain" { value = module.web.web_cdn_domain }
+output "web_deploy_policy_arn" { value = module.web.web_deploy_policy_arn }
 output "secrets_to_fill" { value = sort(keys(module.secrets.arns)) }
 output "ses_dns" {
   value = {

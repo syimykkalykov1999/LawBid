@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
@@ -315,7 +316,7 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
         onRetry: _refresh,
         builder: (c) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: _workspace(context, c, t, formats, colors, pending),
         ),
@@ -679,7 +680,7 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
                 controller: _note,
                 label: t.t('cases.issue.comment'),
                 maxLines: 3,
-                maxLength: 1000,
+                maxLength: TextLimits.of(TextLimit.dispute),
                 textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -752,7 +753,7 @@ class _TextSheetState extends State<_TextSheet> {
               label: widget.label,
               autofocus: true,
               maxLines: 4,
-              maxLength: 1000,
+              maxLength: TextLimits.of(TextLimit.dispute),
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) => setState(() {}),
             ),

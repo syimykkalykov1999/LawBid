@@ -426,8 +426,8 @@ class StaticTranslatorRu extends _MapTranslator {
             'Подписаться можно только на адвоката и не на себя.',
         'error.api.CONVERSATION_NOT_FOUND': 'Этот чат недоступен.',
         'error.api.CONVERSATION_CLOSED': 'Чат закрыт, его можно только читать.',
-        'error.api.MESSAGE_TOO_LONG':
-            'Сообщение слишком длинное (до 2000 символов).',
+        'error.api.MESSAGE_TOO_LONG': 'Сообщение слишком длинное.',
+        'error.api.TEXT_TOO_LONG': 'Текст слишком длинный.',
         'error.api.FEATURE_DISABLED': 'Эта функция пока недоступна.',
         'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD':
             'Аккаунт с этой почтой уже есть. Войдите так, как входили раньше.',
@@ -1481,8 +1481,8 @@ class StaticTranslatorEn extends _MapTranslator {
         'error.api.CONVERSATION_NOT_FOUND': 'This chat is not available.',
         'error.api.CONVERSATION_CLOSED':
             'The chat is closed. You can only read it.',
-        'error.api.MESSAGE_TOO_LONG':
-            'The message is too long (up to 2000 characters).',
+        'error.api.MESSAGE_TOO_LONG': 'The message is too long.',
+        'error.api.TEXT_TOO_LONG': 'The text is too long.',
         'error.api.FEATURE_DISABLED': 'This feature is not available yet.',
         'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD':
             'An account with this e-mail already exists. Sign in the way you did before.',

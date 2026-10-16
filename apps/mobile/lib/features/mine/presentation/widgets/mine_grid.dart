@@ -230,7 +230,7 @@ class MinePagedGrid<T> extends ConsumerWidget {
     final body = switch (value) {
       AsyncData(:final value) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: pull,
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {

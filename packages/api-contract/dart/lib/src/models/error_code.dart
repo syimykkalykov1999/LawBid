@@ -276,6 +276,8 @@ enum ErrorCode {
   conversationClosed('CONVERSATION_CLOSED'),
   @JsonValue('MESSAGE_TOO_LONG')
   messageTooLong('MESSAGE_TOO_LONG'),
+  @JsonValue('TEXT_TOO_LONG')
+  textTooLong('TEXT_TOO_LONG'),
   @JsonValue('FEATURE_DISABLED')
   featureDisabled('FEATURE_DISABLED'),
   @JsonValue('SEARCH_QUERY_TOO_SHORT')

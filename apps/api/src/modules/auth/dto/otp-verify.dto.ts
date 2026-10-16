@@ -4,6 +4,7 @@ import {
   IsString,
   Matches,
   ValidateNested,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsIdentifierForChannel } from './validators';
@@ -15,6 +16,7 @@ export class OtpVerifyDto {
 
   @IsString()
   @IsIdentifierForChannel('channel')
+  @MaxLength(254)
   identifier!: string;
 
   @IsString()

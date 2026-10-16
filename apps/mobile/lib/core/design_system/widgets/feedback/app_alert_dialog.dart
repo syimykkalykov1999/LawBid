@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 
 /// Owner 2026-10-14: every dialog of the app has its buttons centred, as
 /// wide as the dialog and one under another (RTL too) — never pushed to one
@@ -24,30 +25,36 @@ class AppAlertDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: backgroundColor,
-      icon: icon,
-      title: title,
-      content: content,
-      scrollable: scrollable,
-      actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      actions: actions.isEmpty
-          ? null
-          : [
-              SizedBox(
-                width: double.infinity,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final (i, a) in actions.indexed) ...[
-                      if (i > 0) const SizedBox(height: 8),
-                      SizedBox(width: double.infinity, child: a),
+    return ContentColumnFrame(
+      child: AlertDialog(
+        // A see-through colour (Glass's surface) would show the screen behind
+        // the dialog: only a solid one is taken, otherwise the theme's sheet.
+        backgroundColor: backgroundColor != null && backgroundColor!.a < 1
+            ? null
+            : backgroundColor,
+        icon: icon,
+        title: title,
+        content: content,
+        scrollable: scrollable,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        actions: actions.isEmpty
+            ? null
+            : [
+                SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (i, a) in actions.indexed) ...[
+                        if (i > 0) const SizedBox(height: 8),
+                        SizedBox(width: double.infinity, child: a),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+      ),
     );
   }
 }

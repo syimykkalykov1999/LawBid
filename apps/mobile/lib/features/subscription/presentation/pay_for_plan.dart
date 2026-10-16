@@ -43,7 +43,7 @@ Future<SubscribeOutcome> payForPlan(
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         title: Text(t.t('subscription.chargeNow.title')),
         content: Text(t.t('subscription.chargeNow.body', {'price': price})),
         actions: [

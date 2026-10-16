@@ -95,7 +95,7 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppAlertDialog(
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         title: Text(title),
         content: Text(body),
         actions: [
@@ -188,7 +188,7 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
         onRetry: () => ref.invalidate(clientPlanProvider),
         builder: (o) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),

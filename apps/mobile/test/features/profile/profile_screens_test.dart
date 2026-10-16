@@ -818,6 +818,18 @@ void main() {
         ),
         'image/heic',
       );
+      expect(
+        sniffImageMime(
+          Uint8List.fromList(
+            [...'RIFF'.codeUnits, 0, 0, 0, 0, ...'WEBPVP8 '.codeUnits],
+          ),
+        ),
+        'image/webp',
+      );
+      expect(
+        sniffImageMime(Uint8List.fromList('GIF89a'.codeUnits)),
+        'image/gif',
+      );
     });
   });
 

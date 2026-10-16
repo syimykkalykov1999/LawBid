@@ -13,6 +13,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
 
   # State management (file 01 §5.1)
   flutter_riverpod: ^3.4.3
@@ -37,6 +39,8 @@ dependencies:
   # for the refresh token only (see core/session/token_secure_store.dart's
   # doc comment for why it's not in LocalKvStore/SharedPreferences).
   dio: ^5.9.0
+  # Browser file save (core/platform/web_download_web.dart).
+  web: ^1.1.0
   flutter_secure_storage: ^9.2.4
 
   # Social login (Phase 3 of the auth networking work, docs/CHANGELOG.md):
@@ -187,3 +191,9 @@ dependency_overrides:
   # was never updated for analyzer's Element -> Element2 migration and cannot build against any
   # analyzer version the current Dart SDK accepts. 3.x/4.x generations fix this. No overrides
   # needed after the bump; keeping this file present as a documented marker.
+
+  # Owner 2026-10-15 (web): the published flutter_secure_storage_web (dart:html)
+  # does not compile to WebAssembly. This local copy (package:web) is used by
+  # the web build only; Android and iOS never load it.
+  flutter_secure_storage_web:
+    path: third_party/flutter_secure_storage_web
